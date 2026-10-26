@@ -11,8 +11,13 @@ public interface IConnectionRequests
 
     [DigitalBrain.ReadOnlyCall] Task<ConnectionRef[]> ListPending();
 
-    // Keyed by the current brain. Describes existing connections without opening credentials.
+    // Keyed by the current brain. Describes existing connections without opening credentials, in the brain's Settings order
+    // (ConnectionSummary.Order): the order the capability broker resolves storage connections in (05-07, R4-02).
     [DigitalBrain.ReadOnlyCall] Task<ConnectionSummary[]> ListConnections();
+
+    // Persists the brain's connection order: the listed keys first, in that order; connections not listed keep their relative
+    // order after them, and new connections are appended. Unknown keys are ignored.
+    Task Reorder(string[] keys);
 
     Task<ConnectionRef> Request(string kind);
 
@@ -36,8 +41,13 @@ public sealed record ConnectionSummary(
     [property: Id(4)] string? Account,
     [property: Id(5)] DateTimeOffset? LastProbedAt)
 {
-    // The capability kinds its connector declares; callers discover storage connections by "storage".
-    [Id(6)] public string[] Capabilities { get; init; } = [];
+    // Id(6) was the 0.6 string Capabilities (connector-declared kinds); retired by 05-07, never reused (SAFE-01 clean break).
+
+    // The capability ids ("storage@1") the connection's module provides (its ModuleManifest.Provides) and its neuron implements.
+    [Id(7)] public string[] Provides { get; init; } = [];
+
+    // The connection's position in the brain's Settings order, from 0; new connections are appended.
+    [Id(8)] public int Order { get; init; }
 }
 
 [DigitalBrain.Signal("integrations.account-requested")]

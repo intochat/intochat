@@ -18,7 +18,7 @@ internal sealed class WindowsConnectionState : ConnectionState
 [DigitalBrain.Neuron("windows", State = "windows")]
 internal sealed class WindowsNeuron(
     IMachineIdentity identity)
-    : ConnectionNeuron<WindowsConnectionState>, IWindows, IStorage
+    : ConnectionNeuron<WindowsConnectionState>, IWindows, ILegacyStorage
 {
     public Task<WindowsFacts> Facts() => Task.FromResult(new WindowsFacts(
         identity.Id, Environment.MachineName, Environment.OSVersion.VersionString, Environment.ProcessorCount,

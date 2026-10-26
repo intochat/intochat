@@ -37,6 +37,33 @@ public sealed class ConnectionNeuronFacts
 
     private static string Key(Person person, string id = "one") => ConnectionKeys.For(person.BrainId, "example", id);
 
+    // 05-07: connections list in the brain's Settings order (Order), new ones appended; Reorder persists a new order; Provides is
+    // the module's ModuleManifest.Provides (the example module provides nothing).
+    [Fact]
+    public async Task ConnectionsListInSettingsOrderAndReorderPersists()
+    {
+        await using var brain = await Start();
+        using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
+        using var caller = alice.AsCaller();
+        var catalog = brain.Get<IConnectionRequests>(IConnectionRequests.Key(alice.BrainId));
+        await brain.Get<IConnection>(Key(alice, "one")).Connect("api-key", "value-1");
+        await brain.Get<IConnection>(Key(alice, "two")).Connect("api-key", "value-2");
+
+        var listed = await catalog.ListConnections();
+        Assert.Equal([0, 1], listed.Select(row => row.Order));
+        Assert.All(listed, row => Assert.Empty(row.Provides));
+        var first = listed[0].Neuron;
+        var second = listed[1].Neuron;
+
+        await catalog.Reorder([second, "unknown/connection/example/x"]);
+        var reordered = await catalog.ListConnections();
+        Assert.Equal([second, first], reordered.Select(row => row.Neuron));
+        Assert.Equal([0, 1], reordered.Select(row => row.Order));
+
+        await brain.Get<IConnection>(Key(alice, "three")).Connect("api-key", "value-3");
+        Assert.Equal([second, first, Key(alice, "three")], (await catalog.ListConnections()).Select(row => row.Neuron));
+    }
+
     private static Task<ITestBrain> Start() => TestBrain.Create().WithModule<ExampleConnectionModule>().StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]

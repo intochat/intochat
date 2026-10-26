@@ -13,8 +13,7 @@ public sealed record ConnectorDefinition(string Id, string DisplayName, string[]
     public Type[] Signals { get; init; } = [];
     public OAuthMethod[] OAuthMethods { get; init; } = [];
 
-    // Capability kinds every connection of this connector offers, such as IStorage.Capability.
-    public string[] Capabilities { get; init; } = [];
+    // What a connection offers is its module's ModuleManifest.Provides (05-07, R4-01); a connector declares no capabilities.
 
     // A module declares its connectors as a static Connector or Connectors member.
     public static ConnectorDefinition[] DeclaredBy(Type module)

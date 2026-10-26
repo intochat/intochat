@@ -31,9 +31,8 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
 
     public static ConnectorDefinition Connector { get; } = new("windows", "Windows", ["device"], [])
     {
-        Neurons = [typeof(IWindows), typeof(IStorage), typeof(IFileSystem), typeof(IConsole)],
+        Neurons = [typeof(IWindows), typeof(ILegacyStorage), typeof(IFileSystem), typeof(IConsole)],
         Signals = [typeof(FileWritten)],
-        Capabilities = [IStorage.Capability],
     };
 
     public override Assembly? Contracts => typeof(IWindows).Assembly;
@@ -77,7 +76,7 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
 public sealed class WindowsNeurons : DigitalBrain.Module
 {
     public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
+        Provides: [DigitalBrain.Capabilities.Capability.Storage.V1],
         Requires: [],
         Needs: [],
         Settings: [DigitalBrain.Setting.Of<WindowsOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(WindowsModule.ManifestName))],

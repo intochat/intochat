@@ -7,14 +7,14 @@ using Orleans.Hosting;
 namespace IntoChat.OS.Modules.Apps.Tests;
 
 // Two connection kinds a slot can bind, each with a pasted credential that probes connected, except the credential
-// "fixture-value-expired", which probes expired. Drive declares the storage capability, as the Windows and Google
+// "fixture-value-expired", which probes expired. Drive's module provides storage@1, as the Windows and Google
 // Drive modules do.
 public sealed class FixtureConnectorsModule() : Module(new ModuleId("fixture-connectors"))
 {
     public static ConnectorDefinition[] Connectors =>
     [
         new("mailbox", "Mailbox", ["api-key"], []) { Neurons = [typeof(IFixtureMailbox)] },
-        new("drive", "Drive", ["api-key"], []) { Neurons = [typeof(IFixtureDrive)], Capabilities = ["storage"] },
+        new("drive", "Drive", ["api-key"], []) { Neurons = [typeof(IFixtureDrive)] },
     ];
 
     public override Type? Neurons => typeof(FixtureConnectorNeurons);
@@ -24,7 +24,7 @@ public sealed class FixtureConnectorsModule() : Module(new ModuleId("fixture-con
 public interface IFixtureMailbox { Task<string> Kind(); }
 
 [DigitalBrain.Contracts.NeuronAlias("fixture.drive"), DigitalBrain.Contracts.DefaultNeuronType("drive")]
-public interface IFixtureDrive : IntoChat.OS.Integrations.IStorage { Task<string> Kind(); }
+public interface IFixtureDrive : IntoChat.OS.Integrations.ILegacyStorage { Task<string> Kind(); }
 
 [GenerateSerializer, Alias("fixture.connection.state")]
 public sealed class FixtureConnectionState : ConnectionState { }
@@ -57,5 +57,6 @@ internal sealed class FixtureDriveNeuron()
 [DigitalBrain.Module("fixture-connectors")]
 public sealed class FixtureConnectorNeurons : DigitalBrain.Module
 {
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
+    // storage@1 reaches only the drive connection: the mailbox neuron implements no storage binding (05-07).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [DigitalBrain.Capabilities.Capability.Storage.V1], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

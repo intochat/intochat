@@ -2,16 +2,14 @@ using System.ComponentModel;
 
 namespace IntoChat.OS.Integrations;
 
-// The storage capability: a connection that offers it declares IStorage.Capability in its
-// connector's Capabilities, and its connection neuron (keyed by the connection key) implements
-// IStorage. Locations are opaque to callers: a Windows path, a Drive file id. The empty location
-// is the storage itself, whose children are Roots. Each connector enforces its own confinement.
+// The 0.6 storage contract (D-03), kept until Files moves to storage@1 in Phase 7: a connection whose module provides
+// storage@1 (ModuleManifest.Provides) and whose neuron implements only this contract is reached by storage@1 callers through
+// LegacyStorageAdapter. Locations are opaque to callers: a Windows path, a Drive file id. The empty location is the storage
+// itself, whose children are Roots. Each module enforces its own confinement.
 // A plain contract every storage connection implements (06-08): the connection key names its neuron type.
 [DigitalBrain.Contracts.NeuronAlias("storage"), IntoChat.OS.Runtime.ConnectionContract]
-public interface IStorage
+public interface ILegacyStorage
 {
-    const string Capability = "storage";
-
     [Description("The top-level folders this storage offers.")]
     Task<StorageEntry[]> Roots(CancellationToken cancellationToken = default);
 

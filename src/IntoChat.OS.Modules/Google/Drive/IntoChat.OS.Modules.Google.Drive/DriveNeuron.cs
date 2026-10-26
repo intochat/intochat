@@ -21,7 +21,7 @@ internal sealed class DriveState : ConnectionState;
 // Google documents are exported as plain text; other Google formats are not text.
 [DigitalBrain.Neuron(DriveScopes.Connector, State = "google-drive")]
 internal sealed class DriveNeuron()
-    : ConnectionNeuron<DriveState>, IStorage
+    : ConnectionNeuron<DriveState>, ILegacyStorage
 {
     private const string Root = "root";
     private const string RootName = "My Drive";

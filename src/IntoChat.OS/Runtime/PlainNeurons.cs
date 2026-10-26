@@ -15,7 +15,7 @@ public static class PlainNeuronContracts
             && (type.IsDefined(typeof(DefaultNeuronTypeAttribute), inherit: false) || IsConnection(type));
     }
 
-    // A contract every connection neuron may implement (IConnection, IStorage; 06-08, R4-21(2)): it names no neuron type, the
+    // A contract every connection neuron may implement (IConnection, ILegacyStorage; 06-08, R4-21(2)): it names no neuron type, the
     // connection key "{brain}/connection/{connector}/{id}" does.
     public static bool IsConnection(Type type)
     {

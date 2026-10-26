@@ -19,7 +19,7 @@
   "IntoChat.OS.Aspire.Server/ServerHostingExtensions.cs": 1,
   "IntoChat.OS.Authority.Contracts/ConnectionRef.cs": 1,
   "IntoChat.OS.Authority.Contracts/IConnectionRequests.cs": 3,
-  "IntoChat.OS.Authority.Contracts/IStorage.cs": 1,
+  "IntoChat.OS.Authority.Contracts/ILegacyStorage.cs": 1,
   "IntoChat.OS.Authority.Tests.Integration/AccountingRecoveryFacts.cs": 3,
   "IntoChat.OS.Authority.Tests.Integration/Connections/ConnectionNeuronFacts.cs": 1,
   "IntoChat.OS.Authority.Tests.Integration/Connections/ExampleConnectionModule.cs": 3,

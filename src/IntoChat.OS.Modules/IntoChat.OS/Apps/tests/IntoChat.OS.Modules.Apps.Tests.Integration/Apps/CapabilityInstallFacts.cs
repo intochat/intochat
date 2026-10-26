@@ -172,7 +172,7 @@ public sealed class CapabilityInstallFacts
     public void OnlyAConnectedConnectionWhoseModuleDeclaresTheCapabilitySatisfiesIt()
     {
         static ConnectionSummary Summary(string status, params string[] capabilities)
-            => new("drive", "home", "key", status, null, null) { Capabilities = capabilities };
+            => new("drive", "home", "key", status, null, null) { Provides = capabilities };
         Assert.True(ConnectedModuleSatisfaction.Satisfies([Summary("connected", "storage")], "storage@1"));
         Assert.True(ConnectedModuleSatisfaction.Satisfies([Summary("connected", "storage@1")], "storage@1"));
         Assert.False(ConnectedModuleSatisfaction.Satisfies([Summary("connected", "storage")], "storage@2"));

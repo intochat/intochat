@@ -8,7 +8,7 @@ main. The `open` operation returns the listing to Storages. Each storage connect
 explicitly with its kind and status, then its roots (a PC's allowed folders, My Drive), then the
 selected folder's contents. Modules without the capability do not imply file support.
 
-Every storage is reached through the same IStorage neuron on its connection key, with the same
+Every storage is reached through the same ILegacyStorage neuron on its connection key, with the same
 operations: roots, list, read text and breadcrumb ancestors. Each storage enforces its own
 confinement; a Windows PC refuses anything outside its allowed roots. Breadcrumbs come from the
 storage's own ancestors, so they navigate only through the chosen storage's hierarchy. A name

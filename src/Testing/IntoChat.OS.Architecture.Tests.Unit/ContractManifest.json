@@ -162,7 +162,7 @@
     "IntoChat.OS.IRetainsSignals": "brain.retained-signals (not generated); ",
     "IntoChat.OS.Instance": "kernel.instance; Type=0, Key=1, Created=2, Creator=3",
     "IntoChat.OS.Integrations.ConnectionRef": "integrations.account-ref; Kind=0, Id=1",
-    "IntoChat.OS.Integrations.ConnectionSummary": "integrations.connection-summary; Kind=0, Id=1, Neuron=2, Status=3, Account=4, LastProbedAt=5, Capabilities=6",
+    "IntoChat.OS.Integrations.ConnectionSummary": "integrations.connection-summary; Kind=0, Id=1, Neuron=2, Status=3, Account=4, LastProbedAt=5, Provides=7, Order=8",
     "IntoChat.OS.Integrations.ConnectorKind": "integrations.kind; Id=0, DisplayName=1",
     "IntoChat.OS.Integrations.ConnectorOffer": "integrations.connector-offer; Id=0, DisplayName=1, Available=2, Connected=3",
     "IntoChat.OS.Integrations.StorageEntry": "storage.entry; Location=0, Name=1, IsFolder=2",

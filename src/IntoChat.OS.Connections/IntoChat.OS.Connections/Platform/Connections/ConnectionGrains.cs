@@ -57,17 +57,35 @@ public static class ConnectionGrains
 }
 
 // The neuron types of the hosted connection neurons (06-08): every [Neuron] class of the composed DigitalBrain modules that is a
-// connection. Its type is the connector id its keys name.
+// connection. Its type is the connector id its keys name. Each carries the capabilities its module's ModuleManifest provides (05-07).
 public sealed class ConnectionNeuronTypes
 {
-    public ConnectionNeuronTypes(IEnumerable<System.Reflection.Assembly> assemblies)
+    private readonly Dictionary<string, (Type Neuron, IReadOnlyList<DigitalBrain.Capabilities.CapabilityId> Provides)> _connectors = new(StringComparer.Ordinal);
+
+    public ConnectionNeuronTypes(IEnumerable<Type> modules)
     {
-        ArgumentNullException.ThrowIfNull(assemblies);
-        Types = assemblies.Distinct().SelectMany(static assembly => assembly.GetTypes())
-            .Where(static type => type is { IsClass: true, IsAbstract: false } && typeof(IConnection).IsAssignableFrom(type))
-            .Select(static type => System.Reflection.CustomAttributeExtensions.GetCustomAttribute<DigitalBrain.NeuronAttribute>(type)?.Type)
-            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+        ArgumentNullException.ThrowIfNull(modules);
+        foreach (var module in modules.Distinct())
+        {
+            var provides = DigitalBrain.ModuleManifest.Of(module).Provides;
+            foreach (var type in module.Assembly.GetTypes())
+            {
+                if (type is not { IsClass: true, IsAbstract: false } || !typeof(IConnection).IsAssignableFrom(type)) { continue; }
+                if (System.Reflection.CustomAttributeExtensions.GetCustomAttribute<DigitalBrain.NeuronAttribute>(type)?.Type is not { } connector) { continue; }
+                // Two modules in one assembly see the same neuron classes: the first module that provides something wins.
+                if (!_connectors.TryGetValue(connector, out var known) || (known.Provides.Count == 0 && provides.Count > 0))
+                { _connectors[connector] = (type, provides); }
+            }
+        }
+        Types = _connectors.Keys.ToHashSet(StringComparer.Ordinal);
     }
 
     public IReadOnlySet<string> Types { get; }
+
+    // The [Neuron] class serving connector, or null when none is hosted.
+    public Type? NeuronOf(string connector) => _connectors.TryGetValue(connector, out var entry) ? entry.Neuron : null;
+
+    // The capabilities the module of connector's neuron provides (its ModuleManifest.Provides); empty when none is hosted.
+    public IReadOnlyList<DigitalBrain.Capabilities.CapabilityId> ProvidesOf(string connector)
+        => _connectors.TryGetValue(connector, out var entry) ? entry.Provides : [];
 }

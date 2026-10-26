@@ -12,6 +12,9 @@ public sealed class ConnectionRequestsState
 {
     public ConnectionRef[] Pending { get; set; } = [];
     public long Revision { get; set; }
+
+    // The brain's connection order (Settings order) by connection key; connections not listed follow in index order (05-07).
+    public string[] Order { get; set; } = [];
 }
 
 // Script-facing connection requests: a script asks for a connector kind; the user connects it.
@@ -28,7 +31,7 @@ internal sealed class ConnectionRequestsNeuron(
     {
         if (ConnectionKeys.Parse(connectionKey).BrainId != BrainId)
         { throw new ArgumentException("The connection belongs to another brain.", nameof(connectionKey)); }
-        var next = new ConnectionRequestsState { Pending = State.Pending, Revision = State.Revision + 1 };
+        var next = new ConnectionRequestsState { Pending = State.Pending, Revision = State.Revision + 1, Order = State.Order };
         return Save(next, new ConnectionsChanged(next.Revision));
     }
 
@@ -41,16 +44,46 @@ internal sealed class ConnectionRequestsNeuron(
     {
         var result = new List<ConnectionSummary>();
         var plain = Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
-        foreach (var key in await Get<IConnectionIndex>(IConnectionIndex.Id(BrainId)).List())
+        foreach (var key in Ordered(await Get<IConnectionIndex>(IConnectionIndex.Id(BrainId)).List()))
         {
             var identity = ConnectionKeys.Parse(key);
-            if (connectors.FirstOrDefault(connector => connector.Id == identity.ConnectorId) is not { } declared) { continue; }
+            if (!connectors.Any(connector => connector.Id == identity.ConnectorId)) { continue; }
             var connection = await plain.GetConnection(key).Read();
             result.Add(new(connection.ConnectorId, connection.ConnectionId, key,
                 connection.Status.ToString().ToLowerInvariant(), connection.Account, connection.LastProbedAt)
-            { Capabilities = [.. declared.Capabilities] });
+            { Provides = Provides(identity.ConnectorId), Order = result.Count });
         }
         return [.. result];
+    }
+
+    public async Task Reorder(string[] keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        var known = (await Get<IConnectionIndex>(IConnectionIndex.Id(BrainId)).List()).ToHashSet(StringComparer.Ordinal);
+        var listed = keys.Where(known.Contains).Distinct(StringComparer.Ordinal).ToList();
+        var order = listed.Concat(Ordered(known).Where(key => !listed.Contains(key, StringComparer.Ordinal))).ToArray();
+        if (order.SequenceEqual(State.Order, StringComparer.Ordinal)) { return; }
+        var next = new ConnectionRequestsState { Pending = State.Pending, Revision = State.Revision + 1, Order = order };
+        await Save(next, new ConnectionsChanged(next.Revision));
+    }
+
+    // Settings order: the stored order first, then every other key in index order (new connections are appended).
+    private IEnumerable<string> Ordered(IEnumerable<string> keys)
+    {
+        var all = keys.ToList();
+        var present = all.ToHashSet(StringComparer.Ordinal);
+        return State.Order.Where(present.Contains).Concat(all.Where(key => !State.Order.Contains(key, StringComparer.Ordinal))).Distinct(StringComparer.Ordinal);
+    }
+
+    // What the connection offers: its module's ModuleManifest.Provides, kept only where the connector's neuron implements the
+    // capability's contract or an accepted binding (a module serving two connectors provides through the one that implements it).
+    private string[] Provides(string connector)
+    {
+        if (Context.Services.GetService<ConnectionNeuronTypes>() is not { } hosted || hosted.NeuronOf(connector) is not { } neuron) { return []; }
+        var registry = Context.Services.GetService<DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistry>();
+        return [.. hosted.ProvidesOf(connector)
+            .Where(capability => registry?.BindingsOf(capability) is not { Count: > 0 } bindings || bindings.Any(binding => binding.IsAssignableFrom(neuron)))
+            .Select(capability => capability.ToString())];
     }
 
     public async Task<ConnectionRef> Request(string kind)
@@ -63,7 +96,7 @@ internal sealed class ConnectionRequestsNeuron(
         }
 
         var account = new ConnectionRef(id, Guid.NewGuid().ToString("n"));
-        var next = new ConnectionRequestsState { Pending = [.. State.Pending, account], Revision = State.Revision };
+        var next = new ConnectionRequestsState { Pending = [.. State.Pending, account], Revision = State.Revision, Order = State.Order };
         await Save(next, new ConnectionRequested(account.Kind, account.Id));
         return account;
     }

@@ -33,9 +33,6 @@ internal static class ConnectorDiscovery
                 if (!connector.RequiredIntegrations.Concat(connector.OptionalIntegrations).Contains(method.IntegrationId, StringComparer.Ordinal))
                 { throw new InvalidOperationException($"Connector '{connector.Id}' OAuth method '{method.Id}' names an undeclared Integration '{method.IntegrationId}'."); }
             }
-            if (connector.Capabilities.Contains(IStorage.Capability, StringComparer.Ordinal)
-                && !connector.Neurons.Any(typeof(IStorage).IsAssignableFrom))
-            { throw new InvalidOperationException($"Connector '{connector.Id}' declares storage but lists no IStorage neuron."); }
             foreach (var id in connector.RequiredIntegrations.Concat(connector.OptionalIntegrations))
             {
                 if (!schemas.Any(s => s.Id == id))

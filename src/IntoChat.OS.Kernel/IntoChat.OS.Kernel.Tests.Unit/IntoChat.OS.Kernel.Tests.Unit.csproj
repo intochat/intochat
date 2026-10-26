@@ -32,9 +32,21 @@
     <Compile Include="../../../features/os/Apps/AppsNames.cs" Link="Features/AppsNames.cs" />
     <Compile Include="../../../features/os/Apps/AppsView.cs" Link="Features/AppsView.cs" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <!-- CapabilityKitCoverageFacts reads the kit subclasses of every module providing a capability from its own tests/ (D-06).
+         Built first, copied to kits/ (not referenced: the catalog discovers IntoChat.OS.Modules.*.dll beside the tests). -->
+    <KitTestProject Include="../../IntoChat.OS.Modules/Google/Drive/tests/IntoChat.OS.Modules.Google.Drive.Tests.Integration/IntoChat.OS.Modules.Google.Drive.Tests.Integration.csproj" />
+    <KitTestProject Include="../../IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj" />
+    <ProjectReference Include="@(KitTestProject)" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
     <Using Include="IntoChat.OS.Kernel.Testing" />
     <ProjectReference Include="../../IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" IsAspireProjectResource="false" Aliases="AppHost" />
   </ItemGroup>
+  <Target Name="CopyKitTests" AfterTargets="Build">
+    <MSBuild Projects="@(KitTestProject)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="KitTestAssembly" />
+    </MSBuild>
+    <Copy SourceFiles="@(KitTestAssembly)" DestinationFolder="$(OutDir)kits" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

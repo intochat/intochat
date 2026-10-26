@@ -23,9 +23,9 @@ public sealed class DriveStorageFacts(DriveHost host)
         Assert.Equal("user@gmail.com", view.Account);
 
         var connection = Assert.Single(await brain.Get<IConnectionRequests>(IConnectionRequests.Key(person.BrainId)).ListConnections(), item => item.Neuron == key);
-        Assert.Contains(IStorage.Capability, connection.Capabilities);
+        Assert.Equal(["storage@1"], connection.Provides);
 
-        var storage = brain.Get<IStorage>(key);
+        var storage = brain.Get<ILegacyStorage>(key);
         var root = Assert.Single(await storage.Roots(ct));
         var top = await storage.List(root.Location, ct);
         Assert.Equal([("Notes", true), ("Plan", false)], top.Select(entry => (entry.Name, entry.IsFolder)));
@@ -60,6 +60,6 @@ public sealed class DriveStorageFacts(DriveHost host)
         using var caller = person.AsCaller();
         await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), DriveScopes.Read, null, "{}"));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IStorage>(key).Read("notes", ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<ILegacyStorage>(key).Read("notes", ct));
     }
 }

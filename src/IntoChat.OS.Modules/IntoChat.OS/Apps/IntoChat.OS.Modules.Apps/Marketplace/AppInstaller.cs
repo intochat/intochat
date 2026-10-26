@@ -123,7 +123,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
             if (manifest.Slots.FirstOrDefault(slot => slot.Name == slotName) is not { } slot)
             { return $"This app has no connection named {slotName}."; }
             if (!connections.Any(connection => connection.Id == id && connection.Status == "connected"
-                && (slot.Capability is { } capability ? AppCapabilities.Satisfies(connection.Capabilities, capability) : connection.Kind == slot.Connector)))
+                && (slot.Capability is { } capability ? AppCapabilities.Satisfies(connection.Provides, capability) : connection.Kind == slot.Connector)))
             { return $"Choose a {slot.Binds} connection for {slot.Name}."; }
         }
         return null;
