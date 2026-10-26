@@ -15,14 +15,12 @@ public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("g
 {
     internal const string ManifestName = "github";
 
-    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
-    // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<GitHubModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(GitHubModule.ManifestName))],
-        Secrets: []);
+    // R4-04: what the module needs from its host (GitHubNeurons). The repository connection is still a grain (the connection
+    // base, 06-06d); its registrations stay in Configure until the Framework leaves (06-08).
+    public static DigitalBrain.ModuleManifest Manifest => GitHubNeurons.Manifest;
+
+    // The installation index is a plain neuron (06-06d) in the system brain.
+    public override Type? Neurons => typeof(GitHubNeurons);
 
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.GitHub.IRepository).Assembly;
 
@@ -55,4 +53,16 @@ public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("g
         builder.Services.AddHttpClient(GitHubUserAccess.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
     }
+}
+
+// The DigitalBrain module of GitHub (06-06d): its assembly's [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module(GitHubModule.ManifestName)]
+public sealed class GitHubNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<GitHubModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(GitHubModule.ManifestName))],
+        Secrets: []);
 }

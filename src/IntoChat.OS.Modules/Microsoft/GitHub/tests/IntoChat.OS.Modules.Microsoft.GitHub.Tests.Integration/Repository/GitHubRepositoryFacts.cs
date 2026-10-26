@@ -42,6 +42,10 @@ public sealed class GitHubRepositoryFacts
 
     private static IGrainFactory Grains(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
 
+    // The installation index is a plain neuron in the system brain (06-06d).
+    private static IGitHubRepositoryIndex Index(ITestBrain brain, long installation)
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(installation));
+
     private static GitHubWebhookIngress Ingress(ITestBrain brain) => brain.Services.GetRequiredService<GitHubWebhookIngress>();
 
     private static byte[] PullRequestOpened(int number) => System.Text.Encoding.UTF8.GetBytes(
@@ -57,7 +61,7 @@ public sealed class GitHubRepositoryFacts
         await ConnectAsync(brain);
         Assert.True((await brain.Get<IRepository>(Key).Read()).Connected);
         Assert.Equal("intochat/intochat-os", (await connected.NextAsync(ct: ct)).Account);
-        Assert.Equal([Key], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Equal([Key], await Index(brain, 9).Read());
     }
 
     [Trait("host", "own")]
@@ -129,7 +133,7 @@ public sealed class GitHubRepositoryFacts
         await Assert.ThrowsAsync<GitHubAccessDeniedException>(() => brain.Get<IRepository>(Key).ReadPullRequests());
         Assert.Equal([Key], verifier.Forgotten);
         // The index keeps the key; the status alone keeps deliveries away from a revoked connection.
-        Assert.Equal([Key], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Equal([Key], await Index(brain, 9).Read());
         var delivery = PullRequestOpened(1);
         Assert.Equal(GitHubWebhookAcceptance.Ignored, await Ingress(brain).HandleAsync(delivery, Headers(delivery, "pull_request", WebhookSecret), ct));
     }
@@ -166,7 +170,7 @@ public sealed class GitHubRepositoryFacts
         {
             await brain.Get<IConnection>(Key).Disconnect();
         }
-        Assert.Empty(await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Empty(await Index(brain, 9).Read());
         Assert.Equal([Key], verifier.Forgotten);
     }
 
@@ -178,7 +182,7 @@ public sealed class GitHubRepositoryFacts
         await using var brain = await StartAsync(ct, new DenyingSource(Key));
         await ConnectAsync(brain);
         var otherKey = await ConnectAsync(brain, await brain.PersonAsync("other", ct));
-        Assert.Equal([Key, otherKey], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Equal([Key, otherKey], await Index(brain, 9).Read());
         await using var failing = await brain.Observe<ConnectionFailing>(brain.Get<IRepository>(Key), ct);
         await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(otherKey), ct);
         var body = PullRequestOpened(3);

@@ -6,7 +6,7 @@ using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 
-internal sealed class GitHubWebhookIngress(IGrainFactory grains, GitHubAppRegistration registration)
+internal sealed class GitHubWebhookIngress(IGrainFactory grains, GitHubAppRegistration registration, IntoChat.OS.Runtime.IPlainNeurons plain)
 {
     public async Task<GitHubWebhookAcceptance> HandleAsync(ReadOnlyMemory<byte> body,
         IReadOnlyDictionary<string, string[]> headers, CancellationToken cancellationToken)
@@ -50,7 +50,7 @@ internal sealed class GitHubWebhookIngress(IGrainFactory grains, GitHubAppRegist
             var hash = Convert.ToHexStringLower(SHA256.HashData(body.Span));
             var results = new List<GitHubWebhookAcceptance>();
             // Every connection of every brain on this installation; one target's failure never stops the rest.
-            foreach (var key in await grains.GetGrain<IGitHubRepositoryIndex>($"installation/{installation}").Read())
+            foreach (var key in await plain.Get<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(installation.Value)).Read())
             {
                 using var activity = GitHubTelemetry.Source.StartActivity("github.webhook.accept", ActivityKind.Producer);
                 try

@@ -411,7 +411,6 @@
   "IntoChat.OS.Modules.Microsoft.GitHub/GitHubExceptions.cs": 2,
   "IntoChat.OS.Modules.Microsoft.GitHub/GitHubModule.cs": 1,
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/GitHubRepository.cs": 1,
-  "IntoChat.OS.Modules.Microsoft.GitHub/Repository/GitHubRepositoryIndex.cs": 5,
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/GitHubRepositoryNeuron.cs": 3,
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/GitHubRepositoryState.cs": 1,
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/IGitHubInbound.cs": 3,

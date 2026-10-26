@@ -100,7 +100,6 @@
   "IntoChat.OS.Modules.Microsoft.CSharp/Runtime/IBrainRuntimeEdge.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp/Runtime/IBrainRuntimeSession.cs": 1,
   "IntoChat.OS.Modules.Microsoft.GitHub.Contracts/Repository/IRepository.cs": 1,
-  "IntoChat.OS.Modules.Microsoft.GitHub/Repository/GitHubRepositoryIndex.cs": 1,
   "IntoChat.OS.Modules.Microsoft.GitHub/Repository/IGitHubInbound.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Orleans.Contracts/ICluster.cs": 1,
   "IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/TpmRestartFacts.cs": 1,

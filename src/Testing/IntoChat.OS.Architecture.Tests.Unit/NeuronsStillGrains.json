@@ -114,7 +114,6 @@
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.Pinger",
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.RetainingSource",
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.SlowRetainer",
-  "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryIndex",
   "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryNeuron",
   "IntoChat.OS.Modules.Microsoft.Orleans.Cluster.ClusterNeuron",
   "IntoChat.OS.Modules.Microsoft.Windows.ConsoleNeuron",
