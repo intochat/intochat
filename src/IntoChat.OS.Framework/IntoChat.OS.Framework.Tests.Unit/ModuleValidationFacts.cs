@@ -147,6 +147,5 @@ public sealed class ModuleValidationFacts
 
     public sealed class CountingModule() : Module<CountingOptions>(new("checked"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 }

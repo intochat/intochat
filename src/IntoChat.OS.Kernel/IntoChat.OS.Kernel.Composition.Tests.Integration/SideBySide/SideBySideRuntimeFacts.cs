@@ -83,7 +83,6 @@ public sealed class SideBySideRuntimeFacts
     {
         public IReadOnlyList<ITopologyProfile> TopologyProfiles { get; } = [new Profile()];
 
-        public override void Configure(ISiloBuilder silo) { }
 
         private sealed class Profile : ITopologyProfile
         {

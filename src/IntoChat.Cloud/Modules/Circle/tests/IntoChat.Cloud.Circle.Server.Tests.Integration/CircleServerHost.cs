@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -21,10 +22,10 @@ public sealed class CircleServerHostModule() : OS.Framework.Modules.Module(new M
 {
     private readonly CircleServerModule _server = new();
 
-    public override void Configure(ISiloBuilder silo)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        _server.ConfigureServices(silo.Services);
+        ArgumentNullException.ThrowIfNull(services);
+        _server.ConfigureServices(services);
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

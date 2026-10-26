@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Configuration;
@@ -25,8 +26,8 @@ public sealed class TimeModule() : Module<TimeModuleOptions>(new ModuleId(Module
 
     // Transitional until Configure leaves with the Framework (06-08): test and local development may accelerate reminders;
     // production keeps the host default. The runtime's host grains register reminders under these options.
-    public override void Configure(ISiloBuilder silo)
-        => silo.Services.AddOptions<global::Orleans.Hosting.ReminderOptions>().Configure<IOptions<TimeModuleOptions>>((options, module) =>
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+        => services.AddOptions<global::Orleans.Hosting.ReminderOptions>().Configure<IOptions<TimeModuleOptions>>((options, module) =>
         {
             if (module.Value.MinimumReminderPeriod is { } period && period > TimeSpan.Zero) { options.MinimumReminderPeriod = period; }
         });

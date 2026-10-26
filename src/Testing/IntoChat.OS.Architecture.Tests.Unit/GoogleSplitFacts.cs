@@ -68,10 +68,9 @@ public sealed class GoogleSplitFacts
 
     private static ServiceProvider Compose(params IntoChat.OS.Framework.Modules.Module[] modules)
     {
-        var silo = new Silo(new ServiceCollection(), new ConfigurationBuilder().Build());
-        foreach (var module in modules) { module.Configure(silo); }
-        return silo.Services.BuildServiceProvider();
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+        foreach (var module in modules) { module.ConfigureServices(services, configuration); }
+        return services.BuildServiceProvider();
     }
-
-    private sealed record Silo(IServiceCollection Services, IConfiguration Configuration) : ISiloBuilder;
 }

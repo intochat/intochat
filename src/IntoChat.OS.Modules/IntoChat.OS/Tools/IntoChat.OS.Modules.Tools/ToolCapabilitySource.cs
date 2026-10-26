@@ -7,14 +7,12 @@ namespace IntoChat.OS.Modules.Tools;
 // A brain's tools as capabilities: every existing instance of a kernel neuron type that is a tool
 // source, asked for its live tools, each one bound to its source's key and called as Run(tool, arguments).
 // Lists are clipped so one misbehaving source cannot flood search.
-public sealed class ToolCapabilitySource(IGrainFactory grains, IKernelView kernel, IntoChat.OS.Runtime.IPlainNeurons? plain = null) : IRuntimeCapabilitySource
+public sealed class ToolCapabilitySource(IKernelView kernel, IntoChat.OS.Runtime.IPlainNeurons? plain = null) : IRuntimeCapabilitySource
 {
     internal const int MaxTools = 200;
     internal const int MaxDescription = 1000;
-    // A still-legacy source is a neuron contract deriving ILegacyToolSource (R4-21(6)) and is reached as that grain; a plain
-    // source is a plain contract deriving IToolSource (06-06d), listed by the kernel's instance directory and reached through
+    // A source is a plain contract deriving IToolSource (06-06d), listed by the kernel's instance directory and reached through
     // the plain-neuron seam. The kernel's Implements names neuron contracts only, so the plain contract is resolved by name.
-    private static readonly string ToolSource = typeof(ILegacyToolSource).FullName!;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Type?> PlainSources = new(StringComparer.Ordinal);
 
     public async Task<IReadOnlyList<NeuronType>> Read(string brainId, CancellationToken ct)
@@ -24,16 +22,15 @@ public sealed class ToolCapabilitySource(IGrainFactory grains, IKernelView kerne
         List<NeuronType> capabilities = [];
         foreach (var source in (await kernel.Types(ct)).Where(type => type.Kind == TypeKind.Neuron))
         {
-            var legacy = source.Implements.Contains(ToolSource, StringComparer.Ordinal);
-            var contract = legacy || plain is null ? null : PlainSourceOf(source.Name);
-            if (!legacy && contract is null) { continue; }
+            var contract = plain is null ? null : PlainSourceOf(source.Name);
+            if (contract is null) { continue; }
             await foreach (var instance in kernel.Instances(source.Alias, ct))
             {
                 ToolSet set;
                 // One source that cannot answer drops out of search; the others stay.
                 try
                 {
-                    var tools = contract is null ? grains.GetGrain<ILegacyToolSource>(GrainId.Create(instance.Type, instance.Key)) : (IToolSource)plain!.Get(contract, instance.Key);
+                    var tools = (IToolSource)plain!.Get(contract, instance.Key);
                     set = await tools.Tools(ct).WaitAsync(ct);
                 }
                 catch (Exception error) when (error is not OperationCanceledException) { continue; }

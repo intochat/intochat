@@ -56,39 +56,39 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         Signals = [typeof(CSharpFileChanged)],
     };
 
-    public override void Configure(ISiloBuilder builder)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp");
+        ArgumentNullException.ThrowIfNull(services);
+        var options = configuration.GetModuleOptions<CSharpOptions>("csharp");
         var authoring = options.Authoring;
-        builder.Services.TryAddSingleton<CSharpToolService>();
-        builder.Services.TryAddSingleton<IntoChat.OS.Modules.Apps.IScriptSandbox, CSharpScriptSandbox>();
-        builder.Services.TryAddSingleton(TimeProvider.System);
-        builder.Services.TryAddSingleton<SessionTokens>();
-        builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<SessionTokens>());
-        builder.Services.TryAddSingleton<CSharpContractDiscovery>();
-        builder.Services.TryAddSingleton(new BoundedCache<string, CompiledBehavior>(CSharpScriptCheck.CacheCapacity, StringComparer.Ordinal));
-        builder.Services.TryAddSingleton<CSharpScriptCheck>();
-        builder.Services.TryAddSingleton<IBehaviorAssemblies>(provider =>
+        services.TryAddSingleton<CSharpToolService>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Apps.IScriptSandbox, CSharpScriptSandbox>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<SessionTokens>();
+        services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<SessionTokens>());
+        services.TryAddSingleton<CSharpContractDiscovery>();
+        services.TryAddSingleton(new BoundedCache<string, CompiledBehavior>(CSharpScriptCheck.CacheCapacity, StringComparer.Ordinal));
+        services.TryAddSingleton<CSharpScriptCheck>();
+        services.TryAddSingleton<IBehaviorAssemblies>(provider =>
             provider.GetKeyedService<BlobServiceClient>(IntoChatOSNames.GrainState) is { } storage
                 ? new BlobBehaviorAssemblies(storage) : new MemoryBehaviorAssemblies());
         // The session pool authenticates with the deployment's identity; the local container needs none.
         if (!string.IsNullOrWhiteSpace(options.SessionPoolEndpoint))
-        { builder.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
-        builder.Services.AddHttpClient<SessionRunner>();
-        builder.Services.TryAddSingleton<SessionStreams>();
-        builder.Services.TryAddKeyedSingleton<IHostApplicationLifetime>(typeof(CSharpModule),
+        { services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
+        services.AddHttpClient<SessionRunner>();
+        services.TryAddSingleton<SessionStreams>();
+        services.TryAddKeyedSingleton<IHostApplicationLifetime>(typeof(CSharpModule),
             (services, _) => services.GetRequiredService<IHostApplicationLifetime>());
-        builder.Services.TryAddSingleton<DeferredRuntimeStarts>();
-        builder.Services.AddHostedService(services => services.GetRequiredService<DeferredRuntimeStarts>());
-        builder.Services.TryAddSingleton<RuntimeDirectory>();
-        builder.Services.TryAddSingleton<IWorkContinuation, RuntimeWorkContinuation>();
-        builder.Services.TryAddTransient<RuntimeEdge>();
-        builder.AddIncomingGrainCallFilter<BrainRunsGuard>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Framework.Modules.Platform.Identity.ISignInHandler, RuntimeSignIn>());
+        services.TryAddSingleton<DeferredRuntimeStarts>();
+        services.AddHostedService(services => services.GetRequiredService<DeferredRuntimeStarts>());
+        services.TryAddSingleton<RuntimeDirectory>();
+        services.TryAddSingleton<IWorkContinuation, RuntimeWorkContinuation>();
+        services.TryAddTransient<RuntimeEdge>();
+        services.AddSingleton<IIncomingGrainCallFilter, BrainRunsGuard>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Framework.Modules.Platform.Identity.ISignInHandler, RuntimeSignIn>());
         if (authoring)
         {
-            builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));
+            services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));
         }
     }
 

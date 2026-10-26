@@ -36,10 +36,9 @@ public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new Mod
 
     public const string DriverProviderName = "ClickHouse";
 
-    public override void Configure(ISiloBuilder builder)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        var services = builder.Services;
+        ArgumentNullException.ThrowIfNull(services);
         services.AddOptions<ClickHouseModuleOptions>()
             .Validate(static options => string.Equals(options.Provider, DriverProviderName, StringComparison.OrdinalIgnoreCase),
                 "ClickHouse requires the module option Provider=ClickHouse.");

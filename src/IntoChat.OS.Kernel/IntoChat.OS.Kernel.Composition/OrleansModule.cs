@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
@@ -29,7 +31,7 @@ public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId(Orlean
     // The wiring lives in the kernel composition (06-02); this module keeps the legacy cluster neuron until 06-03.
     public IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles => IntoChat.OS.Kernel.Composition.OrleansHostWiring.TopologyProfiles;
 
-    public override void Configure(ISiloBuilder silo) => IntoChat.OS.Kernel.Composition.OrleansHostWiring.Configure(silo);
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => IntoChat.OS.Kernel.Composition.OrleansHostWiring.ConfigureServices(services);
 }
 
 // The DigitalBrain module of the kernel composition's plain neurons (06-08): the cluster neuron.

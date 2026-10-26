@@ -72,7 +72,6 @@ public sealed class ModuleOptionsStartupFacts
 
     public sealed class CheckedModule() : Module<CheckedOptions>(new("startup"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     public sealed class CheckedOptions : IModuleOptions

@@ -20,15 +20,11 @@ public sealed class FakeGoogleModule() : Module(new ModuleId(nameof(FakeGoogleMo
         .RequiresSecret("ClientId")
         .RequiresSecret("ClientSecret")
         .RequiresSetting("RedirectPath");
-
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 public sealed class FakeRivalGoogleModule() : Module(new ModuleId(nameof(FakeRivalGoogleModule)))
 {
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("google", "Rival Google");
-
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 public sealed class FakeAiModule() : Module(new ModuleId(nameof(FakeAiModule)))
@@ -38,8 +34,6 @@ public sealed class FakeAiModule() : Module(new ModuleId(nameof(FakeAiModule)))
         IntegrationSchema.For("openai", "OpenAI").RequiresSecret("ApiKey"),
         IntegrationSchema.For("anthropic", "Anthropic").RequiresSecret("ApiKey"),
     ];
-
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 [Trait("host", "own")]

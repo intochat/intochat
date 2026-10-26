@@ -374,7 +374,6 @@
   "IntoChat.OS.Modules.Time.Tests.Integration/LocalRestartFacts.cs": 1,
   "IntoChat.OS.Modules.Time.Tests.Integration/Reminders/ReminderFacts.cs": 2,
   "IntoChat.OS.Modules.Time.Tests.Integration/Reminders/ReminderTestSupport.cs": 3,
-  "IntoChat.OS.Modules.Tools.Contracts/Tools/IToolSource.cs": 2,
   "IntoChat.OS.Modules.Tools.Contracts/Tools/ToolDescriptor.cs": 4,
   "IntoChat.OS.Testing.Aspire/AspireTestSession.cs": 1,
   "IntoChat.OS.Testing.Tests.Integration/TestBrainLicenseFacts.cs": 1,

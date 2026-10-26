@@ -48,12 +48,10 @@ public sealed class ModuleOptionsBindingFacts
 
     private sealed class BoundModule() : Module<RequiredOptions>(new ModuleId("req"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     private sealed class PlainModule() : Module(new ModuleId("plain"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     private static ServiceProvider Host(Module module, params (string Key, string Value)[] pairs)

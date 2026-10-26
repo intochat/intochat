@@ -21,11 +21,9 @@ namespace IntoChat.OS.Framework.Tests.Integration;
 
 public sealed class CompositionBoundaryFacts
 {
-    private sealed class SampleModule() : Module(new ModuleId("sample"))
-    { public override void Configure(ISiloBuilder silo) { } }
+    private sealed class SampleModule() : Module(new ModuleId("sample"));
 
-    private sealed class BoundaryModule() : Module(new ModuleId("module"))
-    { public override void Configure(ISiloBuilder silo) { } }
+    private sealed class BoundaryModule() : Module(new ModuleId("module"));
 
     [Fact]
     public void TwoBrainsHaveDistinctResourcesAndModuleNodes()
@@ -98,18 +96,18 @@ public sealed class CompositionBoundaryFacts
     private sealed class AModule() : Module(new ModuleId("a"))
     {
         public int SiloConfigurations { get; private set; }
-        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => SiloConfigurations++;
     }
     private sealed class UnusedModule() : Module(new ModuleId("unused"))
     {
         public int SiloConfigurations { get; private set; }
-        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => SiloConfigurations++;
     }
     public sealed class StatefulModule() : Module(new ModuleId("stateful")), IHttpModule
     {
         public int SiloConfigurations { get; private set; }
         public int HttpConfigurations { get; private set; }
-        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => SiloConfigurations++;
         public void Configure(IEndpointRouteBuilder endpoints) => HttpConfigurations++;
     }
 }

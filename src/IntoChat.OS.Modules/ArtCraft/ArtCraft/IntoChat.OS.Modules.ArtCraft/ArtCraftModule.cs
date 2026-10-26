@@ -17,7 +17,6 @@ public sealed class ArtCraftModule() : Module<ArtCraftModuleOptions>(new ModuleI
     public override System.Reflection.Assembly? Contracts => typeof(IArtCraftStudio).Assembly;
 
     // The studio neuron reads its options; the apps themselves run as containers the hosting adds.
-    public override void Configure(ISiloBuilder silo) => ArgumentNullException.ThrowIfNull(silo);
 }
 
 // The DigitalBrain module of ArtCraft (06-06a): its assembly's [Neuron] classes run on the runtime's host grains, on TestOS and on

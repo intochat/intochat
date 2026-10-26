@@ -25,7 +25,6 @@ public sealed class ModuleOptionsFacts
 
     private sealed class FakeModule() : Module<FakeOptions>(new(nameof(FakeModule)))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     [Fact]

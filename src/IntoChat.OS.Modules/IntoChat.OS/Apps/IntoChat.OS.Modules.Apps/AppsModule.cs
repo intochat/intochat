@@ -26,23 +26,24 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
     // 06-08: the module's plain neurons (apps, the feature reconciler, the studio, the store); the marketplace is still a grain.
     public override Type? Neurons => typeof(AppsNeurons);
 
-    public override void Configure(ISiloBuilder silo)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton(TimeProvider.System);
-        silo.AddIncomingGrainCallFilter<MarketplaceWriteGuard>();
-        silo.Services.TryAddSingleton(FeatureCatalog.From);
-        silo.Services.TryAddSingleton<FeatureLoader>();
-        silo.Services.TryAddSingleton<MarketplaceView>();
-        silo.Services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
-        silo.Services.TryAddSingleton<AppInstaller>();
-        silo.Services.TryAddSingleton<AppWorkQueue>();
-        silo.Services.TryAddSingleton<AppAuthoringPolicy>();
-        silo.Services.TryAddSingleton<Creator>();
-        silo.Services.TryAddSingleton(ReactionExamples.Create);
-        silo.Services.TryAddSingleton<ReactionWriter>();
-        silo.AddStartupTask<FeatureBoot>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<IIncomingGrainCallFilter, MarketplaceWriteGuard>();
+        services.TryAddSingleton(FeatureCatalog.From);
+        services.TryAddSingleton<FeatureLoader>();
+        services.TryAddSingleton<MarketplaceView>();
+        services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
+        services.TryAddSingleton<AppInstaller>();
+        services.TryAddSingleton<AppWorkQueue>();
+        services.TryAddSingleton<AppAuthoringPolicy>();
+        services.TryAddSingleton<Creator>();
+        services.TryAddSingleton(ReactionExamples.Create);
+        services.TryAddSingleton<ReactionWriter>();
+        // FeatureBoot runs once the silo is active, as an Orleans startup task did.
+        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FeatureBootLifecycle>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

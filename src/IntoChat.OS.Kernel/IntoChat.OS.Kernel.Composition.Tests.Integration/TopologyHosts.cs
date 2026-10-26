@@ -46,7 +46,5 @@ internal static class TopologyHosts
     {
         public IReadOnlyList<ITopologyProfile> TopologyProfiles { get; } =
             [new CloudProfile((configuration, _) => configuration.AddInMemoryCollection(new Dictionary<string, string?>()))];
-
-        public override void Configure(ISiloBuilder silo) { }
     }
 }

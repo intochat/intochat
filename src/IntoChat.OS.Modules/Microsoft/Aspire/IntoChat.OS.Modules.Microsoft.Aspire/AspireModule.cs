@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -44,13 +45,13 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
         Signals = [typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
     };
 
-    public override void Configure(ISiloBuilder builder)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.TryAddSingleton<Candidates.IProcessRunner, Candidates.SystemProcessRunner>();
-        builder.Services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
-        builder.Services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
-        builder.Services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<Candidates.IProcessRunner, Candidates.SystemProcessRunner>();
+        services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
+        services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
+        services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
     }
 }
 

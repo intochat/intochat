@@ -249,12 +249,10 @@ public sealed class ModuleDeploymentFacts
 
     public sealed class OrphanModule() : Module(new ModuleId("orphan"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     private sealed class HostModule() : Module(new ModuleId("host"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     public sealed class OrphanDeployment : ModuleDeployment<OrphanModule>

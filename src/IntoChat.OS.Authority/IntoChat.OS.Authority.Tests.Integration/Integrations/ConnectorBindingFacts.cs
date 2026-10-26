@@ -84,7 +84,6 @@ public sealed class ConnectorBindingFacts
     {
         public static IntegrationSchema Integration => IntegrationSchema.For("infrastructure", "Infrastructure");
         public static IntegrationSchema[] Integrations => [IntegrationSchema.For("additional", "Additional")];
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     [Fact]
@@ -113,7 +112,6 @@ public sealed class ConnectorBindingFacts
     {
         public static IntegrationSchema Integration => IntegrationSchema.For("example", "Example").RequiresSecret("ApiKey").RequiresSetting("Endpoint");
         public static ConnectorDefinition Connector => new("example", "Example", ["api-key"], ["example"]);
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     [Fact]

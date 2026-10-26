@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Reflection;
 using System.Runtime.Versioning;
 using IntoChat.OS.Contracts.Configuration;
@@ -39,16 +40,16 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
 
     public void Configure(IEndpointRouteBuilder endpoints) => WindowsEndpoints.Map(endpoints);
 
-    public override void Configure(ISiloBuilder silo)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton<MachineIdentity>();
-        silo.Services.TryAddSingleton<IMachineIdentity>(provider => provider.GetRequiredService<MachineIdentity>());
-        silo.Services.TryAddSingleton(MachineKeyStore);
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<MachineIdentity>();
+        services.TryAddSingleton<IMachineIdentity>(provider => provider.GetRequiredService<MachineIdentity>());
+        services.TryAddSingleton(MachineKeyStore);
         if (OperatingSystem.IsWindows()
-            && Enum.TryParse<MasterKeyCustodyKind>(HostConfiguration.HostKey(silo.Configuration, IntoChatOSNames.CustodyConfigurationKey), ignoreCase: true, out var custody)
+            && Enum.TryParse<MasterKeyCustodyKind>(HostConfiguration.HostKey(configuration, IntoChatOSNames.CustodyConfigurationKey), ignoreCase: true, out var custody)
             && custody == MasterKeyCustodyKind.Tpm)
-        { UseTpmCustody(silo.Services); }
+        { UseTpmCustody(services); }
     }
 
     // TPM custody when the provider can make keys; otherwise the master-key-sealed file next to the machine-id file,

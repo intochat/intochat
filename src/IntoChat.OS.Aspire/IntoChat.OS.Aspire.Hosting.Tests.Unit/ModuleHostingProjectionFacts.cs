@@ -21,7 +21,6 @@ public sealed class ModuleHostingProjectionFacts
         public static IntegrationSchema Integration { get; } = IntegrationSchema.For("projection-sample", "Projection sample")
             .RequiresSecret("ApiKey").RequiresSecret("ClientSecret").OffersSecret("Token").RequiresSetting("Region");
 
-        public override void Configure(Orleans.Hosting.ISiloBuilder silo) { }
     }
 
     private sealed class SampleHosting : ModuleHosting<SampleModule>;

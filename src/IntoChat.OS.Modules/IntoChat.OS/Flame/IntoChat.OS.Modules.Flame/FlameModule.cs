@@ -20,7 +20,6 @@ public sealed class FlameModule() : Module(new ModuleId(ModuleName)), IHttpModul
 
     public override System.Reflection.Assembly? Contracts => typeof(Scene.IScene).Assembly;
 
-    public override void Configure(ISiloBuilder silo) => ArgumentNullException.ThrowIfNull(silo);
 
     public void Configure(IEndpointRouteBuilder endpoints) => FlameEndpoints.Map(endpoints);
 }

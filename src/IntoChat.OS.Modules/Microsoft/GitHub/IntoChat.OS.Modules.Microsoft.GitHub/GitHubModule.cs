@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -40,17 +41,17 @@ public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("g
         OAuthMethods = [new("oauth", "https://github.com/login/oauth/authorize", "https://github.com/login/oauth/access_token", [], "github", "ClientId", "ClientSecret")],
     };
 
-    public override void Configure(ISiloBuilder builder)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.AddSingleton<GitHubAppRegistration>();
-        builder.Services.AddSingleton<GitHubInstallationTokens>();
-        builder.Services.AddSingleton<IGitHubInstallationVerifier>(services => services.GetRequiredService<GitHubInstallationTokens>());
-        builder.Services.AddSingleton<IGitHubRepositorySource, GitHubRepositorySource>();
-        builder.Services.AddSingleton<IGitHubUserAccess, GitHubUserAccess>();
-        builder.Services.AddSingleton<GitHubWebhookIngress>();
-        builder.Services.AddSingleton<IHttpSurface, GitHubWebhookSurface>();
-        builder.Services.AddHttpClient(GitHubUserAccess.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddSingleton<GitHubAppRegistration>();
+        services.AddSingleton<GitHubInstallationTokens>();
+        services.AddSingleton<IGitHubInstallationVerifier>(services => services.GetRequiredService<GitHubInstallationTokens>());
+        services.AddSingleton<IGitHubRepositorySource, GitHubRepositorySource>();
+        services.AddSingleton<IGitHubUserAccess, GitHubUserAccess>();
+        services.AddSingleton<GitHubWebhookIngress>();
+        services.AddSingleton<IHttpSurface, GitHubWebhookSurface>();
+        services.AddHttpClient(GitHubUserAccess.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
     }
 }

@@ -16,7 +16,6 @@ public sealed class McpModule() : Module(new ModuleId("mcp"))
     public override System.Reflection.Assembly? Contracts => typeof(IMcpServer).Assembly;
 
     // The neuron opens its own client per call; the module needs no silo services.
-    public override void Configure(ISiloBuilder silo) => ArgumentNullException.ThrowIfNull(silo);
 }
 
 // The DigitalBrain module of Mcp (06-06d): its assembly's [Neuron] classes run on the runtime's host grains.

@@ -18,7 +18,6 @@ public sealed class FixtureConnectorsModule() : Module(new ModuleId("fixture-con
     ];
 
     public override Type? Neurons => typeof(FixtureConnectorNeurons);
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 [DigitalBrain.Contracts.NeuronAlias("fixture.mailbox"), DigitalBrain.Contracts.DefaultNeuronType("mailbox")]

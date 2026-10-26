@@ -6,13 +6,11 @@ namespace IntoChat.OS.Framework.Tests.Integration;
 public sealed class ModuleFacts
 {
     private sealed class ExampleOptions : IModuleOptions { public void Validate() { } }
-    private sealed class ExampleModule() : Module<ExampleOptions>(new("example"))
-    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+    private sealed class ExampleModule() : Module<ExampleOptions>(new("example"));
 
     private sealed class DeclaringModule() : Module(new("declaring"))
     {
         public override System.Reflection.Assembly? Contracts => typeof(ModuleFacts).Assembly;
-        public override void Configure(Orleans.Hosting.ISiloBuilder silo) { }
     }
 
     [Fact]

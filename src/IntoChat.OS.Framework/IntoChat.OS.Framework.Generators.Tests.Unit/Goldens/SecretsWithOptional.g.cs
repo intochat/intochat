@@ -10,10 +10,10 @@ partial class VendorModule
 
     public static global::IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema Integration { get; } = global::IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema.For("vendor", "Vendor \"Cloud\"").RequiresSecret("ApiKey").OffersSecret("Token").RequiresSetting("Endpoint");
 
-    public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)
+    public override void ConfigureServices(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
-        global::System.ArgumentNullException.ThrowIfNull(silo);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
+        global::System.ArgumentNullException.ThrowIfNull(services);
+        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(services, configuration, Id));
     }
 
     partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);

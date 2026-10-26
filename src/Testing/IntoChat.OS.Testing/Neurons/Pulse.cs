@@ -10,8 +10,6 @@ public sealed class PulseModule() : IntoChat.OS.Framework.Modules.Module(new Int
     public override System.Reflection.Assembly? Contracts => typeof(IPulse).Assembly;
 
     public override Type? Neurons => typeof(PulseNeurons);
-
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 // The DigitalBrain module of the pulse neuron.

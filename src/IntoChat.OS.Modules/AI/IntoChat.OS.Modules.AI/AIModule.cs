@@ -43,12 +43,11 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
     // The migrated AI neurons (06-05) run as plain neurons on the runtime's host grains.
     public override Type? Neurons => typeof(AINeurons);
 
-    public override void Configure(ISiloBuilder builder)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(services);
 
-        var services = builder.Services;
-        var options = AIOptionsRuntime.Read(builder.Configuration);
+        var options = AIOptionsRuntime.Read(configuration);
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();

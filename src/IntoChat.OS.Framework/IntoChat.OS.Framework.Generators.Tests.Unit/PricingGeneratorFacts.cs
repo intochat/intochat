@@ -51,7 +51,7 @@ public sealed class PricingGeneratorFacts
         var assembly = Assembly.Load(bytes.ToArray());
         var module = (IntoChat.OS.Framework.Modules.Module)Activator.CreateInstance(assembly.GetType("PricingFixture.PricedModule")!)!;
         var services = new ServiceCollection();
-        module.Configure(new Silo(services));
+        module.ConfigureServices(services, new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
         using var provider = services.BuildServiceProvider();
         var registration = Assert.Single(provider.GetServices<ModulePriceListRegistration>());
         Assert.Equal("priced", registration.ModuleId);
@@ -161,11 +161,5 @@ public sealed class PricingGeneratorFacts
         var result = GeneratorHarness.CreateDriver().RunGenerators(GeneratorHarness.Compile(Header + "\n" + body), TestContext.Current.CancellationToken).GetRunResult();
         Assert.Single(result.Diagnostics, diagnostic => diagnostic.Id == id && diagnostic.Severity == DiagnosticSeverity.Error);
         Assert.Empty(result.GeneratedTrees);
-    }
-
-    private sealed class Silo(IServiceCollection services) : ISiloBuilder
-    {
-        public IServiceCollection Services { get; } = services;
-        public IConfiguration Configuration { get; } = new ConfigurationBuilder().Build();
     }
 }

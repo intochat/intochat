@@ -23,8 +23,7 @@
   "IntoChat.OS.Framework/Modules/Identity/Accounts.cs": 1,
   "IntoChat.OS.Framework/Runtime/Kernel/KernelGrains.cs": 4,
   "IntoChat.OS.Modules.Apps/Authoring/CreatorModelWorker.cs": 1,
-  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit/DiscoveryFixture.cs": 4,
-  "IntoChat.OS.Modules.Tools.Contracts/Tools/IToolSource.cs": 1,
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit/DiscoveryFixture.cs": 2,
   "IntoChat.OS/Neurons/INeuron.cs": 1,
   "IntoChat.OS/Neurons/IRetainsSignals.cs": 1
 }

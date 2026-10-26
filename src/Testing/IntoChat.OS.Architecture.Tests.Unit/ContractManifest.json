@@ -50,8 +50,7 @@
     "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory",
     "IntoChat.OS.INeuron": "kernel.neuron",
     "IntoChat.OS.IRetainsSignals": "brain.retained-signals",
-    "IntoChat.OS.Modules.Apps.ICreatorModel": "apps.creator-model",
-    "IntoChat.OS.Modules.Tools.ILegacyToolSource": "tools.source"
+    "IntoChat.OS.Modules.Apps.ICreatorModel": "apps.creator-model"
   },
   "Contracts": {
     "IntoChat.OS.Authority.Compute.BrainComputeState": "compute.brain-state; Calls=0, Outbox=1, Sequence=2, Traces=3",
@@ -605,7 +604,6 @@
     "IntoChat.OS.Modules.Salesforce.SalesforceUserInfo": "salesforce.user-info; Content=0",
     "IntoChat.OS.Modules.Salesforce.SalesforceWritePreview": "salesforce.write-preview; PreviewId=0, Tool=1, ToolSchemaHash=2, Arguments=3, ExpiresAt=4, RecordId=5",
     "IntoChat.OS.Modules.Salesforce.SoqlQuery": "salesforce.soql-query; Query=0",
-    "IntoChat.OS.Modules.Tools.ILegacyToolSource": "tools.source (not generated); ",
     "IntoChat.OS.Modules.Tools.ToolBlob": "tools.blob; MediaType=0, Data=1, Uri=2",
     "IntoChat.OS.Modules.Tools.ToolDescriptor": "tools.descriptor; Name=0, Title=1, Description=2, InputSchema=3, ReadOnly=4",
     "IntoChat.OS.Modules.Tools.ToolResult": "tools.result; IsError=0, Text=1, Blobs=2",

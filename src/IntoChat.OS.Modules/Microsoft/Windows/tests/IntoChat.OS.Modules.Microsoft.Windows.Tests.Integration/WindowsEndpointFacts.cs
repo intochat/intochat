@@ -94,7 +94,6 @@ public sealed class OtherStorageModule() : Module(new ModuleId("other-storage"))
 {
     public static ConnectorDefinition Connector => new("other-storage", "Other storage", ["api-key"], []) { Neurons = [typeof(IOtherStorage)] };
     public override Type? Neurons => typeof(OtherStorageNeurons);
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 [DigitalBrain.Contracts.NeuronAlias("other-storage"), DigitalBrain.Contracts.DefaultNeuronType("other-storage")]

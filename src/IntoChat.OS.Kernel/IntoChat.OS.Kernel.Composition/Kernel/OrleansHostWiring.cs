@@ -1,4 +1,3 @@
-using global::Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
@@ -16,10 +15,10 @@ public static class OrleansHostWiring
     public static IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles { get; } =
         [DigitalBrain.Runtime.Orleans.Azure.CloudTopologyExtensions.AddCloudTopology()];
 
-    public static void Configure(ISiloBuilder silo)
+    public static void ConfigureServices(IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        if (CloudStorage.IsCloud(silo.Services)) { CloudStorage.Configure(silo); }
-        silo.Services.TryAddSingleton<IClusterMembershipFeed, ClusterMembershipFeed>();
+        ArgumentNullException.ThrowIfNull(services);
+        if (CloudStorage.IsCloud(services)) { CloudStorage.ConfigureServices(services); }
+        services.TryAddSingleton<IClusterMembershipFeed, ClusterMembershipFeed>();
     }
 }

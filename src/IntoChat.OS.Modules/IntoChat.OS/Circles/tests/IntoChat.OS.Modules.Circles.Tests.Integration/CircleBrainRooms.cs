@@ -134,7 +134,6 @@ public sealed class SharedConnectorModule() : Module(new ModuleId(CircleBrainRoo
     { Neurons = [typeof(IShared)], OAuthMethods = [new("oauth", "https://shared.test/authorize", "https://shared.test/token", [], "shared-oauth")] };
     public static IntegrationSchema Integration => IntegrationSchema.For("shared-oauth", "Shared OAuth");
     public override Type? Neurons => typeof(SharedConnectorNeurons);
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 [DigitalBrain.Contracts.NeuronAlias("shared"), DigitalBrain.Contracts.DefaultNeuronType("shared")]

@@ -22,7 +22,6 @@
   "IntoChat.OS.Modules.Microsoft.CSharp/Edge/RuntimeEdge.cs": 2,
   "IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration/OAuthCredentialFacts.cs": 3,
   "IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration/Repository/GitHubRepositoryFacts.cs": 2,
-  "IntoChat.OS.Modules.Tools/ToolCapabilitySource.cs": 2,
   "IntoChat.OS.Testing/Targets/InProcessTarget.cs": 2,
   "IntoChat.OS.Modules.Google.Gmail/Gmail/GmailWebhook.cs": 1,
   "IntoChat.OS.Kernel.Tests.Integration/AppModelChoiceFacts.cs": 2,

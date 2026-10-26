@@ -111,7 +111,7 @@ public static class ServerHostingExtensions
             silo.AddIntoChatOSConnections();
             foreach (var module in modules)
             {
-                module.Configure(silo);
+                module.ConfigureServices(silo.Services, silo.Configuration);
                 silo.Services.AddSingleton(module);
             }
         });

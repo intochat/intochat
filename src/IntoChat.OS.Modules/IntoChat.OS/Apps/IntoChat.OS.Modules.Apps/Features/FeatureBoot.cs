@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -53,5 +54,16 @@ internal sealed class FeatureBoot(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogWarning(error, "Reconciling features for brain {Brain} failed.", brainId); }
+    }
+}
+
+// Runs FeatureBoot when the silo becomes active, as Orleans' AddStartupTask did (06-08: modules register services, not the silo).
+internal sealed class FeatureBootLifecycle(IServiceProvider services) : ILifecycleParticipant<ISiloLifecycle>
+{
+    public void Participate(ISiloLifecycle lifecycle)
+    {
+        ArgumentNullException.ThrowIfNull(lifecycle);
+        lifecycle.Subscribe<FeatureBootLifecycle>(ServiceLifecycleStage.Active,
+            cancellationToken => ActivatorUtilities.CreateInstance<FeatureBoot>(services).Execute(cancellationToken));
     }
 }

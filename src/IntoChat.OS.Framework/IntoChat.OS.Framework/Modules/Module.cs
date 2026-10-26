@@ -1,4 +1,6 @@
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Framework.Modules.Configuration;
 
 namespace IntoChat.OS.Framework.Modules;
@@ -27,11 +29,13 @@ public abstract class Module
     // neurons run on the runtime's host grains and its Needs are checked against the topology.
     public virtual Type? Neurons => null;
 
-    public abstract void Configure(ISiloBuilder silo);
+    // The module's service registrations, on the host's services (06-08: replaces the silo-builder hook; the DigitalBrain
+    // manifest declares what the module provides and needs).
+    public virtual void ConfigureServices(IServiceCollection services, IConfiguration configuration) { }
 }
 
 // A module with options gets them bound by the host: IOptions<TOptions> reads IntoChatOS:Modules:{id}:Options
-// and validates at host startup. Configure may chain further validation on services.AddOptions<TOptions>().
+// and validates at host startup. ConfigureServices may chain further validation on services.AddOptions<TOptions>().
 public abstract class Module<TOptions> : Module where TOptions : class, IModuleOptions, new()
 {
     protected Module(ModuleId id) : base(id) { }

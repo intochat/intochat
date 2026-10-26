@@ -33,10 +33,9 @@ public sealed class SupabaseModule() : Module<SupabaseModuleOptions>(new ModuleI
     public const string ConnectionName = "supabase";
     public const string ProviderName = "Npgsql";
 
-    public override void Configure(ISiloBuilder builder)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        var services = builder.Services;
+        ArgumentNullException.ThrowIfNull(services);
         services.AddOptions<SupabaseModuleOptions>()
             .Validate(static options => string.Equals(options.Provider, ProviderName, StringComparison.OrdinalIgnoreCase),
                 "Supabase requires the Npgsql provider.");

@@ -14,14 +14,11 @@ namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
 public sealed class ModuleOptionOverlayFacts
 {
-    private sealed class ExampleModule() : Module(new ModuleId("example"))
-    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+    private sealed class ExampleModule() : Module(new ModuleId("example"));
 
-    private sealed class OverlaidModule() : Module(new ModuleId("OverlaidModule"))
-    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+    private sealed class OverlaidModule() : Module(new ModuleId("OverlaidModule"));
 
-    private sealed class ScopedModule() : Module(new ModuleId("scoped"))
-    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+    private sealed class ScopedModule() : Module(new ModuleId("scoped"));
 
     public sealed class OverlaidOptions : IModuleOptions
     {

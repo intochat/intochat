@@ -70,7 +70,5 @@ public sealed class ScriptAccountFacts
     {
         public static IntegrationSchema Integration { get; } = IntegrationSchema.For("postgres", "Postgres");
         public static ConnectorDefinition Connector => new("postgres", "Postgres", ["connection-string"], []);
-
-        public override void Configure(ISiloBuilder silo) { }
     }
 }

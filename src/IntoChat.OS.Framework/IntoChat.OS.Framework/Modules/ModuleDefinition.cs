@@ -15,5 +15,6 @@ public sealed class ModuleDefinition
     public Type ModuleType => Module.GetType();
     public ModuleId Id => Module.Id;
     public IReadOnlyDictionary<string, string?> Settings { get; }
-    public void Configure(ISiloBuilder silo) => Module.Configure(silo);
+    public void ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
+        => Module.ConfigureServices(services, configuration);
 }

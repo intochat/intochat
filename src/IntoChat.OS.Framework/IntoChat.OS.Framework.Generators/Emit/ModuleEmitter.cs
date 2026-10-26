@@ -39,12 +39,12 @@ internal static class ModuleEmitter
             text.Append("    ];\n");
         }
 
-        text.Append("\n    public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)\n    {\n");
-        text.Append("        global::System.ArgumentNullException.ThrowIfNull(silo);\n");
+        text.Append("\n    public override void ConfigureServices(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services, global::Microsoft.Extensions.Configuration.IConfiguration configuration)\n    {\n");
+        text.Append("        global::System.ArgumentNullException.ThrowIfNull(services);\n");
         if (model.PriceListType is not null)
         {
             text.Append("        global::IntoChat.OS.Framework.Modules.Metering.ModulePriceLists.AddModulePriceList<").Append(model.PriceListType)
-                .Append(">(silo.Services, ").Append(Literal(model.Id)).Append(", [\n");
+                .Append(">(services, ").Append(Literal(model.Id)).Append(", [\n");
             foreach (var operation in model.ExternalOperations)
             {
                 text.Append("            new global::IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor(")
@@ -53,7 +53,7 @@ internal static class ModuleEmitter
             }
             text.Append("        ]);\n");
         }
-        text.Append("        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));\n    }\n");
+        text.Append("        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(services, configuration, Id));\n    }\n");
         text.Append("\n    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);\n");
         text.Append("}\n");
         return text.ToString();

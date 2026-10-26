@@ -31,12 +31,12 @@ public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("q
         => !string.IsNullOrWhiteSpace(configuration.GetConnectionString(ConnectionName));
 
     // Without a connection IVectorStore is served from memory, so search still works; nothing survives a restart.
-    public override void Configure(ISiloBuilder silo)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton(_ => QdrantConnection.CreateClient(
-            silo.Configuration.GetConnectionString(ConnectionName)!));
-        silo.Services.TryAddSingleton<IVectorStore>(provider => IsConnected(silo.Configuration)
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton(_ => QdrantConnection.CreateClient(
+            configuration.GetConnectionString(ConnectionName)!));
+        services.TryAddSingleton<IVectorStore>(provider => IsConnected(configuration)
             ? new QdrantStore(provider.GetRequiredService<global::Qdrant.Client.QdrantClient>()) : new InMemoryQdrant());
     }
 }

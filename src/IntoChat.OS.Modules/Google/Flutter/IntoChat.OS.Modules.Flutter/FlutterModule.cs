@@ -27,11 +27,11 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
     // The migrated controls (06-04) run as plain neurons on the runtime's host grains.
     public override Type? Neurons => typeof(FlutterNeurons);
 
-    public override void Configure(ISiloBuilder silo)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.AddSingleton<CircleMembers>();
-        silo.Services.AddHostedService<SpaceWatcher>();
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddSingleton<CircleMembers>();
+        services.AddHostedService<SpaceWatcher>();
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

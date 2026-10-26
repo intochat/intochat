@@ -12,7 +12,6 @@ public sealed class PingerModule() : Module(new ModuleId("tests-pinger"))
 {
     public override System.Reflection.Assembly? Contracts => typeof(IPinger).Assembly;
     public override Type? Neurons => typeof(PingerNeurons);
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 [DigitalBrain.Module("tests-pinger")]

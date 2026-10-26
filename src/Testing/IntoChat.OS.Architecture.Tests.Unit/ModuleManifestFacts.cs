@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // R4-04: the module is the unit, and its static DigitalBrain ModuleManifest (Provides, Requires, Needs, Settings,
-// Secrets) replaces Configure(ISiloBuilder) registrations. Each family PR adds the manifests of the modules it moves
+// Secrets) replaces the silo-builder registrations. Each family PR adds the manifests of the modules it moves
 // and shrinks ModulesMissingManifest.json; the list ends empty.
 public sealed class ModuleManifestFacts
 {

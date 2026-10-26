@@ -19,7 +19,6 @@ public sealed class ExampleConnectionModule() : Module(new ModuleId("example"))
     // ClientSecret is optional, as GitHub's is, so a Ready integration can still lack an OAuth client.
     public static IntegrationSchema Integration => IntegrationSchema.For("example-oauth", "Example OAuth").RequiresSecret("ClientId").OffersSecret("ClientSecret");
     public override Type? Neurons => typeof(ExampleConnectorNeurons);
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 [DigitalBrain.Contracts.NeuronAlias("example"), DigitalBrain.Contracts.DefaultNeuronType("example")]
@@ -73,7 +72,6 @@ public sealed class UnservedConnectorModule() : Module(new ModuleId("unserved"))
     {
         OAuthMethods = [new("oauth", "https://unserved.test/authorize", "https://unserved.test/token", ["read"], "sample-oauth")],
     };
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 // A second connector beside "example", so a silo holds two IConnection implementations and every
@@ -87,7 +85,6 @@ public sealed class SampleConnectionModule() : Module(new ModuleId("sample"))
     };
     public static IntegrationSchema Integration => IntegrationSchema.For("sample-oauth", "Sample OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
     public override Type? Neurons => typeof(ExampleConnectorNeurons);
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 [DigitalBrain.Contracts.NeuronAlias("sample"), DigitalBrain.Contracts.DefaultNeuronType("sample")]

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -40,14 +41,14 @@ public sealed partial class CirclesModule() : Module(new ModuleId("circles")), I
         MapInviteCodes(endpoints);
     }
 
-    public override void Configure(ISiloBuilder silo)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton<ICircleInviteRedeemer, CircleInviteRedeemer>();
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<ICircleInviteRedeemer, CircleInviteRedeemer>();
         // One birth, reached as a creation handler and by the factory (which completes a birth that failed).
-        if (silo.Services.Any(descriptor => descriptor.ServiceType == typeof(CircleBirth))) { return; }
-        silo.Services.AddSingleton<CircleBirth>();
-        silo.Services.AddSingleton<ICreationHandler>(provider => provider.GetRequiredService<CircleBirth>());
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(CircleBirth))) { return; }
+        services.AddSingleton<CircleBirth>();
+        services.AddSingleton<ICreationHandler>(provider => provider.GetRequiredService<CircleBirth>());
     }
 }
 

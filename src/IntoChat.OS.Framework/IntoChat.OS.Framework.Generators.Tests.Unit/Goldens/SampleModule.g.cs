@@ -14,14 +14,14 @@ partial class SampleModule
         global::IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema.For("sample-events", "Sample events").RequiresSetting("Audience"),
     ];
 
-    public override void Configure(global::Orleans.Hosting.ISiloBuilder silo)
+    public override void ConfigureServices(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
-        global::System.ArgumentNullException.ThrowIfNull(silo);
-        global::IntoChat.OS.Framework.Modules.Metering.ModulePriceLists.AddModulePriceList<global::IntoChat.OS.Framework.Generators.SampleModule.SamplePriceList>(silo.Services, "sample", [
+        global::System.ArgumentNullException.ThrowIfNull(services);
+        global::IntoChat.OS.Framework.Modules.Metering.ModulePriceLists.AddModulePriceList<global::IntoChat.OS.Framework.Generators.SampleModule.SamplePriceList>(services, "sample", [
             new global::IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor("sample.read", "sample-api", "request"),
             new global::IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor("sample.refresh", "sample-api", "request"),
         ]);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(silo.Services, silo.Configuration, Id));
+        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(services, configuration, Id));
     }
 
     partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);

@@ -60,7 +60,6 @@ public sealed class ModuleOptionValidationFacts
 
     public sealed class CheckedModule() : Module<CheckedOptions>(new("checked"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     public sealed class CheckedHosting : ModuleHosting<CheckedModule>

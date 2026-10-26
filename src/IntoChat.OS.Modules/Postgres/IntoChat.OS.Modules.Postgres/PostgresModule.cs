@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -30,7 +32,7 @@ public sealed class PostgresModule() : Module<PostgresModuleOptions>(new ModuleI
     public const string ConnectionName = "postgres";
     public const string ProviderName = "Npgsql";
 
-    public override void Configure(ISiloBuilder silo) => silo.AddPostgres();
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => services.AddPostgres();
 }
 
 // The DigitalBrain module of Postgres (06-05b): its assembly's [Neuron] classes (the app table) run on the runtime's host grains.

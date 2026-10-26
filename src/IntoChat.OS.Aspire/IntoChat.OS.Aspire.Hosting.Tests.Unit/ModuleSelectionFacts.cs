@@ -57,6 +57,5 @@ public sealed class ModuleSelectionFacts
         Assert.Throws<InvalidOperationException>(() => server.SelectModules(configuration));
     }
 
-    public sealed class SampleModule() : Module(new ModuleId("sample"))
-    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+    public sealed class SampleModule() : Module(new ModuleId("sample"));
 }

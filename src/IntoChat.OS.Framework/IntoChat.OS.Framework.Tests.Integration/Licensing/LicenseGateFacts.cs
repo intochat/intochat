@@ -130,14 +130,12 @@ public sealed class LicenseGateFacts
         return builder.Build();
     }
 
-    private sealed class FreeModule() : Module(new ModuleId("free"))
-    { public override void Configure(ISiloBuilder silo) { } }
+    private sealed class FreeModule() : Module(new ModuleId("free"));
 
     private sealed class PaidModule() : Module(new ModuleId("paid"))
     {
         public static ConnectorDefinition Connector => new("paid", "Paid", ["api-key"], []);
         public override string? LicenseProduct => "test-paid";
         public override System.Reflection.Assembly? Contracts => typeof(PaidModule).Assembly;
-        public override void Configure(ISiloBuilder silo) { }
     }
 }

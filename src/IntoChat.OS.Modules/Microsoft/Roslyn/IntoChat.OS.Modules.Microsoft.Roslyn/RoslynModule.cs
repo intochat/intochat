@@ -20,10 +20,9 @@ public sealed class RoslynModule() : Module<RoslynModuleOptions>(new ModuleId("r
 
     public override System.Reflection.Assembly? Contracts => typeof(IRoslyn).Assembly;
 
-    public override void Configure(ISiloBuilder builder)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        var services = builder.Services;
+        ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<RoslynModuleOptions>()
             .Validate(options => !string.IsNullOrWhiteSpace(options.WorkspaceKey), "Roslyn workspace key must not be empty.")

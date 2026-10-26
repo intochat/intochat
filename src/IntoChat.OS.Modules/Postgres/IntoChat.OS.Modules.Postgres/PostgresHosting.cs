@@ -22,11 +22,10 @@ public static class PostgresHosting
 {
     public const string DataSourceKey = "IntoChat.OS.Modules.Postgres";
 
-    public static ISiloBuilder AddPostgres(this ISiloBuilder silo)
+    public static IServiceCollection AddPostgres(this IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        var services = silo.Services;
-        if (services.Any(descriptor => descriptor.ServiceType == typeof(PostgresRegistration))) { return silo; }
+        ArgumentNullException.ThrowIfNull(services);
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(PostgresRegistration))) { return services; }
         services.AddSingleton<PostgresRegistration>();
         services.AddOptions<PostgresModuleOptions>()
             .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionName), "Postgres requires a connection name.")
@@ -46,7 +45,7 @@ public static class PostgresHosting
         services.TryAddSingleton<IConnectionTableStores, ConnectionTableStores>();
         services.AddSingleton<IIncomingGrainCallFilter, TableLifecycleGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.IAppStorageHook, TableStorageHook>());
-        return silo;
+        return services;
     }
 
     private sealed class PostgresRegistration;

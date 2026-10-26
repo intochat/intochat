@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using System.Reflection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -26,10 +28,10 @@ public sealed class AzureModule() : Module<AzureOptions>(new ModuleId("azure"))
 
     public override Assembly? Contracts => typeof(IAzure).Assembly;
 
-    public override void Configure(ISiloBuilder silo)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton<IAzureArm, ArmAzure>();
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IAzureArm, ArmAzure>();
     }
 }
 

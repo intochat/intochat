@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,9 +20,9 @@ public sealed class ToolsModule() : Module(new ModuleId("tools"))
 
     public override System.Reflection.Assembly? Contracts => typeof(IToolSource).Assembly;
 
-    public override void Configure(ISiloBuilder silo)
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IRuntimeCapabilitySource, ToolCapabilitySource>());
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRuntimeCapabilitySource, ToolCapabilitySource>());
     }
 }

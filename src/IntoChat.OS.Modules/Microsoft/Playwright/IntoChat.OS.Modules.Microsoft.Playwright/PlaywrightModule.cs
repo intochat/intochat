@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -21,15 +23,15 @@ public sealed class PlaywrightModule() : Module<PlaywrightModuleOptions>(new Mod
 
     public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.Playwright.IPlaywright).Assembly;
 
-    public override void Configure(ISiloBuilder silo) => silo.AddPlaywright();
+    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => services.AddPlaywright();
 }
 public static class PlaywrightHosting
 {
-    public static ISiloBuilder AddPlaywright(this ISiloBuilder silo)
+    public static IServiceCollection AddPlaywright(this IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton<IBrowserSessionProvider, PlaywrightSessionProvider>();
-        return silo;
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IBrowserSessionProvider, PlaywrightSessionProvider>();
+        return services;
     }
 }
 
