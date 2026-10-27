@@ -4,6 +4,8 @@ A Windows PC as a connection: its files and console, run only on that machine an
 
 Module id: `windows`.
 
+Storage writes stay inside the current allowed roots. Delete moves items into `.intochat-trash` under their allowed root; each receipt folder keeps the original item and a `receipt.json` recording its original path. Recover an item with Windows File Explorer by moving it back to that path. Only an explicitly permanent delete removes it immediately. Storage listings and search hide trash and unfinished uploads; symbolic links and junctions are refused.
+
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj`
 
 Documentation: https://github.com/intochat/os.docs (modules).

@@ -18,9 +18,31 @@ internal static class MachineRoots
         {
             var inside = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
             if (string.Equals(full, root, Comparison)
-                || full.StartsWith(inside, Comparison)) { return full; }
+                || full.StartsWith(inside, Comparison))
+            {
+                RequireNoLinks(full);
+                return full;
+            }
         }
         throw new UnauthorizedAccessException($"'{path}' is outside the folders allowed on this machine.");
+    }
+
+    // Lexical containment alone admits a junction or symbolic link whose target is outside the allowed root.
+    // Check every existing component, including the root's parents, and repeat before committing a write.
+    internal static void RequireNoLinks(string path)
+    {
+        var full = Normalize(path);
+        var current = Path.GetPathRoot(full)!;
+        foreach (var part in full[current.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, part);
+            FileAttributes attributes;
+            try { attributes = File.GetAttributes(current); }
+            catch (FileNotFoundException) { break; }
+            catch (DirectoryNotFoundException) { break; }
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            { throw new UnauthorizedAccessException("Symbolic links and junctions are outside the allowed storage paths."); }
+        }
     }
 
     // The longest allowed root holding an already resolved full path.

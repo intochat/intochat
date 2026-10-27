@@ -91,7 +91,7 @@ public static class RunProfile
     // The modules the local and local+cloud runs switch off by default (code, not a configuration file); an explicit
     // IntoChatOS:Modules:<id>:Enabled from appsettings, the environment or the command line still wins.
     public static IReadOnlyList<string> LocalDisabledModules { get; } =
-        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "windows", "salesforce", "gmail"];
+        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "salesforce", "gmail"];
 
     // The cloud run keeps every module on by default.
     public static IReadOnlyList<string> CloudDisabledModules { get; } = [];

@@ -42,6 +42,8 @@ public sealed class FeatureDirectory(string path, bool writable = false)
             var target = System.IO.Path.GetFullPath(System.IO.Path.Combine(folder.FullName, relative.Replace('/', System.IO.Path.DirectorySeparatorChar)));
             if (System.IO.Path.IsPathRooted(relative) || !target.StartsWith(inside, StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException($"{bundle.Name} file '{relative}' is outside its feature folder.", nameof(bundle)); }
+            if (IsCompiledSource(System.IO.Path.GetRelativePath(folder.FullName, target).Replace('\\', '/')))
+            { throw new ArgumentException($"{bundle.Name} file '{relative}' is compiled host source, not a runtime app file.", nameof(bundle)); }
         }
         foreach (var stale in folder.EnumerateFiles("*", SearchOption.AllDirectories)
             .Where(file => !IsBuildOutput(folder, file) && !files.ContainsKey(Relative(folder, file))))
@@ -59,7 +61,11 @@ public sealed class FeatureDirectory(string path, bool writable = false)
 
     private static bool IsBuildOutput(DirectoryInfo folder, FileInfo file)
         => Relative(folder, file) is var relative
-            && (relative.StartsWith("bin/", StringComparison.Ordinal) || relative.StartsWith("obj/", StringComparison.Ordinal));
+            && (relative.StartsWith("bin/", StringComparison.Ordinal) || relative.StartsWith("obj/", StringComparison.Ordinal) || IsCompiledSource(relative));
+
+    // Built-in app projects and their host adapters are compiled by MSBuild, never sent to the script runtime or overwritten by it.
+    private static bool IsCompiledSource(string relative)
+        => relative.StartsWith("compiled/", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("hosting/", StringComparison.OrdinalIgnoreCase);
 
     private static Dictionary<string, string> ReadFolder(DirectoryInfo folder)
     {

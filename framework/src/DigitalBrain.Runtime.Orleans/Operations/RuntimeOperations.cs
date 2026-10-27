@@ -9,6 +9,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans.Runtime;
 
 namespace DigitalBrain.Runtime.Orleans.Operations;
 
@@ -39,27 +40,63 @@ internal sealed class RuntimeOperations(IServiceProvider services, BrainId brain
         var handle = new RuntimeOperation(id, entity, time, registry, plan is WritePlan);
         registry.Add(handle);
 
+        if (plan is WritePlan write)
+        {
+            _ = Task.Run(() => CheckAndDrive(write, handle, ct), CancellationToken.None);
+            return handle;
+        }
         var gate = services.GetService<IOperationGate>() ?? new AllowAllOperations();
         var decision = await gate.Check(new OperationRequest(id, brain, origin, plan), ct).ConfigureAwait(false);
         if (!decision.Allowed)
         {
             await handle.Complete(new OperationResult.Failed("denied", decision.Reason ?? "The operation was refused.")).ConfigureAwait(false);
+            await handle.RequestCancel().ConfigureAwait(false);
             return handle;
         }
-        if (plan is WritePlan write)
-        {
-            var runner = Runner();
-            _ = Task.Run(() => Drive(runner, write, handle), CancellationToken.None);
-        }
         return handle;
+    }
+
+    // The handle is available before a human answers, so the UI can show progress and cancel the pending operation.
+    private async Task CheckAndDrive(WritePlan plan, RuntimeOperation handle, CancellationToken ct)
+    {
+        using var pending = CancellationTokenSource.CreateLinkedTokenSource(ct, handle.Cancellation);
+        try
+        {
+            var gate = services.GetService<IOperationGate>() ?? new ConfirmingOperationGate(services);
+            var decision = await gate.Check(new OperationRequest(handle.Id, brain, origin, plan), pending.Token).ConfigureAwait(false);
+            pending.Token.ThrowIfCancellationRequested();
+            if (!decision.Allowed)
+            {
+                await handle.Complete(new OperationResult.Failed("denied", decision.Reason ?? "The operation was refused.")).ConfigureAwait(false);
+                return;
+            }
+            using var approved = services.GetService<IStorageWriteAuthorizer>()?.BeginApproved(brain, origin);
+            await Drive(Runner(), plan, handle).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            var result = pending.IsCancellationRequested ? (OperationResult)new OperationResult.Cancelled()
+                : error is StorageException storage ? new OperationResult.Failed(storage.Code, storage.Message)
+                : new OperationResult.Failed("denied", "The operation could not be authorized.");
+            try { await handle.Complete(result).ConfigureAwait(false); }
+            catch (Exception completionError) when (completionError is not OutOfMemoryException) { handle.Fault(completionError); }
+        }
     }
 
     /// <summary>The write runner over this brain's storage connections.</summary>
     internal StorageWriteRunner Runner() => new(Owner, services.GetService<StorageWriteResult>() ?? WaitForStorage);
 
+    internal Task Reconcile(OperationId id, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Entity(services, brain, id).Reconcile();
+    }
+
     public async Task Cancel(OperationId id, CancellationToken ct)
     {
-        var known = await Entity(services, brain, id).RequestCancel().ConfigureAwait(false);
+        var entity = Entity(services, brain, id);
+        await entity.Reconcile().ConfigureAwait(false);
+        var known = await entity.RequestCancel().ConfigureAwait(false);
         if (Registry.TryGet(id, out var handle)) { await handle.RequestCancel().ConfigureAwait(false); }
         else if (!known && await Entity(services, brain, id).Get().ConfigureAwait(false) is null)
         {
@@ -74,6 +111,7 @@ internal sealed class RuntimeOperations(IServiceProvider services, BrainId brain
         var entity = Entity(services, brain, id);
         while (true)
         {
+            await entity.Reconcile().ConfigureAwait(false);
             var state = await entity.Get().ConfigureAwait(false) ?? throw new KeyNotFoundException($"No operation {id} in brain {brain}.");
             if (state is { Phase: OperationPhase.Done, Result: { } result }) { return result; }
             await Task.Delay(100, ct).ConfigureAwait(false);
@@ -101,7 +139,9 @@ internal sealed class RuntimeOperations(IServiceProvider services, BrainId brain
         {
             json = JsonSerializer.Serialize(plan, plan.GetType(), RuntimeProtocol.Json);
         }
-        return new OperationState(id.Value, brain.Value, origin, plan.GetType().Name, json, length, hash, OperationPhase.Running, false, 0, null, now, now);
+        return new OperationState(id.Value, brain.Value, origin, plan.GetType().Name, json, length, hash, OperationPhase.Running, false, 0, null, now, now,
+            services.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToParsableString(),
+            services.GetService<IOperationDriverLifetime>()?.Capture());
     }
 
     private static async Task Drive(StorageWriteRunner runner, WritePlan plan, RuntimeOperation handle)
@@ -116,8 +156,7 @@ internal sealed class RuntimeOperations(IServiceProvider services, BrainId brain
         catch (Exception error) when (error is not OutOfMemoryException) { handle.Fault(error); }
     }
 
-    // The connection owning an item, among this brain's connections only (T-05-11-04): the broker's ItemId root owner, else the
-    // first connection that knows the id.
+    // The broker's connection-qualified owner, or the only connection recognizing a legacy id. Ambiguous ids fail closed.
     private async Task<CapabilityConnection<IStorage>> Owner(ItemId item, CancellationToken ct)
     {
         var broker = services.GetRequiredService<CapabilityBroker>().ForApp(origin);
@@ -127,19 +166,21 @@ internal sealed class RuntimeOperations(IServiceProvider services, BrainId brain
             case 0: throw new Unavailable(item);
             case 1: return candidates[0];
         }
+        CapabilityConnection<IStorage>? owner = null;
         foreach (var candidate in candidates)
         {
             try
             {
                 _ = await candidate.Capability.Stat(item, ct).ConfigureAwait(false);
-                return candidate;
+                if (owner is not null) { throw new Conflict(item); }
+                owner = candidate;
             }
             catch (StorageException error) when (error is NotFound or Denied or Unsupported)
             {
                 // Not this connection's id.
             }
         }
-        throw new NotFound(item);
+        return owner ?? throw new NotFound(item);
     }
 
     private Task<OperationResult> WaitForStorage(IStorage storage, OperationId id, CancellationToken ct) => WaitFor(services, brain, id, ct);

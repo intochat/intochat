@@ -1,5 +1,5 @@
+using System.Text.Json;
 using IntoChat.OS.Framework.Machine;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Integrations;
@@ -18,9 +18,11 @@ internal sealed class WindowsConnectionState : ConnectionState
 // to the allowed roots, read fresh on every call.
 [DigitalBrain.Neuron("windows", State = "windows")]
 internal sealed class WindowsNeuron(
-    IMachineIdentity identity)
-    : ConnectionNeuron<WindowsConnectionState>, IWindows, ILegacyStorage, DigitalBrain.Capabilities.Storage.IStorage
+    IMachineIdentity identity, WindowsStorageCoordinator coordinator)
+    : ConnectionNeuron<WindowsConnectionState>, IWindows, ILegacyStorage, StorageV1.IStorage, StorageV1.IStorageUpload
 {
+    private StorageV1.StorageUploadSessions? _uploads;
+
     public Task<WindowsFacts> Facts() => Task.FromResult(new WindowsFacts(
         identity.Id, Environment.MachineName, Environment.OSVersion.VersionString, Environment.ProcessorCount,
         GC.GetGCMemoryInfo().TotalAvailableMemoryBytes));
@@ -75,18 +77,53 @@ internal sealed class WindowsNeuron(
 
     // storage@1 (05-08): the same allowed roots, read fresh on every call, through WindowsStorage. Explicit members: the
     // 0.6 ILegacyStorage members share their names.
-    private WindowsStorage Storage => new(Snapshot.Roots);
+    private WindowsStorage Storage => new(Snapshot.Roots, operations: Context.Operations, currentRoots: () => Snapshot.Roots, coordinator: coordinator);
+    private StorageV1.StorageUploadSessions Uploads => _uploads ??= new(() => Storage, UploadCaller, Context.Time);
+
+    private static string UploadCaller()
+    {
+        var caller = CallerContextStamper.Require();
+        return JsonSerializer.Serialize(new[] { caller.AccountId, caller.BrainId, caller.PrincipalId, caller.Kind.ToString(), caller.AppId, caller.ConversationId });
+    }
 
     Task<StorageV1.StorageDescriptor> StorageV1.IStorage.Describe(CancellationToken ct) => Storage.Describe(ct);
     Task<IReadOnlyList<StorageV1.Item>> StorageV1.IStorage.Roots(CancellationToken ct) => Storage.Roots(ct);
     Task<StorageV1.Page<StorageV1.Item>> StorageV1.IStorage.List(StorageV1.ItemId folder, StorageV1.ListQuery query, CancellationToken ct) => Storage.List(folder, query, ct);
     Task<StorageV1.Item> StorageV1.IStorage.Stat(StorageV1.ItemId id, CancellationToken ct) => Storage.Stat(id, ct);
     Task<StorageV1.Content> StorageV1.IStorage.Read(StorageV1.ItemId id, StorageV1.ByteRange? range, CancellationToken ct) => Storage.Read(id, range, ct);
-    Task<DigitalBrain.Operations.OperationId> StorageV1.IStorage.Write(StorageV1.WritePlan plan, CancellationToken ct) => Storage.Write(plan, ct);
+    async Task<DigitalBrain.Operations.OperationId> StorageV1.IStorage.Write(StorageV1.WritePlan plan, CancellationToken ct)
+    {
+        await AuthorizeWrite(plan, ct);
+        return await Storage.Write(plan, ct);
+    }
     Task<StorageV1.Page<StorageV1.Item>> StorageV1.IStorage.Search(StorageV1.SearchQuery query, CancellationToken ct) => Storage.Search(query, ct);
     Task<IReadOnlyList<StorageV1.Item>> StorageV1.IStorage.Ancestors(StorageV1.ItemId id, CancellationToken ct) => Storage.Ancestors(id, ct);
     Task<StorageV1.StorageReadStream> StorageV1.IStorage.OpenRead(StorageV1.ItemId item, StorageV1.ByteRange? range, CancellationToken ct) => Storage.OpenRead(item, range, ct);
-    Task<StorageV1.StorageWriteStream> StorageV1.IStorage.OpenWrite(StorageV1.WritePlan plan, CancellationToken ct) => Storage.OpenWrite(plan, ct);
+    async Task<StorageV1.StorageWriteStream> StorageV1.IStorage.OpenWrite(StorageV1.WritePlan plan, CancellationToken ct)
+    {
+        await AuthorizeWrite(plan, ct);
+        return await Storage.OpenWrite(plan, ct);
+    }
+
+    async Task<string> StorageV1.IStorageUpload.BeginUpload(StorageV1.WritePlan plan, CancellationToken ct)
+    {
+        await AuthorizeWrite(plan, ct);
+        return await Uploads.BeginUpload(plan, ct);
+    }
+    Task StorageV1.IStorageUpload.AppendUpload(string upload, long offset, byte[] bytes, CancellationToken ct) => Uploads.AppendUpload(upload, offset, bytes, ct);
+    Task<StorageV1.ItemId> StorageV1.IStorageUpload.CommitUpload(string upload, long length, CancellationToken ct) => Uploads.CommitUpload(upload, length, ct);
+    Task StorageV1.IStorageUpload.AbortUpload(string upload, CancellationToken ct) => Uploads.AbortUpload(upload, ct);
+
+    private async Task AuthorizeWrite(StorageV1.WritePlan plan, CancellationToken ct)
+    {
+        if (await StorageV1.StorageConfirmationGate.Check(Context, Storage, plan, ct) is not null)
+        { throw new StorageV1.Denied(plan.Source ?? plan.TargetFolder); }
+    }
+
+    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
+    {
+        if (_uploads is not null) { await _uploads.DisposeAsync(); }
+    }
 
     private static string Name(string path) => Path.GetFileName(Path.TrimEndingDirectorySeparator(path)) is { Length: > 0 } name ? name : path;
 

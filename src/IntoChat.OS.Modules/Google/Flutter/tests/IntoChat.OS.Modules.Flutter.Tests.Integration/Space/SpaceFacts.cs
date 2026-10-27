@@ -1,4 +1,6 @@
 using System.Text.Json;
+using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flame.Scene;
@@ -14,6 +16,28 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Space;
 
 public sealed class SpaceFacts
 {
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ASchedulingQueryCannotCompleteTheRebuildWorkerBarrier()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gate = new RebuildGate(firstScanFails: false, targeted: false);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+            .ConfigureServices(services => services.AddSingleton<IIncomingGrainCallFilter>(gate)).StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        const string key = "owner/ui.space/main";
+        var host = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<INeuronHost>(GrainId.Create("neuron.host", key));
+        var call = new RuntimeInvocation(string.Empty, NeuronProxy.ContractName(typeof(ISpace)), key, nameof(ISpace.Rebuild), []);
+        Assert.True(await host.IsInterleaved(call));
+        gate.Armed = true;
+
+        Assert.True(await host.IsInterleaved(call));
+        Assert.False(gate.WorkerFinished.Task.IsCompleted);
+
+        await host.PostInterleaved(call);
+        await gate.WorkerFinished.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task MigratedAliasRemainsStoredButOnlyItsTargetAppearsAndLegacyFocusResolves()
@@ -128,7 +152,7 @@ public sealed class SpaceFacts
     public async Task AFailedAppReadIsRetriedByTheNextComposition()
     {
         var ct = TestContext.Current.CancellationToken;
-        var calls = new AppReads();
+        var calls = new AppReads { ManualCompositions = true };
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
             .ConfigureServices(s =>
             {
@@ -143,6 +167,7 @@ public sealed class SpaceFacts
         using var caller = brain.Owner.AsCaller();
         await App(brain, "retry");
         await brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId)).Home("retry-home", 0);
+        Assert.True(calls.SuppressedCompositions > 0);
         var space = brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId));
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         var key = IApp.Key(brain.Owner.BrainId, "retry");
@@ -168,8 +193,19 @@ public sealed class SpaceFacts
     {
         public bool Armed, FailNext;
         public int Count;
+        public bool ManualCompositions;
+        public int SuppressedCompositions;
         public Task Invoke(IOutgoingGrainCallContext context)
         {
+            // Home posts directly even when SpaceWatcher is removed. This controlled retry fact drives its own
+            // invalidations; a late one-way post could otherwise consume the failure or retry before it is observed.
+            if (ManualCompositions && Calls.Is(context.InterfaceMethod, context.Request, "ui.space", nameof(ISpace.Recompose))
+                && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation { Behavior.Length: > 0 })
+            {
+                Interlocked.Increment(ref SuppressedCompositions);
+                context.Response = global::Orleans.Serialization.Invocation.Response.Completed;
+                return Task.CompletedTask;
+            }
             if (Armed && Calls.Is(context.InterfaceMethod, context.Request, "apps.app2", nameof(IApp.Read)))
             {
                 Interlocked.Increment(ref Count);
@@ -573,12 +609,13 @@ public sealed class SpaceFacts
     }
 }
 
-// The (contract alias, method) of a grain call or of a plain call carried to its runtime host grain (06-08: apps, spaces and
-// workspaces are plain neurons, so their calls reach Orleans' filters as one RuntimeInvocation).
+// The (contract alias, method) of an executed grain or plain-neuron call. A host's pure scheduling query runs no method and
+// must not count as a read, invalidation or completed composition worker.
 internal static class Calls
 {
     public static (string? Contract, string? Method) Of(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request)
     {
+        if (method?.DeclaringType == typeof(INeuronHost) && method.Name == nameof(INeuronHost.IsInterleaved)) { return (null, null); }
         if (request.GetArgumentCount() > 0 && request.GetArgument(0) is global::DigitalBrain.Invocation.RuntimeInvocation call) { return (call.Contract, call.Method); }
         var alias = method?.DeclaringType?.GetCustomAttributes(typeof(global::Orleans.AliasAttribute), false).OfType<global::Orleans.AliasAttribute>().FirstOrDefault()?.Alias;
         return (alias, method?.Name);

@@ -7,7 +7,7 @@ using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
-// Apps 1.0.0 (a neuron app) on the real script runtime: the dock opens its library; a detail asks for what an app
+// Apps 1.0.1 (a neuron app) on the real script runtime: the dock opens its library; a detail asks for what an app
 // needs and Install is the person's own request with the consent it showed; updates that ask for more ask again;
 // Remove asks first. The shell's POST of an install/update/remove activation is the person's own HTTP call here.
 [Collection("Reference host")]
@@ -20,15 +20,15 @@ public sealed class AppsAppFacts(ReferenceBrainFixture host) : BrainFact(host)
     private string Apps => WorkspaceId + "/apps/apps";
 
     [Fact(Timeout = 360_000)]
-    public async Task TheAppsAppIsVersion100AndSettings200()
+    public async Task TheAppsAppIsVersion101AndSettings201()
     {
-        Assert.Equal("1.0.0", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "apps").Bundle.Version);
+        Assert.Equal("1.0.1", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "apps").Bundle.Version);
         Assert.Equal("2.0.1", ShippedAppsFixture.Features.Single(feature => feature.Owner == "os" && feature.Bundle.Name == "settings").Bundle.Version);
         var ct = TestContext.Current.CancellationToken;
         using var caller = User.AsCaller();
         await StartDesktop(ct);
         var installed = await TestWait.UntilAsync(_ => Brain.Get<IApp>(Apps).Read(), snapshot => snapshot.Status == AppStatus.Live, Patience, ct);
-        Assert.Equal("1.0.0", installed.Version);
+        Assert.Equal("1.0.1", installed.Version);
         Assert.Equal("2.0.1", (await Brain.Get<IApp>(WorkspaceId + "/apps/settings").Read()).Version);
     }
 

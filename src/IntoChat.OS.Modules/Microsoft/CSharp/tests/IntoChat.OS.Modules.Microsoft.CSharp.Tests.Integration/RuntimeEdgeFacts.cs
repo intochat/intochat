@@ -235,8 +235,10 @@ public sealed class RuntimeEdgeFacts
         public System.Collections.Concurrent.ConcurrentQueue<string> Methods { get; } = new();
         public async Task Invoke(IIncomingGrainCallContext context)
         {
-            // The runtime is a plain neuron (06-08): its edge calls reach its host grain as RuntimeInvocations.
-            if (context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+            // Count executed edge calls; the serving host's scheduling query runs no neuron method.
+            if (context.InterfaceMethod.DeclaringType == typeof(DigitalBrain.Runtime.Orleans.Hosting.INeuronHost)
+                && context.InterfaceMethod.Name != nameof(DigitalBrain.Runtime.Orleans.Hosting.INeuronHost.IsInterleaved)
+                && context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
                 && call.Contract == DigitalBrain.Invocation.NeuronProxy.ContractName(typeof(IBrainRuntimeEdge)))
             { Methods.Enqueue(call.Method); }
             await context.Invoke();

@@ -59,6 +59,7 @@ public sealed class InMemoryOperations : IOperations, IOperationsProbe
     private sealed class Handle(InMemoryOperations owner, OperationId id, OperationPlan plan) : IOperation, IDisposable
     {
         private readonly CancellationTokenSource _cancellation = new();
+        private readonly Lock _completionGate = new();
 
         public OperationId Id { get; } = id;
 
@@ -79,9 +80,13 @@ public sealed class InMemoryOperations : IOperations, IOperationsProbe
         public ValueTask Complete(OperationResult result)
         {
             ArgumentNullException.ThrowIfNull(result);
-            if (Done.TrySetResult(result))
+            lock (_completionGate)
             {
-                owner._events.Enqueue(new InMemoryOperationEvent(Id, "done", null, result));
+                if (!Done.Task.IsCompleted)
+                {
+                    owner._events.Enqueue(new InMemoryOperationEvent(Id, "done", null, result));
+                    Done.SetResult(result);
+                }
             }
             return ValueTask.CompletedTask;
         }

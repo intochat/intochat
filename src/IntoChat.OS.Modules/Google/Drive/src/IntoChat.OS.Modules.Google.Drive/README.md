@@ -1,6 +1,6 @@
 # IntoChat.OS.Modules.Google.Drive
 
-One Google Drive as read-only storage (`drive.readonly`), signed in through the `google-auth` module's Google OAuth integration. Locations are Drive file ids; `root` is My Drive. Google documents are read as plain text.
+One Google Drive as storage, signed in through the `google-auth` module's Google OAuth integration. New connections request the `drive` scope for writes; existing `drive.readonly` grants remain read-only until reconnecting. Item permissions further limit writes. Google documents are read as plain text.
 
 Module id: `google-drive`. Needs `google-auth` in the same brain.
 

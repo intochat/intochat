@@ -66,7 +66,8 @@ public static class ServerHostingExtensions
         // the Framework module is selected.
         // The Authority's plain neurons (the connection index and requests, 06-08) are hosted on every silo, as its grains are.
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
-            .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons)).Distinct()];
+            .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons))
+            .Append(typeof(IntoChat.OS.Kernel.Composition.Confirmations.ConfirmationNeurons)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).
         builder.Services.AddSingleton(new IntoChat.OS.Connections.Platform.Connections.ConnectionNeuronTypes(neuronModules));
         // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both. The kernel's own

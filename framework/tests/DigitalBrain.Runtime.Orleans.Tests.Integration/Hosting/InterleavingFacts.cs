@@ -25,6 +25,37 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     }
 
     [Fact]
+    public async Task A_suspended_interleaved_request_does_not_let_two_ordinary_turns_overlap()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var id = "b1/turn/first-interleaved-" + Guid.NewGuid().ToString("N");
+        var probe = silo.Get<ITurnProbe>(id);
+        var interleavedGate = id + "#interleaved";
+        var ordinaryGate = id + "#ordinary";
+        var interleaved = probe.HoldNow(interleavedGate);
+        Task ordinary = Task.CompletedTask;
+        Task plain = Task.CompletedTask;
+        try
+        {
+            await ProbeLog.Until(() => TurnLog.Held.ContainsKey(interleavedGate), ct);
+            ordinary = probe.Hold(ordinaryGate);
+            await ProbeLog.Until(() => TurnLog.Held.ContainsKey(ordinaryGate), ct);
+            plain = probe.Plain();
+            Assert.NotSame(plain, await Task.WhenAny(plain, Task.Delay(Window, ct)));
+            ProbeLog.Gate(ordinaryGate).TrySetResult();
+            await ordinary;
+            await plain.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            Assert.False(interleaved.IsCompleted);
+        }
+        finally
+        {
+            ProbeLog.Gate(ordinaryGate).TrySetResult();
+            ProbeLog.Gate(interleavedGate).TrySetResult();
+            await Task.WhenAll(interleaved, ordinary, plain).WaitAsync(TimeSpan.FromSeconds(10), ct);
+        }
+    }
+
+    [Fact]
     public async Task Interleaves_and_ReadOnlyCall_run_during_a_suspended_turn_and_plain_methods_do_not()
     {
         Assert.True(await RunsDuringHold("b1/turn/attrs", probe => probe.Peek()));

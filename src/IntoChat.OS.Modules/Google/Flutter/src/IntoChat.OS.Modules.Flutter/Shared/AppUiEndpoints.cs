@@ -1,4 +1,5 @@
 using System.Text.Json;
+using IntoChat.OS.Confirmation;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Button;
 using IntoChat.OS.Modules.Flutter.Card;
@@ -53,6 +54,11 @@ internal static class AppUiEndpoints
         apps.MapGet("/node", async (string kind, string name, IIntoChatOS brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
+            if (kind == UIVocabulary.ConfirmationType)
+            {
+                if (name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
+                return Results.Json(ConfirmationView.Render(await brain.Get<IConfirmationInbox>(name).Read().WaitAsync(ct)), ViewJson);
+            }
             var space = brain.Get<ISpace>(ISpace.Key(scope));
             if (kind == "person" && name.EndsWith("/profile", StringComparison.Ordinal))
             { return Results.Ok(await space.ReadProfile(name).WaitAsync(ct)); }
@@ -119,6 +125,13 @@ internal static class AppUiEndpoints
         apps.MapPost("/event", async (UiEvent input, IIntoChatOS brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
+            if (input.Kind == UIVocabulary.ConfirmationType)
+            {
+                if (input.Name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
+                var answer = ConfirmationView.Answer(input.Action);
+                await brain.Get<IConfirmationInbox>(input.Name).Resolve(answer.PlanId, answer.Approve).WaitAsync(ct);
+                return Results.Ok(new { delivered = true });
+            }
             if (input.Kind == "collection" && input.Name.EndsWith("/posts", StringComparison.Ordinal))
             {
                 var posts = await brain.Get<ISpace>(ISpace.Key(scope)).ReadPosts(input.Name).WaitAsync(ct);

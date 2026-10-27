@@ -25,7 +25,11 @@ public sealed class CompiledTypes
     {
         ArgumentNullException.ThrowIfNull(sources);
         var typeSources = sources.ToArray();
-        var visible = assemblies.Distinct().SelectMany(assembly => assembly.GetExportedTypes()).ToArray();
+        // The host's confirmation inbox exists in every composition. Its framework signals are part of that public surface,
+        // without exposing unrelated runtime contracts or every type loaded in the host.
+        var visible = assemblies.Distinct().SelectMany(assembly => assembly.GetExportedTypes())
+            .Concat([typeof(global::DigitalBrain.Confirmation.ConfirmationRequested), typeof(global::DigitalBrain.Confirmation.ConfirmationResolved)])
+            .Distinct().ToArray();
         _neurons = visible.Where(IsNeuron).ToDictionary(type => type.FullName!, StringComparer.Ordinal);
         var aliases = new Dictionary<string, Type>(StringComparer.Ordinal);
         foreach (var contract in _neurons.Values)

@@ -27,6 +27,9 @@ internal sealed class PlainInstanceRegistration(IServiceProvider services, IGrai
     {
         if (context.Grain is not INeuronHost || context.Request.GetArgumentCount() == 0 || context.Request.GetArgument(0) is not RuntimeInvocation call)
         { await context.Invoke(); return; }
+        // Host policy discovery executes no neuron method and must not mutate the instance projection.
+        if (context.InterfaceMethod.DeclaringType == typeof(INeuronHost) && context.InterfaceMethod.Name == nameof(INeuronHost.IsInterleaved))
+        { await context.Invoke(); return; }
         // A call that fails after its first write still created the neuron (06-08: an app whose deploy timed out after its record
         // landed), so the record is checked whatever the call's outcome; the call's own failure is what the caller sees.
         try { await context.Invoke(); }

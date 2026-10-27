@@ -31,5 +31,6 @@
   "IntoChat.OS.Framework/Machine/MachineIdFile.cs",
   "IntoChat.OS.Modules.Circles/InviteCodeNeuron.cs",
   "IntoChat.Cloud.Circle.Server.Tests.Unit/CircleServerModuleFacts.cs",
-  "IntoChat.Cloud.Circle.Server/CircleServerModule.cs"
+  "IntoChat.Cloud.Circle.Server/CircleServerModule.cs",
+  "IntoChat.OS.Kernel.Composition/Confirmations/ConfirmationOptions.cs"
 ]

@@ -873,5 +873,20 @@
     "Type": "tests.host-resolution.stateless",
     "Store": null,
     "StateName": null
+  },
+  "IntoChat.OS.Kernel.Composition.Confirmations.ConfirmationNeuron": {
+    "Type": "runtime.confirmations",
+    "Store": "cluster",
+    "StateName": "state"
+  },
+  "IntoChat.OS.Modules.Google.Drive.Tests.Integration.DriveOperationProbe": {
+    "Type": "probe.drive-operation",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.ProgramRestorer": {
+    "Type": "tests.csharp.program-restorer",
+    "Store": null,
+    "StateName": null
   }
 }

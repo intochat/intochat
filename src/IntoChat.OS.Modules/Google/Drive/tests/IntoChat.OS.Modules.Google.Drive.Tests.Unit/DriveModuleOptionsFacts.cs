@@ -17,11 +17,12 @@ public sealed class DriveModuleOptionsFacts
     }
 
     [Fact]
-    public void ProductionAndLoopbackEndpointsAreAcceptedAndTheScopeStaysReadOnly()
+    public void NewConnectionsRequestWritesAndTheExistingReadonlyScopeRemainsRecognized()
     {
         new DriveModuleOptions().Validate();
         new DriveModuleOptions { Endpoint = new("http://127.0.0.1:49152/drive/") }.Validate();
         Assert.Equal("https://www.googleapis.com/auth/drive.readonly", DriveScopes.Read);
+        Assert.Equal([DriveScopes.Write], Assert.Single(DriveModule.Connector.OAuthMethods).Scopes);
         Assert.Equal("google-drive", DriveModule.Connector.Id);
     }
 }

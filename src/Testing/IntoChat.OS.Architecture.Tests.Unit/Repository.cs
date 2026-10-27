@@ -27,8 +27,14 @@ internal static class Repository
 
     internal static readonly string FrameworkRoot = System.IO.Path.Combine(Root, FrameworkDirectory);
 
+    // Compiled first-party apps keep their source under features/, with their own framework-only boundary.
+    internal static readonly string FeatureRoot = System.IO.Path.Combine(Root, "features");
+
+    internal static bool IsFeatureEntry(XElement entry)
+        => entry.Attribute("Path")!.Value.Replace('\\', '/').StartsWith("features/", StringComparison.Ordinal);
+
     internal static readonly IReadOnlyDictionary<string, Project> Projects = Solution.Descendants("Project")
-        .Where(entry => !IsFrameworkEntry(entry))
+        .Where(entry => !IsFrameworkEntry(entry) && !IsFeatureEntry(entry))
         .Select(entry =>
         {
             var relative = entry.Attribute("Path")!.Value.Replace('\\', '/');

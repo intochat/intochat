@@ -54,6 +54,15 @@ internal sealed class ReactionCursor
     {
         public ReactionCursor Cursor => cursor;
 
-        public void Dispose() => Current.Value = previous;
+        public void Dispose()
+        {
+            // Ensure can synchronously catch up another source while a reaction is still running. Its nested
+            // writes carry the same synapse record, including the outer cursor, so the outer save must use them.
+            if (previous is not null && previous._grainId == cursor._grainId && cursor.Written && cursor.ETag is { } etag)
+            {
+                previous.Committed(etag);
+            }
+            Current.Value = previous;
+        }
     }
 }

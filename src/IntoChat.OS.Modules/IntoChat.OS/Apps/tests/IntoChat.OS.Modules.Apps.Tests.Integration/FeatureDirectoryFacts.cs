@@ -16,6 +16,27 @@ public sealed class FeatureDirectoryFacts : IDisposable
     private static readonly string Manifest = Declarations.Of("echo", "1.0.0", "Echo", "Echoes.");
 
     [Fact]
+    public void CompiledAppSourcesStayOutsideRuntimeBundlesAndCannotBeOverwrittenBySaveToSource()
+    {
+        Write("vendor/Echo/app.cs", Manifest);
+        Write("vendor/Echo/open.cs", "// adapter");
+        Write("vendor/Echo/compiled/App.cs", "// compiled app");
+        Write("vendor/Echo/hosting/Host.cs", "// host adapter");
+        var source = new FeatureDirectory(_root, writable: true);
+        var bundle = Assert.Single(source.Load()).Bundle;
+        Assert.Equal(["open.cs"], bundle.Files.Keys);
+        source.Write("vendor", bundle);
+        Assert.Equal("// compiled app", File.ReadAllText(Path.Combine(_root, "vendor/Echo/compiled/App.cs")));
+        Assert.Equal("// host adapter", File.ReadAllText(Path.Combine(_root, "vendor/Echo/hosting/Host.cs")));
+        foreach (var path in new[] { "compiled/App.cs", "./compiled/App.cs", "nested/../compiled/App.cs", "COMPILED/App.cs", "hosting/Host.cs" })
+        {
+            var injected = bundle with { Files = new(bundle.Files) { [path] = "untrusted" } };
+            Assert.Throws<ArgumentException>(() => source.Write("vendor", injected));
+        }
+        Assert.Equal("// compiled app", File.ReadAllText(Path.Combine(_root, "vendor/Echo/compiled/App.cs")));
+    }
+
+    [Fact]
     public void AFolderOfOwnerFoldersLoadsEachAppUnderItsOwner()
     {
         Write("vendor/echo/app.cs", Manifest);

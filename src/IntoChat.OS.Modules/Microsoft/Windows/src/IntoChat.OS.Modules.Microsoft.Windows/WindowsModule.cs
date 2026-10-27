@@ -43,6 +43,7 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<MachineIdentity>();
+        services.TryAddSingleton<WindowsStorageCoordinator>();
         services.TryAddSingleton<IMachineIdentity>(provider => provider.GetRequiredService<MachineIdentity>());
         services.TryAddSingleton(MachineKeyStore);
         if (OperatingSystem.IsWindows()

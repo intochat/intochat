@@ -83,7 +83,8 @@ internal sealed class HostNeuronContext : INeuronContext, IHostNeuronContext
 
     /// <summary>The host's confirmation gate (the runtime confirmations neuron, 07-06); until one is registered, asking throws.</summary>
     public DigitalBrain.Confirmation.IConfirmations Confirmations
-        => _services.GetService<DigitalBrain.Confirmation.IConfirmations>() ?? UnavailableConfirmations.Instance;
+        => _services.GetService<IConfirmationContexts>()?.For(Id.Brain, Id.ToString())
+            ?? _services.GetService<DigitalBrain.Confirmation.IConfirmations>() ?? UnavailableConfirmations.Instance;
 
     public string Caller => RequestContext.Get(CallerKey) as string ?? string.Empty;
 

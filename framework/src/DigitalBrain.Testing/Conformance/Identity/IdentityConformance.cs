@@ -98,7 +98,7 @@ public abstract class IdentityConformance<TIdentity>
         var (s, ct) = await Open().ConfigureAwait(false);
         var (accountId, principalId) = await Account(s, ct).ConfigureAwait(false);
         var created = await s.Identity.CreateBrain(accountId, principalId, Unique("op"), "Kit circle", BrainKind.Circle, ct).ConfigureAwait(false);
-        var brains = await s.Identity.BrainsOf(principalId, ct).ConfigureAwait(false);
+        var brains = await ObserveBrain(s.Identity, principalId, created.Member.BrainId, ct).ConfigureAwait(false);
         Assert.Contains(new BrainEntry(created.Member.BrainId, BrainKind.Circle), brains);
     }
 
@@ -359,8 +359,8 @@ public abstract class IdentityConformance<TIdentity>
         Assert.All(provisions, provision => Assert.Equal(owner.BrainId, provision.Member.BrainId));
         Assert.Equal(owner.AccountId, (await s.Identity.ReadAccount(owner.AccountId, ct).ConfigureAwait(false))?.AccountId);
         Assert.Equal(owner.AccountId, (await s.Identity.OwnerOfBrain(owner.BrainId, ct).ConfigureAwait(false))?.AccountId);
-        Assert.Single(await s.Identity.BrainsOf(principalId, ct).ConfigureAwait(false), entry => entry.Id == owner.BrainId);
         Assert.Equal(MemberRole.Owner, (await s.Identity.Membership(owner.BrainId, principalId, ct).ConfigureAwait(false))?.Role);
+        Assert.Single(await ObserveBrain(s.Identity, principalId, owner.BrainId, ct).ConfigureAwait(false), entry => entry.Id == owner.BrainId);
     }
 
     // ----- sessions (09-03, identity rows 1, 2 and 4) -----
@@ -491,6 +491,20 @@ public abstract class IdentityConformance<TIdentity>
     }
 
     // ----- helpers -----
+
+    // Owner membership is authoritative before its principal index announcement arrives. Observe only that index;
+    // provisioning uniqueness, account ownership and membership above still have to hold immediately.
+    private static async Task<IReadOnlyList<BrainEntry>> ObserveBrain(IIdentity identity, string principalId, string brainId, CancellationToken ct)
+    {
+        using var observation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        observation.CancelAfter(Timeout);
+        while (true)
+        {
+            var brains = await identity.BrainsOf(principalId, observation.Token).WaitAsync(observation.Token).ConfigureAwait(false);
+            if (brains.Any(entry => entry.Id == brainId)) { return brains; }
+            await Task.Delay(20, observation.Token).ConfigureAwait(false);
+        }
+    }
 
     private async Task<(IdentitySubject Subject, CancellationToken Ct)> Open()
     {

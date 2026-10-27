@@ -11,16 +11,18 @@ public sealed class DriveShortcutFacts(DriveHost host)
     [Fact]
     public async Task ShortcutsAreLinksAndAFolderShortcutListsItsTarget()
     {
-        var (folder, folderShortcut, fileShortcut, target) = host.KitDrive.Shortcuts();
+        var (folder, _, _, _) = host.KitDrive.Shortcuts();
         var storage = await host.ConnectKitAsync(Ct);
 
-        var items = (await storage.List(new ItemId(folder), new ListQuery(), Ct)).Items;
+        var items = (await storage.List((await DriveItems.Find(storage, folder, Ct)).Id, new ListQuery(), Ct)).Items;
         Assert.DoesNotContain(items, item => item.Name == "trashed.txt");
-        var toFolder = Assert.Single(items, item => item.Id.Value == folderShortcut);
-        Assert.Equal((ItemKind.Link, (ItemId?)new ItemId(target)), (toFolder.Kind, toFolder.Target));
-        Assert.Equal(ItemKind.Link, Assert.Single(items, item => item.Id.Value == fileShortcut).Kind);
+        var toFolder = Assert.Single(items, item => item.Name == "To target");
+        var target = Assert.Single(items, item => item.Name == "Target");
+        Assert.Equal((ItemKind.Link, (ItemId?)target.Id), (toFolder.Kind, toFolder.Target));
+        var toFile = Assert.Single(items, item => item.Name == "To file");
+        Assert.Equal(ItemKind.Link, toFile.Kind);
         Assert.Equal(["inside.txt"], (await storage.List(toFolder.Id, new ListQuery(), Ct)).Items.Select(item => item.Name));
-        Assert.Equal("unsupported", (await Assert.ThrowsAnyAsync<StorageException>(() => storage.List(new ItemId(fileShortcut), new ListQuery(), Ct))).Code);
+        Assert.Equal("unsupported", (await Assert.ThrowsAnyAsync<StorageException>(() => storage.List(toFile.Id, new ListQuery(), Ct))).Code);
     }
 
     [Fact]
@@ -29,7 +31,7 @@ public sealed class DriveShortcutFacts(DriveHost host)
         var (folder, _, _, _) = host.KitDrive.Shortcuts();
         var storage = await host.ConnectKitAsync(Ct);
 
-        Assert.All((await storage.List(new ItemId(folder), new ListQuery(), Ct)).Items, item => Assert.Equal(ItemFlags.Read, item.Flags));
+        Assert.All((await storage.List((await DriveItems.Find(storage, folder, Ct)).Id, new ListQuery(), Ct)).Items, item => Assert.Equal(ItemFlags.Read, item.Flags));
         Assert.Equal(ItemFlags.Read | ItemFlags.Search, (await storage.Describe(Ct)).Flags);
     }
 

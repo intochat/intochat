@@ -22,7 +22,7 @@ public sealed class RepositoryLayoutFacts
     public void EveryProjectHasOneSolutionEntryInItsPhysicalGroup()
     {
         var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        var entries = Repository.Solution.Descendants("Project").Where(entry => !Repository.IsFrameworkEntry(entry)).ToArray();
+        var entries = Repository.Solution.Descendants("Project").Where(entry => !Repository.IsFrameworkEntry(entry) && !Repository.IsFeatureEntry(entry)).ToArray();
         var paths = entries.Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/')).ToArray();
         Assert.Equal(paths.Length, paths.Distinct(comparer).Count());
         var disk = Repository.SourceFiles(Repository.SourceRoot, "*.csproj").Select(Repository.Relative).Order().ToArray();
@@ -75,6 +75,23 @@ public sealed class RepositoryLayoutFacts
         var disk = Repository.SourceFiles(Repository.FrameworkRoot, "*.csproj", path => !path.Split(Path.DirectorySeparatorChar).Contains("content"))
             .Select(Repository.Relative).Order().ToArray();
         Assert.True(disk.SequenceEqual(paths, comparer), "Framework solution entries differ from framework/ on disk; fix with `dotnet run scripts/sync-solution.cs`.");
+        foreach (var entry in entries)
+        {
+            var path = entry.Attribute("Path")!.Value.Replace('\\', '/');
+            var group = path[..path.LastIndexOf('/', path.LastIndexOf('/') - 1)];
+            Assert.Equal("/" + group + "/", entry.Parent!.Attribute("Name")?.Value);
+        }
+    }
+
+    [Fact]
+    public void EveryCompiledFeatureProjectHasOneSolutionEntryInItsFeatureGroup()
+    {
+        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var entries = Repository.Solution.Descendants("Project").Where(Repository.IsFeatureEntry).ToArray();
+        var paths = entries.Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/')).Order().ToArray();
+        var disk = Repository.SourceFiles(Repository.FeatureRoot, "*.csproj").Select(Repository.Relative).Order().ToArray();
+        Assert.NotEmpty(disk);
+        Assert.True(disk.SequenceEqual(paths, comparer), "Compiled feature solution entries differ from features/ on disk; fix with `dotnet run scripts/sync-solution.cs`.");
         foreach (var entry in entries)
         {
             var path = entry.Attribute("Path")!.Value.Replace('\\', '/');

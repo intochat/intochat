@@ -1,4 +1,7 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using DigitalBrain.Spi;
@@ -29,6 +32,11 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
     private long _issued;
     private DateTimeOffset _lastAck;
     private TaskCompletionSource? _wake;
+    private readonly Dictionary<string, Admission> _admissions = new(StringComparer.Ordinal);
+    private int _admitting;
+    private long _generation;
+    private bool _ended;
+    private static readonly TimeSpan AdmissionLifetime = TimeSpan.FromMinutes(1);
 
     private HostNeuronContext Host => (HostNeuronContext)Context;
 
@@ -39,22 +47,60 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
         return Task.CompletedTask;
     }
 
-    public async Task Subscribe(NeuronId source, string[] aliases)
+    public async Task<string> PrepareSubscription(NeuronId source, string[] aliases)
     {
-        ArgumentNullException.ThrowIfNull(aliases);
+        aliases = Host.Engine.ValidateAliases(source, aliases);
+        if (_ended) { throw new InvalidOperationException("This session has ended."); }
+        PruneAdmissions();
+        if (_admissions.Count >= _options.MaxSessionSynapses || _admitting >= _options.MaxSessionSynapses)
+        { throw new SessionLimitException($"Session {Id} has the maximum number of pending admissions."); }
+        var ticket = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+        var admission = new Admission(source, aliases, _generation, RuntimeCallerContext.Current, Host.Caller, clock.Now + AdmissionLifetime);
+        _admissions.Add(ticket, admission);
+        _ = AskAdmission(admission);
+        try
+        {
+            await admission.Ready.Task.ConfigureAwait(true);
+            if (_ended || admission.Generation != _generation || !_admissions.ContainsKey(ticket))
+            { throw new InvalidOperationException("The subscription admission is no longer valid."); }
+            admission.Approved = true;
+            return ticket;
+        }
+        catch
+        {
+            _admissions.Remove(ticket);
+            throw;
+        }
+    }
+
+    public async Task CommitSubscription(string ticket)
+    {
+        PruneAdmissions();
+        if (string.IsNullOrEmpty(ticket) || !_admissions.TryGetValue(ticket, out var admission) || !admission.Approved
+            || _ended || admission.Generation != _generation || admission.Principal != RuntimeCallerContext.Current
+            || !string.Equals(admission.Caller, Host.Caller, StringComparison.Ordinal))
+        { throw new UnauthorizedAccessException("The subscription admission ticket is not valid for this caller and session."); }
+        _admissions.Remove(ticket);
+        var source = admission.Source;
         var key = source.ToString();
         var held = Host.Engine.Sources;
         if (held.Count >= _options.MaxSessionSynapses && !held.Any(entry => entry.Source == key))
         {
             throw new SessionLimitException($"Session {Id} holds {held.Count} synapses, the most a session may ({_options.MaxSessionSynapses}).");
         }
-        await Host.Engine.EnsureAliases(source, aliases).ConfigureAwait(true);
+        await Host.Engine.CommitAliases(source, admission.Aliases).ConfigureAwait(true);
     }
 
-    public Task Unsubscribe(NeuronId source) => Host.Engine.Remove(source);
+    public Task Unsubscribe(NeuronId source)
+    {
+        foreach (var ticket in _admissions.Where(pair => pair.Value.Source == source).Select(pair => pair.Key).ToArray())
+        { Invalidate(ticket); }
+        return Host.Engine.Remove(source);
+    }
 
     public async Task<SessionBatch?> Next(long acked, CancellationToken cancellationToken)
     {
+        if (_ended) { return null; }
         _lastAck = clock.Now;
         if (_outstanding is { } sent)
         {
@@ -64,6 +110,7 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
         var until = DateTime.UtcNow + _wait;
         while (_pending.Count == 0)
         {
+            if (_ended) { return null; }
             var left = until - DateTime.UtcNow;
             if (left <= TimeSpan.Zero) { return null; }
             _wake ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -81,6 +128,9 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
 
     public async Task End()
     {
+        _ended = true;
+        _generation++;
+        foreach (var ticket in _admissions.Keys.ToArray()) { Invalidate(ticket); }
         await Host.Engine.RemoveAll().ConfigureAwait(true);
         _pending.Clear();
         _outstanding = null;
@@ -110,6 +160,38 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
     }
 
     private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
+
+    private void PruneAdmissions()
+    {
+        foreach (var ticket in _admissions.Where(pair => pair.Value.Expires <= clock.Now).Select(pair => pair.Key).ToArray())
+        { Invalidate(ticket); }
+    }
+
+    private void Invalidate(string ticket)
+    {
+        if (_admissions.Remove(ticket, out var admission))
+        { admission.Ready.TrySetException(new InvalidOperationException("The subscription admission is no longer valid.")); }
+    }
+
+    private async Task AskAdmission(Admission admission)
+    {
+        // Invalidation releases the subscriber immediately. The source RPC still counts against the pending limit until it
+        // finishes or times out, and its result is observed here even after its ticket has been discarded.
+        _admitting++;
+        try
+        {
+            await Host.Engine.AdmitAliases(admission.Source, admission.Aliases).ConfigureAwait(true);
+            admission.Ready.TrySetResult();
+        }
+        catch (Exception error) when (error is not OutOfMemoryException) { admission.Ready.TrySetException(error); }
+        finally { _admitting--; }
+    }
+
+    private sealed record Admission(NeuronId Source, string[] Aliases, long Generation, CapabilityCaller? Principal, string Caller, DateTimeOffset Expires)
+    {
+        public TaskCompletionSource Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool Approved { get; set; }
+    }
 
     private void Wake()
     {

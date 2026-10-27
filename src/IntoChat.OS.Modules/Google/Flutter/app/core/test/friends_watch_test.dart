@@ -2,6 +2,27 @@ import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('confirmation inbox watches both requests and resolutions', () async {
+    final link = RecordingLink();
+    final client = IntoChatOSUiClient(baseUri: Uri.parse('http://localhost'))
+      ..link = link;
+    final watch = client
+        .watchNode('alice', 'confirmation', 'alice/confirmations')
+        .listen((_) {});
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await watch.cancel();
+    expect(link.brain, 'alice');
+    expect(link.source!.key, 'alice/confirmations');
+    expect(
+      link.source!.contract,
+      'IntoChat.OS.Confirmation.IConfirmationInbox',
+    );
+    expect(link.source!.types, [
+      'ConfirmationRequested',
+      'ConfirmationResolved',
+    ]);
+  });
+
   test(
     'friend slots watch the viewers space rather than foreign neurons',
     () async {

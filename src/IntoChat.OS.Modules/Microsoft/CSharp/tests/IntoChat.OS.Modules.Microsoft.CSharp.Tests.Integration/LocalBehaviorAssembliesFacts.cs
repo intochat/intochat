@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
 using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using Microsoft.AspNetCore.DataProtection;
@@ -10,6 +11,84 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
 public sealed class LocalBehaviorAssembliesFacts
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublishingAnExistingHashDoesNotReplaceFilesHeldByADownloader(bool symbols)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var home = TestHome.Create();
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var store = Store(home, services);
+        var compiled = Behavior();
+        var root = Directory.CreateDirectory(Path.Combine(home.Path, "behaviors")).FullName;
+        await File.WriteAllBytesAsync(Path.Combine(root, compiled.Hash), compiled.Assembly, ct);
+        var path = Path.Combine(root, compiled.Hash + (symbols ? ".pdb" : ""));
+        if (symbols) { await File.WriteAllBytesAsync(path, compiled.Symbols, ct); }
+        var published = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(path, published);
+        using var download = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        await store.Put(compiled, ct);
+
+        Assert.True(await store.Exists(compiled.Hash, ct));
+        Assert.Equal(published, File.GetLastWriteTimeUtc(path));
+        Assert.Equal(compiled.Assembly, await File.ReadAllBytesAsync(Path.Combine(root, compiled.Hash), ct));
+        Assert.Equal(compiled.Symbols, await File.ReadAllBytesAsync(Path.Combine(root, compiled.Hash + ".pdb"), ct));
+        Assert.Empty(Directory.GetFiles(root, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task ConcurrentPublicationOfOneHashKeepsOneCompletePair()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var home = TestHome.Create();
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var store = Store(home, services);
+        var compiled = Behavior();
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writers = Enumerable.Range(0, 16).Select(async _ => { await start.Task; await store.Put(compiled, ct); }).ToArray();
+
+        start.SetResult();
+        await Task.WhenAll(writers);
+
+        var root = Path.Combine(home.Path, "behaviors");
+        Assert.True(await store.Exists(compiled.Hash, ct));
+        Assert.Equal(compiled.Assembly, await File.ReadAllBytesAsync(Path.Combine(root, compiled.Hash), ct));
+        Assert.Equal(compiled.Symbols, await File.ReadAllBytesAsync(Path.Combine(root, compiled.Hash + ".pdb"), ct));
+        Assert.Equal(2, Directory.GetFiles(root).Length);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExistingContentAtTheSameHashCannotBeSilentlyReplaced(bool symbols)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var home = TestHome.Create();
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var store = Store(home, services);
+        var compiled = Behavior();
+        var root = Directory.CreateDirectory(Path.Combine(home.Path, "behaviors")).FullName;
+        var path = Path.Combine(root, compiled.Hash + (symbols ? ".pdb" : ""));
+        byte[] original = [9, 8, 7];
+        await File.WriteAllBytesAsync(path, original, ct);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.Put(compiled, ct));
+
+        Assert.Equal(original, await File.ReadAllBytesAsync(path, ct));
+        Assert.Empty(Directory.GetFiles(root, "*.tmp"));
+    }
+
+    private static LocalBehaviorAssemblies Store(TestHome home, IServiceProvider services)
+        => new(new ConfigurationBuilder().AddInMemoryCollection([home.Setting]).Build(), new EphemeralDataProtectionProvider(), services, Options.Create(new CSharpOptions()));
+
+    private static CompiledBehavior Behavior()
+    {
+        byte[] assembly = [1, 2, 3, 4];
+        return new(assembly, [5, 6], Convert.ToHexStringLower(SHA256.HashData(assembly)));
+    }
+
     [Fact]
     public async Task TildeHomeUsesTheSharedResolvedStateDirectory()
     {

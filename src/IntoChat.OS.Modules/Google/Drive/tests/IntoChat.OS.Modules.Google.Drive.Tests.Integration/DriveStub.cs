@@ -23,7 +23,7 @@ internal sealed partial class DriveStub : IAsyncDisposable
     private const string Shortcut = "application/vnd.google-apps.shortcut";
 
     private sealed record Entry(string Id, string Name, string MimeType, string? Parent, byte[]? Bytes,
-        bool Trashed = false, string? TargetId = null, string? TargetMimeType = null)
+        bool Trashed = false, string? TargetId = null, string? TargetMimeType = null, bool Copyable = true, bool Mutable = true)
     {
         public DateTimeOffset Modified { get; } = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
     }
@@ -75,6 +75,7 @@ internal sealed partial class DriveStub : IAsyncDisposable
         app.MapGet("/drive/files", (string q, string? orderBy, int? pageSize, string? pageToken) => stub!.List(q, orderBy, pageSize, pageToken));
         app.MapGet("/drive/files/{id}", (string id, string? alt) => stub!.Get(id, alt));
         app.MapGet("/drive/files/{id}/export", (string id) => stub!.Find(id) is { Bytes: { } bytes } ? Results.Bytes(bytes, "text/plain") : NotFound());
+        MapWrites(app, () => stub!);
         await app.StartAsync(ct);
         stub = new DriveStub(app, new Uri(app.Urls.Single() + "/drive/"));
         return stub;
@@ -169,7 +170,18 @@ internal sealed partial class DriveStub : IAsyncDisposable
             ["modifiedTime"] = item.Modified.ToString("O", CultureInfo.InvariantCulture),
             ["trashed"] = item.Trashed,
             ["parents"] = Parents(item),
-            ["capabilities"] = new { canTrash = true, canDelete = false, canEdit = true },
+            ["capabilities"] = new
+            {
+                canTrash = true,
+                canDelete = true,
+                canEdit = true,
+                canCopy = item.MimeType != Folder && item.Copyable,
+                canAddChildren = item.MimeType == Folder && item.Mutable,
+                canListChildren = item.MimeType == Folder,
+                canRename = item.Mutable,
+                canMoveItemWithinDrive = item.Mutable,
+                canModifyContent = item.Mutable && item.MimeType != Folder
+            },
         };
         if (item.MimeType != Folder && item.MimeType != Shortcut && item.Bytes is { } bytes)
         {

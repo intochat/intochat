@@ -17,14 +17,17 @@ internal sealed class OrleansInvocationSink(IGrainFactory grains, NeuronTypeRegi
     {
         var host = Host(target, call);
         Stamp();
-        return await host.Invoke(Stamped(call), cancellationToken).ConfigureAwait(false);
+        var invocation = Stamped(call);
+        return await (MayInterleave(target, invocation) ? host.InvokeInterleaved(invocation, cancellationToken)
+            : host.Invoke(invocation, cancellationToken)).ConfigureAwait(false);
     }
 
     public async Task Post(NeuronId target, RuntimeInvocation call)
     {
         var host = Host(target, call);
         Stamp();
-        await host.Post(Stamped(call)).ConfigureAwait(false);
+        var invocation = Stamped(call);
+        await (MayInterleave(target, invocation) ? host.PostInterleaved(invocation) : host.Post(invocation)).ConfigureAwait(false);
     }
 
     public async IAsyncEnumerable<JsonElement> Stream(NeuronId target, RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -47,6 +50,12 @@ internal sealed class OrleansInvocationSink(IGrainFactory grains, NeuronTypeRegi
     }
 
     private readonly string _behavior = caller?.ToString() ?? string.Empty;
+
+    private bool MayInterleave(NeuronId target, RuntimeInvocation call)
+    {
+        if (!types.TryGet(target.Type, out var neuronClass)) { throw new BindingException($"No neuron class is hosted for type '{target.Type}'."); }
+        return NeutralCallMapping.MayInterleave(neuronClass, NeuronHostGrainBase.Bind(neuronClass, call), call);
+    }
 
     // The caller's invocation is reused when it already carries this sink's provenance: no copy on the common path.
     private RuntimeInvocation Stamped(RuntimeInvocation call)

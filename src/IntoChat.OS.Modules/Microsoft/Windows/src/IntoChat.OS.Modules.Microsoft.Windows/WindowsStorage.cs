@@ -2,29 +2,30 @@ using CultureInfo = System.Globalization.CultureInfo;
 using NumberStyles = System.Globalization.NumberStyles;
 using System.Text;
 using DigitalBrain.Capabilities.Storage;
-using DigitalBrain.Operations;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // storage@1 of a Windows PC (05-08, D-03): the allowed roots, read fresh on every call. An ItemId is "w:" plus the base64url of
 // the normalised full path; it is decoded only here and always resolved through MachineRoots, so an id outside the roots (an
-// escape, a system file, a revoked root) is Denied. Read-only in Phase 5: the descriptor offers Read and Search, Write and
-// OpenWrite are Unsupported until Phase 7 (CAP-06).
-internal sealed class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? volumes = null) : IStorage
+// escape, a system file, a revoked root) is Denied. Streams stage on the destination volume and publish only on commit.
+internal sealed partial class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? volumes = null,
+    IOperations? operations = null, Func<IReadOnlyList<string>>? currentRoots = null, WindowsStorageCoordinator? coordinator = null) : IStorage
 {
+    private readonly WindowsStorageCoordinator _coordinator = coordinator ?? new();
     internal const string IdPrefix = "w:";
-    internal const int SearchVisitLimit = 10_000;
     private const string Label = "This PC";
     private const string Kind = "windows";
-    private const ItemFlags Offered = ItemFlags.Read | ItemFlags.Search;
+    private const ItemFlags Offered = ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder
+        | ItemFlags.Copy | ItemFlags.Move | ItemFlags.Rename | ItemFlags.Trash | ItemFlags.Delete;
 
-    private readonly string[] _roots = [.. roots];
+    private string[] AllowedRoots => [.. currentRoots?.Invoke() ?? roots];
 
     public Task<StorageDescriptor> Describe(CancellationToken ct = default)
-        => Task.FromResult(new StorageDescriptor(Label, Kind, LocalQuota.For(_roots, volumes ?? DriveInfoProbe.Instance), Offered));
+        => Task.FromResult(new StorageDescriptor(Label, Kind, LocalQuota.For(AllowedRoots, volumes ?? DriveInfoProbe.Instance), Offered));
 
     public Task<IReadOnlyList<Item>> Roots(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<Item>>([.. _roots.Where(Directory.Exists).Select(root => ToItem(new DirectoryInfo(root)))]);
+        => Task.FromResult<IReadOnlyList<Item>>([.. AllowedRoots.Where(Directory.Exists).Select(root => ToItem(new DirectoryInfo(Resolve(IdOf(root)))))]);
 
     public Task<Page<Item>> List(ItemId folder, ListQuery query, CancellationToken ct = default)
     {
@@ -34,7 +35,8 @@ internal sealed class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? 
         {
             if (!Directory.Exists(path)) { throw File.Exists(path) ? new Unsupported(folder) : new NotFound(folder); }
             var directory = new DirectoryInfo(path);
-            var items = directory.EnumerateDirectories().Select(ToItem).Concat(directory.EnumerateFiles().Select(ToItem));
+            ct.ThrowIfCancellationRequested();
+            var items = directory.EnumerateFileSystemInfos().Where(Visible).Select(ToItem);
             return Cut(Sorted(items, query.Sort, query.Descending), query.Cursor, query.PageSize);
         }));
     }
@@ -55,30 +57,30 @@ internal sealed class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? 
         return new Content(buffer.ToArray(), stream.ContentType, new FileInfo(Resolve(id)).Length);
     }
 
-    public Task<OperationId> Write(WritePlan plan, CancellationToken ct = default) => throw new Unsupported(null);
-
-    // Name contains, case-insensitive, across the allowed roots (or one folder), visiting at most SearchVisitLimit entries.
+    // Name contains across every descendant. The cursor pages results, never a silently truncated traversal.
     public Task<Page<Item>> Search(SearchQuery query, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(query);
-        var starts = query.Within is { } within ? [Resolve(within)] : _roots.Where(Directory.Exists).ToArray();
+        var starts = query.Within is { } within ? [Resolve(within)] : AllowedRoots.Where(Directory.Exists).ToArray();
         return Task.FromResult(Guard(query.Within, () =>
         {
             var found = new List<Item>();
-            var visited = 0;
+            var visited = new HashSet<string>(PathComparer);
             var pending = new Stack<DirectoryInfo>(starts.Select(start => new DirectoryInfo(start)).Reverse());
-            while (pending.Count > 0 && visited < SearchVisitLimit)
+            while (pending.Count > 0)
             {
                 ct.ThrowIfCancellationRequested();
                 var directory = pending.Pop();
+                if (!visited.Add(directory.FullName)) { continue; }
+                _ = Resolve(IdOf(directory.FullName));
                 IEnumerable<FileSystemInfo> entries;
                 // A folder the search may not enter (access denied, gone meanwhile) is passed over, not an error.
                 try { entries = directory.EnumerateFileSystemInfos().ToList(); }
                 catch (UnauthorizedAccessException) { continue; }
                 catch (IOException) { continue; }
-                foreach (var entry in entries)
+                foreach (var entry in entries.Where(Visible))
                 {
-                    if (++visited > SearchVisitLimit) { break; }
+                    ct.ThrowIfCancellationRequested();
                     if (entry.Name.Contains(query.Text, StringComparison.OrdinalIgnoreCase)) { found.Add(ToItem(entry)); }
                     if (entry is DirectoryInfo child && !child.Attributes.HasFlag(FileAttributes.ReparsePoint)) { pending.Push(child); }
                 }
@@ -94,7 +96,7 @@ internal sealed class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? 
         return Task.FromResult(Guard(id, () =>
         {
             if (!Directory.Exists(path) && !File.Exists(path)) { throw new NotFound(id); }
-            var root = MachineRoots.Containing(_roots, path);
+            var root = MachineRoots.Containing(AllowedRoots, path);
             var chain = new List<Item>();
             var current = root;
             foreach (var part in path[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries).SkipLast(1).Prepend(string.Empty))
@@ -123,8 +125,6 @@ internal sealed class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? 
         }));
     }
 
-    public Task<StorageWriteStream> OpenWrite(WritePlan plan, CancellationToken ct = default) => throw new Unsupported(null);
-
     // ----- ids -----
 
     internal static ItemId IdOf(string fullPath)
@@ -142,7 +142,13 @@ internal sealed class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? 
         }
         catch (FormatException) { throw new NotFound(id); }
         if (string.IsNullOrWhiteSpace(path)) { throw new NotFound(id); }
-        try { return MachineRoots.Resolve(_roots, path); }
+        try
+        {
+            var full = MachineRoots.Resolve(AllowedRoots, path);
+            if (PrivatePath(full)) { throw new UnauthorizedAccessException("Storage working files and trash are private."); }
+            foreach (var part in full[Path.GetPathRoot(full)!.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)) { _ = SafeName(part); }
+            return full;
+        }
         catch (UnauthorizedAccessException error) { throw new Denied(id, error); }
         catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException) { throw new Denied(id, error); }
     }
@@ -154,15 +160,18 @@ internal sealed class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? 
         catch (StorageException) { throw; }
         catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException) { throw new NotFound(id, error); }
         catch (UnauthorizedAccessException error) { throw new Denied(id, error); }
+        catch (IOException error) when (IoCode(error) == "quota-exceeded") { throw new QuotaExceeded(id, error); }
         catch (IOException error) { throw new Unavailable(id, error); }
     }
 
     // ----- items, sorting, paging -----
 
-    private static Item ToItem(FileSystemInfo entry) => entry switch
+    private Item ToItem(FileSystemInfo entry) => entry switch
     {
-        DirectoryInfo folder => new Item(IdOf(MachineRoots.Normalize(folder.FullName)), Name(folder.FullName), ItemKind.Folder, null, folder.LastWriteTimeUtc, ItemFlags.Read),
-        FileInfo file => new Item(IdOf(MachineRoots.Normalize(file.FullName)), file.Name, ItemKind.File, file.Length, file.LastWriteTimeUtc, ItemFlags.Read),
+        DirectoryInfo folder => new Item(IdOf(MachineRoots.Normalize(folder.FullName)), Name(folder.FullName), ItemKind.Folder, null, folder.LastWriteTimeUtc,
+            IsRoot(folder.FullName) ? ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder : Offered),
+        FileInfo file => new Item(IdOf(MachineRoots.Normalize(file.FullName)), file.Name, ItemKind.File, file.Length, file.LastWriteTimeUtc,
+            Offered & ~(ItemFlags.Search | ItemFlags.CreateFolder)),
         _ => throw new ArgumentOutOfRangeException(nameof(entry)),
     };
 

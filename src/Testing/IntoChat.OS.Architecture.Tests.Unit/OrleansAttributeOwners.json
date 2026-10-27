@@ -406,5 +406,6 @@
   "IntoChat.OS.Testing.Neurons/BothRuntimesFixture.cs": 2,
   "IntoChat.OS.Modules.Time.Tests.Integration/Reminders/RetiredReminderFacts.cs": 4,
   "IntoChat.OS.Kernel.Composition.Tests.Integration/SideBySide/RuntimeCallerMirrorFacts.cs": 1,
-  "IntoChat.OS.Framework.Tests.Integration/Signalling/MemorySignalJournalFacts.cs": 2
+  "IntoChat.OS.Framework.Tests.Integration/Signalling/MemorySignalJournalFacts.cs": 2,
+  "IntoChat.OS.Modules.Apps.Contracts/Files/IFilesWorkspace.cs": 1
 }

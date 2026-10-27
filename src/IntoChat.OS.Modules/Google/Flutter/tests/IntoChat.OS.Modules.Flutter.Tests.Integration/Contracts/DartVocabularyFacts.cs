@@ -11,8 +11,8 @@ public sealed partial class DartVocabularyFacts
 {
     // Kinds the C# vocabulary declares that the renderer registry does not list: the shell draws chat and composer
     // through the workspace, not NeuronView; a viewport is a window onto another app's view, so it has no standalone
-    // gallery sample. Shrinking this list is fine; growing it is a design decision.
-    private static readonly string[] CSharpOnlyKinds = ["chat", "composer", "viewport"];
+    // gallery sample. Confirmation is a host-owned inbox rendered through the view tree, never a gallery-owned neuron.
+    private static readonly string[] CSharpOnlyKinds = ["chat", "composer", "viewport", UIVocabulary.ConfirmationType];
 
     internal static string[] Vocabulary() => [.. typeof(UIVocabulary).GetFields(BindingFlags.Public | BindingFlags.Static)
         .Where(field => field.IsLiteral && field.FieldType == typeof(string) && field.Name.EndsWith("Type", StringComparison.Ordinal))
@@ -51,12 +51,19 @@ public sealed partial class DartVocabularyFacts
     public void EveryNodeContractNamesAVocabularyKindItsContractAndItsChangeSignal()
     {
         var table = NodeContracts();
-        Assert.Equal(29, table.Length);
+        Assert.Equal(30, table.Length);
         var assemblies = new[] { typeof(UIVocabulary).Assembly, typeof(IScene).Assembly };
         var offenders = new List<string>();
         foreach (var (kind, contract, changed) in table)
         {
             if (!Vocabulary().Contains(kind)) { offenders.Add($"{kind}: not a UIVocabulary kind"); }
+            if (kind == UIVocabulary.ConfirmationType)
+            {
+                // The runtime's framework signal is intentionally not declared beside its OS inbox adapter.
+                Assert.Equal(typeof(IntoChat.OS.Confirmation.IConfirmationInbox).FullName, contract);
+                Assert.Equal(nameof(DigitalBrain.Confirmation.ConfirmationRequested), changed);
+                continue;
+            }
             var type = assemblies.Select(assembly => assembly.GetType(contract)).SingleOrDefault(found => found is not null);
             if (type is null || !type.IsInterface || !(typeof(INeuron).IsAssignableFrom(type) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))) { offenders.Add($"{kind}: {contract} is not a neuron contract"); continue; }
             if (!type.Assembly.GetExportedTypes().Any(signal => (typeof(Signal).IsAssignableFrom(signal) || typeof(DigitalBrain.Signal).IsAssignableFrom(signal)) && signal.Name == changed && signal.Namespace!.StartsWith(type.Namespace!, StringComparison.Ordinal)))
@@ -71,7 +78,7 @@ public sealed partial class DartVocabularyFacts
     [Fact]
     public void EveryReferencedKindHasANodeContract()
     {
-        string[] referenced = ["viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas",
+        string[] referenced = [UIVocabulary.ConfirmationType, "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas",
             "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "expander",
             "surface", "layout", "collection", "card", "tabs", "view", "entrycontrol", "preference"];
         Assert.Empty(referenced.Except(NodeContracts().Select(entry => entry.Kind)));

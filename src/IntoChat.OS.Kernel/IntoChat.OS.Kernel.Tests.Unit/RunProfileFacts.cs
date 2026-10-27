@@ -184,6 +184,17 @@ public sealed class RunProfileFacts
         Assert.False(RunProfile.Local.Lean);
     }
 
+    [Theory]
+    [InlineData(IntoChatOSNames.TopologyLocal)]
+    [InlineData(IntoChatOSNames.TopologyLocalCloud)]
+    public void LocalProfilesAllowTheWindowsEdgeWithoutGrantingAnyFolder(string topology)
+    {
+        var defaults = RunProfile.ModuleDefaults(topology).ToDictionary(pair => pair.Key, pair => pair.Value);
+        Assert.DoesNotContain("windows", RunProfile.LocalDisabledModules);
+        Assert.DoesNotContain(IntoChatOSConfiguration.ModuleSection("windows") + ":Enabled", defaults.Keys);
+        Assert.DoesNotContain(defaults.Keys, key => key.StartsWith(IntoChatOSConfiguration.ModuleSection("windows") + ":", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task TheProductEntryPointAppliesCloudAndKeepsTheMasterKey()
     {

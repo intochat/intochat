@@ -116,6 +116,15 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
     /// <exception cref="UnauthorizedAccessException">The source is in another brain or refuses the subscriber.</exception>
     public async Task EnsureAliases(NeuronId from, string[] aliases)
     {
+        aliases = ValidateAliases(from, aliases);
+        // Admission on every Ensure, under the subscriber's identity; a refusal throws before anything is stored (T-04-36).
+        await AdmitAliases(from, aliases).ConfigureAwait(true);
+        await CommitAliases(from, aliases).ConfigureAwait(true);
+    }
+
+    // The session's interleaved preparation may validate and ask admission, but never load or mutate engine state.
+    internal string[] ValidateAliases(NeuronId from, string[] aliases)
+    {
         ArgumentNullException.ThrowIfNull(aliases);
         if (Stateless)
         {
@@ -125,11 +134,15 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
         aliases = CheckAliases(aliases);
         if (from.Brain != _id.Brain) { throw new UnauthorizedAccessException($"Neuron {_id} may not subscribe to {from} of another brain."); }
         if (Store is null) { throw new InvalidOperationException($"{_id} holds synapses, which need a cluster store (BrainStorageRegistration)."); }
+        return aliases;
+    }
+
+    internal Task AdmitAliases(NeuronId from, string[] aliases) => Admit(from, aliases);
+
+    // Only EnsureAliases after admission or the session's validated one-use ticket reaches this ordinary mutation.
+    internal async Task CommitAliases(NeuronId from, string[] aliases)
+    {
         if (!_loaded) { await Load().ConfigureAwait(true); }
-
-        // Admission on every Ensure, under the subscriber's identity; a refusal throws before anything is stored (T-04-36).
-        await Admit(from, aliases).ConfigureAwait(true);
-
         var source = from.ToString();
         var entry = _state.Sources.Find(item => item.Source == source);
         var created = entry is null;
@@ -327,9 +340,13 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
     private async Task Persist()
     {
         if (Store is not { } store) { return; }
-        var state = new GrainState<SynapseState>(_state) { ETag = _etag };
+        // A reaction's state saves also write this record atomically. Ensure/Remove may run between those saves,
+        // so both write paths must advance the same ETag before the reaction has finished.
+        var reaction = ReactionCursor.For(_grainId);
+        var state = new GrainState<SynapseState>(_state) { ETag = reaction?.ETag ?? _etag };
         await store.WriteStateAsync(SynapseState.Name, _grainId, state).ConfigureAwait(true);
         _etag = state.ETag;
+        if (reaction is not null && _etag is not null) { reaction.Committed(_etag); }
     }
 
     private Task Report(SynapseSource entry)

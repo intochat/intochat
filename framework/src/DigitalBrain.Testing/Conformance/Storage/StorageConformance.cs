@@ -295,6 +295,25 @@ public abstract class StorageConformance<TStorage> where TStorage : IStorage
 
     // ----- Write -----
 
+    /// <summary>An explicitly replacing rename leaves one destination with the source bytes, never duplicate names.</summary>
+    [Fact(Timeout = Timeout)]
+    public async Task RenameOverwriteReplacesExactlyOneDestination()
+    {
+        var (s, ct) = await Open().ConfigureAwait(false);
+        await Require(s, ItemFlags.Write | ItemFlags.Rename, ct).ConfigureAwait(false);
+        var folder = await SeedFolder(s.Storage, ct).ConfigureAwait(false);
+        var sourceName = Unique("staged") + ".txt";
+        var targetName = Unique("target") + ".txt";
+        await Succeeds(s, WritePlan.WriteFile(folder, sourceName, Encoding.UTF8.GetBytes("verified replacement")), ct).ConfigureAwait(false);
+        await Succeeds(s, WritePlan.WriteFile(folder, targetName, Encoding.UTF8.GetBytes("original")), ct).ConfigureAwait(false);
+        var source = await Child(s.Storage, folder, sourceName, ct).ConfigureAwait(false);
+        await Succeeds(s, WritePlan.Rename(source.Id, targetName, ConflictPolicy.Overwrite), ct).ConfigureAwait(false);
+        var items = await All(s.Storage, folder, new ListQuery(), ct).ConfigureAwait(false);
+        Assert.DoesNotContain(items, item => item.Name == sourceName);
+        var target = Assert.Single(items, item => item.Name == targetName);
+        Assert.Equal("verified replacement", await s.Storage.ReadText(target.Id, ct).ConfigureAwait(false));
+    }
+
     /// <summary>CreateFolder succeeds and the new folder stats as a folder.</summary>
     [Fact(Timeout = Timeout)]
     public async Task CreateFolderThenStat()

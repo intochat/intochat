@@ -3,7 +3,7 @@ using DigitalBrain.Capabilities.Storage;
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
 // 05-08: WindowsStorage on the PC itself streams files from a FileStream (seekable whole, bounded for a range) and refuses
-// writes while it does not offer Write. The kit reaches it through the broker; these facts hold the host-local streams.
+// staged writes publish on commit. The kit reaches it through the broker; these facts hold the host-local streams.
 public sealed class WindowsStorageStreamFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -34,15 +34,14 @@ public sealed class WindowsStorageStreamFacts
     }
 
     [Fact]
-    public async Task WritesAreUnsupportedAndNotOffered()
+    public async Task RootFlagsOfferCreationButNeverRootDestruction()
     {
         var root = Directory.CreateTempSubdirectory("windows-stream").FullName;
         var storage = new WindowsStorage([MachineRoots.Normalize(root)]);
         var folder = WindowsStorage.IdOf(MachineRoots.Normalize(root));
 
-        Assert.Equal(ItemFlags.Read | ItemFlags.Search, (await storage.Describe(Ct)).Flags);
-        Assert.Equal("unsupported", (await Assert.ThrowsAsync<Unsupported>(() => storage.OpenWrite(WritePlan.WriteFile(folder, "x.txt"), Ct))).Code);
-        await Assert.ThrowsAsync<Unsupported>(() => storage.Write(WritePlan.CreateFolder(folder, "x"), Ct));
+        Assert.True((await storage.Describe(Ct)).Flags.HasFlag(ItemFlags.Write | ItemFlags.CreateFolder | ItemFlags.Trash));
+        Assert.Equal(ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder, (await storage.Stat(folder, Ct)).Flags);
         Assert.Empty(Directory.EnumerateFileSystemEntries(root));
     }
 

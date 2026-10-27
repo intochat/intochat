@@ -1,5 +1,7 @@
 {
   "IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration/OAuthCredentialFacts.cs": 3,
   "IntoChat.OS.Modules.AI.Tests.Integration/CredentialFacts.cs": 2,
-  "IntoChat.OS.Modules.AI/Integrations/BrainAwareCredentials.cs": 2
+  "IntoChat.OS.Modules.AI/Integrations/BrainAwareCredentials.cs": 2,
+  "IntoChat.OS.Kernel.Composition.Tests.Integration/HostDispatchAccessFacts.cs": 8,
+  "IntoChat.OS.Modules.Flutter.Tests.Integration/Space/SpaceFacts.cs": 2
 }

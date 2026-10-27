@@ -61,13 +61,23 @@ public static class KernelTestHooks
     {
         private INeuronHost Host(global::DigitalBrain.NeuronId target) => grains.GetGrain<INeuronHost>(GrainId.Create(hostType, target.ToString()));
 
-        public Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken) => Host(target).Invoke(call, cancellationToken);
+        public async Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
+        {
+            var host = Host(target);
+            var interleaved = await host.IsInterleaved(call).WaitAsync(cancellationToken).ConfigureAwait(true);
+            return await (interleaved ? host.InvokeInterleaved(call, cancellationToken) : host.Invoke(call, cancellationToken)).ConfigureAwait(false);
+        }
 
-        public Task Post(global::DigitalBrain.NeuronId target, RuntimeInvocation call) => Host(target).Post(call);
+        public async Task Post(global::DigitalBrain.NeuronId target, RuntimeInvocation call)
+        {
+            var host = Host(target);
+            if (await host.IsInterleaved(call).ConfigureAwait(true)) { await host.PostInterleaved(call).ConfigureAwait(false); }
+            else { await host.Post(call).ConfigureAwait(false); }
+        }
 
         public async IAsyncEnumerable<JsonElement> Stream(global::DigitalBrain.NeuronId target, RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await foreach (var item in Host(target).Stream(call, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false)) { yield return item; }
+            await foreach (var item in Host(target).Stream(call, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(true)) { yield return item; }
         }
     }
 }

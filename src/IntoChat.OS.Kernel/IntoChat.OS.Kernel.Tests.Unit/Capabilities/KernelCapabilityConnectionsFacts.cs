@@ -146,7 +146,16 @@ public sealed class KernelCapabilityConnectionsFacts
         public object Get(Type contract, DigitalBrain.NeuronId id)
             => contract == typeof(ILegacyStorage) ? new FakeLegacyStorage()
             : contract == typeof(StorageV1) ? new LegacyStorageAdapter(new FakeLegacyStorage())
+            : contract == typeof(DigitalBrain.Capabilities.Storage.IStorageUpload) ? new FakeUploads()
             : throw new ArgumentException(id.ToString());
+    }
+
+    private sealed class FakeUploads : DigitalBrain.Capabilities.Storage.IStorageUpload
+    {
+        public Task<string> BeginUpload(DigitalBrain.Capabilities.Storage.WritePlan plan, CancellationToken ct) => throw new NotSupportedException();
+        public Task AppendUpload(string upload, long offset, byte[] bytes, CancellationToken ct) => throw new NotSupportedException();
+        public Task<DigitalBrain.Capabilities.Storage.ItemId> CommitUpload(string upload, long length, CancellationToken ct) => throw new NotSupportedException();
+        public Task AbortUpload(string upload, CancellationToken ct) => throw new NotSupportedException();
     }
 
     private sealed class FakeLegacyStorage : ILegacyStorage

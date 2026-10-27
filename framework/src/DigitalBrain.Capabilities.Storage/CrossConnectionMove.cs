@@ -15,6 +15,7 @@ internal sealed class CrossConnectionMove(
     CapabilityConnection<IStorage> source, CapabilityConnection<IStorage> target, WritePlan plan, IOperation operation, StorageWriteRunner runner)
 {
     private ItemId? _created;
+    private bool _publishingReplacement;
 
     public async Task<OperationResult> Run()
     {
@@ -44,6 +45,10 @@ internal sealed class CrossConnectionMove(
         var move = plan.Kind == WriteKind.Move;
         if (plan.DryRun) { return new OperationResult.Planned(Steps(tree, name, move)); }
 
+        // Never overwrite the destination before verification: cleanup must only touch this operation's new staging item.
+        var replacing = policy == ConflictPolicy.Overwrite;
+        var stagedName = replacing ? ".intochat-transfer-" + Guid.NewGuid().ToString("N") : name;
+
         var total = tree.Count + (move ? 1 : 0);
         try
         {
@@ -53,8 +58,8 @@ internal sealed class CrossConnectionMove(
                 ct.ThrowIfCancellationRequested();
                 var node = tree[i];
                 var parent = i == 0 ? folder : ids[node.Parent];
-                var itemName = i == 0 ? name : node.Item.Name;
-                var itemPolicy = i == 0 ? policy : ConflictPolicy.Fail;
+                var itemName = i == 0 ? stagedName : node.Item.Name;
+                var itemPolicy = i == 0 && !replacing ? policy : ConflictPolicy.Fail;
                 if (node.Item.Kind == ItemKind.Folder)
                 {
                     var made = await runner.Write(b, WritePlan.CreateFolder(parent, itemName, itemPolicy), ct).ConfigureAwait(false);
@@ -75,6 +80,31 @@ internal sealed class CrossConnectionMove(
                 await operation.Report((i + 1) / (double)total).ConfigureAwait(false);
             }
             ct.ThrowIfCancellationRequested();
+            if (move)
+            {
+                bool unchanged;
+                try { unchanged = await SourceStillMatches(a, b, tree, ids, ct).ConfigureAwait(false); }
+                catch (StorageException error)
+                {
+                    return new OperationResult.Failed("source-check-failed",
+                        $"copied to {target.ConnectionKey}:{stagedName}; checking {source.ConnectionKey}:{root.Id.Value} failed: {error.Code}; both copies were kept");
+                }
+                if (!unchanged)
+                {
+                    // The verified copy remains available, but new source work must never be moved to the trash unseen.
+                    return new OperationResult.Failed("source-changed",
+                        $"copied to {target.ConnectionKey}:{stagedName}; {source.ConnectionKey}:{root.Id.Value} changed during the transfer and was kept");
+                }
+            }
+            ct.ThrowIfCancellationRequested();
+            if (replacing)
+            {
+                _publishingReplacement = true;
+                var published = await runner.Write(b, WritePlan.Rename(ids[0], name, ConflictPolicy.Overwrite), ct).ConfigureAwait(false);
+                if (published is not OperationResult.Succeeded) { return published; }
+                // The replacement is now verified and published. A later error must not delete it during cleanup.
+                _created = null;
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -91,10 +121,11 @@ internal sealed class CrossConnectionMove(
             OperationResult deleted;
             try { deleted = await runner.Write(a, WritePlan.Delete(root.Id), CancellationToken.None).ConfigureAwait(false); }
             catch (StorageException error) { deleted = new OperationResult.Failed(error.Code, error.Message); }
-            if (deleted is OperationResult.Failed failed)
+            if (deleted is not OperationResult.Succeeded)
             {
+                var code = deleted is OperationResult.Failed failed ? failed.Code : deleted is OperationResult.Cancelled ? "cancelled" : "not-applied";
                 return new OperationResult.Failed("source-delete-failed",
-                    $"copied to {target.ConnectionKey}:{_created?.Value} and verified; deleting {source.ConnectionKey}:{root.Id.Value} failed: {failed.Code}");
+                    $"copied to {target.ConnectionKey}:{name} and verified; deleting {source.ConnectionKey}:{root.Id.Value} failed: {code}");
             }
         }
         await operation.Report(1).ConfigureAwait(false);
@@ -134,9 +165,45 @@ internal sealed class CrossConnectionMove(
         {
             return string.Equals(original.Hash, copied.Hash, StringComparison.OrdinalIgnoreCase);
         }
-        var x = await a.Read(original.Id, null, ct).ConfigureAwait(false);
-        var y = await b.Read(copy, null, ct).ConfigureAwait(false);
-        return x.Bytes.Span.SequenceEqual(y.Bytes.Span);
+        await using var x = await a.OpenRead(original.Id, null, ct).ConfigureAwait(false);
+        await using var y = await b.OpenRead(copy, null, ct).ConfigureAwait(false);
+        var leftBytes = new byte[64 * 1024];
+        var rightBytes = new byte[leftBytes.Length];
+        while (true)
+        {
+            var leftCount = await x.Content.ReadAtLeastAsync(leftBytes, leftBytes.Length, throwOnEndOfStream: false, ct).ConfigureAwait(false);
+            var rightCount = await y.Content.ReadAtLeastAsync(rightBytes, rightBytes.Length, throwOnEndOfStream: false, ct).ConfigureAwait(false);
+            if (leftCount != rightCount || !leftBytes.AsSpan(0, leftCount).SequenceEqual(rightBytes.AsSpan(0, rightCount))) { return false; }
+            if (leftCount == 0) { return true; }
+        }
+    }
+
+    private static async Task<bool> SourceStillMatches(IStorage source, IStorage target, List<Node> original, ItemId[] copies, CancellationToken ct)
+    {
+        var current = new List<Node>();
+        try { await Collect(source, await source.Stat(original[0].Item.Id, ct).ConfigureAwait(false), -1, current, ct).ConfigureAwait(false); }
+        catch (NotFound) { return false; }
+        if (current.Count != original.Count) { return false; }
+        var positions = original.Select((node, index) => (node.Item.Id, index)).ToDictionary(pair => pair.Id, pair => pair.index);
+        foreach (var node in current)
+        {
+            if (!positions.TryGetValue(node.Item.Id, out var index)) { return false; }
+            var before = original[index];
+            if (node.Item.Name != before.Item.Name || node.Item.Kind != before.Item.Kind || node.Item.Target != before.Item.Target
+                || (node.Parent < 0 ? (ItemId?)null : current[node.Parent].Item.Id) != (before.Parent < 0 ? null : original[before.Parent].Item.Id))
+            { return false; }
+            if (node.Item.Kind != ItemKind.Folder)
+            {
+                // Refresh metadata rather than trusting the original listing's hash. Storage connections without comparable hashes
+                // use the same bounded stream comparison as initial verification.
+                Item fresh;
+                try { fresh = await source.Stat(node.Item.Id, ct).ConfigureAwait(false); }
+                catch (NotFound) { return false; }
+                if (!await Verified(source, target, fresh, copies[index], ct).ConfigureAwait(false)) { return false; }
+            }
+        }
+        // storage@1 has no conditional delete: this detects observed transfer-time changes, not an atomic source lock.
+        return true;
     }
 
     private static string? Algorithm(string? hash)
@@ -149,7 +216,7 @@ internal sealed class CrossConnectionMove(
     // Removes the partial copy best-effort (permanently, falling back to the trash) and returns the result unchanged.
     private async Task<OperationResult> Undo(OperationResult result)
     {
-        if (_created is not { } created) { return result; }
+        if (_publishingReplacement || _created is not { } created) { return result; }
         foreach (var permanent in new[] { true, false })
         {
             try

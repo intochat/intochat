@@ -17,7 +17,7 @@ namespace IntoChat.OS.Modules.Google.Drive;
 [GenerateSerializer, Alias("db.google-drive.state")]
 internal sealed class DriveState : ConnectionState;
 
-// One Google Drive as storage, read only. Locations are Drive file ids; "root" is My Drive.
+// One Google Drive as storage. Locations are Drive file ids; "root" is My Drive.
 // Google documents are exported as plain text; other Google formats are not text. storage@1 lives in DriveStorage.cs (05-09).
 [DigitalBrain.Neuron(DriveScopes.Connector, State = "google-drive")]
 internal sealed partial class DriveNeuron()
@@ -138,17 +138,18 @@ internal sealed partial class DriveNeuron()
     private Task<HttpResponseMessage> AboutAsync(string accessToken, CancellationToken ct) =>
         RequestAsync(new Uri(Options.Endpoint, "about?fields=user(emailAddress)"), GoogleDriveOperations.About, accessToken, ct);
 
-    private async Task<HttpResponseMessage> RequestAsync(Uri uri, string operation, string accessToken, CancellationToken ct, RangeHeaderValue? range = null)
+    private async Task<HttpResponseMessage> RequestAsync(Uri uri, string operation, string accessToken, CancellationToken ct, RangeHeaderValue? range = null,
+        HttpMethod? method = null, HttpContent? content = null)
     {
         using var trace = EnterTrace();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
         using var client = ServiceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(GoogleHttp.ClientName);
-        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        using var request = new HttpRequestMessage(method ?? HttpMethod.Get, uri) { Content = content };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Headers.Range = range;
         request.SetExternalCall(new(operation, Funding.OwnConnection, new(Neuron: FullKey), Guid.NewGuid().ToString("N")));
-        return await client.SendAsync(request, linked.Token);
+        return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token);
     }
 
     private IDisposable? EnterTrace()

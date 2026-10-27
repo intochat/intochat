@@ -631,3 +631,4 @@ static DigitalBrain.Testing.Conformance.Secrets.KitNamedSecret.operator ==(Digit
 DigitalBrain.Testing.TestOS.ClusterListeners.get -> DigitalBrain.Spi.IClusterListeners!
 DigitalBrain.Testing.TestOS.Caller.get -> DigitalBrain.Capabilities.CapabilityCaller?
 DigitalBrain.Testing.TestOS.Caller.set -> void
+DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.RenameOverwriteReplacesExactlyOneDestination() -> System.Threading.Tasks.Task!

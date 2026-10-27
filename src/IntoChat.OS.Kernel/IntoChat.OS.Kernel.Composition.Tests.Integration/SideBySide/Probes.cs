@@ -29,11 +29,37 @@ public interface IPlainProbe
     IAsyncEnumerable<int> Count(int n, CancellationToken cancellationToken = default);
     Task Follow(string source);
     Task Ping(string text);
+    Task Hold();
+    [DB.Interleaves] Task Holding();
+    [DB.Interleaves] Task<IntoChat.OS.Framework.Modules.CallerContext> Release();
+    Task<IntoChat.OS.Framework.Modules.CallerContext> CallerSnapshot();
+    Task Relay(string target, bool callerless, bool post);
 }
 
 [DB.Neuron("probe.plain")]
-public sealed class PlainProbe : DB.Neuron, IPlainProbe
+public sealed class PlainProbe(IServiceProvider services) : DB.Neuron, IPlainProbe
 {
+    private readonly TaskCompletionSource _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public async Task Hold() { _held.TrySetResult(); await _release.Task; }
+
+    public Task Holding() => _held.Task;
+
+    public Task<IntoChat.OS.Framework.Modules.CallerContext> Release() { _release.TrySetResult(); return CallerSnapshot(); }
+
+    public Task<IntoChat.OS.Framework.Modules.CallerContext> CallerSnapshot() => Task.FromResult(IntoChat.OS.Framework.CallerContextStamper.Require());
+
+    public async Task Relay(string target, bool callerless, bool post)
+    {
+        var sink = callerless ? KernelTestHooks.HostSink(services) : KernelInvocationSink.For(services, Id.ToString());
+        var id = DB.NeuronId.Parse(target);
+        var call = new DB.Invocation.RuntimeInvocation(string.Empty, DB.Invocation.NeuronProxy.ContractName(typeof(IPlainProbe)), target,
+            nameof(CallerSnapshot), []);
+        if (post) { await sink.Post(id, call); }
+        else { await sink.Invoke(id, call, CancellationToken.None); }
+    }
+
     // The caller's neuron id, as the runtime carries it (empty when the call came from no neuron).
     public Task<string> Echo(string text) => Task.FromResult(text + "|" + (Orleans.Runtime.RequestContext.Get(KernelInvocationSink.CallerKey) as string ?? string.Empty));
 

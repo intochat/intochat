@@ -196,6 +196,7 @@ jobs:
       - name: Validate NuGet packages
         run: |
           dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
+          python3 scripts/check-app-packages.py artifacts/packages
 
       - uses: actions/upload-artifact@v7
         with:
@@ -374,6 +375,26 @@ jobs:
       - name: Build the Drive module from the packages alone
         run: bash scripts/dx04-drive.sh src/IntoChat.OS.Modules/Google/Drive artifacts/framework-packages "$RUNNER_TEMP/dx04"
 
+  # Windows confinement, junctions, trash and uploads must execute on Windows; Linux skips are not provider verification.
+  windows-storage:
+    name: windows-storage
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Windows storage unit tests
+        run: dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/windows-storage-results
+      - name: Windows storage runtime and writable conformance
+        run: dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/windows-storage-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-storage-results
+          path: artifacts/windows-storage-results
+
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
   # shard reports the whole run instead of only the rerun jobs (attempts/N/jobs lists only that attempt's jobs).
@@ -406,7 +427,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [format, build, test, framework-test, framework-e2e, framework-template, dx04-packages]
+    needs: [format, build, test, framework-test, framework-e2e, framework-template, dx04-packages, windows-storage]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -416,6 +437,7 @@ jobs:
         run: |
           echo "format=${{ needs.format.result }} build=${{ needs.build.result }} test=${{ needs.test.result }}"
           echo "framework-test=${{ needs.framework-test.result }} framework-e2e=${{ needs.framework-e2e.result }} framework-template=${{ needs.framework-template.result }} dx04-packages=${{ needs.dx04-packages.result }}"
+          echo "windows-storage=${{ needs.windows-storage.result }}"
           exit 1
 
   # Prerelease packages to GitHub Packages, only after the aggregate ci job succeeded on a master push.
