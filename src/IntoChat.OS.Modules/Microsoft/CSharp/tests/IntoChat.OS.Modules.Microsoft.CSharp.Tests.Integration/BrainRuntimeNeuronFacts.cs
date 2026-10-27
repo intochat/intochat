@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using RuntimeInvocation = DigitalBrain.Invocation.RuntimeInvocation;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Contracts.Configuration;
@@ -869,21 +871,69 @@ public sealed class BrainRuntimeNeuronFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var assemblies = new HeldAssemblies();
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: assemblies);
+        var duplicate = new DuplicateAssign(RuntimeBrain.Idle + "// stuck\n");
+        await using var brain = await RuntimeBrain.Create(new FakeSessionHost()).ConfigureServices(services =>
+        {
+            services.AddSingleton<IntoChat.OS.Modules.Microsoft.CSharp.Assemblies.IBehaviorAssemblies>(assemblies);
+            services.AddSingleton<global::Orleans.IIncomingGrainCallFilter>(duplicate);
+        }).StartAsync(ct);
+        Assert.Same(duplicate, brain.Services.GetServices<global::Orleans.IIncomingGrainCallFilter>().Last());
         var previous = await Programs(brain).Assign(Owner, Synapse(), []);
         var hold = assemblies.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
         var stuck = Programs(brain).Assign(Owner, Synapse(RuntimeBrain.Idle + "// stuck\n"), []);
         await assemblies.Entered.Task.WaitAsync(ct);
         var askedAgain = Programs(brain).Assign(Owner, Synapse(RuntimeBrain.Idle + "// stuck\n"), []);
-        assemblies.Hold = null;
+        try
+        {
+            await duplicate.Arrived.Task.WaitAsync(ct);
+            duplicate.Release.SetResult();
+            await duplicate.Dispatched.Task.WaitAsync(ct);
+            assemblies.Hold = null;
+            var reverted = await Programs(brain).Assign(Owner, Synapse(), []);
+            hold.SetResult();
 
-        var reverted = await Programs(brain).Assign(Owner, Synapse(), []);
-        hold.SetResult();
+            Assert.Equal(previous.Hash, reverted.Hash);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => stuck);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => askedAgain);
+            Assert.Equal(previous.Hash, (await Programs(brain).Describe(Owner))!.Hash);
+            Assert.Equal(2, assemblies.Puts);
+        }
+        finally
+        {
+            duplicate.Release.TrySetResult();
+            hold.TrySetResult();
+        }
+    }
 
-        Assert.Equal(previous.Hash, reverted.Hash);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => stuck);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => askedAgain);
-        Assert.Equal(previous.Hash, (await Programs(brain).Describe(Owner))!.Hash);
+    private sealed class DuplicateAssign(string source) : global::Orleans.IIncomingGrainCallFilter
+    {
+        private int _assignments;
+        public TaskCompletionSource Arrived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Dispatched { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task Invoke(global::Orleans.IIncomingGrainCallContext context)
+        {
+            if (context.InterfaceMethod.DeclaringType == typeof(INeuronHost)
+                && context.InterfaceMethod.Name == nameof(INeuronHost.InvokeInterleaved)
+                && context.Request.GetArgument(0) is RuntimeInvocation call
+                && call.Key == new DigitalBrain.NeuronId(new(Brain), BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.Name).ToString()
+                && call.Contract == "microsoft.csharp.programs" && call.Method == nameof(IBrainPrograms.Assign)
+                && call.Arguments[0].GetString() == Owner
+                && call.Arguments[1].EnumerateObject().Any(file => file.Value.GetString() == source)
+                && ++_assignments == 2)
+            {
+                Assert.False(context.Grain is global::Orleans.IIncomingGrainCallFilter);
+                Arrived.TrySetResult();
+                await Release.Task;
+                // This is the last filter. Dispatch synchronously enters Assign's request-joining prefix before awaiting it.
+                var invoking = context.Invoke();
+                Dispatched.TrySetResult();
+                await invoking;
+                return;
+            }
+            await context.Invoke();
+        }
     }
 
     // A live signal only nudges the runtime: its publisher returns while the runtime is still in a long turn,
