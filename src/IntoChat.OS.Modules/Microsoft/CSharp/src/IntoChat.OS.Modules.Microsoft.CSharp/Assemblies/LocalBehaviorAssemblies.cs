@@ -90,13 +90,30 @@ internal sealed class LocalBehaviorAssemblies : IBehaviorAssemblies
     private async Task WriteAsync(string name, byte[] bytes, CancellationToken cancellationToken)
     {
         var path = Path.Combine(_root, name);
+        if (File.Exists(path))
+        {
+            await RequireSameBytes(path, bytes, cancellationToken).ConfigureAwait(false);
+            return;
+        }
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             await File.WriteAllBytesAsync(temporary, bytes, cancellationToken).ConfigureAwait(false);
-            File.Move(temporary, path, overwrite: true);
+            try { File.Move(temporary, path); }
+            catch (IOException) when (File.Exists(path))
+            {
+                // Another restore published this immutable file while our temporary copy was being written.
+                await RequireSameBytes(path, bytes, cancellationToken).ConfigureAwait(false);
+            }
         }
         finally { File.Delete(temporary); }
+    }
+
+    private static async Task RequireSameBytes(string path, byte[] bytes, CancellationToken cancellationToken)
+    {
+        var existing = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        if (!existing.AsSpan().SequenceEqual(bytes))
+        { throw new InvalidDataException($"Behavior cache entry '{Path.GetFileName(path)}' contains different bytes."); }
     }
 
     private static bool ValidName(string name)
