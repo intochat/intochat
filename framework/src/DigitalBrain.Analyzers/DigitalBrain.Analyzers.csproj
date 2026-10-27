@@ -27,7 +27,8 @@
   </ItemGroup>
   <!-- 08-03: the code fixes (Workspaces-dependent, RS1038) ship next to the analyzer dll. -->
   <Target Name="DigitalBrainPackCodeFixes" BeforeTargets="_GetPackageFiles">
-    <MSBuild Projects="../DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+    <MSBuild Projects="../DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" Targets="Build" Properties="Configuration=$(Configuration)" Condition="'$(NoBuild)' != 'true'" />
+    <MSBuild Projects="../DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_DigitalBrainCodeFixesDll" />
     </MSBuild>
     <ItemGroup>
