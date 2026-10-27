@@ -1,12 +1,16 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Security;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32;
 
 namespace IntoChat.OS.Kernel.Composition.Operations;
 
-internal sealed class SystemLocalProcessProbe : ILocalProcessProbe
+internal sealed class SystemLocalProcessProbe(ILogger<SystemLocalProcessProbe>? logger = null) : ILocalProcessProbe
 {
+    private readonly ILogger<SystemLocalProcessProbe> _logger = logger ?? NullLogger<SystemLocalProcessProbe>.Instance;
+
     public int CurrentProcessId => Environment.ProcessId;
 
     // Native Windows is the supported proof boundary. Windows containers virtualize process IDs; the registry
@@ -22,7 +26,11 @@ internal sealed class SystemLocalProcessProbe : ILocalProcessProbe
                 using var control = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control", writable: false);
                 return control is not null && control.GetValue("ContainerType") is null ? "windows-host" : null;
             }
-            catch (Exception error) when (error is SecurityException or UnauthorizedAccessException or IOException) { return null; }
+            catch (Exception error) when (error is SecurityException or UnauthorizedAccessException or IOException)
+            {
+                _logger.LogDebug("Local process namespace observation is unavailable ({ExceptionType}).", error.GetType().Name);
+                return null;
+            }
         }
     }
 
@@ -40,7 +48,10 @@ internal sealed class SystemLocalProcessProbe : ILocalProcessProbe
                 return process.HasExited ? new(false) : new(true, started);
             }
             catch (Exception error) when (error is Win32Exception or InvalidOperationException or NotSupportedException)
-            { return default; }
+            {
+                _logger.LogDebug("Local process incarnation observation is unavailable ({ExceptionType}).", error.GetType().Name);
+                return default;
+            }
         }
     }
 

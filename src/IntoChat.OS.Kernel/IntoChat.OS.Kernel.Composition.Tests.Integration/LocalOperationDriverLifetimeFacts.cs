@@ -6,6 +6,7 @@ using DigitalBrain.Runtime.Orleans.Operations;
 using IntoChat.OS.Framework.Machine;
 using IntoChat.OS.Kernel.Composition.Operations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Kernel.Composition.Tests.Integration;
 
@@ -116,6 +117,35 @@ public sealed class LocalOperationDriverLifetimeFacts
     }
 
     [Fact]
+    public void UnavailableEvidenceLogsFailureMetadataWithoutTokensOrExceptionMessages()
+    {
+        const string sensitive = "private-process-detail";
+        var token = Assert.IsType<string>(Lifetime(new Probe()).Capture());
+        var log = new RecordedLog();
+        var services = new ServiceCollection();
+        services.AddSingleton<ITopologyProfile>(new LocalProfile());
+        services.AddSingleton<IMachineIdentity>(new Machine("install"));
+        services.AddSingleton<ILocalProcessProbe>(new Probe { Error = new Win32Exception(5, sensitive) });
+        services.AddSingleton<ILogger<LocalOperationDriverLifetime>>(log);
+        OrleansHostWiring.ConfigureServices(services);
+        using var provider = services.BuildServiceProvider();
+        var lifetime = provider.GetRequiredService<IOperationDriverLifetime>();
+
+        Assert.Null(lifetime.Capture());
+        Assert.Null(lifetime.HasEnded(token));
+
+        Assert.Equal(2, log.Entries.Count);
+        Assert.All(log.Entries, entry =>
+        {
+            Assert.Equal(LogLevel.Debug, entry.Level);
+            Assert.Null(entry.Error);
+            Assert.Contains(nameof(Win32Exception), entry.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain(sensitive, entry.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain(token, entry.Message, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public void NativeWindowsObservesTheRealCurrentProcessIncarnation()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Native Windows process proof.");
@@ -186,5 +216,14 @@ public sealed class LocalOperationDriverLifetimeFacts
         public string? Namespace => system.Namespace;
         public int CurrentProcessId => pid;
         public ProcessObservation Observe(int processId) => system.Observe(processId);
+    }
+
+    private sealed class RecordedLog : ILogger<LocalOperationDriverLifetime>
+    {
+        public List<(LogLevel Level, string Message, Exception? Error)> Entries { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception), exception));
     }
 }

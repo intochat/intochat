@@ -3,13 +3,18 @@ using System.Security;
 using System.Text.Json;
 using DigitalBrain.Runtime.Orleans.Operations;
 using IntoChat.OS.Framework.Machine;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Kernel.Composition.Operations;
 
 // Local process evidence is independent of Aspire's allocated Orleans ports. The installation identity must match
 // before probing a PID; a PID namespace we cannot identify contributes no evidence to recovery.
-internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, ILocalProcessProbe processes) : IOperationDriverLifetime
+internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, ILocalProcessProbe processes,
+    ILogger<LocalOperationDriverLifetime>? logger = null) : IOperationDriverLifetime
 {
+    private readonly ILogger<LocalOperationDriverLifetime> _logger = logger ?? NullLogger<LocalOperationDriverLifetime>.Instance;
+
     public string? Capture()
     {
         try
@@ -23,7 +28,11 @@ internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, I
             return process is { Alive: true, StartedUtcTicks: > 0 } && process.StartedUtcTicks <= DateTime.MaxValue.Ticks
                 ? JsonSerializer.Serialize(new Token(1, machine, space, pid, process.StartedUtcTicks)) : null;
         }
-        catch (Exception error) when (Unavailable(error)) { return null; }
+        catch (Exception error) when (Unavailable(error))
+        {
+            _logger.LogDebug("Local operation lifetime capture is unavailable ({ExceptionType}).", error.GetType().Name);
+            return null;
+        }
     }
 
     public bool? HasEnded(string token)
@@ -46,7 +55,11 @@ internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, I
             };
         }
         catch (JsonException) { return null; }
-        catch (Exception error) when (Unavailable(error)) { return null; }
+        catch (Exception error) when (Unavailable(error))
+        {
+            _logger.LogDebug("Local operation lifetime observation is unavailable ({ExceptionType}).", error.GetType().Name);
+            return null;
+        }
     }
 
     private static bool Unavailable(Exception error)
