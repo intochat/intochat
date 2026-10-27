@@ -38,8 +38,8 @@
     <PackageVersion Include="Aspire.Hosting.Qdrant" Version="13.6.1" />
     <PackageVersion Include="Aspire.Hosting.Yarp" Version="13.6.1" />
     <PackageVersion Include="Aspire.Hosting.ClickHouse" Version="13.5.3" />
-    <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.6.4" />
+    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.6.4" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
     <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.4" />
     <PackageVersion Include="Qdrant.Client" Version="1.19.0" />
