@@ -63,9 +63,10 @@ public sealed class FeatureDirectory(string path, bool writable = false)
         => Relative(folder, file) is var relative
             && (relative.StartsWith("bin/", StringComparison.Ordinal) || relative.StartsWith("obj/", StringComparison.Ordinal) || IsCompiledSource(relative));
 
-    // Built-in app projects and their host adapters are compiled by MSBuild, never sent to the script runtime or overwritten by it.
+    // Built-in projects, host adapters and tests are built by MSBuild, never sent to the script runtime or overwritten by it.
     private static bool IsCompiledSource(string relative)
-        => relative.StartsWith("compiled/", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("hosting/", StringComparison.OrdinalIgnoreCase);
+        => relative.StartsWith("compiled/", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("hosting/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("tests/", StringComparison.OrdinalIgnoreCase);
 
     private static Dictionary<string, string> ReadFolder(DirectoryInfo folder)
     {
