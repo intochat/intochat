@@ -6,7 +6,7 @@ namespace DigitalBrain;
 
 /// <summary>Validated manifest and operation metadata for trusted app code. Does not construct an app.</summary>
 /// <remarks>Reading a declared static Manifest property executes app code. Establish code trust before creating a definition.</remarks>
-public sealed class AppDefinition
+public sealed partial class AppDefinition
 {
     /// <summary>Discovers a concrete, closed App class marked with AppAttribute.</summary>
     public AppDefinition(Type appType)

@@ -924,3 +924,5 @@ DigitalBrain.AppDefinition.AppType.get -> System.Type!
 DigitalBrain.AppDefinition.Manifest.get -> DigitalBrain.AppManifest!
 DigitalBrain.AppDefinition.Operations.get -> System.Collections.Generic.IReadOnlyDictionary<string!, System.Reflection.MethodInfo!>!
 DigitalBrain.AppDefinition.FindOperation(string! operation) -> System.Reflection.MethodInfo?
+DigitalBrain.AppDefinition.Create(System.Func<System.Type!, object?>! services) -> DigitalBrain.App!
+DigitalBrain.AppDefinition.Invoke(DigitalBrain.App! instance, string! operation, object? argument, System.Text.Json.JsonSerializerOptions? json = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

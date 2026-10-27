@@ -1,6 +1,4 @@
 using System.Reflection;
-using System.Runtime.ExceptionServices;
-using System.Text.Json;
 
 namespace DigitalBrain.Testing;
 
@@ -13,7 +11,6 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
 {
     App IInstalledApp.Instance => App;
 
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly TestOS _os;
     private readonly Lock _gate = new();
     private Task _tail = Task.CompletedTask;
@@ -69,12 +66,12 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
     {
         await previous.ConfigureAwait(false);
         await Task.Yield();
-        _app ??= Construct();
+        _app ??= (TApp)_definition.Create(Service);
         try
         {
             if (method is not null)
             {
-                await Invoke(method, argument).ConfigureAwait(false);
+                await _definition.Invoke(_app, method.Name, argument).ConfigureAwait(false);
             }
         }
         finally
@@ -82,64 +79,4 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
             Refresh();
         }
     }
-
-    private async Task Invoke(MethodInfo method, object? argument)
-    {
-        // One input at most, plus an optional CancellationToken (the [On] shape DB0014 allows).
-        var parameters = method.GetParameters();
-        var arguments = new object?[parameters.Length];
-        var inputs = 0;
-        for (var i = 0; i < parameters.Length; i++)
-        {
-            if (parameters[i].ParameterType == typeof(CancellationToken)) { arguments[i] = CancellationToken.None; continue; }
-            if (++inputs > 1)
-            {
-                throw new InvalidOperationException($"{typeof(TApp).FullName}.{method.Name} takes more than one parameter; an operation takes at most one input.");
-            }
-            arguments[i] = Convert(argument, parameters[i].ParameterType);
-        }
-        object? result;
-        try { result = method.Invoke(_app, arguments); }
-        catch (TargetInvocationException error) when (error.InnerException is not null)
-        {
-            ExceptionDispatchInfo.Capture(error.InnerException).Throw();
-            throw;
-        }
-        switch (result)
-        {
-            case Task task: await task.ConfigureAwait(false); break;
-            case ValueTask valueTask: await valueTask.ConfigureAwait(false); break;
-        }
-    }
-
-    // The widest public constructor, its parameters from the app's services (capability fakes, the TestOS services).
-    private TApp Construct()
-    {
-        var constructor = typeof(TApp).GetConstructors().OrderByDescending(candidate => candidate.GetParameters().Length).FirstOrDefault()
-            ?? throw new InvalidOperationException($"{typeof(TApp).FullName} has no public constructor.");
-        var arguments = constructor.GetParameters().Select(parameter => Service(parameter.ParameterType)
-            ?? (parameter.HasDefaultValue ? parameter.DefaultValue
-                : throw new InvalidOperationException($"App '{Manifest.Id}' needs a {parameter.ParameterType.Name} that the TestOS services do not provide."))).ToArray();
-        try { return (TApp)constructor.Invoke(arguments); }
-        catch (TargetInvocationException error) when (error.InnerException is not null)
-        {
-            ExceptionDispatchInfo.Capture(error.InnerException).Throw();
-            throw;
-        }
-    }
-
-    private static object? Convert(object? argument, Type type)
-    {
-        if (argument is null)
-        {
-            if (type == typeof(string)) { return string.Empty; }
-            if (type.IsValueType) { return Activator.CreateInstance(type); }
-            try { return JsonSerializer.Deserialize("{}", type, Json); }
-            catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException) { return null; }
-        }
-        return type.IsInstanceOfType(argument)
-            ? argument
-            : JsonSerializer.Deserialize(JsonSerializer.SerializeToUtf8Bytes(argument, argument.GetType(), Json), type, Json);
-    }
-
 }

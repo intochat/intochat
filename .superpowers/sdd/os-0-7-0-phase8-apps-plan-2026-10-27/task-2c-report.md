@@ -1,0 +1,15 @@
+# Task 2c report
+
+Implemented shared trusted App construction/invocation on AppDefinition (focused partial AppInvocation.cs), and adopted both from InstalledApp<TApp>. API: Create(Func<Type, object?> services): App; Invoke(App instance, string operation, object? argument, JsonSerializerOptions? json = null, CancellationToken ct = default): Task.
+
+Create chooses the widest public constructor, resolves services before optional defaults, diagnoses missing services/no public constructor, and rejects ties deterministically. Constructor and handler TargetInvocationException wrappers are unwrapped. Invoke normalizes operation names through existing metadata, preserves object identity when assignable, retains legacy empty input/JSON conversion behavior, injects the caller token, and awaits Task (including Task<T>) and ValueTask. Each definition owns default Web JSON options; caller-provided generation options are used directly. No global dynamic-type cache, scheduling, receipt, runtime, packaging, feature or CLI ownership was added. Metadata discovery still does not instantiate an app.
+
+TestOS retains immediate unknown-operation validation, serialized turns, failure tracking, instance lifetime and finally-based presentation refresh. Its duplicated constructor/invocation/conversion implementation was removed.
+
+Red: wrote AppInvocationFacts before implementation and ran `dotnet test --project framework/tests/DigitalBrain.Tests.Unit -c Release`. Exit 1: missing AppDefinition.Create (CS1929) and Invoke (CS1061), as intended. This was a compile-red API test, not a runtime assertion-red. After implementation a first build hit xUnit1051 cancellation analyzer errors in new tests; tests were corrected to supply TestContext.Current.CancellationToken, except the explicit token-injection assertion.
+
+Green: same core command exit 0, 197 passed, 0 failed/skipped (baseline 194). Test coverage exercises constructor services/default/missing/ambiguity, reference passthrough, JSON conversion and caller options, empty object input, cancellation injection, deferred async completion, void, Task<T>, ValueTask, operation aliases/unknown operation, and original handler exception identity. Constructor exception propagation is also exercised. Existing AppDefinition tests retain no-instantiation coverage.
+
+Green: `dotnet test --project framework/tests/DigitalBrain.Testing.Tests.Unit -c Release` exit 0, 315 passed, 17 skipped, 0 failed (baseline 314+17). Added actual TestOS ambiguity behavior coverage; existing integration coverage checks aliases, conversion, empty input and manifest behavior. This added integration test was written after implementation and is green-only; it is not represented as a separate red-green cycle.
+
+Self-review: scoped source diff checked; no caller scheduling moved; only two owned PublicAPI entries staged while host worker's NeuronBinder/NeuronProxy entries remain theirs. `git diff --check` clean for owned changes. Build windows coordinated with phase8_compiled_host. No remaining task-scope concerns; production caller must continue to establish trust before Create and own generation lifetime/serialization.

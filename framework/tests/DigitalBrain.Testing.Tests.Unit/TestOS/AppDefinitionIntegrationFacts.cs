@@ -28,6 +28,20 @@ public sealed class AppDefinitionIntegrationFacts
         Assert.Empty(os.Failures);
     }
 
+    [Fact]
+    public async Task Installation_reports_ambiguous_widest_constructors()
+    {
+        await using var os = OS.Local();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => os.Install<AmbiguousDefinitionApp>());
+        Assert.Contains("ambiguous", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [App("definition-ambiguous")]
+    public sealed class AmbiguousDefinitionApp : App
+    {
+        public AmbiguousDefinitionApp(string value) { }
+        public AmbiguousDefinitionApp(int value) { }
+    }
     [App("definition-integration")]
     public sealed class DefinitionIntegrationApp : App
     {
