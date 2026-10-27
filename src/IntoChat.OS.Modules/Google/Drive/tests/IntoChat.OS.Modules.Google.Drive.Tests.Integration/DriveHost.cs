@@ -32,17 +32,21 @@ public sealed class DriveHost : BrainHostFixture
     }
 
     // A fresh person's connected Drive on the kit brain, as the runtime broker resolves it, called as that person.
-    public async Task<DigitalBrain.Capabilities.Storage.IStorage> ConnectKitAsync(CancellationToken ct, string? scopes = null,
+    public Task<DigitalBrain.Capabilities.Storage.IStorage> ConnectKitAsync(CancellationToken ct, string? scopes = null,
         ConfirmationPolicy policy = ConfirmationPolicy.Never)
+        => ConnectAsync(KitBrain, ct, scopes, policy);
+
+    internal static async Task<DigitalBrain.Capabilities.Storage.IStorage> ConnectAsync(ITestBrain brain, CancellationToken ct,
+        string? scopes = null, ConfirmationPolicy policy = ConfirmationPolicy.Never)
     {
-        var person = await KitBrain.PersonAsync($"kit-{Guid.NewGuid():N}", ct);
-        var options = KitBrain.Services.GetRequiredService<IOptions<ConfirmationOptions>>().Value;
+        var person = await brain.PersonAsync($"kit-{Guid.NewGuid():N}", ct);
+        var options = brain.Services.GetRequiredService<IOptions<ConfirmationOptions>>().Value;
         lock (options.Brains) { options.Brains[person.BrainId] = policy; }
         var key = IntoChat.OS.Connections.Platform.Connections.ConnectionKeys.For(person.BrainId, DriveModule.Connector.Id, "primary");
         using (person.AsCaller())
         {
-            await KitBrain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), scopes ?? DriveScopes.Read, null, "{}"));
-            var broker = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Runtime.Orleans.Capabilities.CapabilityBroker>(KitBrain.Services);
+            await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), scopes ?? DriveScopes.Read, null, "{}"));
+            var broker = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Runtime.Orleans.Capabilities.CapabilityBroker>(brain.Services);
             var connection = Assert.Single(await broker.Storages(new DigitalBrain.BrainId(person.BrainId), ct), item => item.ConnectionKey == key);
             return new AsOwner(connection.Capability, person);
         }

@@ -187,18 +187,27 @@ public sealed class DriveWriteFacts(DriveHost host)
     [Fact]
     public async Task Scoped_search_finds_descendants_across_pages_without_other_folders()
     {
-        var store = await host.ConnectKitAsync(Ct);
-        var own = host.KitDrive.Seed(StorageSeed.Canonical);
-        _ = host.KitDrive.Seed(StorageSeed.Canonical);
+        // This global Drive search must not scan the other facts' accumulating canonical trees.
+        await using var stub = await DriveStub.StartAsync(Ct);
+        await using var brain = await DriveBrain.StartAsync(stub, Ct);
+        var store = await DriveHost.ConnectAsync(brain, Ct);
+        var own = stub.Seed(StorageSeed.Canonical);
+        _ = stub.Seed(StorageSeed.Canonical);
         var folder = await DriveItems.Find(store, own, Ct);
         var found = new List<Item>();
+        var pages = 0;
+        var emptyPages = 0;
         string? cursor = null;
         do
         {
             var page = await store.Search(new("leaf", Within: folder.Id, Cursor: cursor, PageSize: 1), Ct);
+            pages++;
+            if (page.Items.Count == 0) { emptyPages++; }
             found.AddRange(page.Items);
             cursor = page.NextCursor;
         } while (cursor is not null);
+        Assert.Equal(2, pages);
+        Assert.Equal(1, emptyPages);
         var match = Assert.Single(found);
         Assert.Equal("leaf.txt", match.Name);
         Assert.Contains(await store.Ancestors(match.Id, Ct), item => item.Id == folder.Id);
