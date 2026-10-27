@@ -21,8 +21,8 @@
     <Compile Remove="**/*" />
     <PackageReference Include="Microsoft.TemplateEngine.Authoring.Tasks" PrivateAssets="all" />
   </ItemGroup>
-  <!-- Content is copied to obj/stamped with __DIGITALBRAIN_VERSION__ replaced by this package's own version, then packed
-       from there: a prerelease template references the DigitalBrain packages of the same build. -->
+  <!-- Copy source bytes unchanged; stamp only the version-bearing template configuration. WriteLinesToFile treats
+       backslashes in its Lines items as path separators on Unix, so C# sources must never pass through it. -->
   <Target Name="DigitalBrainStampTemplate" BeforeTargets="_GetPackageFiles;GenerateTemplateManifest;Build;Pack">
     <ItemGroup>
       <_TemplateSource Include="content/**/*" Exclude="content/**/bin/**;content/**/obj/**" />
@@ -30,7 +30,7 @@
     <RemoveDir Directories="$(StampedContent)" />
     <Copy SourceFiles="@(_TemplateSource)" DestinationFiles="@(_TemplateSource->'$(StampedContent)%(RecursiveDir)%(Filename)%(Extension)')" />
     <ItemGroup>
-      <_StampedFile Include="$(StampedContent)**/*" />
+      <_StampedFile Include="$(StampedContent)**/.template.config/template.json" />
     </ItemGroup>
     <WriteLinesToFile File="%(_StampedFile.FullPath)"
                       Lines="$([System.IO.File]::ReadAllText('%(_StampedFile.FullPath)').Replace('__DIGITALBRAIN_VERSION__', '$(PackageVersion)'))"
