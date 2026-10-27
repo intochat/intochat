@@ -918,3 +918,9 @@ override DigitalBrain.SynapseRequest.GetHashCode() -> int
 override DigitalBrain.SynapseRequest.ToString() -> string!
 static DigitalBrain.SynapseRequest.operator !=(DigitalBrain.SynapseRequest? left, DigitalBrain.SynapseRequest? right) -> bool
 static DigitalBrain.SynapseRequest.operator ==(DigitalBrain.SynapseRequest? left, DigitalBrain.SynapseRequest? right) -> bool
+DigitalBrain.AppDefinition
+DigitalBrain.AppDefinition.AppDefinition(System.Type! appType) -> void
+DigitalBrain.AppDefinition.AppType.get -> System.Type!
+DigitalBrain.AppDefinition.Manifest.get -> DigitalBrain.AppManifest!
+DigitalBrain.AppDefinition.Operations.get -> System.Collections.Generic.IReadOnlyDictionary<string!, System.Reflection.MethodInfo!>!
+DigitalBrain.AppDefinition.FindOperation(string! operation) -> System.Reflection.MethodInfo?

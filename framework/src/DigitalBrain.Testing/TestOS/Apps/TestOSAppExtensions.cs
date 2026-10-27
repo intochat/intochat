@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Reflection;
 
 namespace DigitalBrain.Testing;
 
@@ -21,7 +20,8 @@ public sealed partial class TestOS
     /// <exception cref="InvalidOperationException">The class has no <c>[App]</c> attribute, or it is already installed.</exception>
     public async Task<InstalledApp<TApp>> Install<TApp>() where TApp : App
     {
-        var manifest = ManifestOf(typeof(TApp));
+        var definition = new AppDefinition(typeof(TApp));
+        var manifest = definition.Manifest;
         foreach (var capability in manifest.Requires.Capabilities)
         {
             if (!Capabilities.IsBound(capability))
@@ -34,33 +34,12 @@ public sealed partial class TestOS
             throw new InvalidOperationException($"App '{manifest.Id}' is already installed in this TestOS.");
         }
         foreach (var neuron in manifest.Neurons) { Register(neuron); }
-        var app = new InstalledApp<TApp>(this, manifest);
+        var app = new InstalledApp<TApp>(this, definition);
         await app.Start().ConfigureAwait(false);
         return app;
     }
 
     /// <summary>The manifest <see cref="Install{TApp}"/> uses for <paramref name="appType"/>.</summary>
     /// <exception cref="InvalidOperationException">The class has no <c>[App]</c> attribute.</exception>
-    public static AppManifest ManifestOf(Type appType)
-    {
-        ArgumentNullException.ThrowIfNull(appType);
-        var attribute = appType.GetCustomAttribute<AppAttribute>(inherit: false)
-            ?? throw new InvalidOperationException($"{appType.FullName} has no [App(id)] attribute.");
-        if (appType.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is AppManifest declared)
-        {
-            return declared;
-        }
-        var requires = appType.GetConstructors()
-            .SelectMany(constructor => constructor.GetParameters())
-            .Select(parameter => CapabilityFakes.IsContract(parameter.ParameterType) ? parameter.ParameterType : CapabilityFakes.ListedContract(parameter.ParameterType))
-            .OfType<Type>()
-            .Select(CapabilityFakes.IdOf)
-            .Distinct()
-            .ToList();
-        var neurons = appType.Assembly.GetTypes()
-            .Where(type => type is { IsAbstract: false, IsClass: true } && type.Namespace == appType.Namespace
-                && typeof(Neuron).IsAssignableFrom(type) && type.IsDefined(typeof(NeuronAttribute), false))
-            .ToList();
-        return new AppManifest(attribute.Id, appType.Name, appType.Assembly.GetName().Version?.ToString() ?? "0.0.0", neurons, new AppRequirements(requires));
-    }
+    public static AppManifest ManifestOf(Type appType) => new AppDefinition(appType).Manifest;
 }

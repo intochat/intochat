@@ -17,16 +17,14 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
     private readonly TestOS _os;
     private readonly Lock _gate = new();
     private Task _tail = Task.CompletedTask;
-    private readonly Dictionary<string, MethodInfo> _operations;
+    private readonly AppDefinition _definition;
     private TApp? _app;
 
-    internal InstalledApp(TestOS os, AppManifest manifest)
+    internal InstalledApp(TestOS os, AppDefinition definition)
     {
         _os = os;
-        Manifest = manifest;
-        _operations = typeof(TApp).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            .Where(method => method.IsDefined(typeof(OnAttribute), inherit: false))
-            .ToDictionary(method => Key(method.Name), StringComparer.Ordinal);
+        _definition = definition;
+        Manifest = definition.Manifest;
     }
 
     /// <summary>The manifest the app was installed with.</summary>
@@ -36,7 +34,7 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
     public TApp App => _app ?? throw new InvalidOperationException($"App '{Manifest.Id}' is not started.");
 
     /// <summary>The operations the app offers: the names of its <c>[On]</c> methods, as requested by <see cref="Request(string, object?)"/>.</summary>
-    public IReadOnlyList<string> Operations => [.. _operations.Values.Select(method => method.Name).Order(StringComparer.Ordinal)];
+    public IReadOnlyList<string> Operations => [.. _definition.Operations.Values.Select(method => method.Name).Order(StringComparer.Ordinal)];
 
     /// <summary>
     /// Runs the operation <paramref name="operation"/> as a turn and completes when it has. A null <paramref name="argument"/> is the empty input:
@@ -46,7 +44,7 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
     public Task Request(string operation, object? argument = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
-        if (!_operations.TryGetValue(Key(operation), out var method))
+        if (_definition.FindOperation(operation) is not { } method)
         {
             throw new ArgumentException(
                 $"App '{Manifest.Id}' has no operation '{operation}'. Operations: {string.Join(", ", Operations)}.", nameof(operation));
@@ -144,5 +142,4 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
             : JsonSerializer.Deserialize(JsonSerializer.SerializeToUtf8Bytes(argument, argument.GetType(), Json), type, Json);
     }
 
-    private static string Key(string name) => name.Replace("-", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
 }
