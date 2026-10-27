@@ -36,7 +36,7 @@ internal sealed class StorageWriteGrantGrain(TimeProvider time) : Grain, IStorag
     public Task Revoke(string token) { _grants.Remove(token); return Task.CompletedTask; }
 }
 
-/// <summary>Host-only, ephemeral authorizations for provider primitives executed by an approved runtime runner.</summary>
+/// <summary>Host-only, ephemeral authorizations for storage primitives executed by an approved runtime runner.</summary>
 public sealed partial class StorageWriteAuthorizer(IGrainFactory grains, IStorageWriteIdentity identity, ILogger<StorageWriteAuthorizer> logger) : IStorageWriteAuthorizer
 {
     private const string PermitKey = "db.storage-write-grant";
@@ -97,14 +97,14 @@ public sealed partial class StorageWriteAuthorizer(IGrainFactory grains, IStorag
     private static partial void CleanupFailed(ILogger logger, string failure);
 
     /// <inheritdoc />
-    public async Task<bool> Consume(NeuronId provider, WritePlan primitive, CancellationToken ct)
+    public async Task<bool> Consume(NeuronId storageNeuron, WritePlan primitive, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(primitive);
         if (RequestContext.Get(PermitKey) is not string token) { return false; }
         RequestContext.Remove(PermitKey);
-        if (token.Length != 64 || identity.Current(provider.Brain) is not { } requester) { return false; }
-        var connection = provider.Brain.Value + "/" + provider.Key;
-        return await grains.GetGrain<IStorageWriteGrants>(provider.Brain.Value)
+        if (token.Length != 64 || identity.Current(storageNeuron.Brain) is not { } requester) { return false; }
+        var connection = storageNeuron.Brain.Value + "/" + storageNeuron.Key;
+        return await grains.GetGrain<IStorageWriteGrants>(storageNeuron.Brain.Value)
             .Consume(token, connection, requester, Fingerprint(primitive)).WaitAsync(ct).ConfigureAwait(false);
     }
 

@@ -63,24 +63,21 @@ public sealed class SessionSynapseFacts(SessionSilo silo) : IClassFixture<Sessio
         var subscribing = session.Subscribe(NeuronId.Parse("b1/probe.held-admission/source"), ["probe.counted"]);
         await HeldAdmissionNeuron.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
         var ending = session.End();
-        bool endedBeforeAdmission;
         try
         {
-            endedBeforeAdmission = await Task.WhenAny(ending, Task.Delay(200, ct)) == ending;
-            if (endedBeforeAdmission)
-            {
-                await Assert.ThrowsAsync<InvalidOperationException>(() => subscribing.WaitAsync(TimeSpan.FromSeconds(1), ct));
-                Assert.Null(await polling.WaitAsync(TimeSpan.FromSeconds(1), ct));
-                await session.Subscribe(NeuronId.Parse("b1/probe.counter/after-held-admission"), ["probe.counted"])
-                    .WaitAsync(TimeSpan.FromSeconds(5), ct);
-                await session.End().WaitAsync(TimeSpan.FromSeconds(5), ct);
-            }
+            await ending.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            Assert.False(HeldAdmissionNeuron.Release.Task.IsCompleted);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => subscribing.WaitAsync(TimeSpan.FromSeconds(5), ct));
+            Assert.Null(await polling.WaitAsync(TimeSpan.FromSeconds(5), ct));
+            await session.Subscribe(NeuronId.Parse("b1/probe.counter/after-held-admission"), ["probe.counted"])
+                .WaitAsync(TimeSpan.FromSeconds(5), ct);
+            await session.End().WaitAsync(TimeSpan.FromSeconds(5), ct);
+            Assert.False(HeldAdmissionNeuron.Release.Task.IsCompleted);
         }
         finally { HeldAdmissionNeuron.Release.TrySetResult(); await pollingStop.CancelAsync(); }
         var admissionFailure = await Record.ExceptionAsync(() => subscribing.WaitAsync(TimeSpan.FromSeconds(5), ct));
         await ending.WaitAsync(TimeSpan.FromSeconds(5), ct);
 
-        Assert.True(endedBeforeAdmission);
         Assert.IsType<InvalidOperationException>(admissionFailure);
         Assert.Equal(0, await silo.Subscriptions("b1/runtime.session/held-admission", "probe.counted"));
     }

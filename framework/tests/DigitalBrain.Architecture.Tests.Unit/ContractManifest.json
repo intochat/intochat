@@ -9,7 +9,8 @@
     "grainTypes": [
       "neuron.host",
       "neuron.host.reentrant",
-      "neuron.host.stateless"
+      "neuron.host.stateless",
+      "runtime.storage-write-grants"
     ],
     "aliases": [
       "admit",
@@ -20,9 +21,12 @@
       "db.json-element",
       "db.runtime-invocation",
       "invoke",
+      "invoke-interleaved",
+      "is-interleaved",
       "neuron.host",
       "neuron.synapse-host",
       "post",
+      "post-interleaved",
       "storage.brain-entry",
       "storage.brain-record",
       "storage.brain-snapshot",

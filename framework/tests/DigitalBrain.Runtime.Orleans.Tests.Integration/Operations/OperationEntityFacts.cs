@@ -99,11 +99,13 @@ public sealed class WriterNeuron : Neuron, IWriter
 /// <summary>A silo over BrainLog with the two connections, the in-memory result reader and the fact gate.</summary>
 public sealed class OperationSilo : IAsyncLifetime
 {
+    internal const string DriverLifetime = "operation-silo-process";
     private readonly TempHome _home = new();
     private IInProcessHost? _host;
 
     public OperationConnections Connections { get; } = new();
     public NamedGate Gate { get; } = new();
+    internal bool? DriverEnded { get; set; }
 
     public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Not started.")).Services;
 
@@ -127,6 +129,7 @@ public sealed class OperationSilo : IAsyncLifetime
             services.AddSingleton<ICapabilityConnections>(Connections);
             services.AddSingleton<StorageWriteResult>(OperationConnections.Result);
             services.AddSingleton<IOperationGate>(Gate);
+            services.AddSingleton<IOperationDriverLifetime>(new Lifetime(this));
         }).Start(new InProcessHostOptions { Home = _home.Path, Modules = [typeof(HostingModule)] }, CancellationToken.None);
 
     public async ValueTask DisposeAsync()
@@ -138,6 +141,12 @@ public sealed class OperationSilo : IAsyncLifetime
     private sealed class Stores : IClusterStoreRegistration
     {
         public void Register(ISiloBuilder silo) => silo.AddBrainStorage(typeof(HostingModule).Assembly);
+    }
+
+    private sealed class Lifetime(OperationSilo owner) : IOperationDriverLifetime
+    {
+        public string? Capture() => DriverLifetime;
+        public bool? HasEnded(string token) => token == DriverLifetime ? owner.DriverEnded : null;
     }
 }
 
@@ -153,6 +162,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
         try
         {
             var operation = await operations.Start(WritePlan.CreateFolder(silo.Connections.A.Root, "Waiting-for-human"), ct).WaitAsync(TimeSpan.FromSeconds(2), ct);
+            Assert.Equal(OperationSilo.DriverLifetime, (await silo.Entity("op-wait-human", operation.Id).Get())!.DriverLifetime);
             Assert.False(((RuntimeOperation)operation).Completion.IsCompleted);
             await operations.Cancel(operation.Id, ct);
             Assert.IsType<OperationResult.Cancelled>(await Done(operation));
@@ -313,6 +323,39 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
 // The entity is persisted: a done operation reads back after a silo restart and is never run again.
 public sealed class OperationRestartFacts(OperationSilo silo) : IClassFixture<OperationSilo>
 {
+    [Fact]
+    public async Task APendingApprovalIsInterruptedAfterTheDriverEndsAndTheEndpointChanges()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var restarting = new OperationSilo();
+        await restarting.InitializeAsync();
+        restarting.Gate.Waiting = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var brain = "op-new-endpoint";
+        try
+        {
+            var operation = await restarting.Operations(brain).Start(
+                WritePlan.CreateFolder(restarting.Connections.A.Root, "Waiting-for-human"), ct);
+            var before = (await restarting.Entity(brain, operation.Id).Get())!;
+            Assert.Equal(OperationPhase.Running, before.Phase);
+            Assert.Equal(OperationSilo.DriverLifetime, before.DriverLifetime);
+
+            await restarting.Restart(ct);
+            var address = restarting.Services.GetRequiredService<global::Orleans.Runtime.ILocalSiloDetails>().SiloAddress;
+            Assert.True(global::Orleans.Runtime.SiloAddress.TryParse(before.Driver!, out var previousAddress));
+            Assert.NotEqual(previousAddress.Endpoint, address.Endpoint);
+            // The host adapter supplies this proof; membership alone cannot recognize the changed endpoint.
+            restarting.DriverEnded = true;
+            await restarting.Entity(brain, operation.Id).Reconcile();
+            await restarting.Entity(brain, operation.Id).Reconcile();
+
+            var after = (await restarting.Entity(brain, operation.Id).Get())!;
+            Assert.Equal("interrupted", Assert.IsType<OperationResult.Failed>(after.Result).Code);
+            Assert.Empty(await restarting.Connections.A.Children(restarting.Connections.A.Root));
+            Assert.Single((await restarting.Signals(brain, operation.Id, ct)).OfType<OperationDone>());
+        }
+        finally { restarting.Gate.Waiting.TrySetResult(OperationGateDecision.Deny("test finished")); }
+    }
+
     [Fact]
     public async Task A_done_operation_survives_a_silo_restart_and_is_not_run_again_on_reactivation()
     {

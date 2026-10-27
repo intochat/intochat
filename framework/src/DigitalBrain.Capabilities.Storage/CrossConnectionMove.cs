@@ -194,7 +194,7 @@ internal sealed class CrossConnectionMove(
             { return false; }
             if (node.Item.Kind != ItemKind.Folder)
             {
-                // Refresh metadata rather than trusting the original listing's hash. Providers without comparable hashes
+                // Refresh metadata rather than trusting the original listing's hash. Storage connections without comparable hashes
                 // use the same bounded stream comparison as initial verification.
                 Item fresh;
                 try { fresh = await source.Stat(node.Item.Id, ct).ConfigureAwait(false); }

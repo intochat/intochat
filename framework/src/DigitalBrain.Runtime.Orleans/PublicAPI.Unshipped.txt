@@ -1,7 +1,10 @@
 #nullable enable
+DigitalBrain.Runtime.Orleans.Operations.IOperationDriverLifetime
+DigitalBrain.Runtime.Orleans.Operations.IOperationDriverLifetime.Capture() -> string?
+DigitalBrain.Runtime.Orleans.Operations.IOperationDriverLifetime.HasEnded(string! token) -> bool?
 DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer
 DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.BeginApproved(DigitalBrain.BrainId brain, string! requester) -> System.IDisposable!
-DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.Consume(DigitalBrain.NeuronId provider, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<bool>!
+DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.Consume(DigitalBrain.NeuronId storageNeuron, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<bool>!
 DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.Invoke<T>(string! connection, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Func<System.Threading.Tasks.Task<T>!>! send, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<T>!
 DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.StorageWriteAuthorizer(Orleans.IGrainFactory! grains, DigitalBrain.Capabilities.Storage.IStorageWriteIdentity! identity, Microsoft.Extensions.Logging.ILogger<DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer!>! logger) -> void
 DigitalBrain.Runtime.Orleans.Bindings

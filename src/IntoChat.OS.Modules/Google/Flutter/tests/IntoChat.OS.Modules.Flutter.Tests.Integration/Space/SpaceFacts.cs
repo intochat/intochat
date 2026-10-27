@@ -1,4 +1,6 @@
 using System.Text.Json;
+using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flame.Scene;
@@ -14,6 +16,28 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Space;
 
 public sealed class SpaceFacts
 {
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ASchedulingQueryCannotCompleteTheRebuildWorkerBarrier()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gate = new RebuildGate(firstScanFails: false, targeted: false);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+            .ConfigureServices(services => services.AddSingleton<IIncomingGrainCallFilter>(gate)).StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        const string key = "owner/ui.space/main";
+        var host = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<INeuronHost>(GrainId.Create("neuron.host", key));
+        var call = new RuntimeInvocation(string.Empty, NeuronProxy.ContractName(typeof(ISpace)), key, nameof(ISpace.Rebuild), []);
+        Assert.True(await host.IsInterleaved(call));
+        gate.Armed = true;
+
+        Assert.True(await host.IsInterleaved(call));
+        Assert.False(gate.WorkerFinished.Task.IsCompleted);
+
+        await host.PostInterleaved(call);
+        await gate.WorkerFinished.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+    }
+
     [Trait("host", "own")]
     [Fact]
     public async Task MigratedAliasRemainsStoredButOnlyItsTargetAppearsAndLegacyFocusResolves()
@@ -585,12 +609,13 @@ public sealed class SpaceFacts
     }
 }
 
-// The (contract alias, method) of a grain call or of a plain call carried to its runtime host grain (06-08: apps, spaces and
-// workspaces are plain neurons, so their calls reach Orleans' filters as one RuntimeInvocation).
+// The (contract alias, method) of an executed grain or plain-neuron call. A host's pure scheduling query runs no method and
+// must not count as a read, invalidation or completed composition worker.
 internal static class Calls
 {
     public static (string? Contract, string? Method) Of(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request)
     {
+        if (method?.DeclaringType == typeof(INeuronHost) && method.Name == nameof(INeuronHost.IsInterleaved)) { return (null, null); }
         if (request.GetArgumentCount() > 0 && request.GetArgument(0) is global::DigitalBrain.Invocation.RuntimeInvocation call) { return (call.Contract, call.Method); }
         var alias = method?.DeclaringType?.GetCustomAttributes(typeof(global::Orleans.AliasAttribute), false).OfType<global::Orleans.AliasAttribute>().FirstOrDefault()?.Alias;
         return (alias, method?.Name);

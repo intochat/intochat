@@ -69,6 +69,76 @@ public sealed class OperationRecoveryFacts
     private static ClusterMembershipSnapshot Snapshot(params (SiloAddress Address, SiloStatus Status)[] members)
         => new(members.ToImmutableDictionary(item => item.Address, item => new ClusterMember(item.Address, item.Status, "test")), new MembershipVersion(1));
 
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, false)]
+    [InlineData(null, true, true)]
+    [InlineData(null, false, false)]
+    public async Task ExactProcessEvidenceSurvivesEndpointChangesAndOverridesStaleMembership(bool? ended, bool membershipSaysDead, bool interrupted)
+    {
+        var lifetime = new Lifetime(ended);
+        var membership = new Membership
+        {
+            CurrentSnapshot = membershipSaysDead ? Snapshot((Driver, SiloStatus.Dead)) : Snapshot((Other, SiloStatus.Active)),
+        };
+        using var services = new ServiceCollection().AddSingleton<IClusterMembershipService>(membership)
+            .AddSingleton<IOperationDriverLifetime>(lifetime).BuildServiceProvider();
+        var context = new FakeNeuronContext(new(new("owner"), "runtime.operation", "process"), services);
+        var neuron = new OperationNeuron();
+        NeuronAttachment.Attach(neuron, context);
+        await neuron.Begin(new("process", "owner", "files", "primitive", "{}", null, null, OperationPhase.Running,
+            false, 0, null, context.Time.GetUtcNow(), context.Time.GetUtcNow(), Driver.ToParsableString(), "exact-process"));
+
+        await neuron.Reconcile();
+        await neuron.Reconcile();
+
+        Assert.Equal(interrupted ? OperationPhase.Done : OperationPhase.Running, (await neuron.Get())!.Phase);
+        Assert.Equal("exact-process", lifetime.Observed);
+        if (interrupted)
+        {
+            var done = Assert.Single(context.MemoryState.Signals.OfType<OperationDone>());
+            Assert.Equal("interrupted", Assert.IsType<OperationResult.Failed>(done.Result).Code);
+        }
+        else { Assert.Empty(context.MemoryState.Signals); }
+    }
+
+    [Fact]
+    public async Task ProvenStoppedProcessDoesNotRequireAMembershipService()
+    {
+        using var services = new ServiceCollection().AddSingleton<IOperationDriverLifetime>(new Lifetime(true)).BuildServiceProvider();
+        var context = new FakeNeuronContext(new(new("owner"), "runtime.operation", "local"), services);
+        var neuron = new OperationNeuron();
+        NeuronAttachment.Attach(neuron, context);
+        await neuron.Begin(new("local", "owner", "files", "primitive", "{}", null, null, OperationPhase.Running,
+            false, 0, null, context.Time.GetUtcNow(), context.Time.GetUtcNow(), Driver.ToParsableString(), "exact-process"));
+        await neuron.Reconcile();
+        Assert.Equal("interrupted", Assert.IsType<OperationResult.Failed>((await neuron.Get())!.Result).Code);
+    }
+
+    [Fact]
+    public async Task ALegacyOperationCannotBorrowEvidenceAboutAnotherProcess()
+    {
+        var lifetime = new Lifetime(true);
+        using var services = new ServiceCollection().AddSingleton<IOperationDriverLifetime>(lifetime)
+            .AddSingleton<IClusterMembershipService>(new Membership { CurrentSnapshot = Snapshot((Other, SiloStatus.Active)) }).BuildServiceProvider();
+        var context = new FakeNeuronContext(new(new("owner"), "runtime.operation", "old"), services);
+        var neuron = new OperationNeuron();
+        NeuronAttachment.Attach(neuron, context);
+        await neuron.Begin(new("old", "owner", "files", "primitive", "{}", null, null, OperationPhase.Running,
+            false, 0, null, context.Time.GetUtcNow(), context.Time.GetUtcNow(), Driver.ToParsableString()));
+        await neuron.Reconcile();
+        Assert.Equal(OperationPhase.Running, (await neuron.Get())!.Phase);
+        Assert.Null(lifetime.Observed);
+    }
+
+    private sealed class Lifetime(bool? ended) : IOperationDriverLifetime
+    {
+        public string? Observed { get; private set; }
+        public string? Capture() => "exact-process";
+        public bool? HasEnded(string token) { Observed = token; return ended; }
+    }
+
     [Fact]
     public async Task OlderSavedOperationsWithoutADriverAreNotDeclaredInterrupted()
     {

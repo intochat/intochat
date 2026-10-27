@@ -190,7 +190,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         {
             OperationResult.Succeeded => "Completed",
             OperationResult.Cancelled => "Cancelled",
-            OperationResult.Planned planned => "Dry run: " + string.Join(", ", planned.Steps),
+            OperationResult.Planned => "Dry run complete. No files changed.",
             OperationResult.Failed failed => "Failed: " + failed.Code,
             _ => "Finished",
         };

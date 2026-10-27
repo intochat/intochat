@@ -82,7 +82,7 @@ public static class StorageConfirmation
 /// </summary>
 public static class StorageConfirmationGate
 {
-    /// <summary>Checks a provider boundary, consuming an exact host-issued permit or independently asking for confirmation.</summary>
+    /// <summary>Checks a storage boundary, consuming an exact host-issued permit or independently asking for confirmation.</summary>
     public static async Task<string?> Check(DigitalBrain.Spi.INeuronContext context, IStorage storage, WritePlan plan, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -91,7 +91,7 @@ public static class StorageConfirmationGate
         return await Check(storage, context.Confirmations, plan, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Checks a direct primitive write on one provider before that provider accepts bytes or changes storage.</summary>
+    /// <summary>Checks a direct primitive write before the storage accepts bytes or changes items.</summary>
     public static async Task<string?> Check(IStorage storage, IConfirmations confirmations, WritePlan plan, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(storage);
@@ -99,7 +99,7 @@ public static class StorageConfirmationGate
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.DryRun) { return null; }
         var descriptor = await storage.Describe(ct).ConfigureAwait(false);
-        var connection = new CapabilityConnection<IStorage>("provider", descriptor.Label, storage);
+        var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, storage);
         var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
             (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
         return await Check(runner, confirmations, plan, ct).ConfigureAwait(false);

@@ -1,6 +1,6 @@
 namespace DigitalBrain.Capabilities.Storage;
 
-/// <summary>Keeps write streams on their provider host, bound to a stamped caller, with bounded chunks and idle expiry.</summary>
+/// <summary>Keeps write streams on their storage host, bound to a stamped caller, with bounded chunks and idle expiry.</summary>
 public sealed class StorageUploadSessions : IStorageUpload, IAsyncDisposable
 {
     /// <summary>The largest accepted chunk.</summary>
@@ -24,7 +24,7 @@ public sealed class StorageUploadSessions : IStorageUpload, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(storage);
     }
 
-    /// <summary>Creates sessions over a provider's already-authorized primitive stream opener.</summary>
+    /// <summary>Creates sessions over a storage's already-authorized primitive stream opener.</summary>
     public StorageUploadSessions(Func<WritePlan, CancellationToken, Task<StorageWriteStream>> openWrite, Func<string> caller, TimeProvider? time)
     {
         _openWrite = openWrite ?? throw new ArgumentNullException(nameof(openWrite));

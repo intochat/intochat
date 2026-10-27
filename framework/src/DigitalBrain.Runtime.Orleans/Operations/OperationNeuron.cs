@@ -53,9 +53,16 @@ internal sealed class OperationNeuron : Neuron, IOperationEntity
 
     public async Task Reconcile()
     {
-        if (_state is not { Phase: OperationPhase.Running, Driver: { } driver }
-            || Context.Services.GetService<IClusterMembershipService>() is not { } membership) { return; }
-        if (!DriverHasEnded(driver, membership.CurrentSnapshot)) { return; }
+        if (_state is not { Phase: OperationPhase.Running } state) { return; }
+        var ended = state.DriverLifetime is { } token
+            ? Context.Services.GetService<IOperationDriverLifetime>()?.HasEnded(token)
+            : null;
+        // A live process can still own background work after its silo leaves membership. Unknown process evidence
+        // leaves the original membership proof unchanged, including for older operations without a lifetime token.
+        if (ended == false) { return; }
+        if (ended is null && (state.Driver is not { } driver
+            || Context.Services.GetService<IClusterMembershipService>() is not { } membership
+            || !DriverHasEnded(driver, membership.CurrentSnapshot))) { return; }
         await Complete(new OperationResult.Failed("interrupted", "The process running this operation stopped. Inspect the destination before retrying.")).ConfigureAwait(true);
     }
 

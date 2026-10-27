@@ -1,7 +1,7 @@
 #nullable enable
 DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer
 DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer.BeginApproved(DigitalBrain.BrainId brain, string! requester) -> System.IDisposable!
-DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer.Consume(DigitalBrain.NeuronId provider, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<bool>!
+DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer.Consume(DigitalBrain.NeuronId storageNeuron, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<bool>!
 DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer.Invoke<T>(string! connection, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Func<System.Threading.Tasks.Task<T>!>! send, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<T>!
 DigitalBrain.Capabilities.Storage.IStorageWriteIdentity
 DigitalBrain.Capabilities.Storage.IStorageWriteIdentity.Current(DigitalBrain.BrainId brain) -> string?

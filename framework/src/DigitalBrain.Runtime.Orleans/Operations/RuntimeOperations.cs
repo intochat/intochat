@@ -140,7 +140,8 @@ internal sealed class RuntimeOperations(IServiceProvider services, BrainId brain
             json = JsonSerializer.Serialize(plan, plan.GetType(), RuntimeProtocol.Json);
         }
         return new OperationState(id.Value, brain.Value, origin, plan.GetType().Name, json, length, hash, OperationPhase.Running, false, 0, null, now, now,
-            services.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToParsableString());
+            services.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToParsableString(),
+            services.GetService<IOperationDriverLifetime>()?.Capture());
     }
 
     private static async Task Drive(StorageWriteRunner runner, WritePlan plan, RuntimeOperation handle)

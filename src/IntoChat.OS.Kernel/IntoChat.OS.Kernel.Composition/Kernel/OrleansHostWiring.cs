@@ -19,6 +19,14 @@ public static class OrleansHostWiring
     {
         ArgumentNullException.ThrowIfNull(services);
         if (CloudStorage.IsCloud(services)) { CloudStorage.ConfigureServices(services); }
+        if (services.Any(descriptor => !descriptor.IsKeyedService && descriptor.ImplementationInstance is
+            DigitalBrain.Runtime.Orleans.ITopologyProfile { Topology: DigitalBrain.Runtime.Orleans.Topology.Local or DigitalBrain.Runtime.Orleans.Topology.LocalCloud }))
+        {
+            services.TryAddSingleton<Operations.ILocalProcessProbe, Operations.SystemLocalProcessProbe>();
+            services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Operations.IOperationDriverLifetime>(provider =>
+                new Operations.LocalOperationDriverLifetime(provider.GetService<IntoChat.OS.Framework.Machine.IMachineIdentity>(),
+                    provider.GetRequiredService<Operations.ILocalProcessProbe>()));
+        }
         services.TryAddSingleton<IClusterMembershipFeed, ClusterMembershipFeed>();
     }
 }
