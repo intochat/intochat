@@ -42,9 +42,8 @@ public sealed class LocalKillRestartE2E
             transcript.Add(stamped);
             TestContext.Current.SendDiagnosticMessage(stamped);
         }
-        // The local run's module defaults (what the AppHost projects for Topology=local), with the time module on.
+        // The unmodified local defaults must include the durable reminders used by the OS apps.
         var settings = RunProfile.ModuleDefaults(IntoChatOSNames.TopologyLocal).ToDictionary(setting => setting.Key, setting => setting.Value!);
-        settings[IntoChatOSConfiguration.ModuleSection("time") + ":Enabled"] = "true";
         // Test only, in the child's environment: the production reminder minimum is unchanged.
         settings[TimeModule.MinimumReminderPeriodKey] = "00:00:01";
         await using var host = new ChildProcessHost(KernelAssembly(), settings);
