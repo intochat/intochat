@@ -14,10 +14,16 @@ public sealed class SystemProbeEnvironment : IProbeEnvironment
 
     public HttpMessageHandler Http => _http;
 
-    // Fixed executables, argument list (no shell). The Flutter launcher on Windows is a batch file.
+    // Fixed executables, argument list (no shell). Resolve the Windows batch launcher so its %~dp0 points at the SDK.
     public async Task<ProcessResult> RunAsync(string file, IReadOnlyList<string> args, CancellationToken cancellationToken)
     {
-        var start = new ProcessStartInfo(IsWindows && file == "flutter" ? "flutter.bat" : file)
+        if (IsWindows && file == "flutter")
+        {
+            var launcher = (Env("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .Select(directory => Path.Combine(directory.Trim('"'), "flutter.bat")).FirstOrDefault(File.Exists);
+            file = launcher is null ? "flutter.bat" : Path.GetFullPath(launcher);
+        }
+        var start = new ProcessStartInfo(file)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,

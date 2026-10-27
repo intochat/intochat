@@ -34,16 +34,17 @@ if (args.Length > 0 && args[0] == "reset")
 // IntoChatOS:Topology (unset = local) is the only axis: it picks the module and model composition from code (RunProfile),
 // whose module defaults sit above the shipped appsettings and below environment and command line, so an explicit
 // IntoChatOS:Modules:<id>:Enabled still wins. Azurite and the cloud keys exist only for Topology=cloud.
-var topology = RunProfile.Topology(builder.Configuration);
-var cloud = topology == IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyCloud;
 var defaultsAt = builder.Configuration.Sources.ToList()
     .FindLastIndex(source => source is Microsoft.Extensions.Configuration.Json.JsonConfigurationSource) + 1;
+// Resolve the composition from the custom file too, while keeping module defaults below its explicit settings.
+if (builder.Configuration["IntoChatOS:ConfigFile"] is { Length: > 0 } configFile)
+{ builder.Configuration.AddJsonFile(configFile, optional: false); }
+var topology = RunProfile.Topology(builder.Configuration);
+var cloud = topology == IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyCloud;
 builder.Configuration.Sources.Insert(defaultsAt,
     new Microsoft.Extensions.Configuration.Memory.MemoryConfigurationSource { InitialData = RunProfile.ModuleDefaults(topology) });
 var brainProfile = RunProfile.ForTopology(topology, builder.Configuration[IntoChatOSHostingOptions.LocalModelKey]);
 if (cloud) { IntoChat.OS.Modules.Microsoft.Orleans.OrleansModuleOptionsExtensions.WithAzurite(brainProfile.Orleans); }
-if (builder.Configuration["IntoChatOS:ConfigFile"] is { Length: > 0 } configFile)
-{ builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("IntoChatOS:Shell:Enabled", true);
 var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", brainProfile, IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
     .WithHttpIdentity();
@@ -92,6 +93,7 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
 {
     // One encrypted local brain store for this deployment.
     silo.WithReference(intoChatOS)
+        .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey), topology)
         .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey), home)
         .WithDisabledModules(builder.Configuration)
         .WithHttpHealthCheck("/health", endpointName: "http");
@@ -124,8 +126,19 @@ IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) wh
 IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     mcp.WithReference(intoChatOS.AsClient(shareHttpIdentity: true))
+        .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey), topology)
         .WithDisabledModules(builder.Configuration)
         .WithHttpHealthCheck("/health", endpointName: "http");
-    foreach (var silo in silos) { mcp.WaitFor(silo); }
+    for (var index = 0; index < silos.Length; index++)
+    {
+        var silo = silos[index];
+        mcp.WaitFor(silo);
+        // The local topology owns its allocated Orleans ports, so the client needs those gateways explicitly.
+        if (!cloud)
+        {
+            mcp.WithEnvironment($"Orleans__Clustering__Gateways__{index}", ReferenceExpression.Create(
+                $"127.0.0.1:{silo.GetEndpoint(RuntimeHosting.OrleansGatewayEndpoint).Property(EndpointProperty.Port)}"));
+        }
+    }
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);
 }
