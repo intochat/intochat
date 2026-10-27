@@ -14,8 +14,10 @@ internal sealed class BuildProcess : IBuildProcess
         ct.ThrowIfCancellationRequested();
         var start = new ProcessStartInfo("dotnet")
         {
-            WorkingDirectory = directory, UseShellExecute = false,
-            RedirectStandardOutput = true, RedirectStandardError = true,
+            WorkingDirectory = directory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
         };
         foreach (var argument in arguments) { start.ArgumentList.Add(argument); }
         foreach (var name in new[] { "MSBuildSDKsPath", "MSBUILD_EXE_PATH", "MSBuildExtensionsPath", "DOTNET_HOST_PATH", "TESTINGPLATFORM_DOTNETTEST_EXECUTIONID" })
@@ -31,7 +33,8 @@ internal sealed class BuildProcess : IBuildProcess
         catch (OperationCanceledException)
         {
             try { child.Kill(entireProcessTree: true); }
-            catch (InvalidOperationException) { }
+            catch (InvalidOperationException) when (child.HasExited)
+            { Console.Error.WriteLine("dotnet exited before cancellation could terminate its process tree."); }
             await child.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
             await Task.WhenAll(stdout, stderr).ConfigureAwait(false);
             throw;

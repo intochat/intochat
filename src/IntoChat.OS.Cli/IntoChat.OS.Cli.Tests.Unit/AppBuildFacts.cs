@@ -74,7 +74,7 @@ public sealed class AppBuildFacts
     private static async Task<string> Project(string root, string mode = "valid")
     {
         var repo = new DirectoryInfo(AppContext.BaseDirectory);
-        while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "IntoChat.OS.slnx"))) { repo = repo.Parent; }
+        while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "Intochat.OS.slnx"))) { repo = repo.Parent; }
         if (repo is null) { throw new InvalidOperationException("Repository not found."); }
         var directory = Path.Combine(root, "source with spaces");
         Directory.CreateDirectory(directory);
