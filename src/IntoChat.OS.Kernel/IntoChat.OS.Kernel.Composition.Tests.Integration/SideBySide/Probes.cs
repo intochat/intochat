@@ -71,7 +71,7 @@ public static class Heard
 }
 
 // 06-06d: a plain neuron with state, for the kernel's instance directory (Kernel.Instances<T> on both runtimes).
-[DigitalBrain.Contracts.DefaultNeuronType(PlainCounted.Type)]
+[DigitalBrain.Contracts.NeuronAlias(PlainCounted.Type), DigitalBrain.Contracts.DefaultNeuronType(PlainCounted.Type)]
 public interface IPlainCounted
 {
     Task Add();

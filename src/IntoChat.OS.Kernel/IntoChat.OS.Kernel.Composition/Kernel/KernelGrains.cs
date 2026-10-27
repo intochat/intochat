@@ -101,6 +101,14 @@ internal sealed class InstanceTypesGrain(
 internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, ICompiledTypeTable
 {
     public Task<TypeEntry[]> List() => Task.FromResult(compiled.Addressed(contract => Kernel.StillGrainType(GrainFactory, contract)));
+
+    // A contracts-only client asks the composed kernel for the host policy, then calls that host directly. Resolving metadata
+    // never forwards an invocation or turns an external caller into a trusted call from a kernel grain.
+    public Task<string?> HostType(string type)
+        => Task.FromResult(compiled.Entries.Any(entry =>
+            (entry.Kind == TypeKind.Neuron && IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(compiled.Contract(entry.Name)) == type)
+            || (entry.Kind == TypeKind.Connector && entry.Alias == type))
+            ? KernelInvocationSink.HostTypeOfLoaded(type) : null);
 }
 
 [GrainType("kernel.typetable")]

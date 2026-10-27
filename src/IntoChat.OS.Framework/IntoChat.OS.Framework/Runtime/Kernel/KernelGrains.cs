@@ -36,6 +36,7 @@ internal static class TypeTableKey
 internal interface ICompiledTypeTable : IGrainWithStringKey
 {
     Task<TypeEntry[]> List();
+    Task<string?> HostType(string type);
 }
 
 [Alias("kernel.type-table")]

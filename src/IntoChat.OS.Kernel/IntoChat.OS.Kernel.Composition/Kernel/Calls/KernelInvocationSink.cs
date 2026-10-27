@@ -5,6 +5,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Kernel.Composition;
@@ -33,15 +34,17 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public async Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(call);
+        var host = await Host(target, cancellationToken).ConfigureAwait(false);
         Stamp();
-        return await Host(target).Invoke(Stamped(call), cancellationToken).ConfigureAwait(false);
+        return await host.Invoke(Stamped(call), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task Post(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(call);
+        var host = await Host(target, CancellationToken.None).ConfigureAwait(false);
         Stamp();
-        await Host(target).Post(Stamped(call)).ConfigureAwait(false);
+        await host.Post(Stamped(call)).ConfigureAwait(false);
     }
 
     public async IAsyncEnumerable<JsonElement> Stream(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -50,7 +53,8 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         Stamp();
         // A host grain's stream passes no incoming filter, so the os access policy is asked before it starts (06-06d).
         if (streamAccess is not null) { await streamAccess(target, call).ConfigureAwait(false); }
-        await foreach (var item in Host(target).Stream(Stamped(call), cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false)) { yield return item; }
+        var host = await Host(target, cancellationToken).ConfigureAwait(false);
+        await foreach (var item in host.Stream(Stamped(call), cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false)) { yield return item; }
     }
 
     // A contract by its wire name: one registered, else a loaded interface of that full name, else a loaded interface whose
@@ -78,9 +82,13 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>(); }
     }
 
-    private INeuronHost Host(global::DigitalBrain.NeuronId target)
+    private async Task<INeuronHost> Host(global::DigitalBrain.NeuronId target, CancellationToken cancellationToken)
     {
-        var grainType = HostTypeOf(target.Type) ?? throw new InvalidOperationException($"No neuron class is hosted for type '{target.Type}'.");
+        // Cluster clients carry contracts without implementation classes. Only the serving kernel can answer their host
+        // policy; a guessed affine host would address reentrant and stateless neurons incorrectly.
+        var grainType = HostTypeOf(target.Type)
+            ?? await grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).HostType(target.Type).WaitAsync(cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"No neuron class is hosted for type '{target.Type}'.");
         return grains.GetGrain<INeuronHost>(GrainId.Create(grainType, target.ToString()));
     }
 

@@ -853,5 +853,25 @@
     "Type": "legacy-store",
     "Store": "cluster",
     "StateName": "legacy-store"
+  },
+  "IntoChat.OS.Kernel.Composition.Tests.Integration.HostTypeResolutionFacts+AffineProbe": {
+    "Type": "tests.host-resolution.affine",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Kernel.Composition.Tests.Integration.HostTypeResolutionFacts+HiddenProbe": {
+    "Type": "tests.host-resolution.hidden",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Kernel.Composition.Tests.Integration.HostTypeResolutionFacts+ReentrantProbe": {
+    "Type": "tests.host-resolution.reentrant",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.OS.Kernel.Composition.Tests.Integration.HostTypeResolutionFacts+StatelessProbe": {
+    "Type": "tests.host-resolution.stateless",
+    "Store": null,
+    "StateName": null
   }
 }
