@@ -29,6 +29,29 @@ public sealed class CompiledPackageMetadataFacts
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ConnectorSlotCannotHideItsRequirement(bool explicitNullRequirements)
+    {
+        var json = """
+            {"title":"Counter","description":"Counts","operations":[{"name":"open","description":"Open"}],"settings":[],"slots":[{"name":"db","connector":"postgres"}], "requires": null}
+            """;
+        if (!explicitNullRequirements) { json = json.Replace(", \"requires\": null", "", StringComparison.Ordinal); }
+        var descriptor = WithJson(json) with { Capabilities = [] };
+        Assert.Throws<InvalidDataException>(() => CompiledPackageMetadata.Manifest(descriptor));
+    }
+
+    [Fact]
+    public void ExplicitConnectorRequirementsRemainVisibleForConsent()
+    {
+        var expected = new AppManifest("Counter", "Counts", [new("open", "Open")], [], [new("db", Connector: "postgres")],
+            Requires: new(Connectors: ["postgres"]));
+        var descriptor = WithExtension(expected) with { Capabilities = [] };
+        var actual = CompiledPackageMetadata.Manifest(descriptor);
+        Assert.Equal(["postgres"], actual.Requires!.Connectors!);
+    }
+
+    [Theory]
     [InlineData("missing-capability")]
     [InlineData("added-capability")]
     [InlineData("unknown-operation")]
@@ -40,6 +63,7 @@ public sealed class CompiledPackageMetadataFacts
     public void ExtensionCannotConcealOrInventTheExecutableContract(string changed)
     {
         var manifest = new AppManifest("Counter", "Counts", [new("open", "Open")], [], [], Requires: new(Capabilities: ["storage@1"]));
+        var completeJson = JsonSerializer.Serialize(manifest, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var descriptor = changed switch
         {
             "missing-capability" => WithExtension(manifest with { Requires = new() }),
@@ -47,8 +71,8 @@ public sealed class CompiledPackageMetadataFacts
             "unknown-operation" => WithExtension(manifest with { Operations = [new("other", "Other")] }),
             "duplicate-operation" => WithExtension(manifest with { Operations = [new("open", "Open"), new("open", "Again")] }),
             "null-arrays" => WithExtension(manifest with { Operations = null! }),
-            "duplicate-json" => WithJson("{\"title\":\"A\",\"title\":\"B\"}"),
-            "unknown-json" => WithJson("{\"title\":\"A\",\"unknown\":true}"),
+            "duplicate-json" => WithJson(completeJson[..^1] + ",\"title\":\"Other\"}"),
+            "unknown-json" => WithJson(completeJson[..^1] + ",\"unknown\":true}"),
             "invalid-json" => WithJson("invalid"),
             _ => throw new ArgumentOutOfRangeException(nameof(changed)),
         };

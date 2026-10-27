@@ -47,6 +47,11 @@ internal static class CompiledPackageMetadata
             }
             if (!(manifest.Requires?.Capabilities ?? []).Order(StringComparer.Ordinal).SequenceEqual(descriptor.Capabilities.Order(StringComparer.Ordinal), StringComparer.Ordinal))
             { throw new InvalidDataException("The OS manifest changes the framework capability requirements."); }
+            foreach (var slot in manifest.Slots)
+            {
+                if (slot.Connector.Length > 0 && !(manifest.Requires?.Connectors ?? []).Contains(slot.Connector, StringComparer.Ordinal))
+                { throw new InvalidDataException($"Slot '{slot.Name}' binds module '{slot.Connector}', which Requires does not list."); }
+            }
             return manifest.Validated();
         }
         catch (JsonException error) { throw new InvalidDataException("The package's presentation metadata is invalid.", error); }

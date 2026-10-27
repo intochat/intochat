@@ -22,6 +22,26 @@ public sealed class CompiledAppReviewFacts
         Assert.Equal(Digest, store.Authorize(Approval(review), Scope, "counter", 0, Owner).Digest);
     }
 
+    [Fact]
+    public void ModelOriginatedOwnerCannotCreateACodeReview()
+    {
+        var store = new CompiledAppReviewStore(new Clock());
+        var modelCaller = Owner with { ConversationId = "chat" };
+        Assert.Throws<UnauthorizedAccessException>(() => store.Create(Scope, "counter", Digest, 0, false, new(), [], modelCaller));
+        Assert.Equal(Digest, Create(store).Digest);
+    }
+
+    [Fact]
+    public void ModelOriginatedOwnerCannotApproveAHumanReview()
+    {
+        var store = new CompiledAppReviewStore(new Clock());
+        var review = Create(store);
+        var approval = Approval(review);
+        var modelCaller = Owner with { ConversationId = "chat" };
+        Assert.Throws<UnauthorizedAccessException>(() => store.Authorize(approval, Scope, "counter", 0, modelCaller));
+        Assert.Equal(Digest, store.Authorize(approval, Scope, "counter", 0, Owner).Digest);
+    }
+
     [Theory]
     [InlineData("app")]
     [InlineData("proxy")]

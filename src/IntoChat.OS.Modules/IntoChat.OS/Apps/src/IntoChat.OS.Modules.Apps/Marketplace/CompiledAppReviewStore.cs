@@ -67,7 +67,7 @@ internal sealed class CompiledAppReviewStore(TimeProvider clock)
     private static void RequirePerson(string brain, CallerContext caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp
+        if (caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp || CallerContextStamper.IsModelOriginated(caller)
             || BrainScope.Create(caller.AccountId, caller.BrainId).Id != brain)
         { throw new UnauthorizedAccessException("Only a person's authenticated session can approve compiled code in its own brain."); }
     }
