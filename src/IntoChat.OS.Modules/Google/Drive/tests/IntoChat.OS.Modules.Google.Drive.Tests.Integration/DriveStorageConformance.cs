@@ -11,26 +11,29 @@ namespace IntoChat.OS.Modules.Google.Drive.Tests.Integration;
 public sealed class DriveStorageConformance(DriveHost host) : StorageConformance<IStorage>
 {
     private string? _seedFolder;
+    private ItemId _missing;
 
     protected override async Task<StorageSubject> Connect(StorageSeed seed, CancellationToken ct)
     {
         _seedFolder = host.KitDrive.Seed(seed);
-        return new StorageSubject(await host.ConnectKitAsync(ct), new NoOperations());
+        var storage = await host.ConnectKitAsync(ct, DriveScopes.Write);
+        var folder = await SeedFolder(storage, ct);
+        await host.Operations.WaitFor(await storage.Write(WritePlan.WriteFile(folder, "missing-after-delete", new byte[] { 1 }), ct), ct);
+        _missing = (await DriveItems.Find(storage, _seedFolder + "/missing-after-delete", ct)).Id;
+        await host.Operations.WaitFor(await storage.Write(WritePlan.Delete(_missing, permanent: true), ct), ct);
+        return new StorageSubject(storage, host.Operations, [new ItemId("root")]);
     }
 
-    protected override Task<ItemId> SeedFolder(IStorage storage, CancellationToken ct)
-        => Task.FromResult(new ItemId(_seedFolder ?? throw new InvalidOperationException("Connect seeds first.")));
+    protected override ItemId MissingId() => _missing;
 
-    // Drive is read-only in Phase 5: the kit never waits for an operation.
-    private sealed class NoOperations : IOperationsProbe
-    {
-        public Task<OperationResult> WaitFor(OperationId id, CancellationToken ct) => throw new InvalidOperationException("Drive storage starts no operations.");
-    }
+    protected override async Task<ItemId> SeedFolder(IStorage storage, CancellationToken ct)
+        => (await DriveItems.Find(storage, _seedFolder ?? throw new InvalidOperationException("Connect seeds first."), ct)).Id;
 }
 
 // Every call as the Drive's owner: the person's stamp travels with each call, as it does from an app on their brain.
 internal sealed class AsOwner(IStorage inner, Person owner) : IStorage
 {
+    internal Person Owner => owner;
     public async Task<StorageDescriptor> Describe(CancellationToken ct = default) { using (owner.AsCaller()) { return await inner.Describe(ct); } }
     public async Task<IReadOnlyList<Item>> Roots(CancellationToken ct = default) { using (owner.AsCaller()) { return await inner.Roots(ct); } }
     public async Task<Page<Item>> List(ItemId folder, ListQuery query, CancellationToken ct = default) { using (owner.AsCaller()) { return await inner.List(folder, query, ct); } }
@@ -39,6 +42,21 @@ internal sealed class AsOwner(IStorage inner, Person owner) : IStorage
     public async Task<OperationId> Write(WritePlan plan, CancellationToken ct = default) { using (owner.AsCaller()) { return await inner.Write(plan, ct); } }
     public async Task<Page<Item>> Search(SearchQuery query, CancellationToken ct = default) { using (owner.AsCaller()) { return await inner.Search(query, ct); } }
     public async Task<IReadOnlyList<Item>> Ancestors(ItemId id, CancellationToken ct = default) { using (owner.AsCaller()) { return await inner.Ancestors(id, ct); } }
-    public async Task<StorageReadStream> OpenRead(ItemId item, ByteRange? range, CancellationToken ct = default) { using (owner.AsCaller()) { return await inner.OpenRead(item, range, ct); } }
-    public async Task<StorageWriteStream> OpenWrite(WritePlan plan, CancellationToken ct = default) { using (owner.AsCaller()) { return await inner.OpenWrite(plan, ct); } }
+    public async Task<StorageReadStream> OpenRead(ItemId item, ByteRange? range, CancellationToken ct = default)
+    {
+        using var caller = owner.AsCaller();
+        var read = await inner.OpenRead(item, range, ct);
+        return new(new DriveOwnerStream(read.Content, owner), read.Length, read.ContentType, read.ETag, read.CanSeek, read.Modified);
+    }
+    public async Task<StorageWriteStream> OpenWrite(WritePlan plan, CancellationToken ct = default)
+    {
+        using var caller = owner.AsCaller();
+        return new OwnerWrite(await inner.OpenWrite(plan, ct), owner);
+    }
+
+    private sealed class OwnerWrite(StorageWriteStream inner, Person owner) : StorageWriteStream(new DriveOwnerStream(inner.Content, owner))
+    {
+        protected override async Task<ItemId> CommitCore(CancellationToken ct) { using (owner.AsCaller()) { return await inner.Commit(ct); } }
+        protected override async Task AbortCore(CancellationToken ct) { using (owner.AsCaller()) { await inner.Abort(ct); } }
+    }
 }

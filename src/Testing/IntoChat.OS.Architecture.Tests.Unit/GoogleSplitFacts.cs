@@ -18,11 +18,15 @@ public sealed class GoogleSplitFacts
     public void EachExternalOperationHasOneOwner()
     {
         var names = Modules.SelectMany(module => module.GetCustomAttributes<ExternalOperationAttribute>().Select(operation => operation.Name)).ToArray();
-        Assert.Equal(15, names.Length);
+        Assert.Equal(19, names.Length);
         Assert.Equal(names.Length, names.Distinct(StringComparer.Ordinal).Count());
         Assert.Equal([GoogleAuthOperations.CodeExchange, GoogleAuthOperations.Refresh],
             typeof(GoogleAuthModule).GetCustomAttributes<ExternalOperationAttribute>().Select(operation => operation.Name).Order(StringComparer.Ordinal));
         Assert.All(typeof(DriveModule).GetCustomAttributes<ExternalOperationAttribute>(), operation => Assert.StartsWith("google.drive.", operation.Name, StringComparison.Ordinal));
+        Assert.Equal(new[] { GoogleDriveOperations.About, GoogleDriveOperations.List, GoogleDriveOperations.Metadata,
+                GoogleDriveOperations.Media, GoogleDriveOperations.Export, GoogleDriveOperations.Create,
+                GoogleDriveOperations.Update, GoogleDriveOperations.Copy, GoogleDriveOperations.Delete }.Order(StringComparer.Ordinal),
+            typeof(DriveModule).GetCustomAttributes<ExternalOperationAttribute>().Select(operation => operation.Name).Order(StringComparer.Ordinal));
         Assert.All(typeof(GmailModule).GetCustomAttributes<ExternalOperationAttribute>(), operation => Assert.StartsWith("google.gmail.", operation.Name, StringComparison.Ordinal));
     }
 

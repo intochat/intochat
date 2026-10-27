@@ -19,6 +19,37 @@ public sealed class BrainRuntimeNeuronFacts
 {
     [Trait("host", "own")]
     [Fact]
+    public async Task PreservedProgramsCanRestoreTogetherWhileTheRestartedSessionConnects()
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        var ct = deadline.Token;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var owners = Enumerable.Range(0, 8).Select(index => Owner + index).ToArray();
+        foreach (var owner in owners) { await Programs(brain).Assign(owner, Synapse(), []); }
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        await Edge(brain).Connected(session, RuntimeBrain.Fingerprint(brain));
+        for (var index = 0; index < owners.Length; index++)
+        {
+            var source = brain.Get<IPinger>(Brain + "/restart-source-" + index);
+            await Edge(brain).Subscribed(session, owners[index] + "/synapses/a.cs", RuntimeBrain.Source(source), Pings.Pinged);
+        }
+        await brain.RestartAsync(ct);
+        for (var index = 0; index < owners.Length; index++) { await brain.Get<IPinger>(Brain + "/restart-source-" + index).Ping(1); }
+        var restarted = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.NotEqual(session, restarted);
+
+        await Task.WhenAll(owners.Select((owner, index) => brain.Get<IProgramRestorer>(Brain + "/restorer-" + index).Restore(owner, Synapse()))
+            .Append(Edge(brain).Connected(restarted, RuntimeBrain.Fingerprint(brain)))).WaitAsync(ct);
+
+        var current = await Runtime(brain).Inspect(ct);
+        Assert.Equal(SessionStatus.Connected, current.Session);
+        Assert.Equal(owners.Length, current.Behaviors.Count);
+        foreach (var owner in owners) { Assert.NotNull(await Programs(brain).Describe(owner)); }
+    }
+
+    [Trait("host", "own")]
+    [Fact]
     public async Task HttpStartupImmediatelyRetriesDeferredSessions()
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);

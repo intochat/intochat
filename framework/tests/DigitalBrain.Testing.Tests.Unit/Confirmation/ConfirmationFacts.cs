@@ -313,13 +313,118 @@ public sealed class ConfirmationFacts
     }
 
     [Fact]
+    public async Task A_direct_provider_write_uses_the_same_confirmation_policy_before_any_effect()
+    {
+        var storage = new FakeStorage("Drive");
+        var file = storage.AddFile(storage.Root, "a.txt", "x"u8.ToArray());
+        var confirmations = new TestConfirmations(new TestClock());
+        var checking = StorageConfirmationGate.Check(storage, confirmations.For(App), WritePlan.Delete(file), Ct);
+        var request = await WaitAny(confirmations);
+        Assert.Contains("a.txt", request.Plan.Title, StringComparison.Ordinal);
+        Assert.False(checking.IsCompleted);
+        await confirmations.Deny(request.PlanId);
+        Assert.Equal("The confirmation was denied.", await checking);
+        Assert.Equal("a.txt", (await storage.Stat(file, Ct)).Name);
+    }
+
+    [Fact]
     public void Delete_copy_names_item_and_storage_and_offers_delete_and_keep()
     {
-        var plan = StorageConfirmation.For("p", WritePlan.Delete(new ItemId("x")), false, "report.pdf", "Drive", "Drive", "Root");
+        var plan = StorageConfirmation.For("p", WritePlan.Delete(new ItemId("x"), permanent: true), false, "report.pdf", "Drive", "Drive", "Root");
 
-        Assert.Equal(("Delete report.pdf?", "This removes report.pdf from Drive. You cannot undo this.", "Delete", "Keep"), (plan.Title, plan.Body, plan.ApproveLabel, plan.DenyLabel));
+        Assert.Equal(("Permanently delete report.pdf?", "This permanently removes report.pdf from Drive. You cannot undo this.", "Delete permanently", "Keep"), (plan.Title, plan.Body, plan.ApproveLabel, plan.DenyLabel));
         Assert.True(plan.Destructive);
     }
+
+    [Theory]
+    [InlineData(ConflictPolicy.Fail)]
+    [InlineData(ConflictPolicy.Overwrite)]
+    public async Task Rename_confirmation_names_the_source_destination_name_and_actual_parent(ConflictPolicy conflict)
+    {
+        var storage = new FakeStorage("Work Drive");
+        var folder = storage.AddFolder(storage.Root, "Invoices");
+        var file = storage.AddFile(folder, "draft.txt", "x"u8.ToArray());
+        var runner = PromptRunner(new CapabilityConnection<IStorage>("drive", "Work Drive", storage));
+
+        var prompt = await runner.Confirmation(WritePlan.Rename(file, "final.txt", conflict), Ct);
+
+        Assert.Equal("Rename draft.txt to final.txt?", prompt.Title);
+        Assert.Equal("final.txt", prompt.TargetLabel);
+        Assert.Contains("draft.txt in Invoices on Work Drive", prompt.Body, StringComparison.Ordinal);
+        Assert.Contains("final.txt in Invoices on Work Drive", prompt.Body, StringComparison.Ordinal);
+        Assert.Equal(conflict == ConflictPolicy.Overwrite, prompt.Destructive);
+        if (conflict == ConflictPolicy.Overwrite)
+        { Assert.Contains("If final.txt already exists", prompt.Body, StringComparison.Ordinal); }
+        Assert.DoesNotContain(file.Value, prompt.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ConflictPolicy.Fail)]
+    [InlineData(ConflictPolicy.Overwrite)]
+    public async Task A_cross_storage_move_discloses_both_locations_verification_and_source_removal(ConflictPolicy conflict)
+    {
+        var source = new FakeStorage("Work Drive");
+        var target = new FakeStorage("Personal Drive");
+        var from = source.AddFolder(source.Root, "Inbox");
+        var into = target.AddFolder(target.Root, "Archive");
+        var file = source.AddFile(from, "report.txt", "x"u8.ToArray());
+        var prompt = await PromptRunner(new("work", "Work Drive", source), new("personal", "Personal Drive", target))
+            .Confirmation(WritePlan.Move(file, into, conflict), Ct);
+
+        Assert.Equal(ConfirmationAction.Move, prompt.Action);
+        Assert.Contains("report.txt in Inbox on Work Drive", prompt.Body, StringComparison.Ordinal);
+        Assert.Contains("report.txt in Archive on Personal Drive", prompt.Body, StringComparison.Ordinal);
+        Assert.Contains("verified", prompt.Body, StringComparison.Ordinal);
+        Assert.Contains("source is moved to trash", prompt.Body, StringComparison.Ordinal);
+        if (conflict == ConflictPolicy.Overwrite)
+        { Assert.Contains("If report.txt already exists", prompt.Body, StringComparison.Ordinal); }
+        Assert.True(prompt.Destructive);
+        Assert.DoesNotContain(file.Value, prompt.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain(into.Value, prompt.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Trash_confirmation_never_claims_to_delete_permanently()
+    {
+        var storage = new FakeStorage("Work Drive");
+        var folder = storage.AddFolder(storage.Root, "Invoices");
+        var file = storage.AddFile(folder, "report.txt", "x"u8.ToArray());
+        var prompt = await PromptRunner(new CapabilityConnection<IStorage>("drive", "Work Drive", storage)).Confirmation(WritePlan.Delete(file), Ct);
+
+        Assert.Equal("Move report.txt to trash?", prompt.Title);
+        Assert.Equal("Move to trash", prompt.ApproveLabel);
+        Assert.Contains("Invoices on Work Drive", prompt.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("cannot undo", prompt.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("permanently", prompt.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(WriteKind.Copy)]
+    [InlineData(WriteKind.Move)]
+    public async Task Same_storage_prompts_identify_the_destination_folder(WriteKind kind)
+    {
+        var storage = new FakeStorage("Work Drive");
+        var from = storage.AddFolder(storage.Root, "Inbox");
+        var into = storage.AddFolder(storage.Root, "Archive");
+        var file = storage.AddFile(from, "report.txt", "x"u8.ToArray());
+        var plan = kind == WriteKind.Copy ? WritePlan.Copy(file, into) : WritePlan.Move(file, into);
+        var prompt = await PromptRunner(new CapabilityConnection<IStorage>("drive", "Work Drive", storage)).Confirmation(plan, Ct);
+
+        Assert.Contains("report.txt in Inbox on Work Drive", prompt.Body, StringComparison.Ordinal);
+        Assert.Contains("report.txt in Archive on Work Drive", prompt.Body, StringComparison.Ordinal);
+        Assert.False(prompt.Destructive);
+    }
+
+    private static StorageWriteRunner PromptRunner(params CapabilityConnection<IStorage>[] connections)
+        => new(async (item, ct) =>
+        {
+            foreach (var connection in connections)
+            {
+                try { _ = await connection.Capability.Stat(item, ct); return connection; }
+                catch (NotFound) { }
+            }
+            throw new NotFound(item);
+        }, (_, _, _) => throw new InvalidOperationException("Prompt rendering must not execute storage writes."));
 
     [Fact]
     public async Task A_delete_through_context_operations_waits_for_a_person_and_is_refused_when_denied()
@@ -333,10 +438,10 @@ public sealed class ConfirmationFacts
 
         var deleting = confirmer.Delete(file.Value);
         var request = await WaitAny(os.Confirmations);
-        Assert.Equal(("Delete a.txt?", ConfirmationAction.Delete), (request.Plan.Title, request.Plan.Action));
         await os.Confirmations.Deny(request.PlanId);
 
         Assert.Equal("failed:denied", await deleting);
+        Assert.Equal(("Move a.txt to trash?", ConfirmationAction.Delete), (request.Plan.Title, request.Plan.Action));
         Assert.Contains((await drive.List(drive.Root, new ListQuery(), Ct)).Items, item => item.Name == "a.txt");
     }
 }

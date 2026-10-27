@@ -74,8 +74,10 @@ public sealed class SlowStorage(InMemoryStorage inner) : IStorage
 /// <summary>Refuses plans whose folder name starts with <c>Denied</c>.</summary>
 public sealed class NamedGate : IOperationGate
 {
+    public TaskCompletionSource<OperationGateDecision>? Waiting { get; set; }
     public Task<OperationGateDecision> Check(OperationRequest request, CancellationToken ct)
-        => Task.FromResult(request.Plan is WritePlan { Name: { } name } && name.StartsWith("Denied", StringComparison.Ordinal)
+        => request.Plan is WritePlan { Name: "Waiting-for-human" } && Waiting is { } pending ? pending.Task.WaitAsync(ct)
+            : Task.FromResult(request.Plan is WritePlan { Name: { } name } && name.StartsWith("Denied", StringComparison.Ordinal)
             ? OperationGateDecision.Deny("refused by the fact gate")
             : OperationGateDecision.Allow);
 }
@@ -101,6 +103,7 @@ public sealed class OperationSilo : IAsyncLifetime
     private IInProcessHost? _host;
 
     public OperationConnections Connections { get; } = new();
+    public NamedGate Gate { get; } = new();
 
     public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Not started.")).Services;
 
@@ -123,7 +126,7 @@ public sealed class OperationSilo : IAsyncLifetime
         {
             services.AddSingleton<ICapabilityConnections>(Connections);
             services.AddSingleton<StorageWriteResult>(OperationConnections.Result);
-            services.AddSingleton<IOperationGate, NamedGate>();
+            services.AddSingleton<IOperationGate>(Gate);
         }).Start(new InProcessHostOptions { Home = _home.Path, Modules = [typeof(HostingModule)] }, CancellationToken.None);
 
     public async ValueTask DisposeAsync()
@@ -141,6 +144,27 @@ public sealed class OperationSilo : IAsyncLifetime
 // D-04, CAP-04: the runtime operation entity on a silo over BrainLog.
 public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<OperationSilo>
 {
+    [Fact]
+    public async Task StartReturnsACancellableHandleWhileHumanApprovalIsPending()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        silo.Gate.Waiting = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var operations = silo.Operations("op-wait-human");
+        try
+        {
+            var operation = await operations.Start(WritePlan.CreateFolder(silo.Connections.A.Root, "Waiting-for-human"), ct).WaitAsync(TimeSpan.FromSeconds(2), ct);
+            Assert.False(((RuntimeOperation)operation).Completion.IsCompleted);
+            await operations.Cancel(operation.Id, ct);
+            Assert.IsType<OperationResult.Cancelled>(await Done(operation));
+            Assert.DoesNotContain(await silo.Connections.A.Children(silo.Connections.A.Root), item => item.Name == "Waiting-for-human");
+        }
+        finally
+        {
+            silo.Gate.Waiting.TrySetResult(OperationGateDecision.Deny("test finished"));
+            silo.Gate.Waiting = null;
+        }
+    }
+
     private static byte[] Bytes(string text) => Encoding.UTF8.GetBytes(text);
 
     private static async Task<OperationResult> Done(IOperation operation)

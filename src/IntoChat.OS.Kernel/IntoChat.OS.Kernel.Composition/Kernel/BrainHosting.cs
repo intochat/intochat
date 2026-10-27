@@ -24,6 +24,11 @@ public static class BrainHosting
         foreach (var module in selected) { ModuleOptionsBinding.Add(silo.Services, module); }
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
         silo.Services.TryAddSingleton(TimeProvider.System);
+        silo.Services.AddOptions<Confirmations.ConfirmationOptions>().BindConfiguration(Confirmations.ConfirmationOptions.Section);
+        silo.Services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Operations.IConfirmationContexts, Confirmations.KernelConfirmations>();
+        silo.Services.TryAddSingleton<DigitalBrain.Capabilities.Storage.IStorageWriteIdentity, Confirmations.StorageWriteIdentity>();
+        silo.Services.TryAddSingleton<DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer, DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer>();
+        DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(silo.Services, typeof(DigitalBrain.Confirmation.ConfirmationRequested).Assembly);
         // Stored pre-alias bytes still name pre-0.7.0 namespaces.
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<Orleans.Serialization.ITypeConverter, LegacyTypeNames>());
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();

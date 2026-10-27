@@ -497,6 +497,7 @@ public sealed class RunFactsFacts
         Assert.False(BrainRunsGuard.Admits(null, runs));
         Assert.False(BrainRunsGuard.Admits(Host("other-brain", BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.Name), runs));
         Assert.False(BrainRunsGuard.Admits(Host(Acc, "apps.app2", "apps/x"), runs));
+        Assert.False(BrainRunsGuard.Admits(runs, runs));
         Assert.False(BrainRunsGuard.Admits(GrainId.Create(BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.For(Acc)), runs));
     }
 

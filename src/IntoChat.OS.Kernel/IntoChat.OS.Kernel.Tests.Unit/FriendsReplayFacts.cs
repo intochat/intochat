@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Circles;
@@ -181,11 +182,12 @@ public sealed class FriendsReplayFacts
     }
 
     // The chat is a plain neuron (06-08): a PublishPost reaches its runtime host grain as one RuntimeInvocation. Of answers the
-    // chat's os key "{circle}/chat" for such a call, or null.
+    // chat's os key "{circle}/chat" for an execution call, excluding its pure scheduling query, or null.
     private static class Publication
     {
         public static string? Of(IIncomingGrainCallContext context)
-            => context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+            => context.InterfaceMethod.DeclaringType == typeof(INeuronHost) && context.InterfaceMethod.Name != nameof(INeuronHost.IsInterleaved)
+               && context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
                && call.Method == nameof(ICircleChat.PublishPost) && DigitalBrain.NeuronId.TryParse(call.Key, out var id)
                 ? $"{id.Brain.Value}/{id.Key}" : null;
     }

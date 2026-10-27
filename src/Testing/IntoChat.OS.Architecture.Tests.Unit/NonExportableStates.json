@@ -143,5 +143,15 @@
     "type": "IntoChat.OS.Modules.Circles.InviteKeyRecord",
     "state": "circles.invite-key",
     "reason": "deployment invite HMAC secret, never exported"
+  },
+  {
+    "type": "IntoChat.OS.Kernel.Composition.Confirmations.ConfirmationState",
+    "state": "state",
+    "reason": "pending and completed approval authority, caller identities and replay decisions must not be cloned into portable brains"
+  },
+  {
+    "type": "IntoChat.OS.Modules.Apps.FilesWorkspaceState",
+    "state": "state",
+    "reason": "workspace navigation, request replay receipts and runtime operation projections belong to this installation; cloning them would misrepresent execution authority and effects"
   }
 ]

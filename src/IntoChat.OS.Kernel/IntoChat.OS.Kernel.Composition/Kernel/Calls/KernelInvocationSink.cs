@@ -34,17 +34,22 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public async Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(call);
-        var host = await Host(target, cancellationToken).ConfigureAwait(false);
+        // Preserve the grain scheduler until dispatch: source-origin guards use Orleans' physical caller identity.
+        var host = await Host(target, cancellationToken).ConfigureAwait(true);
         Stamp();
-        return await host.Invoke(Stamped(call), cancellationToken).ConfigureAwait(false);
+        var stamped = Stamped(call);
+        var interleaved = await host.IsInterleaved(stamped).WaitAsync(cancellationToken).ConfigureAwait(true);
+        return await (interleaved ? host.InvokeInterleaved(stamped, cancellationToken) : host.Invoke(stamped, cancellationToken)).ConfigureAwait(false);
     }
 
     public async Task Post(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        var host = await Host(target, CancellationToken.None).ConfigureAwait(false);
+        var host = await Host(target, CancellationToken.None).ConfigureAwait(true);
         Stamp();
-        await host.Post(Stamped(call)).ConfigureAwait(false);
+        var stamped = Stamped(call);
+        if (await host.IsInterleaved(stamped).ConfigureAwait(true)) { await host.PostInterleaved(stamped).ConfigureAwait(false); }
+        else { await host.Post(stamped).ConfigureAwait(false); }
     }
 
     public async IAsyncEnumerable<JsonElement> Stream(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -52,9 +57,9 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         ArgumentNullException.ThrowIfNull(call);
         Stamp();
         // A host grain's stream passes no incoming filter, so the os access policy is asked before it starts (06-06d).
-        if (streamAccess is not null) { await streamAccess(target, call).ConfigureAwait(false); }
-        var host = await Host(target, cancellationToken).ConfigureAwait(false);
-        await foreach (var item in host.Stream(Stamped(call), cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false)) { yield return item; }
+        if (streamAccess is not null) { await streamAccess(target, call).ConfigureAwait(true); }
+        var host = await Host(target, cancellationToken).ConfigureAwait(true);
+        await foreach (var item in host.Stream(Stamped(call), cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(true)) { yield return item; }
     }
 
     // A contract by its wire name: one registered, else a loaded interface of that full name, else a loaded interface whose
@@ -87,7 +92,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         // Cluster clients carry contracts without implementation classes. Only the serving kernel can answer their host
         // policy; a guessed affine host would address reentrant and stateless neurons incorrectly.
         var grainType = HostTypeOf(target.Type)
-            ?? await grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).HostType(target.Type).WaitAsync(cancellationToken).ConfigureAwait(false)
+            ?? await grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).HostType(target.Type).WaitAsync(cancellationToken).ConfigureAwait(true)
             ?? throw new InvalidOperationException($"No neuron class is hosted for type '{target.Type}'.");
         return grains.GetGrain<INeuronHost>(GrainId.Create(grainType, target.ToString()));
     }

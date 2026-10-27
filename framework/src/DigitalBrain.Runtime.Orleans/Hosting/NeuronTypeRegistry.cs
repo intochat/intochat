@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
@@ -39,9 +38,6 @@ internal sealed class NeuronTypeRegistry
     /// <summary>The state name when the class sets none.</summary>
     internal const string DefaultStateName = "state";
 
-    // Process-wide view for the static [MayInterleave] predicate, which gets no services.
-    private static readonly ConcurrentDictionary<string, Type> Process = new(StringComparer.Ordinal);
-
     private readonly Dictionary<string, NeuronRegistration> _types = new(StringComparer.Ordinal);
     private readonly Dictionary<Type, NeuronRegistration> _byContract = [];
 
@@ -71,7 +67,6 @@ internal sealed class NeuronTypeRegistry
             var registration = new NeuronRegistration(neuron.Type, type, neuron.State ?? DefaultStateName, PolicyOf(type), ContractsOf(type));
             _types[neuron.Type] = registration;
             foreach (var contract in registration.Contracts) { _byContract.TryAdd(contract, registration); }
-            Process[neuron.Type] = type;
         }
     }
 
@@ -99,8 +94,6 @@ internal sealed class NeuronTypeRegistry
     public NeuronRegistration Require(string type)
         => _types.TryGetValue(type, out var registration) ? registration
             : throw new Invocation.BindingException($"No neuron class is hosted for type '{type}'.");
-
-    internal static bool TryGetAny(string type, [NotNullWhen(true)] out Type? neuronClass) => Process.TryGetValue(type, out neuronClass);
 
     /// <summary>The host policy a class declares.</summary>
     public static HostPolicy PolicyOf(Type neuronClass)

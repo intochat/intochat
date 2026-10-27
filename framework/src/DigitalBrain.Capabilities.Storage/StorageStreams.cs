@@ -60,7 +60,15 @@ public abstract class StorageWriteStream : IAsyncDisposable
         {
             throw new InvalidOperationException("The write is already committed or aborted.");
         }
-        return await CommitCore(ct).ConfigureAwait(false);
+        try { return await CommitCore(ct).ConfigureAwait(false); }
+        catch (Exception error)
+        {
+            Interlocked.Exchange(ref _state, 2);
+            try { await AbortCore(CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception cleanupError) when (cleanupError is not OutOfMemoryException)
+            { error.Data["StorageAbortFailure"] = cleanupError; }
+            throw;
+        }
     }
 
     /// <summary>Discards the write. Does nothing when already committed or aborted.</summary>
@@ -81,8 +89,11 @@ public abstract class StorageWriteStream : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        await Abort(CancellationToken.None).ConfigureAwait(false);
-        await Content.DisposeAsync().ConfigureAwait(false);
-        GC.SuppressFinalize(this);
+        try { await Abort(CancellationToken.None).ConfigureAwait(false); }
+        finally
+        {
+            await Content.DisposeAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
+        }
     }
 }

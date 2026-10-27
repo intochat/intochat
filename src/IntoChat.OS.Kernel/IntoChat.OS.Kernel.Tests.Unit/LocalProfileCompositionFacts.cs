@@ -78,11 +78,11 @@ public sealed class LocalProfileCompositionFacts
         {
             var resource = Assert.Single(host.Resources.OfType<ProjectResource>(), project => project.Name == name);
             var environment = await LocalProfileOllamaFacts.EnvironmentOf(host, resource);
-            foreach (var id in new[] { "postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "windows", "salesforce", "gmail" })
+            foreach (var id in new[] { "postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "salesforce", "gmail" })
             {
                 Assert.Equal("false", environment[IntoChatOSConfiguration.ModuleSection(id) + ":Enabled"]);
             }
-            foreach (var id in new[] { "ai", "apps", "circles", "flame", "tools", "csharp", "orleans", "aspire", "mcp", "time" })
+            foreach (var id in new[] { "ai", "apps", "circles", "flame", "tools", "csharp", "orleans", "aspire", "mcp", "time", "windows" })
             {
                 Assert.DoesNotContain(IntoChatOSConfiguration.ModuleSection(id) + ":Enabled", environment.Keys);
             }

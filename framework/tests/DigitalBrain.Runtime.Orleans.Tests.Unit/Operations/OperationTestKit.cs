@@ -23,14 +23,16 @@ internal sealed class RecordingOperation : IOperation, IDisposable
     /// <summary>Called on each report; return true to cancel right after it.</summary>
     public Func<double, int, bool>? CancelWhen { get; init; }
 
+    public Func<double, Task>? Reported { get; init; }
+
     public int ReportsAfterCancel { get; private set; }
 
-    public ValueTask Report(double fraction)
+    public async ValueTask Report(double fraction)
     {
         if (_cancellation.IsCancellationRequested) { ReportsAfterCancel++; }
         _reports.Enqueue(fraction);
+        if (Reported is not null) { await Reported(fraction); }
         if (CancelWhen?.Invoke(fraction, _reports.Count) == true) { _cancellation.Cancel(); }
-        return ValueTask.CompletedTask;
     }
 
     public ValueTask Complete(OperationResult result) => ValueTask.CompletedTask;
@@ -55,6 +57,9 @@ internal sealed class FaultyStorage(InMemoryStorage inner, ConcurrentQueue<strin
 
     /// <summary>Refuse deletes with <see cref="Unavailable"/>.</summary>
     public bool FailDeletes { get; set; }
+    public bool HideHashes { get; set; }
+    public bool RefuseWholeReads { get; set; }
+    public bool FailReads { get; set; }
 
     /// <summary>Delay before each streaming write opens.</summary>
     public TimeSpan WriteDelay { get; set; }
@@ -67,13 +72,18 @@ internal sealed class FaultyStorage(InMemoryStorage inner, ConcurrentQueue<strin
 
     public Task<Page<Item>> List(ItemId folder, ListQuery query, CancellationToken ct = default) => Inner.List(folder, query, ct);
 
-    public Task<Item> Stat(ItemId id, CancellationToken ct = default)
+    public async Task<Item> Stat(ItemId id, CancellationToken ct = default)
     {
         Record("Stat");
-        return Inner.Stat(id, ct);
+        var item = await Inner.Stat(id, ct);
+        return HideHashes ? item with { Hash = null } : item;
     }
 
-    public Task<Content> Read(ItemId id, ByteRange? range, CancellationToken ct = default) => Inner.Read(id, range, ct);
+    public Task<Content> Read(ItemId id, ByteRange? range, CancellationToken ct = default)
+    {
+        if (RefuseWholeReads && range is null) { throw new Unsupported(id); }
+        return Inner.Read(id, range, ct);
+    }
 
     public Task<OperationId> Write(WritePlan plan, CancellationToken ct = default)
     {
@@ -86,7 +96,8 @@ internal sealed class FaultyStorage(InMemoryStorage inner, ConcurrentQueue<strin
 
     public Task<IReadOnlyList<Item>> Ancestors(ItemId id, CancellationToken ct = default) => Inner.Ancestors(id, ct);
 
-    public Task<StorageReadStream> OpenRead(ItemId item, ByteRange? range, CancellationToken ct = default) => Inner.OpenRead(item, range, ct);
+    public Task<StorageReadStream> OpenRead(ItemId item, ByteRange? range, CancellationToken ct = default)
+        => FailReads ? throw new Unavailable(item) : Inner.OpenRead(item, range, ct);
 
     public async Task<StorageWriteStream> OpenWrite(WritePlan plan, CancellationToken ct = default)
     {

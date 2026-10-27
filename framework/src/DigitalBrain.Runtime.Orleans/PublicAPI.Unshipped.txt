@@ -1,4 +1,9 @@
 #nullable enable
+DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer
+DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.BeginApproved(DigitalBrain.BrainId brain, string! requester) -> System.IDisposable!
+DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.Consume(DigitalBrain.NeuronId provider, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<bool>!
+DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.Invoke<T>(string! connection, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Func<System.Threading.Tasks.Task<T>!>! send, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<T>!
+DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer.StorageWriteAuthorizer(Orleans.IGrainFactory! grains, DigitalBrain.Capabilities.Storage.IStorageWriteIdentity! identity, Microsoft.Extensions.Logging.ILogger<DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer!>! logger) -> void
 DigitalBrain.Runtime.Orleans.Bindings
 DigitalBrain.Runtime.Orleans.Bindings.<Clone>$() -> DigitalBrain.Runtime.Orleans.Bindings!
 DigitalBrain.Runtime.Orleans.Bindings.Bindings(DigitalBrain.Runtime.Orleans.ClusteringBinding Clustering, DigitalBrain.Runtime.Orleans.GrainStoreBinding GrainStores, DigitalBrain.Runtime.Orleans.StreamsBinding Streams, DigitalBrain.Runtime.Orleans.RemindersBinding Reminders, DigitalBrain.Runtime.Orleans.SecretsBinding Secrets, DigitalBrain.Runtime.Orleans.HttpBinding Http, DigitalBrain.Runtime.Orleans.SandboxBinding Sandbox, DigitalBrain.Runtime.Orleans.ModelBinding Model, DigitalBrain.Runtime.Orleans.UiBinding Ui) -> void
@@ -373,7 +378,8 @@ DigitalBrain.Runtime.Orleans.Signalling.IBrainListeners.Listen<TSignal>(DigitalB
 DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses
 DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses.End() -> System.Threading.Tasks.Task!
 DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses.Next(long acked, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.Signalling.SessionBatch?>!
-DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses.Subscribe(DigitalBrain.NeuronId source, string![]! aliases) -> System.Threading.Tasks.Task!
+DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses.PrepareSubscription(DigitalBrain.NeuronId source, string![]! aliases) -> System.Threading.Tasks.Task<string!>!
+DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses.CommitSubscription(string! ticket) -> System.Threading.Tasks.Task!
 DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses.Unsubscribe(DigitalBrain.NeuronId source) -> System.Threading.Tasks.Task!
 DigitalBrain.Runtime.Orleans.Signalling.SessionBatch
 DigitalBrain.Runtime.Orleans.Signalling.SessionBatch.<Clone>$() -> DigitalBrain.Runtime.Orleans.Signalling.SessionBatch!
@@ -763,3 +769,12 @@ DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Open(string! context
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Seal(string! context, System.ReadOnlyMemory<byte> plaintext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SealedSecret!>!
 DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons
 static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<T>(System.IServiceProvider! services, DigitalBrain.NeuronId id) -> T!
+DigitalBrain.Runtime.Orleans.Operations.IConfirmationContexts
+DigitalBrain.Runtime.Orleans.Operations.IConfirmationContexts.For(DigitalBrain.BrainId brain, string! requester) -> DigitalBrain.Confirmation.IConfirmations!
+DigitalBrain.Runtime.Orleans.Operations.OperationRecovery
+static DigitalBrain.Runtime.Orleans.Operations.OperationRecovery.Reconcile(this DigitalBrain.Spi.IOperations! operations, DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Runtime.Orleans.Hosting.INeuronHost.IsInterleaved(DigitalBrain.Invocation.RuntimeInvocation! call) -> System.Threading.Tasks.Task<bool>!
+DigitalBrain.Runtime.Orleans.Hosting.INeuronHost.InvokeInterleaved(DigitalBrain.Invocation.RuntimeInvocation! call, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement?>!
+DigitalBrain.Runtime.Orleans.Hosting.INeuronHost.PostInterleaved(DigitalBrain.Invocation.RuntimeInvocation! call) -> System.Threading.Tasks.Task!
+
+static DigitalBrain.Runtime.Orleans.Signalling.SessionSynapses.Subscribe(this DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses! session, DigitalBrain.NeuronId source, string![]! aliases) -> System.Threading.Tasks.Task!

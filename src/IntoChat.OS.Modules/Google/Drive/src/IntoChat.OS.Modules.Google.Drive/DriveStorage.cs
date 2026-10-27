@@ -12,14 +12,14 @@ namespace IntoChat.OS.Modules.Google.Drive;
 
 // storage@1 of a Google Drive (05-09, D-06, D-11, D-16): ids are Drive file ids ("root" is My Drive, resolved here), lists
 // follow nextPageToken (no 200-item truncation), quota is tri-state and pooled, shortcuts are links to their target (a folder
-// shortcut lists its target; chains are not followed), and the scope stays drive.readonly: the descriptor offers Read and
-// Search, Write and OpenWrite are Unsupported until 07-04.
+// shortcut lists its target; chains are not followed). Mutations are offered only when the stored OAuth grant allows them.
 internal sealed partial class DriveNeuron : IStorage
 {
     internal const string ShortcutType = "application/vnd.google-apps.shortcut";
     private const string GooglePrefix = "application/vnd.google-apps.";
-    private const ItemFlags Offered = ItemFlags.Read | ItemFlags.Search;
-    private const string ItemFields = "id,name,mimeType,size,modifiedTime,md5Checksum,trashed,parents,shortcutDetails,capabilities(canTrash,canDelete,canEdit)";
+    private ItemFlags Offered => ItemFlags.Read | ItemFlags.Search | (CanWrite
+        ? ItemFlags.Write | ItemFlags.CreateFolder | ItemFlags.Rename | ItemFlags.Copy | ItemFlags.Move | ItemFlags.Trash | ItemFlags.Delete : ItemFlags.None);
+    private const string ItemFields = "id,name,mimeType,size,modifiedTime,md5Checksum,trashed,parents,shortcutDetails,capabilities(canTrash,canDelete,canModifyContent,canRename,canMoveItemWithinDrive,canMoveItemOutOfDrive,canCopy,canAddChildren,canListChildren)";
 
     async Task<StorageDescriptor> IStorage.Describe(CancellationToken ct)
     {
@@ -34,8 +34,8 @@ internal sealed partial class DriveNeuron : IStorage
         return new StorageDescriptor("Google Drive", "google-drive", quota, Offered);
     }
 
-    Task<IReadOnlyList<Item>> IStorage.Roots(CancellationToken ct)
-        => Task.FromResult<IReadOnlyList<Item>>([new Item(new ItemId(Root), RootName, ItemKind.Folder, null, null, ItemFlags.Read)]);
+    async Task<IReadOnlyList<Item>> IStorage.Roots(CancellationToken ct)
+        => [await ((IStorage)this).Stat(new(Root), ct)];
 
     async Task<Page<Item>> IStorage.List(ItemId folder, ListQuery query, CancellationToken ct)
     {
@@ -49,7 +49,7 @@ internal sealed partial class DriveNeuron : IStorage
     {
         var file = await Metadata(id, ct);
         // My Drive answers with its real id; callers keep the alias they asked for.
-        return id.Value == Root ? new Item(new ItemId(Root), RootName, ItemKind.Folder, null, ToItem(file).Modified, ItemFlags.Read) : ToItem(file);
+        return id.Value == Root ? new Item(new ItemId(Root), RootName, ItemKind.Folder, null, ToItem(file).Modified, Flags(file)) : ToItem(file);
     }
 
     async Task<Content> IStorage.Read(ItemId id, ByteRange? range, CancellationToken ct)
@@ -58,14 +58,20 @@ internal sealed partial class DriveNeuron : IStorage
         return new Content(bytes, mediaType, total);
     }
 
-    Task<OperationId> IStorage.Write(WritePlan plan, CancellationToken ct) => throw new Unsupported(null);
-
-    Task<Page<Item>> IStorage.Search(SearchQuery query, CancellationToken ct)
+    async Task<Page<Item>> IStorage.Search(SearchQuery query, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(query);
-        var q = $"name contains '{Escape(query.Text)}' and trashed = false"
-            + (query.Within is { } within ? $" and '{Escape(within.Value ?? Root)}' in parents" : "");
-        return Page(GoogleDriveOperations.List, q, OrderBy(SortKey.FolderThenName, false), query.PageSize, query.Cursor, query.Within, ct);
+        var folder = query.Within is { } within ? await ListableFolder(within, ct) : null;
+        var q = $"name contains '{Escape(query.Text)}' and trashed = false";
+        var page = await Page(GoogleDriveOperations.List, q, OrderBy(SortKey.FolderThenName, false), query.PageSize, query.Cursor, query.Within, ct);
+        if (folder is null) { return page; }
+        var found = new List<Item>();
+        foreach (var item in page.Items)
+        {
+            var parents = await ((IStorage)this).Ancestors(item.Id, ct);
+            if (parents.Any(parent => parent.Id.Value == folder)) { found.Add(item); }
+        }
+        return new(found, page.NextCursor);
     }
 
     // The folders holding an item, My Drive first, excluding the item; parents[0] at each step, at most MaxDepth deep.
@@ -119,7 +125,7 @@ internal sealed partial class DriveNeuron : IStorage
         return new StorageReadStream(new ResponseStream(response, await response.Content.ReadAsStreamAsync(ct)), response.Content.Headers.ContentLength, contentType, hash, canSeek: false, modified);
     }
 
-    Task<StorageWriteStream> IStorage.OpenWrite(WritePlan plan, CancellationToken ct) => throw new Unsupported(null);
+    // Writes and host-local write handles live in DriveStorage.Writes.cs.
 
     // ----- helpers -----
 
@@ -165,6 +171,7 @@ internal sealed partial class DriveNeuron : IStorage
     {
         if (string.IsNullOrWhiteSpace(id.Value)) { throw new NotFound(id); }
         using var json = await StorageJson(GoogleDriveOperations.Metadata, $"files/{Uri.EscapeDataString(id.Value)}?fields={Uri.EscapeDataString(ItemFields)}", id, ct);
+        if (json.RootElement.TryGetProperty("trashed", out var trashed) && trashed.ValueKind == JsonValueKind.True) { throw new NotFound(id); }
         return json.RootElement.Clone();
     }
 
@@ -196,7 +203,7 @@ internal sealed partial class DriveNeuron : IStorage
         return bytes.AsSpan(offset, length).ToArray();
     }
 
-    private static Item ToItem(JsonElement file)
+    private Item ToItem(JsonElement file)
     {
         var type = file.TryGetProperty("mimeType", out var mime) ? mime.GetString() : null;
         var kind = type == FolderType ? ItemKind.Folder : type == ShortcutType ? ItemKind.Link : ItemKind.File;
@@ -209,15 +216,22 @@ internal sealed partial class DriveNeuron : IStorage
             kind == ItemKind.File ? size : null, modified, Flags(file), file.TryGetProperty("md5Checksum", out var md5) ? md5.GetString() : null, target);
     }
 
-    // What Drive lets this user do, kept within what the read-only connection offers (drive.readonly: Read only).
-    private static ItemFlags Flags(JsonElement file)
+    // Item permissions are intersected with the actual grant, never inferred from deployment options.
+    private ItemFlags Flags(JsonElement file)
     {
         var flags = ItemFlags.Read;
+        var folder = file.TryGetProperty("mimeType", out var type) && type.GetString() == FolderType;
         if (file.TryGetProperty("capabilities", out var capabilities))
         {
             if (capabilities.TryGetProperty("canTrash", out var trash) && trash.ValueKind == JsonValueKind.True) { flags |= ItemFlags.Trash; }
             if (capabilities.TryGetProperty("canDelete", out var delete) && delete.ValueKind == JsonValueKind.True) { flags |= ItemFlags.Delete; }
-            if (capabilities.TryGetProperty("canEdit", out var edit) && edit.ValueKind == JsonValueKind.True) { flags |= ItemFlags.Write | ItemFlags.Rename | ItemFlags.Move; }
+            if (!folder && capabilities.TryGetProperty("canModifyContent", out var edit) && edit.ValueKind == JsonValueKind.True) { flags |= ItemFlags.Write; }
+            if (capabilities.TryGetProperty("canRename", out var rename) && rename.ValueKind == JsonValueKind.True) { flags |= ItemFlags.Rename; }
+            if (capabilities.TryGetProperty("canMoveItemWithinDrive", out var move) && move.ValueKind == JsonValueKind.True
+                || capabilities.TryGetProperty("canMoveItemOutOfDrive", out var moveOut) && moveOut.ValueKind == JsonValueKind.True) { flags |= ItemFlags.Move; }
+            if (capabilities.TryGetProperty("canCopy", out var copy) && copy.ValueKind == JsonValueKind.True) { flags |= ItemFlags.Copy; }
+            if (folder && capabilities.TryGetProperty("canListChildren", out var list) && list.ValueKind == JsonValueKind.True) { flags |= ItemFlags.Copy; }
+            if (capabilities.TryGetProperty("canAddChildren", out var add) && add.ValueKind == JsonValueKind.True) { flags |= ItemFlags.CreateFolder | ItemFlags.Write; }
         }
         return flags & Offered;
     }

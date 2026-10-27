@@ -6,7 +6,8 @@
 // empty folders and folder order are preserved; projects are written in ordinal order. --check changes nothing and
 // exits 1 listing drift (RepositoryLayoutFacts holds the same rule). The folded-in framework (06-00) is walked too:
 // framework/{src,tests,templates}/<Name>/<Name>.csproj sits in /framework/src/, /framework/tests/ or /framework/templates/
-// (template payloads under content/ are not projects of the solution).
+// (template payloads under content/ are not projects of the solution). Compiled feature projects under
+// features/<owner>/<app>/compiled/ sit in /features/<owner>/<app>/.
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -23,6 +24,9 @@ var solution = document.Root!;
 var disk = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.csproj", SearchOption.AllDirectories)
     .Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/'))
     .Where(path => !path.Split('/').Any(part => part is "bin" or "obj" or "templates"))
+    .Concat(Directory.EnumerateFiles(Path.Combine(root, "features"), "*.csproj", SearchOption.AllDirectories)
+        .Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/'))
+        .Where(path => !path.Split('/').Any(part => part is "bin" or "obj")))
     .Concat(Directory.EnumerateFiles(Path.Combine(root, "framework"), "*.csproj", SearchOption.AllDirectories)
         .Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/'))
         .Where(path => !path.Split('/').Any(part => part is "bin" or "obj" or "content")))
@@ -35,7 +39,7 @@ var current = solution.Descendants("Project")
 static string?[] Allowed(string path)
 {
     var group = path[..path.LastIndexOf('/', path.LastIndexOf('/') - 1)];
-    if (group.StartsWith("framework/", StringComparison.Ordinal)) { return ["/" + group + "/"]; }
+    if (group.StartsWith("framework/", StringComparison.Ordinal) || group.StartsWith("features/", StringComparison.Ordinal)) { return ["/" + group + "/"]; }
     if (group == "src") { return [null]; }
     var segments = group["src/".Length..].Split('/').Select(s => s.StartsWith(Prefix, StringComparison.Ordinal) ? s[Prefix.Length..] : s).ToArray();
     var folder = "/" + string.Join('/', segments) + "/";

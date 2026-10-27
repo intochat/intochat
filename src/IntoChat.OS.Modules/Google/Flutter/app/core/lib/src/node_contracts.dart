@@ -6,6 +6,10 @@ final class NodeContract {
 
 abstract final class NodeContracts {
   static const _byKind = <String, NodeContract>{
+    'confirmation': NodeContract(
+      'IntoChat.OS.Confirmation.IConfirmationInbox',
+      'ConfirmationRequested',
+    ),
     'view': NodeContract(
       'IntoChat.OS.Modules.Flutter.Views.IView',
       'ViewChanged',

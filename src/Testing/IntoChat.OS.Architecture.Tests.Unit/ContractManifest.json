@@ -287,6 +287,7 @@
     "IntoChat.OS.Modules.Apps.AppToolbarEntry": "apps.toolbar-entry; Operation=0, Kind=1, Icon=2, Label=3, Min=4, Max=5",
     "IntoChat.OS.Modules.Apps.AppVersionRecord": "apps.version-record; Version=0, SavedAt=1, Manifest=2, Spec=3, LegacyFiles=4, FileEntries=5",
     "IntoChat.OS.Modules.Apps.AppVersionSummary": "apps.version; Version=0, SavedAt=1",
+    "IntoChat.OS.Modules.Apps.FilesWorkspaceInput": "files.workspace-input; Index=0, Name=1, Text=2, Query=3, Everywhere=4",
     "IntoChat.OS.Modules.Apps.GalleryEntry": "apps.store.entry; Group=0, Publisher=1, Name=2, Title=3, Description=4, Icon=5, Installed=6, UpdateAvailable=7, InstalledName=8, Kind=9, ConnectorId=10, Available=11",
     "IntoChat.OS.Modules.Apps.ICreatorModel": "apps.creator-model (not generated); ",
     "IntoChat.OS.Modules.Apps.InstallOutcome": "apps.store.outcome; Ok=0, InstalledName=1, Message=2, Status=3, Requires=4, Latest=5",

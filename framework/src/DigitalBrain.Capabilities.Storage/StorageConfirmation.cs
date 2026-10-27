@@ -28,6 +28,9 @@ public static class StorageConfirmation
     /// <param name="sourceStorage">The display name of the source storage.</param>
     /// <param name="folder">The display name of the target folder.</param>
     public static ConfirmationPlan For(string planId, WritePlan plan, bool crossConnection, string name, string storage, string sourceStorage, string folder)
+        => For(planId, plan, crossConnection, name, storage, sourceStorage, folder, string.Empty);
+
+    internal static ConfirmationPlan For(string planId, WritePlan plan, bool crossConnection, string name, string storage, string sourceStorage, string folder, string sourceFolder)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(planId);
         ArgumentNullException.ThrowIfNull(plan);
@@ -35,20 +38,17 @@ public static class StorageConfirmation
         ArgumentNullException.ThrowIfNull(storage);
         ArgumentNullException.ThrowIfNull(sourceStorage);
         ArgumentNullException.ThrowIfNull(folder);
+        var source = Location(sourceFolder, sourceStorage);
+        var destination = Location(folder, storage);
         if (plan.Kind == WriteKind.Delete)
         {
-            return new(planId, ConfirmationAction.Delete, true, $"Delete {name}?", $"This removes {name} from {storage}. You cannot undo this.", "Delete", "Keep", name);
+            return plan.Permanent
+                ? new(planId, ConfirmationAction.Delete, true, $"Permanently delete {name}?",
+                    $"This permanently removes {name} from {source}. You cannot undo this.", "Delete permanently", "Keep", name)
+                : new(planId, ConfirmationAction.Delete, true, $"Move {name} to trash?",
+                    $"This moves {name} from {source} to trash.", "Move to trash", "Keep", name);
         }
-        if (plan.Conflict == ConflictPolicy.Overwrite)
-        {
-            return new(planId, ConfirmationAction.Overwrite, true, $"Replace {name}?",
-                $"A file with this name already exists in {folder}. Replacing it cannot be undone.", "Replace", "Keep existing", name);
-        }
-        if (plan.Kind == WriteKind.Move && crossConnection)
-        {
-            return new(planId, ConfirmationAction.Move, true, $"Move {name} to {storage}?",
-                $"{name} is copied to {storage}, checked, then removed from {sourceStorage}.", "Move", "Cancel", name);
-        }
+        var targetName = plan.Kind == WriteKind.Rename ? plan.Name! : name;
         var (action, verb) = plan.Kind switch
         {
             WriteKind.Move => (ConfirmationAction.Move, "Move"),
@@ -57,8 +57,23 @@ public static class StorageConfirmation
             WriteKind.CreateFolder => (ConfirmationAction.Other, "Create"),
             _ => (ConfirmationAction.Other, "Save"),
         };
-        return new(planId, action, false, $"{verb} {name}?", string.Empty, verb, "Cancel", name);
+        var title = plan.Kind == WriteKind.Rename ? $"Rename {name} to {targetName}?" : $"{verb} {name} in {destination}?";
+        var body = plan.Kind switch
+        {
+            WriteKind.Move when crossConnection => $"{name} in {source} is copied to {targetName} in {destination} and verified, then the source is moved to trash.",
+            WriteKind.Move or WriteKind.Copy or WriteKind.Rename => $"{verb} {name} in {source} to {targetName} in {destination}.",
+            _ => $"{verb} {targetName} in {destination}.",
+        };
+        if (plan.Conflict == ConflictPolicy.Overwrite)
+        {
+            body += $" If {targetName} already exists in {destination}, it will be replaced. Replacing an existing item cannot be undone.";
+            if (plan.Kind is WriteKind.CreateFolder or WriteKind.WriteFile) { action = ConfirmationAction.Overwrite; }
+        }
+        return new(planId, action, IsDestructive(plan, crossConnection), title, body, verb, "Cancel", targetName);
     }
+
+    private static string Location(string folder, string storage)
+        => string.IsNullOrWhiteSpace(folder) ? storage : $"{folder} on {storage}";
 }
 
 /// <summary>
@@ -67,6 +82,29 @@ public static class StorageConfirmation
 /// </summary>
 public static class StorageConfirmationGate
 {
+    /// <summary>Checks a provider boundary, consuming an exact host-issued permit or independently asking for confirmation.</summary>
+    public static async Task<string?> Check(DigitalBrain.Spi.INeuronContext context, IStorage storage, WritePlan plan, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.Services.GetService(typeof(IStorageWriteAuthorizer)) is IStorageWriteAuthorizer authorizer
+            && await authorizer.Consume(context.Id, plan, ct).ConfigureAwait(false)) { return null; }
+        return await Check(storage, context.Confirmations, plan, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Checks a direct primitive write on one provider before that provider accepts bytes or changes storage.</summary>
+    public static async Task<string?> Check(IStorage storage, IConfirmations confirmations, WritePlan plan, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(confirmations);
+        ArgumentNullException.ThrowIfNull(plan);
+        if (plan.DryRun) { return null; }
+        var descriptor = await storage.Describe(ct).ConfigureAwait(false);
+        var connection = new CapabilityConnection<IStorage>("provider", descriptor.Label, storage);
+        var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
+            (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
+        return await Check(runner, confirmations, plan, ct).ConfigureAwait(false);
+    }
+
     /// <summary>Null when <paramref name="plan"/> may run, else why it was refused.</summary>
     public static async Task<string?> Check(StorageWriteRunner runner, IConfirmations confirmations, WritePlan plan, CancellationToken ct)
     {

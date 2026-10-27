@@ -3,6 +3,8 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
 using DigitalBrain.Operations;
+using Microsoft.Extensions.DependencyInjection;
+using Orleans.Runtime;
 
 namespace DigitalBrain.Runtime.Orleans.Operations;
 
@@ -21,6 +23,9 @@ internal interface IOperationEntity
 
     /// <summary>Records a cancel request; false when the operation is already done or unknown.</summary>
     Task<bool> RequestCancel();
+
+    /// <summary>Ends a running operation only when its recorded driver is known to have died.</summary>
+    Task Reconcile();
 
     /// <summary>The saved state, or null when no operation has this id.</summary>
     [ReadOnlyCall]
@@ -41,7 +46,27 @@ internal sealed class OperationNeuron : Neuron, IOperationEntity
     private OperationState? _state;
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
-        => _state = await Context.State.Load<OperationState>().ConfigureAwait(true);
+    {
+        _state = await Context.State.Load<OperationState>().ConfigureAwait(true);
+        await Reconcile().ConfigureAwait(true);
+    }
+
+    public async Task Reconcile()
+    {
+        if (_state is not { Phase: OperationPhase.Running, Driver: { } driver }
+            || Context.Services.GetService<IClusterMembershipService>() is not { } membership) { return; }
+        if (!DriverHasEnded(driver, membership.CurrentSnapshot)) { return; }
+        await Complete(new OperationResult.Failed("interrupted", "The process running this operation stopped. Inspect the destination before retrying.")).ConfigureAwait(true);
+    }
+
+    internal static bool DriverHasEnded(string driver, ClusterMembershipSnapshot snapshot)
+    {
+        if (!SiloAddress.TryParse(driver, out var address)) { return false; }
+        if (snapshot.Members.TryGetValue(address, out var member)) { return member.Status == SiloStatus.Dead; }
+        // A new incarnation bound to the same endpoint proves the old process has gone. Missing membership alone
+        // proves nothing: a live remote driver can be temporarily absent from this silo's view of the cluster.
+        return snapshot.Members.Values.Any(current => current.Status == SiloStatus.Active && current.SiloAddress.IsSuccessorOf(address));
+    }
 
     public async Task<OperationState> Begin(OperationState initial)
     {

@@ -53,6 +53,39 @@ internal static class Sessions
 public sealed class SessionSynapseFacts(SessionSilo silo) : IClassFixture<SessionSilo>
 {
     [Fact]
+    public async Task EndDoesNotWaitForAdmissionAndLateApprovalCannotRecreateTheSubscription()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var session = silo.Session("held-admission");
+        await session.Subscribe(NeuronId.Parse("b1/probe.counter/before-held-admission"), ["probe.counted"]);
+        using var pollingStop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var polling = session.Next(0, pollingStop.Token);
+        var subscribing = session.Subscribe(NeuronId.Parse("b1/probe.held-admission/source"), ["probe.counted"]);
+        await HeldAdmissionNeuron.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        var ending = session.End();
+        bool endedBeforeAdmission;
+        try
+        {
+            endedBeforeAdmission = await Task.WhenAny(ending, Task.Delay(200, ct)) == ending;
+            if (endedBeforeAdmission)
+            {
+                await Assert.ThrowsAsync<InvalidOperationException>(() => subscribing.WaitAsync(TimeSpan.FromSeconds(1), ct));
+                Assert.Null(await polling.WaitAsync(TimeSpan.FromSeconds(1), ct));
+                await session.Subscribe(NeuronId.Parse("b1/probe.counter/after-held-admission"), ["probe.counted"])
+                    .WaitAsync(TimeSpan.FromSeconds(5), ct);
+                await session.End().WaitAsync(TimeSpan.FromSeconds(5), ct);
+            }
+        }
+        finally { HeldAdmissionNeuron.Release.TrySetResult(); await pollingStop.CancelAsync(); }
+        var admissionFailure = await Record.ExceptionAsync(() => subscribing.WaitAsync(TimeSpan.FromSeconds(5), ct));
+        await ending.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        Assert.True(endedBeforeAdmission);
+        Assert.IsType<InvalidOperationException>(admissionFailure);
+        Assert.Equal(0, await silo.Subscriptions("b1/runtime.session/held-admission", "probe.counted"));
+    }
+
+    [Fact]
     public async Task Subscribe_makes_one_engine_synapse_owned_by_the_session_and_Next_hands_signals_out_in_source_order()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -154,6 +187,20 @@ public sealed class SessionSynapseFacts(SessionSilo silo) : IClassFixture<Sessio
         await silo.Get<IGuarded>(Source).Add(5);
         var batches = await admitted.Collect(1, ct);
         Assert.Equal([5], batches.SelectMany(batch => batch.Signals).Select(signal => signal.Value()));
+    }
+}
+
+[Neuron("probe.held-admission")]
+public sealed class HeldAdmissionNeuron : Neuron
+{
+    internal static TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal static TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    protected override async Task AdmitSynapse(NeuronId subscriber, IReadOnlyList<Type> signals)
+    {
+        await base.AdmitSynapse(subscriber, signals);
+        Entered.TrySetResult();
+        await Release.Task;
     }
 }
 

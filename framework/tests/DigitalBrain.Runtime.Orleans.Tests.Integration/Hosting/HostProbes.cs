@@ -163,6 +163,9 @@ public interface ITurnProbe
     Task Hold(string gate);
 
     [Interleaves]
+    Task HoldNow(string gate);
+
+    [Interleaves]
     Task<int> Peek();
 
     [ReadOnlyCall]
@@ -195,6 +198,8 @@ public abstract class TurnProbeBase : Neuron, ITurnProbe
         TurnLog.Held[gate] = true;
         await ProbeLog.Gate(gate).Task;
     }
+
+    public Task HoldNow(string gate) => Hold(gate);
 
     public Task<int> Peek() => Task.FromResult(1);
 

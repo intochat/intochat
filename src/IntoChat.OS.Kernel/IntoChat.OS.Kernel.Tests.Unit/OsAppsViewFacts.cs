@@ -126,6 +126,35 @@ public sealed class OsAppsViewFacts
     }
 
     [Fact]
+    public void CapabilityOnlyInstallShowsStorageAccessBeforeConsent()
+    {
+        var detail = Detail(requires: new(Capabilities: ["storage@1"]));
+        var tree = Render(Model(detail));
+        Assert.Equal("This app asks for", Find(tree, "requires").Text);
+        Assert.Equal("Files and folders", Assert.Single(Find(tree, "requires-capabilities").Children).Text);
+        Assert.Equal(App + "/install", Find(tree, "install").Reference!.Name);
+    }
+
+    [Fact]
+    public void CapabilityUpdateShowsOnlyNewAccessAndKeepsUnknownCapabilitiesVisible()
+    {
+        var detail = Detail("update", "calculator", requires: new(Capabilities: ["storage@1", "future@1"]),
+            consented: new(Capabilities: ["storage@1"]));
+        var tree = Render(Model(detail));
+        Assert.Equal("This update asks for more:", Find(tree, "requires").Text);
+        Assert.Equal("future@1", Assert.Single(Find(tree, "requires-capabilities").Children).Text);
+    }
+
+    [Fact]
+    public void InstalledCapabilitiesShowTheConsentedSnapshot()
+    {
+        var detail = Detail("installed", "calculator", requires: new(Capabilities: ["storage@1", "future@1"]),
+            consented: new(Capabilities: ["storage@1"]));
+        var tree = Render(Model(detail));
+        Assert.Equal("Files and folders", Assert.Single(Find(tree, "requires-capabilities").Children).Text);
+    }
+
+    [Fact]
     public void UpdateWithAddedRequirementsSaysAsksForMore()
     {
         var detail = Detail("update", "calculator", requires: new(["person.birthDate", "person.name"]), consented: new(["person.name"]));

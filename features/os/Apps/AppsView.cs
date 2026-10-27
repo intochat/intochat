@@ -29,6 +29,7 @@ public static class AppsCopy
     public const string Data = "Data";
     public const string Connections = "Connections";
     public const string Secrets = "Secrets";
+    public const string Capabilities = "Access";
     public const string ManageSecrets = "Variables and secrets";
     public const string Connect = "Connect";
     public const string NotAvailable = "Not available";
@@ -195,6 +196,15 @@ public static class AppsView
             [
                 .. shown.Secrets!.Select((secret, i) => Ui.Text("secret-" + i.ToString(CultureInfo.InvariantCulture), secret)),
                 Ui.Reference("secrets-settings", new(UIVocabulary.ButtonType, appKey + "/to-variables")),
+            ]));
+        }
+        if ((shown.Capabilities ?? []).Length > 0)
+        {
+            lists.Add(Ui.Text("requires-capabilities-heading", AppsCopy.Capabilities));
+            lists.Add(Ui.List("requires-capabilities",
+            [
+                .. shown.Capabilities!.Select((capability, i) => Ui.Text("capability-" + i.ToString(CultureInfo.InvariantCulture),
+                    capability == "storage@1" ? "Files and folders" : capability)),
             ]));
         }
         return Ui.Card("requires", heading, null, [.. lists]);

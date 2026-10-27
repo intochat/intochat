@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Google.Drive;
 
-// Google Drive as read-only storage, signed in through google-auth's Google OAuth integration.
+// Google Drive storage, signed in through google-auth's Google OAuth integration.
 // Its own connection keeps existing Gmail grants unchanged: adding a scope to them would force re-consent.
 [Module(ModuleName)]
 [UsesIntegration(GoogleAuth.Integration)]
@@ -19,6 +19,10 @@ namespace IntoChat.OS.Modules.Google.Drive;
 [ExternalOperation(GoogleDriveOperations.Metadata, GoogleAuth.Integration, "request")]
 [ExternalOperation(GoogleDriveOperations.Media, GoogleAuth.Integration, "request")]
 [ExternalOperation(GoogleDriveOperations.Export, GoogleAuth.Integration, "request")]
+[ExternalOperation(GoogleDriveOperations.Create, GoogleAuth.Integration, "request")]
+[ExternalOperation(GoogleDriveOperations.Update, GoogleAuth.Integration, "request")]
+[ExternalOperation(GoogleDriveOperations.Copy, GoogleAuth.Integration, "request")]
+[ExternalOperation(GoogleDriveOperations.Delete, GoogleAuth.Integration, "request")]
 public sealed partial class DriveModule : Module<DriveModuleOptions>
 {
     public const string ModuleName = DriveScopes.Connector;
@@ -32,7 +36,7 @@ public sealed partial class DriveModule : Module<DriveModuleOptions>
     public static ConnectorDefinition Connector { get; } = new(DriveScopes.Connector, "Google Drive", [GoogleAuth.Integration], [GoogleAuth.Integration])
     {
         Neurons = [typeof(ILegacyStorage)],
-        OAuthMethods = [GoogleAuth.OAuth(GoogleAuth.Integration, [DriveScopes.Read])],
+        OAuthMethods = [GoogleAuth.OAuth(GoogleAuth.Integration, [DriveScopes.Write])],
     };
 
     partial void OnConfigure(IModuleServices services)
@@ -49,12 +53,18 @@ public static class GoogleDriveOperations
     public const string Metadata = "google.drive.files.get.metadata";
     public const string Media = "google.drive.files.get.media";
     public const string Export = "google.drive.files.export";
+    public const string Create = "google.drive.files.create";
+    public const string Update = "google.drive.files.update";
+    public const string Copy = "google.drive.files.copy";
+    public const string Delete = "google.drive.files.delete";
 }
 
 internal static class DriveScopes
 {
     internal const string Connector = "google-drive";
     internal const string Read = "https://www.googleapis.com/auth/drive.readonly";
+    internal const string Write = "https://www.googleapis.com/auth/drive";
+    internal const string Files = "https://www.googleapis.com/auth/drive.file";
 }
 
 [GenerateSerializer, Alias("db.google-drive.unavailable")]

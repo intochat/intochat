@@ -260,11 +260,12 @@ final class IntoChatOSUiClient {
         (kind == 'card' && RegExp(r'^.+/posts/[A-Za-z0-9_-]+$').hasMatch(name));
     final contract = NodeContracts.of(friendSlot ? 'scene' : kind);
     final source = friendSlot ? '$brainId/space' : name;
+    final signals = kind == 'confirmation'
+        ? ['ConfirmationRequested', 'ConfirmationResolved']
+        : [contract.changed];
     return watches(
       brainId,
-    ).watch(WatchSourceSpec(contract.contract, source, [contract.changed])).map((
-      signal,
-    ) {
+    ).watch(WatchSourceSpec(contract.contract, source, signals)).map((signal) {
       // Delivery latency as the comparison measures it: envelope stamp to arrival.
       developer.log(
         'neuron.latency ms=${DateTime.now().millisecondsSinceEpoch - signal.serverTimeMs} type=${signal.type} source=${signal.source}',

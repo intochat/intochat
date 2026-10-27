@@ -81,9 +81,21 @@ public sealed class StorageWriteRunner(StorageOwner owner, StorageWriteResult re
         var target = plan.TargetFolder is { } into ? await _owner(into, ct).ConfigureAwait(false) : null;
         var cross = source is not null && target is not null && !string.Equals(source.ConnectionKey, target.ConnectionKey, StringComparison.Ordinal);
         var name = plan.Kind is WriteKind.CreateFolder or WriteKind.WriteFile ? plan.Name! : await NameOf(source, plan.Source, ct).ConfigureAwait(false);
-        var folder = target is null ? (source?.Label ?? "this storage") : await NameOf(target, plan.TargetFolder, ct).ConfigureAwait(false);
+        var sourceFolder = await ParentNameOf(source, plan.Source, ct).ConfigureAwait(false);
+        var folder = target is null ? sourceFolder : await NameOf(target, plan.TargetFolder, ct).ConfigureAwait(false);
         var storage = (plan.Kind == WriteKind.Delete ? source : target ?? source)?.Label ?? "this storage";
-        return StorageConfirmation.For("cf-" + Guid.NewGuid().ToString("N"), plan, cross, name, storage, source?.Label ?? storage, folder);
+        return StorageConfirmation.For("cf-" + Guid.NewGuid().ToString("N"), plan, cross, name, storage, source?.Label ?? storage, folder, sourceFolder);
+    }
+
+    private static async Task<string> ParentNameOf(CapabilityConnection<IStorage>? connection, ItemId? item, CancellationToken ct)
+    {
+        if (connection is null || item is not { } id) { return string.Empty; }
+        try
+        {
+            var ancestors = await connection.Capability.Ancestors(id, ct).ConfigureAwait(false);
+            return ancestors.Count > 0 ? ancestors[^1].Name : string.Empty;
+        }
+        catch (StorageException) { return string.Empty; }
     }
 
     private static async Task<string> NameOf(CapabilityConnection<IStorage>? connection, ItemId? item, CancellationToken ct)

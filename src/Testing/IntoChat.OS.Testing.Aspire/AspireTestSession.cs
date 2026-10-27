@@ -13,6 +13,7 @@ using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
@@ -344,10 +345,17 @@ public sealed class AspireTestSession : IAsyncDisposable
                     client.UseStaticClustering(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, endpoint.Port));
                 }
                 client.Configure<ClusterOptions>(cluster => { cluster.ClusterId = _brain.ClusterId; cluster.ServiceId = _brain.ServiceId; });
-                client.AddIntoChatOS();
+                AddClientServices(client.Services);
             }).Build();
         try { await host.StartAsync(ct).WaitAsync(ct).ConfigureAwait(false); _client = host; }
         catch { host.Dispose(); throw; }
+    }
+
+    internal static void AddClientServices(IServiceCollection services)
+    {
+        services.AddIntoChatOSClient();
+        IntoChat.OS.Kernel.Composition.AuthorityGrainsHosting.AddPlainNeurons(services);
+        services.TryAddSingleton<IKernelView>(IntoChat.OS.Kernel.Composition.Kernel.For);
     }
 
     private async ValueTask ReleaseClientAsync()

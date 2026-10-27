@@ -1,13 +1,12 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using DigitalBrain.Invocation;
-using Orleans.Serialization.Invocation;
 
 namespace DigitalBrain.Runtime.Orleans.Hosting;
 
 /// <summary>
-/// How <c>neuron.host</c> honours the neutral scheduling attributes. Orleans reads its own interleaving attributes only on grain
-/// methods, so the host grain's <c>[MayInterleave]</c> predicate reads the <see cref="RuntimeInvocation"/> argument instead:
+/// How the host routes a bound call through its explicit interleaved or ordinary endpoint, using the class registered
+/// by this host rather than process-wide type metadata:
 /// <list type="bullet">
 /// <item><see cref="InterleavesAttribute"/> and <see cref="ReadOnlyCallAttribute"/> on the contract or class method interleave fully
 /// (a read-only call interleaves with every turn, as in TestOS).</item>
@@ -21,22 +20,13 @@ internal static class NeutralCallMapping
     private static readonly ConcurrentDictionary<(Type Class, MethodInfo Method), bool> Methods = new();
     private static readonly ConcurrentDictionary<Type, Func<RuntimeInvocation, bool>?> Predicates = new();
 
-    /// <summary>The body of the host grain's <c>[MayInterleave]</c> predicate.</summary>
-    public static bool MayInterleave(IInvokable request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        return request.GetArgumentCount() > 0 && request.GetArgument(0) is RuntimeInvocation call && MayInterleave(call);
-    }
-
     /// <summary>Whether <paramref name="call"/> may run while another turn of its neuron is suspended.</summary>
-    public static bool MayInterleave(RuntimeInvocation call)
+    public static bool MayInterleave(Type neuronClass, BoundCall bound, RuntimeInvocation call)
     {
+        ArgumentNullException.ThrowIfNull(neuronClass);
+        ArgumentNullException.ThrowIfNull(bound);
         ArgumentNullException.ThrowIfNull(call);
-        if (!NeuronId.TryParse(call.Key, out var id) || !NeuronTypeRegistry.TryGetAny(id.Type, out var neuronClass)) { return false; }
         if (neuronClass.IsDefined(typeof(ReentrantAttribute), inherit: true)) { return true; }
-        BoundCall bound;
-        try { bound = NeuronHostGrainBase.Bind(neuronClass, call); }
-        catch (BindingException) { return false; } // the call itself refuses it, inside a turn
         if (Methods.GetOrAdd((neuronClass, bound.Method), static key => Declared(key.Class, key.Method))) { return true; }
         if (PredicateOf(neuronClass) is not { } predicate) { return false; }
         try { return predicate(call); }

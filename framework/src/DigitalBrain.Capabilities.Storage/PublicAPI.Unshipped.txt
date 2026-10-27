@@ -1,4 +1,12 @@
 #nullable enable
+DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer
+DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer.BeginApproved(DigitalBrain.BrainId brain, string! requester) -> System.IDisposable!
+DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer.Consume(DigitalBrain.NeuronId provider, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<bool>!
+DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer.Invoke<T>(string! connection, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Func<System.Threading.Tasks.Task<T>!>! send, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<T>!
+DigitalBrain.Capabilities.Storage.IStorageWriteIdentity
+DigitalBrain.Capabilities.Storage.IStorageWriteIdentity.Current(DigitalBrain.BrainId brain) -> string?
+static DigitalBrain.Capabilities.Storage.StorageConfirmationGate.Check(DigitalBrain.Spi.INeuronContext! context, DigitalBrain.Capabilities.Storage.IStorage! storage, DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<string?>!
+static DigitalBrain.Capabilities.Storage.StorageConfirmationGate.Check(DigitalBrain.Capabilities.Storage.IStorage! storage, DigitalBrain.Confirmation.IConfirmations! confirmations, DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<string?>!
 DigitalBrain.Capabilities.Storage.ByteRange
 DigitalBrain.Capabilities.Storage.ByteRange.ByteRange() -> void
 DigitalBrain.Capabilities.Storage.ByteRange.ByteRange(long Offset, long? Length) -> void
@@ -328,3 +336,18 @@ DigitalBrain.Capabilities.Storage.StorageWriteRunner.Confirmation(DigitalBrain.C
 static DigitalBrain.Capabilities.Storage.StorageConfirmation.For(string! planId, DigitalBrain.Capabilities.Storage.WritePlan! plan, bool crossConnection, string! name, string! storage, string! sourceStorage, string! folder) -> DigitalBrain.Confirmation.ConfirmationPlan!
 static DigitalBrain.Capabilities.Storage.StorageConfirmation.IsDestructive(DigitalBrain.Capabilities.Storage.WritePlan! plan, bool crossConnection) -> bool
 static DigitalBrain.Capabilities.Storage.StorageConfirmationGate.Check(DigitalBrain.Capabilities.Storage.StorageWriteRunner! runner, DigitalBrain.Confirmation.IConfirmations! confirmations, DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<string?>!
+DigitalBrain.Capabilities.Storage.IStorageUpload
+DigitalBrain.Capabilities.Storage.IStorageUpload.AbortUpload(string! upload, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Capabilities.Storage.IStorageUpload.AppendUpload(string! upload, long offset, byte[]! bytes, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Capabilities.Storage.IStorageUpload.BeginUpload(DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+DigitalBrain.Capabilities.Storage.IStorageUpload.CommitUpload(string! upload, long length, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.ItemId>!
+DigitalBrain.Capabilities.Storage.StorageUploadSessions
+DigitalBrain.Capabilities.Storage.StorageUploadSessions.AbortUpload(string! upload, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Capabilities.Storage.StorageUploadSessions.AppendUpload(string! upload, long offset, byte[]! bytes, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.Capabilities.Storage.StorageUploadSessions.BeginUpload(DigitalBrain.Capabilities.Storage.WritePlan! plan, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+DigitalBrain.Capabilities.Storage.StorageUploadSessions.CommitUpload(string! upload, long length, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.ItemId>!
+DigitalBrain.Capabilities.Storage.StorageUploadSessions.DisposeAsync() -> System.Threading.Tasks.ValueTask
+DigitalBrain.Capabilities.Storage.StorageUploadSessions.StorageUploadSessions(System.Func<DigitalBrain.Capabilities.Storage.IStorage!>! storage, System.Func<string!>! caller, System.TimeProvider? time) -> void
+const DigitalBrain.Capabilities.Storage.StorageUploadSessions.ChunkSize = 262144 -> int
+DigitalBrain.Capabilities.Storage.StorageUploadSessions.StorageUploadSessions(System.Func<DigitalBrain.Capabilities.Storage.WritePlan!, System.Threading.CancellationToken, System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.StorageWriteStream!>!>! openWrite, System.Func<string!>! caller, System.TimeProvider? time) -> void
+DigitalBrain.Capabilities.Storage.StorageUploadSessions.StorageUploadSessions(System.Func<DigitalBrain.Capabilities.Storage.IStorage!>! storage, System.Func<string!>! caller) -> void

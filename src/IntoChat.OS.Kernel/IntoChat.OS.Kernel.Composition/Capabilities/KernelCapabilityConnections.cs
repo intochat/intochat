@@ -11,6 +11,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StorageV1 = DigitalBrain.Capabilities.Storage.IStorage;
+using DigitalBrain.Capabilities.Storage;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
 
@@ -90,13 +91,16 @@ public sealed class KernelCapabilityConnections(IPlainNeurons plain, IServicePro
     {
         var neuron = services.GetService<ConnectionNeuronTypes>()?.NeuronOf(connector);
         if (neuron is not null && typeof(StorageV1).IsAssignableFrom(neuron))
-        { return new ConnectionStorage((StorageV1)plain.Get(typeof(StorageV1), ConnectionGrains.IdFor(key))); }
+        {
+            var id = ConnectionGrains.IdFor(key);
+            var uploads = typeof(IStorageUpload).IsAssignableFrom(neuron) ? (IStorageUpload)plain.Get(typeof(IStorageUpload), id) : null;
+            return new ConnectionStorage((StorageV1)plain.Get(typeof(StorageV1), id), key, uploads, services.GetService<IStorageWriteAuthorizer>());
+        }
         return new LegacyStorageAdapter(plain.GetNeuron<ILegacyStorage>(services, key), connector, connector);
     }
 
     private static BrainConnection ToConnection(ConnectionSummary summary)
         => new(summary.Neuron, summary.Account is { Length: > 0 } account ? account : summary.Id, summary.Status == "connected",
             [.. summary.Provides.Select(text => CapabilityId.TryParse(text, out var id) ? id : (CapabilityId?)null).OfType<CapabilityId>()],
-            // No storage ItemId carries a connection root yet (opaque per module): the broker uses the Settings order.
-            null);
+            ConnectionStorage.Root(summary.Neuron));
 }

@@ -3,6 +3,7 @@ namespace IntoChat.OS.Modules.Flutter;
 public static class UIVocabulary
 {
     public const string ViewType = "view";
+    public const string ConfirmationType = "confirmation";
     public const string ViewportType = "viewport";
     public const string ChatType = "chat";
     public const string ComposerType = "composer";

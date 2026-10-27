@@ -128,7 +128,7 @@ public sealed class SpaceFacts
     public async Task AFailedAppReadIsRetriedByTheNextComposition()
     {
         var ct = TestContext.Current.CancellationToken;
-        var calls = new AppReads();
+        var calls = new AppReads { ManualCompositions = true };
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
             .ConfigureServices(s =>
             {
@@ -143,6 +143,7 @@ public sealed class SpaceFacts
         using var caller = brain.Owner.AsCaller();
         await App(brain, "retry");
         await brain.Get<IWorkspace>(IWorkspace.Key(brain.Owner.BrainId)).Home("retry-home", 0);
+        Assert.True(calls.SuppressedCompositions > 0);
         var space = brain.Get<ISpace>(ISpace.Key(brain.Owner.BrainId));
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         var key = IApp.Key(brain.Owner.BrainId, "retry");
@@ -168,8 +169,19 @@ public sealed class SpaceFacts
     {
         public bool Armed, FailNext;
         public int Count;
+        public bool ManualCompositions;
+        public int SuppressedCompositions;
         public Task Invoke(IOutgoingGrainCallContext context)
         {
+            // Home posts directly even when SpaceWatcher is removed. This controlled retry fact drives its own
+            // invalidations; a late one-way post could otherwise consume the failure or retry before it is observed.
+            if (ManualCompositions && Calls.Is(context.InterfaceMethod, context.Request, "ui.space", nameof(ISpace.Recompose))
+                && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation { Behavior.Length: > 0 })
+            {
+                Interlocked.Increment(ref SuppressedCompositions);
+                context.Response = global::Orleans.Serialization.Invocation.Response.Completed;
+                return Task.CompletedTask;
+            }
             if (Armed && Calls.Is(context.InterfaceMethod, context.Request, "apps.app2", nameof(IApp.Read)))
             {
                 Interlocked.Increment(ref Count);

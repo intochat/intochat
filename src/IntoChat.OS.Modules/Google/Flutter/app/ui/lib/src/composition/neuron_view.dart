@@ -528,6 +528,7 @@ class _NeuronViewState extends State<NeuronView> {
     final enabled = widget.enabled && definition['enabled'] != false;
     switch (widget.kind) {
       case 'view':
+      case 'confirmation':
         final root = data['root'];
         if (root is! Map) return const SizedBox.shrink();
         return _ImmutableView(
@@ -535,7 +536,9 @@ class _NeuronViewState extends State<NeuronView> {
           generation: (data['generation'] as num?)?.toInt() ?? 0,
           root: root,
           enabled: enabled && widget.onAction != null,
-          dispatch: _dispatch,
+          dispatch: widget.kind == 'confirmation'
+              ? (event) => _dispatch({...event, 'kind': 'confirmation'})
+              : _dispatch,
           markdown: _markdown,
           reference: (node, key) => _child(node, key: key),
           layout: _layout,

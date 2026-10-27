@@ -169,8 +169,8 @@
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Aspire/src/IntoChat.OS.Modules.Microsoft.Aspire/IntoChat.OS.Modules.Microsoft.Aspire.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Azure/">
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/Azure/tests/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Azure/tests/IntoChat.OS.Modules.Microsoft.Azure.Tests.Integration/IntoChat.OS.Modules.Microsoft.Azure.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Microsoft/Azure/tests/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Azure/Contracts/">
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Azure/Contracts/IntoChat.OS.Modules.Microsoft.Azure.Contracts/IntoChat.OS.Modules.Microsoft.Azure.Contracts.csproj" />
@@ -333,6 +333,9 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
     <File Path="Directory.Packages.props" />
+  </Folder>
+  <Folder Name="/features/os/Files/">
+    <Project Path="features/os/Files/compiled/IntoChat.Files.csproj" />
   </Folder>
   <Folder Name="/framework/src/">
     <Project Path="framework/src/DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" />

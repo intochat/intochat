@@ -247,6 +247,7 @@ public class InMemoryStorage : IStorage
                 {
                     var node = Movable(plan.Source!.Value);
                     var name = Free(node.Parent!, plan.Name!, plan.Conflict, node);
+                    RemoveReplaced(node.Parent!, name, plan.Conflict, node);
                     node.Name = name;
                     node.Touch(_time);
                     break;
@@ -260,6 +261,7 @@ public class InMemoryStorage : IStorage
                         if (up == node) { throw new Denied(target.Id); }
                     }
                     var name = Free(target, node.Name, plan.Conflict, node);
+                    RemoveReplaced(target, name, plan.Conflict, node);
                     Detach(node);
                     node.Name = name;
                     Attach(target, node);
@@ -270,6 +272,8 @@ public class InMemoryStorage : IStorage
                     var node = Find(plan.Source!.Value);
                     var target = Folder(plan.TargetFolder!.Value);
                     var name = Free(target, node.Name, plan.Conflict, null);
+                    if (plan.Conflict == ConflictPolicy.Overwrite && Child(target, name) == node) { break; }
+                    RemoveReplaced(target, name, plan.Conflict, null);
                     CopyInto(node, target, name);
                     break;
                 }
@@ -308,14 +312,19 @@ public class InMemoryStorage : IStorage
     private Node Place(Node folder, string name, ConflictPolicy conflict, Func<string, Node> create)
     {
         var free = Free(folder, name, conflict, null);
-        if (conflict == ConflictPolicy.Overwrite && Child(folder, free) is { } existing)
+        RemoveReplaced(folder, free, conflict, null);
+        var node = create(free);
+        Attach(folder, node);
+        return node;
+    }
+
+    private void RemoveReplaced(Node folder, string name, ConflictPolicy conflict, Node? self)
+    {
+        if (conflict == ConflictPolicy.Overwrite && Child(folder, name) is { } existing && existing != self)
         {
             Detach(existing);
             foreach (var gone in Descendants(existing).Prepend(existing)) { _nodes.Remove(gone.Id); }
         }
-        var node = create(free);
-        Attach(folder, node);
-        return node;
     }
 
     // The name to use in folder: the name itself when free; per policy otherwise.

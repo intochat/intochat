@@ -13,9 +13,10 @@ ships as shows as intochat/<app>; a person's apps show as <username>/<app>. Conn
 
 ## Scenario: An app's detail
 "open" with "app:<publisher>/<app>[@<version>]" or "installed:<name>", or Details on a row, shows the app: who made
-it, its installed and latest versions, and "This app asks for" its data (semantic types), its connections and its
-secrets. Each connection slot picks one of this brain's connections of its kind, or adds a new one for this app;
-the choice is bound on install. An update that adds requirements says "This update asks for more:" and lists them.
+it, its installed and latest versions, and "This app asks for" its data (semantic types), its connections, secrets
+and capabilities. Storage access is shown as "Files and folders". Each connection slot picks one of this brain's
+connections of its kind, or adds a new one for this app; the choice is bound on install. An update that adds
+requirements says "This update asks for more:" and lists them.
 A pinned release that is gone says "This release is no longer available." and offers no Install.
 
 ## Scenario: Install, update, open and remove
@@ -39,7 +40,7 @@ using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "apps";
-    public const string Version = "1.0.0";
+    public const string Version = "1.0.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Apps",

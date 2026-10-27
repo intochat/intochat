@@ -4,9 +4,11 @@ using System.Text.Json;
 using DigitalBrain.Invocation;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Streams.Core;
+using Orleans.Storage;
 using DigitalBrain.Runtime.Orleans.Synapses;
 
 namespace DigitalBrain.Runtime.Orleans.Hosting;
@@ -16,12 +18,12 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 /// dispatch each <see cref="RuntimeInvocation"/> through the one <see cref="NeuronBinder"/>. The invocation's Behavior is ignored:
 /// provenance comes from RequestContext, stamped by <see cref="OrleansInvocationSink"/>.
 /// </summary>
-internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFactory grains) : Grain, INeuronHost, ISynapseHost, IStreamSubscriptionObserver, IRemindable, IHostTicks
+internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFactory grains) : Grain, INeuronHost, ISynapseHost, IStreamSubscriptionObserver, IRemindable, IHostTicks
 {
     private readonly Dictionary<string, IGrainTimer> _timers = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TimeSpan?> _keepAliveTimers = new(StringComparer.Ordinal);
     private static readonly TimeSpan KeepAliveMargin = TimeSpan.FromSeconds(5);
-    /// <summary>The binder every host grain dispatches through; its cache also serves the interleaving predicate.</summary>
+    /// <summary>The binder every host grain dispatches through; its cache also serves scheduling policy checks.</summary>
     internal static readonly NeuronBinder Binder = new();
 
     private static readonly ConcurrentDictionary<(Type Class, string Contract), Type?> Contracts = new();
@@ -78,12 +80,30 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
         }
     }
 
+    public Task<bool> IsInterleaved(RuntimeInvocation call)
+    {
+        var (neuron, bound) = Prepare(call);
+        return Task.FromResult(NeutralCallMapping.MayInterleave(neuron.GetType(), bound, call));
+    }
+
     /// <inheritdoc />
     public async Task<JsonElement?> Invoke(RuntimeInvocation call, CancellationToken cancellationToken = default)
     {
         var (neuron, bound) = Prepare(call);
         try { return await Binder.InvokeAsync(neuron, bound, call.Arguments, cancellationToken).ConfigureAwait(true); }
+        catch (InconsistentStateException error)
+        {
+            LogStateConflict(ServiceProvider.GetRequiredService<ILogger<NeuronHostGrainBase>>(), _key,
+                bound.Contract.FullName ?? bound.Contract.Name, bound.Method.Name, error.StackTrace ?? string.Empty);
+            throw;
+        }
         finally { await Drain().ConfigureAwait(true); }
+    }
+
+    public Task<JsonElement?> InvokeInterleaved(RuntimeInvocation call, CancellationToken cancellationToken = default)
+    {
+        RequireInterleaving(call);
+        return Invoke(call, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -94,11 +114,25 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
         finally { await Drain().ConfigureAwait(true); }
     }
 
+    public Task PostInterleaved(RuntimeInvocation call)
+    {
+        RequireInterleaving(call);
+        return Post(call);
+    }
+
     /// <inheritdoc />
     public async IAsyncEnumerable<JsonElement> Stream(RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        // Orleans enumerates streams through its extension outside ordinary request admission, as before.
         var (neuron, bound) = Prepare(call);
         await foreach (var item in Binder.StreamAsync(neuron, bound, call.Arguments, cancellationToken).ConfigureAwait(true)) { yield return item; }
+    }
+
+    private void RequireInterleaving(RuntimeInvocation call)
+    {
+        var (neuron, bound) = Prepare(call);
+        if (!NeutralCallMapping.MayInterleave(neuron.GetType(), bound, call))
+        { throw new BindingException($"{bound.Contract.FullName}.{bound.Method.Name} does not permit interleaving."); }
     }
 
     /// <inheritdoc />
@@ -211,4 +245,8 @@ internal abstract class NeuronHostGrainBase(NeuronTypeRegistry types, IGrainFact
     {
         while (_deferred.TryDequeue(out var work)) { await work().ConfigureAwait(true); }
     }
+
+    [LoggerMessage(EventId = 4130, Level = LogLevel.Error,
+        Message = "State conflict in {Neuron} invoking {Contract}.{Method}. Stack: {Stack}")]
+    private static partial void LogStateConflict(ILogger logger, string neuron, string contract, string method, string stack);
 }

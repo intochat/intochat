@@ -72,7 +72,7 @@ internal static class ViewValidation
     private static readonly SearchValues<char> HiddenDirection = SearchValues.Create("\u2028\u2029\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069");
 
     private static readonly HashSet<string> ReferenceKinds = new(StringComparer.Ordinal)
-    { "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "entrycontrol", "preference" };
+    { UIVocabulary.ConfirmationType, "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "entrycontrol", "preference" };
 
     public static UiView Clone(UiView view, string name)
     {

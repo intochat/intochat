@@ -1,55 +1,47 @@
 /*
 # Files
 
-Browse every connected storage. A storage is any connection whose module provides the
-`storage@1` capability; today that is a Windows PC and Google Drive. Startup publishes one
-presentation with storages and their roots in side and the filter, listing and text preview in
-main. The `open` operation returns the listing to Storages. Each storage connection is listed
-explicitly with its kind and status, then its roots (a PC's allowed folders, My Drive), then the
-selected folder's contents. Modules without the capability do not imply file support.
+Browse, search and manage every connected storage through storage@1. The durable Files workspace owns navigation,
+selection, pagination and operation receipts. Names remain provider-neutral and each item belongs to its exact connection.
+Writes fail on conflicts by default, deletes move to trash, and destructive changes wait for the owner's confirmation.
+The workspace shows operation progress and cancellation and preserves its current folder across program restarts.
 
-Every storage is reached through the same ILegacyStorage neuron on its connection key, with the same
-operations: roots, list, read text and breadcrumb ancestors. Each storage enforces its own
-confinement; a Windows PC refuses anything outside its allowed roots. Breadcrumbs come from the
-storage's own ancestors, so they navigate only through the chosen storage's hierarchy. A name
-filter beside the listing narrows results before the 40-entry display limit; the listing reports
-when matching entries are omitted. Selection exposes an Open action. Opening a folder browses it;
-opening a file attempts a text preview (a Google document previews as plain text). Changing
-folders clears the previous location's name filter. The preview identifies the document in its
-heading and breadcrumbs; selecting a parent breadcrumb returns to browsing. The Up toolbar action
-browses the parent breadcrumb; Storages returns to the storage list. Activating a storage or root
-in side browses that location. Files is read only: no write, rename or delete is fabricated.
-
-Reading a `.cs` file renders C# source; if its parent folder matches an installed app, that app's
-name, version, status and recent activity appear above it. Unavailable storage, empty folders,
-nonmatching filters and failed text previews are observable states. With no storage connected,
-the side collection explains how to connect a Windows PC and allow a folder, or connect Google Drive.
+External mutating requests supply ExpectedRevision and Input in their JSON payload; read the workspace Revision first.
+Replayed requests and stale revisions cannot produce a second write. Human UI actions carry this revision automatically.
 */
-
 using IntoChat.OS.Modules.Apps;
 
 static class App
 {
     public const string Name = "files";
-    public const string Version = "2.2.0";
-
+    public const string Version = "3.0.1";
     public static readonly AppManifest Manifest = new(
         Title: "Files",
-        Description: "Browse every connected storage, such as Windows PCs and Google Drive, and preview text files.",
+        Description: "Browse, search, create and manage files across connected storages, with safe confirmations.",
         Operations:
         [
-            new("open", "Show every connected storage in Files."),
-            new("browse", "List the folder at the input path or location ID (empty input lists storages)."),
-            new("read", "Show the text of the file at the input path; a .cs file is shown as C# source."),
-            new("up", "Browse the parent breadcrumb of the current location."),
+            new("open", "Show connected storages."),
+            new("storage", "Show the roots of the storage at Input.Index."),
+            new("browse", "Open the indexed folder in the current listing."),
+            new("select", "Select the indexed item in the current listing."),
+            new("search", "Search names in the current folder, or set Input.Everywhere for all storages."),
+            new("more", "Load the next page of results."),
+            new("preview", "Open the selected folder or preview the selected file."),
+            new("up", "Browse the parent folder."),
+            new("mkdir", "Create Input.Name; include ExpectedRevision."),
+            new("write", "Save Input.Text as Input.Name; include ExpectedRevision."),
+            new("rename", "Rename the selected item to Input.Name; include ExpectedRevision."),
+            new("delete", "Move the selected item to trash after confirmation; include ExpectedRevision."),
+            new("copy", "Remember the selected source for copying; include ExpectedRevision."),
+            new("move", "Remember the selected source for moving; include ExpectedRevision."),
+            new("paste", "Copy or move the saved source into this folder; include ExpectedRevision."),
+            new("fail", "Use the default stop-on-conflict policy; include ExpectedRevision."),
+            new("keep-both", "Keep both items on a name conflict; include ExpectedRevision."),
+            new("replace", "Replace conflicts after confirmation; include ExpectedRevision."),
+            new("dry-run", "Toggle dry-run planning; include ExpectedRevision."),
+            new("cancel", "Cancel the indexed running operation; include ExpectedRevision."),
         ],
-        Settings: [],
-        Slots: [],
-        Icon: "icon.svg",
-        Toolbar:
-        [
-            new("up", Icon: "arrow-up", Label: "Up"),
-            new("open", Icon: "folder", Label: "Storages"),
-        ],
+        Settings: [], Slots: [], Icon: "icon.svg",
+        Toolbar: [new("up", Icon: "arrow-up", Label: "Up"), new("open", Icon: "folder", Label: "Storages")],
         Requires: new(Capabilities: ["storage@1"]));
 }

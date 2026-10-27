@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using Orleans.Serialization;
 using Orleans.Storage;
@@ -138,12 +139,19 @@ internal sealed class BrainLog : IAsyncDisposable
             ct.ThrowIfCancellationRequested();
             var current = records.GetValueOrDefault(grainId)?.GetValueOrDefault(stateName);
             if (change != BrainRecordChange.None && current?.ETag != expectedETag)
-            { throw new InconsistentStateException($"State {grainId}/{stateName} changed since it was read."); }
+            {
+                throw new InconsistentStateException($"State {grainId}/{stateName} changed since it was read.",
+                    current?.ETag.ToString(CultureInfo.InvariantCulture) ?? "none", expectedETag?.ToString(CultureInfo.InvariantCulture) ?? "none");
+            }
             if (side is not null)
             {
                 if (side.StateName == stateName && change != BrainRecordChange.None) { throw new ArgumentException("The side state must be another state of the grain.", nameof(side)); }
-                if (records.GetValueOrDefault(grainId)?.GetValueOrDefault(side.StateName)?.ETag != side.ExpectedETag)
-                { throw new InconsistentStateException($"State {grainId}/{side.StateName} changed since it was read."); }
+                var stored = records.GetValueOrDefault(grainId)?.GetValueOrDefault(side.StateName)?.ETag;
+                if (stored != side.ExpectedETag)
+                {
+                    throw new InconsistentStateException($"State {grainId}/{side.StateName} changed since it was read.",
+                        stored?.ToString(CultureInfo.InvariantCulture) ?? "none", side.ExpectedETag?.ToString(CultureInfo.InvariantCulture) ?? "none");
+                }
             }
             var last = encoded.Length > 0 ? marks.GetValueOrDefault(publisher).Last : 0;
             var entry = new BrainEntry(checked(sequence + 1), grainId, stateName, change, record, encoded.Length > 0 ? publisher : "", encoded,
