@@ -308,7 +308,8 @@ internal sealed class BrainRuntimeNeuron(
         }, Changed());
         foreach (var gone in replaced) { Forget(gone); }
         if (replaced.Length > 0 || (previous is not null && previous.Principal != program.Principal)) { await WatchSourcesAsync(); }
-        if (Snapshot.Session is null) { await EnsureSessionAsync(); }
+        // More apps can install after the first deferred session was recorded, while HTTP still has no address.
+        if (Snapshot.Session is null || EdgeUrl() is null) { await EnsureSessionAsync(); }
         else
         {
             foreach (var gone in removed) { streams.TryPush(Snapshot.Session.Id, RetireEvent.Kind, new RetireEvent(gone)); }

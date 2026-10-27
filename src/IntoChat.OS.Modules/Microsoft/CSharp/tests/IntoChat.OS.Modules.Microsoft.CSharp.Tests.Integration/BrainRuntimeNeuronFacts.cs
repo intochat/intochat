@@ -32,11 +32,20 @@ public sealed class BrainRuntimeNeuronFacts
                 .AddKeyedSingleton<IHostApplicationLifetime>(typeof(CSharpModule), lifetime)).StartAsync(ct);
         server.Addresses.Clear();
         await Programs(brain).Assign(Owner, Synapse(), []);
+        await Programs(brain).Assign(Owner + "-second", Synapse(), []);
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
+        Assert.DoesNotContain(host.Requests, FakeSessionHost.IsStart);
         server.Addresses.Add("http://127.0.0.1:5099");
         lifetime.Started.Cancel();
         var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal("http://host.docker.internal:5099/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
+        var assignments = await Edge(brain).Assignments((await Runtime(brain).Inspect(ct)).SessionId!);
+        Assert.Equal(2, assignments.Count);
+        Assert.All(assignments, assignment =>
+        {
+            Assert.Equal("http://host.docker.internal:5099", assignment.Assembly.GetLeftPart(UriPartial.Authority));
+            Assert.Equal("http://host.docker.internal:5099", assignment.Symbols.GetLeftPart(UriPartial.Authority));
+        });
     }
 
     private sealed class RuntimeHostLifetime : IHostApplicationLifetime, IDisposable
