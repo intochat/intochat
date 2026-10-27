@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Cli.Tests.Unit" />
+  </ItemGroup>
+</Project>
