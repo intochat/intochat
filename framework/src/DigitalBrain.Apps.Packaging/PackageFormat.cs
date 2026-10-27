@@ -72,7 +72,8 @@ internal static class PackageFormat
             if (descriptor.SharedAssemblies.ContainsKey(System.IO.Path.GetFileNameWithoutExtension(item.Path)))
             { throw new InvalidDataException("Shared contracts cannot be private payload."); }
         }
-        if (!paths.Contains(descriptor.EntryAssembly)) { throw new InvalidDataException("Entry assembly is missing from inventory."); }
+        if (!descriptor.Payload.Any(item => string.Equals(item.Path, descriptor.EntryAssembly, StringComparison.Ordinal)))
+        { throw new InvalidDataException("Entry assembly is missing from inventory."); }
     }
 
     private static CompiledContractDescriptor CanonicalContract(CompiledContractDescriptor contract) => contract with { Fields = [.. contract.Fields.OrderBy(f => f.Id)] };

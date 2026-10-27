@@ -90,6 +90,53 @@ public sealed class PackageFacts : IDisposable
     }
 
     [Fact]
+    public async Task WriterAndReaderAgreeOnExpandedBoundaryIncludingManifest()
+    {
+        var build = Build();
+        using var baseline = new MemoryStream();
+        await new AppPackageWriter().Write(Descriptor(), build, baseline, TestContext.Current.CancellationToken);
+        baseline.Position = 0;
+        long expanded;
+        using (var zip = new ZipArchive(baseline, ZipArchiveMode.Read, true)) { expanded = zip.Entries.Sum(entry => entry.Length); }
+
+        using var rejected = new MemoryStream();
+        var belowBoundary = new PackageLimits { MaxExpandedBytes = expanded - 1 };
+        await Assert.ThrowsAsync<InvalidDataException>(() => new AppPackageWriter(belowBoundary).Write(Descriptor(), build, rejected, TestContext.Current.CancellationToken));
+        Assert.Equal(0, rejected.Length);
+
+        var atBoundary = new PackageLimits { MaxExpandedBytes = expanded };
+        using var accepted = new MemoryStream();
+        var digest = await new AppPackageWriter(atBoundary).Write(Descriptor(), build, accepted, TestContext.Current.CancellationToken);
+        accepted.Position = 0;
+        var package = await new AppPackageReader(atBoundary).Read(accepted, Path.Combine(root, "accepted"), TestContext.Current.CancellationToken);
+        Assert.Equal(digest, package.Digest);
+    }
+
+    [Fact]
+    public async Task WriterRejectsEntryAssemblyCaseMismatch()
+    {
+        using var output = new MemoryStream();
+        await Assert.ThrowsAsync<InvalidDataException>(() => new AppPackageWriter().Write(Descriptor() with { EntryAssembly = "EXAMPLE.dll" }, Build(), output, TestContext.Current.CancellationToken));
+        Assert.Equal(0, output.Length);
+    }
+
+    [Fact]
+    public async Task ReaderRejectsEntryAssemblyCaseMismatchBeforeStaging()
+    {
+        using var archive = await Archive();
+        Mutate(archive, zip =>
+        {
+            var entry = zip.GetEntry("app.json")!;
+            string json;
+            using (var reader = new StreamReader(entry.Open())) { json = reader.ReadToEnd(); }
+            entry.Delete();
+            using var writer = new StreamWriter(zip.CreateEntry("app.json").Open(), new UTF8Encoding(false));
+            writer.Write(json.Replace("\"entryAssembly\":\"example.dll\"", "\"entryAssembly\":\"EXAMPLE.dll\"", StringComparison.Ordinal));
+        });
+        await Reject(archive);
+    }
+
+    [Fact]
     public async Task InspectDoesNotExecuteEntryType()
     {
         using var archive = new MemoryStream();

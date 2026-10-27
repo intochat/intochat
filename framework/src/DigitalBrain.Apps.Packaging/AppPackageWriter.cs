@@ -30,7 +30,8 @@ public sealed class AppPackageWriter
         }
         descriptor = PackageFormat.Canonical(descriptor with { Payload = [.. inventory] });
         PackageFormat.Validate(descriptor, descriptor.SharedAssemblies);
-        if (inventory.Count + 1 > limits.MaxEntries || inventory.Sum(item => item.Length) > limits.MaxExpandedBytes || JsonSerializer.SerializeToUtf8Bytes(descriptor, PackageFormat.Json).Length > limits.MaxManifestBytes)
+        var manifest = JsonSerializer.SerializeToUtf8Bytes(descriptor, PackageFormat.Json);
+        if (inventory.Count + 1 > limits.MaxEntries || manifest.LongLength > limits.MaxManifestBytes || inventory.Sum(item => item.Length) > limits.MaxExpandedBytes - manifest.LongLength)
         { throw new InvalidDataException("Package exceeds configured limits."); }
         var temporary = System.IO.Path.GetTempFileName();
         try
@@ -39,7 +40,7 @@ public sealed class AppPackageWriter
             using (var zip = new ZipArchive(archive, ZipArchiveMode.Create, true))
             {
                 await using (var metadata = Entry(zip, "app.json").Open())
-                { await JsonSerializer.SerializeAsync(metadata, descriptor, PackageFormat.Json, ct).ConfigureAwait(false); }
+                { await metadata.WriteAsync(manifest, ct).ConfigureAwait(false); }
                 foreach (var pair in files)
                 {
                     await using var source = File.OpenRead(pair.Value);
