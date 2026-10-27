@@ -130,7 +130,7 @@ public sealed class AzuriteFixture : IAsyncLifetime
         catch (TimeoutException) { return false; }
     }
 
-    private static async Task<(int Code, string Output)> Run(string file, string arguments, TimeSpan timeout)
+    internal static async Task<(int Code, string Output)> Run(string file, string arguments, TimeSpan timeout)
     {
         using var process = Process.Start(new ProcessStartInfo(file, arguments)
         {
@@ -147,6 +147,9 @@ public sealed class AzuriteFixture : IAsyncLifetime
             process.Kill(entireProcessTree: true);
             throw new TimeoutException($"{file} {arguments.Split(' ')[0]} timed out.");
         }
-        return (process.ExitCode, await stdout + await stderr);
+        var output = await stdout;
+        var error = await stderr;
+        // Docker writes image-pull progress to stderr even on success; only stdout contains the container id or port.
+        return (process.ExitCode, process.ExitCode == 0 ? output : output + error);
     }
 }

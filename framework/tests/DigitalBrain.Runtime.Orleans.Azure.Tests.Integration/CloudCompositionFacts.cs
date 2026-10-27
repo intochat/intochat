@@ -23,6 +23,31 @@ public sealed class AzuriteFixtureFacts
     [InlineData(null, true, false, AzuriteMode.Fail)]
     public void In_CI_a_missing_Azurite_fails_and_never_skips(string? configured, bool ci, bool docker, AzuriteMode expected)
         => Assert.Equal(expected, AzuriteFixture.Decide(configured, ci, docker));
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(17)]
+    public async Task Process_output_keeps_pull_progress_out_of_successful_container_ids(int exitCode)
+    {
+        using var home = new TempHome();
+        Directory.CreateDirectory(home.Path);
+        var windows = OperatingSystem.IsWindows();
+        var script = Path.Combine(home.Path, windows ? "output.cmd" : "output.sh");
+        await File.WriteAllTextAsync(script, windows
+            ? $"@echo off\r\necho container-id\r\necho image-pull-status 1>&2\r\nexit /b {exitCode}\r\n"
+            : $"printf 'container-id\\n'\nprintf 'image-pull-status\\n' >&2\nexit {exitCode}\n", TestContext.Current.CancellationToken);
+
+        var (code, output) = await AzuriteFixture.Run(windows ? "cmd.exe" : "/bin/sh",
+            windows ? $"/d /c \"{script}\"" : $"\"{script}\"", TimeSpan.FromSeconds(10));
+
+        Assert.Equal(exitCode, code);
+        if (exitCode == 0) { Assert.Equal("container-id", output.Trim()); }
+        else
+        {
+            Assert.Contains("container-id", output, StringComparison.Ordinal);
+            Assert.Contains("image-pull-status", output, StringComparison.Ordinal);
+        }
+    }
 }
 
 public sealed class CloudCompositionFacts(AzuriteFixture azurite)
