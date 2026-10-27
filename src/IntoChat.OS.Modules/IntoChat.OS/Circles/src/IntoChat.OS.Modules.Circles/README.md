@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Circles.Contracts` (`ICircleChat`, `ICircleFactory`, `ICirclePostReader`, `ICircleStateReader`, `ICircle`).
+Contracts: assembly `IntoChat.OS.Modules.Circles.Contracts` (`ICircleChat`, `ICircleFactory`, `ICircleInviteRedeemer`, `ICircleInvites`, `ICirclePostReader`, `ICircleStateReader`, `ICircle`).
 Hosting: runs in process.
 <!-- END GENERATED -->
