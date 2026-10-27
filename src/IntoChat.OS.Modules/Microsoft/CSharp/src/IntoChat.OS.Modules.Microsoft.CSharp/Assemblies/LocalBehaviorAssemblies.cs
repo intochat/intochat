@@ -81,7 +81,8 @@ internal sealed class LocalBehaviorAssemblies : IBehaviorAssemblies
         {
             if (_protector.Unprotect(token) != name) { return Results.Unauthorized(); }
         }
-        catch (Exception error) when (error is CryptographicException or FormatException) { return Results.Unauthorized(); }
+        catch (CryptographicException) { return Results.Unauthorized(); }
+        catch (FormatException) { return Results.Unauthorized(); }
         var path = Path.Combine(_root, name);
         return File.Exists(path) ? Results.File(path, "application/octet-stream") : Results.NotFound();
     }

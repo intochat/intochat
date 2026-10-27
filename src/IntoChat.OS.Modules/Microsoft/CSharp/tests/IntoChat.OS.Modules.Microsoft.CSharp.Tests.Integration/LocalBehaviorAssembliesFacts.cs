@@ -13,21 +13,19 @@ public sealed class LocalBehaviorAssembliesFacts
     [Fact]
     public async Task TildeHomeUsesTheSharedResolvedStateDirectory()
     {
-        var home = Directory.CreateTempSubdirectory("intochat-local-assemblies-");
-        try
-        {
-            var directory = Directory.CreateDirectory(Path.Combine(home.FullName, "behaviors"));
-            var hash = new string('a', 64);
-            await File.WriteAllBytesAsync(Path.Combine(directory.FullName, hash), [1], TestContext.Current.CancellationToken);
-            await File.WriteAllBytesAsync(Path.Combine(directory.FullName, hash + ".pdb"), [2], TestContext.Current.CancellationToken);
-            var configuredHome = "~/" + Path.GetRelativePath(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), home.FullName);
-            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["IntoChatOS:Home"] = configuredHome }).Build();
-            using var services = new ServiceCollection().BuildServiceProvider();
-            var store = new LocalBehaviorAssemblies(configuration, new EphemeralDataProtectionProvider(), services, Options.Create(new CSharpOptions()));
+        using var home = TestHome.Create();
+        var directory = Directory.CreateDirectory(Path.Combine(home.Path, "behaviors"));
+        var hash = new string('a', 64);
+        await File.WriteAllBytesAsync(Path.Combine(directory.FullName, hash), [1], TestContext.Current.CancellationToken);
+        await File.WriteAllBytesAsync(Path.Combine(directory.FullName, hash + ".pdb"), [2], TestContext.Current.CancellationToken);
+        var tildeConfiguration = new ConfigurationBuilder().AddInMemoryCollection([new(home.Setting.Key, "~")]).Build();
+        var tildeRoot = DigitalBrain.Runtime.Orleans.StateHome.Resolve(tildeConfiguration).Path;
+        var configuredHome = "~/" + Path.GetRelativePath(tildeRoot, home.Path);
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection([new(home.Setting.Key, configuredHome)]).Build();
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var store = new LocalBehaviorAssemblies(configuration, new EphemeralDataProtectionProvider(), services, Options.Create(new CSharpOptions()));
 
-            Assert.True(await store.Exists(hash, TestContext.Current.CancellationToken));
-        }
-        finally { home.Delete(recursive: true); }
+        Assert.True(await store.Exists(hash, TestContext.Current.CancellationToken));
     }
 
     [Trait("host", "own")]

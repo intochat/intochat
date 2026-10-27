@@ -32,6 +32,7 @@
     <Compile Include="../../../features/os/Apps/AppsNames.cs" Link="Features/AppsNames.cs" />
     <Compile Include="../../../features/os/Apps/AppsView.cs" Link="Features/AppsView.cs" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <!-- CapabilityKitCoverageFacts reads the kit subclasses of every module providing a capability from its own tests/ (D-06).
          Built first, copied to kits/ (not referenced: the catalog discovers IntoChat.OS.Modules.*.dll beside the tests). -->

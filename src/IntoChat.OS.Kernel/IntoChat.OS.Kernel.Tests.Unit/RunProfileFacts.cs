@@ -10,6 +10,8 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.LocalSetup;
+using System.Text.Json;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -84,9 +86,9 @@ public sealed class RunProfileFacts
     {
         using var home = TestHome.Create();
         var configFile = Path.Combine(home.Path, "settings.json");
-        await File.WriteAllTextAsync(configFile, """{"IntoChatOS:Topology":"cloud"}""", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(configFile, JsonSerializer.Serialize(new Dictionary<string, object> { [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyCloud }), TestContext.Current.CancellationToken);
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            [MasterKey, "--IntoChatOS:ConfigFile=" + configFile, "--" + IntoChatOSNames.HomeKey + "=" + home.Path], TestContext.Current.CancellationToken);
+            [MasterKey, LocalSetupKeys.Argument(LocalSetupKeys.ConfigFile, configFile), "--" + IntoChatOSNames.HomeKey + "=" + home.Path], TestContext.Current.CancellationToken);
 
         Assert.Contains(appHost.Resources, IsAzurite);
     }
@@ -96,9 +98,9 @@ public sealed class RunProfileFacts
     {
         using var home = TestHome.Create();
         var configFile = Path.Combine(home.Path, "settings.json");
-        await File.WriteAllTextAsync(configFile, """{"IntoChatOS:Topology":"local","IntoChatOS:Local:Model":"qwen3.5:2b"}""", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(configFile, JsonSerializer.Serialize(new Dictionary<string, object> { [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal, [IntoChatOSHostingOptions.LocalModelKey] = "qwen3.5:2b" }), TestContext.Current.CancellationToken);
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            [MasterKey, "--IntoChatOS:ConfigFile=" + configFile, "--" + IntoChatOSNames.HomeKey + "=" + home.Path], TestContext.Current.CancellationToken);
+            [MasterKey, LocalSetupKeys.Argument(LocalSetupKeys.ConfigFile, configFile), "--" + IntoChatOSNames.HomeKey + "=" + home.Path], TestContext.Current.CancellationToken);
 
         var kernel = Assert.Single(appHost.Resources.OfType<ProjectResource>(), resource => resource.Name == "OperatingSystem-a");
         var environment = await LocalProfileOllamaFacts.EnvironmentOf(appHost, kernel);
@@ -110,9 +112,9 @@ public sealed class RunProfileFacts
     {
         using var home = TestHome.Create();
         var configFile = Path.Combine(home.Path, "settings.json");
-        await File.WriteAllTextAsync(configFile, """{"IntoChatOS:Topology":"local","IntoChatOS:Modules:postgres:Enabled":true}""", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(configFile, JsonSerializer.Serialize(new Dictionary<string, object> { [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal, [IntoChatOSConfiguration.ModuleSection("postgres") + ":Enabled"] = true }), TestContext.Current.CancellationToken);
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            [MasterKey, "--IntoChatOS:ConfigFile=" + configFile, "--" + IntoChatOSNames.HomeKey + "=" + home.Path], TestContext.Current.CancellationToken);
+            [MasterKey, LocalSetupKeys.Argument(LocalSetupKeys.ConfigFile, configFile), "--" + IntoChatOSNames.HomeKey + "=" + home.Path], TestContext.Current.CancellationToken);
 
         var kernel = Assert.Single(appHost.Resources.OfType<ProjectResource>(), resource => resource.Name == "OperatingSystem-a");
         var environment = await LocalProfileOllamaFacts.EnvironmentOf(appHost, kernel);
@@ -155,17 +157,18 @@ public sealed class RunProfileFacts
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, mcp, environment, TestContext.Current.CancellationToken);
         foreach (var callback in mcp.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
+        var configuration = environment.ToDictionary(pair => IntoChatOSConfiguration.ConfigurationName(pair.Key), pair => pair.Value, StringComparer.OrdinalIgnoreCase);
 
-        Assert.Equal(local ? "Development" : "AzureTableStorage", environment["Orleans__Clustering__ProviderType"]);
+        Assert.Equal(local ? "Development" : "AzureTableStorage", configuration["Orleans:Clustering:ProviderType"]);
         if (local)
         {
-            Assert.True(environment.TryGetValue("Orleans__Clustering__Gateways__0", out var value));
+            Assert.True(configuration.TryGetValue("Orleans:Clustering:Gateways:0", out var value));
             var address = await Assert.IsAssignableFrom<IValueProvider>(value).GetValueAsync(TestContext.Current.CancellationToken);
             Assert.Equal("127.0.0.1:49321", address);
         }
         else
         {
-            Assert.DoesNotContain(environment.Keys, key => key.StartsWith("Orleans__Clustering__Gateways__", StringComparison.Ordinal));
+            Assert.DoesNotContain(configuration.Keys, key => key.StartsWith("Orleans:Clustering:Gateways:", StringComparison.Ordinal));
         }
     }
 
