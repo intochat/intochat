@@ -69,9 +69,12 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         services.TryAddSingleton<CSharpContractDiscovery>();
         services.TryAddSingleton(new BoundedCache<string, CompiledBehavior>(CSharpScriptCheck.CacheCapacity, StringComparer.Ordinal));
         services.TryAddSingleton<CSharpScriptCheck>();
+        services.TryAddSingleton<LocalBehaviorAssemblies>();
         services.TryAddSingleton<IBehaviorAssemblies>(provider =>
             provider.GetKeyedService<BlobServiceClient>(IntoChatOSNames.GrainState) is { } storage
-                ? new BlobBehaviorAssemblies(storage) : new MemoryBehaviorAssemblies());
+                ? new BlobBehaviorAssemblies(storage)
+                : provider.GetRequiredService<IOptions<CSharpOptions>>().Value.SandboxUrl is { Length: > 0 }
+                    ? provider.GetRequiredService<LocalBehaviorAssemblies>() : new MemoryBehaviorAssemblies());
         // The session pool authenticates with the deployment's identity; the local container needs none.
         if (!string.IsNullOrWhiteSpace(options.SessionPoolEndpoint))
         { services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
@@ -96,6 +99,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapRuntimeEdge();
+        LocalBehaviorAssemblies.Map(endpoints);
         if (endpoints.ServiceProvider.GetRequiredService<IOptions<CSharpOptions>>().Value.Authoring) { CSharpAuthoringEndpoints.Map(endpoints); }
     }
 }
