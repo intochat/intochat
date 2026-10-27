@@ -11,6 +11,8 @@ internal static class PackageFormat
     internal static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        AllowDuplicateProperties = false,
+        RespectNullableAnnotations = true,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
@@ -39,6 +41,8 @@ internal static class PackageFormat
         { throw new InvalidDataException("App identity, name, version and entry type are required."); }
         if (descriptor.Capabilities.IsDefault || descriptor.Neurons.IsDefault || descriptor.Contracts.IsDefault || descriptor.Signals.IsDefault || descriptor.RequiredHostAdapters.IsDefault || descriptor.Payload.IsDefault || descriptor.Presentation is null || descriptor.HostMetadata is null || descriptor.SharedAssemblies is null)
         { throw new InvalidDataException("Metadata collections must be present."); }
+        if (descriptor.Neurons.Any(n => n is null) || descriptor.Contracts.Any(c => c is null) || descriptor.Signals.Any(c => c is null) || descriptor.Payload.Any(p => p is null))
+        { throw new InvalidDataException("Metadata collections cannot contain null entries."); }
         Unique(descriptor.Capabilities);
         Unique(descriptor.RequiredHostAdapters);
         Unique(descriptor.Neurons.Select(n => n.TypeName));
@@ -52,7 +56,7 @@ internal static class PackageFormat
             if (neuron.State is not null) { ValidateContract(neuron.State); }
             foreach (var ownership in neuron.LegacyOwnership)
             {
-                if (ownership.Kind is not ("exact-key" or "key-prefix") || string.IsNullOrWhiteSpace(ownership.Value))
+                if (ownership is null || ownership.Kind is not ("exact-key" or "key-prefix") || string.IsNullOrWhiteSpace(ownership.Value))
                 { throw new InvalidDataException("Invalid explicit legacy ownership."); }
             }
         }
@@ -82,6 +86,7 @@ internal static class PackageFormat
     {
         if (contract is null || string.IsNullOrWhiteSpace(contract.TypeName) || string.IsNullOrWhiteSpace(contract.SerializerIdentity) || contract.SerializerIdentity.Contains(',') || string.IsNullOrWhiteSpace(contract.SchemaVersion) || contract.Fields.IsDefault)
         { throw new InvalidDataException("Invalid contract identity."); }
+        if (contract.Fields.Any(f => f is null)) { throw new InvalidDataException("Contract fields cannot contain null entries."); }
         Unique(contract.Fields.Select(f => f.Name));
         if (contract.Fields.Select(f => f.Id).Distinct().Count() != contract.Fields.Length || contract.Fields.Any(f => string.IsNullOrWhiteSpace(f.TypeName)))
         { throw new InvalidDataException("Invalid contract fields."); }

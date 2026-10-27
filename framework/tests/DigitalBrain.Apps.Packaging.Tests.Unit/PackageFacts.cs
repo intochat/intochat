@@ -200,6 +200,12 @@ public sealed class PackageFacts : IDisposable
     [InlineData("symlink")]
     [InlineData("duplicate-json")]
     [InlineData("null-neuron")]
+    [InlineData("null-contract")]
+    [InlineData("null-signal")]
+    [InlineData("null-payload")]
+    [InlineData("null-id")]
+    [InlineData("null-field")]
+    [InlineData("null-ownership")]
     public async Task RejectsMalformedMetadataAndLinks(string reason)
     {
         using var archive = await Archive();
@@ -210,7 +216,18 @@ public sealed class PackageFacts : IDisposable
             string json;
             using (var reader = new StreamReader(entry.Open())) { json = reader.ReadToEnd(); }
             entry.Delete();
-            json = reason == "duplicate-json" ? json.Replace("\"hostAbi\":1", "\"hostAbi\":2,\"hostAbi\":1", StringComparison.Ordinal) : json.Replace("\"neurons\":[]", "\"neurons\":[null]", StringComparison.Ordinal);
+            json = reason switch
+            {
+                "duplicate-json" => json.Replace("\"hostAbi\":1", "\"hostAbi\":2,\"hostAbi\":1", StringComparison.Ordinal),
+                "null-neuron" => json.Replace("\"neurons\":[]", "\"neurons\":[null]", StringComparison.Ordinal),
+                "null-contract" => json.Replace("\"contracts\":[]", "\"contracts\":[null]", StringComparison.Ordinal),
+                "null-signal" => json.Replace("\"signals\":[]", "\"signals\":[null]", StringComparison.Ordinal),
+                "null-payload" => json.Replace("\"payload\":[", "\"payload\":[null,", StringComparison.Ordinal),
+                "null-id" => json.Replace("\"id\":\"example.app\"", "\"id\":null", StringComparison.Ordinal),
+                "null-field" => json.Replace("\"contracts\":[]", "\"contracts\":[{\"typeName\":\"Example.State\",\"serializerIdentity\":\"state-v1\",\"schemaVersion\":\"1\",\"fields\":[null]}]", StringComparison.Ordinal),
+                "null-ownership" => json.Replace("\"neurons\":[]", "\"neurons\":[{\"typeName\":\"Example.Neuron\",\"neuronType\":\"items\",\"stateName\":\"state\",\"hostPolicy\":\"affine\",\"state\":null,\"legacyOwnership\":[null]}]", StringComparison.Ordinal),
+                _ => throw new InvalidOperationException("Unknown malformed metadata fixture.")
+            };
             WriteEntry(zip, "app.json", json);
         });
         await Reject(archive);
@@ -291,7 +308,7 @@ public sealed class PackageFacts : IDisposable
 
     private static void WriteEntry(ZipArchive zip, string path, string content)
     {
-        using var writer = new StreamWriter(zip.CreateEntry(path).Open(), Encoding.UTF8);
+        using var writer = new StreamWriter(zip.CreateEntry(path).Open(), new UTF8Encoding(false));
         writer.Write(content);
     }
 
