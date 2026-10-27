@@ -14,17 +14,14 @@ public sealed record Opened : Signal;
 [App("APP_ID")]
 public sealed class APP_CLASS(IPresenter presenter) : App
 {
-    private int _opened;
-
     /// <summary>Shows the start view.</summary>
     [On]
     public Task Open(Opened signal)
     {
         ArgumentNullException.ThrowIfNull(signal);
-        _opened++;
         _ = Present(presenter.Present,
             () => new View("APP_CLASS", new Collection([])),
-            () => new View("APP_CLASS", new Column([new Text("Welcome to APP_CLASS."), new Text($"Opened {_opened} times.")])));
+            () => new View("APP_CLASS", new Column([new Text("Welcome to APP_CLASS.")])));
         return Task.CompletedTask;
     }
 }

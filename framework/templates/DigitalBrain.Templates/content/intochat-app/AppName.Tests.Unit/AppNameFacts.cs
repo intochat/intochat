@@ -27,6 +27,18 @@ public sealed class APP_CLASSFacts
     }
 
     [Fact]
+    public async Task Counter_survives_runtime_restart()
+    {
+        await using var os = TestOS.Local();
+        os.Register<CounterNeuron>();
+        var id = new NeuronId(new BrainId("test"), "APP_ID.counter", "starter");
+        Assert.Equal(1, await os.Get<ICounter>(id).Increment());
+        await os.Restart();
+        Assert.Equal(1, await os.Get<ICounter>(id).Count());
+        Assert.Equal(2, await os.Get<ICounter>(id).Increment());
+    }
+
+    [Fact]
     public void App_id_is_lowercase_and_dotted()
     {
         Assert.Matches(new Regex("^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"), TestOS.ManifestOf(typeof(APP_CLASS)).Id);
