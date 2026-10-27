@@ -5,6 +5,7 @@
 d9615c0d4faf19fb5594c964ef7e839fb9c60e23:docs/superpowers/loop/mcp.py:generic-api-key:7
 
 # Fixed composition-test-key placeholder in test fixture setup. Exact history fingerprints only.
+8cae7f67afa53eed2e49e99c41a539b3381ac3f0:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/LocalProfileCompositionFacts.cs:generic-api-key:26
 d9615c0d4faf19fb5594c964ef7e839fb9c60e23:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/LocalProfileCompositionFacts.cs:generic-api-key:21
 10dd09d41be045a78e6843d8f53f768abb1048d6:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/ProductCompositionFacts.cs:generic-api-key:23
 10dd09d41be045a78e6843d8f53f768abb1048d6:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/ProductCompositionFacts.cs:generic-api-key:78
