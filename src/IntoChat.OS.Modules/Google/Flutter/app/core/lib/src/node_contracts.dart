@@ -6,9 +6,18 @@ final class NodeContract {
 
 abstract final class NodeContracts {
   static const _byKind = <String, NodeContract>{
-    'view': NodeContract('IntoChat.OS.Modules.Flutter.Views.IView', 'ViewChanged'),
-    'scene': NodeContract('IntoChat.OS.Modules.Flame.Scene.IScene', 'SceneChanged'),
-    'text': NodeContract('IntoChat.OS.Modules.Flutter.Text.IText', 'TextChanged'),
+    'view': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Views.IView',
+      'ViewChanged',
+    ),
+    'scene': NodeContract(
+      'IntoChat.OS.Modules.Flame.Scene.IScene',
+      'SceneChanged',
+    ),
+    'text': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Text.IText',
+      'TextChanged',
+    ),
     'button': NodeContract(
       'IntoChat.OS.Modules.Flutter.Button.IButton',
       'ButtonChanged',
@@ -29,8 +38,14 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Person.IPerson',
       'PersonChanged',
     ),
-    'card': NodeContract('IntoChat.OS.Modules.Flutter.Card.ICard', 'CardChanged'),
-    'tabs': NodeContract('IntoChat.OS.Modules.Flutter.Tabs.ITabs', 'TabsChanged'),
+    'card': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Card.ICard',
+      'CardChanged',
+    ),
+    'tabs': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Tabs.ITabs',
+      'TabsChanged',
+    ),
     'surface': NodeContract(
       'IntoChat.OS.Modules.Flutter.Surface.ISurface',
       'SurfaceChanged',
@@ -47,10 +62,22 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.ImageCanvas.IImageCanvas',
       'ImageCanvasChanged',
     ),
-    'form': NodeContract('IntoChat.OS.Modules.Flutter.Form.IForm', 'FormChanged'),
-    'table': NodeContract('IntoChat.OS.Modules.Flutter.Table.ITable', 'TableChanged'),
-    'chart': NodeContract('IntoChat.OS.Modules.Flutter.Chart.IChart', 'ChartChanged'),
-    'chat': NodeContract('IntoChat.OS.Modules.Flutter.Chat.IChat', 'ChatChanged'),
+    'form': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Form.IForm',
+      'FormChanged',
+    ),
+    'table': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Table.ITable',
+      'TableChanged',
+    ),
+    'chart': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Chart.IChart',
+      'ChartChanged',
+    ),
+    'chat': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Chat.IChat',
+      'ChatChanged',
+    ),
     'composer': NodeContract(
       'IntoChat.OS.Modules.Flutter.Chat.IComposer',
       'ComposerChanged',
@@ -87,7 +114,10 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.InfoBar.IInfoBar',
       'InfoBarChanged',
     ),
-    'image': NodeContract('IntoChat.OS.Modules.Flutter.Image.IImage', 'ImageChanged'),
+    'image': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Image.IImage',
+      'ImageChanged',
+    ),
     'expander': NodeContract(
       'IntoChat.OS.Modules.Flutter.Expander.IExpander',
       'ExpanderChanged',

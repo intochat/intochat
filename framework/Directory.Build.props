@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Keep code-style rules opt-in; recommended quality analysis must not select SDK-dependent style defaults. -->
+    <AnalysisLevelStyle>latest-default</AnalysisLevelStyle>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <IsPackable>false</IsPackable>
     <!-- NU5104: .NET 11 is still RC, so stable DigitalBrain packages depend on prerelease Microsoft packages; remove at .NET 11 GA -->

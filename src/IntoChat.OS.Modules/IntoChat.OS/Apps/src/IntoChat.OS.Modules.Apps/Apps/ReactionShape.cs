@@ -94,7 +94,7 @@ public static class ReactionShape
                 if (provides is not null && provides.TryGetValue(id, out var capabilities) && capabilities.Length > 0)
                 {
                     errors.Add(new(path, ModuleIdRequired, Line(literal),
-                        $"{id} provides {string.Join(", ", capabilities)}; require the capability instead (Requires: new(Capabilities: [\"{capabilities[0]}\"])).") );
+                        $"{id} provides {string.Join(", ", capabilities)}; require the capability instead (Requires: new(Capabilities: [\"{capabilities[0]}\"]))."));
                 }
                 else if (!RequiredModuleIds.Allowed.Contains(id, StringComparer.Ordinal))
                 {

@@ -18,20 +18,22 @@
 #
 # Ports: 8080 silo HTTP (broker + health).
 
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.1 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
 WORKDIR /src
 
-COPY nuget.config Directory.Build.props Directory.Packages.props Intochat.OS.slnx global.json ./
+COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
+COPY framework/ ./framework/
 COPY src/ ./src/
 
 RUN dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
       -c Release \
       -r linux-x64 \
       --self-contained false \
+      -p:CodeGraphRefresh=false \
       -o /out/silo \
       --nologo
 
-FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.1 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3 AS final
 WORKDIR /app
 
 COPY --from=build /out/silo /app/silo

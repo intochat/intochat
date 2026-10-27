@@ -127,9 +127,16 @@ internal sealed class MachineCredentialNeuron(
         {
             store.State = new MachineCredentialRecord
             {
-                CircleId = grant.CircleId, CircleName = grant.CircleName, MachineId = grant.MachineId, MachineName = grant.MachineName,
-                PublicKeySpki = grant.PublicKeySpki, Thumbprint = grant.Thumbprint, Role = grant.Role, AccountId = grant.AccountId,
-                PendingAccount = grant.PendingAccount, EnrolledAt = now,
+                CircleId = grant.CircleId,
+                CircleName = grant.CircleName,
+                MachineId = grant.MachineId,
+                MachineName = grant.MachineName,
+                PublicKeySpki = grant.PublicKeySpki,
+                Thumbprint = grant.Thumbprint,
+                Role = grant.Role,
+                AccountId = grant.AccountId,
+                PendingAccount = grant.PendingAccount,
+                EnrolledAt = now,
             };
         }
         // The earlier tokens stop working. None count as rotated: the machine enrolled again on purpose.

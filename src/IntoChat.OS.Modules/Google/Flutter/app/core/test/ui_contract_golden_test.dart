@@ -81,7 +81,8 @@ void main() {
   });
 
   test('the posted UI event carries its kind, name and action', () {
-    final event = states['IntoChat.OS.Modules.Flutter.AppUiEndpoints+UiEvent'] as Map;
+    final event =
+        states['IntoChat.OS.Modules.Flutter.AppUiEndpoints+UiEvent'] as Map;
     for (final field in ['kind', 'name', 'action']) {
       expect(event[field], isA<String>(), reason: 'UiEvent.$field');
     }
