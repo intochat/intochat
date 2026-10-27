@@ -16,13 +16,18 @@ public sealed class FeatureCatalog
 
     private readonly FeatureDirectory? _directory;
     private readonly IScriptSandbox? _sandbox;
+    private readonly CompiledBuiltinCatalog? _compiled;
     private readonly Lock _gate = new();
     private Task<Loaded>? _loaded;
 
     public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null)
+        : this(directory, sandbox, null) { }
+
+    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, CompiledBuiltinCatalog? compiled)
     {
         _directory = directory;
         _sandbox = sandbox;
+        _compiled = compiled;
     }
 
     // A relative folder resolves against the host's base directory, where a published image carries it.
@@ -32,7 +37,7 @@ public sealed class FeatureCatalog
         var development = services.GetService<IHostEnvironment>()?.IsDevelopment() == true;
         var directory = string.IsNullOrWhiteSpace(path) ? null
             : new FeatureDirectory(System.IO.Path.GetFullPath(path, AppContext.BaseDirectory), development);
-        return new(directory, services.GetService<IScriptSandbox>());
+        return new(directory, services.GetService<IScriptSandbox>(), services.GetService<CompiledBuiltinCatalog>());
     }
 
     public FeatureDirectory? Directory => _directory;
@@ -41,6 +46,9 @@ public sealed class FeatureCatalog
 
     public async Task<AppBundle?> Find(string owner, string name)
         => (await Bundles()).GetValueOrDefault((owner, name));
+
+    internal Task<CompiledBuiltin?> FindCompiled(string owner, string name, CancellationToken ct = default)
+        => _compiled?.Find(owner, name, ct) ?? Task.FromResult<CompiledBuiltin?>(null);
 
     public async Task<bool> IsOwner(string publisher)
         => (await Bundles()).Keys.Any(key => key.Owner == publisher);
@@ -55,12 +63,14 @@ public sealed class FeatureCatalog
     public async Task<AppBundle> SaveToSource(string owner, AppBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        if (await FindCompiled(owner, bundle.Name) is not null)
+        { throw new InvalidOperationException("A compiled app is updated by building its project with intochat run or pack."); }
         if (_directory is not { Writable: true } directory)
         { throw new InvalidOperationException($"{owner} has no writable features folder to save {bundle.Name} into."); }
         // Only an owner the folder already holds: an origin is brain state, not proof of a features owner.
         if (!await IsOwner(owner)) { throw new InvalidOperationException($"{owner} is not an owner in the features folder."); }
         directory.Write(owner, bundle);
-        var reloaded = Load(directory, _sandbox);
+        var reloaded = LoadCombined();
         var loaded = await reloaded;
         if (loaded.Failures.FirstOrDefault(failure => failure.Owner == owner && failure.Name == bundle.Name) is { } failed)
         { throw new InvalidOperationException(failed.Reason); }
@@ -74,6 +84,14 @@ public sealed class FeatureCatalog
     // its errors and leaves the previous snapshot in place. A feature the folder no longer holds is left as it was.
     public async Task<AppBundle?> Reload(string owner, string name)
     {
+        if (_compiled is not null && await _compiled.Find(owner, name) is not null)
+        {
+            await _compiled.Reload();
+            var reloaded = LoadCombined();
+            await reloaded;
+            lock (_gate) { _loaded = reloaded; }
+            return await Find(owner, name);
+        }
         if (_directory is not { } directory) { return null; }
         var copies = directory.Load().Where(feature => feature.Owner == owner && feature.Bundle.Name == name).ToArray();
         if (copies.Length == 0) { return await Find(owner, name); }
@@ -81,7 +99,7 @@ public sealed class FeatureCatalog
         { throw new InvalidOperationException($"{owner}/{name} ships twice: {string.Join(", ", copies.Select(copy => copy.Folder))}."); }
         var bundle = copies[0].Bundle;
         await RequireCompiles(owner, bundle, _sandbox);
-        lock (_gate) { _loaded = Replace(_loaded ?? Load(directory, _sandbox), owner, bundle); }
+        lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), owner, bundle); }
         return bundle;
     }
 
@@ -96,14 +114,24 @@ public sealed class FeatureCatalog
 
     private Task<Loaded> Snapshot()
     {
-        lock (_gate) { return _loaded ??= _directory is null ? Task.FromResult(Nothing) : Load(_directory, _sandbox); }
+        lock (_gate) { return _loaded ??= LoadCombined(); }
+    }
+
+    private async Task<Loaded> LoadCombined()
+    {
+        var compiled = _compiled is null ? [] : await _compiled.All();
+        var identities = compiled.Select(app => (app.Publisher, app.Bundle.Name)).ToHashSet();
+        var source = _directory is null ? Nothing : await Load(_directory, _sandbox, identities);
+        var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>(source.Bundles.ToDictionary());
+        foreach (var app in compiled) { bundles[(app.Publisher, app.Bundle.Name)] = app.Bundle; }
+        return new(bundles, [.. source.Failures, .. _compiled is null ? [] : await _compiled.Failures()]);
     }
 
     private static readonly Loaded Nothing = new(new Dictionary<(string Owner, string Name), AppBundle>(), []);
 
     private sealed record Loaded(IReadOnlyDictionary<(string Owner, string Name), AppBundle> Bundles, FeatureFailure[] Failures);
 
-    private static async Task<Loaded> Load(FeatureDirectory directory, IScriptSandbox? sandbox)
+    private static async Task<Loaded> Load(FeatureDirectory directory, IScriptSandbox? sandbox, HashSet<(string Owner, string Name)> compiled)
     {
         using var load = Telemetry.StartActivity("features.load");
         load?.SetTag("features.path", directory.Path);
@@ -113,6 +141,7 @@ public sealed class FeatureCatalog
         var twice = shipped.GroupBy(feature => (feature.Owner, feature.Bundle.Name)).Where(group => group.Count() > 1).ToDictionary(group => group.Key, group => group.ToArray());
         foreach (var feature in shipped)
         {
+            if (compiled.Contains((feature.Owner, feature.Bundle.Name))) { continue; }
             if (twice.TryGetValue((feature.Owner, feature.Bundle.Name), out var copies))
             {
                 var reason = $"{feature.Owner}/{feature.Bundle.Name} ships twice: {string.Join(", ", copies.Select(copy => copy.Folder))}.";

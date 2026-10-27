@@ -29,13 +29,34 @@ internal static class CompiledAppsEndpoints
             var manifest = CompiledPackageMetadata.Manifest(package.Descriptor);
             return Results.Ok(new
             {
-                package.Digest, package.Descriptor.Id, package.Descriptor.Name, package.Descriptor.Version,
-                requires = manifest.Requires ?? new(), hostAdapters = package.Descriptor.RequiredHostAdapters,
+                package.Digest,
+                package.Descriptor.Id,
+                package.Descriptor.Name,
+                package.Descriptor.Version,
+                requires = manifest.Requires ?? new(),
+                hostAdapters = package.Descriptor.RequiredHostAdapters,
                 trustMessage = CompiledAppReview.TrustMessage,
             });
         }));
         packages.MapPost("/review", (ReviewBody body, [FromServices] CompiledAppInstaller installer, CancellationToken ct)
-            => AppsEndpoints.Respond(async () => Results.Ok(await installer.Prepare(body.Digest, body.Name, ct))));
+            => AppsEndpoints.Respond(async () =>
+            {
+                var review = await installer.Prepare(body.Digest, body.Name, ct);
+                return Results.Ok(new
+                {
+                    review.Token,
+                    review.Digest,
+                    review.Brain,
+                    review.Name,
+                    review.ExpectedRevision,
+                    review.ReplacesExisting,
+                    review.ExpiresAt,
+                    review.Requires,
+                    review.HostAdapters,
+                    requirementsConsent = AppConsent.Of(review.Requires),
+                    trustMessage = CompiledAppReview.TrustMessage,
+                });
+            }));
         packages.MapPost("/activate", (ActivateBody body, [FromServices] CompiledAppInstaller installer,
             [FromServices] ICompiledAppAssignment assignment, IIntoChatOS brain, CancellationToken ct)
             => AppsEndpoints.Respond(async () =>

@@ -32,6 +32,9 @@ public sealed class CompiledAppInstallFacts
         Assert.Equal(package.Digest, review.Digest);
         Assert.Equal(fixture.Person.BrainId, review.Brain);
         Assert.False(review.ReplacesExisting);
+        using var document = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        Assert.Equal(AppConsent.Of(review.Requires), document.RootElement.GetProperty("requirementsConsent").GetString());
+        Assert.Equal(CompiledAppReview.TrustMessage, document.RootElement.GetProperty("trustMessage").GetString());
         using var caller = fixture.Person.AsCaller();
         Assert.Equal("", (await fixture.App.Read()).Manifest.Title);
     }
@@ -144,7 +147,11 @@ public sealed class CompiledAppInstallFacts
             File.Copy(assembly.Location, Path.Combine(build, entry), overwrite: true);
             var descriptor = new CompiledAppDescriptor
             {
-                Id = "counter", Name = "Counter", Version = "1", EntryAssembly = entry, EntryType = "NeverLoaded",
+                Id = "counter",
+                Name = "Counter",
+                Version = "1",
+                EntryAssembly = entry,
+                EntryType = "NeverLoaded",
                 Capabilities = [.. capabilities],
                 Presentation = ImmutableSortedDictionary<string, string>.Empty.Add("operations", "[\"open\"]"),
             };
