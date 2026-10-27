@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Authority.Compute;
 using Microsoft.Extensions.DependencyInjection;
@@ -303,8 +306,11 @@ public sealed class CostMeterFacts
 
     // Platform grain storage that counts the usage grain's writes once asked to and holds the first of them out.
     // A write stores the state as it was when the write started, as a blob upload does.
-    private sealed class HeldUsageWrites : IGrainStorage
+    private sealed class HeldUsageWrites : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
     {
+        // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
+        public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+
         private const string UsageState = "usage";
         private readonly ConcurrentDictionary<(string, GrainId), byte[]> _records = new();
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);

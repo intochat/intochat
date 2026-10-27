@@ -1,10 +1,12 @@
 using System.Net;
 using System.Text.Json;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -37,14 +39,18 @@ public sealed class RuntimeDepthFacts
     }
 }
 
-[Alias("tests.csharp.deep-wire"), Public]
-public interface IDeepWireProbe : INeuron
+[DigitalBrain.Contracts.NeuronAlias("tests.csharp.deep-wire"), DigitalBrain.Contracts.DefaultNeuronType(DeepWireProbe.Type), Public]
+public interface IDeepWireProbe
 {
     Task<DeepWireValue> Echo(DeepWireValue value);
 }
 
-public sealed class DeepWireProbe : Neuron, IDeepWireProbe
+// A plain neuron (06-08), hosted by the test's DigitalBrain module (PingerNeurons).
+[DigitalBrain.Neuron(Type)]
+public sealed class DeepWireProbe : DigitalBrain.Neuron, IDeepWireProbe
 {
+    public const string Type = "tests.csharp.deep-wire";
+
     public Task<DeepWireValue> Echo(DeepWireValue value) => Task.FromResult(value);
 }
 

@@ -1,9 +1,10 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Context;
-using IntoChat.OS.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,7 +18,7 @@ public sealed class AgentModelTurnFacts
 
     // The probe's contract is in the host's compiled layer, which no module of the test assembly registers.
     private static Task<ITestBrain> Brain(FakeModelServer model, CancellationToken ct)
-        => TestBrain.Create().WithModule<AIModule>().WithFakeModel(model)
+        => TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).WithNeuronModule<LoopProbeNeurons>()
             .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
             .StartAsync(ct);
 

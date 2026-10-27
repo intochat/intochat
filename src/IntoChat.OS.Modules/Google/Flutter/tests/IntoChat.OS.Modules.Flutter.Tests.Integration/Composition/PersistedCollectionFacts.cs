@@ -1,9 +1,7 @@
 using System.Text.Json;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Collection;
-using IntoChat.OS.Flutter.ImageCanvas;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Surface;
+using IntoChat.OS.Modules.Flutter.Collection;
+using IntoChat.OS.Modules.Flutter.ImageCanvas;
+using IntoChat.OS.Modules.Flutter.Layout;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Composition;
 

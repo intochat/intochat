@@ -1,7 +1,7 @@
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Kernel;
-using IntoChat.OS.Microsoft.Azure;
-using IntoChat.OS.Microsoft.Azure.Install;
+using IntoChat.OS.Modules.Microsoft.Azure;
+using IntoChat.OS.Modules.Microsoft.Azure.Install;
 
 // The installer runs before any cluster exists: it ensures the Azure foundation and exits.
 if (AzureInstaller.IsInstall(args))

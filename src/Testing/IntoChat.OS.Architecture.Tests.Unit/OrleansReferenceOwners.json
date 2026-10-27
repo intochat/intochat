@@ -41,6 +41,7 @@
     "Microsoft.Orleans.Sdk"
   ],
   "IntoChat.OS.Framework": [
+    "DigitalBrain.Runtime.Orleans",
     "Microsoft.Orleans.Server"
   ],
   "IntoChat.OS.Framework.Tests.E2E": [
@@ -92,12 +93,6 @@
   "IntoChat.OS.Modules.Microsoft.GitHub.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Modules.Microsoft.Orleans": [
-    "Microsoft.Orleans.Clustering.AzureStorage",
-    "Microsoft.Orleans.Persistence.AzureStorage",
-    "Microsoft.Orleans.Reminders",
-    "Microsoft.Orleans.Reminders.AzureStorage"
-  ],
   "IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting": [
     "Aspire.Hosting.Orleans"
   ],
@@ -125,12 +120,6 @@
   "IntoChat.OS.Modules.Tools.Contracts": [
     "Microsoft.Orleans.Sdk"
   ],
-  "IntoChat.OS.Runtime.InMemory.Tests.Unit": [
-    "Microsoft.Orleans.Sdk"
-  ],
-  "IntoChat.OS.Sdk": [
-    "Microsoft.Orleans.Server"
-  ],
   "IntoChat.OS.Testing": [
     "Microsoft.Orleans.Sdk"
   ],
@@ -143,5 +132,15 @@
   ],
   "IntoChat.OS.Modules.Google.Gmail": [
     "Microsoft.Orleans.Reminders"
+  ],
+  "IntoChat.Cloud.Circle.Server": [
+    "DigitalBrain.Runtime.Orleans",
+    "Microsoft.Orleans.Sdk"
+  ],
+  "IntoChat.OS.Kernel.Composition": [
+    "DigitalBrain.Runtime.Orleans.Azure"
+  ],
+  "IntoChat.OS.Testing.Neurons": [
+    "DigitalBrain.Runtime.Orleans"
   ]
 }

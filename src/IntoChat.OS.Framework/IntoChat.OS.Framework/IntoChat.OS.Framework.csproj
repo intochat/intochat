@@ -7,22 +7,16 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Server" />
-    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+    <!-- Topology selection, validation and the local profiles (Phase 3 R4-04); the os Framework stays the transitional runtime. -->
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk/IntoChat.OS.Sdk.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" />
     <ProjectReference Include="../IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Contracts.Compute/IntoChat.OS.Contracts.Compute.csproj" />
+    <!-- Transitional (Phase 3 R4-07, retired in Phase 6): the legacy module generator builds first;
+         modules opt in with IntoChatOSModule (Directory.Build.targets), so the Framework itself runs no generator. -->
+    <ProjectReference Include="../IntoChat.OS.Framework.Generators/IntoChat.OS.Framework.Generators.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Runtime.InMemory" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Authority.Tests.Integration" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Integration" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Modules.AI.Tests.Unit" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Framework.Tests.Integration" /><!-- Transitional (06-02): the kernel composition hosts the Framework until 06-08 deletes it. --><InternalsVisibleTo Include="IntoChat.OS.Kernel.Composition" /></ItemGroup>
 </Project>

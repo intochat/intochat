@@ -1,10 +1,13 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Authority.Tests.Integration.Connections;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,7 +30,7 @@ public sealed class ScriptAccountFacts
         using (alice.AsCaller())
         {
             await brain.Get<IConnection>(key).Connect("api-key", "private-credential");
-            var accounts = brain.Get<IConnectionRequests>(scope);
+            var accounts = brain.Get<IConnectionRequests>(IConnectionRequests.Key(scope));
             var entry = Assert.Single(await accounts.ListConnections());
             Assert.Equal(("example", "database", key, "connected"), (entry.Kind, entry.Id, entry.Neuron, entry.Status));
             Assert.DoesNotContain("private-credential", System.Text.Json.JsonSerializer.Serialize(entry));
@@ -39,11 +42,10 @@ public sealed class ScriptAccountFacts
         }
         using (bob.AsCaller())
         {
-            var surface = new NeuronSurface(brain, new Kernel(brain.Grains), brain.Services.GetRequiredService<NeuronTypeSearch>());
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => surface.Call(
-                typeof(IConnectionRequests).FullName!, scope, nameof(IConnectionRequests.ListConnections), "[]", ct));
+            // The requests neuron is plain (06-08): another brain's caller is refused by the owner rule on the runtime host.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IConnectionRequests>(IConnectionRequests.Key(scope)).ListConnections());
         }
-        Assert.Empty(await brain.Get<IConnectionRequests>("brain-two").ListConnections());
+        Assert.Empty(await brain.Get<IConnectionRequests>(IConnectionRequests.Key("brain-two")).ListConnections());
     }
 
     [Fact]
@@ -51,7 +53,7 @@ public sealed class ScriptAccountFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<PostgresKindModule>().StartAsync(ct);
-        var accounts = brain.Get<IConnectionRequests>("brain-1");
+        var accounts = brain.Get<IConnectionRequests>(IConnectionRequests.Key("brain-1"));
 
         // The host always composes the orleans module, so its connector kind is listed beside the module's.
         var kinds = await accounts.ListKinds();
@@ -68,7 +70,5 @@ public sealed class ScriptAccountFacts
     {
         public static IntegrationSchema Integration { get; } = IntegrationSchema.For("postgres", "Postgres");
         public static ConnectorDefinition Connector => new("postgres", "Postgres", ["connection-string"], []);
-
-        public override void Configure(ISiloBuilder silo) { }
     }
 }

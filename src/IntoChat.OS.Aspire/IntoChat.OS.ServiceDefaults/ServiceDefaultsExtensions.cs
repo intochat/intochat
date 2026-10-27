@@ -25,6 +25,7 @@ public static class ServiceDefaultsExtensions
         ArgumentNullException.ThrowIfNull(builder);
         LegacyConfigurationGuard.Verify(builder.Configuration, builder.Environment);
         OpenPostureLoopback.Validate(builder.Configuration);
+        BindPolicyKestrel.Validate(builder.Configuration);
         builder.Services.AddOpenPostureBackstop();
         // The process default keeps the log at Warning; the Open-posture listening URLs are still logged.
         builder.Logging.AddFilter(typeof(OpenPostureLoopback).FullName, LogLevel.Information);

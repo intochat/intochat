@@ -1,5 +1,9 @@
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
@@ -56,8 +60,11 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         Assert.NotNull(await brain.Platform.BrainAuthority(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
     }
 
-    private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage
+    private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
     {
+        // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
+        public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, GrainId), BinaryData> _data = new();
         private int _armed;
         public void Arm() => Interlocked.Exchange(ref _armed, 1);
@@ -87,13 +94,13 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         var brainId = AuthorityHost.Unique("brain");
         var authority = brain.Platform.BrainAuthority(BrainScope.Create(accountId, brainId).Id);
         await authority.EnsureMember(new Member { PrincipalId = aliceId, AccountId = accountId, BrainId = brainId, DisplayName = "Alice", Role = MemberRole.Owner });
-        var caller = new IntoChat.OS.Framework.CallerContext
+        var caller = new IntoChat.OS.Framework.Modules.CallerContext
         {
             PrincipalId = aliceId,
             AccountId = accountId,
             BrainId = brainId,
-            Kind = IntoChat.OS.Framework.CallerKind.User,
-            StampedBy = IntoChat.OS.Framework.TrustedEdge.AuthenticatedHttp
+            Kind = IntoChat.OS.Framework.Modules.CallerKind.User,
+            StampedBy = IntoChat.OS.Framework.Modules.TrustedEdge.AuthenticatedHttp
         };
         var grant = new Grant { AppId = "app", WorkspaceId = brainId, SemanticTypeId = "person.email", Mode = GrantMode.Always };
         await authority.GrantAsOwner(caller, grant);
@@ -107,9 +114,9 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
     public async Task BasicBootstrapOwnsOnlyItsExplicitDefaultScope()
     {
         await using var brain = await TestBrain.Create().ConfigureServices(services =>
-            services.Configure<IntoChat.OS.Authority.Identity.Configuration.AuthOptions>(options =>
+            services.Configure<IntoChat.OS.Connections.Identity.Configuration.AuthOptions>(options =>
             {
-                options.Posture = IntoChat.OS.Authority.Identity.Configuration.IdentityPosture.Secured;
+                options.Posture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture.Secured;
                 options.Username = "operator";
                 options.Password = "configured-bootstrap-password";
             })).StartAsync(TestContext.Current.CancellationToken);

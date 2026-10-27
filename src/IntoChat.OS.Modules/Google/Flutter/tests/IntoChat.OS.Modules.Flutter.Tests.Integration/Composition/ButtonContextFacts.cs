@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Button;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Composition;
 

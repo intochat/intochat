@@ -1,8 +1,11 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
 using IntoChat.OS.Authority.Secrets;
 using Microsoft.Extensions.DependencyInjection;

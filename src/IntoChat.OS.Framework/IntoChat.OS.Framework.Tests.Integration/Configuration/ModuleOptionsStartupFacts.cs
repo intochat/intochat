@@ -1,12 +1,15 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk;
-using IntoChat.OS.Sdk.Validation;
+using IntoChat.OS.Framework.Modules.Validation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Orleans.Hosting;
+using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Connections;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 
@@ -69,7 +72,6 @@ public sealed class ModuleOptionsStartupFacts
 
     public sealed class CheckedModule() : Module<CheckedOptions>(new("startup"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     public sealed class CheckedOptions : IModuleOptions

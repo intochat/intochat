@@ -61,6 +61,5 @@ public sealed class TestBrainLicenseFacts
     public sealed class LicensedProbeModule() : Module(new ModuleId("licensed-probe"))
     {
         public override string? LicenseProduct => "probe";
-        public override void Configure(ISiloBuilder silo) { }
     }
 }

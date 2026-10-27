@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // Follows the fast path's outcome on every target app: whenever a target app changes (CompleteSynapse
 // publishes AppChanged beside SynapseWritten or SynapseRejected), every request still Writing is matched
@@ -9,7 +9,7 @@ using IntoChat.OS.Flutter.Text.Signals;
 // so an outcome that landed while this script was away is read when it starts again.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var scope = Engineer.Scope(brain);
-var targets = Sources.Named<IText, TextChanged>(Engineer.Targets(brain), async (registry, ct) =>
+var targets = Sources.Named<IText, TextChanged, IApp>(Engineer.Targets(brain), async (registry, ct) =>
     [.. (await Engineer.Names(registry)).Select(name => brain.Get<IApp>(IApp.Key(scope, name)))]);
 
 await brain.React<AppChanged>(targets, async ct =>

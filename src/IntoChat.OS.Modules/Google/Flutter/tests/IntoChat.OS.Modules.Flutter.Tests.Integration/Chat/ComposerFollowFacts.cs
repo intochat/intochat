@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
 using Orleans;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,7 +22,7 @@ public sealed class ComposerFollowFacts
     public async Task AuthoritativeSelectionRejectsDelayedABAInteractionsAndPreservesOldSubmission()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(services => services.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         const string key = "owner/a/apps/chat";
         var chat = brain.Get<IChat>(key + "/transcript");
@@ -62,7 +61,7 @@ public sealed class ComposerFollowFacts
     public async Task MigrationAndSameSourceUpdatesPreserveDraftAudioAndPendingInput()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(services => services.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         const string key = "owner/a/apps/chat";
         var source = key + "/agent";
@@ -76,9 +75,8 @@ public sealed class ComposerFollowFacts
         var capture = Guid.NewGuid();
         await composer.BeginVoice(capture, source);
         await composer.CaptureVoice(capture, [1, 2, 3], "audio/wav");
-        var grains = brain.Services.GetRequiredService<IGrainFactory>();
-        await grains.GetGrain<IChatMigration>(chatKey).AdoptAgent(source, 9, Guid.NewGuid());
-        await grains.GetGrain<IComposerMigration>(composerKey).AdoptFollow(chatKey);
+        await brain.Get<IChatMigration>(chatKey).AdoptAgent(source, 9, Guid.NewGuid());
+        await brain.Get<IComposerMigration>(composerKey).AdoptFollow(chatKey);
         var adopted = await composer.Read();
         Assert.Equal("pending draft", adopted.Draft);
         Assert.Equal(9, adopted.Generation);
@@ -86,7 +84,7 @@ public sealed class ComposerFollowFacts
         Assert.Equal([1, 2, 3], (await composer.ReadAudio(capture))!.Bytes);
         Assert.Equal(submission, Assert.Single(adopted.Submissions).Id);
         await using var changed = await brain.Observe<ChatChanged>(chat, ct);
-        await brain.Get<IText>(source).Set("streamed token");
+        await brain.Get<IChatSourceText>(source).Set("streamed token");
         await changed.NextAsync(ct: ct);
         // Reconciliation is also idempotent when an ordinary transcript update occurred.
         await composer.Follow(chatKey);

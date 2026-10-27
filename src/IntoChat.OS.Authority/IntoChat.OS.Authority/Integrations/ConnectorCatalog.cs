@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Integrations;

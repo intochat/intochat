@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -70,7 +70,7 @@ public sealed class PostgresIsolationFacts
                 services.AddSingleton(new BrainDatabases(new AdminSecret(Admin), (_, _, _) => Task.CompletedTask));
             }).StartAsync(ct);
         using var app = brain.Owner.AsApp("app");
-        var table = brain.Get<ITable>("pinned");
+        var table = brain.Get<ITable>(brain.Owner.Key("pinned"));
         await table.Define(Definition);
 
         // A module singleton the fact flips: the policy changes under a live brain.

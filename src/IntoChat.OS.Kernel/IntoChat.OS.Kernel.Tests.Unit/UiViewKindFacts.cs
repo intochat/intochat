@@ -1,4 +1,4 @@
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 

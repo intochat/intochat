@@ -1,6 +1,5 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.SystemOne;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 

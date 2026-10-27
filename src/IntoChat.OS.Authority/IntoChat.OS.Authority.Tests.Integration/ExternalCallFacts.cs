@@ -1,10 +1,14 @@
 using IntoChat.OS.Authority.Compute;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Sdk.Compute;
+using IntoChat.OS.Framework.Modules.Metering;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Tests.Integration;
 

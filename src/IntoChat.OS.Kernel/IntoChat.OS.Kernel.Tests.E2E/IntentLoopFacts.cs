@@ -1,11 +1,11 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.Apps;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Testing.Model;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
@@ -25,7 +25,7 @@ public sealed class IntentLoopFacts(RouterHostFixture host) : BrainFact(host)
     private static string ModelId => LLMModel.FindByMarker(typeof(IGpt56Luna))!.Id;
 
     [Theory(Timeout = 300_000)]
-    [InlineData("Could not answer a message Memory was slow to intend: The brain refused IntoChat.OS.Flutter.Text.IText.Read (504): Gateway timeout", true)]
+    [InlineData("Could not answer a message Memory was slow to intend: The brain refused IntoChat.OS.Modules.Flutter.Text.IText.Read (504): Gateway timeout", true)]
     [InlineData("A newer warning", false)]
     [InlineData("Memory was slow to intend; answering without a brief", false)]
     public async Task RestartedScanRecoversOnlyItsOwnPersistedFailure(string notice, bool clears)

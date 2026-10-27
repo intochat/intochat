@@ -2,7 +2,9 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -15,7 +17,7 @@ public sealed class MasterKeyHostingFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration[$"Parameters:modules-{MasterKey.ParameterName}"] = "hosting test master key";
-        var brain = builder.AddIntoChatOS("modules", options: new() { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("modules", options: new());
         var first = builder.AddExecutable("first", "unused", ".").WithReference(brain);
         var second = builder.AddExecutable("second", "unused", ".").WithReference(brain);
         var client = builder.AddExecutable("client", "unused", ".").WithReference(brain.AsClient());
@@ -56,7 +58,7 @@ public sealed class MasterKeyHostingFacts
             Args = ["--publisher", "manifest"],
             DisableDashboard = true,
         });
-        builder.AddIntoChatOS("modules", options: new() { PersistentStorage = false });
+        builder.AddIntoChatOS("modules", options: new());
 
         var parameter = builder.Resources.OfType<ParameterResource>().Single(resource => resource.Name == $"modules-{MasterKey.ParameterName}");
         Assert.True(parameter.Secret);

@@ -1,4 +1,3 @@
-using IntoChat.OS.Framework.Platform.Connections;
 using IntoChat.OS.Authority.Secrets;
 using Microsoft.Extensions.Options;
 

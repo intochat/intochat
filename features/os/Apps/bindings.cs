@@ -1,6 +1,6 @@
 using System.Globalization;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Select;
+using IntoChat.OS.Modules.Flutter.Select;
 
 // A slot's choice changed: show the detail again, which re-arms Install with the chosen connections.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

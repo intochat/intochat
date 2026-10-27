@@ -31,7 +31,7 @@ public sealed class ReactFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var source = brain.Get<ITestEmitter>("react-1");
+        var source = brain.Get<ITestEmitter>("owner/react-1");
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var rebuilds = new Rebuilds();
         var react = brain.React<Number>(source, rebuilds.Rebuild, stop.Token);
@@ -49,7 +49,7 @@ public sealed class ReactFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var source = brain.Get<ITestEmitter>("react-2");
+        var source = brain.Get<ITestEmitter>("owner/react-2");
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var rebuilds = new Rebuilds(n => n == 2 ? release.Task : Task.CompletedTask);
@@ -60,6 +60,9 @@ public sealed class ReactFacts(ClientHost host)
         await source.Emit(2);
         await source.Emit(3);
         await source.Emit(4);
+        // The signals reach the client in session batches after their publish returns; once they are all queued behind the
+        // held rebuild, they are one following rebuild.
+        await Task.Delay(TimeSpan.FromSeconds(1), ct);
         release.SetResult();
         await rebuilds.Run(3);
         await Task.Delay(500, ct);
@@ -73,7 +76,7 @@ public sealed class ReactFacts(ClientHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var source = brain.Get<ITestEmitter>("react-3");
+        var source = brain.Get<ITestEmitter>("owner/react-3");
         var rebuilds = new Rebuilds(n => n == 2 ? throw new InvalidOperationException("boom") : Task.CompletedTask);
         var react = brain.React<Number>(source, rebuilds.Rebuild, ct);
         await rebuilds.Run(1);

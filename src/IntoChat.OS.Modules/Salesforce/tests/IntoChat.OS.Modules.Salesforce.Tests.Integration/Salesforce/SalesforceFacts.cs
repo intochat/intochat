@@ -1,12 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Connections.Signals;
-using IntoChat.OS.Salesforce;
-using IntoChat.OS.Salesforce.Signals;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections.Signals;
+using IntoChat.OS.Modules.Salesforce.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

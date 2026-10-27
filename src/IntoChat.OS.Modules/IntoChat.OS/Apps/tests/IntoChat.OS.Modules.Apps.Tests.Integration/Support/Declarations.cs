@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
 // An app.cs for a shipped folder fixture, written the way the system writes one.

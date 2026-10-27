@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -15,7 +17,7 @@ internal static class IntegrationCatalogEndpoints
         // The shell picks from this list, so a connector no connection neuron serves is not offered to it.
         endpoints.MapGet("/connectors", async (HttpContext context, [FromServices] ConnectorCatalog catalog, CancellationToken cancellationToken) =>
             CallerContextStamper.TryGet(out _)
-                ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnectionGrainType(context.RequestServices, entry.Id)).ToArray())
+                ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnector(context.RequestServices, entry.Id)).ToArray())
                 : Results.Unauthorized());
         // Deliberately not brain-scoped: registrations are deployment info, not workspace data.
         var group = endpoints.MapGroup("/integrations");
@@ -23,12 +25,12 @@ internal static class IntegrationCatalogEndpoints
             CallerContextStamper.TryGet(out _) ? await next(context) : Results.Unauthorized());
 
         group.MapGet("", async ([FromServices] IReadOnlyList<IntegrationSchema> definitions, [FromServices] AuthorityNeurons neurons,
-            [FromServices] Microsoft.Extensions.Options.IOptions<Identity.Configuration.AuthOptions> auth, CancellationToken cancellationToken) =>
+            [FromServices] Microsoft.Extensions.Options.IOptions<IntoChat.OS.Connections.Identity.Configuration.AuthOptions> auth, CancellationToken cancellationToken) =>
             IntegrationOperatorGate.Allows(CallerContextStamper.TryGet(out var caller) ? caller : null, auth.Value)
                 ? Results.Ok(await IntegrationCatalog.ListAsync(definitions, neurons, cancellationToken))
                 : Results.StatusCode(StatusCodes.Status403Forbidden));
 
-        group.MapPost("/{id}/registration", async (string id, ConfigureRegistrationInput body, [FromServices] Microsoft.Extensions.Options.IOptions<Identity.Configuration.AuthOptions> auth,
+        group.MapPost("/{id}/registration", async (string id, ConfigureRegistrationInput body, [FromServices] Microsoft.Extensions.Options.IOptions<IntoChat.OS.Connections.Identity.Configuration.AuthOptions> auth,
             [FromServices] IReadOnlyList<IntegrationSchema> definitions, [FromServices] AuthorityNeurons neurons) =>
         {
             if (!IntegrationOperatorGate.Allows(CallerContextStamper.TryGet(out var caller) ? caller : null, auth.Value)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
@@ -44,7 +46,7 @@ internal static class IntegrationCatalogEndpoints
             }
         });
 
-        group.MapDelete("/{id}/registration/{field}", async (string id, string field, [FromServices] Microsoft.Extensions.Options.IOptions<Identity.Configuration.AuthOptions> auth,
+        group.MapDelete("/{id}/registration/{field}", async (string id, string field, [FromServices] Microsoft.Extensions.Options.IOptions<IntoChat.OS.Connections.Identity.Configuration.AuthOptions> auth,
             [FromServices] IReadOnlyList<IntegrationSchema> definitions, [FromServices] AuthorityNeurons neurons) =>
         {
             if (!IntegrationOperatorGate.Allows(CallerContextStamper.TryGet(out var caller) ? caller : null, auth.Value)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }

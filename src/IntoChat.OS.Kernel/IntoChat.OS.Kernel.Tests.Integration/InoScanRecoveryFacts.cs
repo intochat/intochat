@@ -1,11 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Reflection;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
 
@@ -13,7 +13,7 @@ namespace IntoChat.OS.Kernel.Tests.Integration;
 // gateway timeout and a competing status write can land at exact boundaries without slowing a host.
 public sealed class InoScanRecoveryFacts
 {
-    private const string Legacy = "Could not answer a message Memory was slow to intend: The brain refused IntoChat.OS.Flutter.Text.IText.Read (504): Gateway timeout";
+    private const string Legacy = "Could not answer a message Memory was slow to intend: The brain refused IntoChat.OS.Modules.Flutter.Text.IText.Read (504): Gateway timeout";
     private const string Recovering = "Could not check pending messages; retrying: ";
     private const string Failed = "Could not check pending messages; retrying.";
     private static readonly Lazy<byte[]> Script = new(Compile);
@@ -21,7 +21,7 @@ public sealed class InoScanRecoveryFacts
 
     [Theory]
     [InlineData(Legacy)]
-    [InlineData(Recovering + "The brain refused IntoChat.OS.Flutter.Text.IText.Read (504): Gateway timeout")]
+    [InlineData(Recovering + "The brain refused IntoChat.OS.Modules.Flutter.Text.IText.Read (504): Gateway timeout")]
     public async Task AHealthyScanClearsItsPersistedFailureAfterRestart(string failure)
     {
         var ct = TestContext.Current.CancellationToken;

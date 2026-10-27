@@ -1,9 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Connections.Signals;
-using IntoChat.OS.Microsoft.GitHub;
-using IntoChat.OS.Microsoft.GitHub.Signals;
-using IntoChat.OS.Microsoft.GitHub.Webhook;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections.Signals;
+using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
+using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,12 +35,16 @@ public sealed class GitHubRepositoryFacts
         var key = KeyOf(person);
         using (person.AsCaller())
         {
-            await Grains(brain).GetConnectionInbound(key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/intochat-os", "{}"));
+            await Plain(brain).GetConnectionInbound(key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/intochat-os", "{}"));
         }
         return key;
     }
 
-    private static IGrainFactory Grains(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
+    private static IntoChat.OS.Runtime.IPlainNeurons Plain(ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+
+    // The installation index is a plain neuron in the system brain (06-06d).
+    private static IGitHubRepositoryIndex Index(ITestBrain brain, long installation)
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(installation));
 
     private static GitHubWebhookIngress Ingress(ITestBrain brain) => brain.Services.GetRequiredService<GitHubWebhookIngress>();
 
@@ -57,7 +61,7 @@ public sealed class GitHubRepositoryFacts
         await ConnectAsync(brain);
         Assert.True((await brain.Get<IRepository>(Key).Read()).Connected);
         Assert.Equal("intochat/intochat-os", (await connected.NextAsync(ct: ct)).Account);
-        Assert.Equal([Key], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Equal([Key], await Index(brain, 9).Read());
     }
 
     [Trait("host", "own")]
@@ -129,7 +133,7 @@ public sealed class GitHubRepositoryFacts
         await Assert.ThrowsAsync<GitHubAccessDeniedException>(() => brain.Get<IRepository>(Key).ReadPullRequests());
         Assert.Equal([Key], verifier.Forgotten);
         // The index keeps the key; the status alone keeps deliveries away from a revoked connection.
-        Assert.Equal([Key], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Equal([Key], await Index(brain, 9).Read());
         var delivery = PullRequestOpened(1);
         Assert.Equal(GitHubWebhookAcceptance.Ignored, await Ingress(brain).HandleAsync(delivery, Headers(delivery, "pull_request", WebhookSecret), ct));
     }
@@ -166,7 +170,7 @@ public sealed class GitHubRepositoryFacts
         {
             await brain.Get<IConnection>(Key).Disconnect();
         }
-        Assert.Empty(await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Empty(await Index(brain, 9).Read());
         Assert.Equal([Key], verifier.Forgotten);
     }
 
@@ -178,7 +182,7 @@ public sealed class GitHubRepositoryFacts
         await using var brain = await StartAsync(ct, new DenyingSource(Key));
         await ConnectAsync(brain);
         var otherKey = await ConnectAsync(brain, await brain.PersonAsync("other", ct));
-        Assert.Equal([Key, otherKey], await Grains(brain).GetGrain<IGitHubRepositoryIndex>("installation/9").Read());
+        Assert.Equal([Key, otherKey], await Index(brain, 9).Read());
         await using var failing = await brain.Observe<ConnectionFailing>(brain.Get<IRepository>(Key), ct);
         await using var changed = await brain.Observe<PullRequestChanged>(brain.Get<IRepository>(otherKey), ct);
         var body = PullRequestOpened(3);
@@ -196,7 +200,7 @@ public sealed class GitHubRepositoryFacts
         await using var brain = await StartAsync(ct);
         await ConnectAsync(brain);
         var other = await brain.PersonAsync("other", ct);
-        var inbound = Grains(brain).GetConnectionGrain<IGitHubInbound>(Key);
+        var inbound = Plain(brain).Get<IGitHubInbound>(Key);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "pull_request", "opened", 1, "hash", 99, 11, null), ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptRepositoryEvent(new(Guid.NewGuid().ToString(), "pull_request", "opened", 1, "hash", 9, 12, null), ct));
         using (other.AsCaller())
@@ -218,7 +222,7 @@ public sealed class GitHubRepositoryFacts
         await using var brain = await StartAsync(ct);
         using (brain.Owner.AsCaller())
         {
-            await Assert.ThrowsAsync<GitHubUnavailableException>(() => Grains(brain).GetConnectionInbound(Key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/elsewhere", "{}")));
+            await Assert.ThrowsAsync<GitHubUnavailableException>(() => Plain(brain).GetConnectionInbound(Key).AcceptGrant(new("oauth", "user-token", null, null, "", "https://github.com/intochat/elsewhere", "{}")));
         }
         Assert.Equal(ConnectionStatus.Disconnected, (await brain.Get<IConnection>(Key).Read()).Status);
     }

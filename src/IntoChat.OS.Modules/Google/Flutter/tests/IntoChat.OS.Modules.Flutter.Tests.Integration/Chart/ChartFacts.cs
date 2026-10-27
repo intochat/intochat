@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chart;
-using IntoChat.OS.Flutter.Chart.Signals;
+using IntoChat.OS.Modules.Flutter.Chart;
+using IntoChat.OS.Modules.Flutter.Chart.Signals;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Chart;
@@ -14,11 +13,11 @@ public sealed class ChartFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var chart = brain.Get<IChart>("btc");
+        var chart = brain.Get<IChart>("owner/btc");
         await using var frames = await brain.Observe<ChartChanged>(chart, ct);
         await chart.Render("BTC", "line", [new ChartPoint("t0", "open", 64000)]);
         var changed = await frames.NextAsync(ct: ct);
-        Assert.Equal("btc", changed.Name);
+        Assert.Equal("owner/btc", changed.Name);
         Assert.Equal("BTC", changed.Title);
         Assert.Equal(1, changed.Version);
         var state = await chart.Read();
@@ -33,7 +32,7 @@ public sealed class ChartFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var chart = brain.Get<IChart>("series");
+        var chart = brain.Get<IChart>("owner/series");
         await chart.Render("S", "bar", []);
         await chart.Append(new ChartPoint("e1", "a", 1));
         await chart.Append(new ChartPoint("e1", "a", 9));

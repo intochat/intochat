@@ -1,15 +1,12 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Assemblies;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.CSharp.Sandbox;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -24,7 +21,7 @@ public sealed class RuleJudgingFacts
     private const string Synapse = "Console.WriteLine(1);";
 
     private const string Rules = """
-        using IntoChat.OS.Apps.Signals;
+        using IntoChat.OS.Modules.Apps.Signals;
 
         public sealed class NoShouting : ILogic<AppRequested>
         {
@@ -112,10 +109,10 @@ public sealed class RuleJudgingFacts
         {
             ["synapses/a.cs"] = Synapse,
             ["rules/broken.cs"] = """
-                public sealed class Broken : ILogic<IntoChat.OS.Apps.Signals.AppRequested>
+                public sealed class Broken : ILogic<IntoChat.OS.Modules.Apps.Signals.AppRequested>
                 {
                     static Broken() => throw new InvalidOperationException("cannot start");
-                    public Verdict Validate(IntoChat.OS.Apps.Signals.AppRequested signal) => Verdict.Allow();
+                    public Verdict Validate(IntoChat.OS.Modules.Apps.Signals.AppRequested signal) => Verdict.Allow();
                 }
                 """,
         };
@@ -153,9 +150,9 @@ public sealed class RuleJudgingFacts
         {
             ["synapses/a.cs"] = RuntimeBrain.Idle,
             ["rules/forever.cs"] = """
-                public sealed class Forever : ILogic<IntoChat.OS.Apps.Signals.AppRequested>
+                public sealed class Forever : ILogic<IntoChat.OS.Modules.Apps.Signals.AppRequested>
                 {
-                    public Verdict Validate(IntoChat.OS.Apps.Signals.AppRequested signal)
+                    public Verdict Validate(IntoChat.OS.Modules.Apps.Signals.AppRequested signal)
                     { while (true) { Thread.Sleep(50); } }
                 }
                 """,
@@ -187,9 +184,9 @@ public sealed class RuleJudgingFacts
         {
             ["synapses/a.cs"] = Synapse,
             ["rules/hung.cs"] = $$"""
-                public sealed class Hung : ILogic<IntoChat.OS.Apps.Signals.AppRequested>
+                public sealed class Hung : ILogic<IntoChat.OS.Modules.Apps.Signals.AppRequested>
                 {
-                    public Verdict Validate(IntoChat.OS.Apps.Signals.AppRequested signal)
+                    public Verdict Validate(IntoChat.OS.Modules.Apps.Signals.AppRequested signal)
                     { ((ManualResetEventSlim)AppDomain.CurrentDomain.GetData("{{gate}}")!).Wait(); return Verdict.Allow(); }
                 }
                 """,
@@ -231,10 +228,10 @@ public sealed class RuleJudgingFacts
         {
             ["synapses/a.cs"] = Synapse,
             ["rules/slow.cs"] = $$"""
-                public sealed class Slow : ILogic<IntoChat.OS.Apps.Signals.AppRequested>
+                public sealed class Slow : ILogic<IntoChat.OS.Modules.Apps.Signals.AppRequested>
                 {
                     private static int calls;
-                    public Verdict Validate(IntoChat.OS.Apps.Signals.AppRequested signal)
+                    public Verdict Validate(IntoChat.OS.Modules.Apps.Signals.AppRequested signal)
                     {
                         if (Interlocked.Increment(ref calls) == 1) { ((ManualResetEventSlim)AppDomain.CurrentDomain.GetData("{{gate}}")!).Wait(); }
                         return Verdict.Allow();

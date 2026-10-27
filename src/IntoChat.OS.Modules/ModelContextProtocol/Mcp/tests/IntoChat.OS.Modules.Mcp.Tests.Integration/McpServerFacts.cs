@@ -1,7 +1,7 @@
 using System.ComponentModel;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Testing;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.Mcp.Tests;
+namespace IntoChat.OS.Modules.Mcp.Tests;
 
 public sealed class McpServerFacts(McpHost host)
 {

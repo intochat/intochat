@@ -1,6 +1,5 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 

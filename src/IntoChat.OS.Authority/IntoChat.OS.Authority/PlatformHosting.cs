@@ -1,17 +1,22 @@
+using IntoChat.OS.Framework.Modules.Identity;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Authority.Hosting;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Authority.Identity.Directory;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Authority.Workshop;
-using IntoChat.OS.Sdk.Http.Compute;
+using IntoChat.OS.Framework.Modules.Metering;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,34 +36,34 @@ public static class PlatformHosting
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityStartup>();
         services.AddMasterKeyWrapper();
-        services.TryAddSingleton<IntoChat.OS.Framework.Compute.ICostMeter, Compute.CostMeter>();
-        services.TryAddSingleton<IntoChat.OS.Framework.Compute.IComputeReader, Compute.ComputeReader>();
-        services.TryAddSingleton<IntoChat.OS.Sdk.Http.Compute.IExternalCallContextAccessor, IntoChat.OS.Framework.Compute.ExternalCallContextAccessor>();
+        services.TryAddSingleton<IntoChat.OS.Contracts.Compute.ICostMeter, Compute.CostMeter>();
+        services.TryAddSingleton<IntoChat.OS.Connections.Compute.IComputeReader, Compute.ComputeReader>();
+        services.TryAddSingleton<IntoChat.OS.Framework.Modules.Metering.IExternalCallContextAccessor, IntoChat.OS.Connections.Compute.ExternalCallContextAccessor>();
         silo.AddIncomingGrainCallFilter<Compute.CircleShareGuard>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, IntoChat.OS.Framework.Compute.MeteredHttpHandlerFilter>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, IntoChat.OS.Connections.Compute.MeteredHttpHandlerFilter>());
         services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key)
             .Validate(value => value.PlatformPercent >= 0, "Platform fee must be nonnegative.").ValidateOnStart();
-        services.TryAddSingleton<IntoChat.OS.Sdk.Compute.ModulePriceListRegistry>();
+        services.TryAddSingleton<IntoChat.OS.Framework.Modules.Metering.ModulePriceListRegistry>();
         services.AddOptions<Compute.ComputeOptions>().BindConfiguration(Compute.ComputeOptions.Key)
             .Validate(value => { value.Validate(); return true; })
-            .Validate<IntoChat.OS.Sdk.Compute.ModulePriceListRegistry>((value, registry) =>
+            .Validate<IntoChat.OS.Framework.Modules.Metering.ModulePriceListRegistry>((value, registry) =>
             {
                 foreach (var allowance in value.AllowedUnpricedOperations) { registry.GetOperation(allowance.Operation); }
                 return true;
             }).ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
-        services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key);
+        services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key)
+            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration>((options, configuration) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).State);
         services.AddSiloDiagnostics();
         services.TryAddSingleton<IntoChat.OS.Framework.Parts.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<Storage.BrainStorageKeys>();
-        services.TryAddSingleton<Storage.IBrainJournal, Storage.BrainJournal>();
         services.AddSingleton<IConnectionBindings, Connections.ConnectionBindings>();
         services.TryAddSingleton<IBrainSecretSealer, Secrets.BrainSecretSealer>();
-        services.TryAddSingleton<IntoChat.OS.Framework.Platform.Secrets.ISecretValueSource, Secrets.VaultSecretValueSource>();
+        services.TryAddSingleton<IntoChat.OS.Connections.Platform.Secrets.ISecretValueSource, Secrets.VaultSecretValueSource>();
         services.TryAddSingleton<IIdentityClient, Identity.LocalIdentityClient>();
         services.TryAddSingleton<IBrainOwnerDispatch, Identity.BrainOwnerDispatch>();
-        services.TryAddSingleton<IntoChat.OS.Framework.Platform.Marketplace.IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
+        services.TryAddSingleton<IntoChat.OS.Connections.Platform.Marketplace.IMarketplaceClient, Marketplace.LocalMarketplaceClient>();
         services.TryAddSingleton<AuthorityNeurons>();
         services.TryAddSingleton<BrainBirths>();
         services.TryAddSingleton<IBrainBirths>(provider => provider.GetRequiredService<BrainBirths>());
@@ -69,11 +74,11 @@ public static class PlatformHosting
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
             ConnectorDiscovery.Collect(provider.GetRequiredService<ModuleInventory>(), provider.GetRequiredService<IReadOnlyList<IntegrationSchema>>()));
         services.TryAddSingleton(typeof(IModuleIntegrations<>), typeof(ModuleIntegrations<>));
-        services.TryAddSingleton<IntoChat.OS.Framework.Platform.Entries.IBrainProviderKeys, Entries.BrainProviderKeys>();
+        services.TryAddSingleton<IntoChat.OS.Connections.Platform.Entries.IBrainProviderKeys, Entries.BrainProviderKeys>();
         services.TryAddSingleton<ConnectorCatalog>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
         services.AddGrpc();
-        services.TryAddSingleton<IntoChat.OS.Framework.Surface.NeuronSurface>();
+        services.TryAddSingleton<IntoChat.OS.Connections.Surface.NeuronSurface>();
         silo.AddStartupTask<IntegrationSeeder>();
         services.TryAddSingleton<Identity.Authority.AuthorityMirror>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
@@ -81,7 +86,7 @@ public static class PlatformHosting
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
         services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName);
         // The Workshop edits the OS's own codebase; empty root means it is off until a host opts in.
-        services.AddOptions<WorkshopOptions>().BindConfiguration(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.WorkshopSectionName);
+        services.AddOptions<WorkshopOptions>().BindConfiguration(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.WorkshopSectionName);
         // Silo singletons: a restart takes the pending logins with it, so a callback fails closed.
         services.TryAddSingleton<Connections.OAuth.OAuthLoginRequests>();
         services.TryAddSingleton<Connections.OAuth.OAuthTokenExchange>();

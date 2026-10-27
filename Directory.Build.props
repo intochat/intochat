@@ -35,16 +35,7 @@
     <IntoChatOSVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</IntoChatOSVersion>
     <VersionPrefix>$(IntoChatOSVersion)</VersionPrefix>
     <Authors>Digital Brain Tech</Authors>
-    <!-- MIT covers the SDK tier only: the vocabulary, contracts, client and testing packages. Runtime packages
-         carry no licence expression until the runtime licence is decided (handbook vision/commercial.md). -->
-    <IntoChatOSSdkPackage Condition="'$(MSBuildProjectName)' == 'IntoChat.OS' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Client'
-        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Client.Orleans' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Client'
-        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Aspire'
-        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Aspire.Testing' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Testing.Playwright'
-        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Templates' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Identity' Or '$(MSBuildProjectName)' == 'IntoChat.OS.Sdk.Http'
-        Or '$(MSBuildProjectName)' == 'IntoChat.OS.Contracts.Compute'
-        Or $(MSBuildProjectName.EndsWith('.Contracts'))">true</IntoChatOSSdkPackage>
-    <PackageLicenseExpression Condition="'$(IntoChatOSSdkPackage)' == 'true'">MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/intochat/os</PackageProjectUrl>
     <RepositoryUrl>https://github.com/intochat/os</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -71,7 +62,7 @@
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
        and project shape, and get just the Aspire target from IntoChat.OS.Testing.Aspire. -->
-  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
+  <PropertyGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
     <!-- The tier comes from the suffix; CI shards on `dotnet msbuild -getProperty:IntoChatOSTestTier`. -->
@@ -93,7 +84,7 @@
     <DisableMSBuildAssemblyCopyCheck>true</DisableMSBuildAssemblyCopyCheck>
     <NoWarn>$(NoWarn);ORLEANSEXP005;CS1591</NoWarn>
   </PropertyGroup>
-  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
+  <ItemGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <PackageReference Include="xunit.v3.mtp-v2" />
     <Using Include="Xunit" />
     <Using Include="IntoChat.OS.Testing" />

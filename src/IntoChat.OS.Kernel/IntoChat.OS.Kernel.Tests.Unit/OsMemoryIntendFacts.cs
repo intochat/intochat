@@ -1,5 +1,6 @@
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Intents.Signals;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -265,10 +266,10 @@ public sealed class OsMemoryIntendFacts
     public void ParseAskRejectsAMissingConversation()
         => Assert.Throws<ArgumentException>(() => global::Intents.ParseAsk("{\"message\":\"m\",\"requestId\":\"r\"}"));
 
-    private static IntoChat.OS.AI.Agents.Facts.Fact Profile(string text, DateTimeOffset recorded,
-        IntoChat.OS.AI.Agents.Facts.FactKind kind = IntoChat.OS.AI.Agents.Facts.FactKind.Profile, DateTimeOffset? validTo = null, bool hidden = false)
+    private static IntoChat.OS.Modules.AI.Agents.Facts.Fact Profile(string text, DateTimeOffset recorded,
+        IntoChat.OS.Modules.AI.Agents.Facts.FactKind kind = IntoChat.OS.Modules.AI.Agents.Facts.FactKind.Profile, DateTimeOffset? validTo = null, bool hidden = false)
         => new(Guid.NewGuid(), kind, text, "user", 1, 3, recorded, validTo, null, recorded, "p", 0, "v",
-            IntoChat.OS.AI.Agents.Facts.FactScope.Private, [], hidden);
+            IntoChat.OS.Modules.AI.Agents.Facts.FactScope.Private, [], hidden);
 
     [Fact]
     public void RenderProfileKeepsExactlyThreeThousandAndDropsAWholeLineBeyond()
@@ -309,7 +310,7 @@ public sealed class OsMemoryIntendFacts
             kept,
             Profile("old", now, validTo: now),
             Profile("secret", now, hidden: true),
-            Profile("not profile", now, IntoChat.OS.AI.Agents.Facts.FactKind.Insight),
+            Profile("not profile", now, IntoChat.OS.Modules.AI.Agents.Facts.FactKind.Insight),
         };
         var live = global::Intents.ProfileOf(facts);
         Assert.Equal([kept], live);

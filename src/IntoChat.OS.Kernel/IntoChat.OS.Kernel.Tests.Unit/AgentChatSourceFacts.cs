@@ -1,7 +1,6 @@
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -35,13 +34,13 @@ public sealed class AgentChatSourceFacts
     public void OpeningAnAppAddsAnAppCard()
     {
         var call = new AgentToolCall("c1", "neurons_call",
-            """{"contract":"IntoChat.OS.Apps.IApp","key":"brain/apps/notes","method":"Request","arguments":"[\"open\",\"page-7\"]"}""",
+            """{"contract":"IntoChat.OS.Modules.Apps.IApp","key":"brain/apps/notes","method":"Request","arguments":"[\"open\",\"page-7\"]"}""",
             Result: "{}");
         var run = new AgentRun("r1", AgentRunStatus.Completed, "open notes", DateTimeOffset.UtcNow, Reply: "Opened.") { ToolCalls = [call] };
         var card = AgentChatSource.Entries(run).Last().App;
         Assert.Equal(new ChatAppCard("notes", "notes", "", true, "page-7"), card);
 
-        var show = call with { Arguments = """{"contract":"IntoChat.OS.Flutter.Workspace.IWorkspace","key":"brain/workspace","method":"Show","arguments":"[\"notes\",\"op\",3]"}""" };
+        var show = call with { Arguments = """{"contract":"IntoChat.OS.Modules.Flutter.Workspace.IWorkspace","key":"brain/workspace","method":"Show","arguments":"[\"notes\",\"op\",3]"}""" };
         Assert.Equal("notes", AgentChatSource.Entries(run with { ToolCalls = [show] }).Last().App?.App);
 
         // A failed, pending or other request adds no card.
@@ -62,10 +61,10 @@ public sealed class AgentChatSourceFacts
         // A link the store no longer holds is plain text.
         Assert.Null(Assert.Single(AgentChatSource.Entries(run, null)).App);
         Assert.Equal(card with { Title = "Notes", Icon = "note", Installed = true },
-            AgentChatSource.Named(card, new IntoChat.OS.Apps.AppManifest("Notes", "", [], [], [], "note")));
+            AgentChatSource.Named(card, new IntoChat.OS.Modules.Apps.AppManifest("Notes", "", [], [], [], "note")));
         Assert.Equal(card with { Title = "notes", Installed = false }, AgentChatSource.Named(card, null));
         Assert.Equal(card with { Title = "notes", Installed = false },
-            AgentChatSource.Named(card, new IntoChat.OS.Apps.AppManifest("", "", [], [], [])));
+            AgentChatSource.Named(card, new IntoChat.OS.Modules.Apps.AppManifest("", "", [], [], [])));
     }
 
     [Fact]

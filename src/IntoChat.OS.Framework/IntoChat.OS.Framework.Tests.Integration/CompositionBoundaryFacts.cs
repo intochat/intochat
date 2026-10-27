@@ -5,9 +5,11 @@ using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -19,18 +21,16 @@ namespace IntoChat.OS.Framework.Tests.Integration;
 
 public sealed class CompositionBoundaryFacts
 {
-    private sealed class SampleModule() : Module(new ModuleId("sample"))
-    { public override void Configure(ISiloBuilder silo) { } }
+    private sealed class SampleModule() : Module(new ModuleId("sample"));
 
-    private sealed class BoundaryModule() : Module(new ModuleId("module"))
-    { public override void Configure(ISiloBuilder silo) { } }
+    private sealed class BoundaryModule() : Module(new ModuleId("module"));
 
     [Fact]
     public void TwoBrainsHaveDistinctResourcesAndModuleNodes()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var first = builder.AddIntoChatOS("first", options: new() { PersistentStorage = false }).WithModule(new SampleModule());
-        var second = builder.AddIntoChatOS("second", options: new() { PersistentStorage = false }).WithModule(new SampleModule());
+        var first = builder.AddIntoChatOS("first", options: new()).WithModule(new SampleModule());
+        var second = builder.AddIntoChatOS("second", options: new()).WithModule(new SampleModule());
         Assert.NotSame(first.GetOrAddModuleNode("sample").Resource, second.GetOrAddModuleNode("sample").Resource);
         var names = builder.Resources.Select(r => r.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
@@ -96,18 +96,18 @@ public sealed class CompositionBoundaryFacts
     private sealed class AModule() : Module(new ModuleId("a"))
     {
         public int SiloConfigurations { get; private set; }
-        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => SiloConfigurations++;
     }
     private sealed class UnusedModule() : Module(new ModuleId("unused"))
     {
         public int SiloConfigurations { get; private set; }
-        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => SiloConfigurations++;
     }
     public sealed class StatefulModule() : Module(new ModuleId("stateful")), IHttpModule
     {
         public int SiloConfigurations { get; private set; }
         public int HttpConfigurations { get; private set; }
-        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => SiloConfigurations++;
         public void Configure(IEndpointRouteBuilder endpoints) => HttpConfigurations++;
     }
 }

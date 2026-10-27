@@ -1,9 +1,9 @@
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 // After a turn completes, Memory is asked to capture it as an episode ("memory.capture" with the conversation
 // agent and the run id). The conversation agent's own TurnCompleted signal names both, so nothing is read back

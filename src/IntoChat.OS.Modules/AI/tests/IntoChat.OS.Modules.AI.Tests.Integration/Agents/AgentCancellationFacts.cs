@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;

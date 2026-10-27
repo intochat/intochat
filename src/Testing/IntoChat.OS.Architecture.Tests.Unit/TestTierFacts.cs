@@ -17,6 +17,8 @@ public sealed partial class TestTierFacts
         string[] tiers = [".Tests.Unit", ".Tests.Integration", ".Tests.E2E", ".Tests.Browser", ".Tests.Hosting"];
         var offenders = ModuleTestProjects()
             .Select(Path.GetFileNameWithoutExtension)
+            // <Module>.Tests.Support is the module's shared test fixtures library, not a test project: it has no tier.
+            .Where(name => !name!.EndsWith(".Tests.Support", StringComparison.Ordinal))
             .Where(name => !tiers.Any(tier => name!.EndsWith(tier, StringComparison.Ordinal)))
             .ToArray();
         Assert.True(offenders.Length == 0,

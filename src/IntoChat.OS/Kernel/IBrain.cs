@@ -5,12 +5,18 @@ namespace IntoChat.OS;
 /// signals, and is reached through <see cref="IIntoChatOS.Self"/>.
 /// </summary>
 /// <remarks>
-/// Its grain key is the brain's identity; it carries no name. Creating a brain is the platform's
-/// act: <see cref="Create"/> is refused for any other caller, and is idempotent for the platform.
+/// A plain neuron (06-08) with the brain's singleton key <c>{brain}/main</c> (R4-19; clean break from the bare brain key).
+/// Creating a brain is the platform's act: <see cref="Create"/> is refused for any other caller, and is idempotent for the platform.
 /// </remarks>
-[Alias("brain"), Orleans.Metadata.DefaultGrainType("brain")]
-public interface IBrain : INeuron
+[DigitalBrain.Contracts.NeuronAlias("brain"), DigitalBrain.Contracts.DefaultNeuronType(Type)]
+public interface IBrain
 {
+    /// <summary>The brain neuron's runtime type.</summary>
+    const string Type = "brain";
+
+    /// <summary>The os full key of <paramref name="brainId"/>'s brain neuron.</summary>
+    static string Key(string brainId) => $"{brainId}/main";
+
     /// <summary>
     /// Brings the brain into existence for <paramref name="owner"/>. Publishes <see cref="Created"/>
     /// once and awaits its handlers, so the caller receives a brain that is already provisioned.
@@ -19,5 +25,6 @@ public interface IBrain : INeuron
     Task Create(Owner owner);
 
     /// <summary>The brain's state as persisted.</summary>
-    Task<State> Read();
+    /// <exception cref="InvalidOperationException">The brain has not been created.</exception>
+    [DigitalBrain.ReadOnlyCall] Task<State> Read();
 }

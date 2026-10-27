@@ -8,6 +8,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The image carries the core vocabulary packages the script compiler seeds (CSharpScriptCheck, Sessions).
+for assembly in DigitalBrain.dll DigitalBrain.UI.dll; do
+  if ! docker run --rm --pull never --network none --entrypoint test "$image" -f "/app/$assembly"; then
+    echo "sandbox: /app/$assembly is missing from the image." >&2
+    exit 1
+  fi
+done
+
 container="$(docker run --detach --pull never --network none --read-only "$image")"
 for ((attempt = 0; attempt < 60; attempt++)); do
   if [[ "$(docker inspect --format '{{.State.Running}}' "$container")" != true ]]; then

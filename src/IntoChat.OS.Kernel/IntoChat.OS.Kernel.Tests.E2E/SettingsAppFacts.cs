@@ -1,12 +1,11 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Entries;
-using IntoChat.OS.Flutter.Preferences;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
-using IntoChat.OS.Circles;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Entries;
+using IntoChat.OS.Modules.Flutter.Preferences;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Modules.Circles;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -40,10 +39,10 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
         using var caller = User.AsCaller();
         await StartDesktop(ct);
         // More, then Settings: its window opens on General.
-        var more = await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Flutter.Button.IButton>(Desktop + "/settings").Read(),
+        var more = await TestWait.UntilAsync(_ => Brain.Get<IntoChat.OS.Modules.Flutter.Button.IButton>(Desktop + "/settings").Read(),
             button => button.Activation?.Contains("\"workspace\"", StringComparison.Ordinal) == true, Patience, ct);
         await Activate(more.Activation!, ct);
-        var opened = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => state.FocusedViewId == "settings", Patience, ct);
+        var opened = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read(), state => state.FocusedViewId == "settings", Patience, ct);
         Assert.Contains(opened.Windows, window => window.Tabs.Any(tab => tab.Id == "settings"));
         var general = await ViewUntil(nodes => nodes.Any(node => node.Key == "tab-general" && node.Style == UiStyle.Primary), ct);
         Assert.Equal(UiStyle.Ghost, Assert.Single(general, node => node.Key == "tab-keys").Style);
@@ -104,12 +103,12 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
 
         // The New tab app preference: the desktop's + opens the chosen app (Ino by default) as a new tab.
         await Activate(JsonSerializer.Serialize(new { kind = "workspace", brainId = WorkspaceId, application = "calculator" }), ct);
-        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => state.Windows.Any(window => window.Tabs.Any(tab => tab.Id == "calculator")), Patience, ct);
+        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read(), state => state.Windows.Any(window => window.Tabs.Any(tab => tab.Id == "calculator")), Patience, ct);
         using var chosen = await User.Http.PutAsJsonAsync($"/brains/{WorkspaceId}/preferences/workspace", new { newTabApp = "calculator" }, ct);
         chosen.EnsureSuccessStatusCode();
-        var before = (await Brain.Get<IWorkspace>(WorkspaceId).Read()).Windows.Sum(window => window.Tabs.Length);
+        var before = (await Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read()).Windows.Sum(window => window.Tabs.Length);
         await ClickDesktop("newtab", ct);
-        var after = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(),
+        var after = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read(),
             state => state.Windows.Sum(window => window.Tabs.Length) > before, Patience, ct);
         Assert.True(after.Windows.Sum(window => window.Tabs.Count(tab => tab.Id == "calculator")) >= 1);
     }
@@ -153,6 +152,7 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
         var app = await Brain.Get<IApp>(Settings).Read();
         scanned.Add(JsonSerializer.Serialize(app.Activity));
         scanned.Add(JsonSerializer.Serialize(app.Presentation));
+        // Plain since 06-04; the kernel lists plain neurons since 06-06d.
         await foreach (var instance in Brain.Kernel.Instances<IEntryControl>(ct))
         { if (instance.Key.StartsWith(Settings + "/", StringComparison.Ordinal)) { scanned.Add(JsonSerializer.Serialize(await Brain.Get<IEntryControl>(instance.Key).Read())); } }
         await foreach (var instance in Brain.Kernel.Instances<IPreferenceControl>(ct))
@@ -182,7 +182,7 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
 
     private async Task StartDesktop(CancellationToken ct)
     {
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(Desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(Desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(Desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         using var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct);
@@ -194,7 +194,7 @@ public sealed class SettingsAppFacts(ReferenceBrainFixture host) : BrainFact(hos
     private async Task Activate(string activation, CancellationToken ct)
     {
         var target = JsonDocument.Parse(activation).RootElement.GetProperty("application").GetString()!;
-        var workspace = Brain.Get<IWorkspace>(WorkspaceId);
+        var workspace = Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId));
         for (var attempt = 0; attempt < 12; attempt++)
         {
             using var response = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/workspace/request", new { operation = "activate", input = activation }, ct);

@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // `tab:<windowId>/<index>` selects a tab; `newtab` (dock: the focused window) and `newtab:<windowId>`
 // (a window's +) open the person's New tab app, Ino by default, as a new tab.

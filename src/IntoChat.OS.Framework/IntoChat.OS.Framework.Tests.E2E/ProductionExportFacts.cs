@@ -1,4 +1,7 @@
 using IntoChat.OS.Testing.Aspire.Diagnostics;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Tests.E2E;
 

@@ -1,7 +1,7 @@
-using IntoChat.OS.Google.Gmail.Testing;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Connections.Signals;
-using IntoChat.OS.Google.Gmail;
+using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections.Signals;
 using Microsoft.AspNetCore.Http;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;
@@ -20,11 +20,11 @@ public sealed class GmailConnectedFacts
         await using var connected = await brain.Observe<ConnectionConnected>(brain.Get<IGmail>(key), ct);
         using (brain.Owner.AsCaller())
         {
-            var view = await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
+            var view = await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
             Assert.Equal("user@gmail.com", view.Account);
         }
         Assert.Equal("user@gmail.com", (await connected.NextAsync(ct: ct)).Account);
-        Assert.Equal([key], await brain.Grains().GetGrain<IConnectionIndex>(brain.Owner.BrainId).List());
+        Assert.Equal([key], await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(brain.Owner.BrainId)).List());
     }
 
     [Trait("host", "own")]
@@ -36,11 +36,11 @@ public sealed class GmailConnectedFacts
         await using var brain = await GmailBrain.StartAsync(stub, ct);
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "primary");
         using (brain.Owner.AsCaller())
-        { await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "stale-token", "refresh-token", DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}")); }
+        { await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "stale-token", "refresh-token", DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}")); }
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
         // A refreshed token living under the refresh lead makes the second push refresh again.
         stub.RefreshExpiresIn = 10;
-        var inbound = brain.Grains().GetGrain<IGmailInbound>(key);
+        var inbound = brain.Plain().Get<IGmailInbound>(key);
         stub.HistoryId = "101";
         using (brain.Owner.AsCaller()) { await inbound.AcceptWatchPush(new("101", "user@gmail.com")); }
         Assert.Equal("101", (await mail.NextAsync(ct: ct)).HistoryId);
@@ -65,13 +65,13 @@ public sealed class GmailConnectedFacts
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "primary");
         using (brain.Owner.AsCaller())
         {
-            await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "stale-token", "refresh-token", DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
+            await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "stale-token", "refresh-token", DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
             stub.ProfileStatus = StatusCodes.Status401Unauthorized;
             Assert.Equal(ConnectionStatus.Expired, (await brain.Get<IConnection>(key).Probe()).Status);
         }
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
         stub.HistoryId = "103";
-        using (brain.Owner.AsCaller()) { await brain.Grains().GetGrain<IGmailInbound>(key).AcceptWatchPush(new("103", "user@gmail.com")); }
+        using (brain.Owner.AsCaller()) { await brain.Plain().Get<IGmailInbound>(key).AcceptWatchPush(new("103", "user@gmail.com")); }
         Assert.Equal("103", (await mail.NextAsync(ct: ct)).HistoryId);
         Assert.Equal(1, stub.Refreshes);
         using (brain.Owner.AsCaller())
@@ -87,7 +87,7 @@ public sealed class GmailConnectedFacts
         await using var brain = await GmailBrain.StartAsync(stub, ct);
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "primary");
         using var caller = brain.Owner.AsCaller();
-        await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "probe-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
+        await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "probe-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
         var connection = brain.Get<IConnection>(key);
 
         Assert.Equal(ConnectionStatus.Connected, (await connection.Probe()).Status);

@@ -1,7 +1,6 @@
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Microsoft.Azure;
-using IntoChat.OS.Microsoft.Azure.Install;
-using IntoChat.OS.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.Azure.Install;
+using IntoChat.OS.Modules.Microsoft.CSharp;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
 
@@ -250,12 +249,10 @@ public sealed class ModuleDeploymentFacts
 
     public sealed class OrphanModule() : Module(new ModuleId("orphan"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     private sealed class HostModule() : Module(new ModuleId("host"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     public sealed class OrphanDeployment : ModuleDeployment<OrphanModule>

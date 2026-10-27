@@ -3,7 +3,7 @@ using IntoChat.OS.Testing;
 
 using IntoChat.OS.Modules.Apps.Tests.Integration;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // The dock renders a manifest's toolbar; a manifest names only what its app can answer.
 public sealed class AppManifestFacts(AppsHost host)
@@ -64,7 +64,7 @@ public sealed class AppManifestFacts(AppsHost host)
         {
             Directory.CreateDirectory(Path.Combine(root, "vendor", "player"));
             File.WriteAllText(Path.Combine(root, "vendor", "player", "app.cs"), """
-                using IntoChat.OS.Apps;
+                using IntoChat.OS.Modules.Apps;
                 static class App
                 {
                     public const string Name = "player";
@@ -94,7 +94,7 @@ public sealed class AppManifestFacts(AppsHost host)
         {
             Directory.CreateDirectory(Path.Combine(root, "vendor", "player"));
             File.WriteAllText(Path.Combine(root, "vendor", "player", "app.cs"), """
-                using IntoChat.OS.Apps;
+                using IntoChat.OS.Modules.Apps;
                 static class App
                 {
                     public const string Name = "player";

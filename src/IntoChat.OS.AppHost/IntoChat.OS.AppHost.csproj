@@ -13,7 +13,7 @@
     <ProjectReference Include="../IntoChat.OS.Mcp/IntoChat.OS.Mcp/IntoChat.OS.Mcp.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Playwright/src/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
   <ItemGroup>
     <!-- Every module hosting adapter, by convention; ModuleHostingScan finds them from the references. -->

@@ -6,90 +6,120 @@ final class NodeContract {
 
 abstract final class NodeContracts {
   static const _byKind = <String, NodeContract>{
-    'view': NodeContract('IntoChat.OS.Flutter.Views.IView', 'ViewChanged'),
-    'scene': NodeContract('IntoChat.OS.Flame.Scene.IScene', 'SceneChanged'),
-    'text': NodeContract('IntoChat.OS.Flutter.Text.IText', 'TextChanged'),
+    'view': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Views.IView',
+      'ViewChanged',
+    ),
+    'scene': NodeContract(
+      'IntoChat.OS.Modules.Flame.Scene.IScene',
+      'SceneChanged',
+    ),
+    'text': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Text.IText',
+      'TextChanged',
+    ),
     'button': NodeContract(
-      'IntoChat.OS.Flutter.Button.IButton',
+      'IntoChat.OS.Modules.Flutter.Button.IButton',
       'ButtonChanged',
     ),
     'textfield': NodeContract(
-      'IntoChat.OS.Flutter.TextField.ITextField',
+      'IntoChat.OS.Modules.Flutter.TextField.ITextField',
       'TextFieldChanged',
     ),
     'select': NodeContract(
-      'IntoChat.OS.Flutter.Select.ISelect',
+      'IntoChat.OS.Modules.Flutter.Select.ISelect',
       'SelectChanged',
     ),
     'fileinput': NodeContract(
-      'IntoChat.OS.Flutter.FileInput.IFileInput',
+      'IntoChat.OS.Modules.Flutter.FileInput.IFileInput',
       'FileInputChanged',
     ),
     'person': NodeContract(
-      'IntoChat.OS.Flutter.Person.IPerson',
+      'IntoChat.OS.Modules.Flutter.Person.IPerson',
       'PersonChanged',
     ),
-    'card': NodeContract('IntoChat.OS.Flutter.Card.ICard', 'CardChanged'),
-    'tabs': NodeContract('IntoChat.OS.Flutter.Tabs.ITabs', 'TabsChanged'),
+    'card': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Card.ICard',
+      'CardChanged',
+    ),
+    'tabs': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Tabs.ITabs',
+      'TabsChanged',
+    ),
     'surface': NodeContract(
-      'IntoChat.OS.Flutter.Surface.ISurface',
+      'IntoChat.OS.Modules.Flutter.Surface.ISurface',
       'SurfaceChanged',
     ),
     'layout': NodeContract(
-      'IntoChat.OS.Flutter.Layout.ILayout',
+      'IntoChat.OS.Modules.Flutter.Layout.ILayout',
       'LayoutChanged',
     ),
     'collection': NodeContract(
-      'IntoChat.OS.Flutter.Collection.ICollectionView',
+      'IntoChat.OS.Modules.Flutter.Collection.ICollectionView',
       'CollectionChanged',
     ),
     'imagecanvas': NodeContract(
-      'IntoChat.OS.Flutter.ImageCanvas.IImageCanvas',
+      'IntoChat.OS.Modules.Flutter.ImageCanvas.IImageCanvas',
       'ImageCanvasChanged',
     ),
-    'form': NodeContract('IntoChat.OS.Flutter.Form.IForm', 'FormChanged'),
-    'table': NodeContract('IntoChat.OS.Flutter.Table.ITable', 'TableChanged'),
-    'chart': NodeContract('IntoChat.OS.Flutter.Chart.IChart', 'ChartChanged'),
-    'chat': NodeContract('IntoChat.OS.Flutter.Chat.IChat', 'ChatChanged'),
+    'form': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Form.IForm',
+      'FormChanged',
+    ),
+    'table': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Table.ITable',
+      'TableChanged',
+    ),
+    'chart': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Chart.IChart',
+      'ChartChanged',
+    ),
+    'chat': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Chat.IChat',
+      'ChatChanged',
+    ),
     'composer': NodeContract(
-      'IntoChat.OS.Flutter.Chat.IComposer',
+      'IntoChat.OS.Modules.Flutter.Chat.IComposer',
       'ComposerChanged',
     ),
     'voiceinput': NodeContract(
-      'IntoChat.OS.Flutter.VoiceInput.IVoiceInput',
+      'IntoChat.OS.Modules.Flutter.VoiceInput.IVoiceInput',
       'VoiceInputChanged',
     ),
     'webbrowser': NodeContract(
-      'IntoChat.OS.Flutter.WebBrowser.IWebBrowser',
+      'IntoChat.OS.Modules.Flutter.WebBrowser.IWebBrowser',
       'BrowserObservationChanged',
     ),
     'viewport': NodeContract(
-      'IntoChat.OS.Flutter.Viewport.IViewport',
+      'IntoChat.OS.Modules.Flutter.Viewport.IViewport',
       'ViewportChanged',
     ),
     'toggle': NodeContract(
-      'IntoChat.OS.Flutter.Toggle.IToggle',
+      'IntoChat.OS.Modules.Flutter.Toggle.IToggle',
       'ToggleChanged',
     ),
     'entrycontrol': NodeContract(
-      'IntoChat.OS.Flutter.Entries.IEntryControl',
+      'IntoChat.OS.Modules.Flutter.Entries.IEntryControl',
       'EntryControlChanged',
     ),
     'preference': NodeContract(
-      'IntoChat.OS.Flutter.Preferences.IPreferenceControl',
+      'IntoChat.OS.Modules.Flutter.Preferences.IPreferenceControl',
       'PreferenceChanged',
     ),
     'progress': NodeContract(
-      'IntoChat.OS.Flutter.Progress.IProgress',
+      'IntoChat.OS.Modules.Flutter.Progress.IProgress',
       'ProgressChanged',
     ),
     'infobar': NodeContract(
-      'IntoChat.OS.Flutter.InfoBar.IInfoBar',
+      'IntoChat.OS.Modules.Flutter.InfoBar.IInfoBar',
       'InfoBarChanged',
     ),
-    'image': NodeContract('IntoChat.OS.Flutter.Image.IImage', 'ImageChanged'),
+    'image': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Image.IImage',
+      'ImageChanged',
+    ),
     'expander': NodeContract(
-      'IntoChat.OS.Flutter.Expander.IExpander',
+      'IntoChat.OS.Modules.Flutter.Expander.IExpander',
       'ExpanderChanged',
     ),
   };

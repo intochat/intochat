@@ -1,13 +1,13 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.ArtCraft;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Image;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.WebBrowser;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Image;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.WebBrowser;
+using IntoChat.OS.Modules.Mcp;
 
 // Shared by every PhotoCraft synapse: the app's neurons, connecting the tools, and composing main content.
 // Every call here is a plain grain call that is safe to repeat.

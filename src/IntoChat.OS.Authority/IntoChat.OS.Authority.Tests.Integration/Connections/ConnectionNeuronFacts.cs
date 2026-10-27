@@ -1,6 +1,7 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Connections.Signals;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections.Signals;
 using IntoChat.OS.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
@@ -17,7 +18,7 @@ public sealed class ConnectionNeuronFacts
         await using var brain = await Start();
         using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
         using var caller = alice.AsCaller();
-        var catalog = brain.Get<IConnectionRequests>(alice.BrainId);
+        var catalog = brain.Get<IConnectionRequests>(IConnectionRequests.Key(alice.BrainId));
         await using var changes = await brain.Observe<ConnectionsChanged>(catalog, ct);
         var connection = brain.Get<IConnection>(Key(alice));
         await connection.Connect("api-key", "expired");
@@ -32,10 +33,36 @@ public sealed class ConnectionNeuronFacts
         Assert.True(disconnected.Revision > expired.Revision);
         Assert.Empty(await catalog.ListConnections());
         Assert.DoesNotContain("expired", System.Text.Json.JsonSerializer.Serialize(connected), StringComparison.Ordinal);
-        Assert.Equal(catalog.GetGrainId().ToString(), connected.Publisher);
     }
 
     private static string Key(Person person, string id = "one") => ConnectionKeys.For(person.BrainId, "example", id);
+
+    // 05-07: connections list in the brain's Settings order (Order), new ones appended; Reorder persists a new order; Provides is
+    // the module's ModuleManifest.Provides (the example module provides nothing).
+    [Fact]
+    public async Task ConnectionsListInSettingsOrderAndReorderPersists()
+    {
+        await using var brain = await Start();
+        using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
+        using var caller = alice.AsCaller();
+        var catalog = brain.Get<IConnectionRequests>(IConnectionRequests.Key(alice.BrainId));
+        await brain.Get<IConnection>(Key(alice, "one")).Connect("api-key", "value-1");
+        await brain.Get<IConnection>(Key(alice, "two")).Connect("api-key", "value-2");
+
+        var listed = await catalog.ListConnections();
+        Assert.Equal([0, 1], listed.Select(row => row.Order));
+        Assert.All(listed, row => Assert.Empty(row.Provides));
+        var first = listed[0].Neuron;
+        var second = listed[1].Neuron;
+
+        await catalog.Reorder([second, "unknown/connection/example/x"]);
+        var reordered = await catalog.ListConnections();
+        Assert.Equal([second, first], reordered.Select(row => row.Neuron));
+        Assert.Equal([0, 1], reordered.Select(row => row.Order));
+
+        await brain.Get<IConnection>(Key(alice, "three")).Connect("api-key", "value-3");
+        Assert.Equal([second, first, Key(alice, "three")], (await catalog.ListConnections()).Select(row => row.Neuron));
+    }
 
     private static Task<ITestBrain> Start() => TestBrain.Create().WithModule<ExampleConnectionModule>().StartAsync(TestContext.Current.CancellationToken);
 
@@ -53,9 +80,10 @@ public sealed class ConnectionNeuronFacts
         Assert.DoesNotContain("hunter2", System.Text.Json.JsonSerializer.Serialize(await connection.Read()), StringComparison.Ordinal);
         Assert.Equal("len:7", await brain.Get<IExample>(Key(alice)).Echo());
         Assert.Equal("hunter2", await brain.Get<IExample>(Key(alice)).SeenValue());
+        // The connection is a plain neuron (06-08): its state is stored under its host grain.
         var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
         var state = new GrainState<ExampleState>();
-        await storage.ReadStateAsync("example", brain.Get<IExample>(Key(alice)).GetGrainId(), state);
+        await storage.ReadStateAsync("example", Orleans.Runtime.GrainId.Create("neuron.host", ConnectionGrains.IdFor(Key(alice)).ToString()), state);
         Assert.True(state.RecordExists);
         var sealed_ = Assert.Single(state.State!.Secrets);
         Assert.Equal("value", sealed_.Name);
@@ -128,10 +156,10 @@ public sealed class ConnectionNeuronFacts
         using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
         using var bob = await brain.PersonAsync("bob", TestContext.Current.CancellationToken);
         using (bob.AsCaller())
-        { await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Grains.GetConnectionInbound(Key(alice)).AcceptGrant(grant)); }
+        { await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Plain.GetConnectionInbound(Key(alice)).AcceptGrant(grant)); }
         using (alice.AsCaller())
         {
-            var view = await brain.Grains.GetConnectionInbound(Key(alice)).AcceptGrant(grant);
+            var view = await brain.Plain.GetConnectionInbound(Key(alice)).AcceptGrant(grant);
             Assert.Equal(ConnectionStatus.Connected, view.Status);
             Assert.Equal(grant.ExpiresAt, view.ExpiresAt);
         }
@@ -214,11 +242,11 @@ public sealed class ConnectionNeuronFacts
         await using var brain = await TestBrain.Create().WithModule<ExampleConnectionModule>()
             .WithIntegration(ExampleConnectionModule.Integration, "ClientId", "client-id")
             .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")
-            .WithConfiguration(IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ConnectionsTokenEndpointKey("example"), tokens.TokenEndpoint.AbsoluteUri)
+            .WithConfiguration(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsTokenEndpointKey("example"), tokens.TokenEndpoint.AbsoluteUri)
             .StartAsync(ct);
         using var alice = await brain.PersonAsync("alice", TestContext.Current.CancellationToken);
         using var caller = alice.AsCaller();
-        var inbound = brain.Grains.GetConnectionInbound(Key(alice));
+        var inbound = brain.Plain.GetConnectionInbound(Key(alice));
         var example = brain.Get<IExample>(Key(alice));
         await inbound.AcceptGrant(new("oauth", "access-0", "refresh-0", DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
         Assert.Equal("len:8", await example.Echo());

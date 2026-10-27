@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Authority.Storage;
 
 namespace IntoChat.OS.Authority.Secrets;

@@ -1,8 +1,9 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration.Tables;
@@ -26,7 +27,7 @@ public sealed class ConnectionPlacementFacts
         slot.Bind(App(brain), "c1");
 
         using var app = brain.Owner.AsApp(App(brain));
-        var table = brain.Get<ITable>("placed");
+        var table = brain.Get<ITable>(brain.Owner.Key("placed"));
         await table.Define(Definition);
         await table.Upsert(Key, Values);
 
@@ -43,7 +44,7 @@ public sealed class ConnectionPlacementFacts
         var connection = new ConnectionTables();
         await using var brain = await Start(shared, connection, new BoundSlot());
         using var app = brain.Owner.AsApp(App(brain));
-        await brain.Get<ITable>("fallback").Define(Definition);
+        await brain.Get<ITable>(brain.Owner.Key("fallback")).Define(Definition);
 
         Assert.Equal([("Define", TablePlacement.Shared)], shared.Placements);
         Assert.Empty(connection.ConnectionStrings);
@@ -58,7 +59,7 @@ public sealed class ConnectionPlacementFacts
         await using var brain = await Start(shared, new ConnectionTables(), slot);
         var key = await Connect(brain, "c1");
         slot.Bind(App(brain), "c1");
-        var table = brain.Get<ITable>("revoked");
+        var table = brain.Get<ITable>(brain.Owner.Key("revoked"));
         using (brain.Owner.AsApp(App(brain))) { await table.Define(Definition); }
 
         using (brain.Owner.AsCaller()) { await brain.Get<IConnection>(key).Disconnect(); }
@@ -79,15 +80,15 @@ public sealed class ConnectionPlacementFacts
         AcceptedTable kept;
         using (brain.Owner.AsApp(App(brain)))
         {
-            await brain.Get<ITable>("in-connection").Define(Definition);
+            await brain.Get<ITable>(brain.Owner.Key("in-connection")).Define(Definition);
             slot.Unbind(App(brain));
-            kept = await brain.Get<ITable>("in-shared").Define(Definition);
+            kept = await brain.Get<ITable>(brain.Owner.Key("in-shared")).Define(Definition);
         }
 
         using (brain.Owner.AsCaller())
         {
             await brain.Get<IConnection>(key).Disconnect();
-            await brain.Get<IPostgresLifecycleTestApp>("uninstall").Uninstall(App(brain));
+            await brain.Get<IPostgresLifecycleTestApp>(brain.Owner.Key("uninstall")).Uninstall(App(brain));
         }
 
         Assert.Equal([(TablePlacement.Shared, kept.Table)], shared.Drops);
@@ -104,7 +105,7 @@ public sealed class ConnectionPlacementFacts
     }
 
     private static Task<ITestBrain> Start(ITableStore shared, ConnectionTables connection, BoundSlot slot)
-        => TestBrain.Create().WithModule<PostgresModule>()
+        => TestBrain.Create().WithModule<PostgresModule>().WithNeuronModule<PostgresLifecycleTestModule>()
             .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=platform;Username=reader")
             // Rule 4: a wire-level fake would need a loopback Postgres; the stores stand in for the databases,
             // and the slot stands in for an installed app's tables binding.

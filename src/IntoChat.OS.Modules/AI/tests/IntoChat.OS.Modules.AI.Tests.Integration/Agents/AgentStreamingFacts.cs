@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
@@ -55,7 +56,7 @@ public sealed class AgentStreamingFacts
             streamingVersion = streaming.Version;
             var persisted = new GrainState<AgentStorage>();
             var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
-            await storage.ReadStateAsync("agent", GrainId.Create("agent", AgentFacts.Key("abandoned")), persisted);
+            await storage.ReadStateAsync("agent", AgentFacts.StateId(AgentFacts.Key("abandoned")), persisted);
             Assert.Equal("partial", persisted.State?.ActiveRun?.Reply);
             Assert.Equal(streaming.Version, persisted.State?.Version);
         }
@@ -79,7 +80,7 @@ public sealed class AgentStreamingFacts
         string[] chunks = [.. Enumerable.Range(0, 500).Select(i => $"w{i} ")];
         await using var brain = await AgentFacts.Brain(StubChatClient.StreamingOnly((_, _, _) => Chunks(chunks)), ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("story"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var before = (await agent.Read()).Version;
         var clock = Stopwatch.StartNew();
         var runId = await agent.Start(AgentTurn.Text("write a story"));
@@ -109,7 +110,7 @@ public sealed class AgentStreamingFacts
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var brain = await AgentFacts.Brain(StubChatClient.StreamingOnly((_, _, token) => Stalling(resume.Task, token)), ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("stalled"));
-        await using var signals = await brain.Observe<Signal>(agent, ct);
+        await using var signals = await brain.ObserveAll(agent, AgentSignals.All, ct);
         var runId = await agent.Start(AgentTurn.Text("tell me a story"));
         try
         {

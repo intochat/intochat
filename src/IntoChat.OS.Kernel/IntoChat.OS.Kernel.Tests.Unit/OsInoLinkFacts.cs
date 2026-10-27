@@ -1,7 +1,7 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
@@ -215,17 +215,13 @@ public sealed class OsInoLinkFacts
             return Task.FromResult(true);
         }
         public Task<TextState> Read() => Task.FromResult(new TextState { Markdown = Markdown, Version = Version });
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 
     [Fact]
     public void TheChatRendererUsesInoCopy()
     {
         var dart = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Modules.Flutter"),
-            "..", "app", "ui", "lib/src/chat/chat_copy.dart"));
+            "..", "..", "app", "ui", "lib/src/chat/chat_copy.dart"));
         Assert.Contains("empty = '" + InoCopy.EmptyTranscript + "';", dart, StringComparison.Ordinal);
         Assert.Contains("failed = \"" + InoCopy.TurnFailed + "\";", dart, StringComparison.Ordinal);
         Assert.Contains("notInstalled = '" + InoCopy.AppNotInstalled + "';", dart, StringComparison.Ordinal);
@@ -248,11 +244,7 @@ public sealed class OsInoLinkFacts
         public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null,
             Active ? new AgentRun("run", AgentRunStatus.Running, "q", DateTimeOffset.UtcNow) : null,
             [.. Posts.Select(post => new AgentRun("post/" + post.Id, AgentRunStatus.Completed, "", DateTimeOffset.UtcNow, Reply: post.Text) { Posted = true })]));
-        public Task<IntoChat.OS.AI.Inference.AiMessage[]> Transcript() => throw new NotSupportedException();
+        public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => throw new NotSupportedException();
         public Task Clear() => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 }

@@ -1,18 +1,18 @@
 using System.Globalization;
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Compute;
-using IntoChat.OS.Flutter.Person;
-using IntoChat.OS.Flutter.Viewport;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.Modules.Flutter.Person;
+using IntoChat.OS.Modules.Flutter.Viewport;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 public sealed record TabModel(string Id, string App, string Title, bool Favourite);
 public sealed record WindowModel(string Id, string Title, string ViewportKey, IReadOnlyList<TabModel> Tabs, string ActiveTabId, string ActiveApp);
@@ -35,7 +35,7 @@ public static class Desktop
         var at = Key(brain).IndexOf("/apps/", StringComparison.Ordinal);
         return at < 0 ? throw new InvalidOperationException("The desktop key is not an app key: " + Key(brain)) : Key(brain)[..at];
     }
-    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
+    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(IWorkspace.Key(Scope(brain)));
     // Whether the shell's window is narrow (< 900 logical px), as its `narrow` request last reported.
     public static IText Narrow(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/narrow");
     // The layout the next connect shows ("classic" or "desktop"); the kernel's root reads it.

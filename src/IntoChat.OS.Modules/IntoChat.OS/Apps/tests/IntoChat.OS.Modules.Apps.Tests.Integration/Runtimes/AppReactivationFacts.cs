@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -67,7 +68,7 @@ public sealed class AppReactivationFacts
         runtime.Block = false;
         try
         {
-            await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppDeploy>(key).Restore();
+            await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppDeploy>(key).Restore();
             await app.Read();
         }
         finally { runtime.Release.TrySetResult(); }

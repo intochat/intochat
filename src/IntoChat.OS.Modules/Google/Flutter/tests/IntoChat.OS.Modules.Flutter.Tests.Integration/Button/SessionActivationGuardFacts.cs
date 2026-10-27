@@ -1,7 +1,6 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -81,7 +80,7 @@ public sealed class SessionActivationGuardFacts(FlutterHost host)
         using var person = await host.PersonAsync(ct: ct);
         var button = host.Brain.Get<IButton>(person.Key("apps/connect-button"));
         var brain = person.BrainId;
-        await host.Brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IConnectionIndex>(brain).Track(ConnectionKeys.For(brain, "gmail", "gmail"));
+        await host.Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(brain)).Track(ConnectionKeys.For(brain, "gmail", "gmail"));
 
         async Task Shipped(string name)
         {

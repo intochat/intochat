@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.VoiceInput;
-using IntoChat.OS.Flutter.VoiceInput.Signals;
+using IntoChat.OS.Modules.Flutter.VoiceInput;
+using IntoChat.OS.Modules.Flutter.VoiceInput.Signals;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.VoiceInput;
@@ -12,7 +11,7 @@ public sealed class VoiceInputFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var voice = brain.Get<IVoiceInput>("mic");
+        var voice = brain.Get<IVoiceInput>("owner/mic");
         await voice.Configure("Hold to talk");
         await using var captured = await brain.Observe<VoiceCaptured>(voice, ct);
 

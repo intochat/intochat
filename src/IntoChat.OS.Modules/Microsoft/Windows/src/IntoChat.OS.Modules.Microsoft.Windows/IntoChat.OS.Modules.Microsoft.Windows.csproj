@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>A Windows PC as a connection: its files and console, run only on that machine and inside allowed roots.</Description>
+    <RootNamespace>IntoChat.OS.Modules.Microsoft.Windows</RootNamespace>
+    <IntoChatOSContractsHost>true</IntoChatOSContractsHost>
+    <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration" />
+    <ProjectReference Include="../../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
+</Project>

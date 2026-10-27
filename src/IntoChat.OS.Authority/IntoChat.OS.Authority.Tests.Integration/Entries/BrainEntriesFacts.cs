@@ -3,10 +3,12 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS.Authority.Entries;
 using IntoChat.OS.Authority.Tests.Integration.Integrations;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Entries;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Entries;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 

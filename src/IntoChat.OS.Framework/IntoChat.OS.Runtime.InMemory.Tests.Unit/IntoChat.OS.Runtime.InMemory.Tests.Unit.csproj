@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Orleans.Sdk" />
-    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
-    <ProjectReference Include="../IntoChat.OS.Runtime.InMemory/IntoChat.OS.Runtime.InMemory.csproj" />
-  </ItemGroup>
-  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
-</Project>

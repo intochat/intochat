@@ -1,5 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Circles;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Client;
 
 // "share": the asking member's app goes into this circle brain; the circle core installs it (R124).

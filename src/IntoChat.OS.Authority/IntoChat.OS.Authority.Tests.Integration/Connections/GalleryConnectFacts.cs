@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Integrations;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Connections;
@@ -26,7 +28,7 @@ public sealed class GalleryConnectFacts : IAsyncLifetime
 
     public async ValueTask DisposeAsync() { await _brain.DisposeAsync(); await _stub.DisposeAsync(); }
 
-    private IConnectionRequests Requests => _brain.Get<IConnectionRequests>(_brain.Owner.BrainId);
+    private IConnectionRequests Requests => _brain.Get<IConnectionRequests>(IConnectionRequests.Key(_brain.Owner.BrainId));
 
     [Fact]
     public async Task AnOfferedConnectorReadsConnectedAfterTheUsersLoginCallback()

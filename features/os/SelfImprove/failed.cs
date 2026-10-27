@@ -1,5 +1,5 @@
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Microsoft.Aspire;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 
 // A failure is shown, never retried; the candidate keeps its worktree for inspection. Each candidate is
 // followed only until it ends, so one that succeeds cannot hold up the next.

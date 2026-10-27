@@ -1,3 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+
 namespace IntoChat.OS.Framework.Tests.Integration;
 
 public sealed class EnforcementFacts

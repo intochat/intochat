@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using IntoChat.OS.AI;
+using IntoChat.OS.Modules.AI;
 
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,7 +21,7 @@ public sealed class TelemetryFacts
         var spans = new List<Activity>();
         using var listener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name == "IntoChat.OS.AI." + name,
+            ShouldListenTo = source => source.Name == "IntoChat.OS.Modules.AI." + name,
             Sample = (ref _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = spans.Add,
         };

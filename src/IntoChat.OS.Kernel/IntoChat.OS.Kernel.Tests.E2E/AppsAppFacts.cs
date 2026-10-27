@@ -1,10 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -40,7 +39,7 @@ public sealed class AppsAppFacts(ReferenceBrainFixture host) : BrainFact(host)
         using var caller = User.AsCaller();
         await StartDesktop(ct);
         await ClickDesktop("open:apps", ct);
-        var opened = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => state.FocusedViewId == "apps", Patience, ct);
+        var opened = await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read(), state => state.FocusedViewId == "apps", Patience, ct);
         Assert.Contains(opened.Windows, window => window.Tabs.Any(tab => tab.Id == "apps"));
         var library = await ViewUntil(nodes => nodes.Any(node => node.Key == "installed") && nodes.Any(node => node.Key == "available")
             && nodes.Any(node => node.Kind == UiNodeKind.Button && node.Action?.StartsWith("detail:", StringComparison.Ordinal) == true), ct);
@@ -221,7 +220,7 @@ public sealed class AppsAppFacts(ReferenceBrainFixture host) : BrainFact(host)
     }
 
     private const string Echo = """
-        using IntoChat.OS.Apps;
+        using IntoChat.OS.Modules.Apps;
         using IntoChat.OS.Client;
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
         await foreach (var request in brain.On(brain.Get<IApp>(brain.Setting("App")!), "ask", brain.Stopping)) { }
@@ -229,7 +228,7 @@ public sealed class AppsAppFacts(ReferenceBrainFixture host) : BrainFact(host)
 
     private async Task StartDesktop(CancellationToken ct)
     {
-        await Brain.Get<IntoChat.OS.Flutter.Text.IText>(Desktop + "/layout").Set("desktop");
+        await Brain.Get<IntoChat.OS.Modules.Flutter.Text.IText>(Desktop + "/layout").Set("desktop");
         await Brain.Get<IApp>(Desktop).Configure(new(), []);
         await AppRuntimeReadiness.WaitAsync(Brain, User, ct);
         using var connected = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/connect", new { }, ct);
@@ -240,14 +239,14 @@ public sealed class AppsAppFacts(ReferenceBrainFixture host) : BrainFact(host)
     private async Task OpenApps(string target, CancellationToken ct)
     {
         await ClickDesktop("open:apps", ct);
-        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(WorkspaceId).Read(), state => state.FocusedViewId == "apps", Patience, ct);
+        await TestWait.UntilAsync(_ => Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId)).Read(), state => state.FocusedViewId == "apps", Patience, ct);
         using var sent = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/apps/request", new { operation = "open", input = target }, ct);
         sent.EnsureSuccessStatusCode();
     }
 
     private async Task Activate(string activation, string target, CancellationToken ct)
     {
-        var workspace = Brain.Get<IWorkspace>(WorkspaceId);
+        var workspace = Brain.Get<IWorkspace>(IWorkspace.Key(WorkspaceId));
         for (var attempt = 0; attempt < 12; attempt++)
         {
             using var response = await User.Http.PostAsJsonAsync($"/brains/{WorkspaceId}/apps/workspace/request", new { operation = "activate", input = activation }, ct);
@@ -258,7 +257,7 @@ public sealed class AppsAppFacts(ReferenceBrainFixture host) : BrainFact(host)
         throw new TimeoutException("No window opened for " + target + ".");
     }
 
-    private Task<IntoChat.OS.Flutter.Button.ButtonState> ArmedButton(string key, CancellationToken ct)
+    private Task<IntoChat.OS.Modules.Flutter.Button.ButtonState> ArmedButton(string key, CancellationToken ct)
         => TestWait.UntilAsync(_ => Brain.Get<IButton>(key).Read(), state => state.Activation is not null, Patience, ct);
 
     private async Task ClickDesktop(string action, CancellationToken ct)

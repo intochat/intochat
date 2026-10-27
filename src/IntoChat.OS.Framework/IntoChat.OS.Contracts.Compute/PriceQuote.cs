@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework.Compute;
+namespace IntoChat.OS.Contracts.Compute;
 
 public enum PricingStatus
 {

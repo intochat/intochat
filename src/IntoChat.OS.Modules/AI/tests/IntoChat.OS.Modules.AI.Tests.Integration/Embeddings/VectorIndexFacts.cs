@@ -1,6 +1,5 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Embeddings;
-using IntoChat.OS.AI.Embeddings.Signals;
+using IntoChat.OS.Modules.AI.Embeddings;
+using IntoChat.OS.Modules.AI.Embeddings.Signals;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Embeddings;
 

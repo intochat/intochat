@@ -7,7 +7,7 @@ open rebuilds the view. navigate accepts JSON {revision, action, id}: open, focu
 close, pin, unpin. Stale inputs cannot move focus. This first local-brain slice has
 no foreign grants, external view contexts, device sessions or billing facade.
 */
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "workspace";

@@ -1,74 +1,74 @@
 [
   {
-    "type": "IntoChat.OS.AI.Agents.AgentStorage",
+    "type": "IntoChat.OS.Modules.AI.Agents.AgentStorage",
     "state": "agent",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.AI.Agents.AgentNeuron"
+      "IntoChat.OS.Modules.AI.Agents.AgentNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.AI.Agents.Context.AgentContextState",
+    "type": "IntoChat.OS.Modules.AI.Agents.Context.AgentContextState",
     "state": "agent-context",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.AI.Agents.Context.AgentContextNeuron"
+      "IntoChat.OS.Modules.AI.Agents.Context.AgentContextNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.AI.Agents.Facts.FactsState",
+    "type": "IntoChat.OS.Modules.AI.Agents.Facts.FactsState",
     "state": "facts",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.AI.Agents.Facts.FactsNeuron"
+      "IntoChat.OS.Modules.AI.Agents.Facts.FactsNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.AI.Agents.Intents.IntentsState",
+    "type": "IntoChat.OS.Modules.AI.Agents.Intents.IntentsState",
     "state": "intents",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.AI.Agents.Intents.IntentsNeuron"
+      "IntoChat.OS.Modules.AI.Agents.Intents.IntentsNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.AI.Embeddings.VectorIndexState",
+    "type": "IntoChat.OS.Modules.AI.Embeddings.VectorIndexState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.AI.Embeddings.VectorIndexNeuron"
+      "IntoChat.OS.Modules.AI.Embeddings.VectorIndexNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.AI.GroupChat.GroupChatState",
+    "type": "IntoChat.OS.Modules.AI.GroupChat.GroupChatState",
     "state": "ai.group-chat",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.AI.GroupChat.GroupChatNeuron"
+      "IntoChat.OS.Modules.AI.GroupChat.GroupChatNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.AI.Metering.IntentUsageStorage",
+    "type": "IntoChat.OS.Modules.AI.Metering.IntentUsageStorage",
     "state": "intent-usage",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.AI.Metering.IntentUsageNeuron"
+      "IntoChat.OS.Modules.AI.Metering.IntentUsageNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.AI.Routing.RouterStorage",
+    "type": "IntoChat.OS.Modules.AI.Routing.RouterStorage",
     "state": "router",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.AI.Routing.RouterNeuron"
+      "IntoChat.OS.Modules.AI.Routing.RouterNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Apps.AppState",
+    "type": "IntoChat.OS.Modules.Apps.AppState",
     "state": "app2",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Apps.AppNeuron"
+      "IntoChat.OS.Modules.Apps.AppNeuron"
     ]
   },
   {
@@ -176,383 +176,383 @@
     ]
   },
   {
-    "type": "IntoChat.OS.Circles.CircleChatRecord",
+    "type": "IntoChat.OS.Modules.Circles.CircleChatRecord",
     "state": "circles.chat",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Circles.CircleChatNeuron"
+      "IntoChat.OS.Modules.Circles.CircleChatNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Circles.CircleFactoryRecord",
+    "type": "IntoChat.OS.Modules.Circles.CircleFactoryRecord",
     "state": "circles.factory",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Circles.CircleFactoryNeuron"
+      "IntoChat.OS.Modules.Circles.CircleFactoryNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Circles.CircleRecord",
+    "type": "IntoChat.OS.Modules.Circles.CircleRecord",
     "state": "circles.circle",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Circles.CircleNeuron"
+      "IntoChat.OS.Modules.Circles.CircleNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.ClickHouse.Query.ClickHouseConnectionState",
+    "type": "IntoChat.OS.Modules.ClickHouse.Query.ClickHouseConnectionState",
     "state": "clickhouse",
     "exportedToday": false,
     "grains": [
-      "IntoChat.OS.ClickHouse.Query.ClickHouseNeuron"
+      "IntoChat.OS.Modules.ClickHouse.Query.ClickHouseNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flame.Scene.SceneState",
+    "type": "IntoChat.OS.Modules.Flame.Scene.SceneState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flame.SceneNeuron"
+      "IntoChat.OS.Modules.Flame.SceneNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Button.ButtonState",
+    "type": "IntoChat.OS.Modules.Flutter.Button.ButtonState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Button.ButtonNeuron"
+      "IntoChat.OS.Modules.Flutter.Button.ButtonNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Calendar.CalendarState",
+    "type": "IntoChat.OS.Modules.Flutter.Calendar.CalendarState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Calendar.CalendarNeuron"
+      "IntoChat.OS.Modules.Flutter.Calendar.CalendarNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Card.CardState",
+    "type": "IntoChat.OS.Modules.Flutter.Card.CardState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Card.CardNeuron"
+      "IntoChat.OS.Modules.Flutter.Card.CardNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Chart.ChartState",
+    "type": "IntoChat.OS.Modules.Flutter.Chart.ChartState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Chart.ChartNeuron"
+      "IntoChat.OS.Modules.Flutter.Chart.ChartNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Chat.ChatIndexState",
+    "type": "IntoChat.OS.Modules.Flutter.Chat.ChatIndexState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Chat.ChatIndexNeuron"
+      "IntoChat.OS.Modules.Flutter.Chat.ChatIndexNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Chat.ChatState",
+    "type": "IntoChat.OS.Modules.Flutter.Chat.ChatState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Chat.ChatNeuron"
+      "IntoChat.OS.Modules.Flutter.Chat.ChatNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Chat.ComposerStorage",
+    "type": "IntoChat.OS.Modules.Flutter.Chat.ComposerStorage",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Chat.ComposerNeuron"
+      "IntoChat.OS.Modules.Flutter.Chat.ComposerNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Clock.ClockState",
+    "type": "IntoChat.OS.Modules.Flutter.Clock.ClockState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Clock.ClockNeuron"
+      "IntoChat.OS.Modules.Flutter.Clock.ClockNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Collection.CollectionState",
+    "type": "IntoChat.OS.Modules.Flutter.Collection.CollectionState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Collection.CollectionNeuron"
+      "IntoChat.OS.Modules.Flutter.Collection.CollectionNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Color.ColorState",
+    "type": "IntoChat.OS.Modules.Flutter.Color.ColorState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Color.ColorNeuron"
+      "IntoChat.OS.Modules.Flutter.Color.ColorNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Entries.EntryControlState",
+    "type": "IntoChat.OS.Modules.Flutter.Entries.EntryControlState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Entries.EntryControlNeuron"
+      "IntoChat.OS.Modules.Flutter.Entries.EntryControlNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Expander.ExpanderState",
+    "type": "IntoChat.OS.Modules.Flutter.Expander.ExpanderState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Expander.ExpanderNeuron"
+      "IntoChat.OS.Modules.Flutter.Expander.ExpanderNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.FileInput.FileInputState",
+    "type": "IntoChat.OS.Modules.Flutter.FileInput.FileInputState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.FileInput.FileInputNeuron"
+      "IntoChat.OS.Modules.Flutter.FileInput.FileInputNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Form.FormState",
+    "type": "IntoChat.OS.Modules.Flutter.Form.FormState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Form.FormNeuron"
+      "IntoChat.OS.Modules.Flutter.Form.FormNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Graph.GraphState",
+    "type": "IntoChat.OS.Modules.Flutter.Graph.GraphState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Graph.GraphNeuron"
+      "IntoChat.OS.Modules.Flutter.Graph.GraphNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Image.ImageState",
+    "type": "IntoChat.OS.Modules.Flutter.Image.ImageState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Image.ImageNeuron"
+      "IntoChat.OS.Modules.Flutter.Image.ImageNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.ImageCanvas.ImageCanvasState",
+    "type": "IntoChat.OS.Modules.Flutter.ImageCanvas.ImageCanvasState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.ImageCanvas.ImageCanvasNeuron"
+      "IntoChat.OS.Modules.Flutter.ImageCanvas.ImageCanvasNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.InfoBar.InfoBarState",
+    "type": "IntoChat.OS.Modules.Flutter.InfoBar.InfoBarState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.InfoBar.InfoBarNeuron"
+      "IntoChat.OS.Modules.Flutter.InfoBar.InfoBarNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Layout.LayoutState",
+    "type": "IntoChat.OS.Modules.Flutter.Layout.LayoutState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Layout.LayoutNeuron"
+      "IntoChat.OS.Modules.Flutter.Layout.LayoutNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Map.MapState",
+    "type": "IntoChat.OS.Modules.Flutter.Map.MapState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Map.MapNeuron"
+      "IntoChat.OS.Modules.Flutter.Map.MapNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Person.PersonState",
+    "type": "IntoChat.OS.Modules.Flutter.Person.PersonState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Person.PersonNeuron"
+      "IntoChat.OS.Modules.Flutter.Person.PersonNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Preferences.PreferenceControlState",
+    "type": "IntoChat.OS.Modules.Flutter.Preferences.PreferenceControlState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Preferences.PreferenceControlNeuron"
+      "IntoChat.OS.Modules.Flutter.Preferences.PreferenceControlNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Progress.ProgressState",
+    "type": "IntoChat.OS.Modules.Flutter.Progress.ProgressState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Progress.ProgressNeuron"
+      "IntoChat.OS.Modules.Flutter.Progress.ProgressNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Rating.RatingState",
+    "type": "IntoChat.OS.Modules.Flutter.Rating.RatingState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Rating.RatingNeuron"
+      "IntoChat.OS.Modules.Flutter.Rating.RatingNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Select.SelectState",
+    "type": "IntoChat.OS.Modules.Flutter.Select.SelectState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Select.SelectNeuron"
+      "IntoChat.OS.Modules.Flutter.Select.SelectNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Sheet.SheetState",
+    "type": "IntoChat.OS.Modules.Flutter.Sheet.SheetState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Sheet.SheetNeuron"
+      "IntoChat.OS.Modules.Flutter.Sheet.SheetNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Slider.SliderState",
+    "type": "IntoChat.OS.Modules.Flutter.Slider.SliderState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Slider.SliderNeuron"
+      "IntoChat.OS.Modules.Flutter.Slider.SliderNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Surface.SurfaceState",
+    "type": "IntoChat.OS.Modules.Flutter.Surface.SurfaceState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Surface.SurfaceNeuron"
+      "IntoChat.OS.Modules.Flutter.Surface.SurfaceNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Table.TableState",
+    "type": "IntoChat.OS.Modules.Flutter.Table.TableState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Table.TableNeuron"
+      "IntoChat.OS.Modules.Flutter.Table.TableNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Tabs.TabsState",
+    "type": "IntoChat.OS.Modules.Flutter.Tabs.TabsState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Tabs.TabsNeuron"
+      "IntoChat.OS.Modules.Flutter.Tabs.TabsNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Text.TextState",
+    "type": "IntoChat.OS.Modules.Flutter.Text.TextState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Text.TextNeuron"
+      "IntoChat.OS.Modules.Flutter.Text.TextNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.TextField.TextFieldState",
+    "type": "IntoChat.OS.Modules.Flutter.TextField.TextFieldState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.TextField.TextFieldNeuron"
+      "IntoChat.OS.Modules.Flutter.TextField.TextFieldNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Toggle.ToggleState",
+    "type": "IntoChat.OS.Modules.Flutter.Toggle.ToggleState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Toggle.ToggleNeuron"
+      "IntoChat.OS.Modules.Flutter.Toggle.ToggleNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Tree.TreeState",
+    "type": "IntoChat.OS.Modules.Flutter.Tree.TreeState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Tree.TreeNeuron"
+      "IntoChat.OS.Modules.Flutter.Tree.TreeNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.UiBindingState",
+    "type": "IntoChat.OS.Modules.Flutter.UiBindingState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.UiBindingNeuron"
+      "IntoChat.OS.Modules.Flutter.UiBindingNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Video.VideoState",
+    "type": "IntoChat.OS.Modules.Flutter.Video.VideoState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Video.VideoNeuron"
+      "IntoChat.OS.Modules.Flutter.Video.VideoNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Viewport.ViewportStorage",
+    "type": "IntoChat.OS.Modules.Flutter.Viewport.ViewportStorage",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Viewport.ViewportNeuron"
+      "IntoChat.OS.Modules.Flutter.Viewport.ViewportNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Views.ViewState",
+    "type": "IntoChat.OS.Modules.Flutter.Views.ViewState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Views.ViewNeuron"
+      "IntoChat.OS.Modules.Flutter.Views.ViewNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.VoiceInput.VoiceInputState",
+    "type": "IntoChat.OS.Modules.Flutter.VoiceInput.VoiceInputState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.VoiceInput.VoiceInputNeuron"
+      "IntoChat.OS.Modules.Flutter.VoiceInput.VoiceInputNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.WebBrowser.WebBrowserState",
+    "type": "IntoChat.OS.Modules.Flutter.WebBrowser.WebBrowserState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.WebBrowser.WebBrowserNeuron"
+      "IntoChat.OS.Modules.Flutter.WebBrowser.WebBrowserNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Workspace.ProblemReportsState",
+    "type": "IntoChat.OS.Modules.Flutter.Workspace.ProblemReportsState",
     "state": "problem-reports",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Workspace.ProblemReportsNeuron"
+      "IntoChat.OS.Modules.Flutter.Workspace.ProblemReportsNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Flutter.Workspace.WorkspaceStorage",
+    "type": "IntoChat.OS.Modules.Flutter.Workspace.WorkspaceStorage",
     "state": "workspace",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Flutter.Workspace.WorkspaceNeuron"
+      "IntoChat.OS.Modules.Flutter.Workspace.WorkspaceNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Framework.InstanceDirectoryGrain+State",
+    "type": "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain+State",
     "state": "instances",
     "exportedToday": true,
     "grains": [
@@ -560,7 +560,7 @@
     ]
   },
   {
-    "type": "IntoChat.OS.Framework.InstanceTypesGrain+State",
+    "type": "IntoChat.OS.Kernel.Composition.InstanceTypesGrain+State",
     "state": "types",
     "exportedToday": true,
     "grains": [
@@ -568,7 +568,7 @@
     ]
   },
   {
-    "type": "IntoChat.OS.Framework.TypeTableGrain+State",
+    "type": "IntoChat.OS.Kernel.Composition.TypeTableGrain+State",
     "state": "features",
     "exportedToday": true,
     "grains": [
@@ -576,155 +576,155 @@
     ]
   },
   {
-    "type": "IntoChat.OS.Google.Gmail.GmailState",
+    "type": "IntoChat.OS.Modules.Google.Gmail.GmailState",
     "state": "gmail",
     "exportedToday": false,
     "grains": [
-      "IntoChat.OS.Google.Gmail.GmailNeuron"
+      "IntoChat.OS.Modules.Google.Gmail.GmailNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Mcp.McpServerStore",
+    "type": "IntoChat.OS.Modules.Mcp.McpServerStore",
     "state": "mcp.server",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Mcp.McpServerNeuron"
+      "IntoChat.OS.Modules.Mcp.McpServerNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.Aspire.Candidates.CandidateQueueState",
+    "type": "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateQueueState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.Aspire.Candidates.CandidateQueueNeuron"
+      "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateQueueNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.Aspire.Candidates.CandidateState",
+    "type": "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.Aspire.Candidates.CandidateNeuron"
+      "IntoChat.OS.Modules.Microsoft.Aspire.Candidates.CandidateNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.Aspire.Deployment.DeploymentState",
+    "type": "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.Aspire.Deployment.DeploymentNeuron"
+      "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.Azure.AzureConnectionState",
+    "type": "IntoChat.OS.Modules.Microsoft.Azure.AzureConnectionState",
     "state": "azure",
     "exportedToday": false,
     "grains": [
-      "IntoChat.OS.Microsoft.Azure.AzureNeuron"
+      "IntoChat.OS.Modules.Microsoft.Azure.AzureNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.CSharp.Files.CSharpFileState",
+    "type": "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpFileState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.CSharp.Files.CSharpFileNeuron"
+      "IntoChat.OS.Modules.Microsoft.CSharp.Files.CSharpFileNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.CSharp.Runtime.BrainRunsState",
+    "type": "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.CSharp.Runtime.BrainRunsNeuron"
+      "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRunsNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.CSharp.Runtime.BrainRuntimeState",
+    "type": "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.CSharp.Runtime.BrainRuntimeNeuron"
+      "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.GitHub.GitHubRepositoryIndexState",
+    "type": "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryIndexState",
     "state": "github-repository-index",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.GitHub.GitHubRepositoryIndex"
+      "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryIndex"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.GitHub.GitHubRepositoryState",
+    "type": "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryState",
     "state": "github",
     "exportedToday": false,
     "grains": [
-      "IntoChat.OS.Microsoft.GitHub.GitHubRepositoryNeuron"
+      "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.Playwright.PageToolsStore",
+    "type": "IntoChat.OS.Modules.Microsoft.Playwright.PageToolsStore",
     "state": "playwright.page-tools",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.Playwright.PageToolsNeuron"
+      "IntoChat.OS.Modules.Microsoft.Playwright.PageToolsNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.Roslyn.WorkspaceState",
+    "type": "IntoChat.OS.Modules.Microsoft.Roslyn.RoslynState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Microsoft.Roslyn.RoslynNeuron"
+      "IntoChat.OS.Modules.Microsoft.Roslyn.RoslynNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Microsoft.Windows.WindowsConnectionState",
+    "type": "IntoChat.OS.Modules.Microsoft.Windows.WindowsConnectionState",
     "state": "windows",
     "exportedToday": false,
     "grains": [
-      "IntoChat.OS.Microsoft.Windows.WindowsNeuron"
+      "IntoChat.OS.Modules.Microsoft.Windows.WindowsNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Postgres.PostgresConnectionState",
+    "type": "IntoChat.OS.Modules.Postgres.PostgresConnectionState",
     "state": "postgres",
     "exportedToday": false,
     "grains": [
-      "IntoChat.OS.Postgres.PostgresServerNeuron"
+      "IntoChat.OS.Modules.Postgres.PostgresServerNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Postgres.Tables.TableIndexState",
+    "type": "IntoChat.OS.Modules.Postgres.Tables.TableIndexState",
     "state": "tables",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Postgres.Tables.TableIndexNeuron"
+      "IntoChat.OS.Modules.Postgres.Tables.TableIndexNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Postgres.Tables.TableState",
+    "type": "IntoChat.OS.Modules.Postgres.Tables.TableState",
     "state": "state",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Postgres.Tables.TableNeuron"
+      "IntoChat.OS.Modules.Postgres.Tables.TableNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.Salesforce.SalesforceState",
+    "type": "IntoChat.OS.Modules.Salesforce.SalesforceState",
     "state": "salesforce",
     "exportedToday": false,
     "grains": [
-      "IntoChat.OS.Salesforce.SalesforceNeuron"
+      "IntoChat.OS.Modules.Salesforce.SalesforceNeuron"
     ]
   },
   {
-    "type": "IntoChat.OS.State",
+    "type": "IntoChat.OS.Kernel.Composition.BrainStorage",
     "state": "brain",
     "exportedToday": true,
     "grains": [
-      "IntoChat.OS.Framework.BrainNeuron"
+      "IntoChat.OS.Kernel.Composition.BrainNeuron"
     ]
   }
 ]

@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.Azure;
-
 namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
 
 internal sealed class RecordingAzure : IAzureArm
@@ -43,12 +41,14 @@ internal sealed class RecordingAzure : IAzureArm
     public Task<ResourceRef[]> List(string subscription, string tagValue, CancellationToken ct) => Task.FromResult<ResourceRef[]>([]);
 }
 
-internal sealed class FakeState<T> : IPersistentState<T> where T : new()
+// The connection neuron is plain (06-08): a fact attaches it to a fake context keyed as an Azure connection.
+internal static class AzureNeurons
 {
-    public T State { get; set; } = new();
-    public string Etag => "";
-    public bool RecordExists => true;
-    public Task ClearStateAsync() => Task.CompletedTask;
-    public Task WriteStateAsync() => Task.CompletedTask;
-    public Task ReadStateAsync() => Task.CompletedTask;
+    public static AzureNeuron Create(IAzureArm arm, string subscription)
+    {
+        var neuron = new AzureNeuron(arm) { SubscriptionOverride = subscription };
+        DigitalBrain.Spi.NeuronAttachment.Attach(neuron, new DigitalBrain.Testing.FakeNeuronContext(
+            new DigitalBrain.NeuronId(new DigitalBrain.BrainId("facts"), "azure", "connection/azure/" + subscription)));
+        return neuron;
+    }
 }

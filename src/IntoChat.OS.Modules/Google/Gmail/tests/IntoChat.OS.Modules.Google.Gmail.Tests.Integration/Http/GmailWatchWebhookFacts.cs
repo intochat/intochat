@@ -1,7 +1,7 @@
-using IntoChat.OS.Google.Gmail.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 using System.Net;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;
 
@@ -32,7 +32,7 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         var outsider = await brain.PersonAsync("outsider", ct);
         await member.ConnectAsync("scoped-push", ct);
         var key = ConnectionKeys.For(member.BrainId, "gmail", "scoped-push");
-        var inbound = brain.Grains().GetGrain<IGmailInbound>(key);
+        var inbound = brain.Plain().Get<IGmailInbound>(key);
         using (outsider.AsCaller())
         { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptWatchPush(new("101", "user@gmail.com"))); }
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
@@ -87,9 +87,9 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         var healthy = ConnectionKeys.For(person.BrainId, "gmail", "live");
         // The revoked connection is tracked first, so the loop meets its failure before the healthy one.
         using (person.AsCaller())
-        { await brain.Grains().GetConnectionInbound(revoked).AcceptGrant(new("google-oauth", "stale-token", GoogleStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}")); }
+        { await brain.Plain().GetConnectionInbound(revoked).AcceptGrant(new("google-oauth", "stale-token", GoogleStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}")); }
         await person.ConnectAsync("live", ct);
-        var tracked = await brain.Grains().GetGrain<IConnectionIndex>(person.BrainId).List();
+        var tracked = await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(person.BrainId)).List();
         Assert.True(Array.IndexOf(tracked, revoked) < Array.IndexOf(tracked, healthy));
         await using var healthyMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(healthy), ct);
         host.Stub.HistoryReplies.Enqueue(new(200, new { historyId = "104", history = Array.Empty<object>() }));
@@ -112,7 +112,7 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         var person = await brain.PersonAsync("restricted", ct);
         await person.ConnectAsync("restricted-push", ct);
         var key = ConnectionKeys.For(person.BrainId, "gmail", "restricted-push");
-        var inbound = brain.Grains().GetGrain<IGmailInbound>(key);
+        var inbound = brain.Plain().Get<IGmailInbound>(key);
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
         using (person.AsCaller()) { await inbound.AcceptWatchPush(new("105", "other@gmail.com")); }
         using (person.AsCaller()) { await brain.Get<IConnection>(key).Disconnect(); }

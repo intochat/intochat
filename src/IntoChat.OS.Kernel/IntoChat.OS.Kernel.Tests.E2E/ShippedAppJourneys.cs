@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

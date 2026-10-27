@@ -1,5 +1,5 @@
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Client;
 
 // The editor finished a turn: its answer becomes the status line and the active document is rendered into

@@ -1,10 +1,10 @@
-using IntoChat.OS.Microsoft.Aspire.Candidates;
-using IntoChat.OS.Microsoft.Aspire.Deployment;
-using IntoChat.OS.Microsoft.Aspire.Verification;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
+using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 public sealed class MembershipChangedFacts
 {
@@ -23,9 +23,9 @@ public sealed class MembershipChangedFacts
                 services.AddSingleton<ICandidateVerifier>(new FakeVerifier());
             }).StartAsync(ct);
         var deployment = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
-        await using var changes = await brain.Observe<DeploymentChanged>(deployment, ct);
         await deployment.Read();
-        Assert.Equal("Active", Assert.Single((await changes.NextAsync(ct: ct)).Silos).State);
+        Assert.Equal("Active", Assert.Single(Assert.Single(await brain.History<DeploymentChanged>(deployment, ct)).Silos).State);
+        await using var changes = await brain.Observe<DeploymentChanged>(deployment, ct);
         Assert.Equal(1, membership.Subscribers);
         await membership.Change("Active");
         await membership.Change("ShuttingDown");
@@ -38,8 +38,8 @@ public sealed class MembershipChangedFacts
         Assert.Equal(0, membership.Subscribers);
         await deployment.Read();
         Assert.Equal(1, membership.Subscribers);
-        var retained = await deployment.AsReference<IRetainsSignals>().Retained(nameof(DeploymentChanged), 0);
-        Assert.Equal("Active", Assert.Single(Assert.IsType<DeploymentChanged>(Assert.Single(retained).Signal).Silos).State);
+        var last = (await brain.History<DeploymentChanged>(deployment, ct))[^1];
+        Assert.Equal("Active", Assert.Single(last.Silos).State);
     }
 
     private sealed class MembershipFeed : IClusterMembershipFeed

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using IntoChat.OS;
 using Orleans;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -22,7 +23,38 @@ public sealed class ExportableStateFacts
         .Where(parameter => parameter.IsDefined(typeof(PersistentStateAttribute), false)
             && parameter.ParameterType.IsGenericType && parameter.ParameterType.GetGenericTypeDefinition() == typeof(IPersistentState<>))
         .Select(parameter => (parameter.ParameterType.GetGenericArguments()[0], parameter.GetCustomAttribute<PersistentStateAttribute>()!.StateName))
+        .Concat(PlainStates())
         .Distinct().ToArray();
+
+    // A plain neuron (06-04 on) persists its TState through the runtime instead of an [PersistentState] parameter; its state is
+    // decided all the same. The runtime has one state per neuron, labelled "state" here.
+    private static IEnumerable<(Type State, string Name)> PlainStates() => ProductionArchitecture.Types
+        .Where(type => !type.IsAbstract && !type.ContainsGenericParameters)
+        .Select(PlainStateOf).OfType<Type>()
+        .Concat(RawPlainStates.Select(name => Assert.Single(ProductionArchitecture.Types, type => type.FullName == name)))
+        .Select(state => (state, "state"));
+
+    // Plain neurons that keep bookkeeping state through Context.State with no signal (06-08: a quiet step of a roll, the table
+    // and connection indexes) derive DigitalBrain.Neuron, not Neuron<TState>, so their state types are named here.
+    private static readonly string[] RawPlainStates =
+    [
+        "IntoChat.OS.Authority.Connections.ConnectionIndexState",
+        "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentState",
+        "IntoChat.OS.Modules.Circles.CircleFactoryRecord",
+        "IntoChat.OS.Modules.Circles.CircleInvitesRecord",
+        "IntoChat.OS.Modules.Circles.InviteCodeRecord",
+        "IntoChat.OS.Modules.Circles.InviteKeyRecord",
+        "IntoChat.OS.Modules.Postgres.Tables.TableIndexState",
+    ];
+
+    private static Type? PlainStateOf(Type type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(global::DigitalBrain.Neuron<>)) { return current.GetGenericArguments()[0]; }
+        }
+        return null;
+    }
 
     private static T[] Load<T>(string file) => JsonSerializer.Deserialize<T[]>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, file)),
         new JsonSerializerOptions(JsonSerializerDefaults.Web))!;

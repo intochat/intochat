@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using IntoChat.OS.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Facts;
 
 // Shared by "consolidate" and "review": where the consolidation keeps its state, how the model's verdict is
 // read, how an item is classified (the sensitivity policy), when a batch reflects and when an episode may be claimed.

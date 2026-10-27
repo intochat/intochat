@@ -1,8 +1,10 @@
 using System.Text;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Entries;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Entries;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Entries;

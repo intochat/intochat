@@ -1,4 +1,4 @@
-// Shared: the synapse shape rule read from text. A file is a synapse when it has top-level statements and
+// Shared: the reaction shape rule read from text. A file is a reaction when it has top-level statements and
 // shared code when it holds only usings, namespaces and type declarations. Comments, literals and
 // preprocessor lines are blanked first, so a call named inside a string never makes a file a synapse.
 internal static class Shape

@@ -1,6 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
@@ -94,9 +97,8 @@ public sealed class OwnerProvisioningFacts(AuthorityHost host)
 
         public AppCallerAtBirth Using(AuthorityNeurons platform) { _platform = platform; return this; }
 
-        public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
+        public async Task Created(string scope, Created created, CancellationToken cancellationToken)
         {
-            var scope = kernel.GetPrimaryKeyString();
             var authority = _platform!.BrainAuthority(scope);
             Decisions.Add(await authority.Authorize(Request(created.Owner.AccountId, scope)));
         }

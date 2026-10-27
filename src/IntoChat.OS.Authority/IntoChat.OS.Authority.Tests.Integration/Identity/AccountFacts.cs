@@ -1,6 +1,8 @@
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Identity;
@@ -60,7 +62,7 @@ public sealed class AccountFacts(AuthorityHost host)
 
     private static async Task<string[]> BrainsAs(ITestBrain brain, Person person)
     {
-        using (person.AsCaller()) { return await new IntoChat.OS.Framework.Kernel(brain.Grains).Brains(TestContext.Current.CancellationToken); }
+        using (person.AsCaller()) { return await global::IntoChat.OS.Kernel.Composition.Kernel.For(brain.Services).Brains(TestContext.Current.CancellationToken); }
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.

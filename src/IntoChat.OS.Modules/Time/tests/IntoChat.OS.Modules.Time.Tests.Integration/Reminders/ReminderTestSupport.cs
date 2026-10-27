@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Timers;
@@ -49,4 +50,29 @@ internal sealed class FaultingReminders(IReminderRegistry inner, ReminderControl
         return inner.GetReminder(id, name);
     }
     public Task<List<IGrainReminder>> GetReminders(GrainId id) => inner.GetReminders(id);
+}
+
+internal static class ReminderTestControls
+{
+    // Rule 4 seam: reminder-storage fault injection and an accelerated period (a test setting, never a production default).
+    // The runtime's host grains register reminders through IReminderRegistry, so the decorator sees the plain neuron's calls.
+    public static void UseReminderControl(this IServiceCollection services, ReminderControl reminders)
+    {
+        services.Configure<global::Orleans.Hosting.ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
+        Decorate<IReminderRegistry>(services, inner => new FaultingReminders(inner, reminders));
+        services.AddSingleton<IIncomingGrainCallFilter>(services =>
+        {
+            reminders.Table = services.GetRequiredService<IReminderTable>();
+            return reminders;
+        });
+    }
+
+    private static void Decorate<T>(IServiceCollection services, Func<T, T> decorate) where T : class
+    {
+        var descriptor = services.Last(d => d.ServiceType == typeof(T));
+        services.Remove(descriptor);
+        services.AddSingleton<T>(provider => decorate((T)(descriptor.ImplementationInstance
+            ?? descriptor.ImplementationFactory?.Invoke(provider)
+            ?? ActivatorUtilities.CreateInstance(provider, descriptor.ImplementationType!))));
+    }
 }

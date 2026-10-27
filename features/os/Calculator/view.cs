@@ -1,6 +1,6 @@
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.Views;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Setting("App")!;

@@ -1,18 +1,18 @@
 using System.Net;
 using System.Net.Http.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Flame;
-using IntoChat.OS.Flame.Scene;
-using IntoChat.OS.Flame.Scene.Signals;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Person;
-using IntoChat.OS.Flutter.Space;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Flame;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Modules.Flame.Scene.Signals;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Person;
+using IntoChat.OS.Modules.Flutter.Space;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Parts;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans;
@@ -34,9 +34,9 @@ public sealed class FriendsSpaceFacts
     private sealed class CreationFriends(CircleMembers friends) : ICreationHandler
     {
         public bool Completed { get; private set; }
-        public async Task Created(IBrain kernel, Created created, CancellationToken ct)
+        public async Task Created(string brainId, Created created, CancellationToken ct)
         {
-            await friends.FriendsOf(kernel.GetPrimaryKeyString()).WaitAsync(TimeSpan.FromSeconds(5), ct);
+            await friends.FriendsOf(brainId).WaitAsync(TimeSpan.FromSeconds(5), ct);
             Completed = true;
         }
     }
@@ -127,7 +127,7 @@ public sealed class FriendsSpaceFacts
         using (bob.AsCaller()) { await brain.Get<ICard>(bob.Key("posts/private")).Set("Private", "Not published"); }
         // Even an admitted circle speaker cannot publish another author's reference.
         using (alice.AsCallerIn(circle)) { await brain.Get<ICircleChat>(ICircleChat.Key(circle)).Say("post " + bob.Key("posts/private")); }
-        var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId);
+        var space = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(alice.BrainId));
         var nodeUrl = $"/brains/{alice.BrainId}/apps/node?kind=person&name={Uri.EscapeDataString(bob.Key("profile"))}";
         Assert.Equal(HttpStatusCode.OK, (await alice.Http.GetAsync(nodeUrl, ct)).StatusCode);
         var activation = new { kind = "collection", name = bob.Key("posts"), action = "activate", value = bob.Key("posts/p1"), revision = 0 };
@@ -151,7 +151,7 @@ public sealed class FriendsSpaceFacts
         }
         using (bob.AsCaller())
         {
-            var own = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(bob.BrainId);
+            var own = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(bob.BrainId));
             Assert.Equal("Bob", (await own.ReadProfile(bob.Key("profile"))).DisplayName);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => own.ReadProfile(alice.Key("profile")));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadProfile(bob.Key("profile")));
@@ -171,7 +171,7 @@ public sealed class FriendsSpaceFacts
         { Assert.Contains(bob.AccountId, (await brain.Get<ICircle>(ICircle.Key(circle)).State()).Members); }
         using (alice.AsCaller())
         {
-            var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId);
+            var space = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(alice.BrainId));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadProfile(bob.Key("profile")));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPost(bob.Key("posts/p1")));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPosts(bob.Key("posts")));
@@ -205,14 +205,14 @@ public sealed class FriendsSpaceFacts
             while ((await b.Read()).Definition.Nodes.Any(n => n.Id.StartsWith(alice.BrainId + "/", StringComparison.Ordinal)));
             using (alice.AsCaller())
             {
-                var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId);
+                var space = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(alice.BrainId));
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadProfile(bob.Key("profile")));
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPost(bob.Key("posts/p1")));
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPosts(bob.Key("posts")));
             }
             using (bob.AsCaller())
             {
-                var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(bob.BrainId);
+                var space = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(bob.BrainId));
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadProfile(alice.Key("profile")));
                 await Assert.ThrowsAsync<UnauthorizedAccessException>(() => space.ReadPost(alice.Key("posts/p1")));
             }
@@ -233,8 +233,8 @@ public sealed class FriendsSpaceFacts
         await Rebuild(brain, bob, ct);
         var a = brain.Get<IScene>(alice.Key("space"));
         var b = brain.Get<IScene>(bob.Key("space"));
-        var beforeA = await brain.Get<IWorkspace>(alice.BrainId).Read();
-        var beforeB = await brain.Get<IWorkspace>(bob.BrainId).Read();
+        var beforeA = await brain.Get<IWorkspace>(IWorkspace.Key(alice.BrainId)).Read();
+        var beforeB = await brain.Get<IWorkspace>(IWorkspace.Key(bob.BrainId)).Read();
         await using (var ac = await brain.Observe<SceneChanged>(a, ct))
         await using (var bc = await brain.Observe<SceneChanged>(b, ct))
         {
@@ -243,7 +243,7 @@ public sealed class FriendsSpaceFacts
             while (!(await a.Read()).Definition.Nodes.Any(n => n.Id == bob.Key("profile") && n.Parameters["title"] == "Robert"));
             await bc.NextAsync(ct: ct);
             using (alice.AsCaller())
-            { Assert.Equal("Robert", (await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId).ReadProfile(bob.Key("profile"))).DisplayName); }
+            { Assert.Equal("Robert", (await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(alice.BrainId)).ReadProfile(bob.Key("profile"))).DisplayName); }
         }
         await using (var ac = await brain.Observe<SceneChanged>(a, ct))
         await using (var bc = await brain.Observe<SceneChanged>(b, ct))
@@ -254,15 +254,15 @@ public sealed class FriendsSpaceFacts
             await bc.NextAsync(ct: ct);
             using (alice.AsCaller())
             {
-                var space = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(alice.BrainId);
+                var space = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(alice.BrainId));
                 Assert.Equal("Edited body", (await space.ReadPost(bob.Key("posts/p1"))).Body);
                 Assert.Equal("Edited title", Assert.Single((await space.ReadPosts(bob.Key("posts"))).Definition.Items).Label);
             }
             using (bob.AsCaller())
-            { Assert.Equal("Edited body", (await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(bob.BrainId).ReadPost(bob.Key("posts/p1"))).Body); }
+            { Assert.Equal("Edited body", (await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(bob.BrainId)).ReadPost(bob.Key("posts/p1"))).Body); }
         }
-        Assert.Equal(beforeA.Revision, (await brain.Get<IWorkspace>(alice.BrainId).Read()).Revision);
-        Assert.Equal(beforeB.Revision, (await brain.Get<IWorkspace>(bob.BrainId).Read()).Revision);
+        Assert.Equal(beforeA.Revision, (await brain.Get<IWorkspace>(IWorkspace.Key(alice.BrainId)).Read()).Revision);
+        Assert.Equal(beforeB.Revision, (await brain.Get<IWorkspace>(IWorkspace.Key(bob.BrainId)).Read()).Revision);
     }
 
     private static async Task<(IntoChat.OS.Testing.Person Alice, IntoChat.OS.Testing.Person Bob, string Circle)> People(ITestBrain brain, CancellationToken ct)
@@ -289,7 +289,7 @@ public sealed class FriendsSpaceFacts
     {
         using (person.AsCaller())
         {
-            var workspace = brain.Get<IWorkspace>(person.BrainId);
+            var workspace = brain.Get<IWorkspace>(IWorkspace.Key(person.BrainId));
             await workspace.Home(Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
         }
     }
@@ -298,7 +298,7 @@ public sealed class FriendsSpaceFacts
     {
         using (person.AsCaller())
         {
-            var workspace = brain.Get<IWorkspace>(person.BrainId);
+            var workspace = brain.Get<IWorkspace>(IWorkspace.Key(person.BrainId));
             await workspace.Show(key, Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
         }
     }
@@ -307,7 +307,7 @@ public sealed class FriendsSpaceFacts
     {
         var scene = brain.Get<IScene>(person.Key("space"));
         await using var changed = await brain.Observe<SceneChanged>(scene, ct);
-        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<ISpace>(person.BrainId).Rebuild();
+        await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(person.BrainId)).Rebuild();
         SceneState state;
         do { await changed.NextAsync(ct: ct); state = await scene.Read(); } while (ready is not null && !ready(state));
         return state;

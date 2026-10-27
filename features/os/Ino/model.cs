@@ -1,6 +1,6 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // The header's model menu: "model:auto" or "model:<id>" stores the selected chat's choice. A choice that is
 // not available now changes nothing and says so. The index change marks the view dirty (index.cs); view.cs republishes.

@@ -1,14 +1,16 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 // A host with the Apps and Circles modules over the repository's features folder and a scripted connector, and circle
 // brains born the way a circle is born (T26-1): the trust side records a brain of kind Circle, and its creator gives
@@ -40,7 +42,7 @@ internal static class CircleBrainRooms
         var provision = await brain.Services.GetRequiredService<IIdentityClient>()
             .CreateBrain(creator.AccountId, creator.PrincipalId, Guid.NewGuid().ToString("N"), name, BrainKind.Circle);
         var circle = provision.Member.BrainId;
-        using (creator.AsCallerIn(circle)) { await brain.Get<IBrain>(circle).Create(new Owner(creator.AccountId)); }
+        using (creator.AsCallerIn(circle)) { await brain.Get<IBrain>(IBrain.Key(circle)).Create(new Owner(creator.AccountId)); }
         return circle;
     }
 
@@ -54,7 +56,7 @@ internal static class CircleBrainRooms
         using (person.AsCallerIn(brainId)) { await call(); }
     }
 
-    public static IGrainFactory Grains(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
+    public static IntoChat.OS.Runtime.IPlainNeurons Plain(ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
     public static ICircle Circle(ITestBrain brain, string circle) => brain.Get<ICircle>(ICircle.Key(circle));
 
@@ -72,7 +74,7 @@ internal static class CircleBrainRooms
             var app = brain.Get<IApp>(IApp.Key(person.BrainId, name));
             await app.Import(new AppBundle(name, "1.0.0", Manifest(name), $"# {name}", files ?? []));
             if (connectionId is null) { return; }
-            await Grains(brain).GetConnection(ConnectionKeys.For(person.BrainId, Connector, connectionId)).Connect("api-key", "secret-" + connectionId);
+            await Plain(brain).GetConnection(ConnectionKeys.For(person.BrainId, Connector, connectionId)).Connect("api-key", "secret-" + connectionId);
             await app.Configure([], new() { ["db"] = connectionId });
         }
     }
@@ -82,7 +84,7 @@ internal static class CircleBrainRooms
     // A synapse in shape whose body the marker sandbox refuses to compile.
     public const string NotCompiling = """
         await using var brain = await IntoChat.OS.Client.IntoChatOSClient.ConnectAsync(args);
-        await foreach (var request in brain.On(brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!), "go", brain.Stopping)) { DoesNotCompile(); }
+        await foreach (var request in brain.On(brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting("App")!), "go", brain.Stopping)) { DoesNotCompile(); }
         """;
 
     // Compiles everything except a file that calls DoesNotCompile.
@@ -104,7 +106,7 @@ internal static class CircleBrainRooms
             return Task.FromResult(new ScriptCompilationCheck(failing.Length == 0, failing));
         }
 
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
     }
 
@@ -130,11 +132,11 @@ public sealed class SharedConnectorModule() : Module(new ModuleId(CircleBrainRoo
     public static ConnectorDefinition Connector => new(CircleBrainRooms.Connector, "Shared", ["api-key", "oauth"], ["shared-oauth"])
     { Neurons = [typeof(IShared)], OAuthMethods = [new("oauth", "https://shared.test/authorize", "https://shared.test/token", [], "shared-oauth")] };
     public static IntegrationSchema Integration => IntegrationSchema.For("shared-oauth", "Shared OAuth");
-    public override void Configure(ISiloBuilder silo) { }
+    public override Type? Neurons => typeof(SharedConnectorNeurons);
 }
 
-[Alias("shared"), Orleans.Metadata.DefaultGrainType("shared")]
-public interface IShared : INeuron
+[DigitalBrain.Contracts.NeuronAlias("shared"), DigitalBrain.Contracts.DefaultNeuronType("shared")]
+public interface IShared
 {
     Task<string> Use();
 }
@@ -142,10 +144,9 @@ public interface IShared : INeuron
 [GenerateSerializer, Alias("shared.state")]
 public sealed class SharedState : ConnectionState { }
 
-[GrainType("shared")]
-internal sealed class SharedConnectionNeuron(
-    [PersistentState("shared", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SharedState> store)
-    : ConnectionNeuron<SharedState>(store), IShared
+[DigitalBrain.Neuron("shared", State = "shared")]
+internal sealed class SharedConnectionNeuron()
+    : ConnectionNeuron<SharedState>, IShared
 {
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct) => Task.FromResult(ConnectionProbeResult.Connected());
 
@@ -154,4 +155,11 @@ internal sealed class SharedConnectionNeuron(
         => Task.FromResult(new OAuthGrant(Snapshot.AuthMethodId, "refreshed-access", "refresh-2", DateTimeOffset.UtcNow.AddHours(1), "read", null, "{}"));
 
     public Task<string> Use() => UseCredentialAsync((credential, _) => Task.FromResult(Key.Brain + ":" + credential.Value), CancellationToken.None);
+}
+
+// The fact's connection neurons are plain (06-08): this module's assembly [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module("shared-connector")]
+public sealed class SharedConnectorNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

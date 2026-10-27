@@ -1,5 +1,4 @@
 using System.Text.Json;
-using IntoChat.OS.Authority.Storage;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -21,15 +20,14 @@ public sealed class TelemetryConfigFacts
         Assert.Contains(Values(development, "EnableSensitiveData"), IsTrue);
     }
 
+    // The runtime BrainLog writes one format since 06-02 (R4-09); no shipped setting picks an os BrainLog format any more.
     [Fact]
-    public void KernelAppHostAndTheOptionsDefaultWriteTheSameFormat()
+    public void NoShippedSettingPicksABrainLogWriteFormat()
     {
-        var expected = nameof(BrainLogFormat.Framed);
-        Assert.Equal(expected, new BrainStoreOptions().WriteFormat.ToString());
         foreach (var name in new[] { "IntoChat.OS.Kernel", "IntoChat.OS.AppHost" })
         {
             var settings = Path.Combine(Repository.ProjectNamed(name).Directory, "appsettings.json");
-            Assert.Equal([expected], Values(settings, "WriteFormat").ToArray());
+            Assert.Empty(Values(settings, "WriteFormat"));
         }
     }
 

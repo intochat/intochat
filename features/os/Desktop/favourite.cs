@@ -1,6 +1,6 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // `favourite:<windowId>` stars or unstars the window's active tab; `view:<favouriteId>` opens a view
 // favourite as a new tab in the focused window (app favourites use `open:`).

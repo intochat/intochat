@@ -1,7 +1,8 @@
 using IntoChat.OS.Client.Orleans;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
@@ -16,6 +17,7 @@ public sealed class TestBrain
     private Action<IServiceCollection>? _services;
     private TestExecutionOptions _execution = new();
     private ILicenseCheck? _licenseCheck;
+    private readonly List<Type> _neuronModules = [];
     private ITestTarget _target = new InProcessTarget();
     private bool _started;
 
@@ -39,10 +41,19 @@ public sealed class TestBrain
     }
 
     // A composition named as a list (the OS catalog): modules already declared keep their configuration.
-    internal TestBrain WithModules(IEnumerable<ModuleContract> modules)
+    /// <summary>Adds a composition named as a list (the OS catalog); modules already declared keep their configuration.</summary>
+    public TestBrain WithModules(IEnumerable<ModuleContract> modules)
     {
         EnsureMutable();
         _composition.RequireModules(modules);
+        return this;
+    }
+
+    // A DigitalBrain module (06-02): its plain [Neuron] classes run on the runtime host grains beside the Framework modules.
+    public TestBrain WithNeuronModule<TModule>() where TModule : global::DigitalBrain.Module
+    {
+        EnsureMutable();
+        if (!_neuronModules.Contains(typeof(TModule))) { _neuronModules.Add(typeof(TModule)); }
         return this;
     }
 
@@ -150,19 +161,6 @@ public sealed class TestBrain
         return this;
     }
 
-    // Short leases and renewals so subscription expiry and reactivation show up within a test's timeout.
-    public TestBrain WithFastSubscriptions(int bufferCapacity = 256)
-        => ConfigureServices(services =>
-        {
-            services.Configure<ObserverOptions>(options => options.Lease = TimeSpan.FromSeconds(2));
-            services.Configure<SubscriptionOptions>(options =>
-            {
-                options.RenewEvery = TimeSpan.FromMilliseconds(200);
-                options.OperationTimeout = TimeSpan.FromMilliseconds(500);
-                options.BufferCapacity = bufferCapacity;
-            });
-        });
-
     public TestBrain On(ITestTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -182,7 +180,7 @@ public sealed class TestBrain
         foreach (var (key, value) in _configuration) { configuration[key] = value; }
         foreach (var (key, value) in composition.OptionOverrides) { configuration[key] = value; }
         var services = composition.RequiresLocalServices ? composition.ConfigureLocalServices + _services : _services;
-        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, LicenseCheck: _licenseCheck);
+        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, LicenseCheck: _licenseCheck, NeuronModules: [.. _neuronModules]);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_execution.StartupTimeout);
         return await _target.StartAsync(plan, deadline.Token).ConfigureAwait(false);

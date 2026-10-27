@@ -1,6 +1,10 @@
+using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Authority.Identity.Grants;
 using Microsoft.Extensions.Options;
 
@@ -24,7 +28,7 @@ internal sealed class BrainAuthorityGrain(
     [PersistentState("access", IntoChatOSNames.PlatformGrainStorage)] IPersistentState<BrainAuthorityState> storage,
     TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror) : IdentityStateGrain<BrainAuthorityState>(storage), IBrainAuthority
 {
-    private AuthorityNeurons Platform => new(GrainFactory);
+    private AuthorityNeurons Platform => ServiceProvider.GetRequiredService<AuthorityNeurons>();
 
     public override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
@@ -77,11 +81,12 @@ internal sealed class BrainAuthorityGrain(
     }
     public async Task EnsureMember(Member member)
     {
-        // T26-2: a circle's members are other accounts; their records keep their own account, which GrantRules matches.
-        if (State.Kind == BrainKind.Circle && State.AccountId is { } owner && owner != member.AccountId)
+        // T26-2: members of other accounts keep their own account, which GrantRules matches. A circle's members always are;
+        // a personal brain may hold them too (identity@1 membership, 05-12). The brain's own account is never re-scoped.
+        if (State.AccountId is { } owner && owner != member.AccountId)
         {
             if (member.BrainId != State.BrainId) { throw new InvalidOperationException("Brain authority scope conflict."); }
-            if (member.Role == MemberRole.Owner) { throw new InvalidOperationException("A circle has one owner, its creator."); }
+            if (member.Role == MemberRole.Owner) { throw new InvalidOperationException("A brain has one owner, its creator."); }
         }
         else { await Initialize(member.AccountId, member.BrainId); }
         if (State.Members.TryGetValue(member.PrincipalId, out var existing))

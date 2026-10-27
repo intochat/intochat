@@ -1,6 +1,6 @@
 /// The one place that says how a catalog kind is drawn.
 ///
-/// Every UI kind from `IntoChat.OS.Flutter.UIVocabulary` and every semantic field kind from
+/// Every UI kind from `IntoChat.OS.Modules.Flutter.UIVocabulary` and every semantic field kind from
 /// `IntoChat.OS.Contracts.Types.FieldKind` resolves here. A kind with a dedicated renderer
 /// resolves to it; every other kind, including one the client has never seen, resolves to the
 /// declared fallback, so a window is never blank.
@@ -25,7 +25,7 @@ final class RendererRegistry {
 
   static const fallbackLabel = 'Not supported yet';
 
-  /// Mirrors `IntoChat.OS.Flutter.UIVocabulary`.
+  /// Mirrors `IntoChat.OS.Modules.Flutter.UIVocabulary`.
   static const List<String> uiKinds = [
     'view',
     'surface',

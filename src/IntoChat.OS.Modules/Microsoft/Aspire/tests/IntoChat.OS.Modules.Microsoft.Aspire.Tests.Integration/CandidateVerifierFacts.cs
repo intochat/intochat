@@ -1,16 +1,16 @@
-using IntoChat.OS.Mcp;
-using IntoChat.OS.Microsoft.Aspire.Deployment;
-using IntoChat.OS.Microsoft.Aspire.Verification;
-using IntoChat.OS.Tools;
+using IntoChat.OS.Modules.Mcp;
+using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
+using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
+using IntoChat.OS.Modules.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 public sealed class CandidateVerifierFacts(AspireHost host)
 {
     private const string Sha = "sha0001";
-    private const string ReadKey = "neurons_call IntoChat.OS.Apps.IApp owner/apps/calculator Read";
-    private static readonly NeuronExpectation Read = new("IntoChat.OS.Apps.IApp", "owner/apps/calculator", "Read", "[]", "calculator");
+    private const string ReadKey = "neurons_call IntoChat.OS.Modules.Apps.IApp owner/apps/calculator Read";
+    private static readonly NeuronExpectation Read = new("IntoChat.OS.Modules.Apps.IApp", "owner/apps/calculator", "Read", "[]", "calculator");
 
     // The aspire CLI is a process-level seam; the candidate's MCP is the scripted server on loopback.
     private static async Task<(ITestBrain Brain, FakeClusterHost Cluster)> StartAsync(CancellationToken ct)
@@ -60,7 +60,7 @@ public sealed class CandidateVerifierFacts(AspireHost host)
         var report = await Verify(brain, server, new([], [], TimeSpan.FromMinutes(1)), ct);
 
         Assert.True(report.Passed);
-        Assert.Equal([$"neurons_call IntoChat.OS.Apps.IFeatureReconciler {brain.Owner.BrainId}/apps-reconciler Reconcile", "neurons_list IntoChat.OS.Apps.IApp"], server.Calls.Skip(1));
+        Assert.Equal([$"neurons_call IntoChat.OS.Modules.Apps.IFeatureReconciler {brain.Owner.BrainId}/apps-reconciler Reconcile", "neurons_list IntoChat.OS.Modules.Apps.IApp"], server.Calls.Skip(1));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class CandidateVerifierFacts(AspireHost host)
         var report = await Verify(brain, server, new([Read], [], TimeSpan.FromMinutes(1)), ct);
 
         Assert.True(report.Passed);
-        Assert.Equal(["context", "activation", "call IntoChat.OS.Apps.IApp owner/apps/calculator Read"], report.Checks.Select(check => check.Name));
+        Assert.Equal(["context", "activation", "call IntoChat.OS.Modules.Apps.IApp owner/apps/calculator Read"], report.Checks.Select(check => check.Name));
     }
 
     [Trait("host", "own")]
@@ -105,7 +105,7 @@ public sealed class CandidateVerifierFacts(AspireHost host)
         var report = await Verify(brain, server, new([Read, Read], ["seen"], TimeSpan.FromMinutes(1)), ct);
 
         Assert.Equal(3, report.Checks.Length);
-        Assert.Equal("call IntoChat.OS.Apps.IApp owner/apps/calculator Read", report.FirstFailure);
+        Assert.Equal("call IntoChat.OS.Modules.Apps.IApp owner/apps/calculator Read", report.FirstFailure);
         Assert.Equal(1, server.Calls.Count(call => call == ReadKey));
     }
 
@@ -139,7 +139,7 @@ public sealed class CandidateVerifierFacts(AspireHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await ScriptedMcpServer.StartAsync(ct);
-        server.Failures.Add("neurons_list IntoChat.OS.Apps.IApp");
+        server.Failures.Add("neurons_list IntoChat.OS.Modules.Apps.IApp");
         var brain = host.Brain;
 
         var report = await Verify(brain, server, new([Read], [], TimeSpan.FromMinutes(1)), ct);

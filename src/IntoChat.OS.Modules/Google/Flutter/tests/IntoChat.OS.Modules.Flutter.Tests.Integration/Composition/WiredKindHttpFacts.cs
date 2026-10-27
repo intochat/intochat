@@ -1,11 +1,10 @@
 using System.Net;
 using System.Text.Json;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Expander;
-using IntoChat.OS.Flutter.Image;
-using IntoChat.OS.Flutter.InfoBar;
-using IntoChat.OS.Flutter.Progress;
-using IntoChat.OS.Flutter.Toggle;
+using IntoChat.OS.Modules.Flutter.Expander;
+using IntoChat.OS.Modules.Flutter.Image;
+using IntoChat.OS.Modules.Flutter.InfoBar;
+using IntoChat.OS.Modules.Flutter.Progress;
+using IntoChat.OS.Modules.Flutter.Toggle;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Composition;
 

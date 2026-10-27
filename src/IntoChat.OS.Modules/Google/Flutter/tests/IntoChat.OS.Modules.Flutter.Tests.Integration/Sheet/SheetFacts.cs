@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Sheet;
+using IntoChat.OS.Modules.Flutter.Sheet;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Sheet;
@@ -13,8 +12,8 @@ public sealed class SheetFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        await brain.Get<ISheet>("budget").Set("Budget", [new SheetCell(0, 0, "100")]);
-        var state = await brain.Get<ISheet>("budget").Read();
+        await brain.Get<ISheet>("owner/budget").Set("Budget", [new SheetCell(0, 0, "100")]);
+        var state = await brain.Get<ISheet>("owner/budget").Read();
         Assert.Equal("Budget", state.Title);
         Assert.Equal(new SheetCell(0, 0, "100"), Assert.Single(state.Cells));
     }

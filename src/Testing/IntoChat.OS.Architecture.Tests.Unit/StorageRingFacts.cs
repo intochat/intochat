@@ -1,4 +1,5 @@
 using System.Reflection;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans;
 
@@ -13,7 +14,7 @@ public sealed class StorageRingFacts
     public void NeuronsPersistInClusterStorageAndPlatformGrainsInPlatformStorage()
     {
         var platform = typeof(IntoChat.OS.Authority.PlatformHosting).Assembly;
-        var sites = new[] { typeof(Neuron).Assembly, platform, Apps }
+        var sites = new[] { typeof(IntoChat.OS.Framework.Modules.ModuleId).Assembly, platform, Apps }
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsClass: true, IsAbstract: false })
             .SelectMany(type => type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
@@ -22,7 +23,7 @@ public sealed class StorageRingFacts
             .Where(site => site.storage is not null)
             .ToArray();
         var offenders = sites
-            .Where(site => typeof(Neuron).IsAssignableFrom(site.type) || site.type.Assembly != platform
+            .Where(site => site.type.Assembly != platform
                 ? site.storage != IntoChatOSNames.ClusterGrainStorage
                 : site.storage != IntoChatOSNames.PlatformGrainStorage)
             .Select(site => $"{site.type.FullName} -> {site.storage}")

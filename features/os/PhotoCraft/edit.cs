@@ -1,7 +1,7 @@
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Modules.Mcp;
 
 // Edit: hand the request to PhotoCraft's editor, an agent turn that may act only through PhotoCraft's own
 // tools (never files or the PC). This reaction ends once the turn is started; preview.cs and

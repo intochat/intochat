@@ -1,11 +1,14 @@
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Postgres;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration;
 
 public sealed class ConnectionPostgresFacts
 {
+    // The integration neuron serving the deployment's database lives in the system brain (06-08).
+    private const string IntegrationKey = "system/default";
+
     private const string ConnectionString = "Host=localhost;Database=mine;Username=reader";
 
     [Trait("host", "own")]
@@ -37,7 +40,7 @@ public sealed class ConnectionPostgresFacts
     {
         await using var brain = await StartAsync();
         using var app = brain.Owner.AsApp("install");
-        await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresServer>("default").Query(new("select id from people", 10)));
+        await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresServer>(IntegrationKey).Query(new("select id from people", 10)));
     }
 
     [Trait("host", "own")]
@@ -71,15 +74,16 @@ public sealed class ConnectionPostgresFacts
     public async Task TheDefaultKeyIsNoConnection()
     {
         await using var brain = await StartAsync();
-        var error = await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IConnection>("default").Read());
-        Assert.Contains("connection grain key", error.Message, StringComparison.Ordinal);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IConnection>("default").Connect("connection-string", ConnectionString));
+        // A plain connection contract is addressed by a connection key (06-08): the integration key names no connector.
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IConnection>(IntegrationKey).Read());
+        Assert.Contains("is not a connection key", error.Message, StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IConnection>(IntegrationKey).Connect("connection-string", ConnectionString));
         using (brain.Owner.AsCaller())
         {
-            await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Get<IConnection>("default").Connect("connection-string", ConnectionString));
+            await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IConnection>(IntegrationKey).Connect("connection-string", ConnectionString));
         }
         // The deployment's database still answers host code on the same key.
-        Assert.Equal("7", Assert.Single(Assert.Single((await brain.Get<IPostgresServer>("default").Query(new("select id from people", 10))).Rows)));
+        Assert.Equal("7", Assert.Single(Assert.Single((await brain.Get<IPostgresServer>(IntegrationKey).Query(new("select id from people", 10))).Rows)));
     }
 
     private static async Task<string> ConnectAsync(ITestBrain brain, Person person)

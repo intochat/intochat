@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -6,13 +6,13 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using IntoChat.OS;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Time.Reminders;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Time.Reminders;
 
 // A view is a durable definition the synapses share: what to query, which columns are filters and
 // how often to run. Every layout is derived from the registry, so composing is idempotent.
@@ -37,12 +37,12 @@ public static class Views
     // The set of neurons the views name, following the registry text: a synapse watches it with
     // React<T> or On<T> and maps a signal's Publisher back to the views it belongs to. Views sharing a
     // neuron name it once.
-    public static Sources Registry<T>(IntoChatOSConnection brain, string appKey, Func<View, IEnumerable<string>> keys) where T : INeuron
-        => Sources.Named<IText, TextChanged>(brain.Get<IText>(appKey + "/views"), async (registry, _) =>
+    public static Sources Registry<T>(IntoChatOSConnection brain, string appKey, Func<View, IEnumerable<string>> keys) where T : class
+        => Sources.Named<IText, TextChanged, T>(brain.Get<IText>(appKey + "/views"), async (registry, _) =>
         {
             var text = (await registry.Read()).Markdown;
             var views = text.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(text, Json) ?? [];
-            return views.SelectMany(keys).Distinct(StringComparer.Ordinal).Select(key => (INeuron)brain.Get<T>(key)).ToArray();
+            return views.SelectMany(keys).Distinct(StringComparer.Ordinal).Select(key => brain.Get<T>(key)).ToArray();
         });
 
     public static async Task Compose(IntoChatOSConnection brain, string appKey, View view)

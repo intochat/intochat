@@ -2,21 +2,28 @@ extern alias AppHost;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Microsoft.CSharp;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Time.Reminders;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
-// What the local profile starts: Azurite plus the C# sandbox, nothing else, and nothing that opens the host.
+// What the local topology starts: the C# sandbox, nothing else (no Azurite), and nothing that opens the host.
 [Collection(AppHostComposition.Collection)]
 public sealed class LocalProfileCompositionFacts
 {
     private static readonly string[] Excluded = ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "foundry", "jev", "ollama"];
 
-    private static Task<IDistributedApplicationTestingBuilder> LocalAsync()
+    private static Task<IDistributedApplicationTestingBuilder> LocalAsync(string topology = IntoChatOSNames.TopologyLocal)
         => DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_OS_AppHost>(
-            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars", "--" + IntoChatOSProfiles.ProfileKey + "=local"],
+            ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars", "--" + IntoChatOSNames.TopologyKey + "=" + topology],
             TestContext.Current.CancellationToken);
 
     [Fact]
@@ -71,14 +78,32 @@ public sealed class LocalProfileCompositionFacts
         {
             var resource = Assert.Single(host.Resources.OfType<ProjectResource>(), project => project.Name == name);
             var environment = await LocalProfileOllamaFacts.EnvironmentOf(host, resource);
-            foreach (var id in new[] { "postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "time", "windows", "salesforce", "gmail" })
+            foreach (var id in new[] { "postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "windows", "salesforce", "gmail" })
             {
                 Assert.Equal("false", environment[IntoChatOSConfiguration.ModuleSection(id) + ":Enabled"]);
             }
-            foreach (var id in new[] { "ai", "apps", "circles", "flame", "tools", "csharp", "orleans", "aspire", "mcp" })
+            foreach (var id in new[] { "ai", "apps", "circles", "flame", "tools", "csharp", "orleans", "aspire", "mcp", "time" })
             {
                 Assert.DoesNotContain(IntoChatOSConfiguration.ModuleSection(id) + ":Enabled", environment.Keys);
             }
+        }
+    }
+
+    [Theory]
+    [InlineData(IntoChatOSNames.TopologyLocal)]
+    [InlineData(IntoChatOSNames.TopologyLocalCloud)]
+    public async Task TheLocalProfileKeepsReminderContractsAvailableToKernelAndMcp(string topology)
+    {
+        await using var host = await LocalAsync(topology);
+        foreach (var name in new[] { "OperatingSystem-a", "intochat-os-mcp-a" })
+        {
+            var resource = Assert.Single(host.Resources.OfType<ProjectResource>(), project => project.Name == name);
+            var environment = await LocalProfileOllamaFacts.EnvironmentOf(host, resource);
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(environment.Select(pair =>
+                new KeyValuePair<string, string?>(pair.Key, pair.Value))).Build();
+            var selection = new IntoChatOSServerBuilder().AddOperatingSystem().SelectModules(configuration);
+            var contracts = new CompiledTypes(new ModuleInventory(selection.Modules), []);
+            Assert.Same(typeof(IReminder), contracts.Contract(typeof(IReminder).FullName!));
         }
     }
 

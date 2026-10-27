@@ -1,5 +1,4 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -66,7 +65,7 @@ public sealed class ModelCatalogFacts(AIHost host)
                 options.ModelProfiles["work"] = new() { Provider = "OpenAI", Model = "private-chat", Capabilities = LlmCapabilities.Tools };
                 options.ModelProfiles["no-tools"] = new() { Provider = "OpenAI", Model = "text-only", Capabilities = LlmCapabilities.None };
             }).WithProvider("OpenAI", "https://private.example/v1", "secret-api-key").StartAsync(ct);
-        var catalog = brain.Get<IModelCatalog>("default");
+        var catalog = brain.Get<IModelCatalog>(IModelCatalog.DeploymentKey);
         var choices = await catalog.List();
         Assert.True(choices.Automatic.Available);
         Assert.Contains(choices.Models, choice => choice.Id == "profile:work");

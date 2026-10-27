@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Intents;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // A message waiting for Memory to intend it: what was asked, the hint Jev gave, the conversation and when it
 // was handed to Memory. Started is set once the answer's turn has been started, so a late Rephrased signal

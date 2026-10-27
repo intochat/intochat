@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Connections.Platform.Marketplace;
 
 namespace IntoChat.OS.Authority.Marketplace;
 

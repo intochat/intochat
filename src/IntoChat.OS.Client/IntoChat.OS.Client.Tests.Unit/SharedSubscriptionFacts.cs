@@ -5,8 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
 using static IntoChat.OS.Client.Tests.Unit.SessionConnectionFacts;
@@ -235,10 +235,10 @@ public sealed class SharedSubscriptionFacts
         var member = connection.Get<ISource>("member");
         var reselected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var selections = 0;
-        var sources = Sources.Named<ISource, Changed>(registry, (_, _) =>
+        var sources = Sources.Named<ISource, Changed, ISource>(registry, (_, _) =>
         {
             if (Interlocked.Increment(ref selections) == 2) { reselected.TrySetResult(); }
-            return Task.FromResult<INeuron[]>([registry, member]);
+            return Task.FromResult<ISource[]>([registry, member]);
         });
         await using var stream = connection.On<Changed>(sources, ct).GetAsyncEnumerator(ct);
 

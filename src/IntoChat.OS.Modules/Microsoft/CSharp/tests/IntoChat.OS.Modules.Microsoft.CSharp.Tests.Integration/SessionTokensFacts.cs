@@ -1,6 +1,6 @@
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -22,9 +22,9 @@ public sealed class SessionTokensFacts(CSharpHost host)
         using (brain.Owner.AsCaller())
         {
             // No connection neuron serves "csharp", so a connection key naming it addresses nothing.
-            var key = IntoChat.OS.Framework.Platform.Connections.ConnectionKeys.For(IntoChat.OS.Framework.BrainScope.CurrentId(), "csharp", "internal");
-            var error = Assert.Throws<ArgumentException>(() => IntoChat.OS.Framework.Platform.Connections.ConnectionGrains
-                .GetNeuronGrain<IntoChat.OS.Framework.Platform.Connections.IConnection>(brain.Services.GetRequiredService<IGrainFactory>(), brain.Services, key));
+            var key = IntoChat.OS.Connections.Platform.Connections.ConnectionKeys.For(IntoChat.OS.Framework.BrainScope.CurrentId(), "csharp", "internal");
+            var error = Assert.Throws<ArgumentException>(() => IntoChat.OS.Connections.Platform.Connections.ConnectionGrains
+                .GetNeuron<IntoChat.OS.Connections.Platform.Connections.IConnection>(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), brain.Services, key));
             Assert.Contains("No connection neuron serves connector 'csharp'", error.Message);
         }
     }

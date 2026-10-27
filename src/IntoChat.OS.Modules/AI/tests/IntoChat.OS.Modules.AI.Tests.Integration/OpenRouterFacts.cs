@@ -1,7 +1,6 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenRouter;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenRouter;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
@@ -23,8 +22,8 @@ public sealed class OpenRouterFacts
         Assert.Null(resolved.Endpoint);
         Assert.Equal(IntegrationStatus.Ready,
             (await brain.Integration("openrouter").Read()).Status);
-        await brain.Get<IDeepSeekV41Flash>("preset").Describe();
-        var defaultModel = await brain.Get<ILLM>("default").Describe();
+        await brain.Get<IDeepSeekV41Flash>("owner/preset").Describe();
+        var defaultModel = await brain.Get<ILLM>(ModelAddress.Key("owner")).Describe();
         Assert.Equal("deepseek/deepseek-v4.1-flash", defaultModel.Model);
     }
 }

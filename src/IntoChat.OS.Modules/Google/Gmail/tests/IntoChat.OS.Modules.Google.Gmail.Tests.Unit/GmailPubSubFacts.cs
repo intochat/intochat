@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Google.Gmail;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Unit;
 

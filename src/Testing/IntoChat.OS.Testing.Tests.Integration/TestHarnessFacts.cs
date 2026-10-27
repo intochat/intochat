@@ -1,6 +1,10 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Xunit;
+
 namespace IntoChat.OS.Testing.Tests.Integration;
 
 public sealed class TestHarnessFacts(TestingHost host)
@@ -10,7 +14,7 @@ public sealed class TestHarnessFacts(TestingHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var source = brain.Get<ITestEmitter>("behavior");
+        var source = brain.Get<ITestEmitter>("owner/behavior");
         var a = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var b = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task Observe(IIntoChatOS handle, TaskCompletionSource<int> result, CancellationToken token)
@@ -31,7 +35,7 @@ public sealed class TestHarnessFacts(TestingHost host)
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
         var run = brain.RunBehavior((_, _) => Task.FromException(new IOException("behavior failed")), ct);
-        await Assert.ThrowsAsync<IOException>(() => run.WaitForSubscriptionAsync<Number>(brain.Get<ITestEmitter>("x"), ct));
+        await Assert.ThrowsAsync<IOException>(() => run.WaitForSubscriptionAsync<Number>(brain.Get<ITestEmitter>("owner/x"), ct));
         await Assert.ThrowsAsync<IOException>(() => run.DisposeAsync().AsTask());
     }
     [Fact]
@@ -50,7 +54,7 @@ public sealed class TestHarnessFacts(TestingHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var source = brain.Get<ITestEmitter>("probe");
+        var source = brain.Get<ITestEmitter>("owner/probe");
         await using var probe = await brain.Observe<Number>(source, ct);
         await source.Emit(4);
         Assert.Equal(4, (await probe.NextAsync(ct: ct)).Value);
@@ -62,7 +66,7 @@ public sealed class TestHarnessFacts(TestingHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        await using var probe = await brain.Observe<Number>(brain.Get<ITestEmitter>("silent"), ct);
+        await using var probe = await brain.Observe<Number>(brain.Get<ITestEmitter>("owner/silent"), ct);
         var never = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var run = brain.RunBehavior((_, _) => never.Task, ct);
         try

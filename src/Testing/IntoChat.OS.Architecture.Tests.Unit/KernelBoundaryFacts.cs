@@ -1,4 +1,5 @@
 using System.Reflection;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -7,7 +8,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 public sealed class KernelBoundaryFacts
 {
     // The connection's user face is the one platform contract a brain member calls.
-    private static readonly string[] PlatformNeurons = ["IntoChat.OS.Framework.Platform.Connections.IConnection"];
+    private static readonly string[] PlatformNeurons = ["IntoChat.OS.Connections.Platform.Connections.IConnection"];
 
     [Fact]
     public void NoKernelOrPlatformGrainInterfaceDerivesINeuron()
@@ -41,16 +42,17 @@ public sealed class KernelBoundaryFacts
         var types = new IntoChat.OS.Framework.CompiledTypes(ProductionArchitecture.Assemblies);
 
         Assert.All(types.Entries.Where(entry => entry.Kind == TypeKind.Neuron),
-            entry => Assert.True(typeof(INeuron).IsAssignableFrom(types.Contract(entry.Name)), entry.Name));
+            // Transitional (06-03/06-07, deleted in 06-08): a migrated plain contract is a [DefaultNeuronType] interface instead.
+            entry => Assert.True(typeof(INeuron).IsAssignableFrom(types.Contract(entry.Name)) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(types.Contract(entry.Name)), entry.Name));
     }
 
-    // The call filter applies access policy to INeuron contracts only, so an access attribute
-    // anywhere else is dead and reads as a guarantee it is not.
+    // The call filter applies access policy to INeuron contracts, and PlainNeuronCallFilter to plain neuron contracts
+    // ([DefaultNeuronType], 06-04), so an access attribute anywhere else is dead and reads as a guarantee it is not.
     [Fact]
     public void AccessAttributesAppearOnlyOnNeuronContracts()
     {
         var offenders = ProductionArchitecture.Types
-            .Where(type => type.IsInterface && !typeof(INeuron).IsAssignableFrom(type))
+            .Where(type => type.IsInterface && !typeof(INeuron).IsAssignableFrom(type) && !IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))
             .SelectMany(contract => contract.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(method => method.GetCustomAttributes<AccessAttribute>().Any())
                 .Select(method => contract.FullName + "." + method.Name)

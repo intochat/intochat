@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 // The candidate's MCP as a script: initialize and tools/list answer statically, each tools/call is
 // answered from the table by tool name plus contract/key/method, in the SSE shape the real server uses.
@@ -69,7 +69,7 @@ internal sealed class ScriptedMcpServer : IAsyncDisposable
         {
             "neurons_context" => $"{{\"principalId\":\"owner\",\"brainId\":\"{brain}\"}}",
             "neurons_list" => "[]",
-            _ when key.StartsWith("neurons_call IntoChat.OS.Apps.IFeatureReconciler ", StringComparison.Ordinal) => "",
+            _ when key.StartsWith("neurons_call IntoChat.OS.Modules.Apps.IFeatureReconciler ", StringComparison.Ordinal) => "",
             _ => null,
         };
         return text is null || Failures.Contains(key)

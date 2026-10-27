@@ -1,6 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Testing;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
@@ -15,7 +14,7 @@ public sealed class TablesSlotFacts
     {
         await using var brain = await Start();
         var app = await App(brain, "bound", new("tables", "postgres"), new() { ["tables"] = "c1" });
-        Assert.Equal(ConnectionKeys.For(Brain, "postgres", "c1"), await Slot(brain).BoundConnection(new(Brain, app)));
+        Assert.Equal(ConnectionKeys.For(Brain, "postgres", "c1"), await TablesSlot.BoundConnection(brain.Services, new(Brain, app)));
     }
 
     [Trait("host", "own")]
@@ -25,8 +24,8 @@ public sealed class TablesSlotFacts
         await using var brain = await Start();
         var unbound = await App(brain, "unbound", new("tables", "postgres"), []);
         var undeclared = await App(brain, "undeclared", null, new() { ["tables"] = "c1" });
-        Assert.Null(await Slot(brain).BoundConnection(new(Brain, unbound)));
-        Assert.Null(await Slot(brain).BoundConnection(new(Brain, undeclared)));
+        Assert.Null(await TablesSlot.BoundConnection(brain.Services, new(Brain, unbound)));
+        Assert.Null(await TablesSlot.BoundConnection(brain.Services, new(Brain, undeclared)));
     }
 
     [Trait("host", "own")]
@@ -35,7 +34,7 @@ public sealed class TablesSlotFacts
     {
         await using var brain = await Start();
         var app = await App(brain, "visualizer", new("db", "postgres"), new() { ["db"] = "c1" });
-        Assert.Null(await Slot(brain).BoundConnection(new(Brain, app)));
+        Assert.Null(await TablesSlot.BoundConnection(brain.Services, new(Brain, app)));
     }
 
     [Trait("host", "own")]
@@ -44,10 +43,8 @@ public sealed class TablesSlotFacts
     {
         await using var brain = await Start();
         var app = await App(brain, "foreign", new("tables", "postgres"), new() { ["tables"] = "c1" });
-        Assert.Null(await Slot(brain).BoundConnection(new("other-brain", app)));
+        Assert.Null(await TablesSlot.BoundConnection(brain.Services, new("other-brain", app)));
     }
-
-    private static ITablesSlot Slot(ITestBrain brain) => new AppTablesSlot(brain.Services);
 
     private static async Task<string> App(ITestBrain brain, string name, AppSlot? slot, Dictionary<string, string> connections)
     {

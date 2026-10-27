@@ -1,5 +1,5 @@
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // The "Timer" text part is derived state: rebuilt from the timers the router started and the ticks it
 // heard whenever either changes, newest timer first.

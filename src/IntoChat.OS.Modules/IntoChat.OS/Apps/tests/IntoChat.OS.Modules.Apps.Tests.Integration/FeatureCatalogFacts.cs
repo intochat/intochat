@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
 public sealed class FeatureCatalogFacts : IDisposable
@@ -116,7 +114,7 @@ public sealed class FeatureCatalogFacts : IDisposable
         Assert.Equal([("os", "greeter")], (await catalog.Listings()).Select(listing => (listing.Publisher, listing.Name)));
         var failure = Assert.Single(await catalog.Failures());
         Assert.Equal(("intochat", "echo"), (failure.Owner, failure.Name));
-        Assert.Contains("intochat/echo 2.0.0 is not shaped as synapses", failure.Reason, StringComparison.Ordinal);
+        Assert.Contains("intochat/echo 2.0.0 is not shaped as reactions", failure.Reason, StringComparison.Ordinal);
         Assert.Contains("echo.cs:1", failure.Reason, StringComparison.Ordinal);
     }
 
@@ -158,7 +156,7 @@ public sealed class FeatureCatalogFacts : IDisposable
 
     private sealed class Sandbox(Func<IReadOnlyDictionary<string, string>, bool> success) : IScriptSandbox
     {
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "";

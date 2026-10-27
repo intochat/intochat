@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.TextField.Signals;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.TextField.Signals;
 
 // Every filter field of every view is watched; a change refreshes each view sharing that field's group.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

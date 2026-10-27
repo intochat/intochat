@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Workspace.Signals;
+using IntoChat.OS.Modules.Flutter.Workspace.Signals;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 await Workspace.Compose(brain);

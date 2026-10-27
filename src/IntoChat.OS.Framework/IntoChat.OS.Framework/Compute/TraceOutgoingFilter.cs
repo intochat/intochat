@@ -1,4 +1,7 @@
 using Orleans;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Contracts.Compute;
 
 namespace IntoChat.OS.Framework.Compute;
 

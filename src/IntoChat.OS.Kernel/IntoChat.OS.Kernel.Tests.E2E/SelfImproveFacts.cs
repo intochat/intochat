@@ -1,8 +1,8 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
-using IntoChat.OS.Microsoft.Aspire;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -45,7 +45,11 @@ public sealed class SelfImproveFacts
             Manifest = original.Manifest with { Description = original.Manifest.Description + " " + marker },
         };
         var list = brain.Get<IText>(appKey + "/revisions");
-        await using var changes = await brain.SubscribeAsync<TextChanged>(list, ct);
+        // Text is a plain neuron (06-04): its changes arrive through the session synapse neuron once subscribed.
+        var subscribed = new TaskCompletionSource();
+        await using var changes = brain.On<TextChanged>(list, () => { subscribed.TrySetResult(); return Task.CompletedTask; }, ct).GetAsyncEnumerator(ct);
+        var first = changes.MoveNextAsync();
+        await subscribed.Task.WaitAsync(ct);
         var change = new
         {
             branch = "os-runtime",
@@ -64,7 +68,7 @@ public sealed class SelfImproveFacts
         using var requested = await user.Http.PostAsJsonAsync($"/brains/{scope}/apps/selfimprove/request",
             new { operation = "request", input = System.Text.Json.JsonSerializer.Serialize(change) }, ct);
         Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
-        await foreach (var _ in changes.ReadAllAsync(ct))
+        for (var more = await first; more; more = await changes.MoveNextAsync())
         {
             var refusal = (await brain.Get<IText>(appKey + "/report").Read()).Markdown;
             Assert.False(refusal.StartsWith("Request refused:", StringComparison.Ordinal), refusal);

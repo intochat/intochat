@@ -1,4 +1,3 @@
-using IntoChat.OS.Microsoft.Playwright;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser;

@@ -1,4 +1,4 @@
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity;
 
@@ -12,4 +12,21 @@ public sealed record Invitation
     [Id(4)] public string? Email { get; init; }
     [Id(5)] public DateTimeOffset CreatedAt { get; init; }
     [Id(6)] public bool Accepted { get; init; }
+    // D-10 (additive): expiry, machine binding and the code held only as an HMAC. A workspace invite keeps Code;
+    // a circle machine invite leaves Code empty and keeps CodeHash.
+    [Id(7)] public DateTimeOffset? ExpiresAt { get; init; }
+    [Id(8)] public string? MachineId { get; init; }
+    // Base64url SHA-256 of the machine key's SubjectPublicKeyInfo.
+    [Id(9)] public string? MachineKeyThumbprint { get; init; }
+    [Id(10)] public DateTimeOffset? AcceptedAt { get; init; }
+    [Id(11)] public string? IssuedBy { get; init; }
+    [Id(12)] public InvitationKind Kind { get; init; }
+    [Id(13)] public string? CodeHash { get; init; }
+}
+
+[GenerateSerializer, Alias("identity.invitation-kind")]
+public enum InvitationKind
+{
+    Workspace = 0,
+    CircleMachine = 1,
 }

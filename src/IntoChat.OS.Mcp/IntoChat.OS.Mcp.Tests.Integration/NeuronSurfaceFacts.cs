@@ -1,13 +1,16 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Mcp.Tests.Integration;
 
@@ -110,25 +113,25 @@ public sealed class NeuronSurfaceFacts(McpHost host)
     public async Task WatchIsNotCallable()
     {
         var surface = Surface();
-        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Apps.IApp).FullName!, "b/apps/x", "Watch", "[null]", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Modules.Apps.IApp).FullName!, "b/apps/x", "Watch", "[null]", TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task MalformedArgumentsAreAnArgumentError()
     {
         var surface = Surface();
-        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Apps.IApp).FullName!, "b/apps/x", "Read", "{not json", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Modules.Apps.IApp).FullName!, "b/apps/x", "Read", "{not json", TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task ARestrictedSurfaceRefusesAContractTheAppDidNotName()
     {
         var ct = TestContext.Current.CancellationToken;
-        var surface = await Surface().Restrict([typeof(IntoChat.OS.Apps.IApp).FullName!], ct);
-        Assert.Equal([typeof(IntoChat.OS.Apps.IApp).FullName!], await surface.Contracts(ct));
-        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Postgres.IPostgresServer).FullName!,
+        var surface = await Surface().Restrict([typeof(IntoChat.OS.Modules.Apps.IApp).FullName!], ct);
+        Assert.Equal([typeof(IntoChat.OS.Modules.Apps.IApp).FullName!], await surface.Contracts(ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(IntoChat.OS.Modules.Postgres.IPostgresServer).FullName!,
             "b/connection/postgres/x", "ReadConnection", "[]", TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentException>(() => surface.Get(typeof(IntoChat.OS.Postgres.IPostgresServer).FullName!, "b/connection/postgres/x", ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Get(typeof(IntoChat.OS.Modules.Postgres.IPostgresServer).FullName!, "b/connection/postgres/x", ct));
     }
 
     [Fact]
@@ -174,7 +177,7 @@ public sealed class NeuronSurfaceFacts(McpHost host)
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Open";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IGrainFactory>());
+        global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, brain.Services);
         builder.Services.AddIntoChatOSMcp();
         var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
@@ -222,12 +225,10 @@ public sealed class NeuronSurfaceFacts(McpHost host)
         public IBrain Self => throw new NotSupportedException();
         public IKernelView Kernel => throw new NotSupportedException();
 
-        public T Get<T>(NeuronId id) where T : INeuron => throw new NotSupportedException();
-        public T Neuron<T>(NeuronId relative) where T : INeuron => throw new NotSupportedException();
+        public T Get<T>(NeuronId id) where T : class => throw new NotSupportedException();
+        public T Neuron<T>(NeuronId relative) where T : class => throw new NotSupportedException();
 
-        public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-            => throw new NotSupportedException();
-        public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
             => throw new NotSupportedException();
     }
 }

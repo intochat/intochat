@@ -2,22 +2,21 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Aspire.Testing;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Aspire.Hosting;
+using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Hosting;
 
 // A roll restarts silo instances one at a time; the shell must not ride on any one of them.
 public sealed class ShellFrontFacts
 {
-    private const string AllowedOrigin = IntoChat.OS.Authority.Identity.Configuration.KernelCorsOptions.SectionName + ":" + nameof(IntoChat.OS.Authority.Identity.Configuration.KernelCorsOptions.AllowedOrigin);
+    private const string AllowedOrigin = IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.SectionName + ":" + nameof(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.AllowedOrigin);
 
     [Fact]
     public async Task TheDesktopShellUsesTheFrontsHttpsEndpointForNativeHttp2()
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = AspireCompositionTest.CreateBuilder();
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp());
         builder.AddExecutable("OperatingSystem-a", "unused", ".")
             .WithHttpEndpoint(name: "http").WithHttpsEndpoint(name: "https").WithReference(brain);
@@ -37,7 +36,7 @@ public sealed class ShellFrontFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = AspireCompositionTest.CreateBuilder();
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunWebApp());
         var instances = new[] { "OperatingSystem-a", "OperatingSystem-b" }
             .Select(name => builder.AddExecutable(name, "unused", ".").WithHttpEndpoint(name: "http").WithReference(brain))

@@ -1,5 +1,3 @@
-using IntoChat.OS.AI;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.AI.Tests.Integration.AIHost))]
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;

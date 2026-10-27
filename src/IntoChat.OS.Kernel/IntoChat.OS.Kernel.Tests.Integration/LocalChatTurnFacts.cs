@@ -1,11 +1,11 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Authority.Identity.Configuration;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Connections.Surface;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -31,17 +31,18 @@ public sealed class LocalChatTurnFacts
             .WithModule<AIModule, AIOptions>(options =>
             {
                 options.Ollama.Endpoint = ollama.Endpoint;
-                options.Default.Model = nameof(IntoChat.OS.AI.Models.Ollama.IQwen35);
+                options.Default.Model = nameof(IntoChat.OS.Modules.AI.Models.Ollama.IQwen35);
             })
             .WithConfiguration(AuthOptions.PostureKey, nameof(IdentityPosture.Open))
             .StartAsync(ct);
 
-        // neurons_call { contract: ILLM, key: "default", method: "Generate", arguments: "[<InferenceRequest>]" }
+        // neurons_call { contract: ILLM, key: "{brain}/models", method: "Generate", arguments: "[<InferenceRequest>]" }
+        // (06-05: the model neurons are plain; a plain key names its brain, so the bare "default" is no longer a model key)
         var request = new InferenceRequest([new AiMessage("user", [new AiText("Say hello.")])]);
         var arguments = JsonSerializer.Serialize(new object[] { request }, JsonSerializerOptions.Web);
         using var caller = brain.Owner.AsCaller();
         var surface = brain.Services.GetRequiredService<NeuronSurface>();
-        var result = await surface.Call(typeof(ILLM).FullName!, "default", nameof(ILLM.Generate), arguments, ct);
+        var result = await surface.Call(typeof(ILLM).FullName!, IntoChat.OS.Modules.AI.Models.ModelAddress.Key(brain.Owner.BrainId), nameof(ILLM.Generate), arguments, ct);
 
         Assert.NotNull(result);
         var reply = result.Value.GetProperty("messages").EnumerateArray().Last();

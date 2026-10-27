@@ -1,6 +1,6 @@
-using IntoChat.OS.AI.Media;
+using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 // A captured recording is transcribed; the composer's state when recognition returns decides the outcome.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

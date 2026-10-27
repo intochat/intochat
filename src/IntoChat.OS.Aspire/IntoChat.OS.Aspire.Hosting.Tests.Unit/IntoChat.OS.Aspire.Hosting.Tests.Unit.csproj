@@ -7,12 +7,13 @@
     <ProjectReference Include="../IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
     <ProjectReference Include="../IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
     <ProjectReference Include="../../Testing/IntoChat.OS.Aspire.Testing/IntoChat.OS.Aspire.Testing.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Time/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/IntoChat.OS.Modules.Postgres.Aspire.Hosting/IntoChat.OS.Modules.Postgres.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Salesforce/IntoChat.OS.Modules.Salesforce.Aspire.Hosting/IntoChat.OS.Modules.Salesforce.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Aspire/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/src/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/src/IntoChat.OS.Modules.Postgres.Aspire.Hosting/IntoChat.OS.Modules.Postgres.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Salesforce/src/IntoChat.OS.Modules.Salesforce.Aspire.Hosting/IntoChat.OS.Modules.Salesforce.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/src/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting/IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Auth/src/IntoChat.OS.Modules.Google.Auth.Aspire.Hosting/IntoChat.OS.Modules.Google.Auth.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Aspire/src/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/src/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting/IntoChat.OS.Modules.ArtCraft.Aspire.Hosting.csproj" />
   </ItemGroup>
 </Project>

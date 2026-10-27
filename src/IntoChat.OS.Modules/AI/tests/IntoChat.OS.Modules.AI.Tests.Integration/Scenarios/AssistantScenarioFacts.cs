@@ -1,16 +1,17 @@
+using IntoChat.OS.Modules.Postgres;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Surface;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Postgres;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Connections.Surface;
+using IntoChat.OS.Modules.Microsoft.CSharp;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -57,7 +58,7 @@ public sealed class AssistantScenarioFacts
         var alice = await host.PersonAsync("alice", ct);
         var visualizer = IApp.Key(alice.BrainId, "datavisualizer");
         model.Visualizer = visualizer;
-        model.Scope = alice.BrainId;
+        model.Scope = IWorkspace.Key(alice.BrainId);
         model.Open = JsonSerializer.Serialize(new object[] { visualizer, "open-demo", 0 }, JsonSerializerOptions.Web);
         await Connect(host, alice);
         var app = host.Get<IApp>(visualizer);
@@ -75,7 +76,7 @@ public sealed class AssistantScenarioFacts
         Assert.Equal("""{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""", request.Input);
         using (alice.AsCaller())
         {
-            Assert.Equal(visualizer, (await host.Get<IWorkspace>(alice.BrainId).Read()).Path[^1]);
+            Assert.Equal(visualizer, (await host.Get<IWorkspace>(IWorkspace.Key(alice.BrainId)).Read()).Path[^1]);
         }
     }
 
@@ -94,9 +95,9 @@ public sealed class AssistantScenarioFacts
     // Every module whose contract the shipped assistant composes, so each contract is deployed.
     private static Task<ITestBrain> Start(IChatClient model, CancellationToken ct) =>
         TestBrain.Create()
-            .WithModule<AIModule>().WithModule<AppsModule>().WithModule<IntoChat.OS.Flutter.FlutterModule>()
-            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<IntoChat.OS.Microsoft.Windows.WindowsModule>()
-            .WithModule<IntoChat.OS.Tools.ToolsModule>().WithModule<IntoChat.OS.Mcp.McpModule>().WithModule<IntoChat.OS.Microsoft.Playwright.PlaywrightModule>()
+            .WithModule<AIModule>().WithModule<AppsModule>().WithModule<IntoChat.OS.Modules.Flutter.FlutterModule>()
+            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<IntoChat.OS.Modules.Microsoft.Windows.WindowsModule>()
+            .WithModule<IntoChat.OS.Modules.Tools.ToolsModule>().WithModule<IntoChat.OS.Modules.Mcp.McpModule>().WithModule<IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightModule>()
             .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=platform;Username=reader")
             .WithChatModel(model)
             // A person's database is reached through the provider factory: no Postgres runs here, the demo schema stands in.

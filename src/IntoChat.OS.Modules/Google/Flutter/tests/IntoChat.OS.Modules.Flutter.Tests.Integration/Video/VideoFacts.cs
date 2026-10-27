@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Video;
+using IntoChat.OS.Modules.Flutter.Video;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Video;
@@ -13,7 +12,7 @@ public sealed class VideoFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var video = brain.Get<IVideo>("intro");
+        var video = brain.Get<IVideo>("owner/intro");
         await video.Load("https://example.com/a.mp4", 12);
         await video.Play();
         Assert.True((await video.Read()).Playing);

@@ -1,7 +1,7 @@
-using IntoChat.OS.AI.Embeddings;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.AI.Embeddings;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 // "recall" ranks the current generation of the index against the question, by meaning and words: the
 // question is embedded and the vector index's nearest rows are merged with the words' rank. When the

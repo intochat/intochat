@@ -1,9 +1,9 @@
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // A rule judges the would-be request before it is a fact: a rejection publishes AppRejected and an
 // attention activity instead of AppRequested; an allowing rule, or no rules at all, changes nothing.
@@ -77,7 +77,7 @@ public sealed class AppRuleFacts
         var app = await App(brain, "unjudged", new()
         {
             ["synapses/answer.cs"] = "Console.WriteLine(1);",
-            ["rules/curfew.cs"] = "public sealed class Curfew : ILogic<IntoChat.OS.Apps.Signals.AppRequested> { public Verdict Validate(IntoChat.OS.Apps.Signals.AppRequested r) => Verdict.Allow(); }",
+            ["rules/curfew.cs"] = "public sealed class Curfew : ILogic<IntoChat.OS.Modules.Apps.Signals.AppRequested> { public Verdict Validate(IntoChat.OS.Modules.Apps.Signals.AppRequested r) => Verdict.Allow(); }",
         });
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() => app.Request("ask", "now"));
@@ -100,7 +100,7 @@ public sealed class AppRuleFacts
     public void TheBuilderWritesRulesBeforeSynapses()
     {
         var rules = AgentPrompts.Builder.IndexOf("rules/", StringComparison.Ordinal);
-        Assert.InRange(rules, 0, AgentPrompts.Builder.IndexOf("Keep each synapse", StringComparison.Ordinal));
+        Assert.InRange(rules, 0, AgentPrompts.Builder.IndexOf("Keep each reaction", StringComparison.Ordinal));
         Assert.Contains("ILogic<", AgentPrompts.Builder, StringComparison.Ordinal);
     }
 
@@ -121,9 +121,9 @@ public sealed class AppRuleFacts
         return app;
     }
 
-    private sealed class JudgingSandbox(Func<Signal, Verdict> rule) : IScriptSandbox
+    private sealed class JudgingSandbox(Func<object, Verdict> rule) : IScriptSandbox
     {
-        public List<Signal> Judged { get; } = [];
+        public List<object> Judged { get; } = [];
         public bool CanRun => true;
         public string AuthoringDescription => "";
         public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
@@ -133,7 +133,7 @@ public sealed class AppRuleFacts
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
         public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptCompilationCheck(true, []));
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
         {
             Judged.Add(signal);
             return Task.FromResult<Verdict[]>([rule(signal)]);

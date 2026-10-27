@@ -1,4 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Authority.Enforcement;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Integrations;

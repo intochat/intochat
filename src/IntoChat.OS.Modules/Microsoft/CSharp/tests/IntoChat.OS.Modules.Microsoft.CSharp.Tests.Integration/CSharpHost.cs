@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.CSharp;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.CSharpHost))]
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;

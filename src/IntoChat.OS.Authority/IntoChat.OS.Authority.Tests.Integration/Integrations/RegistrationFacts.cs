@@ -1,9 +1,10 @@
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Authority.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -19,15 +20,11 @@ public sealed class FakeGoogleModule() : Module(new ModuleId(nameof(FakeGoogleMo
         .RequiresSecret("ClientId")
         .RequiresSecret("ClientSecret")
         .RequiresSetting("RedirectPath");
-
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 public sealed class FakeRivalGoogleModule() : Module(new ModuleId(nameof(FakeRivalGoogleModule)))
 {
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("google", "Rival Google");
-
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 public sealed class FakeAiModule() : Module(new ModuleId(nameof(FakeAiModule)))
@@ -37,8 +34,6 @@ public sealed class FakeAiModule() : Module(new ModuleId(nameof(FakeAiModule)))
         IntegrationSchema.For("openai", "OpenAI").RequiresSecret("ApiKey"),
         IntegrationSchema.For("anthropic", "Anthropic").RequiresSecret("ApiKey"),
     ];
-
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 [Trait("host", "own")]
@@ -351,10 +346,10 @@ public sealed class RegistrationFacts
     [Fact]
     public void OnlyTheDeploymentOperatorMayWriteARegistration()
     {
-        var basic = new IntoChat.OS.Authority.Identity.Configuration.AuthOptions
-        { Posture = IntoChat.OS.Authority.Identity.Configuration.IdentityPosture.Secured, Username = "ops", Password = "a-long-operator-password" };
-        var open = new IntoChat.OS.Authority.Identity.Configuration.AuthOptions
-        { Posture = IntoChat.OS.Authority.Identity.Configuration.IdentityPosture.Open };
+        var basic = new IntoChat.OS.Connections.Identity.Configuration.AuthOptions
+        { Posture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture.Secured, Username = "ops", Password = "a-long-operator-password" };
+        var open = new IntoChat.OS.Connections.Identity.Configuration.AuthOptions
+        { Posture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture.Open };
 
         Assert.True(IntegrationOperatorGate.Allows(Http("ops"), basic));
         Assert.False(IntegrationOperatorGate.Allows(Http("someone-else"), basic));
@@ -416,7 +411,7 @@ public sealed class RegistrationFacts
 
     // The one Framework platform contract a brain member calls directly is the connection's user face;
     // the vault, registrations, indexes and the OAuth inbound are kernel grains, not neurons.
-    private static readonly Type UserFaceOfAConnection = typeof(IntoChat.OS.Framework.Platform.Connections.IConnection);
+    private static readonly Type UserFaceOfAConnection = typeof(IntoChat.OS.Connections.Platform.Connections.IConnection);
 
     [Fact]
     public void NoPlatformContractIsANeuronButTheConnectionsUserFace()

@@ -1,5 +1,4 @@
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Microsoft.Windows;
+using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;
 

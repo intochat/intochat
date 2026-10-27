@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // An icon is any publisher's file served from the API origin: an SVG may carry script, so the
 // answer must be inert — no script, no sniffing — whatever the file holds.

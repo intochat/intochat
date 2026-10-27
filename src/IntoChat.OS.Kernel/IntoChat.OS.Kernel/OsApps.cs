@@ -1,4 +1,5 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -35,8 +36,8 @@ public static class OsAppsHosting
             return services;
         }
         services.AddSingleton<OsAppsRegistered>();
-        services.TryAddSingleton<IntoChat.OS.Flutter.IUiRootProvider, OsWorkspaceRoot>();
-        services.TryAddSingleton<IntoChat.OS.Flutter.Chat.IChatAgentSource, AgentChatSource>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Flutter.IUiRootProvider, OsWorkspaceRoot>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Flutter.Chat.IChatAgentSource, AgentChatSource>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureMigration, OsInoMigration>());
         services.Configure<OsAppsOptions>(os =>
         {
@@ -64,12 +65,11 @@ public static class OsAppsHosting
 // is born with its own room only.
 internal sealed class OsDefaults(
     IIntoChatOSBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
-    IntoChat.OS.Framework.Platform.Identity.IIdentityClient identity) : ICreationHandler
+    IntoChat.OS.Connections.Platform.Identity.IIdentityClient identity) : ICreationHandler
 {
-    public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
+    public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
-        var brainId = kernel.GetPrimaryKeyString();
-        if (await identity.KindOf(brainId) == IntoChat.OS.Framework.Platform.Identity.BrainKind.Circle) { return; }
+        if (await identity.KindOf(brainId) == IntoChat.OS.Framework.Modules.Platform.Identity.BrainKind.Circle) { return; }
         foreach (var app in options.Value.Apps)
         {
             try

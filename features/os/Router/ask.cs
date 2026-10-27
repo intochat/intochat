@@ -1,8 +1,8 @@
-using IntoChat.OS.AI.Routing;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
-using ITimer = IntoChat.OS.Time.Timers.ITimer;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Text;
+using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 
 // "ask": the brain's router has Jev pick a capability and method, a language model fills the key and
 // arguments, and the call runs until Jev says the request is done. The result neuron names each method

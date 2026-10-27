@@ -5,7 +5,7 @@ using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 // Publish lists one version in the Marketplace; the listing belongs to the app that published it,
 // and the published bundle stays that version while the publisher keeps editing.
@@ -248,7 +248,7 @@ public sealed class AppPublishFacts
 
     private sealed class RefusingSandbox(params (string File, int Line, string Message)[] errors) : IScriptSandbox
     {
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "";

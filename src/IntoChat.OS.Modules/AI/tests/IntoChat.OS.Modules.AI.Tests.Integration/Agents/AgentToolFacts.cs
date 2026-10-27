@@ -1,5 +1,5 @@
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;

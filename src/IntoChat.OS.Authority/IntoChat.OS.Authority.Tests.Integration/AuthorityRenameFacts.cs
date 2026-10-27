@@ -1,4 +1,5 @@
 using IntoChat.OS.Authority.Compute;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Authority.Tests.Integration;
@@ -10,7 +11,9 @@ public sealed class AuthorityRenameFacts
     public void AuthorityRenameKeepsPersistedNames()
     {
         Assert.Equal("IntoChatOS:Platform:Storage", IntoChatOSNames.BrainStorageConfigurationKey);
-        Assert.Equal("IntoChatOS:Platform:Storage:Directory", IntoChatOSNames.BrainStorageDirectoryConfigurationKey);
+        // The brain log's directory is <Home>/state (DigitalBrain.Runtime.Orleans StateHome), no longer a Platform:Storage key.
+        Assert.Equal("IntoChatOS:Home", IntoChatOSNames.HomeKey);
+        Assert.Equal("state", Path.GetFileName(new IntoChat.OS.Authority.Storage.BrainStoreOptions().Directory));
         Assert.Equal("IntoChatOS:Platform:Fees", FeeOptions.Key);
         Assert.Equal("platform", IntoChatOSNames.PlatformGrainStorage);
         Assert.Equal("cluster", IntoChatOSNames.ClusterGrainStorage);

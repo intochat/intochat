@@ -1,10 +1,10 @@
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
-using IntoChat.OS.Time.Reminders;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
+using IntoChat.OS.Modules.Time.Reminders;
 
 // "capture" turns a finished turn into an episode: a short third-person note and an importance, kept in the
 // episodes table under "agent#run". It runs in Memory after the turn completed, so it never blocks the turn.

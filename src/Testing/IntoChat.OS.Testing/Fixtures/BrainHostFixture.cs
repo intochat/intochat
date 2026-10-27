@@ -1,4 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Xunit;
 
 namespace IntoChat.OS.Testing;
@@ -17,8 +19,8 @@ public abstract class BrainHostFixture : IAsyncLifetime
     public Task<Person> PersonAsync(string name = "", CancellationToken ct = default)
         => Brain.PersonAsync($"{(name.Length == 0 ? "person" : name)}-{Guid.NewGuid():N}", ct);
 
-    // A probe subscribed as the owner, released with the host if the fact does not dispose it.
-    public async Task<SignalProbe<T>> ObserveAsync<T>(INeuron source, Person owner, CancellationToken ct) where T : Signal
+    // A probe of a neuron's [Signal] records, subscribed as the owner, released with the host if the fact does not dispose it.
+    public async Task<PlainSignalProbe<T>> ObserveAsync<T>(object source, Person owner, CancellationToken ct) where T : DigitalBrain.Signal
     {
         ArgumentNullException.ThrowIfNull(owner);
         using (owner.AsCaller()) { return await Brain.Observe<T>(source, ct).ConfigureAwait(false); }

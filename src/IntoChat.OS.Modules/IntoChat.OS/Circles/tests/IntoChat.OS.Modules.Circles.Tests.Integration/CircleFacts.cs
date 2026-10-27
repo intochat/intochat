@@ -1,12 +1,17 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Circles.Signals;
+using IntoChat.OS.Modules.Circles.Signals;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using static IntoChat.OS.Circles.Tests.CircleBrainRooms;
+using static IntoChat.OS.Modules.Circles.Tests.CircleBrainRooms;
 
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 // R126/R137: a circle is a brain of its own; each member's brain creates and lists its circles through the factory,
 // and everything said, shared or paid happens in the circle brain.
@@ -25,7 +30,7 @@ public sealed class CircleFacts(CirclesHost host)
         var state = await alice.In(circle, () => Circle(brain, circle).State());
         Assert.Equal(("friends", alice.AccountId), (state.Name, state.Creator));
         Assert.Equal([alice.AccountId], state.Members);
-        Assert.Equal("Circle room", (await alice.In(circle, () => brain.Get<IntoChat.OS.Apps.IApp>(IntoChat.OS.Apps.IApp.Key(circle, "circleroom")).Read())).Manifest.Title);
+        Assert.Equal("Circle room", (await alice.In(circle, () => brain.Get<IntoChat.OS.Modules.Apps.IApp>(IntoChat.OS.Modules.Apps.IApp.Key(circle, "circleroom")).Read())).Manifest.Title);
         var once = await CreateIn(brain, alice, "family", "request-1");
         Assert.Equal(once, await CreateIn(brain, alice, "family", "request-1"));
     }
@@ -99,7 +104,7 @@ public sealed class CircleFacts(CirclesHost host)
         var brain = host.Brain;
         var (alice, bob) = (await host.PersonAsync("alice", ct), await host.PersonAsync("bob", ct));
         var circle = await CreateIn(brain, alice, "friends");
-        var room = IntoChat.OS.Apps.IApp.Key(circle, "circleroom");
+        var room = IntoChat.OS.Modules.Apps.IApp.Key(circle, "circleroom");
 
         using (alice.AsAppIn(circle, room)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, circle).Invite(bob.AccountId)); }
         await alice.In(circle, () => Circle(brain, circle).Invite(bob.AccountId));
@@ -119,7 +124,7 @@ public sealed class CircleFacts(CirclesHost host)
         var recorded = (await brain.Services.GetRequiredService<IIdentityClient>()
             .CreateBrain(alice.AccountId, alice.PrincipalId, "circle|r-1", "friends", BrainKind.Circle)).Member.BrainId;
         // The brain neuron is created but its creation handler fails: no creator is stamped, so CircleBirth refuses.
-        await brain.Get<IBrain>(recorded).Create(new Owner(alice.AccountId));
+        await brain.Get<IBrain>(IBrain.Key(recorded)).Create(new Owner(alice.AccountId));
         await Assert.ThrowsAsync<KeyNotFoundException>(() => alice.In(recorded, () => Circle(brain, recorded).State()));
 
         var circle = await CreateIn(brain, alice, "friends", "r-1");
@@ -128,12 +133,12 @@ public sealed class CircleFacts(CirclesHost host)
         var state = await alice.In(circle, () => Circle(brain, circle).State());
         Assert.Equal("friends", state.Name);
         Assert.Equal([alice.AccountId], state.Members);
-        Assert.Equal("Circle room", (await alice.In(circle, () => brain.Get<IntoChat.OS.Apps.IApp>(IntoChat.OS.Apps.IApp.Key(circle, "circleroom")).Read())).Manifest.Title);
+        Assert.Equal("Circle room", (await alice.In(circle, () => brain.Get<IntoChat.OS.Modules.Apps.IApp>(IntoChat.OS.Modules.Apps.IApp.Key(circle, "circleroom")).Read())).Manifest.Title);
     }
 
     [Fact]
     public void TheCircleContractsAliasEqualsTheSharedGrainTypeName()
-        => Assert.Equal(IntoChat.OS.Framework.CircleGrainType.Name, ((Orleans.AliasAttribute)Attribute.GetCustomAttribute(typeof(ICircle), typeof(Orleans.AliasAttribute))!).Alias);
+        => Assert.Equal(IntoChat.OS.Connections.CircleGrainType.Name, ((DigitalBrain.Contracts.NeuronAliasAttribute)Attribute.GetCustomAttribute(typeof(ICircle), typeof(DigitalBrain.Contracts.NeuronAliasAttribute))!).Alias);
 
     [Fact]
     public void ACircleNameIsLowercaseLettersDigitsAndDashes()
@@ -157,11 +162,11 @@ public sealed class CircleFacts(CirclesHost host)
 
         await alice.In(circle, () => Circle(brain, circle).Share("notes", []));
 
-        var shared = await alice.In(circle, () => brain.Get<IntoChat.OS.Apps.IApp>(IntoChat.OS.Apps.IApp.Key(circle, "notes")).Read());
+        var shared = await alice.In(circle, () => brain.Get<IntoChat.OS.Modules.Apps.IApp>(IntoChat.OS.Modules.Apps.IApp.Key(circle, "notes")).Read());
         Assert.Equal("notes", shared.Manifest.Title);
-        Assert.Equal(new IntoChat.OS.Apps.AppOrigin(alice.AccountId, new IntoChat.OS.Apps.AppSource.Brain(alice.AccountId, alice.BrainId), "notes", "1.0.0"), shared.Origin);
+        Assert.Equal(new IntoChat.OS.Modules.Apps.AppOrigin(alice.AccountId, new IntoChat.OS.Modules.Apps.AppSource.Brain(alice.AccountId, alice.BrainId), "notes", "1.0.0"), shared.Origin);
         Assert.Contains("notes", (await alice.In(circle, () => Circle(brain, circle).State())).SharedApps);
-        Assert.Null(await alice.In(circle, () => brain.Get<IntoChat.OS.Apps.IMarketplace>(IntoChat.OS.Apps.IMarketplace.Key).Read(alice.PrincipalId, "notes")));
+        Assert.Null(await alice.In(circle, () => brain.Get<IntoChat.OS.Modules.Apps.IMarketplace>(IntoChat.OS.Modules.Apps.IMarketplace.Key).Read(alice.PrincipalId, "notes")));
     }
 
     [Fact(Timeout = 120_000)]
@@ -176,7 +181,7 @@ public sealed class CircleFacts(CirclesHost host)
 
         await bob.In(circle, () => Circle(brain, circle).Share("diary", []));
 
-        var shared = await alice.In(circle, () => brain.Get<IntoChat.OS.Apps.IApp>(IntoChat.OS.Apps.IApp.Key(circle, "diary")).Read());
+        var shared = await alice.In(circle, () => brain.Get<IntoChat.OS.Modules.Apps.IApp>(IntoChat.OS.Modules.Apps.IApp.Key(circle, "diary")).Read());
         Assert.Equal((bob.AccountId, "diary"), (shared.Origin?.Publisher, shared.Manifest.Title));
     }
 
@@ -186,14 +191,14 @@ public sealed class CircleFacts(CirclesHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct, host => host.ConfigureServices(services =>
-            services.AddSingleton<IntoChat.OS.Apps.IScriptSandbox, MarkerSandbox>()));
+            services.AddSingleton<IntoChat.OS.Modules.Apps.IScriptSandbox, MarkerSandbox>()));
         var alice = await brain.PersonAsync("alice", ct);
         await Own(brain, alice, "broken", files: new() { ["go.cs"] = NotCompiling });
         var circle = await Create(brain, alice);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => alice.In(circle, () => Circle(brain, circle).Share("broken", [])));
 
-        var app = await alice.In(circle, () => brain.Get<IntoChat.OS.Apps.IApp>(IntoChat.OS.Apps.IApp.Key(circle, "broken")).Read());
+        var app = await alice.In(circle, () => brain.Get<IntoChat.OS.Modules.Apps.IApp>(IntoChat.OS.Modules.Apps.IApp.Key(circle, "broken")).Read());
         Assert.Equal("", app.Manifest.Title);
         Assert.DoesNotContain("broken", (await alice.In(circle, () => Circle(brain, circle).State())).SharedApps);
     }

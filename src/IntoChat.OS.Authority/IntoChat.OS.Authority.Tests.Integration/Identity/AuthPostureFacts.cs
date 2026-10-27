@@ -1,7 +1,10 @@
 using System.Net;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,7 +76,7 @@ public sealed class AuthPostureFacts
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
         builder.Services.AddSingleton(brain.Platform);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.BrainBirths>());
         builder.Services.AddIdentity();

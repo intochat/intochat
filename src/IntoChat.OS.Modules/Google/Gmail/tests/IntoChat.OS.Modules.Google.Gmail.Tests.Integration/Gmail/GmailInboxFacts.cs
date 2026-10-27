@@ -1,6 +1,5 @@
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;
 
@@ -114,6 +113,6 @@ public sealed class GmailInboxFacts
     }
 
     private static Task<ConnectionView> Grant(ITestBrain brain, string key)
-        => brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "read-fixture-access", "read-fixture-refresh",
+        => brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "read-fixture-access", "read-fixture-refresh",
             DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
 }

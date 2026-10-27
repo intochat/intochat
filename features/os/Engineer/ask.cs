@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 // "ask": the request is recorded under its request id, classified with one model call and handed to its
 // builder; nothing here waits for a builder. A synapse goes to the fast path of its target app (follow.cs

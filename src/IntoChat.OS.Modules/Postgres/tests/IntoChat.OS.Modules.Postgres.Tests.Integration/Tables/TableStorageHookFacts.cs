@@ -1,7 +1,9 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration.Tables;
@@ -18,7 +20,7 @@ public sealed class TableStorageHookFacts
         await using var brain = await Start();
         var owner = brain.Owner;
         var app = IApp.Key(owner.BrainId, "a");
-        using (owner.AsApp(app)) { await brain.Get<ITable>("owned").Define(Definition); }
+        using (owner.AsApp(app)) { await brain.Get<ITable>(brain.Owner.Key("owned")).Define(Definition); }
 
         using var caller = owner.AsCaller();
         var hook = Hook(brain);

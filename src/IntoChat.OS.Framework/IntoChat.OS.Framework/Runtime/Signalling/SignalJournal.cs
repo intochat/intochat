@@ -1,3 +1,5 @@
+using IntoChat.OS.Framework.Modules;
+
 namespace IntoChat.OS.Framework;
 
 // Where a neuron's signals become durable before anyone sees them (Q27). Hosts without a part log journal

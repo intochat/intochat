@@ -1,5 +1,4 @@
-using IntoChat.OS.Microsoft.Windows;
-using IntoChat.OS.Microsoft.Windows.Signals;
+using IntoChat.OS.Modules.Microsoft.Windows.Signals;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration;
 

@@ -3,9 +3,13 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
 using Aspire.Hosting.Orleans;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -89,7 +93,7 @@ public sealed class IntoChatOSBuilder
 
     private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
     internal IReadOnlyDictionary<string, string?> Settings => _settings;
-    public IntoChat.OS.Authority.Identity.Configuration.IdentityHostOptions? Identity { get; private set; }
+    public IntoChat.OS.Connections.Identity.Configuration.IdentityHostOptions? Identity { get; private set; }
     public IntoChatOSBuilder WithHttpIdentity()
     {
         Identity = HttpIdentityProjection.FromConfiguration(ApplicationBuilder.Configuration);

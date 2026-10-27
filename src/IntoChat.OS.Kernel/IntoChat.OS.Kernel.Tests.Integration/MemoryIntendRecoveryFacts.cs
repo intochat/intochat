@@ -4,15 +4,15 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
 
@@ -236,10 +236,10 @@ public sealed class MemoryIntendRecoveryFacts
             {
                 var report = await request.Content!.ReadFromJsonAsync<RuntimeReport>(RuntimeProtocol.Json, cancellationToken);
                 if (report?.Subscribe is not { } subscribed) { return new(HttpStatusCode.OK); }
-                if (subscribed.Signal == nameof(AppRequested))
+                if (subscribed.Signal == IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(AppRequested)))
                 {
                     var input = JsonSerializer.Serialize(new { message = "Reply ready", requestId = RequestId, conversation = "main" });
-                    Publish(nameof(AppRequested), new AppRequested("intend", input, Guid.Parse(RequestId)));
+                    Publish(subscribed.Signal, new AppRequested("intend", input, Guid.Parse(RequestId)));
                 }
                 return Json(new { subscription = subscribed.Signal });
             }
@@ -255,7 +255,7 @@ public sealed class MemoryIntendRecoveryFacts
             if (call.Contract == typeof(IAgent).FullName && call.Method == nameof(IAgent.Start))
             {
                 var turn = call.Arguments[0].Deserialize<AgentTurn>(RuntimeProtocol.Json)!;
-                Publish(nameof(TurnCompleted), new TurnCompleted(call.Key, turn.RunId!, ModelReply));
+                Publish(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(TurnCompleted)), new TurnCompleted(call.Key, turn.RunId!, ModelReply));
                 return new(HttpStatusCode.NoContent);
             }
             if (call.Contract == typeof(IIntents).FullName)

@@ -1,15 +1,17 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Serialization;
 using Orleans.Storage;
-using static IntoChat.OS.Circles.Tests.CircleBrainRooms;
+using static IntoChat.OS.Modules.Circles.Tests.CircleBrainRooms;
 
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 // T26-7/R134/R146/R147: a shared app's slots point either at the circle's own copy of a chosen connection, or at the
 // sharer's connection, which an app of the circle reaches only through the binding recorded on it at Share.
@@ -27,9 +29,9 @@ public sealed class SharedConnectionFacts(CirclesHost host)
         await alice.In(circle, () => Circle(brain, circle).Share("notes", ["c1"]));
 
         var copy = ConnectionKeys.For(circle, Connector, "c1");
-        var view = await alice.In(circle, () => Grains(brain).GetConnection(copy).Read());
+        var view = await alice.In(circle, () => Plain(brain).GetConnection(copy).Read());
         Assert.Equal((Connector, "c1", ConnectionStatus.Connected), (view.ConnectorId, view.ConnectionId, view.Status));
-        Assert.Contains(copy, await Grains(brain).GetGrain<IConnectionIndex>(circle).List());
+        Assert.Contains(copy, await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(circle)).List());
         var app = await alice.In(circle, () => brain.Get<IApp>(IApp.Key(circle, "notes")).Read());
         Assert.Equal(copy, app.Connections["db"]);
     }
@@ -51,14 +53,14 @@ public sealed class SharedConnectionFacts(CirclesHost host)
 
         using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
         {
-            Assert.Equal($"{alice.BrainId}:secret-c1", await Grains(brain).GetConnectionGrain<IShared>(left).Use());
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Grains(brain).GetConnectionGrain<IShared>(unshared).Use());
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Grains(brain).GetConnection(left).Disconnect());
+            Assert.Equal($"{alice.BrainId}:secret-c1", await Plain(brain).Get<IShared>(left).Use());
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Plain(brain).Get<IShared>(unshared).Use());
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Plain(brain).GetConnection(left).Disconnect());
         }
         using (bob.AsAppIn(circle, IApp.Key(circle, "circleroom")))
-        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Grains(brain).GetConnectionGrain<IShared>(left).Use()); }
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Plain(brain).Get<IShared>(left).Use()); }
         using (bob.AsCallerIn(circle))
-        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Grains(brain).GetConnectionGrain<IShared>(left).Use()); }
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Plain(brain).Get<IShared>(left).Use()); }
     }
 
     // R146 (finding 1): a binding admits only a member of the circle: a stranger stamped as the shared app is refused.
@@ -74,9 +76,9 @@ public sealed class SharedConnectionFacts(CirclesHost host)
         var left = ConnectionKeys.For(alice.BrainId, Connector, "c1");
 
         using (carol.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Grains(brain).GetConnectionGrain<IShared>(left).Use()); }
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Plain(brain).Get<IShared>(left).Use()); }
         using (alice.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { Assert.Equal($"{alice.BrainId}:secret-c1", await Grains(brain).GetConnectionGrain<IShared>(left).Use()); }
+        { Assert.Equal($"{alice.BrainId}:secret-c1", await Plain(brain).Get<IShared>(left).Use()); }
     }
 
     // R155: removing the sharer withdraws its binding: the circle's app no longer reaches the connection it left behind.
@@ -92,12 +94,12 @@ public sealed class SharedConnectionFacts(CirclesHost host)
         await bob.In(circle, () => Circle(brain, circle).Share("notes", []));
         var left = ConnectionKeys.For(bob.BrainId, Connector, "c1");
         using (alice.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { Assert.Equal($"{bob.BrainId}:secret-c1", await Grains(brain).GetConnectionGrain<IShared>(left).Use()); }
+        { Assert.Equal($"{bob.BrainId}:secret-c1", await Plain(brain).Get<IShared>(left).Use()); }
 
         await alice.In(circle, () => Circle(brain, circle).Remove(bob.AccountId));
 
         using (alice.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Grains(brain).GetConnectionGrain<IShared>(left).Use()); }
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Plain(brain).Get<IShared>(left).Use()); }
         Assert.Equal("", (await alice.In(circle, () => brain.Get<IApp>(IApp.Key(circle, "notes")).Read())).Connections["db"]);
     }
 
@@ -110,12 +112,12 @@ public sealed class SharedConnectionFacts(CirclesHost host)
         await using var machines = await CircleMachines.Start(ct);
         var (a, b, alice, bob, circle, left) = await LeftBehind(machines, ct);
         using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { Assert.Equal($"{alice.BrainId}:secret-c1", await Grains(b).GetConnectionGrain<IShared>(left).Use()); }
+        { Assert.Equal($"{alice.BrainId}:secret-c1", await Plain(b).Get<IShared>(left).Use()); }
 
         await alice.In(circle, () => Circle(a, circle).Remove(bob.AccountId));
 
         using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Grains(b).GetConnectionGrain<IShared>(left).Use()); }
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Plain(b).Get<IShared>(left).Use()); }
     }
 
     // Finding 2: a machine serving only the removed member is withdrawn, however it was contributed.
@@ -135,9 +137,9 @@ public sealed class SharedConnectionFacts(CirclesHost host)
         var (a, b, alice, bob, circle, left) = await LeftBehind(machines, ct);
 
         using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { Assert.Equal($"{alice.BrainId}:secret-c1", await Grains(b).GetConnectionGrain<IShared>(left).Use()); }
+        { Assert.Equal($"{alice.BrainId}:secret-c1", await Plain(b).Get<IShared>(left).Use()); }
         using (bob.AsAppIn(circle, IApp.Key(circle, "circleroom")))
-        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Grains(b).GetConnectionGrain<IShared>(left).Use()); }
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Plain(b).Get<IShared>(left).Use()); }
         Assert.NotNull(a);
     }
 
@@ -153,10 +155,10 @@ public sealed class SharedConnectionFacts(CirclesHost host)
         await using var machines = await CircleMachines.Start(ct);
         var (a, b, alice, bob, circle, copy) = await Chosen(machines, ct);
 
-        var view = await alice.In(circle, () => Grains(a).GetConnection(copy).Read());
+        var view = await alice.In(circle, () => Plain(a).GetConnection(copy).Read());
         Assert.Equal(ConnectionStatus.Connected, view.Status);
         using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { Assert.Equal($"{circle}:secret-c1", await Grains(b).GetConnectionGrain<IShared>(copy).Use()); }
+        { Assert.Equal($"{circle}:secret-c1", await Plain(b).Get<IShared>(copy).Use()); }
     }
 
     // R130: a refresh of a shared copy's credential keeps it under the circle's key, so every contributed machine
@@ -172,13 +174,13 @@ public sealed class SharedConnectionFacts(CirclesHost host)
         Assert.True(BrainSeal.IsBrainSealed(Assert.Single(before, secret => secret.Name == "value")), $"imported as {string.Join(",", before.Select(s => s.KeyId))}");
         using (alice.AsCallerIn(circle))
         {
-            await Grains(a).GetConnectionInbound(copy).AcceptGrant(new("oauth", "access-0", "refresh-1", DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
+            await Plain(a).GetConnectionInbound(copy).AcceptGrant(new("oauth", "access-0", "refresh-1", DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
         }
         var granted = await CopySecrets(a, copy);
         Assert.True(BrainSeal.IsBrainSealed(Assert.Single(granted, secret => secret.Name == "access")), $"granted as {string.Join(",", granted.Select(s => s.KeyId))}");
         using (alice.AsAppIn(circle, IApp.Key(circle, "notes")))
         {
-            Assert.Equal($"{circle}:refreshed-access", await Grains(a).GetConnectionGrain<IShared>(copy).Use());
+            Assert.Equal($"{circle}:refreshed-access", await Plain(a).Get<IShared>(copy).Use());
         }
 
         var secrets = await CopySecrets(a, copy);
@@ -231,14 +233,15 @@ public sealed class SharedConnectionFacts(CirclesHost host)
 
         var copy = ConnectionKeys.For(circle, Connector, "c1");
         using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
-        { Assert.Equal($"{circle}:secret-c1", await Grains(b).GetConnectionGrain<IShared>(copy).Use()); }
+        { Assert.Equal($"{circle}:secret-c1", await Plain(b).Get<IShared>(copy).Use()); }
     }
 
     private static async Task<SealedSecret[]> CopySecrets(ITestBrain machine, string copy)
     {
+        // The connection is a plain neuron (06-08): its state is stored under its host grain.
         var storage = machine.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
         var state = new GrainState<SharedState>();
-        await storage.ReadStateAsync("shared", Grains(machine).GetConnection(copy).GetGrainId(), state);
+        await storage.ReadStateAsync("shared", Orleans.Runtime.GrainId.Create("neuron.host", ConnectionGrains.IdFor(copy).ToString()), state);
         return state.State!.Secrets;
     }
 

@@ -1,9 +1,10 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Assemblies;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
@@ -42,13 +43,31 @@ internal static class RuntimeBrain
 
     public static Task<ITestBrain> StartWithAppsAsync(FakeSessionHost host, CancellationToken ct) => Create(host, apps: true).StartAsync(ct);
 
+    // The runtime is a plain neuron (06-08); its module-internal faces are reached through the host seam.
     public static IBrainPrograms Programs(ITestBrain brain, string scope)
-        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(scope));
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainPrograms>(BrainRuntimeKeys.For(scope));
+
+    // How a plain neuron (06-08: an app) is named to the runtime edge, and the alias of an app request.
+    public static string Plain<T>(ITestBrain brain, string key) where T : class
+        => IntoChat.OS.Modules.Microsoft.CSharp.Runtime.PlainSources.Of(
+            global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(brain.Services).IdOf(typeof(T), key));
+
+    public static readonly string Requested = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(IntoChat.OS.Modules.Apps.Signals.AppRequested));
 
     public static IBrainRuntime Runtime(ITestBrain brain, string scope) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
 
     public static IBrainRuntimeEdge Edge(ITestBrain brain, string scope)
-        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(scope));
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainRuntimeEdge>(BrainRuntimeKeys.For(scope));
+
+    // How a plain neuron obtained from brain.Get is named to the runtime edge as a subscription source.
+    public static string Source(object neuron)
+        => IntoChat.OS.Modules.Microsoft.CSharp.Runtime.PlainSources.Of(neuron is DigitalBrain.Invocation.NeuronProxy proxy ? proxy.Target
+            : throw new ArgumentException("Name a plain neuron obtained from the brain's Get.", nameof(neuron)));
+
+    // A reconcile reminder tick, as the runtime's host grain receives one (06-08: the runtime is a plain neuron on that host).
+    public static Task RemindAsync(ITestBrain brain, string scope, CancellationToken ct)
+        => global::IntoChat.OS.Kernel.Composition.KernelTestHooks.Remind(brain.Services,
+            new DigitalBrain.NeuronId(new DigitalBrain.BrainId(scope), BrainRuntimeNeuron.GrainTypeName, BrainRuntimeKeys.Name), BrainRuntimeNeuron.ReconcileReminder, ct);
 
     public static string Fingerprint(ITestBrain brain)
         => IntoChat.OS.Client.Runtime.ContractsFingerprint.Of(brain.Services.GetRequiredService<IntoChat.OS.Framework.CompiledTypes>().Assemblies);

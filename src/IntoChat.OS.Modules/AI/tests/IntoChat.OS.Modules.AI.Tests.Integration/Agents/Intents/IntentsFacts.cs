@@ -1,5 +1,5 @@
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Intents.Signals;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents.Intents;
 
@@ -338,12 +338,14 @@ public sealed class IntentsFacts(AIHost host)
         using var caller = person.AsCaller();
         var intents = host.Brain.Get<IIntents>(IIntents.Key(person.BrainId));
         var id = await intents.Declare(new("req-1", "ship it", "conv/a"));
-        foreach (var bad in new[] { -0.1, 1.1, double.NaN })
+        foreach (var bad in new[] { -0.1, 1.1 })
         {
             var refused = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await intents.Rephrase(id, Brief, bad, (await intents.Read()).Revision));
             Assert.Equal("confidence", refused.ParamName);
             Assert.Equal(bad, (double)refused.ActualValue!);
         }
+        // A plain call's arguments are JSON (06-05): NaN cannot be written, so the call is refused before it leaves the caller.
+        await Assert.ThrowsAnyAsync<ArgumentException>(async () => await intents.Rephrase(id, Brief, double.NaN, (await intents.Read()).Revision));
         Assert.Equal(IntentState.Heard, Assert.Single((await intents.Read()).Intents).State);
     }
 

@@ -10,7 +10,8 @@ namespace IntoChat.OS.Client.Runtime;
 // surfaces here), then yields each batch's signals and acknowledges the batch once the consumer asks
 // for the next one, so a consumer that dies mid-batch is resent the whole batch. Another brain.On<T> of
 // the same neuron and signal in this behavior shares the subscription and still reads every batch.
-internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : Signal
+// T is an os Signal, or (06-07, transitional) a plain neuron's [Signal] record, which the runtime names by its alias.
+internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : class
 {
     private readonly SharedSubscription.Reader _reader;
     private readonly BehaviorTrace _trace;
@@ -23,7 +24,8 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
 
     public static async Task<SessionSignalSubscription<T>> OpenAsync(SessionConnection session, string behavior, NeuronProxy source, BehaviorTrace trace, CancellationToken cancellationToken, string? selector = null)
     {
-        var id = await session.SubscribeAsync(new SubscribeReport(behavior, source.Contract.FullName!, source.Key, typeof(T).Name, selector), cancellationToken).ConfigureAwait(false);
+        var signal = typeof(DigitalBrain.Signal).IsAssignableFrom(typeof(T)) ? IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(T)) : typeof(T).Name;
+        var id = await session.SubscribeAsync(new SubscribeReport(behavior, source.Contract.FullName!, source.Key, signal, selector), cancellationToken).ConfigureAwait(false);
         return new SessionSignalSubscription<T>(session.Join(id), trace);
     }
 

@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Button.Signals;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Button.Signals;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Button;
@@ -12,7 +11,7 @@ public sealed class ButtonFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var button = brain.Get<IButton>("artwork");
+        var button = brain.Get<IButton>("owner/artwork");
         await button.Set("PhotoCraft", "open");
         var visual = new ControlVisual(Svg: "<svg/>", Compact: true, Selected: true);
         await button.SetVisual(visual);
@@ -30,7 +29,7 @@ public sealed class ButtonFacts(FlutterHost host)
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
-        var button = brain.Get<IButton>("go");
+        var button = brain.Get<IButton>("owner/go");
         await using var clicks = await brain.Observe<ButtonClicked>(button, ct);
         await button.Set("Open", "navigate:docs");
         await button.Click();

@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Settings;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Settings;
 using Microsoft.AspNetCore.Http;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;

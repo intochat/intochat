@@ -2,6 +2,7 @@
   <!-- The OS composition hosted in the test process (OsTestBrain): no containers, no AppHost. -->
   <ItemGroup>
     <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
     <Using Include="IntoChat.OS.Kernel.Testing" />
     <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
@@ -11,7 +12,5 @@
     <Compile Include="../../../features/os/Settings/SettingsCopy.cs" Link="Features/SettingsCopy.cs" />
     <Compile Include="../../../features/os/Apps/AppsNames.cs" Link="Features/AppsNames.cs" />
     <Compile Include="../../../features/os/Apps/AppsView.cs" Link="Features/AppsView.cs" />
-    <!-- Storage fixtures from earlier builds; facts read copies beside the test binary. -->
-    <None Include="Storage/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

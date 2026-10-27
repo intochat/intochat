@@ -1,9 +1,8 @@
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using Orleans;
-using Orleans.Runtime;
 
 namespace IntoChat.OS.Testing;
 
@@ -21,9 +20,10 @@ public sealed class BehaviorRun : IAsyncDisposable
         Completion = Task.Run(() => body(_brain, _cancel.Token), CancellationToken.None);
     }
     public Task Completion { get; }
-    public async Task WaitForSubscriptionAsync<T>(INeuron source, CancellationToken ct = default) where T : Signal
+    // source is the reference brain.Get returned.
+    public async Task WaitForSubscriptionAsync<T>(object source, CancellationToken ct = default) where T : DigitalBrain.Signal
     {
-        var ready = _brain.Ready(source.GetGrainId(), typeof(T)).Task;
+        var ready = _brain.Ready(ObservedBrain.Key(source), typeof(T)).Task;
         await Task.WhenAny(ready, Completion).WaitAsync(_execution.AssertionTimeout, ct).ConfigureAwait(false);
         if (!ready.IsCompletedSuccessfully)
         {
@@ -47,31 +47,23 @@ public sealed class BehaviorRun : IAsyncDisposable
                 TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         }
     }
-    private sealed class ObservedBrain(IIntoChatOS inner) : IIntoChatOS, IBrainSubscriptions
+    private sealed class ObservedBrain(IIntoChatOS inner) : IIntoChatOS
     {
-        private readonly IBrainSubscriptions _subscriptions = inner as IBrainSubscriptions
-            ?? throw new ArgumentException("RunBehavior needs a brain that hands out subscription handles (the test harness brains do).", nameof(inner));
-        private readonly ConcurrentDictionary<(GrainId, Type), TaskCompletionSource> _ready = new();
-        internal TaskCompletionSource Ready(GrainId source, Type type)
+        private readonly ConcurrentDictionary<(string, Type), TaskCompletionSource> _ready = new();
+        internal static string Key(object source) => source is DigitalBrain.Invocation.NeuronProxy proxy
+            ? proxy.Target.ToString()
+            : throw new ArgumentException("Wait for a neuron obtained from the brain's Get.", nameof(source));
+        internal TaskCompletionSource Ready(string source, Type type)
             => _ready.GetOrAdd((source, type), _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
-        public T Get<T>(NeuronId id) where T : INeuron => inner.Get<T>(id);
-        public T Neuron<T>(NeuronId relative) where T : INeuron => inner.Neuron<T>(relative);
+        public T Get<T>(NeuronId id) where T : class => inner.Get<T>(id);
+        public T Neuron<T>(NeuronId relative) where T : class => inner.Neuron<T>(relative);
         public IBrain Self => inner.Self;
         public IKernelView Kernel => inner.Kernel;
-        public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-            => On<T>(source, static () => Task.CompletedTask, cancellationToken);
-        public async IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
-        {
-            await using var subscription = await SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
-            await onSubscribed().ConfigureAwait(false);
-            await foreach (var signal in subscription.ReadAllAsync(cancellationToken).ConfigureAwait(false)) { yield return signal; }
-        }
-        public async Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        {
-            var subscription = await _subscriptions.SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
-            Ready(source.GetGrainId(), typeof(T)).TrySetResult();
-            return subscription;
-        }
+        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+            => inner.On<T>(source, async () =>
+            {
+                await onSubscribed().ConfigureAwait(false);
+                Ready(Key(source), typeof(T)).TrySetResult();
+            }, cancellationToken);
     }
 }

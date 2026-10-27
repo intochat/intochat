@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
 

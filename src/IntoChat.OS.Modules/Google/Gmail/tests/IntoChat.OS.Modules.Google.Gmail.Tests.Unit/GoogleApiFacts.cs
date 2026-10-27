@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Modules.Google.Gmail;
 using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Unit;

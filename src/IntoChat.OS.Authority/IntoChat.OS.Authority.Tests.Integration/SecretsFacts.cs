@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,7 +35,7 @@ public sealed class SecretsFacts(AuthorityHost host)
         var store = MasterKeyStore("first master key");
         store.Set(state, "api.key", "API key", Canary);
 
-        Assert.Throws<InvalidOperationException>(() => store.Resolve(state, IntoChat.OS.Framework.SecretReferences.For("other", "api.key", "API key", true)));
+        Assert.Throws<InvalidOperationException>(() => store.Resolve(state, IntoChat.OS.Connections.SecretReferences.For("other", "api.key", "API key", true)));
     }
 
     [Fact]

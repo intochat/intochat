@@ -1,43 +1,50 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
+using DigitalBrain.State;
 
 namespace IntoChat.OS.Testing.Neurons;
 
-// A kernel-known neuron that retains its last signal: what a fact subscribes to when it needs a
-// real source with retention. Start the brain with WithModule<PulseModule>(). The last pulse is
-// grain state, so it survives a restart.
-public sealed class PulseModule() : Framework.Modules.Module(new ModuleId("pulse"))
+// A kernel-known neuron that retains its last signal: what a fact subscribes to when it needs a real source with retention.
+// Start the brain with WithModule<PulseModule>(). A plain neuron (06-08): the last pulse is its saved state and its journal's
+// last Pulsed, so it survives a restart and a late watcher gets it first (the runtime's retained replay).
+public sealed class PulseModule() : IntoChat.OS.Framework.Modules.Module(new IntoChat.OS.Framework.Modules.ModuleId("pulse"))
 {
     public override System.Reflection.Assembly? Contracts => typeof(IPulse).Assembly;
-    public override void Configure(ISiloBuilder silo) { }
+
+    public override Type? Neurons => typeof(PulseNeurons);
 }
 
-[GenerateSerializer, Alias("testing.pulsed")]
-public sealed record Pulsed([property: Id(0)] int Value) : Signal;
+// The DigitalBrain module of the pulse neuron.
+[DigitalBrain.Module("pulse")]
+public sealed class PulseNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
+}
 
-[Alias("testing.pulse"), Orleans.Metadata.DefaultGrainType("testing.pulse")]
-public interface IPulse : IRetainsSignals
+[DigitalBrain.Signal("testing.pulsed")]
+public sealed record Pulsed(int Value) : DigitalBrain.Signal;
+
+[DigitalBrain.Contracts.NeuronAlias("testing.pulse"), DigitalBrain.Contracts.DefaultNeuronType("testing.pulse")]
+public interface IPulse
 {
     Task Pulse(int value);
+
+    // The last pulse, or null before the first.
+    [DigitalBrain.ReadOnlyCall] Task<Pulsed?> Last();
 }
 
-[GenerateSerializer, Alias("testing.pulse-state")]
-public sealed class PulseState
+[ExportableState]
+public sealed record PulseState
 {
-    [Id(0)] public Pulsed? Last { get; set; }
+    public Pulsed? Last { get; init; }
 }
 
-[GrainType("testing.pulse")]
-internal sealed class PulseNeuron(
-    [PersistentState("pulse", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<PulseState> state) : Neuron, IPulse, IRetainsSignals
+[DigitalBrain.Neuron("testing.pulse", State = "pulse")]
+internal sealed class PulseNeuron : DigitalBrain.Neuron<PulseState>, IPulse
 {
     public async Task Pulse(int value)
     {
-        state.State.Last = new Pulsed(value) { Publisher = this.GetPrimaryKeyString() };
-        await state.WriteStateAsync();
-        await PublishAsync(new Pulsed(value));
+        var pulsed = new Pulsed(value);
+        await Save(State with { Last = pulsed }, pulsed);
     }
 
-    public Task<RetainedSignal[]> Retained(string signal, long since)
-        => Task.FromResult<RetainedSignal[]>(signal == nameof(Pulsed) && state.State.Last is { } last ? [new RetainedSignal(1, last)] : []);
+    public Task<Pulsed?> Last() => Task.FromResult(State.Last);
 }

@@ -1,6 +1,6 @@
 using System.Globalization;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // "add" sums "a+b" (more terms are summed too) into the sum neuron. Input that is not a sum answers
 // "Error" instead of throwing, so one bad request never stops the synapse or blocks the next one.

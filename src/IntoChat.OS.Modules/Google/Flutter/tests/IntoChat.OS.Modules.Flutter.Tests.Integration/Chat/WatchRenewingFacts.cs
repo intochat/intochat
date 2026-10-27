@@ -1,10 +1,9 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Chat;
 
-// Chat and Composer hold their source lease through Neuron.WatchRenewing (WithFastSubscriptions renews every 400 ms).
+// Chat and Composer follow their source through durable synapses (06-05b; they held a renewed lease before).
 public sealed class WatchRenewingFacts
 {
     [Trait("host", "own")]
@@ -12,7 +11,7 @@ public sealed class WatchRenewingFacts
     public async Task AComposerFollowsAChatThatReactivatedAfterItWatched()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithFastSubscriptions().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<ChatSourceModule>()
             .ConfigureServices(services => services.AddSingleton<IChatAgentSource, TestChatAgentSource>()).StartAsync(ct);
         const string key = "owner/a/apps/chat";
         var chat = brain.Get<IChat>(key + "/transcript");
@@ -23,7 +22,7 @@ public sealed class WatchRenewingFacts
         await composer.Follow(key + "/transcript");
         await TestWait.UntilAsync(token => composer.Read(), state => state.Context == a && state.Generation == first.Revision, TimeSpan.FromSeconds(30), ct);
 
-        // The chat forgets every observer when it deactivates; only the composer's renewal can restore the lease.
+        // The composer's synapse outlives the chat's activation: the reactivated chat still feeds it.
         await brain.DeactivateAsync(chat, ct);
         var second = await chat.SelectAgent(b, first.Revision, Guid.NewGuid());
 

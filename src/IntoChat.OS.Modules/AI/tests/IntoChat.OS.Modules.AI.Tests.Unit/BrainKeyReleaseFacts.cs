@@ -1,6 +1,5 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Framework.Platform.Entries;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Connections.Platform.Entries;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 

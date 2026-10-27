@@ -1,12 +1,15 @@
 using System.Xml.Linq;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.Aspire.Candidates;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 public sealed class DockerCandidateHostFacts : IDisposable
 {
@@ -162,7 +165,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
 
         await host.Run("abc1234", TestContext.Current.CancellationToken);
 
-        Assert.Equal("/app/brain-store", host.LastRunEnvironment[DockerCandidateHost.Env(IntoChatOSNames.BrainStorageDirectoryConfigurationKey)]);
+        Assert.Equal("/app/home", host.LastRunEnvironment[DockerCandidateHost.Env(IntoChatOSNames.HomeKey)]);
         var forbidden = live.Where(pair => pair.Key.StartsWith(IntegrationSchema.SectionName, StringComparison.Ordinal) || pair.Key.StartsWith("ConnectionStrings:", StringComparison.Ordinal))
             .Select(pair => pair.Value!).ToArray();
         foreach (var environment in new[] { host.LastRunEnvironment, host.LastMcpEnvironment })

@@ -1,10 +1,10 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -71,7 +71,7 @@ public sealed class GmailProviderFacts
         var trace = Assert.Single(traces);
         var page = (await brain.Owner.Http.GetFromJsonAsync<ComputeTracePage>($"/brains/{brain.Owner.BrainId}/compute/traces/{trace}", Json, ct))!;
         Assert.Equal(2, page.Rows.Length);
-        Assert.Contains(page.Rows, row => row.Item == GoogleOperations.CodeExchange);
+        Assert.Contains(page.Rows, row => row.Item == IntoChat.OS.Modules.Google.Auth.GoogleAuthOperations.CodeExchange);
         Assert.Contains(page.Rows, row => row.Item == GoogleOperations.Profile);
         Assert.All(page.Rows, row =>
         {

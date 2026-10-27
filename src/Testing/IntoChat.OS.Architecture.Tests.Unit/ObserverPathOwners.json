@@ -1,0 +1,21 @@
+{
+  "IntoChat.OS.Architecture.Tests.Unit/ObserverPathFacts.cs": 1,
+  "IntoChat.OS.Authority.Tests.Integration/Neurons/NeuronsLimitsFacts.cs": 1,
+  "IntoChat.OS.Authority.Tests.Integration/Neurons/NeuronsWatchFacts.cs": 7,
+  "IntoChat.OS.Authority.Tests.Integration/Neurons/SelectedBrainFacts.cs": 1,
+  "IntoChat.OS.Client.Tests.Unit/SessionConnectionFacts.cs": 3,
+  "IntoChat.OS.Client.Tests.Unit/SourceSetProxyFacts.cs": 1,
+  "IntoChat.OS.Kernel.Tests.E2E/AppsAppFacts.cs": 1,
+  "IntoChat.OS.Kernel.Tests.E2E/DesktopWindowFacts.cs": 1,
+  "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppCreatorFacts.cs": 5,
+  "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/AppNeuronFacts.cs": 1,
+  "IntoChat.OS.Modules.Apps.Tests.Integration/Apps/ReactionShapeFacts.cs": 10,
+  "IntoChat.OS.Modules.Apps.Tests.Integration/FastPathFacts.cs": 5,
+  "IntoChat.OS.Modules.Apps.Tests.Integration/FeatureCatalogFacts.cs": 1,
+  "IntoChat.OS.Modules.Apps.Tests.Integration/Runtimes/AppRuntimeFacts.cs": 1,
+  "IntoChat.OS.Modules.Circles.Tests.Integration/CircleBrainRooms.cs": 1,
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/RuntimeEdgeFacts.cs": 1,
+  "IntoChat.OS.Testing.Tests.Integration/TestHarnessFacts.cs": 1,
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/PlainScriptFacts.cs": 1,
+  "IntoChat.OS.Authority.Tests.Integration/Neurons/PlainWatchFacts.cs": 2
+}

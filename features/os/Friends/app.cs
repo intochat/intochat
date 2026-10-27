@@ -11,7 +11,7 @@ post without an audience record gains no destinations on upgrade. A removed memb
 shared slots; replay skips destinations the author has left so later requests can still run. Only posts
 actually published in a current shared circle appear to another member.
 */
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 static class App
 {

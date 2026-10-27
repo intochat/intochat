@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework.Modules.Identity;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -18,7 +19,7 @@ namespace IntoChat.OS.Authority.Hosting;
 // configures a key from its vault; every call must present it, so nothing here is public.
 public static class SiloDiagnostics
 {
-    public const string KeyConfiguration = IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.DiagnosticsKey;
+    public const string KeyConfiguration = IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.DiagnosticsKey;
     public const string KeyHeader = "X-IntoChatOS-Diagnostics";
     // Azure Container Apps names the running revision in this variable.
     public const string RevisionVariable = "CONTAINER_APP_REVISION";
@@ -105,7 +106,8 @@ public static class SiloDiagnostics
             provider.GetService<IOptions<ClusterOptions>>()?.Value.ClusterId,
             Revision(configuration),
             Environment.MachineName,
-            new SiloStorage(hosted ? "hosted" : "local", store.WriteFormat.ToString()),
+            // The runtime BrainLog writes one format (DBLG 0x02, JSON payloads) since 06-02.
+            new SiloStorage(hosted ? "hosted" : "local", "Json"),
             (provider.GetService<IBrainOwnershipCounters>() ?? new NoBrainOwnershipCounters()).Snapshot());
     }
 

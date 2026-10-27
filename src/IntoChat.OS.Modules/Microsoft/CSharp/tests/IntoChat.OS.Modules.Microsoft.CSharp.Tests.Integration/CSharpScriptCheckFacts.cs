@@ -1,6 +1,4 @@
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
@@ -15,7 +13,7 @@ public sealed class CSharpScriptCheckFacts
         var result = _check.Compile(new Dictionary<string, string>
         {
             ["synapses/hello.cs"] = """
-                var file = default(IntoChat.OS.Microsoft.CSharp.Files.ICSharpFile);
+                var file = default(IntoChat.OS.Modules.Microsoft.CSharp.Files.ICSharpFile);
                 Console.WriteLine($"{args.Length} {file}");
                 await Task.CompletedTask;
                 """,

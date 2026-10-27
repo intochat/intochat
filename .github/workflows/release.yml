@@ -56,9 +56,7 @@ jobs:
         run: dotnet restore Intochat.OS.slnx
 
       - name: Pack release packages
-        run: |
-          dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false
-          dotnet pack templates/IntoChat.OS.Templates/IntoChat.OS.Templates.csproj -c Release -o artifacts -p:CodeGraphRefresh=false
+        run: dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false
 
       # Separate from pack so --skip-duplicate cannot mask a pack failure.
       - name: Push packages to GitHub Packages
@@ -100,7 +98,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
+          docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
             -t ghcr.io/intochat/os-sandbox:${VERSION} \
             -t ghcr.io/intochat/os-sandbox:latest .
           bash scripts/check-sandbox-image.sh "ghcr.io/intochat/os-sandbox:${VERSION}"

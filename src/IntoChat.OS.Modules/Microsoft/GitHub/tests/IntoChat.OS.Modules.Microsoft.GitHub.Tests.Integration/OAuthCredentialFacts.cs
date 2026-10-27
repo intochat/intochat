@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.GitHub;
-using IntoChat.OS.Microsoft.GitHub.Webhook;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.GitHub;
+using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

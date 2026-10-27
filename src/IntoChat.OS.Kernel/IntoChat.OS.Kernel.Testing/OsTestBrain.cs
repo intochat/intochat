@@ -1,7 +1,9 @@
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Modules.Google.Gmail;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Testing.Model;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,8 +28,8 @@ public static class OsTestBrain
             .WithFakeModel(model)
             // Google is the stub: a configured OAuth client, its token exchange and the profile Gmail reads once connected.
             .WithOptions<GmailModule, GmailModuleOptions>(gmail => gmail.ProfileEndpoint = new(tokens.Origin, "profile"))
-            .WithIntegration(GmailModule.Integration, "ClientId", "os-client")
-            .WithIntegration(GmailModule.Integration, "ClientSecret", "os-secret")
+            .WithIntegration(IntoChat.OS.Modules.Google.Auth.GoogleAuthModule.Integration, "ClientId", "os-client")
+            .WithIntegration(IntoChat.OS.Modules.Google.Auth.GoogleAuthModule.Integration, "ClientSecret", "os-secret")
             .WithConfiguration(IntoChatOSConfiguration.ConnectionsTokenEndpointKey("gmail"), tokens.TokenEndpoint.AbsoluteUri)
             // Only names the redirect_uri a browser login sends; facts call the callback on the brain themselves.
             .WithConfiguration(IntoChatOSConfiguration.ConnectionsPublicOriginKey, tokens.Origin.AbsoluteUri)

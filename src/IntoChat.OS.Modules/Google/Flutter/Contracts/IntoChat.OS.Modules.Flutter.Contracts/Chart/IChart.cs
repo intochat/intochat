@@ -1,0 +1,31 @@
+using DigitalBrain.Contracts;
+using DigitalBrain;
+using IntoChat.OS;
+using DigitalBrain.State;
+
+namespace IntoChat.OS.Modules.Flutter.Chart;
+
+[NeuronAlias("chart"), DefaultNeuronType(UIVocabulary.ChartType)]
+public interface IChart
+{
+    Task Render(string title, string kind, IReadOnlyList<ChartPoint> points);
+    Task Append(ChartPoint point);
+    [DigitalBrain.ReadOnlyCall] Task<ChartState> Read();
+}
+
+[GenerateSerializer, Alias("ui.chart-point")]
+public sealed record ChartPoint(
+    [property: Id(0)] string EventId,
+    [property: Id(1)] string Label,
+    [property: Id(2)] double Value);
+
+[GenerateSerializer, Alias("ui.chart-state")]
+[ExportableState]
+public sealed class ChartState
+{
+    [Id(0)] public string Name { get; set; } = "";
+    [Id(1)] public int Version { get; set; }
+    [Id(2)] public string Title { get; set; } = "";
+    [Id(3)] public string Kind { get; set; } = "bar";
+    [Id(4)] public List<ChartPoint> Points { get; set; } = [];
+}

@@ -1,8 +1,8 @@
 using System.Text;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 // "review" lists the consolidation's pending review items (sensitive or unsure items that were never published)
 // as the text neuron {app}/review, oldest first. "review-accept" and "review-reject" decide one (see Reviews.cs).

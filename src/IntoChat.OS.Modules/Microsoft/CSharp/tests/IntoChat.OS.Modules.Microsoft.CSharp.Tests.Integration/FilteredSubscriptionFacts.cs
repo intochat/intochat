@@ -1,6 +1,5 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -16,10 +15,10 @@ public sealed class FilteredSubscriptionFacts
         var runtime = RuntimeBrain.Runtime(brain, "acc-brain");
         await RuntimeBrain.Programs(brain, "acc-brain").Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var session = (await runtime.Inspect(ct)).SessionId!;
-        var sources = Enumerable.Range(0, 8).Select(i => brain.Get<IExpansionSource>("source-" + i)).ToArray();
+        var sources = Enumerable.Range(0, 8).Select(i => brain.Get<IExpansionSource>("acc-brain/source-" + i)).ToArray();
         foreach (var source in sources)
         {
-            await edge.Subscribed(session, "acc-brain/csharp/a", source.GetGrainId().ToString(), nameof(FirstKind));
+            await edge.Subscribed(session, "acc-brain/csharp/a", RuntimeBrain.Source(source), Kinds.First);
         }
         foreach (var source in sources) { Assert.Equal(1, await source.WatchCount()); }
     }
@@ -37,8 +36,8 @@ public sealed class FilteredSubscriptionFacts
         var runtime = RuntimeBrain.Runtime(brain, subscriber);
         await RuntimeBrain.Programs(brain, subscriber).Assign(subscriber + "/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var session = (await runtime.Inspect(ct)).SessionId!;
-        var source = brain.Get<IPinger>("public-pinger");
-        await edge.Subscribed(session, subscriber + "/csharp/a", source.GetGrainId().ToString(), nameof(Pinged));
+        var source = brain.Get<IPinger>(brain.Owner.BrainId + "/public-pinger");
+        await edge.Subscribed(session, subscriber + "/csharp/a", RuntimeBrain.Source(source), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
         var publisher = publishedFromAnotherBrain ? await brain.PersonAsync("publisher", ct) : brain.Owner;
 
@@ -58,13 +57,13 @@ public sealed class FilteredSubscriptionFacts
         var runtime = RuntimeBrain.Runtime(brain, "acc-brain");
         await RuntimeBrain.Programs(brain, "acc-brain").Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var session = (await runtime.Inspect(ct)).SessionId!;
-        var source = brain.Get<IExpansionSource>("expansion");
-        var key = source.GetGrainId().ToString();
-        await edge.Subscribed(session, "acc-brain/csharp/a", key, nameof(FirstKind));
+        var source = brain.Get<IExpansionSource>("acc-brain/expansion");
+        var key = RuntimeBrain.Source(source);
+        await edge.Subscribed(session, "acc-brain/csharp/a", key, Kinds.First);
         await source.FailNextWatch();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => edge.Subscribed(session, "acc-brain/csharp/a", key, nameof(SecondKind)));
-        await edge.Subscribed(session, "acc-brain/csharp/a", key, nameof(SecondKind));
-        Assert.Contains(nameof(SecondKind), await source.Selection());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => edge.Subscribed(session, "acc-brain/csharp/a", key, Kinds.Second));
+        await edge.Subscribed(session, "acc-brain/csharp/a", key, Kinds.Second);
+        Assert.Contains(Kinds.Second, await source.Selection());
         await using var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
         await source.EmitSecond();
         await changes.NextAsync(ct: ct);
@@ -72,10 +71,19 @@ public sealed class FilteredSubscriptionFacts
     }
 }
 
-[GenerateSerializer] public sealed record FirstKind : Signal;
-[GenerateSerializer] public sealed record SecondKind : Signal;
-[Alias("test.filter-expansion")]
-public interface IExpansionSource : INeuron
+[DigitalBrain.Signal(Kinds.First)] public sealed record FirstKind : DigitalBrain.Signal;
+[DigitalBrain.Signal(Kinds.Second)] public sealed record SecondKind : DigitalBrain.Signal;
+
+public static class Kinds
+{
+    public const string First = "test.first-kind";
+    public const string Second = "test.second-kind";
+}
+
+// A plain source (06-08): its admission of a subscriber's synapse is what a watch was, and it can fail once.
+[DigitalBrain.Contracts.NeuronAlias("test.filter-expansion"), DigitalBrain.Contracts.DefaultNeuronType("test-expansion-source")]
+[DigitalBrain.Access.Public]
+public interface IExpansionSource
 {
     Task FailNextWatch();
     Task<string[]> Selection();
@@ -83,8 +91,8 @@ public interface IExpansionSource : INeuron
     Task<int> WatchCount();
 }
 
-[GrainType("test-expansion-source")]
-public sealed class ExpansionSource : Neuron, IExpansionSource
+[DigitalBrain.Neuron("test-expansion-source")]
+public sealed class ExpansionSource : DigitalBrain.Neuron, IExpansionSource
 {
     private bool _fail;
     private string[] _selection = [];
@@ -92,12 +100,12 @@ public sealed class ExpansionSource : Neuron, IExpansionSource
     public Task<int> WatchCount() => Task.FromResult(_watches);
     public Task FailNextWatch() { _fail = true; return Task.CompletedTask; }
     public Task<string[]> Selection() => Task.FromResult(_selection);
-    public Task EmitSecond() => PublishAsync(new SecondKind());
-    public override Task<Guid> Watch(INeuronObserver observer, string[] signals)
+    public Task EmitSecond() => Publish(new SecondKind());
+    protected override Task AdmitSynapse(DigitalBrain.SynapseRequest request)
     {
         _watches++;
         if (_fail) { _fail = false; throw new InvalidOperationException("Filter registration failed"); }
-        _selection = signals;
-        return base.Watch(observer, signals);
+        _selection = [.. request.Signals.Select(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf)];
+        return base.AdmitSynapse(request);
     }
 }

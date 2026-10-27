@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
 

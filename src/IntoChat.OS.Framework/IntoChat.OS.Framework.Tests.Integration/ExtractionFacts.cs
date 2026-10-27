@@ -1,6 +1,7 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Contracts;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 
@@ -17,7 +18,7 @@ public sealed class ExtractionFacts
 
         Assert.Equal("IntoChat.OS", typeof(INeuron).Assembly.GetName().Name);
         Assert.Equal(
-            ["AccessAttribute", "Activated", "CallTimeoutAttribute", "Created", "DefaultNeuronTypeAttribute", "ExportableStateAttribute", "FieldAttribute", "IBrain", "IIntoChatOS", "IKernelView", "ILogic`1", "INeuron", "INeuronObserver", "IRetainsSignals", "ISelectiveWatch", "Instance", "InstanceCreated", "InstanceRetired", "InterleavesAttribute", "InterleavesWhenAttribute", "InternalAttribute", "JournalConflictException", "LeaseLostException", "NeuronAliasAttribute", "NeuronContractAttribute", "NeuronId", "OneWayCallAttribute", "Owner", "PerAccountAttribute", "PublicAttribute", "ReadOnlyCallAttribute", "RetainedSignal", "RevisionConflictException", "RollbackDetectedException", "ServiceUnavailableException", "SharedAttribute", "Signal", "SignalId", "SignalNudge", "SignalPage", "Sources", "StaleActionException", "State", "Synapse", "Trace", "TypeAdded", "TypeEntry", "TypeKind", "Verdict"],
+            ["Activated", "CallTimeoutAttribute", "Created", "IBrain", "IInitialSignalWait", "IIntoChatOS", "IKernelView", "ILogic`1", "INeuron", "IRetainsSignals", "ISelectiveWatch", "ISignalDelivery", "Instance", "InstanceCreated", "InstanceRetired", "InterleavesAttribute", "InterleavesWhenAttribute", "JournalConflictException", "NeuronAliases", "NeuronId", "OneWayCallAttribute", "Owner", "ReadOnlyCallAttribute", "RetainedSignal", "RevisionConflictException", "RollbackDetectedException", "ServiceUnavailableException", "Signal", "SignalDeliveries", "SignalId", "Sources", "StaleActionException", "State", "Synapse", "Trace", "TypeAdded", "TypeEntry", "TypeKind", "Verdict", "WatchStream`1"],
             exported);
     }
 

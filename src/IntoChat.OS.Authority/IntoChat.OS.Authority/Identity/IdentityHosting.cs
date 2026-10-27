@@ -1,5 +1,8 @@
+using IntoChat.OS.Framework.Modules.Identity;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Authority.Identity.Directory;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -26,8 +29,8 @@ public static class IdentityHosting
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AuthOptions>, External.TrustedIssuersValidation>());
         services.TryAddSingleton<External.TrustedIssuerKeys>();
         // External sign-in's throttle: per network prefix, per silo.
-        services.TryAddSingleton<IntoChat.OS.Sdk.Http.IRequestThrottle>(provider =>
-            new IntoChat.OS.Sdk.Http.SlidingWindowThrottle(30, TimeSpan.FromMinutes(1), provider.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton<IntoChat.OS.Framework.Modules.Http.IRequestThrottle>(provider =>
+            new IntoChat.OS.Framework.Modules.Http.SlidingWindowThrottle(30, TimeSpan.FromMinutes(1), provider.GetRequiredService<TimeProvider>()));
         services.AddOptions<IdentityHostOptions>().BindConfiguration(IdentityHostOptions.SectionName)
             .Validate(options => options.Validate(), "Identity host names must not be empty.")
             .ValidateOnStart();
@@ -55,10 +58,10 @@ public static class IdentityHosting
                 };
             });
         // Host-only keys: modules reach these through IPrivilegedServices, which checks IdentityHostOptions.PrivilegedModules.
-        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Platform.Identity.ISessionIssuer, AccountSessionIssuer>(PrivilegedModuleGate.HostKey);
-        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Platform.Identity.IIdentityProvisioning>(PrivilegedModuleGate.HostKey,
-            (provider, _) => (IntoChat.OS.Framework.Platform.Identity.IIdentityProvisioning)provider.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
-        services.TryAddSingleton<IntoChat.OS.Sdk.Identity.IPrivilegedServices, PrivilegedModuleGate>();
+        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Modules.Platform.Identity.ISessionIssuer, AccountSessionIssuer>(PrivilegedModuleGate.HostKey);
+        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityProvisioning>(PrivilegedModuleGate.HostKey,
+            (provider, _) => (IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityProvisioning)provider.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
+        services.TryAddSingleton<IntoChat.OS.Framework.Modules.Identity.IPrivilegedServices, PrivilegedModuleGate>();
         services.AddKernelCors();
         services.TryAddSingleton(LocalBrainAccess);
     }
@@ -66,7 +69,7 @@ public static class IdentityHosting
     // Brain access from the directory under the configured posture. A hosted deployment wraps the directory instead.
     internal static IBrainAccess LocalBrainAccess(IServiceProvider provider)
     {
-        var directory = new DirectoryBrainAccess(provider.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        var directory = new DirectoryBrainAccess(provider.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         return provider.GetRequiredService<IOptions<AuthOptions>>().Value.Posture == IdentityPosture.Open
             ? new OpenOwnerBrainAccess(directory) : directory;
     }

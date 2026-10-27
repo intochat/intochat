@@ -1,26 +1,35 @@
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Framework.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Kernel;
 
 // The OS composes AI and UI. Neither module gains an implementation dependency on the other.
-internal sealed class AgentChatSource(IGrainFactory grains, IServiceProvider services) : IChatAgentSource
+internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSource
 {
-    public INeuron Source(string key) => grains.GetGrain<IAgent>(key);
+    // The agent is a plain neuron (06-06d): the chat holds a synapse on its signals.
+    public ChatAgentSubscription Subscription(string key)
+    {
+        var brain = IntoChat.OS.Framework.BrainKey.BrainOf(key);
+        return new(new(new DigitalBrain.BrainId(brain), IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.NeuronType, key[(brain.Length + 1)..]),
+            IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.All);
+    }
+
+    private IntoChat.OS.Runtime.IPlainNeurons Plain => services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {
-        var state = await grains.GetGrain<IAgent>(key).Read();
+        var state = await Plain.Get<IAgent>(key).Read();
         // A pasted link's app and input live in the links store beside the conversations, never in the run.
         var links = state.Runs.Any(run => ChatAppCard.TryReadLinkPost(run.RunId, out _)) && ChatAppCard.LinksKey(key) is { } store
-            ? (await grains.GetGrain<IText>(store).Read()).Markdown : null;
+            ? (await Plain.Get<IText>(store).Read()).Markdown : null;
         var runs = state.Runs.ToList();
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
         var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(run => Entries(run, links))]))
@@ -52,7 +61,7 @@ internal sealed class AgentChatSource(IGrainFactory grains, IServiceProvider ser
             if (entries[i].App is not { } card) { continue; }
             if (!manifests.TryGetValue(card.App, out var manifest))
             {
-                try { manifest = (await grains.GetGrain<IApp>(IApp.Key(scope, card.App)).Read()).Manifest; }
+                try { manifest = (await services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IApp>(IApp.Key(scope, card.App)).Read()).Manifest; }
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }

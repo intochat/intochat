@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -146,8 +148,8 @@ public sealed class CompositionFacts(FrameworkHost host)
             [new(new ExampleModule(), new Dictionary<string, string?> { [key] = "override" })]));
 
     public sealed class Marker;
-    public sealed class OtherModule() : Module(new(nameof(OtherModule))) { public override void Configure(ISiloBuilder silo) { } }
-    public sealed class ExampleModule() : Module<ExampleOptions>(new(nameof(ExampleModule))) { public override void Configure(ISiloBuilder silo) { } }
+    public sealed class ExampleModule() : Module<ExampleOptions>(new(nameof(ExampleModule)));
+    public sealed class OtherModule() : Module(new(nameof(OtherModule)));
     public sealed class ExampleOptions : IModuleOptions
     {
         public string? Endpoint { get; set; }
@@ -158,13 +160,13 @@ public sealed class CompositionFacts(FrameworkHost host)
     }
     public sealed class Dependency() : Module(new(nameof(Dependency)))
     {
-        public override void Configure(ISiloBuilder silo) => silo.Services.AddSingleton<Marker>();
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => services.AddSingleton<Marker>();
     }
     public sealed class Dependent() : Module<DependentOptions>(new(nameof(Dependent)))
     {
-        public override void Configure(ISiloBuilder silo)
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
         {
-            if (!silo.Services.Any(s => s.ServiceType == typeof(Marker)))
+            if (!services.Any(s => s.ServiceType == typeof(Marker)))
             { throw new InvalidOperationException("Dependency was not configured before dependent."); }
         }
     }

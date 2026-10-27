@@ -4,15 +4,15 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Microsoft.Aspire;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
 
@@ -20,6 +20,9 @@ namespace IntoChat.OS.Kernel.Tests.Integration;
 // boundary is controlled. No deployment driver, credentials, host or persisted state is involved.
 public sealed class SelfImproveAvailabilityFacts
 {
+    // The candidates are plain neurons (06-06d): a script subscribes to their [Signal] record by its alias.
+    private static readonly string CandidateChangedSignal = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(CandidateChanged));
+
     private const string Unavailable = "Self-improve is unavailable on this host because deployment is not configured.";
     private const string Change = """{"branch":"fixture","summary":"Fixture change","files":{"fixture.cs":"// fixture"},"plan":{"calls":[],"spans":[],"budget":"00:01:00"}}""";
     private static readonly TimeSpan Within = TimeSpan.FromSeconds(15);
@@ -138,11 +141,11 @@ public sealed class SelfImproveAvailabilityFacts
         await running.Wait(() => edge.Initialized == 3);
         edge.Changed();
         await running.Wait(() => edge.Subscriptions.Values.Any(subscription => subscription.Behavior.EndsWith("/verified.cs", StringComparison.Ordinal)
-            && subscription.Key == Edge.CandidateKey && subscription.Signal == nameof(CandidateChanged)));
+            && subscription.Key == Edge.CandidateKey && subscription.Signal == CandidateChangedSignal));
         if (interrupted == CandidateStage.Healthy)
         {
             await running.Wait(() => edge.Subscriptions.Values.Any(subscription => subscription.Behavior.EndsWith("/healthy.cs", StringComparison.Ordinal)
-                && subscription.Key == Edge.CandidateKey && subscription.Signal == nameof(CandidateChanged)));
+                && subscription.Key == Edge.CandidateKey && subscription.Signal == CandidateChangedSignal));
         }
         edge.Available = false;
         edge.Stage = interrupted;
@@ -165,7 +168,7 @@ public sealed class SelfImproveAvailabilityFacts
             firstActions.Select(call => call.Method));
 
         var nextKey = "fixture-brain/aspire/candidate/new-sha";
-        await running.Wait(() => edge.Subscriptions.Values.Count(subscription => subscription.Key == nextKey && subscription.Signal == nameof(CandidateChanged)) == 2);
+        await running.Wait(() => edge.Subscriptions.Values.Count(subscription => subscription.Key == nextKey && subscription.Signal == CandidateChangedSignal) == 2);
         edge.NextStage = CandidateStage.Healthy;
         edge.Changed(nextKey, "new-sha");
         await running.Wait(() => edge.NextStage == CandidateStage.Promoted);
@@ -183,7 +186,7 @@ public sealed class SelfImproveAvailabilityFacts
         await using var running = await Running.Start(edge, script);
         await running.Wait(() => edge.Initialized > 0);
         edge.Changed();
-        await running.Wait(() => edge.Subscriptions.Values.Any(subscription => subscription.Key == Edge.CandidateKey && subscription.Signal == nameof(CandidateChanged)));
+        await running.Wait(() => edge.Subscriptions.Values.Any(subscription => subscription.Key == Edge.CandidateKey && subscription.Signal == CandidateChangedSignal));
         edge.Available = false;
         edge.Stage = interrupted;
         edge.Changed(Edge.CandidateKey);
@@ -323,12 +326,12 @@ public sealed class SelfImproveAvailabilityFacts
         public Guid Request(string operation, string input, Guid? id = null)
         {
             var requestId = id ?? Guid.NewGuid();
-            Publish(App, nameof(AppRequested), new AppRequested(operation, input, requestId));
+            Publish(App, IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(AppRequested)), new AppRequested(operation, input, requestId));
             return requestId;
         }
 
         public void Changed(string source = "fixture-brain/aspire/candidates", string sha = "candidate-sha")
-            => Publish(source, nameof(CandidateChanged), new CandidateChanged(sha, sha == "candidate-sha" ? Stage : NextStage!.Value));
+            => Publish(source, CandidateChangedSignal, new CandidateChanged(sha, sha == "candidate-sha" ? Stage : NextStage!.Value));
 
         private void Publish<T>(string source, string signal, T value)
         {
@@ -358,7 +361,7 @@ public sealed class SelfImproveAvailabilityFacts
             Calls.Enqueue(call);
             if (call.Contract == typeof(IConnectionRequests).FullName && call.Method == nameof(IConnectionRequests.ListKinds))
             {
-                Assert.Equal("fixture-brain", call.Key);
+                Assert.Equal(IConnectionRequests.Key("fixture-brain"), call.Key);
                 var callback = call.Behavior.EndsWith("/healthy.cs", StringComparison.Ordinal) || call.Behavior.EndsWith("/verified.cs", StringComparison.Ordinal);
                 if (callback && !Available) { UnavailableCallbacks.TryAdd(call.Behavior, 0); }
                 if (callback && PauseCallbackDiscovery) { await ResumeCallbacks.Task.WaitAsync(cancellationToken); }

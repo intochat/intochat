@@ -53,7 +53,7 @@ Workspace navigation owns focus; composition never changes it.
 
 */
 
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 static class App
 {

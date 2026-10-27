@@ -1,10 +1,13 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.Ollama;
-using IntoChat.OS.AI.Models.TypeSafe;
-using IntoChat.OS.AI.SystemOne;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI.Models.TypeSafe;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 

@@ -7,7 +7,7 @@ internal static partial class DartSource
 {
     // The shell's shared Dart package, beside the Flutter module's project in the solution.
     public static string Core(string file)
-        => File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Modules.Flutter"), "..", "app", "core", "lib/src", file));
+        => File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Modules.Flutter"), "..", "..", "app", "core", "lib/src", file));
 
     // From the class declaration to the first closing brace at column zero.
     public static string Class(string source, string name)

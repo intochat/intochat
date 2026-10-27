@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.Roslyn;
-
 namespace IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit;
 
 public sealed class WorkspaceFacts

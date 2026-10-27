@@ -5,13 +5,11 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 public sealed class ContractOwnershipCompatibilityFacts
 {
-    // Captured from the previous binaries, before moving UiChildRef out of the
-    // vocabulary. RouterDecided must retain its implicit positional serialization layer.
+    // Captured from the previous binaries, before moving UiChildRef out of the vocabulary. (RouterDecided's row went with
+    // 06-05b: a plain neuron's signal is JSON in the runtime journal, and legacy journals are refused under SAFE-01.)
     [Theory]
     [InlineData("MAHiZFpFGXVpLmNoaWxkLXJlZuhADWxheW91dEErbGVnYWN5L3dvcmtzcGFjZS9yb2904A==",
-        "IntoChat.OS.Flutter.UiChildRef", "Name", "legacy/workspace/root")]
-    [InlineData("MAGzlAOBI2FpLnJvdXRlci5kZWNpZGVk6CDowAHgwQHoQBtsZWdhY3ktcm91dGVyAR3o4A==",
-        "IntoChat.OS.AI.Routing.RouterDecided", "Router", "legacy-router")]
+        "IntoChat.OS.Modules.Flutter.UiChildRef", "Name", "legacy/workspace/root")]
     public void ExistingPayloadsSurviveContractOwnershipChanges(string payload, string type, string member, string expected)
     {
         var services = new ServiceCollection();
@@ -28,7 +26,6 @@ public sealed class ContractOwnershipCompatibilityFacts
         var reloaded = serializer.Deserialize<object>(serializer.SerializeToArray(value));
         Assert.NotNull(reloaded);
         Assert.Equal(expected, reloaded.GetType().GetProperty(member)!.GetValue(reloaded));
-        if (value is IntoChat.OS.Flutter.UiChildRef child) { Assert.Equal("layout", child.Kind); }
-        else { Assert.Equal(7, value.GetType().GetProperty("Count")!.GetValue(value)); }
+        Assert.Equal("layout", Assert.IsType<IntoChat.OS.Modules.Flutter.UiChildRef>(value).Kind);
     }
 }

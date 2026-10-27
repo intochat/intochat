@@ -1,5 +1,8 @@
 using System.Net;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Testing.Neurons;
 
@@ -28,7 +31,7 @@ public sealed class PersonFacts(TestingHost host)
         using (alice.AsCaller())
         {
             Assert.Equal(alice.BrainId, BrainScope.CurrentId());
-            var self = await brain.Get<IBrain>(alice.BrainId).Read();
+            var self = await brain.Get<IBrain>(IBrain.Key(alice.BrainId)).Read();
             Assert.Equal(alice.AccountId, self.Owner.AccountId);
         }
         Assert.Null(Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey));

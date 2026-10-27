@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace IntoChat.OS;
 
 /// <summary>
@@ -23,7 +25,7 @@ public readonly record struct SignalId
 
     /// <exception cref="ArgumentException"><paramref name="signal"/> has no alias.</exception>
     public static SignalId Of(Type signal)
-        => new(NeuronAliasAttribute.Of(signal) ?? throw new ArgumentException($"{signal.FullName} has no alias.", nameof(signal)));
+        => new(NeuronAliases.Of(signal) ?? throw new ArgumentException($"{signal.FullName} has no alias.", nameof(signal)));
 
     public override string ToString() => Alias;
 }

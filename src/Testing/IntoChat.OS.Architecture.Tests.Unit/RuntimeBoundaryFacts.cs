@@ -14,10 +14,12 @@ public sealed partial class RuntimeBoundaryFacts
     internal static Dictionary<string, int> CurrentGrainFactoryUse()
         => Repository.ProjectFiles("*.cs")
             .Select(path => (Key: Repository.ProjectKey(path), Count: GrainFactoryUse().Count(File.ReadAllText(path))))
-            .Where(file => file.Count > 0)
+            .Where(file => file.Count > 0 && !NeuronMigrationFacts.InKernelCompositionFile(file.Key))
             .ToDictionary(file => file.Key, file => file.Count, StringComparer.Ordinal);
 
-    // R-A1: grain-factory use per file, tests included. A file may lose uses, never gain them.
+    // R-A1: grain-factory use per file, tests included. A file may lose uses, never gain them. The kernel composition
+    // (NeuronMigrationFacts.KernelCompositionPrefix, D-04, R4-07) is the one permitted owner and is not counted; every
+    // other entry is debt the family plans shrink to zero.
     [Fact]
     public void GrainFactoryUseOnlyShrinks()
     {
@@ -60,12 +62,13 @@ public sealed partial class RuntimeBoundaryFacts
     }
 
     // Every Orleans package pinned centrally is referenced by some project; an unused pin blurs the R-O1 picture.
+    // The DigitalBrain runtime packages are the fixed D-02 pin set (Directory.Packages.props) and are exempt.
     [Fact]
     public void EveryCentralOrleansPinIsReferenced()
     {
         var pinned = System.Xml.Linq.XDocument.Load(Path.Combine(Repository.Root, "Directory.Packages.props"))
             .Descendants("PackageVersion").Select(version => version.Attribute("Include")?.Value).OfType<string>()
-            .Where(IsOrleansPackage).ToHashSet(StringComparer.Ordinal);
+            .Where(IsOrleansPackage).Where(package => !package.StartsWith("DigitalBrain.", StringComparison.Ordinal)).ToHashSet(StringComparer.Ordinal);
         var referenced = Repository.Projects.Values.SelectMany(project => Repository.PackageReferences(project.Path)).ToHashSet(StringComparer.Ordinal);
 
         var unused = pinned.Except(referenced).Order(StringComparer.Ordinal).ToArray();
@@ -74,7 +77,8 @@ public sealed partial class RuntimeBoundaryFacts
 
     internal static Dictionary<string, string[]> OrleansReferences()
         => Repository.Projects.Values
-            .Select(project => (project.Name, Packages: Repository.PackageReferences(project.Path).Where(IsOrleansPackage).Distinct().Order(StringComparer.Ordinal).ToArray()))
+            // DigitalBrain.Runtime.Orleans* is referenced by project since framework/ folded in (06-00); it counts as before.
+            .Select(project => (project.Name, Packages: Repository.PackageReferences(project.Path).Concat(Repository.References(project.Path).Where(reference => reference.StartsWith("DigitalBrain.", StringComparison.Ordinal))).Where(IsOrleansPackage).Distinct().Order(StringComparer.Ordinal).ToArray()))
             .Where(project => project.Packages.Length > 0)
             .ToDictionary(project => project.Name, project => project.Packages, StringComparer.Ordinal);
 

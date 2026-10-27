@@ -1,14 +1,14 @@
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Routing;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // The assistant tool path: "send" by request. The composer path lives in submissions.cs.
 // Jev first: the request is asked of the router and this reaction ends; routed.cs answers it.
 // A replayed request is skipped, so Jev is asked once per message.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Ino.Key(brain));
-var router = brain.Get<IRouter>(Ino.Scope(brain));
+var router = brain.Get<IRouter>(IRouter.Key(Ino.Scope(brain)));
 var ledger = await RequestLedger.LoadAsync(brain, "send");
 await foreach (var request in brain.On(app, "send", brain.Stopping))
 {

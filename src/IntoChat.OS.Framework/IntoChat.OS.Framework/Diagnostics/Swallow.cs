@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Diagnostics;
 

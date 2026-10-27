@@ -1,9 +1,8 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Media;
+using IntoChat.OS.Modules.AI.Media;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using IImageGenerator = IntoChat.OS.AI.Media.IImageGenerator;
-using ImageGenerationRequest = IntoChat.OS.AI.Media.ImageGenerationRequest;
+using IImageGenerator = IntoChat.OS.Modules.AI.Media.IImageGenerator;
+using ImageGenerationRequest = IntoChat.OS.Modules.AI.Media.ImageGenerationRequest;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -21,13 +20,13 @@ public sealed class MediaFacts(AIHost host)
                 .AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new Embeddings())
                 .AddSingleton<IAudioTranscriptionService>(new Transcription())
                 .AddSingleton<ISpeechSynthesisTransport>(new Speech())).StartAsync(ct);
-        var embeddings = await brain.Get<IEmbeddingModel>("embedding").Embed(new EmbeddingRequest(["one", "two"]), ct);
+        var embeddings = await brain.Get<IEmbeddingModel>("owner/embedding").Embed(new EmbeddingRequest(["one", "two"]), ct);
         Assert.Equal(2, embeddings.Vectors.Length);
         Assert.Equal(new float[] { 3, 1 }, embeddings.Vectors[0]);
-        var recognition = await brain.Get<ISpeechRecognizer>("recognition")
+        var recognition = await brain.Get<ISpeechRecognizer>("owner/recognition")
             .Recognize(new SpeechRecognitionRequest(new MediaPayload([4, 5], "audio/wav"), "clip.wav"), ct);
         Assert.Equal("clip.wav:2", recognition.Text);
-        var speech = await brain.Get<ISpeechSynthesizer>("speech").Synthesize(new SpeechSynthesisRequest("hello", "voice"), ct);
+        var speech = await brain.Get<ISpeechSynthesizer>("owner/speech").Synthesize(new SpeechSynthesisRequest("hello", "voice"), ct);
         Assert.Equal("audio/mpeg", speech.Audio.MediaType);
         Assert.Equal(new byte[] { 5 }, speech.Audio.Content);
     }
@@ -40,7 +39,7 @@ public sealed class MediaFacts(AIHost host)
         using var provider = new LoopbackServer();
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithProvider("OpenAI", provider.Url).StartAsync(ct);
         var reached = provider.Hold(ct);
-        var image = brain.Get<IImageGenerator>("invalid");
+        var image = brain.Get<IImageGenerator>("owner/invalid");
         await using var failed = await brain.Observe<MediaOperationFailed>(image, ct);
         await Assert.ThrowsAsync<ArgumentException>(() => image.Generate(new ImageGenerationRequest(new string('x', 32769)), ct));
         Assert.Equal("failed", (await failed.NextAsync(ct: ct)).Code);
@@ -54,7 +53,7 @@ public sealed class MediaFacts(AIHost host)
         var ct = TestContext.Current.CancellationToken;
         using var provider = new LoopbackServer();
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithProvider("OpenAI", provider.Url).StartAsync(ct);
-        var neuron = brain.Get<IImageGenerator>("cancel");
+        var neuron = brain.Get<IImageGenerator>("owner/cancel");
         await using var failed = await brain.Observe<MediaOperationFailed>(neuron, ct);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var reached = provider.Hold(ct);
@@ -73,7 +72,7 @@ public sealed class MediaFacts(AIHost host)
         var ct = TestContext.Current.CancellationToken;
         using var provider = new LoopbackServer();
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithProvider("OpenAI", provider.Url).StartAsync(ct);
-        var neuron = brain.Get<IImageGenerator>("image");
+        var neuron = brain.Get<IImageGenerator>("owner/image");
         await using var completed = await brain.Observe<ImageGenerated>(neuron, ct);
         var served = provider.ReplyOnce("application/json", """{"created":1,"data":[{"b64_json":"AQI="}]}""", ct);
         var result = await neuron.Generate(new ImageGenerationRequest("tree"), ct);
@@ -88,7 +87,7 @@ public sealed class MediaFacts(AIHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var neuron = brain.Get<ISpeechSynthesizer>("speech");
+        var neuron = brain.Get<ISpeechSynthesizer>("owner/speech");
         Assert.False((await neuron.Describe()).Available);
         await using var failed = await brain.Observe<MediaOperationFailed>(neuron, ct);
         await Assert.ThrowsAsync<NotSupportedException>(() => neuron.Synthesize(new SpeechSynthesisRequest("hello", "voice"), ct));

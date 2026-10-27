@@ -1,4 +1,7 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
+
 namespace IntoChat.OS.Testing;
 
 // Mirrors the .NET environment configuration provider at the harness boundary, retaining values

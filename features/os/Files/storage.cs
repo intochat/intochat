@@ -1,12 +1,12 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Microsoft.Windows;
-using IntoChat.OS.Flutter.Collection;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Microsoft.Windows;
+using IntoChat.OS.Modules.Flutter.Collection;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
 
-// Every connection whose connector declares the storage capability, browsed through IStorage on the
+// Every connection whose module provides storage@1, in the brain's Settings order, browsed through ILegacyStorage on the
 // connection key. Locations are opaque per storage; breadcrumbs come from the storage's own Ancestors.
 static class Store
 {
@@ -21,16 +21,16 @@ static class Store
     }
 
     public static async Task<ConnectionSummary[]> Connections(IntoChatOSConnection brain) =>
-        (await brain.Get<IConnectionRequests>(Scope(brain)).ListConnections())
-            .Where(item => item.Capabilities.Contains(IStorage.Capability)).OrderBy(item => item.Kind).ThenBy(item => item.Id).ToArray();
+        (await brain.Get<IConnectionRequests>(IConnectionRequests.Key(Scope(brain))).ListConnections())
+            .Where(item => AppCapabilities.Satisfies(item.Provides, "storage@1")).ToArray();
 
-    static IStorage Of(IntoChatOSConnection brain, string connection) => brain.Get<IStorage>(connection);
+    static ILegacyStorage Of(IntoChatOSConnection brain, string connection) => brain.Get<ILegacyStorage>(connection);
 
     static async Task<string> KindLabel(IntoChatOSConnection brain, ConnectionSummary connection)
     {
         try
         {
-            var kinds = await brain.Get<IConnectionRequests>(Scope(brain)).ListKinds();
+            var kinds = await brain.Get<IConnectionRequests>(IConnectionRequests.Key(Scope(brain))).ListKinds();
             if (kinds.FirstOrDefault(kind => kind.Id == connection.Kind) is { } kind) { return kind.DisplayName; }
         }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }

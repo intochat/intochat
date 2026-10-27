@@ -1,11 +1,12 @@
 using System.Globalization;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Sdk.Compute;
-using IntoChat.OS.Sdk.Http.Compute;
+using IntoChat.OS.Framework.Modules.Metering;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Authority.Integrations;
 using Microsoft.Extensions.Options;
 

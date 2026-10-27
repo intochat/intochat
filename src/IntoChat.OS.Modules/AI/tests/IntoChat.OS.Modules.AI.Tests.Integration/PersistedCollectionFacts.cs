@@ -1,7 +1,6 @@
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Inference;
 using Xunit;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
@@ -13,7 +12,7 @@ public sealed class PersistedCollectionFacts
     {
         var definition = new AgentDefinition
         {
-            Contracts = ["IntoChat.OS.Apps.IApp"],
+            Contracts = ["IntoChat.OS.Modules.Apps.IApp"],
             Capabilities = ["research"],
             RoutingExamples = ["find evidence"],
             Contexts = ["research/agents/main/context"],

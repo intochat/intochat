@@ -1,5 +1,6 @@
 using IntoChat.OS;
 using IntoChat.OS.Client.Runtime;
+using IntoChat.OS.Runtime;
 
 namespace IntoChat.OS.Client;
 
@@ -32,33 +33,38 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
 
     public string? Setting(string name) => _settings.TryGetValue(name, out var value) ? value : null;
 
-    public T Get<T>(NeuronId id) where T : INeuron => NeuronProxy.Create<T>(_session, _behavior, id.Name, _trace);
+    // Scripts hold this class: Get and Neuron resolve any neuron contract over the session edge.
+    public T Get<T>(NeuronId id) where T : class => (T)NeuronProxy.Create(typeof(T), _session, _behavior, id.Name, _trace);
 
     // The edge resolves the wire key raw, so the relative id leaves the sandbox as "{brain}/{relative}".
-    public T Neuron<T>(NeuronId relative) where T : INeuron => _session.Brain is { Length: > 0 } brain
-        ? Get<T>(relative.Within(brain))
+    public T Neuron<T>(NeuronId relative) where T : class => Get<T>(Relative(relative));
+
+    private NeuronId Relative(NeuronId relative) => _session.Brain is { Length: > 0 } brain
+        ? relative.Within(brain)
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IBrain Self => _session.Brain is { Length: > 0 } brain
-        ? NeuronProxy.Create<IBrain>(_session, _behavior, brain, _trace)
+        ? (IBrain)NeuronProxy.Create(typeof(IBrain), _session, _behavior, IBrain.Key(brain), _trace)
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IKernelView Kernel => new SessionKernel(_session, _behavior, _trace);
 
-    public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        => On<T>(source, static () => Task.CompletedTask, cancellationToken);
+    // A neuron's [Signal] records reach the behavior through the runtime's session synapse.
+    public IAsyncEnumerable<T> On<T>(object neuron, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+        => Watch<T>(neuron, static () => Task.CompletedTask, selector: null, cancellationToken);
 
     // Reconcile after registration: a state change either precedes the snapshot or is queued.
-    public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
-        => Watch<T>(source, onSubscribed, selector: null, cancellationToken);
+    public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+        => Watch<T>(neuron, onSubscribed, selector: null, cancellationToken);
 
-    public IAsyncEnumerable<T> On<T>(INeuron source, string selector, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+    public IAsyncEnumerable<T> On<T>(object neuron, string selector, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
     {
+        ArgumentNullException.ThrowIfNull(neuron);
         ArgumentException.ThrowIfNullOrWhiteSpace(selector);
-        return Watch<T>(source, onSubscribed, selector, cancellationToken);
+        return Watch<T>(neuron, onSubscribed, selector, cancellationToken);
     }
 
-    private IAsyncEnumerable<T> Watch<T>(INeuron source, Func<Task> onSubscribed, string? selector, CancellationToken cancellationToken) where T : Signal
+    private IAsyncEnumerable<T> Watch<T>(object source, Func<Task> onSubscribed, string? selector, CancellationToken cancellationToken) where T : class
     {
         ArgumentNullException.ThrowIfNull(onSubscribed);
         if (source is not NeuronProxy neuron) { throw new ArgumentException("Watch a neuron obtained from this connection's Get.", nameof(source)); }
@@ -75,13 +81,13 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
     }
 
     // Scripts hold this class, not the interface, so the vocabulary's set and rebuild entry points are reachable here.
-    public IAsyncEnumerable<T> On<T>(Sources sources, CancellationToken cancellationToken = default) where T : Signal
+    public IAsyncEnumerable<T> On<T>(Sources sources, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => Sources.Stream<T>(this, sources, cancellationToken);
 
-    public Task React<T>(INeuron neuron, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : Signal
+    public Task React<T>(object neuron, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => Sources.React<T>(this, Sources.Of(neuron), rebuild, cancellationToken);
 
-    public Task React<T>(Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : Signal
+    public Task React<T>(Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => Sources.React<T>(this, sources, rebuild, cancellationToken);
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

@@ -1,8 +1,8 @@
-using IntoChat.OS.Circles;
+using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
 
 // Shared by every synapse of the circle room: the keys of the circle brain's own neurons and the transcript,
 // always rebuilt from the chat.

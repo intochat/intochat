@@ -1,6 +1,8 @@
 using System.Text;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

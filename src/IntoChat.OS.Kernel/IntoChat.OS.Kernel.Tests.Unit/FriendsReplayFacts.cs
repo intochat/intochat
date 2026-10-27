@@ -1,10 +1,10 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Circles;
-using IntoChat.OS.Flame;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Collection;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Circles;
+using IntoChat.OS.Modules.Flame;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Collection;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -144,8 +144,9 @@ public sealed class FriendsReplayFacts
     private static async Task<AppRequested> Replay(ITestBrain brain, IApp app, CancellationToken ct)
     {
         await brain.DeactivateAsync(app, ct);
-        var retention = app.AsReference<IRetainsSignals>();
-        return Assert.IsType<AppRequested>(Assert.Single(await retention.Retained(nameof(AppRequested), 0)).Signal);
+        // The plain app keeps its requests in its state (06-08); the host-only migration contract reads them.
+        var retention = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(IApp.Key(brain.Owner.BrainId, "friends"));
+        return Assert.Single(await retention.RetainedRequests()).Request;
     }
 
     private static async Task Handle(ITestBrain brain, AppRequested request)
@@ -173,10 +174,20 @@ public sealed class FriendsReplayFacts
         private int _calls;
         public Task Invoke(IIncomingGrainCallContext context)
         {
-            if (context.InterfaceMethod.Name == nameof(ICircleChat.PublishPost)
+            if (Publication.Of(context) is not null
                 && Interlocked.Increment(ref _calls) == 2) { throw new InvalidOperationException("Interrupted fanout"); }
             return context.Invoke();
         }
+    }
+
+    // The chat is a plain neuron (06-08): a PublishPost reaches its runtime host grain as one RuntimeInvocation. Of answers the
+    // chat's os key "{circle}/chat" for such a call, or null.
+    private static class Publication
+    {
+        public static string? Of(IIncomingGrainCallContext context)
+            => context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+               && call.Method == nameof(ICircleChat.PublishPost) && DigitalBrain.NeuronId.TryParse(call.Key, out var id)
+                ? $"{id.Brain.Value}/{id.Key}" : null;
     }
 
     private sealed class PausePublication : IIncomingGrainCallFilter
@@ -187,7 +198,7 @@ public sealed class FriendsReplayFacts
         public bool DeniedByRealGuard { get; private set; }
         public async Task Invoke(IIncomingGrainCallContext context)
         {
-            if (context.InterfaceMethod.Name == nameof(ICircleChat.PublishPost) && context.TargetId.Key.ToString() == Target)
+            if (Publication.Of(context) is { } target && target == Target)
             {
                 Target = null;
                 Entered.TrySetResult();
@@ -202,7 +213,7 @@ public sealed class FriendsReplayFacts
     private sealed class DenyPublication : IIncomingGrainCallFilter
     {
         public Task Invoke(IIncomingGrainCallContext context)
-            => context.InterfaceMethod.Name == nameof(ICircleChat.PublishPost)
+            => Publication.Of(context) is not null
                 ? Task.FromException(new UnauthorizedAccessException("Unrelated authorization refusal")) : context.Invoke();
     }
 

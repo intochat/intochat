@@ -1,23 +1,23 @@
 using System.Globalization;
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Compute;
-using IntoChat.OS.Flutter.Person;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Select;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Viewport;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.Modules.Flutter.Person;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Select;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Viewport;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 public static class Workspace
 {
     public sealed record Command(long Revision, string Action, string Id);
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string Scope(IntoChatOSConnection brain) => Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
-    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(Scope(brain));
+    public static IWorkspace State(IntoChatOSConnection brain) => brain.Get<IWorkspace>(IWorkspace.Key(Scope(brain)));
     public static string Encode(long revision, string action, string id) => JsonSerializer.Serialize(new Command(revision, action, id));
 
     public sealed record Activation(string? BrainId, string? Application, string? Neuron, string? Operation, string? Input);
@@ -97,11 +97,11 @@ public static class Workspace
         return (await brain.Get<IText>(desktop + "/layout").Read()).Markdown != "classic";
     }
 
-    public static async Task<INeuron[]> Inputs(IntoChatOSConnection brain)
+    public static async Task<IButton[]> Inputs(IntoChatOSConnection brain)
     {
         var key = Key(brain);
         var state = await State(brain).Read();
-        List<INeuron> sources = [brain.Get<IButton>(key + "/ino"), brain.Get<IButton>(key + "/usage-button"), brain.Get<IButton>(key + "/profile")];
+        List<IButton> sources = [brain.Get<IButton>(key + "/ino"), brain.Get<IButton>(key + "/usage-button"), brain.Get<IButton>(key + "/profile")];
         for (var i = 0; i < state.OpenViews.Length; i++)
         { sources.Add(brain.Get<IButton>(key + "/focus-" + i)); sources.Add(brain.Get<IButton>(key + "/close-" + i)); }
         for (var i = 0; i < state.Pins.Length; i++) { sources.Add(brain.Get<IButton>(key + "/pinned-" + i)); }

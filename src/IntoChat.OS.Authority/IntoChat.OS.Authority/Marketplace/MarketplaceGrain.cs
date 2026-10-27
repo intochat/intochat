@@ -1,5 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Marketplace;
+using IntoChat.OS.Connections.Platform.Marketplace;
 using IntoChat.OS.Authority.Identity.Authority;
 using Orleans.Concurrency;
 
@@ -27,7 +29,7 @@ internal sealed class MarketplaceGrain(
     [PersistentState("marketplace", IntoChatOSNames.PlatformGrainStorage)] IPersistentState<MarketplaceCatalogState> store)
     : Grain, IMarketplaceCatalog
 {
-    private AuthorityNeurons Platform => new(GrainFactory);
+    private AuthorityNeurons Platform => ServiceProvider.GetRequiredService<AuthorityNeurons>();
 
     public Task<MarketplaceRecord[]> List() => Task.FromResult<MarketplaceRecord[]>([.. store.State.Listings]);
 

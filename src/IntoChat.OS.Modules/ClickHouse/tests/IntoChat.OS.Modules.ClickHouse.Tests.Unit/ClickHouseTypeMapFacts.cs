@@ -1,5 +1,3 @@
-using IntoChat.OS.ClickHouse;
-
 namespace IntoChat.OS.Modules.ClickHouse.Tests.Unit;
 
 public sealed class ClickHouseTypeMapFacts

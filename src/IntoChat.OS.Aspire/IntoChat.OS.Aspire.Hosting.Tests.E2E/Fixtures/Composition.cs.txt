@@ -8,9 +8,14 @@ using Aspire.Hosting;
 using Aspire.Hosting.Testing;
 using Azure.Storage.Blobs;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Aspire;
 
@@ -74,14 +79,14 @@ internal static class CompositionAppHost
         {
             foreach (var name in new[] { "first", "second" })
             {
-                var brain = builder.AddIntoChatOS(name, new() { PersistentStorage = false, ServiceId = name == "second" ? "stable-composition" : name, ClusterId = Guid.NewGuid().ToString("N") })
+                var brain = builder.AddIntoChatOS(name, new() { ServiceId = name == "second" ? "stable-composition" : name, ClusterId = Guid.NewGuid().ToString("N") })
                     .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite(azurite =>
                     {
                         azurite.PersistentStorage = false;
                         azurite.DataVolume = name == "second" ? volume : null;
                     }));
                 var server = builder.AddExecutable(name + "-server", "dotnet", AppContext.BaseDirectory, candidate, "server")
-                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, name))
+                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.HomeKey), Path.Combine(storageRoot, name))
                     .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
                     .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS")
                     .WithHttpHealthCheck("/health");
@@ -95,7 +100,7 @@ internal static class CompositionAppHost
         }
         else if (scenario == "renamed")
         {
-            var brain = builder.AddIntoChatOS("renamed", new() { PersistentStorage = false, ServiceId = "stable-composition", ClusterId = Guid.NewGuid().ToString("N") })
+            var brain = builder.AddIntoChatOS("renamed", new() { ServiceId = "stable-composition", ClusterId = Guid.NewGuid().ToString("N") })
                 .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite(azurite =>
                 {
                     azurite.PersistentStorage = false;
@@ -103,7 +108,7 @@ internal static class CompositionAppHost
                 }));
             builder.AddExecutable("renamed-server", "dotnet", AppContext.BaseDirectory, candidate, "server")
                 // Persistence belongs to the brain, independently of its Aspire resource name.
-                .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, "second"))
+                .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.HomeKey), Path.Combine(storageRoot, "second"))
                 .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
                 .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
         }
@@ -111,7 +116,7 @@ internal static class CompositionAppHost
         {
             var brain = builder.AddIntoChatOS("memory");
             builder.AddExecutable("memory-server", "dotnet", AppContext.BaseDirectory, candidate, "memory-server")
-                .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.BrainStorageDirectoryConfigurationKey), Path.Combine(storageRoot, "memory"))
+                .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.HomeKey), Path.Combine(storageRoot, "memory"))
                 .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey), "true")
                 .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
         }

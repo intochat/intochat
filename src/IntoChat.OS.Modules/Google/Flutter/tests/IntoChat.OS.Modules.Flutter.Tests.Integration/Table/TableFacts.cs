@@ -1,5 +1,4 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Table;
+using IntoChat.OS.Modules.Flutter.Table;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Table;
@@ -11,7 +10,7 @@ public sealed class TableFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var table = brain.Get<ITable>("grid");
+        var table = brain.Get<ITable>("owner/grid");
 
         await table.Replace("People", [new("country", "Country"), new("n", "N")], [["us", "2"], ["uk", "1"]]);
         var read = await table.Read();

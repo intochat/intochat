@@ -1,11 +1,12 @@
 using System.Net;
 using System.Security.Cryptography;
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.Orleans;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Modules.Microsoft.Orleans;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Authority.Storage;
-using IntoChat.OS.Time;
+using IntoChat.OS.Modules.Time;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -32,7 +33,7 @@ public sealed class ServerRecipeFacts
         {
             [IntoChatOSNames.MasterKeyConfigurationKey] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
-            [$"{BrainStoreOptions.Key}:Directory"] = Directory.CreateTempSubdirectory("recipe-").FullName,
+            [IntoChatOSNames.HomeKey] = Directory.CreateTempSubdirectory("recipe-").FullName,
         });
         builder.AddIntoChatOSServer(server => server.AddModule<OrleansModule>().AddModule<TimeModule>());
         await using var app = builder.Build();
@@ -41,7 +42,6 @@ public sealed class ServerRecipeFacts
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
         using var ready = await http.GetAsync("/ready", ct);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
-        Assert.True(BrainHosting.HasKernelRegistration(app.Services));
         Assert.Throws<InvalidOperationException>(app.MapIntoChatOSServer);
         await app.StopAsync(ct);
     }

@@ -1,7 +1,6 @@
-using IntoChat.OS.Microsoft.Aspire.Deployment;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 internal sealed class FakeClusterHost : IClusterHost
 {

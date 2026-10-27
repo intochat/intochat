@@ -1,6 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Button;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Button;

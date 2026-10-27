@@ -1,5 +1,5 @@
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 // "make": the focused thing does what the sentence says. The sentence becomes one synapse through the fast
 // path of the focused app, or of the brain's "scratch" app when nothing focused is an app. Nothing waits for

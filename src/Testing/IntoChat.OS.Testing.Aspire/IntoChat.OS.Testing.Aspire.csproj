@@ -6,8 +6,7 @@
     <Description>The Aspire target behind ITestBrain: a test boots the consumer's AppHost and drives the brain over HTTP and an Orleans client.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Testing.Tests.Integration" />
-    <InternalsVisibleTo Include="IntoChat.OS.Testing.Playwright" />
+    <InternalsVisibleTo Include="IntoChat.OS.Testing.Aspire.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

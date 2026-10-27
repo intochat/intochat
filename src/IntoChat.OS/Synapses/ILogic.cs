@@ -2,7 +2,8 @@ namespace IntoChat.OS;
 
 // A rule: a behavior that judges instead of acts. A shared class in an app bundle, pure and without I/O;
 // the app runs every rule whose TSignal matches before a fact is published, and any rejection refuses it.
-public interface ILogic<TSignal> where TSignal : Signal
+// TSignal is an os Signal or a plain neuron's [Signal] record (06-08: AppRequested is plain).
+public interface ILogic<TSignal> where TSignal : class
 {
     Verdict Validate(TSignal signal);
 }

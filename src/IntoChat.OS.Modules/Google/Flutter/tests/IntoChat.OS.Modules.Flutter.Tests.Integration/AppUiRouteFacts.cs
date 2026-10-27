@@ -1,8 +1,9 @@
 using System.Text.Json;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chart;
-using IntoChat.OS.Flutter.Table;
+using IntoChat.OS.Modules.Flutter.Chart;
+using IntoChat.OS.Modules.Flutter.Table;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -17,7 +18,6 @@ public sealed class AppUiRouteFacts(FlutterHost host)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(typeof(IIntoChatOS), _ => null!);
-        builder.Services.AddSingleton(typeof(IGrainFactory), _ => null!);
         IEndpointRouteBuilder app = builder.Build();
         AppUiEndpoints.Map(app);
 

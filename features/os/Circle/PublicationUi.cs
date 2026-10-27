@@ -1,14 +1,14 @@
 using System.Text.Json;
 using System.Text;
 using System.Security.Cryptography;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Form;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Form;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Text;
 
 public static class PublicationUi
 {
@@ -64,7 +64,7 @@ public static class PublicationUi
             await Card(brain, "preview", "About this app", publication.Preview ?? publication.Manifest.Description),
             await Card(brain, "connections", "Your own workspace",
                 "Fork creates your own editable copy. Your connections and research stay in your brain." +
-                (publication.Manifest.Slots.Length == 0 ? "" : "\nAvailable connections: " + string.Join(", ", publication.Manifest.Slots.Select(slot => slot.Name + " (" + slot.Connector + ")")))),
+                (publication.Manifest.Slots.Length == 0 ? "" : "\nAvailable connections: " + string.Join(", ", publication.Manifest.Slots.Select(slot => slot.Name + " (" + slot.Binds + ")")))),
             new("form", FormKey(brain, reference)), new("button", Key(brain) + "/" + command)
         ];
     }

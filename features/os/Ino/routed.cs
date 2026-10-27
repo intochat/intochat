@@ -1,8 +1,8 @@
-using IntoChat.OS.AI.Routing;
-using IntoChat.OS.AI.Routing.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.AI.Routing.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 // Jev's answer to a request send.cs asked. A confident, direct route is carried out: opening the app
 // the message names (the route Jev decided, never decided again), or a pure read through the router.
@@ -14,7 +14,7 @@ await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Ino.Key(brain);
 var scope = Ino.Scope(brain);
 var app = brain.Get<IApp>(key);
-var router = brain.Get<IRouter>(scope);
+var router = brain.Get<IRouter>(IRouter.Key(scope));
 var ledger = await RequestLedger.LoadAsync(brain, "routed");
 await foreach (var routed in brain.On<Routed>(router, brain.Stopping))
 {
@@ -79,7 +79,7 @@ async Task Carry(Routed routed)
             }
             else
             {
-                var workspace = brain.Get<IWorkspace>(scope);
+                var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
                 await workspace.Show(IApp.Key(scope, route.App), routed.Id.ToString(), (await workspace.Read()).Revision);
                 await Ino.Status(brain, InoCopy.JevOpened(chosen, route.Confidence, title));
                 return;

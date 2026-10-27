@@ -47,6 +47,7 @@ public sealed partial class RepositoryPathLiteralFacts
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/LegacyConfigurationGuardFacts.cs",
         "IntoChat.OS.Framework.Tests.Integration/OpenPostureLoopbackFacts.cs",
+        "IntoChat.OS.Framework.Tests.Integration/BindPolicyFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/LegacyDataDirectoryIsolation.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/ConfigurationGrammarFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/DeploymentIdentityFacts.cs",
@@ -56,7 +57,8 @@ public sealed partial class RepositoryPathLiteralFacts
         "IntoChat.OS.Modules.Postgres.Tests.Hosting/PostgresAspireHostingFacts.cs",
         "IntoChat.OS.Modules.Supabase.Tests.Hosting/SupabaseHostingFacts.cs",
         "IntoChat.OS.Kernel.Tests.Unit/ProductCompositionFacts.cs",
-        "IntoChat.OS.Aspire.Hosting.Tests.Unit/ModuleHostingProjectionFacts.cs"
+        "IntoChat.OS.Aspire.Hosting.Tests.Unit/ModuleHostingProjectionFacts.cs",
+        "IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/InstallPlanTopologyFacts.cs"
     ];
 
     [Fact]

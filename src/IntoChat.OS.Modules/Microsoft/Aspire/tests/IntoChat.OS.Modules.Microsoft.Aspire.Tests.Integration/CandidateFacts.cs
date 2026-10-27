@@ -1,13 +1,13 @@
-using IntoChat.OS.Microsoft.Aspire.Candidates;
-using IntoChat.OS.Microsoft.Aspire.Deployment;
-using IntoChat.OS.Microsoft.Aspire.Verification;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
+using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 public sealed class CandidateFacts
 {
-    internal static readonly VerificationPlan Plan = new([new("IntoChat.OS.Apps.IApp", "owner/apps/calculator", "Read", "[]", "*")], [], TimeSpan.FromMinutes(5));
+    internal static readonly VerificationPlan Plan = new([new("IntoChat.OS.Modules.Apps.IApp", "owner/apps/calculator", "Read", "[]", "*")], [], TimeSpan.FromMinutes(5));
 
     // Docker, the aspire CLI and the candidate's MCP are process-level seams: the fakes stand in for them.
     internal static Task<ITestBrain> StartAsync(FakeCandidateHost host, FakeClusterHost cluster, FakeVerifier verifier, CancellationToken ct, TimeSpan? sampling = null)

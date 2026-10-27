@@ -1,8 +1,8 @@
 using IntoChat.OS;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Views;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
@@ -147,10 +147,6 @@ public sealed class OsInoChatCommandsFacts
 
     private abstract class FakeNeuron : INeuron
     {
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 
     private sealed class FakeText : FakeNeuron, IText

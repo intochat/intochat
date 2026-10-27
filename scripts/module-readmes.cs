@@ -9,11 +9,13 @@
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Module = IntoChat.OS.Framework.Modules.Module;
 using IntoChat.OS.Kernel;
-using IntoChat.OS.Sdk;
 
 const string Begin = "<!-- BEGIN GENERATED options -->";
 const string End = "<!-- END GENERATED -->";

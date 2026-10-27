@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.AI.Agents.Context;
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Intents.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // Memory's answer to a message routed.cs or send.cs handed it. Memory writes "ok <intent id>" under the request id
 // once the intent is rephrased (and confirmed when it was sure), or "failed: ..."; each pending request watches

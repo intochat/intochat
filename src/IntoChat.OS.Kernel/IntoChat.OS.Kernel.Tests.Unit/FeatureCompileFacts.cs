@@ -1,6 +1,8 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Microsoft.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
@@ -51,11 +53,26 @@ public sealed class FeatureCompileFacts
         foreach (var feature in new FeatureDirectory(SolutionProjects.Features).Load())
         {
             var bundle = feature.Bundle;
-            synapses += bundle.Files.Count(file => AppFiles.IsProgram(file.Key) && !SynapseShape.IsShared(file.Value));
-            errors.AddRange(SynapseShape.Check(bundle.Files).Select(error => $"{feature.Owner}/{bundle.Name}: {error.File}:{error.Line} {error.Id} {error.Message}"));
+            synapses += bundle.Files.Count(file => AppFiles.IsProgram(file.Key) && !ReactionShape.IsShared(file.Value));
+            errors.AddRange(ReactionShape.Check(bundle.Files).Select(error => $"{feature.Owner}/{bundle.Name}: {error.File}:{error.Line} {error.Id} {error.Message}"));
         }
 
         Assert.True(synapses > 0, "no synapse was found under " + SolutionProjects.Features);
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    // RXN0003 over the features folder: a shipped app asks for capabilities and names only the modules that provide none yet.
+    [Fact]
+    public void TheShippedAppsNameNoModuleThatHasACapability()
+    {
+        var errors = new List<string>();
+        var declarations = Directory.GetFiles(SolutionProjects.Features, AppFiles.DeclarationPath, SearchOption.AllDirectories);
+        foreach (var path in declarations)
+        {
+            errors.AddRange(ReactionShape.CheckRequires(Path.GetRelativePath(SolutionProjects.Features, path), File.ReadAllText(path))
+                .Select(error => $"{error.File}:{error.Line} {error.Id} {error.Message}"));
+        }
+        Assert.True(declarations.Length > 0, "no app.cs was found under " + SolutionProjects.Features);
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
 }

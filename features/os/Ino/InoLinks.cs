@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // A pasted workspace link, parsed with the shell's rules (app/shell/lib/workspace/workspace_link.dart):
 // the route is /open, either as the fragment ("#/open?...", "https://host/#/open?...") or as the path, and

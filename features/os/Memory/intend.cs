@@ -2,11 +2,11 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // "intend" rephrases a message into a brief and records it as an intent. Memory's own agent is told to
 // rephrase, never to answer, given the message, the active intents and the working memory; its reply is

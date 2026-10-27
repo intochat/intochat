@@ -22,7 +22,7 @@ public sealed class RepositoryLayoutFacts
     public void EveryProjectHasOneSolutionEntryInItsPhysicalGroup()
     {
         var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        var entries = Repository.Solution.Descendants("Project").ToArray();
+        var entries = Repository.Solution.Descendants("Project").Where(entry => !Repository.IsFrameworkEntry(entry)).ToArray();
         var paths = entries.Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/')).ToArray();
         Assert.Equal(paths.Length, paths.Distinct(comparer).Count());
         var disk = Repository.SourceFiles(Repository.SourceRoot, "*.csproj").Select(Repository.Relative).Order().ToArray();
@@ -64,6 +64,25 @@ public sealed class RepositoryLayoutFacts
         }
     }
 
+    // framework/{src,tests,templates}/<Name>/<Name>.csproj sits in the solution folder named by its group
+    // (/framework/src/ ...); template payloads under content/ are not solution projects.
+    [Fact]
+    public void EveryFrameworkProjectHasOneSolutionEntryInItsFrameworkGroup()
+    {
+        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var entries = Repository.Solution.Descendants("Project").Where(Repository.IsFrameworkEntry).ToArray();
+        var paths = entries.Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/')).Order().ToArray();
+        var disk = Repository.SourceFiles(Repository.FrameworkRoot, "*.csproj", path => !path.Split(Path.DirectorySeparatorChar).Contains("content"))
+            .Select(Repository.Relative).Order().ToArray();
+        Assert.True(disk.SequenceEqual(paths, comparer), "Framework solution entries differ from framework/ on disk; fix with `dotnet run scripts/sync-solution.cs`.");
+        foreach (var entry in entries)
+        {
+            var path = entry.Attribute("Path")!.Value.Replace('\\', '/');
+            var group = path[..path.LastIndexOf('/', path.LastIndexOf('/') - 1)];
+            Assert.Equal("/" + group + "/", entry.Parent!.Attribute("Name")?.Value);
+        }
+    }
+
     // null stands for "no folder": the project is a direct child of the solution.
     private static string?[] ExpectedFolders(string group, string sourceRoot)
     {
@@ -72,7 +91,8 @@ public sealed class RepositoryLayoutFacts
             .Select(segment => segment.StartsWith(Prefix, StringComparison.Ordinal) ? segment[Prefix.Length..] : segment)
             .ToArray();
         var folder = "/" + string.Join('/', segments) + "/";
-        // A module's tests/ directory is grouped either with the module or as its own subfolder.
-        return segments[^1] == "tests" ? [folder, "/" + string.Join('/', segments[..^1]) + "/"] : [folder];
+        // A module's Contracts/, implementation and tests/ directories (by module, R4-03) are grouped either with the module or
+        // as their own subfolder.
+        return segments[^1] is "tests" or "Contracts" or ModuleFolderFacts.SourceFolder ? [folder, "/" + string.Join('/', segments[..^1]) + "/"] : [folder];
     }
 }

@@ -1,6 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS.Testing.Aspire.Diagnostics;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Tests.E2E;
 
@@ -64,8 +67,8 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
 
         // The brain id is the scope: a UI part named under it belongs to that brain.
         const string workspace = "form-canary";
-        var form = brain.Get<IntoChat.OS.Flutter.Form.IForm>(workspace + "/apps/forms/intake");
-        await form.Define(new("Intake", [new("password", "Password", IntoChat.OS.Flutter.Form.FormFieldKind.Secret)]));
+        var form = brain.Get<IntoChat.OS.Modules.Flutter.Form.IForm>(workspace + "/apps/forms/intake");
+        await form.Define(new("Intake", [new("password", "Password", IntoChat.OS.Modules.Flutter.Form.FormFieldKind.Secret)]));
 
         using var seedRequest = operation.Request(HttpMethod.Post,
             $"/secrets/{brain.Owner.BrainId}",

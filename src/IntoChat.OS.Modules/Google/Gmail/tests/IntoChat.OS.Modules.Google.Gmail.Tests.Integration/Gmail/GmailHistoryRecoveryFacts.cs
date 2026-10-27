@@ -1,10 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
@@ -32,11 +31,11 @@ public sealed class GmailHistoryRecoveryFacts
         Assert.Equal("120", pending.Work!.StartHistoryId);
         Assert.Equal("150", pending.Work.TargetHistoryId);
         clock.Advance(TimeSpan.FromMinutes(1));
-        await brain.Get<IGmail>(key).AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(key, ct);
         Assert.Single(faults.JournaledMail);
         google.HistoryId = "160";
         clock.Advance(TimeSpan.FromMinutes(1));
-        await brain.Get<IGmail>(key).AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(key, ct);
         Assert.Equal(2, faults.JournaledMail.Length);
         Assert.Equal("160", faults.JournaledMail[^1].HistoryId);
         Assert.Null(Assert.IsType<GmailState>(faults.SnapshotFor(key)).History!.Work);
@@ -67,7 +66,7 @@ public sealed class GmailHistoryRecoveryFacts
         Assert.Equal("130", pending.Work!.TargetHistoryId);
         google.HistoryId = "130";
         clock.Advance(TimeSpan.FromHours(1));
-        await brain.Get<IGmail>(key).AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(key, ct);
         Assert.Equal("130", Assert.Single(faults.JournaledMail).HistoryId);
     }
 
@@ -162,7 +161,7 @@ public sealed class GmailHistoryRecoveryFacts
         Assert.NotNull(pending.Wakeup);
         Assert.Null(pending.Work);
         await brain.DeactivateAsync(gmail, ct);
-        await gmail.AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(key, ct);
         Assert.Null(Assert.IsType<GmailState>(faults.SnapshotFor(key)).History!.Wakeup);
         Assert.Equal(appendCount, faults.JournaledMail.Length);
         Assert.All(faults.JournaledMail, signal =>
@@ -211,7 +210,7 @@ public sealed class GmailHistoryRecoveryFacts
         var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "refresh");
         var original = GmailScopes.Read + " https://www.googleapis.com/auth/gmail.compose";
         using (brain.Owner.AsCaller())
-        { await brain.Grains().GetConnectionInbound(key).AcceptGrant(new("google-oauth-compose", "access", "refresh", DateTimeOffset.UtcNow.AddSeconds(-1), original, null, "{}")); }
+        { await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth-compose", "access", "refresh", DateTimeOffset.UtcNow.AddSeconds(-1), original, null, "{}")); }
         google.Scope = GmailScopes.Read;
         google.OmitRefreshScope = omitScope;
         google.HistoryId = "120";

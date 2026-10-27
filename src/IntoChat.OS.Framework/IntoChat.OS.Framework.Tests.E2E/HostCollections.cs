@@ -1,3 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+
 namespace IntoChat.OS.Framework.Tests.E2E;
 
 // Every host here boots the IntoChat.OS AppHost, whose RunProfile.Apply hosts ArtCraft (WithHostedApps): persistent,

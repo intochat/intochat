@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 // `pin:<app>` / `unpin:<app>` keep an app in the dock across restarts (the workspace's Pins).
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

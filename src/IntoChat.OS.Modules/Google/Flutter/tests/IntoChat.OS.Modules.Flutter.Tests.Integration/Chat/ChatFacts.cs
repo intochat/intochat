@@ -1,6 +1,7 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Chat;
 
@@ -11,7 +12,7 @@ public sealed class ChatFacts
     public async Task ReadReceiptsBelongToTheStampedPersonAndModelCallsCannotAcknowledgeThem()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         using var scope = brain.Owner.AsCaller();
         var chat = brain.Get<IChat>("owner/apps/chat/people");
         await chat.Project(new("conversation", 1, 1, [new("a1", ChatRole.Assistant, "answer")]));
@@ -37,7 +38,7 @@ public sealed class ChatFacts
     public async Task ExplicitReadAcknowledgementsSurviveReactivationAndDoNotHideNewOrChangedAnswers()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         using var caller = brain.Owner.AsCaller();
         var chat = brain.Get<IChat>("owner/apps/chat/read-receipts");
         var projection = new ChatProjection("conversation", 1, 1,
@@ -68,7 +69,7 @@ public sealed class ChatFacts
     public async Task ReadAcknowledgementsCannotBeMadeByBehaviorsOrForUnfinishedAnswers()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/apps/chat/read-validation");
         await chat.Project(new("conversation", 1, 1,
             [new("a1", ChatRole.Assistant, "partial") { Status = "running" }, new("u1", ChatRole.User, "hello")]));
@@ -93,10 +94,10 @@ public sealed class ChatFacts
     public async Task ActionsSurviveReactivationAndStreamingAndDispatchCanonicalPayloads()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/actions");
-        var handler = brain.Get<IPrimitiveTestHandler>("chat-action-handler");
-        await brain.Get<IUiBinding>("owner/a/apps/chat/actions").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("owner/chat-action-handler");
+        await brain.Get<IUiBinding>("owner/a/apps/chat/actions").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, ct);
         var projection = new ChatProjection("first", 1, 1, [])
         { Actions = [new("run-1", "Stop", "canonical run-1")] };
@@ -104,7 +105,7 @@ public sealed class ChatFacts
         await brain.DeactivateAsync(chat, ct);
         Assert.Equal(projection.Actions, (await chat.Read()).Projection!.Actions);
         await chat.Project(projection with { Version = 2 });
-        Assert.Empty(await handler.Events());
+        Assert.Empty((await handler.Events()).Decoded());
         await using var actions = await brain.Observe<ChatActionActivated>(chat, ct);
         await chat.Activate("first", 1, "run-1");
         var activated = await actions.NextAsync(ct: ct);
@@ -114,7 +115,7 @@ public sealed class ChatFacts
         Assert.Equal("run-1", activated.ActionId);
         Assert.NotEqual(Guid.Empty, activated.RequestId);
         await PrimitiveBindingFacts.WaitFor(handled, 1, ct);
-        var dispatched = Assert.IsType<ChatActionActivated>(Assert.Single(await handler.Events()));
+        var dispatched = Assert.IsType<ChatActionActivated>(Assert.Single((await handler.Events()).Decoded()));
         Assert.Equal(activated.RequestId, dispatched.RequestId);
         Assert.Equal(activated.Payload, dispatched.Payload);
         Assert.Equal(activated.ActionId, dispatched.ActionId);
@@ -127,7 +128,7 @@ public sealed class ChatFacts
     public async Task LateUnknownAndDisabledActionsCannotTargetANewerRunOrConversation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/stale");
         var projection = new ChatProjection("first", 1, 1, [])
         { Actions = [new("run-1", "Stop", "one")] };
@@ -149,7 +150,7 @@ public sealed class ChatFacts
     public async Task InvalidActionsCannotReplaceTheProjection()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/invalid-actions");
         var projection = new ChatProjection("first", 1, 1, []);
         await chat.Project(projection);
@@ -167,7 +168,7 @@ public sealed class ChatFacts
     public async Task ProjectionSurvivesReactivationAndIgnoresDuplicatesAndLateUpdates()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/transcript");
         var first = new ChatProjection("owner/a/agents/first", 1, 8, [new("u1", ChatRole.User, "hello")
         { Activities = [new("call", "Query", "select 1", "1")] }]);
@@ -193,7 +194,7 @@ public sealed class ChatFacts
     public async Task InvalidMessagesCannotReplaceTheProjection()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
         var chat = brain.Get<IChat>("owner/a/apps/chat/transcript");
         var valid = new ChatProjection("owner/a/agents/first", 1, 1, [new("u1", ChatRole.User, "hello")]);
         await chat.Project(valid);

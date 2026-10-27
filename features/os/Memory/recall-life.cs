@@ -1,11 +1,11 @@
 using System.Globalization;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Embeddings;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Embeddings;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 // "recall-life" answers a question from the user's life: facts and episodes embedded in the brain's "life" index,
 // ranked by similarity x recency (HalfLifeDays) x authority x importance. Every search is limited to this brain.

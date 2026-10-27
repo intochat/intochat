@@ -1,5 +1,7 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration.Tables;
 

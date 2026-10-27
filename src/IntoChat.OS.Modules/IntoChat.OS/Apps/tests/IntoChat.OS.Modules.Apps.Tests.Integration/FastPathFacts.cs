@@ -4,14 +4,15 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.AI.Models.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.Models.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Model;
@@ -38,19 +39,19 @@ public sealed class FastPathFacts : IDisposable
     public void Dispose() => Directory.Delete(_features, recursive: true);
 
     private const string Lemons = """
-        using IntoChat.OS.Apps;
-        using IntoChat.OS.Flutter.Text;
+        using IntoChat.OS.Modules.Apps;
+        using IntoChat.OS.Modules.Flutter.Text;
 
         // Answers lemons on every request.
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
         var app = brain.Get<IApp>(brain.Setting("App")!);
         await foreach (var request in brain.On(app, "ask", brain.Stopping))
-        { await brain.Get<IText>(app.GetPrimaryKeyString() + "/answer").Set("lemons"); }
+        { await brain.Get<IText>(brain.Setting("App") + "/answer").Set("lemons"); }
         """;
 
     private const string TwoReactions = """
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
-        var app = brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!);
+        var app = brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting("App")!);
         await foreach (var open in brain.On(app, "ask", brain.Stopping)) { }
         await foreach (var close in brain.On(app, "ask", brain.Stopping)) { }
         """;
@@ -97,10 +98,9 @@ public sealed class FastPathFacts : IDisposable
             if (proposed && refuse) { throw new InvalidOperationException("assignment refused after startup"); }
         };
         model.Script(Writer, Reply("lemons.cs", Lemons));
-        await using var outcomes = await brain.Observe<Signal>(app, ct);
         await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
         var failure = await attempted.Task.WaitAsync(ct);
-        await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct);
+        await Settled(app, 1, ct);
         Assert.Null(failure);
         var state = await app.Read();
         Assert.Equal(refuse ? "restored" : "proposed", state.Presentation!.Root!.Sphere!.Icon);
@@ -221,8 +221,8 @@ public sealed class FastPathFacts : IDisposable
         Assert.Contains(runtime.Deployed, deployed => deployed.Sources.GetValueOrDefault("lemons.cs") == Lemons);
         var prompt = Prompt(model);
         Assert.Contains("when asked, answer lemons", prompt, StringComparison.Ordinal);
-        Assert.Contains("exactly one reaction", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("base synapse to fork", prompt, StringComparison.Ordinal);
+        Assert.Contains("exactly one signal loop", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("base reaction to fork", prompt, StringComparison.Ordinal);
     }
 
     [Trait("host", "own")]
@@ -310,8 +310,8 @@ public sealed class FastPathFacts : IDisposable
         await app.WriteSynapse("when asked, answer twice", [], Guid.NewGuid());
 
         var signal = await rejected.NextAsync(ct: ct);
-        Assert.Contains(signal.Errors, error => error.Contains(SynapseShape.SecondReaction, StringComparison.Ordinal));
-        Assert.Contains(SynapseShape.SecondReaction, Prompt(model, 1), StringComparison.Ordinal);
+        Assert.Contains(signal.Errors, error => error.Contains(ReactionShape.SecondReaction, StringComparison.Ordinal));
+        Assert.Contains(ReactionShape.SecondReaction, Prompt(model, 1), StringComparison.Ordinal);
         // The shape is checked before the compiler, and nothing that failed it reaches the runtime.
         Assert.DoesNotContain(sandbox.Compiled, files => files.ContainsKey("twice.cs"));
         Assert.Empty(runtime.Deployed);
@@ -353,7 +353,7 @@ public sealed class FastPathFacts : IDisposable
         await app.WriteSynapse("when BTC drops 5 %, notify me", [], Guid.NewGuid());
 
         var reason = Assert.Single((await rejected.NextAsync(ct: ct)).Errors);
-        Assert.Equal(SynapseWriter.NoContract + "no contract publishes BTC prices", reason);
+        Assert.Equal(ReactionWriter.NoContract + "no contract publishes BTC prices", reason);
         var live = await app.Read();
         var entry = Assert.Single(live.Synapses!);
         Assert.Equal((SynapseStatus.Rejected, 1, reason), (entry.Status, entry.Attempts, Assert.Single(entry.Errors)));
@@ -370,7 +370,7 @@ public sealed class FastPathFacts : IDisposable
     [InlineData("REFUSE:", "the model did not say what is missing")]
     [InlineData("{\"path\": \"a.cs\", \"source\": \"// REFUSE: not a refusal\"}", null)]
     public void OnlyALeadingMarkerLineIsARefusal(string reply, string? missing)
-        => Assert.Equal(missing, SynapseWriter.Refusal(reply));
+        => Assert.Equal(missing, ReactionWriter.Refusal(reply));
 
     [Trait("host", "own")]
     [Fact]
@@ -387,8 +387,8 @@ public sealed class FastPathFacts : IDisposable
 
         await written.NextAsync(ct: ct);
         var prompt = Prompt(model);
-        Assert.Contains("Every neuron key a synapse creates or reads starts with the app key or the brain scope", prompt, StringComparison.Ordinal);
-        Assert.Contains("app.GetPrimaryKeyString() + \"/alert\"", prompt, StringComparison.Ordinal);
+        Assert.Contains("Every neuron key a reaction creates or reads starts with the app key or the brain scope", prompt, StringComparison.Ordinal);
+        Assert.Contains("brain.Setting(\"App\") + \"/alert\"", prompt, StringComparison.Ordinal);
         Assert.Contains("A sentence that needs a missing contract is refused, never faked", prompt, StringComparison.Ordinal);
         Assert.Contains(AgentPrompts.Refusal + " <what is missing", prompt, StringComparison.Ordinal);
     }
@@ -478,13 +478,13 @@ public sealed class FastPathFacts : IDisposable
             string.Concat(Enumerable.Repeat("Console.WriteLine(\"setup\");\n", 4096)) + "await foreach", StringComparison.Ordinal).ReplaceLineEndings("\n");
         Assert.DoesNotContain(CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: ct).GetDiagnostics(ct),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
-        Assert.Empty(SynapseShape.Check("count.cs", source));
+        Assert.Empty(ReactionShape.Check("count.cs", source));
         WriteFeature("os", "Orchard", "orchard", "count.cs", source);
         var boundaries = new ConcurrentQueue<(long Invocation, string Stage, string State, double DurationMs, long AllocatedBytes)>();
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct, features: _features, configure: services =>
-            services.AddSingleton<ILogger<SynapseExamples>>(provider => new SyntaxBoundaryLog(
-                provider.GetRequiredService<ILoggerFactory>().CreateLogger<SynapseExamples>(), () => "resource-ranking",
+            services.AddSingleton<ILogger<ReactionExamples>>(provider => new SyntaxBoundaryLog(
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<ReactionExamples>(), () => "resource-ranking",
                 (invocation, stage, state, _, durationMs, allocatedBytes) => boundaries.Enqueue((invocation, stage, state, durationMs, allocatedBytes)))));
         var examples = Examples(brain, embeddings: null);
         await examples.Rank(Brain, "count lemons", ct);
@@ -659,11 +659,11 @@ public sealed class FastPathFacts : IDisposable
         };
         await using var brain = await Start(model, runtime, sandbox, ct, features: shipped, configure: services =>
         {
-            services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<Kernel>(),
+            services.AddSingleton<IKernel>(provider => new TimedKernel(provider.GetRequiredService<global::IntoChat.OS.Kernel.Composition.Kernel>(),
                 () => Volatile.Read(ref kernelPhase), RecordKernel));
             services.AddSingleton<IOutgoingGrainCallFilter>(new TimedGrainReads(() => Volatile.Read(ref kernelPhase), RecordGrainRead));
-            services.AddSingleton<ILogger<SynapseExamples>>(provider => new SyntaxBoundaryLog(
-                provider.GetRequiredService<ILoggerFactory>().CreateLogger<SynapseExamples>(),
+            services.AddSingleton<ILogger<ReactionExamples>>(provider => new SyntaxBoundaryLog(
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<ReactionExamples>(),
                 () => Volatile.Read(ref kernelPhase), RecordSyntaxBoundary));
         });
         Mark("host-ready");
@@ -681,7 +681,8 @@ public sealed class FastPathFacts : IDisposable
         Assert.All(ranking.Layouts, layout => Assert.Matches("(?i)^features/os/(calculator|desktop)$", layout.Origin));
         Assert.DoesNotContain(ranking.Examples, example => example.Source.Contains("static UiNode Render", StringComparison.Ordinal));
 
-        await using var inference = await brain.Observe<Signal>(brain.Get<IGpt56Luna>(ModelAddress.Key(Brain)), ct);
+        // The model neuron is a plain neuron (06-05): its inference signals are read from its journal for the diagnostics.
+        var inference = brain.Get<IGpt56Luna>(ModelAddress.Key(Brain));
         await using var written = await brain.Observe<SynapseWritten>(app, ct);
         var operation = Guid.NewGuid();
         var compiledBeforeWrite = sandbox.Compiled.Count;
@@ -695,14 +696,16 @@ public sealed class FastPathFacts : IDisposable
             await written.NextAsync(ct: ct);
             Mark("written-observed");
             var prompt = Prompt(model);
-            Assert.Contains("reference only: shared layout class, not a synapse", prompt, StringComparison.Ordinal);
+            Assert.Contains("reference only: shared layout class, not a reaction", prompt, StringComparison.Ordinal);
             Assert.Contains("static UiNode Render", prompt, StringComparison.Ordinal);
         }
         finally
         {
             Volatile.Write(ref kernelPhase, null);
             // Snapshot before any subscription, brain or fake-model disposal; never include prompt or signal payloads.
-            var signals = inference.Snapshot;
+            var inferenceStarted = (await brain.History<InferenceStarted>(inference, CancellationToken.None)).Length;
+            var inferenceCompleted = (await brain.History<InferenceCompleted>(inference, CancellationToken.None)).Length;
+            var inferenceFailed = (await brain.History<InferenceFailed>(inference, CancellationToken.None)).Length;
             TestContext.Current.TestOutputHelper?.WriteLine(JsonSerializer.Serialize(new
             {
                 diagnostic = "fastpath-shipped-layouts",
@@ -721,9 +724,9 @@ public sealed class FastPathFacts : IDisposable
                     allocatedBytes = boundary.AllocatedBytes,
                     elapsedMs = boundary.ElapsedMs,
                 }),
-                inferenceStarted = signals.OfType<InferenceStarted>().Count(),
-                inferenceCompleted = signals.OfType<InferenceCompleted>().Count(),
-                inferenceFailed = signals.OfType<InferenceFailed>().Count(),
+                inferenceStarted,
+                inferenceCompleted,
+                inferenceFailed,
                 modelRequests = model.Requests(Writer).Count,
                 compiledBeforeWrite,
                 compiled = sandbox.Compiled.Count,
@@ -761,7 +764,7 @@ public sealed class FastPathFacts : IDisposable
 
         await written.NextAsync(ct: ct);
         var prompt = Prompt(model);
-        var fork = prompt.IndexOf("base synapse to fork", StringComparison.Ordinal);
+        var fork = prompt.IndexOf("base reaction to fork", StringComparison.Ordinal);
         Assert.True(fork >= 0, "The prompt names no base synapse.");
         Assert.Contains("BASE-LEMONS", prompt[fork..], StringComparison.Ordinal);
         Assert.Equal(IApp.Key(Brain, "pantry") + "/count.cs", Assert.Single((await app.Read()).Synapses!).Base);
@@ -1044,20 +1047,18 @@ public sealed class FastPathFacts : IDisposable
         await using var brain = await StartSlow(model, runtime, ct);
         model.Script(Writer, Reply("apples.cs", Lemons), Reply("pears.cs", Lemons), Reply("plums.cs", Lemons));
         var app = await Created(brain, "grocer-" + Guid.NewGuid().ToString("N"));
-        await using var outcomes = await brain.Observe<Signal>(app, ct);
 
         await Task.WhenAll(
             app.WriteSynapse("when asked, answer apples", [], Guid.NewGuid()),
             app.WriteSynapse("when asked, answer pears", [], Guid.NewGuid()),
             app.WriteSynapse("when asked, answer plums", [], Guid.NewGuid()));
 
-        for (var landed = 0; landed < 3; landed++)
-        { await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct); }
+        await Settled(app, 3, ct);
         var live = await app.Read();
         Assert.Equal(3, live.Synapses!.Length);
         // Every deploy here lands, so none may be rejected for having waited on another, and each written file is
         // both in the app and in what the runtime runs.
-        var program = runtime.Current(app.GetPrimaryKeyString()) ?? [];
+        var program = runtime.Current(await AppKey(app)) ?? [];
         Assert.All(live.Synapses, synapse => Assert.Equal(SynapseStatus.Written, synapse.Status));
         Assert.All(live.Synapses, synapse => Assert.True(live.Files.ContainsKey(synapse.Path!) && program.ContainsKey(synapse.Path!)));
         Assert.True(runtime.TimedOutCalls >= 3, $"{runtime.TimedOutCalls} deploy calls timed out");
@@ -1091,7 +1092,7 @@ public sealed class FastPathFacts : IDisposable
         Assert.Equal((SynapseStatus.Written, "lemons.cs", "hash:lemons.cs"), (entry.Status, entry.Path, entry.Hash));
         Assert.Empty(entry.Errors);
         Assert.Equal(Lemons, live.Files["lemons.cs"]);
-        Assert.Equal(Lemons, runtime.Current(app.GetPrimaryKeyString())?["lemons.cs"]);
+        Assert.Equal(Lemons, runtime.Current(await AppKey(app))?["lemons.cs"]);
         // The first call timed out and the repeat joined the deploy in flight: one deploy, not two.
         Assert.True(runtime.TimedOutCalls >= 1, $"{runtime.TimedOutCalls} deploy calls timed out");
         Assert.Equal(1, runtime.Deploys);
@@ -1117,10 +1118,10 @@ public sealed class FastPathFacts : IDisposable
         var entry = Assert.Single(live.Synapses!);
         Assert.Equal(SynapseStatus.Rejected, entry.Status);
         Assert.False(live.Files.ContainsKey("stuck.cs"));
-        Assert.Equal(SynapseWriter.MaxDeployCalls, runtime.TimedOutCalls);
+        Assert.Equal(ReactionWriter.MaxDeployCalls, runtime.TimedOutCalls);
         // The runtime was brought back to the app's files: whatever it holds for the app has no stuck.cs.
-        Assert.False(runtime.Current(app.GetPrimaryKeyString())?.ContainsKey("stuck.cs") ?? false);
-        Assert.Contains(app.GetPrimaryKeyString(), runtime.Retired);
+        Assert.False(runtime.Current(await AppKey(app))?.ContainsKey("stuck.cs") ?? false);
+        Assert.Contains(await AppKey(app), runtime.Retired);
     }
 
     [Trait("host", "own")]
@@ -1143,7 +1144,7 @@ public sealed class FastPathFacts : IDisposable
         var entry = Assert.Single((await app.Read()).Synapses!);
         Assert.Equal(SynapseStatus.Rejected, entry.Status);
         // The program before the write landed again after the stuck one: the runtime runs lemons.cs alone.
-        Assert.Equal(["lemons.cs"], runtime.Current(app.GetPrimaryKeyString())!.Keys);
+        Assert.Equal(["lemons.cs"], runtime.Current(await AppKey(app))!.Keys);
         Assert.Equal(2, runtime.Landed.Count(program => program.Keys.SequenceEqual(["lemons.cs"])));
     }
 
@@ -1169,7 +1170,7 @@ public sealed class FastPathFacts : IDisposable
         var entry = Assert.Single(live.Synapses!);
         Assert.Equal((SynapseStatus.Unsettled, "stuck.cs", Lemons), (entry.Status, entry.Path, entry.Source));
         Assert.False(live.Files.ContainsKey("stuck.cs"));
-        Assert.Equal(2 * SynapseWriter.MaxDeployCalls, runtime.TimedOutCalls);
+        Assert.Equal(2 * ReactionWriter.MaxDeployCalls, runtime.TimedOutCalls);
     }
 
     [Trait("host", "own")]
@@ -1273,6 +1274,8 @@ public sealed class FastPathFacts : IDisposable
             })
             .WithFakeModel(model)
             .WithFakeAppRuntime(runtime)
+            // The scripted brain runtime stand-in is a plain neuron of this assembly (06-08).
+            .WithNeuronModule<FixtureConnectorNeurons>()
             .ConfigureServices(services =>
             {
                 services.AddSingleton<IScriptSandbox>(sandbox);
@@ -1280,8 +1283,8 @@ public sealed class FastPathFacts : IDisposable
             })
             .StartAsync(ct);
 
-    private sealed class SyntaxBoundaryLog(ILogger<SynapseExamples> inner, Func<string?> phase,
-        Action<long, string, string, string, double, long> record) : ILogger<SynapseExamples>
+    private sealed class SyntaxBoundaryLog(ILogger<ReactionExamples> inner, Func<string?> phase,
+        Action<long, string, string, string, double, long> record) : ILogger<ReactionExamples>
     {
         private readonly ConcurrentDictionary<long, string> _phases = new();
 
@@ -1291,7 +1294,7 @@ public sealed class FastPathFacts : IDisposable
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            if (logLevel == LogLevel.Debug && eventId.Id == 0 && eventId.Name == "SynapseSyntaxBoundary"
+            if (logLevel == LogLevel.Debug && eventId.Id == 0 && eventId.Name == "ReactionSyntaxBoundary"
                 && state is IReadOnlyList<KeyValuePair<string, object?>> fields)
             {
                 object? Field(string name) => fields.FirstOrDefault(field => field.Key == name).Value;
@@ -1309,7 +1312,7 @@ public sealed class FastPathFacts : IDisposable
     }
 
     // Only this fact decorates its host's IKernel; concrete Kernel and IKernelView stay registered as before.
-    private sealed class TimedKernel(Kernel inner, Func<string?> phase, Action<long, string, string, string> record) : IKernel
+    private sealed class TimedKernel(global::IntoChat.OS.Kernel.Composition.Kernel inner, Func<string?> phase, Action<long, string, string, string> record) : IKernel
     {
         private long _next;
 
@@ -1358,7 +1361,7 @@ public sealed class FastPathFacts : IDisposable
             finally { record(id, "Types", capturedPhase, completed ? "completed" : "stopped"); }
         }
 
-        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
+        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class
             => inner.Instances<T>(cancellationToken);
         public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => inner.Instances(type, cancellationToken);
         public Task<string[]> Brains(CancellationToken cancellationToken = default) => inner.Brains(cancellationToken);
@@ -1403,7 +1406,7 @@ public sealed class FastPathFacts : IDisposable
         }
     }
 
-    private const int SynapseWriterCalls = 4;
+    private const int ReactionWriterCalls = 4;
     private static readonly TimeSpan CallTimeout = TimeSpan.FromMilliseconds(250);
 
     private static Task<ITestBrain> StartSlow(FakeModelServer model, SlowAppRuntime runtime, CancellationToken ct)
@@ -1515,6 +1518,9 @@ public sealed class FastPathFacts : IDisposable
         }
     }
 
+    // The os key of an app of the fact's brain (06-08: a plain proxy carries no grain key).
+    private static async Task<string> AppKey(IApp app) => IApp.Key(Brain, (await app.Read()).Name);
+
     private static async Task<IApp> Created(ITestBrain brain, string name)
     {
         var app = brain.Get<IApp>(IApp.Key(Brain, name));
@@ -1533,19 +1539,25 @@ public sealed class FastPathFacts : IDisposable
     private static string Synapse(string spec, string marker) => $$"""
         // {{spec}}
         await using var brain = await IntoChatOSClient.ConnectAsync(args);
-        var app = brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!);
+        var app = brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting("App")!);
         await foreach (var request in brain.On(app, "ask", brain.Stopping))
         { Console.WriteLine("{{marker}}"); }
         """;
 
+    // Until count of the app's requested synapses have an outcome (06-08: the plain app's SynapseWritten/SynapseRejected are not
+    // observed as one stream, so the outcome is read from the app).
+    private static Task Settled(IApp app, int count, CancellationToken ct)
+        => TestWait.UntilAsync(_ => app.Read(), state => state.Synapses is { } synapses && synapses.Count(synapse => synapse.Status != SynapseStatus.Requested) >= count,
+            TimeSpan.FromSeconds(30), ct);
+
     // The fast path's retrieval over the brain's own grains, with the embedding model and cache size the fact picks.
-    private static SynapseExamples Examples(ITestBrain brain, IEmbeddingGenerator<string, Embedding<float>>? embeddings,
-        int vectorCapacity = SynapseExamples.DefaultVectorCapacity)
-        => new(brain.Services.GetRequiredService<IGrainFactory>(), brain.Services.GetRequiredService<IKernel>(),
-            brain.Services.GetRequiredService<FeatureCatalog>(), embeddings, brain.Services.GetRequiredService<ILogger<SynapseExamples>>(), vectorCapacity);
+    private static ReactionExamples Examples(ITestBrain brain, IEmbeddingGenerator<string, Embedding<float>>? embeddings,
+        int vectorCapacity = ReactionExamples.DefaultVectorCapacity)
+        => new(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), brain.Services.GetRequiredService<IKernel>(),
+            brain.Services.GetRequiredService<FeatureCatalog>(), embeddings, brain.Services.GetRequiredService<ILogger<ReactionExamples>>(), vectorCapacity);
 
     private static Task Script(ITestBrain brain, params BehaviorView[] behaviors)
-        => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain)).AsReference<IScriptedRuntime>().Script(behaviors);
+        => brain.Get<IScriptedRuntime>(BrainRuntimeKeys.For(Brain)).Script(behaviors);
 
     // A pantry synapse the runtime has deployed and keeps running, with its run record.
     private static BehaviorView Ran(string path, long runs, long failures)
@@ -1621,7 +1633,7 @@ public sealed class FastPathFacts : IDisposable
             return Result(files);
         }
 
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
     }
 }

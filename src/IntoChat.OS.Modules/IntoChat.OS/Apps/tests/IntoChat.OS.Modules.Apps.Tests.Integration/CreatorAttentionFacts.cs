@@ -1,7 +1,6 @@
 using System.Reflection;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,7 +33,7 @@ public sealed class CreatorAttentionFacts
             .StartAsync(ct);
         var creator = brain.Services.GetRequiredService<Creator>();
         var app = DispatchProxy.Create<IApp, FailingApp>();
-        var fake = DispatchProxy.Create<IIntoChatOS, FakeBrain>();
+        var fake = DispatchProxy.Create<IFakeBrain, FakeBrain>();
         ((FakeBrain)(object)fake).App = app;
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -57,12 +56,15 @@ public sealed class CreatorAttentionFacts
         };
     }
 
+    // The app is a plain neuron (06-08): the Creator reaches it through the brain's Get.
+    public interface IFakeBrain : IIntoChatOS;
+
     public class FakeBrain : DispatchProxy
     {
         public IApp? App { get; set; }
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
-            => targetMethod!.Name == nameof(IIntoChatOS.Get) ? App : throw new NotSupportedException(targetMethod.Name);
+            => targetMethod!.Name is nameof(IIntoChatOS.Get) ? App : throw new NotSupportedException(targetMethod.Name);
     }
 
     public sealed class CapturingLoggerProvider : ILoggerProvider

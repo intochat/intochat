@@ -1,7 +1,7 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
-using IntoChat.OS.ArtCraft;
-using IntoChat.OS.ArtCraft.Aspire.Hosting;
+using IntoChat.OS.Modules.ArtCraft;
+using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 using IntoChat.OS.Aspire.Hosting;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
@@ -15,7 +15,7 @@ public sealed class ArtCraftImageSourceFacts
     private static IDistributedApplicationBuilder Compose(string? registry)
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false })
+        builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(o => { o.WithHostedApps(); o.ImageRegistry = registry; });
         return builder;
     }

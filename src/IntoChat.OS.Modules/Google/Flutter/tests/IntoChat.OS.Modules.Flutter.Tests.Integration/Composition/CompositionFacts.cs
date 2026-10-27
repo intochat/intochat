@@ -1,6 +1,5 @@
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Surface;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Surface;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Composition;

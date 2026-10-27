@@ -1,5 +1,6 @@
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 
@@ -18,7 +19,7 @@ public static partial class OsCatalog
     // Module types that are deliberately not in the portable composition: the Windows edge
     // (added by WithWindowsEdge) and the template sample.
     internal static bool IsExcluded(Type type)
-        => type == typeof(IntoChat.OS.Microsoft.Windows.WindowsModule) || type.Name == "SampleModule";
+        => type == typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule) || type.Name == "SampleModule";
 
     // Every public, concrete Module with a public parameterless constructor in the module assemblies the
     // OS ships (the Kernel's reference closure and the module assemblies beside it), minus the exclusions,
@@ -59,7 +60,7 @@ public static partial class OsCatalog
 
     // The Windows edge: the composition plus desktop automation of the Windows machine the host runs on.
     // Only a host on Windows opts in; the portable composition never carries it.
-    public static IReadOnlyList<Module> WithWindowsEdge() => [.. Modules, new IntoChat.OS.Microsoft.Windows.WindowsModule()];
+    public static IReadOnlyList<Module> WithWindowsEdge() => [.. Modules, new IntoChat.OS.Modules.Microsoft.Windows.WindowsModule()];
 
     // Composes the given modules (the portable composition by default) and the OS apps.
     public static IntoChatOSServerBuilder AddOperatingSystem(this IntoChatOSServerBuilder server, IReadOnlyList<Module>? modules = null)

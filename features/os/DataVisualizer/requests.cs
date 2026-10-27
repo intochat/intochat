@@ -1,14 +1,14 @@
 using System.Linq;
 using System.Text.Json;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Time.Reminders;
-using AppTable = IntoChat.OS.Postgres.Tables.ITable;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Time.Reminders;
+using AppTable = IntoChat.OS.Modules.Postgres.Tables.ITable;
 
 // The app's operations arrive as requests; each one only writes neurons, never an answer. The
 // registry, the composed layouts and the table/chart neurons are what a caller reads.

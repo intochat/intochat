@@ -1,10 +1,11 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Testing;
 
-public interface ITestBrain : IIntoChatOS, IBrainSubscriptions, IAsyncDisposable
+public interface ITestBrain : IIntoChatOS, IAsyncDisposable
 {
-    T Get<T>(string id) where T : class, INeuron;
+    T Get<T>(string id) where T : class;
 
     // The brain's HTTP edge, unauthenticated.
     HttpClient HttpClient { get; }
@@ -16,7 +17,7 @@ public interface ITestBrain : IIntoChatOS, IBrainSubscriptions, IAsyncDisposable
 
     Task DeactivateAsync(IAddressable neuron, CancellationToken cancellationToken = default);
 
-    // In-process: the host is rebuilt over the same memory stores, on the same HTTP address.
+    // In-process: the host is rebuilt over the same TestHome (file grain stores and reminders on Topology=local), on the same HTTP address.
     // Neuron references and services taken before the restart belong to the stopped host: take them again after it.
     Task RestartAsync(CancellationToken cancellationToken = default);
 

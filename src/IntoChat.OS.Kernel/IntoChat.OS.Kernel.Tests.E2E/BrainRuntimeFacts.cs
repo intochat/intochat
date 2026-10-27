@@ -1,11 +1,10 @@
 using System.Net.Http.Json;
 using System.Xml.Linq;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Text.Signals;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 

@@ -1,15 +1,17 @@
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Sdk.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Identity;
 
-// The runtime layer of the Sdk.Identity restriction: the seams resolve only for module ids listed in
+// The runtime layer of the privileged identity seams restriction: the seams resolve only for module ids listed in
 // IntoChatOS:Identity:PrivilegedModules, and fail closed otherwise (also when nothing is configured).
 public sealed class PrivilegedModuleGateFacts
 {

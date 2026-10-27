@@ -1,6 +1,8 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Salesforce;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Modules.Salesforce;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Salesforce.Tests.Integration;

@@ -1,7 +1,7 @@
 using System.Text.Json;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Framework.Platform.Entries;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Connections.Platform.Entries;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;

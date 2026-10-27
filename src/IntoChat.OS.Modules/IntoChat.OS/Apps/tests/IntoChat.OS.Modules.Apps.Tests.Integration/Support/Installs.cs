@@ -1,8 +1,9 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests;
+namespace IntoChat.OS.Modules.Apps.Tests;
 
 // The person's install flow through the one install path: ask, see what the app needs, accept exactly that.
 internal static class Installs

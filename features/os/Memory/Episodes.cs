@@ -1,5 +1,5 @@
 using System.Text.Json;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 // Shared by "capture": the episodes table, the id of an episode, how the ask and the model's summary are read,
 // and the bounded fallback used when the model gives none.
@@ -27,8 +27,8 @@ internal static class Episodes
 
     // Only a completed turn is an episode. A posted entry (a greeting, a pasted link's card) is not: it has no user
     // turn, and a link's app and input must never reach an episode or the life index.
-    public static bool Captures(IntoChat.OS.AI.Agents.AgentRun run)
-        => run.Status == IntoChat.OS.AI.Agents.AgentRunStatus.Completed && !run.Posted && !run.RunId.StartsWith("post/", StringComparison.Ordinal);
+    public static bool Captures(IntoChat.OS.Modules.AI.Agents.AgentRun run)
+        => run.Status == IntoChat.OS.Modules.AI.Agents.AgentRunStatus.Completed && !run.Posted && !run.RunId.StartsWith("post/", StringComparison.Ordinal);
 
     public static Ask ParseAsk(string json)
     {

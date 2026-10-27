@@ -1,3 +1,5 @@
+using IntoChat.OS.Framework.Modules;
+
 namespace IntoChat.OS.Framework;
 
 // Ledger 38: the kernel instance directory is a durable catalog (a deactivated app/file stays listed until

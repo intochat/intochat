@@ -1,3 +1,5 @@
+using IntoChat.OS.Framework.Modules;
+
 namespace IntoChat.OS.Framework;
 
 // The kernel as neurons and module code reach it: the script-visible view plus the acts only the

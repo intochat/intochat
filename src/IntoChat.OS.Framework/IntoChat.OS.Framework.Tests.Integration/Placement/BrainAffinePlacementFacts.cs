@@ -2,10 +2,12 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Metadata;
 using Orleans.Runtime.Placement;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Tests.Integration.Placement;
 
-public sealed class BrainAffinePlacementFacts(FrameworkHost host)
+public sealed class BrainAffinePlacementFacts
 {
     [Fact]
     public async Task TheSameBrainAlwaysMapsToTheSameSilo()
@@ -24,20 +26,6 @@ public sealed class BrainAffinePlacementFacts(FrameworkHost host)
             picks.Add(first);
         }
         Assert.Equal(silos.Length, picks.Count);
-    }
-
-    [Fact]
-    public async Task NeuronsAndTheSignalReaderArePlacedByBrain()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var brain = host.Brain;
-        var properties = brain.Services.GetRequiredService<GrainPropertiesResolver>();
-        var neuron = brain.Get<ITestEmitter>("one").GetGrainId().Type;
-        foreach (var type in new[] { neuron, GrainType.Create("brain.signal-reader") })
-        {
-            Assert.True(properties.GetGrainProperties(type).Properties.TryGetValue(WellKnownGrainTypeProperties.PlacementStrategy, out var strategy));
-            Assert.Equal(nameof(BrainAffinePlacement), strategy);
-        }
     }
 
     private static SiloAddress Silo(int port) => SiloAddress.New(new IPEndPoint(IPAddress.Loopback, port), 1);

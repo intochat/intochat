@@ -1,5 +1,7 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,12 +18,12 @@ public sealed class McpTrustFacts(McpHost host)
     {
         var runtime = host.Brain;
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddSingleton(runtime.Services.GetRequiredService<Orleans.IGrainFactory>());
+        global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, runtime.Services);
         builder.Configuration[AuthOptions.PostureKey] = posture;
         builder.Services.AddIntoChatOSMcp();
         await using var app = builder.Build();
 
         Assert.NotNull(app.Services.GetRequiredService<IBrainAccess>());
-        Assert.NotNull(app.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+        Assert.NotNull(app.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
     }
 }

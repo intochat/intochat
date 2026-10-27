@@ -1,27 +1,27 @@
 using System.Globalization;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Agents.Intents;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Flutter.Workspace;
-using IntoChat.OS.Flame.Scene;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Form;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Form;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.TextField;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Microsoft.Windows;
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Mcp;
-using IntoChat.OS.Microsoft.Playwright;
+using IntoChat.OS.Modules.Microsoft.Windows;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Mcp;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Shared by every synapse of the assistant: the app's key, its brain scope, the selected
 // conversation and the composed surface. A synapse is one reaction; this is the vocabulary
@@ -39,8 +39,8 @@ public static partial class Ino
         typeof(IWorkspace).FullName!, typeof(IAppStudio).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
         typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
         typeof(IMcpServer).FullName!, typeof(IPageTools).FullName!, typeof(IText).FullName!,
-        typeof(IntoChat.OS.Flutter.Table.ITable).FullName!, typeof(IntoChat.OS.Flutter.Chart.IChart).FullName!,
-        typeof(IntoChat.OS.Flutter.Image.IImage).FullName!, typeof(IIntents).FullName!, typeof(IFacts).FullName!];
+        typeof(IntoChat.OS.Modules.Flutter.Table.ITable).FullName!, typeof(IntoChat.OS.Modules.Flutter.Chart.IChart).FullName!,
+        typeof(IntoChat.OS.Modules.Flutter.Image.IImage).FullName!, typeof(IIntents).FullName!, typeof(IFacts).FullName!];
 
     public static double RouteGate(AppSnapshot snapshot)
         => double.TryParse(snapshot.Settings.GetValueOrDefault("RouteGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var gate)

@@ -8,5 +8,5 @@ namespace IntoChat.OS.Testing.Tests.Integration;
 // budgets, side-by-side hosts, configuration) start their own ([Trait("host", "own")]).
 public sealed class TestingHost : BrainHostFixture
 {
-    protected override TestBrain Configure(TestBrain brain) => brain.WithModule<PulseModule>();
+    protected override TestBrain Configure(TestBrain brain) => brain.WithModule<PulseModule>().WithNeuronModule<EmitterNeurons>();
 }

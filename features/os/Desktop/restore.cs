@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Workspace.Signals;
+using IntoChat.OS.Modules.Flutter.Workspace.Signals;
 
 // Re-renders the desktop whenever the durable workspace changes: window verbs, shell
 // activation and deep links all land here. On restart the windows come back from that state.

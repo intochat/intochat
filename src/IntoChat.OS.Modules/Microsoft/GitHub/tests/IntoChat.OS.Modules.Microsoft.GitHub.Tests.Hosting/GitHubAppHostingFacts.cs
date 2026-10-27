@@ -1,10 +1,12 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.GitHub;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using static IntoChat.OS.Aspire.Testing.AspireCompositionTest;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Tests.Hosting;
@@ -19,7 +21,7 @@ public sealed class GitHubAppHostingFacts
     public async Task OAuthAndWebhookSecretsAreProjectedOnlyWhenTheirFeaturesAreConfigured(bool oauth, bool webhook)
     {
         var builder = CreateBuilder();
-        var brain = builder.AddIntoChatOS("brain", options: new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", options: new())
             .WithHosting<GitHubModuleHosting>();
         new IntoChatOSModuleBuilder<GitHubModuleHosting>(brain).WithGitHubApp(options =>
             {

@@ -1,4 +1,3 @@
-using IntoChat.OS.Flutter;
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
 [Collection("Product host")]

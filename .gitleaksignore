@@ -1,2 +1,29 @@
 # Test canary literal (a fake secret the redaction fact must never see leak), not a credential.
 6c3fe5bdfae0c9bf982f11646ffe8b06716e648e:src/IntoChat.OS.Authority/IntoChat.OS.Authority.Tests.Integration/SecretsFacts.cs:generic-api-key:113
+
+# Example neuron routing key for owner/apps/calculator. Exact history fingerprints only.
+d9615c0d4faf19fb5594c964ef7e839fb9c60e23:docs/superpowers/loop/mcp.py:generic-api-key:7
+
+# Fixed composition-test-key placeholder in test fixture setup. Exact history fingerprints only.
+8cae7f67afa53eed2e49e99c41a539b3381ac3f0:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/LocalProfileCompositionFacts.cs:generic-api-key:26
+d9615c0d4faf19fb5594c964ef7e839fb9c60e23:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/LocalProfileCompositionFacts.cs:generic-api-key:21
+10dd09d41be045a78e6843d8f53f768abb1048d6:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/ProductCompositionFacts.cs:generic-api-key:23
+10dd09d41be045a78e6843d8f53f768abb1048d6:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/ProductCompositionFacts.cs:generic-api-key:78
+974c3c9396929f349fbce7a76339086a19668ae5:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/LocalProfileCompositionFacts.cs:generic-api-key:19
+974c3c9396929f349fbce7a76339086a19668ae5:src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/RunProfileFacts.cs:generic-api-key:78
+
+# Public Azure Key Vault Secrets Officer role GUID (exact match). Exact history fingerprints only.
+609e000ff45e57ccc0442db46132da4ebe117856:src/IntoChat.OS.Modules/Microsoft/Azure/IntoChat.OS.Modules.Microsoft.Azure/Install/InstallPlan.cs:generic-api-key:23
+2c8dd068c32edce751d87bf27882b9fd950f7f4a:src/IntoChat.OS.Modules/Microsoft/Azure/IntoChat.OS.Modules.Microsoft.Azure/Install/InstallPlan.cs:generic-api-key:23
+
+# Public Azurite development account key (exact match). Exact history fingerprints only.
+b6687153bb35b768bf4ec1581b698e105bc042a8:.github/workflows/ci.yml:generic-api-key:262
+b6687153bb35b768bf4ec1581b698e105bc042a8:.github/workflows/ci.yml:generic-api-key:319
+5461dbaa700c259fd1f26a54879dbc8f019ba1ce:tests/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration/AzuriteFixture.cs:generic-api-key:34
+dc3c40b6add4f754d8abcca3a158b9608843f01e:.github/workflows/ci.yml:generic-api-key:107
+dc3c40b6add4f754d8abcca3a158b9608843f01e:.github/workflows/ci.yml:generic-api-key:131
+f31fe09d81cdc783f713df4c5f43289ceb3ea962:tests/DigitalBrain.Runtime.Orleans.Azure.Tests.Integration/CloudProfileFacts.cs:generic-api-key:111
+
+# Roslyn CodeAction equivalence key identifier. Exact history fingerprints only.
+f1c924797ef40f248e696d144ca496dbf6af2f74:src/DigitalBrain.Analyzers.CodeFixes/Fixes.cs:generic-api-key:24
+f1c924797ef40f248e696d144ca496dbf6af2f74:src/DigitalBrain.Analyzers.CodeFixes/Fixes.cs:generic-api-key:76

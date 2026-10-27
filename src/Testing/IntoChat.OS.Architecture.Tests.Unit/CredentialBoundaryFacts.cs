@@ -1,9 +1,11 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Entries;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Entries;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -85,9 +87,7 @@ public sealed class CredentialBoundaryFacts
     {
         var offenders = ModuleMethods().Where(m =>
             !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
-            && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal)
-            // Substrate providers must exist before the silo builds, before any integration grain exists.
-            && m.DeclaringType?.FullName != "IntoChat.OS.Microsoft.Orleans.OrleansStorageHosting")
+            && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal))
             .Where(m => Calls(m).Any(c => c.DeclaringType == typeof(IIntegration)
                 || (c.IsGenericMethod && c.GetGenericArguments().Contains(typeof(IIntegration)))
                 || (c.DeclaringType == typeof(IntegrationSchema) && c.Name == nameof(IntegrationSchema.Key))))
@@ -96,16 +96,18 @@ public sealed class CredentialBoundaryFacts
     }
 
     // IBrainProviderKeys releases a brain's plaintext provider key to whoever injects it, so only the
-    // AI module (its one consumer) and Authority (its implementation) may reference it. It is internal to
-    // Framework so no other module compiles against it, and typeof/ldtoken lookups count as references.
+    // AI module (its one consumer) and Authority (its implementation) may reference it. It is a public SPI of
+    // Connections since 02-09a (no InternalsVisibleTo), so the guard is the reference scan below, which counts
+    // typeof/ldtoken lookups, plus its home outside every script-visible assembly.
     [Fact]
-    public void BrainProviderKeysIsNotPublic() => Assert.False(typeof(IBrainProviderKeys).IsVisible);
+    public void BrainProviderKeysLivesInConnections()
+        => Assert.Equal("IntoChat.OS.Connections", typeof(IBrainProviderKeys).Assembly.GetName().Name);
 
     [Fact]
     public void OnlyTheAiModuleAndAuthorityReferenceBrainProviderKeys()
     {
         var keys = typeof(IBrainProviderKeys);
-        string[] allowed = ["IntoChat.OS.Framework", "IntoChat.OS.Authority", "IntoChat.OS.Modules.AI"];
+        string[] allowed = ["IntoChat.OS.Connections", "IntoChat.OS.Authority", "IntoChat.OS.Modules.AI"];
         var offenders = ProductionArchitecture.Assemblies.Where(a => !allowed.Contains(a.GetName().Name))
             .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)

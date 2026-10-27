@@ -1,10 +1,10 @@
 using System.Text.Json;
 using IntoChat.OS;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
@@ -223,10 +223,6 @@ public sealed class OsSettingsLogicFacts
 
     private abstract class FakeNeuron : INeuron
     {
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 
     private sealed class FakeText : FakeNeuron, IText

@@ -1,12 +1,14 @@
 using System.Reflection;
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Authoring;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
-using IntoChat.OS.Microsoft.CSharp.Files;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -114,18 +116,16 @@ public sealed class CSharpFileListingFacts(CSharpHost host)
         public IKernelView Kernel => throw new NotSupportedException();
 
         // The facts address brain "scope"; a relative id records like the full key it composes.
-        public T Neuron<T>(NeuronId relative) where T : INeuron => Get<T>(relative.Within("scope"));
+        public T Neuron<T>(NeuronId relative) where T : class => Get<T>(relative.Within("scope"));
 
-        public T Get<T>(NeuronId id) where T : INeuron
+        public T Get<T>(NeuronId id) where T : class
         {
             var proxy = DispatchProxy.Create<T, CallRecorder>();
             ((CallRecorder)(object)proxy).Calls = Calls;
             return proxy;
         }
 
-        public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-            => throw new NotSupportedException();
-        public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
             => throw new NotSupportedException();
     }
 

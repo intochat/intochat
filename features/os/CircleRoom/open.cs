@@ -1,6 +1,6 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 await Room.Compose(brain);

@@ -4,8 +4,8 @@
     <Description>The credential ring: secrets, integration registrations and accounts. Scripts can never see this assembly.</Description>
     <RootNamespace>IntoChat.OS.Authority</RootNamespace>
   </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /><ProjectReference Include="../IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" /></ItemGroup>
   <ItemGroup>
-
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <PackageReference Include="Microsoft.Orleans.Reminders" />
@@ -15,13 +15,8 @@
     <PackageReference Include="Grpc.AspNetCore.Web" />
   </ItemGroup>
   <ItemGroup><Protobuf Include="Neurons/neurons.proto" GrpcServices="Both" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /><ProjectReference Include="../IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" /><ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Identity/IntoChat.OS.Sdk.Identity.csproj" /><ProjectReference Include="../../IntoChat.OS.Sdk/IntoChat.OS.Sdk.Http/IntoChat.OS.Sdk.Http.csproj" /></ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Authority.Tests.Integration" />
-    <!-- Golden bytes pin the journal envelope and sealed segment layout (clean-core W1, section 6). -->
-    <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
-    <!-- The storage fixture tool (unpublished test support) checkpoints and reads brain logs sealed with the test seal key (clean-core W1, section 4.4). -->
-    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Testing" />
-    <!-- The hosted-cloud package composes over the journal, directory and births it extends. -->
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

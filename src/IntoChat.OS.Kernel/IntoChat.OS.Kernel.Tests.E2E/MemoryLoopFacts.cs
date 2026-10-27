@@ -1,14 +1,14 @@
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Context;
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Testing.Model;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
@@ -196,7 +196,7 @@ public sealed class MemoryLoopFacts(RouterHostFixture host) : BrainFact(host)
     {
         try
         {
-            var index = Brain.Get<IntoChat.OS.AI.Embeddings.IVectorIndex>(IntoChat.OS.AI.Embeddings.IVectorIndex.Key(WorkspaceId, "life"));
+            var index = Brain.Get<IntoChat.OS.Modules.AI.Embeddings.IVectorIndex>(IntoChat.OS.Modules.AI.Embeddings.IVectorIndex.Key(WorkspaceId, "life"));
             var snapshot = await index.Read();
             var near = await index.Nearest(FakeModelServer.WordHash("what do I prefer"), 20);
             return snapshot.Count + " entries, " + snapshot.Dimensions + " dims; nearest: "

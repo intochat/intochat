@@ -1,6 +1,7 @@
 using System.Reflection;
-using IntoChat.OS.Authority.Identity.Configuration;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Identity;

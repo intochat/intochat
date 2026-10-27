@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // `unarchive:<token>` restores the chat the row with that per-render token showed and toasts "Chat restored." Only the unedited shipped
 // Settings writes (SettingsCommands checks Settings.MayWrite). The token resolves through {app}/archived-page, so a

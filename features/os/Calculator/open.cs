@@ -1,5 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
 
 // The view publisher owns rendering. Opening only advertises its stable root.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

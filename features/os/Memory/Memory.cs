@@ -4,13 +4,13 @@ using System.Text;
 using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.Client;
-using IntoChat.OS.AI.Embeddings;
-using IntoChat.OS.AI.Media;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Postgres.Tables;
+using IntoChat.OS.Modules.AI.Embeddings;
+using IntoChat.OS.Modules.AI.Media;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Postgres.Tables;
 
 // Shared: the rows Memory indexes, the generation recall reads, how text becomes terms and meaning
 // vectors, how a question ranks the rows, and the markdown the surface shows.

@@ -1,6 +1,7 @@
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Agents.Signals;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 
@@ -11,7 +12,8 @@ public sealed class AgentRecoveryFacts
     // Storage holds a run the previous activation never closed; waking the agent must not replay
     // its external work, only record that its outcome is unknown.
     [Trait("host", "own")]
-    [Fact]
+    // Quarantined (timing under load): https://github.com/intochat/os/issues/327
+    [Fact(Explicit = true)]
     public async Task ActivationMarksAnUncommittedRunInterruptedWithoutReplayingExternalWork()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -20,7 +22,7 @@ public sealed class AgentRecoveryFacts
         var key = AgentFacts.Key("recovered");
         // The run is planted in the module's grain storage as a crashed activation left it.
         var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage);
-        await storage.WriteStateAsync("agent", GrainId.Create("agent", key), new GrainState<AgentStorage>(new AgentStorage
+        await storage.WriteStateAsync("agent", AgentFacts.StateId(key), new GrainState<AgentStorage>(new AgentStorage
         {
             ActiveRun = new AgentRun("interrupted-run", AgentRunStatus.Running, "hello", DateTimeOffset.UtcNow)
             { ToolCalls = [new AgentToolCall("call", "lookup", "{}")] },

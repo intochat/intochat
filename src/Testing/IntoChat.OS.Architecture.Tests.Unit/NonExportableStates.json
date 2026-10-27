@@ -1,6 +1,6 @@
 [
   {
-    "type": "IntoChat.OS.AI.Metering.IntentUsageStorage",
+    "type": "IntoChat.OS.Modules.AI.Metering.IntentUsageStorage",
     "state": "intent-usage",
     "reason": "billing/usage, not customer data"
   },
@@ -90,43 +90,58 @@
     "reason": "identity/secret: hard-denied name"
   },
   {
-    "type": "IntoChat.OS.ClickHouse.Query.ClickHouseConnectionState",
+    "type": "IntoChat.OS.Modules.ClickHouse.Query.ClickHouseConnectionState",
     "state": "clickhouse",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Google.Gmail.DriveState",
+    "type": "IntoChat.OS.Modules.Google.Drive.DriveState",
     "state": "google-drive",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Google.Gmail.GmailState",
+    "type": "IntoChat.OS.Modules.Google.Gmail.GmailState",
     "state": "gmail",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Microsoft.Azure.AzureConnectionState",
+    "type": "IntoChat.OS.Modules.Microsoft.Azure.AzureConnectionState",
     "state": "azure",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Microsoft.GitHub.GitHubRepositoryState",
+    "type": "IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryState",
     "state": "github",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Microsoft.Windows.WindowsConnectionState",
+    "type": "IntoChat.OS.Modules.Microsoft.Windows.WindowsConnectionState",
     "state": "windows",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Postgres.PostgresConnectionState",
+    "type": "IntoChat.OS.Modules.Postgres.PostgresConnectionState",
     "state": "postgres",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
   },
   {
-    "type": "IntoChat.OS.Salesforce.SalesforceState",
+    "type": "IntoChat.OS.Modules.Salesforce.SalesforceState",
     "state": "salesforce",
     "reason": "connector credentials/connection state (ConnectionState), never exported"
+  },
+  {
+    "type": "IntoChat.OS.Modules.Circles.CircleInvitesRecord",
+    "state": "circles.invites",
+    "reason": "invite code hashes and machine bindings under the deployment's HMAC key; deployment-bound credentials, never cloned into portable brains"
+  },
+  {
+    "type": "IntoChat.OS.Modules.Circles.InviteCodeRecord",
+    "state": "circles.invite-code",
+    "reason": "deployment-wide invite code index keyed by code hash, not brain data"
+  },
+  {
+    "type": "IntoChat.OS.Modules.Circles.InviteKeyRecord",
+    "state": "circles.invite-key",
+    "reason": "deployment invite HMAC secret, never exported"
   }
 ]

@@ -12,11 +12,11 @@ import neurons_pb2 as pb
 import neurons_pb2_grpc as rpc
 
 APP = 'owner/apps/assistant'
-TEXT = 'IntoChat.OS.Flutter.Text.IText'
-CHAT = 'IntoChat.OS.Flutter.Chat.IChat'
-COMPOSER = 'IntoChat.OS.Flutter.Chat.IComposer'
-AGENT = 'IntoChat.OS.AI.Agents.IAgent'
-WORKSPACE = 'IntoChat.OS.Flutter.Workspace.IWorkspace'
+TEXT = 'IntoChat.OS.Modules.Flutter.Text.IText'
+CHAT = 'IntoChat.OS.Modules.Flutter.Chat.IChat'
+COMPOSER = 'IntoChat.OS.Modules.Flutter.Chat.IComposer'
+AGENT = 'IntoChat.OS.Modules.AI.Agents.IAgent'
+WORKSPACE = 'IntoChat.OS.Modules.Flutter.Workspace.IWorkspace'
 FILES_WINDOW = 'owner/apps/files/window'
 channel = grpc.secure_channel('localhost:59121', grpc.ssl_channel_credentials(ssl.get_server_certificate(('localhost', 59121)).encode()))
 stub = rpc.NeuronsStub(channel)
@@ -87,7 +87,7 @@ def files_open(state):
                w['reference']=={'kind':'surface','neuronId':'owner/apps/files/surface'} for w in state['windows'])
 
 def prepare_window(opened):
-    manifest=call('IntoChat.OS.Apps.IApp','owner/apps/files')['manifest']
+    manifest=call('IntoChat.OS.Modules.Apps.IApp','owner/apps/files')['manifest']
     assert manifest['entry']=={'kind':'surface','name':'surface'}, 'Files entry changed; update benchmark target.'
     state=call(WORKSPACE,'owner')
     if opened:

@@ -1,8 +1,9 @@
 using Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Sdk;
-using IntoChat.OS.Sdk.Validation;
+using IntoChat.OS.Framework.Modules.Validation;
 using Orleans.Hosting;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
@@ -43,7 +44,7 @@ public sealed class ModuleOptionValidationFacts
     private static void Invoke(string entry, Action<CheckedOptions> configure)
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
         switch (entry)
         {
             case "hosting-action": brain.WithHosting<CheckedHosting, CheckedOptions>(configure); break;
@@ -59,7 +60,6 @@ public sealed class ModuleOptionValidationFacts
 
     public sealed class CheckedModule() : Module<CheckedOptions>(new("checked"))
     {
-        public override void Configure(ISiloBuilder silo) { }
     }
 
     public sealed class CheckedHosting : ModuleHosting<CheckedModule>

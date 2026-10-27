@@ -1,6 +1,6 @@
 using System.Text.Json;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Views;
 

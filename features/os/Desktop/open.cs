@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // `open:<app>` opens the app in a new window beside the others (or focuses the tab already showing it).
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

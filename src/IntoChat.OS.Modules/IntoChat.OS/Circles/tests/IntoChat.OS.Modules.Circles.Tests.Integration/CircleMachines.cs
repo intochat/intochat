@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 // Members share one runtime; their permissions remain separate.
 internal sealed class CircleMachines : IAsyncDisposable

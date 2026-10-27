@@ -1,10 +1,11 @@
 using System.Collections.Concurrent;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
@@ -31,11 +32,20 @@ public sealed class BrainRuntimeNeuronFacts
                 .AddKeyedSingleton<IHostApplicationLifetime>(typeof(CSharpModule), lifetime)).StartAsync(ct);
         server.Addresses.Clear();
         await Programs(brain).Assign(Owner, Synapse(), []);
+        await Programs(brain).Assign(Owner + "-second", Synapse(), []);
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
+        Assert.DoesNotContain(host.Requests, FakeSessionHost.IsStart);
         server.Addresses.Add("http://127.0.0.1:5099");
         lifetime.Started.Cancel();
         var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal("http://host.docker.internal:5099/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
+        var assignments = await Edge(brain).Assignments((await Runtime(brain).Inspect(ct)).SessionId!);
+        Assert.Equal(2, assignments.Count);
+        Assert.All(assignments, assignment =>
+        {
+            Assert.Equal("http://host.docker.internal:5099", assignment.Assembly.GetLeftPart(UriPartial.Authority));
+            Assert.Equal("http://host.docker.internal:5099", assignment.Symbols.GetLeftPart(UriPartial.Authority));
+        });
     }
 
     private sealed class RuntimeHostLifetime : IHostApplicationLifetime, IDisposable
@@ -61,8 +71,8 @@ public sealed class BrainRuntimeNeuronFacts
         var assignment = Assert.Single(await edge.Assignments(session));
         await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
         Assert.False((await Runtime(brain).Inspect(ct)).IsReady); // No subscription is not an idle persistent script.
-        var source = brain.Get<IPinger>("readiness");
-        var subscription = await edge.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        var source = brain.Get<IPinger>(Brain + "/readiness");
+        var subscription = await edge.Subscribed(session, Behavior, RuntimeBrain.Source(source), Pings.Pinged);
         Assert.True((await Runtime(brain).Inspect(ct)).IsReady);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await source.Ping(1);
@@ -107,11 +117,11 @@ public sealed class BrainRuntimeNeuronFacts
         await edge.Connected(session, RuntimeBrain.Fingerprint(brain));
         var assignment = Assert.Single(await edge.Assignments(session));
         await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
-        var source = brain.Get<IPinger>("continuations");
-        var subscription = await edge.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        var source = brain.Get<IPinger>(Brain + "/continuations");
+        var subscription = await edge.Subscribed(session, Behavior, RuntimeBrain.Source(source), Pings.Pinged);
         Assert.True((await runtime.Inspect(ct)).IsReady);
 
-        var continuations = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeContinuations>(BrainRuntimeKeys.For(Brain));
+        var continuations = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainRuntimeContinuations>(BrainRuntimeKeys.For(Brain));
         await Assert.ThrowsAnyAsync<ArgumentException>(() => continuations.Acquire(" "));
         await continuations.Acquire("route:1");
         await continuations.Acquire("route:1");
@@ -157,13 +167,18 @@ public sealed class BrainRuntimeNeuronFacts
         await edge.Connected(session, RuntimeBrain.Fingerprint(brain));
         var assignment = Assert.Single(await edge.Assignments(session));
         await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
-        var source = brain.Get<IPinger>("owed-runs");
-        var subscription = await edge.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
-        var continuations = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeContinuations>(BrainRuntimeKeys.For(Brain));
+        var source = brain.Get<IPinger>(Brain + "/owed-runs");
+        var subscription = await edge.Subscribed(session, Behavior, RuntimeBrain.Source(source), Pings.Pinged);
+        var continuations = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainRuntimeContinuations>(BrainRuntimeKeys.For(Brain));
         await continuations.Acquire("route:owed");
         var runs = brain.Get<IBrainRuns>(BrainRunsKeys.For(Brain));
         await using var revisions = await brain.Observe<BrainRunsChanged>(runs, ct);
-        await source.Ping(1);
+        await using (var arrived = await brain.Observe<BrainRuntimeChanged>(runtime, ct))
+        {
+            await source.Ping(1);
+            // The source's signal reaches the runtime through its program's session (06-08), so the ack waits for its arrival.
+            while (!(await edge.PendingBatches(session)).Any(batch => batch.Subscription == subscription)) { await arrived.NextAsync(ct: ct); }
+        }
         await edge.Acknowledge(session, subscription, 1);
         while (!(await runs.Read()).Recent.Any(entry => entry.Behavior == Behavior))
         {
@@ -193,10 +208,10 @@ public sealed class BrainRuntimeNeuronFacts
         var runtime = Edge(brain);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var one = brain.Get<IPinger>("one");
-        var two = brain.Get<IPinger>("two");
-        var first = await runtime.Subscribed(session, Behavior, one.GetGrainId().ToString(), nameof(Pinged));
-        var second = await runtime.Subscribed(session, Behavior, two.GetGrainId().ToString(), nameof(Pinged));
+        var one = brain.Get<IPinger>(Brain + "/one");
+        var two = brain.Get<IPinger>(Brain + "/two");
+        var first = await runtime.Subscribed(session, Behavior, RuntimeBrain.Source(one), Pings.Pinged);
+        var second = await runtime.Subscribed(session, Behavior, RuntimeBrain.Source(two), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await one.Ping(1); await changes.NextAsync(ct: ct);
         await one.Ping(2); await changes.NextAsync(ct: ct);
@@ -251,7 +266,7 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
         Assert.Equal("Starting", (await Programs(brain).Describe(Owner))!.Behaviors[0].Status);
         host.Absent = false;
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
+        await RuntimeBrain.RemindAsync(brain, Brain, ct);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
     }
 
@@ -279,7 +294,7 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Contains(logs.Of<BrainRuntimeNeuron>(), entry => entry.Level == LogLevel.Information && entry.Message.Contains("waits until this silo listens", StringComparison.Ordinal));
         Assert.DoesNotContain(logs.Of<BrainRuntimeNeuron>(), entry => entry.Level >= LogLevel.Warning);
         server.Addresses.Add("http://127.0.0.1:5099");
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
+        await RuntimeBrain.RemindAsync(brain, Brain, ct);
         var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal("http://host.docker.internal:5099/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
         Assert.Single(host.Requests, FakeSessionHost.IsStart);
@@ -367,9 +382,9 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal("host.docker.internal", assignment.Symbols.Host);
     }
 
-    private sealed class LoopbackAssemblies : IntoChat.OS.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
+    private sealed class LoopbackAssemblies : IntoChat.OS.Modules.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
     {
-        public Task Put(IntoChat.OS.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task Put(IntoChat.OS.Modules.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<bool> Exists(string hash, CancellationToken cancellationToken) => Task.FromResult(true);
         public Task<Uri> ReadUrl(string name, TimeSpan lifetime, CancellationToken cancellationToken)
             => Task.FromResult(new Uri("http://127.0.0.1:10000/devstoreaccount1/behaviors/" + name + "?sig=x"));
@@ -436,8 +451,8 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var pinger = brain.Get<IPinger>("pinger");
-        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        var pinger = brain.Get<IPinger>(Brain + "/pinger");
+        var subscription = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
 
         await pinger.Ping(1);
@@ -460,8 +475,8 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var pinger = brain.Get<IPinger>("stored");
-        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        var pinger = brain.Get<IPinger>(Brain + "/stored");
+        var subscription = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
         await using (var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct))
         {
             await pinger.Ping(1);
@@ -490,10 +505,10 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        await Assert.ThrowsAnyAsync<Exception>(() => Edge(brain).Subscribed(session, Behavior, "revisions.index/acc-brain", nameof(Pinged)));
-        var pinger = brain.Get<IPinger>("pinger");
+        await Assert.ThrowsAnyAsync<Exception>(() => Edge(brain).Subscribed(session, Behavior, "revisions.index/acc-brain", Pings.Pinged));
+        var pinger = brain.Get<IPinger>(Brain + "/pinger");
 
-        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        var subscription = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await pinger.Ping(1);
         await changes.NextAsync(ct: ct);
@@ -511,16 +526,16 @@ public sealed class BrainRuntimeNeuronFacts
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         await Edge(brain).Connected(session, RuntimeBrain.Fingerprint(brain));
-        var pinger = brain.Get<IPinger>("pinger");
-        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        var pinger = brain.Get<IPinger>(Brain + "/pinger");
+        var subscription = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await pinger.Ping(1);
         await changes.NextAsync(ct: ct);
         // Queued behind the arrival's turn: once it answers, the arrival's own push (to no stream) is over.
         Assert.Single(await Edge(brain).PendingBatches(session));
-        var stream = brain.Services.GetRequiredService<IntoChat.OS.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
+        var stream = brain.Services.GetRequiredService<IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
 
-        await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
 
         Assert.True(stream.Reader.TryRead(out var pushed));
         Assert.Equal(IntoChat.OS.Client.Runtime.V1.SignalBatchEvent.Kind, pushed.Kind);
@@ -539,7 +554,7 @@ public sealed class BrainRuntimeNeuronFacts
         var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
         host.Sessions.Clear();
 
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
+        await RuntimeBrain.RemindAsync(brain, Brain, ct);
 
         var again = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal(first.Body!["session"]!.GetValue<string>(), again.Body!["session"]!.GetValue<string>());
@@ -584,7 +599,7 @@ public sealed class BrainRuntimeNeuronFacts
         var silent = (await Runtime(brain).Inspect(ct)).SessionId!;
 
         time.Now += TimeSpan.FromMinutes(3);
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
+        await RuntimeBrain.RemindAsync(brain, Brain, ct);
 
         var relaunched = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.NotEqual(silent, relaunched.Body!["session"]!.GetValue<string>());
@@ -634,10 +649,10 @@ public sealed class BrainRuntimeNeuronFacts
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         time.Now += TimeSpan.FromMinutes(41);
         await Edge(brain).Heartbeat(session);
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
+        await RuntimeBrain.RemindAsync(brain, Brain, ct);
 
-        var stream = brain.Services.GetRequiredService<IntoChat.OS.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
+        var stream = brain.Services.GetRequiredService<IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
+        await RuntimeBrain.RemindAsync(brain, Brain, ct);
 
         Assert.True(stream.Reader.TryRead(out var pushed));
         Assert.Equal(IntoChat.OS.Client.Runtime.V1.TokenEvent.Kind, pushed.Kind);
@@ -653,7 +668,7 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
 
         await Programs(brain).Assign(Owner, Synapse(), []);
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
+        await RuntimeBrain.RemindAsync(brain, Brain, ct);
 
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
     }
@@ -707,9 +722,9 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
         await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle, ["synapses/b.cs"] = RuntimeBrain.Idle }, []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var source = brain.Get<IPinger>("one2");
-        var kept = await Edge(brain).Subscribed(session, "acc-brain/apps/demo/synapses/a.cs", source.GetGrainId().ToString(), nameof(Pinged));
-        await Edge(brain).Subscribed(session, "acc-brain/apps/demo/synapses/b.cs", source.GetGrainId().ToString(), nameof(Pinged));
+        var source = brain.Get<IPinger>(Brain + "/one2");
+        var kept = await Edge(brain).Subscribed(session, "acc-brain/apps/demo/synapses/a.cs", RuntimeBrain.Source(source), Pings.Pinged);
+        await Edge(brain).Subscribed(session, "acc-brain/apps/demo/synapses/b.cs", RuntimeBrain.Source(source), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await source.Ping(1); await changes.NextAsync(ct: ct);
 
@@ -731,8 +746,8 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var before = await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var pinger = brain.Get<IPinger>("changed");
-        await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        var pinger = brain.Get<IPinger>(Brain + "/changed");
+        await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await pinger.Ping(1); await changes.NextAsync(ct: ct);
 
@@ -850,12 +865,12 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var pinger = brain.Get<IPinger>("nudging");
-        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        var pinger = brain.Get<IPinger>(Brain + "/nudging");
+        var subscription = await Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
-        // Seeding a subscription from this source holds the runtime's turn until the source answers.
-        var held = brain.Get<IHeldRetainer>("held");
-        var seeding = Edge(brain).Subscribed(session, Behavior, held.GetGrainId().ToString(), nameof(Pinged));
+        // Subscribing to this source holds the runtime's turn until the source admits the subscription.
+        var held = brain.Get<IHeldRetainer>(Brain + "/held");
+        var seeding = Edge(brain).Subscribed(session, Behavior, RuntimeBrain.Source(held), Pings.Pinged);
         await HeldRetainer.Asked.Task.WaitAsync(ct);
 
         try { await pinger.Ping(1).WaitAsync(brain.Execution.AssertionTimeout, ct); }
@@ -867,14 +882,14 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     // Stores assemblies, and holds every store once a fact arms it, so the fact sees what goes on meanwhile.
-    private sealed class HeldAssemblies : IntoChat.OS.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
+    private sealed class HeldAssemblies : IntoChat.OS.Modules.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
     {
         public TaskCompletionSource? Hold { get; set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _puts;
         public int Puts => Volatile.Read(ref _puts);
 
-        public async Task Put(IntoChat.OS.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken)
+        public async Task Put(IntoChat.OS.Modules.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _puts);
             if (Hold is not { } hold) { return; }
@@ -955,20 +970,27 @@ public sealed class BrainRuntimeNeuronFacts
     private static IBrainRuntimeEdge Edge(ITestBrain brain) => RuntimeBrain.Edge(brain, Brain);
 }
 
-// A retaining source whose backlog read holds until released: the runtime seeding a subscription from it
-// stays in that turn meanwhile.
-[Alias("tests.csharp.held-retainer")]
-public interface IHeldRetainer : IRetainsSignals;
+// A source whose admission of a subscriber holds until released: the runtime subscribing to it stays in that turn meanwhile
+// (06-08: a plain source; the legacy backlog read it stood for is the admission now).
+[DigitalBrain.Contracts.NeuronAlias("tests.csharp.held-retainer"), DigitalBrain.Contracts.DefaultNeuronType("tests.csharp.held-retainer")]
+[DigitalBrain.Access.Public]
+public interface IHeldRetainer
+{
+    Task Ping(int number);
+}
 
-public sealed class HeldRetainer : Neuron, IHeldRetainer
+[DigitalBrain.Neuron("tests.csharp.held-retainer")]
+public sealed class HeldRetainer : DigitalBrain.Neuron, IHeldRetainer
 {
     public static TaskCompletionSource Asked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public static TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public async Task<RetainedSignal[]> Retained(string signal, long since)
+    public Task Ping(int number) => Publish(new Pinged(number));
+
+    protected override async Task AdmitSynapse(DigitalBrain.SynapseRequest request)
     {
         Asked.TrySetResult();
         await Release.Task;
-        return [];
+        await base.AdmitSynapse(request);
     }
 }

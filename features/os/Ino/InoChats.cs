@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.AI.Agents;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS;
 
 // The chat index's vocabulary for Ino: entry ids are the conversation agent's last key segment.

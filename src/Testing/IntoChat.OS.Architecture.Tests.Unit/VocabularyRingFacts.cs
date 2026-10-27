@@ -9,9 +9,13 @@ public sealed class VocabularyRingFacts
 {
     private static readonly Assembly Vocabulary = typeof(Signal).Assembly;
 
+    // The neuron-abstraction ring below IntoChat.OS: the DigitalBrain core packages (CORE-02). Script-visible
+    // contracts may depend on IntoChat.OS and these only.
+    private static readonly string[] CoreAbstractions = ["DigitalBrain", "DigitalBrain.UI"];
+
     // IKernelView is the ratified script-visible kernel slice (kernel design Q8). ILogic<> is what a rule
     // implements (spec 2026-10-10 section 6): like Synapse, a shape scripts build on, not one a contract carries.
-    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(Synapse), typeof(ILogic<>), typeof(IIntoChatOS), typeof(INeuronObserver), typeof(IKernelView)];
+    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(Synapse), typeof(ILogic<>), typeof(IIntoChatOS), typeof(IKernelView)];
 
     // The Contracts ring: IntoChat.OS plus every production assembly whose IntoChat.OS references stay
     // inside the ring (module *.Contracts projects). Their neuron contracts, signals and wire exceptions
@@ -25,6 +29,11 @@ public sealed class VocabularyRingFacts
     private static readonly Dictionary<Type, string> Allowlist = new()
     {
         [typeof(Sources)] = "A set of neurons for IIntoChatOS.On/React: names neurons through a delegate, never crosses the wire (spec 2026-10-10 synapse subscription contract).",
+        [typeof(ISignalDelivery)] = "Transitional runtime SPI (deleted Phase 4/6): a coalesce drain waits for queued in-process deliveries.",
+        [typeof(IInitialSignalWait)] = "Transitional runtime SPI (deleted Phase 4/6): optional capability the client connection implements.",
+        [typeof(WatchStream<>)] = "Transitional runtime SPI (deleted Phase 4/6): the one stream behind brain.On<T> both clients build.",
+        [typeof(SignalDeliveries)] = "Transitional runtime SPI (deleted Phase 4/6): skip bookkeeping for app filters; EditorBrowsable(Never).",
+        [typeof(NeuronAliases)] = "A type's effective alias across [NeuronAlias] (DigitalBrain.Contracts) and the Orleans [Alias]; the Orleans half keeps it out of the core package (03-03).",
         [typeof(ISelectiveWatch)] = "Optional watch. A behavior names one operation and the runtime does not start it for the others. Callers that only have IIntoChatOS keep that filter.",
     };
 
@@ -42,20 +51,6 @@ public sealed class VocabularyRingFacts
         Assert.True(offenders.Length == 0, "Types outside the vocabulary rule:\n" + string.Join("\n", offenders));
     }
 
-    // Every assembly that sees the vocabulary's internals is a consumer the ring cannot be audited without;
-    // adding one is a design decision, made here. Both clients share the vocabulary's one WatchStream.
-    private static readonly string[] InternalsConsumers =
-        ["IntoChat.OS.Client", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Client.Orleans.Tests.Integration", "IntoChat.OS.Client.Tests.Unit", "IntoChat.OS.Modules.Apps.Contracts", "IntoChat.OS.Testing"];
-
-    [Fact]
-    public void OnlyTheAllowedAssembliesSeeTheVocabularysInternals()
-    {
-        var granted = Vocabulary.GetCustomAttributes<System.Runtime.CompilerServices.InternalsVisibleToAttribute>()
-            .Select(attribute => attribute.AssemblyName).Order(StringComparer.Ordinal).ToArray();
-
-        Assert.Equal(InternalsConsumers, granted);
-    }
-
     [Fact]
     public void VocabularyTypesLiveOnlyInTheVocabularyNamespaces()
     {
@@ -68,6 +63,7 @@ public sealed class VocabularyRingFacts
     {
         var offenders = Vocabulary.GetReferencedAssemblies().Select(a => a.Name!).Where(name => !(
                 name.StartsWith("System", StringComparison.Ordinal)
+                || CoreAbstractions.Contains(name)
                 || name is "netstandard" or "mscorlib" or "Microsoft.Orleans.Core.Abstractions" or "Microsoft.Orleans.Serialization.Abstractions"
                     or "Orleans.Core.Abstractions" or "Orleans.Serialization.Abstractions" or "Orleans.Serialization"
                 || (name.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) && name.EndsWith(".Abstractions", StringComparison.Ordinal))))
@@ -79,10 +75,31 @@ public sealed class VocabularyRingFacts
     [Fact]
     public void TheRuntimeSpiIsExactlyTheDesignedSet()
     {
+        // The Orleans-bound half stays legacy in IntoChat.OS.Runtime; the pure half comes from the DigitalBrain package (03-03 name map).
         Assert.Equal(
-            ["BrainId", "DeactivationCause", "ICallerContextCarrier", "IDeactivatingNeuron", "INeuronContext", "INeuronResolver", "INeuronStateStore", "INeuronState`1",
-                "INeuronTimers", "IRemindedNeuron", "IRuntimeBuilder", "IRuntimeEndpoint", "ISignalFanout", "IStateCodec", "ITraceCarrier", "NeuronAddress", "StoredRecord", "WriteResult"],
-            PublicTypes().Where(IsRuntimeSpi).Select(t => t.Name).Order(StringComparer.Ordinal));
+            [
+                // 06-08 (R4-21(2)): marks the plain contracts every connection neuron implements; the connection key names the type.
+                "IntoChat.OS.Runtime.ConnectionContractAttribute",
+                // 06-08 (R4-21(3)): a plain neuron acting in another brain, as the stamped member there (Circles).
+                "IntoChat.OS.Runtime.IBrainCalls",
+                "IntoChat.OS.Runtime.INeuronResolver", "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
+                // Transitional (06-03, R4-14; deleted in 06-08): plain contracts reached from the os surfaces.
+                // Transitional (06-07, R4-15; deleted in 06-08): the os clients' calls and session synapse subscriptions to plain neurons.
+                "IntoChat.OS.Runtime.IPlainNeurons", "IntoChat.OS.Runtime.IPlainSession", "IntoChat.OS.Runtime.IPlainSignals",
+                "IntoChat.OS.Runtime.IRuntimeBuilder",
+                // Transitional (06-09, D-04): the one path to the allow-listed still-grains outside the kernel composition (Phase 12).
+                "IntoChat.OS.Runtime.IStillGrains", "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.PlainNeuronContracts",
+                "IntoChat.OS.Runtime.PlainSignalBatch", "IntoChat.OS.Runtime.PlainSignalEntry", "IntoChat.OS.Runtime.PlainSignalPage", "IntoChat.OS.Runtime.PlainSignalTypes",
+                // Transitional (06-07b, R4-17; deleted in 06-08): the shell watch and SSE feeds of plain neurons.
+                "IntoChat.OS.Runtime.PlainWatch"],
+            PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.Spi.ICallerContextCarrier", "DigitalBrain.Spi.IDeactivatingNeuron", "DigitalBrain.Spi.INeuronTimers",
+                "DigitalBrain.Spi.IRemindedNeuron", "DigitalBrain.Spi.IRuntimeEndpoint", "DigitalBrain.State.IStateCodec", "DigitalBrain.State.StoredRecord", "DigitalBrain.State.WriteResult"],
+            new[] { typeof(DigitalBrain.BrainId), typeof(DigitalBrain.DeactivationCause), typeof(DigitalBrain.Spi.ICallerContextCarrier), typeof(DigitalBrain.Spi.IDeactivatingNeuron),
+                typeof(DigitalBrain.Spi.INeuronTimers), typeof(DigitalBrain.Spi.IRemindedNeuron), typeof(DigitalBrain.Spi.IRuntimeEndpoint), typeof(DigitalBrain.State.IStateCodec),
+                typeof(DigitalBrain.State.StoredRecord), typeof(DigitalBrain.State.WriteResult) }.Select(t => t.FullName!).Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(PublicTypes(), t => t.Name is "BrainId" or "DeactivationCause");
     }
 
     [Fact]
@@ -94,7 +111,9 @@ public sealed class VocabularyRingFacts
             : type;
         static bool IsHandle(Type type) => typeof(IAsyncDisposable).IsAssignableFrom(type) || typeof(IDisposable).IsAssignableFrom(type);
         // The runtime SPI hands out scopes (a timer, a suppressed caller, an entered trace); contracts never do.
-        var offenders = PublicTypes().Where(t => !IsRuntimeSpi(t))
+        // The transitional client SPI (deleted Phase 4/6) hands out a suppression scope and an enumerator.
+        Type[] transitional = [typeof(IInitialSignalWait), typeof(WatchStream<>)];
+        var offenders = PublicTypes().Where(t => !IsRuntimeSpi(t) && !transitional.Contains(t))
             .Where(t => IsHandle(t)
                 || t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Any(m => IsHandle(Awaited(m.ReturnType))))
             .Select(t => t.FullName!).Order().ToArray();
@@ -108,21 +127,22 @@ public sealed class VocabularyRingFacts
         // Neuron is the transitional brain-relative resolver (clean-core 2a); it goes when Get becomes relative (2f).
         Assert.Equal(["Get", "Neuron", "On", "On", "On", "React", "React"], methods);
         var watches = typeof(IIntoChatOS).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ThenBy(m => m.GetParameters()[0].ParameterType.Name).ToArray();
-        Assert.Equal([typeof(INeuron), typeof(CancellationToken)], watches[0].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(object), typeof(CancellationToken)], watches[0].GetParameters().Select(p => p.ParameterType));
         Assert.Equal([typeof(Sources), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
-        Assert.Equal([typeof(INeuron), typeof(Func<Task>), typeof(CancellationToken)], watches[2].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(object), typeof(Func<Task>), typeof(CancellationToken)], watches[2].GetParameters().Select(p => p.ParameterType));
         var reacts = typeof(IIntoChatOS).GetMethods().Where(m => m.Name == "React").OrderBy(m => m.GetParameters()[0].ParameterType.Name).ToArray();
-        Assert.Equal([typeof(INeuron), typeof(Func<CancellationToken, Task>), typeof(CancellationToken)], reacts[0].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(object), typeof(Func<CancellationToken, Task>), typeof(CancellationToken)], reacts[0].GetParameters().Select(p => p.ParameterType));
         Assert.Equal([typeof(Sources), typeof(Func<CancellationToken, Task>), typeof(CancellationToken)], reacts[1].GetParameters().Select(p => p.ParameterType));
         Assert.Equal(["Kernel", "Self"], typeof(IIntoChatOS).GetProperties().Select(p => p.Name).Order());
         Assert.Equal(typeof(IKernelView), typeof(IIntoChatOS).GetProperty("Kernel")!.PropertyType);
         Assert.Equal(typeof(IBrain), typeof(IIntoChatOS).GetProperty("Self")!.PropertyType);
         Assert.False(typeof(IAsyncDisposable).IsAssignableFrom(typeof(IIntoChatOS)));
         var get = typeof(IIntoChatOS).GetMethod("Get")!;
-        Assert.Contains(typeof(INeuron), get.GetGenericArguments()[0].GetGenericParameterConstraints());
+        // Any neuron contract (a DigitalBrain plain contract since 06-08): a reference type, no os base interface.
+        Assert.True(get.GetGenericArguments()[0].GenericParameterAttributes.HasFlag(System.Reflection.GenericParameterAttributes.ReferenceTypeConstraint));
         var neuron = typeof(IIntoChatOS).GetMethod("Neuron")!;
         Assert.Equal([typeof(NeuronId)], neuron.GetParameters().Select(p => p.ParameterType));
-        Assert.Contains(typeof(INeuron), neuron.GetGenericArguments()[0].GetGenericParameterConstraints());
+        Assert.True(neuron.GetGenericArguments()[0].GenericParameterAttributes.HasFlag(System.Reflection.GenericParameterAttributes.ReferenceTypeConstraint));
     }
 
     private static IEnumerable<Type> PublicTypes() => Vocabulary.GetExportedTypes()
@@ -132,7 +152,7 @@ public sealed class VocabularyRingFacts
 
     private static bool IsRuntimeSpi(Type t) => t.Namespace == RuntimeNamespace;
 
-    private static bool IsSignal(Type t) => typeof(Signal).IsAssignableFrom(t);
+    private static bool IsSignal(Type t) => typeof(Signal).IsAssignableFrom(t) || typeof(DigitalBrain.Signal).IsAssignableFrom(t);
 
     private static bool IsSerializable(Type t) => t.GetCustomAttributes(inherit: false).Any(a => a.GetType().Name == "GenerateSerializerAttribute");
 
@@ -187,7 +207,7 @@ public sealed class VocabularyRingFacts
     {
         var candidates = ProductionArchitecture.Assemblies.Append(Vocabulary).Distinct()
             .ToDictionary(a => a.GetName().Name!, StringComparer.Ordinal);
-        var ring = new HashSet<string>(StringComparer.Ordinal) { Vocabulary.GetName().Name! };
+        var ring = new HashSet<string>(CoreAbstractions.Append(Vocabulary.GetName().Name!), StringComparer.Ordinal);
         bool grew;
         do
         {
@@ -195,12 +215,12 @@ public sealed class VocabularyRingFacts
             foreach (var (name, assembly) in candidates.Where(c => !ring.Contains(c.Key)))
             {
                 var ownReferences = assembly.GetReferencedAssemblies().Select(r => r.Name!)
-                    .Where(r => r.StartsWith("IntoChat.OS", StringComparison.Ordinal)).ToArray();
+                    .Where(r => r.StartsWith("IntoChat.OS", StringComparison.Ordinal) || r.StartsWith("DigitalBrain", StringComparison.Ordinal)).ToArray();
                 if (ownReferences.Length > 0 && ownReferences.All(ring.Contains)) { grew |= ring.Add(name); }
             }
         }
         while (grew);
-        return [.. ring.Select(name => candidates[name])];
+        return [.. ring.Where(candidates.ContainsKey).Select(name => candidates[name])];
     }
 
     private static IEnumerable<Type> Unwrap(Type type)

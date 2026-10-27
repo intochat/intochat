@@ -49,6 +49,15 @@ public sealed partial class CiWorkflowFacts
     }
 
     [Fact]
+    // The platform downstream build moved to digitalbrain's downstream job, which builds os (03-13, R4-03).
+    public void TheDownstreamJobLivesInDigitalbrainNotHere()
+    {
+        var workflow = Workflow("ci.yml");
+        Assert.DoesNotMatch(@"(?m)^  downstream:", workflow);
+        Assert.DoesNotContain("PLATFORM_READ_TOKEN", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OnlyTheWarmWorkflowMayWritePackages()
     {
         Assert.Contains("packages: write", Workflow("artcraft-images.yml"), StringComparison.Ordinal);

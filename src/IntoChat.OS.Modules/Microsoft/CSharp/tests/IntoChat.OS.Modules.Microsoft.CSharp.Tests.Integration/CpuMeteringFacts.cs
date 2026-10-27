@@ -1,14 +1,15 @@
 using System.Collections.Concurrent;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Assemblies;
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
-using IntoChat.OS.Microsoft.CSharp.Sessions;
+using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
@@ -35,7 +36,7 @@ public sealed class CpuMeteringFacts
         var session = (await RuntimeBrain.Runtime(brain, owner.BrainId).Inspect(ct)).SessionId!;
         await runtime.Connected(session, RuntimeBrain.Fingerprint(brain));
         var source = brain.Get<IPinger>(owner.Key("untraced"));
-        var subscription = await runtime.Subscribed(session, app + "/synapses/a.cs", source.GetGrainId().ToString(), nameof(Pinged));
+        var subscription = await runtime.Subscribed(session, app + "/synapses/a.cs", RuntimeBrain.Source(source), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(RuntimeBrain.Runtime(brain, owner.BrainId), ct);
         await source.Ping(1);
         await changes.NextAsync(ct: ct);
@@ -51,7 +52,7 @@ public sealed class CpuMeteringFacts
         Assert.Equal(owner.AccountId, recorded.TracePayer);
     }
 
-    // A synapse's batch and the CPU it cost: the ack prices the run against the batch's own trace.
+    // A synapse's batch and the CPU it cost: the ack prices the run (06-08: a plain signal carries no trace to price it under).
     [Trait("host", "own")]
     [Fact]
     public async Task AnAcknowledgedBatchRecordsItsCpuTime()
@@ -65,18 +66,13 @@ public sealed class CpuMeteringFacts
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         await runtime.Connected(session, RuntimeBrain.Fingerprint(brain));
 
-        // The retaining source seeds the subscription's backlog, so the batch's first signal carries a trace.
-        var source = brain.Get<IRetaining>("retaining");
-        var trace = new Trace { TraceId = "4bf92f3577b34da6a3ce929d0e0e4736", PayerAccountId = "account-a", BrainId = Acc, Origin = new NeuronId("acc-brain/edge") };
-        RetainingSource.Traced = [new RetainedSignal(1, new Pinged(1) { Trace = trace })];
-        var subscription = await runtime.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        var source = brain.Get<IPinger>(Acc + "/priced");
+        var subscription = await runtime.Subscribed(session, Behavior, RuntimeBrain.Source(source), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
-
-        // An arrival is what delivers a batch: the runtime builds it and remembers the trace to price on ack.
-        await source.Fire();
+        await source.Ping(1);
         await changes.NextAsync(ct: ct);
 
-        await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 2, 1_234_567)]);
+        await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 1, 1_234_567)]);
 
         // The session host's own HTTP calls are metered too; the ack prices the script.
         var recorded = Assert.Single(meter.Calls, call => call.Kind == CostKind.Script);
@@ -84,8 +80,7 @@ public sealed class CpuMeteringFacts
         Assert.Equal(1_234.567m, recorded.Quantity);
         Assert.Equal("ms", recorded.Unit);
         Assert.Equal(Funding.Local, recorded.Funding);
-        Assert.Equal($"{subscription}:2", recorded.CostId);
-        Assert.Equal(trace.TraceId, recorded.TraceId);
+        Assert.Equal($"{subscription}:1", recorded.CostId);
     }
 
     // Pricing observes a run: a ledger that is slow to answer must not hold the acknowledgement, or every other
@@ -101,8 +96,8 @@ public sealed class CpuMeteringFacts
         await RuntimeBrain.Programs(brain, Acc).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         await runtime.Connected(session, RuntimeBrain.Fingerprint(brain));
-        var source = brain.Get<IPinger>("metered");
-        var subscription = await runtime.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        var source = brain.Get<IPinger>(Acc + "/metered");
+        var subscription = await runtime.Subscribed(session, Behavior, RuntimeBrain.Source(source), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await source.Ping(1);
         await changes.NextAsync(ct: ct);
@@ -131,18 +126,20 @@ public sealed class CpuMeteringFacts
         await RuntimeBrain.Programs(brain, Acc).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         await runtime.Connected(session, RuntimeBrain.Fingerprint(brain));
-        var source = brain.Get<IPinger>("skipped");
-        var subscription = await runtime.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        var source = brain.Get<IPinger>(Acc + "/skipped");
+        var subscription = await runtime.Subscribed(session, Behavior, RuntimeBrain.Source(source), Pings.Pinged);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await source.Ping(1);
         await changes.NextAsync(ct: ct);
 
         await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 1, 1_000, Skipped: true)]);
-        // Runs are priced one after another, so once the handled batch behind it is priced the skip would have been.
+        // Runs are priced one after another, so once the handled batch behind it is priced the skip would have been. The skip
+        // itself changes the runtime, so the next batch is awaited where the session host reads it, not as a change signal.
         await source.Ping(2);
-        await changes.NextAsync(ct: ct);
+        await TestWait.UntilAsync(_ => runtime.PendingBatches(session), batches => batches.Any(batch => batch.Subscription == subscription && batch.Watermark >= 2),
+            brain.Execution.AssertionTimeout, ct);
         await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 2, 1_000)]);
-        await meter.ScriptPriced.Task.WaitAsync(ct);
+        await meter.ScriptPriced.Task.WaitAsync(brain.Execution.AssertionTimeout, ct);
 
         Assert.Equal($"{subscription}:2", Assert.Single(meter.Calls, call => call.Kind == CostKind.Script).CostId);
     }
@@ -199,22 +196,4 @@ public sealed class CpuMeteringFacts
             };
         }
     }
-}
-
-// A source that keeps one signal, so a subscription seeded from it carries a real trace, and that
-// publishes an arrival that delivers the batch. Its own interface addresses the grain without
-// colliding with the vocabulary's IRetainsSignals mapping.
-[Alias("tests.csharp.retaining")]
-public interface IRetaining : IRetainsSignals
-{
-    Task Fire();
-}
-
-public sealed class RetainingSource : Neuron, IRetaining
-{
-    public static RetainedSignal[] Traced { get; set; } = [];
-
-    public Task<RetainedSignal[]> Retained(string signal, long since) => Task.FromResult(Traced);
-
-    public Task Fire() => PublishAsync(new Pinged(1));
 }

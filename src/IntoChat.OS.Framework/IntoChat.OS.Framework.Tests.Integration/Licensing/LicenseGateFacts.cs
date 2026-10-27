@@ -1,13 +1,16 @@
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Orleans.Hosting;
+using IntoChat.OS.Connections;
 
 namespace IntoChat.OS.Framework.Tests.Integration.Licensing;
 
@@ -127,14 +130,12 @@ public sealed class LicenseGateFacts
         return builder.Build();
     }
 
-    private sealed class FreeModule() : Module(new ModuleId("free"))
-    { public override void Configure(ISiloBuilder silo) { } }
+    private sealed class FreeModule() : Module(new ModuleId("free"));
 
     private sealed class PaidModule() : Module(new ModuleId("paid"))
     {
         public static ConnectorDefinition Connector => new("paid", "Paid", ["api-key"], []);
         public override string? LicenseProduct => "test-paid";
         public override System.Reflection.Assembly? Contracts => typeof(PaidModule).Assembly;
-        public override void Configure(ISiloBuilder silo) { }
     }
 }

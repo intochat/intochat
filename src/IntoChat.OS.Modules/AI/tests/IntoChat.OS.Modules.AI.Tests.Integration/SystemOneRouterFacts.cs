@@ -1,22 +1,22 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Routing;
-using IntoChat.OS.AI.Routing.Signals;
-using IntoChat.OS.AI.SystemOne;
-using IntoChat.OS.AI.SystemOne.Signals;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.AI.Routing.Signals;
+using IntoChat.OS.Modules.AI.SystemOne;
+using IntoChat.OS.Modules.AI.SystemOne.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Time.Timers;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Time.Timers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Orleans;
-using ITimer = IntoChat.OS.Time.Timers.ITimer;
+using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -46,7 +46,7 @@ public sealed class SystemOneRouterFacts
         using var caller = alice.AsCaller();
         scope = alice.BrainId;
 
-        var outcome = await host.Get<IRouter>(scope).Dispatch("set a timer for 5 minutes", [typeof(ITimer).FullName!], ct);
+        var outcome = await host.Get<IRouter>(IRouter.Key(scope)).Dispatch("set a timer for 5 minutes", [typeof(ITimer).FullName!], ct);
 
         Assert.True(outcome.Dispatched, outcome.Error);
         Assert.Equal(typeof(ITimer).FullName, outcome.Route.Contract);
@@ -69,7 +69,7 @@ public sealed class SystemOneRouterFacts
         using var caller = alice.AsCaller();
         var scope = alice.BrainId;
 
-        var route = await host.Get<IRouter>(scope).Route("start a countdown please", [typeof(ITimer).FullName!], ct);
+        var route = await host.Get<IRouter>(IRouter.Key(scope)).Route("start a countdown please", [typeof(ITimer).FullName!], ct);
 
         Assert.Equal(typeof(ITimer).FullName, route.Contract);
         Assert.Equal("Start", route.Method);
@@ -93,9 +93,9 @@ public sealed class SystemOneRouterFacts
         { ["capability_0"] = new { type = "choice", choice = tool, confidence = 0.93, probabilities = new Dictionary<string, double> { [tool] = 0.93 } } });
         var reply = server.ReplyOnce("application/json", "{\"model\":\"jev\",\"answers\":" + choice + "}", ct);
 
-        var route = await host.Get<IRouter>(scope).Route("show me the image", null, ct);
+        var route = await host.Get<IRouter>(IRouter.Key(scope)).Route("show me the image", null, ct);
 
-        Assert.Equal(("IntoChat.OS.Mcp.IMcpServer", "Run", scope + "/mcp/photocraft", "render_preview"), (route.Contract, route.Method, route.Key, route.Tool));
+        Assert.Equal(("IntoChat.OS.Modules.Mcp.IMcpServer", "Run", scope + "/mcp/photocraft", "render_preview"), (route.Contract, route.Method, route.Key, route.Tool));
         Assert.Contains("Render the document", (await reply).Body, StringComparison.Ordinal);
     }
 
@@ -105,7 +105,7 @@ public sealed class SystemOneRouterFacts
         public Task<IReadOnlyList<NeuronType>> Read(string brainId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<NeuronType>>(
                 [new($"tool:{brainId}/mcp/photocraft/render_preview", "tools", "PhotoCraft: Render preview", "Render the document as a PNG.",
-                    ["Task<ToolResult> Run(\"render_preview\", arguments)"], "IntoChat.OS.Mcp.IMcpServer", brainId + "/mcp/photocraft", "render_preview")]);
+                    ["Task<ToolResult> Run(\"render_preview\", arguments)"], "IntoChat.OS.Modules.Mcp.IMcpServer", brainId + "/mcp/photocraft", "render_preview")]);
     }
 
     [Trait("host", "own")]
@@ -122,10 +122,9 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         var app = host.Get<IApp>(IApp.Key(scope, "calculator"));
         await app.Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
-        await using var requested = await host.SubscribeAsync<AppRequested>(app, ct);
-        await using var signals = requested.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        await using var requested = await host.Observe<AppRequested>(app, ct);
 
-        var outcome = await host.Get<IRouter>(scope).Dispatch("open calculator", null, ct);
+        var outcome = await host.Get<IRouter>(IRouter.Key(scope)).Dispatch("open calculator", null, ct);
 
         Assert.True(outcome.Dispatched, outcome.Error);
         Assert.Equal(typeof(IApp).FullName, outcome.Route.Contract);
@@ -133,9 +132,9 @@ public sealed class SystemOneRouterFacts
         Assert.Equal(("calculator", "open"), (outcome.Route.App, outcome.Route.Operation));
         Assert.True(outcome.Route.IsDirect);
         Assert.Null(outcome.Arguments);
-        Assert.True(await signals.MoveNextAsync());
+        var request = await requested.NextAsync(ct: ct);
         // "open" takes what the shell posts to open an app, never the sentence that asked for it.
-        Assert.Equal(("open", ""), (signals.Current.Operation, signals.Current.Input));
+        Assert.Equal(("open", ""), (request.Operation, request.Input));
         await reply;
     }
 
@@ -160,10 +159,10 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
 
-        var route = await host.Get<IRouter>(scope).Route("open calculator", [typeof(IApp).FullName!, typeof(ITimer).FullName!], ct);
+        var route = await host.Get<IRouter>(IRouter.Key(scope)).Route("open calculator", [typeof(IApp).FullName!, typeof(ITimer).FullName!], ct);
 
         Assert.Null(route.App);
-        Assert.Equal(typeof(IntoChat.OS.Time.Timers.ITimer).FullName, route.Contract);
+        Assert.Equal(typeof(IntoChat.OS.Modules.Time.Timers.ITimer).FullName, route.Contract);
         Assert.Equal("Start", route.Method);
         // The app tier is how apps are routed: the second tier never offers the raw app contract.
         Assert.DoesNotContain("apps.app2", (await replies[1]).Body, StringComparison.Ordinal);
@@ -184,7 +183,7 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
 
-        var route = await host.Get<IRouter>(scope).Route("start a countdown please", null, ct);
+        var route = await host.Get<IRouter>(IRouter.Key(scope)).Route("start a countdown please", null, ct);
 
         Assert.Equal(("", "", 0.0), (route.Contract, route.Method, route.Confidence));
         await reply;
@@ -213,7 +212,7 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
 
-        var route = await host.Get<IRouter>(scope).Route("what's the weather in Kyiv", [typeof(IApp).FullName!, typeof(ITimer).FullName!], ct);
+        var route = await host.Get<IRouter>(IRouter.Key(scope)).Route("what's the weather in Kyiv", [typeof(IApp).FullName!, typeof(ITimer).FullName!], ct);
 
         Assert.Null(route.App);
         Assert.Equal((typeof(ITimer).FullName, "Start", 0.91), (route.Contract, route.Method, route.Confidence));
@@ -234,7 +233,7 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
 
-        var route = await host.Get<IRouter>(scope).Route("open calculator", null, ct);
+        var route = await host.Get<IRouter>(IRouter.Key(scope)).Route("open calculator", null, ct);
 
         Assert.Equal(("calculator", "open", 0.7), (route.App, route.Operation, route.Confidence));
         await reply;
@@ -264,9 +263,9 @@ public sealed class SystemOneRouterFacts
             server.ReplyOnce("application/json", "{\"model\":\"jev\",\"answers\":" + unnamed + "}", ct),
         };
 
-        var route = await host.Get<IRouter>(scope).Route("make a 512x512 image with a blue-to-orange gradient", null, ct);
+        var route = await host.Get<IRouter>(IRouter.Key(scope)).Route("make a 512x512 image with a blue-to-orange gradient", null, ct);
 
-        Assert.Equal(("IntoChat.OS.Mcp.IMcpServer", "Run", scope + "/mcp/photocraft", "render_preview", 0.85), (route.Contract, route.Method, route.Key, route.Tool, route.Confidence));
+        Assert.Equal(("IntoChat.OS.Modules.Mcp.IMcpServer", "Run", scope + "/mcp/photocraft", "render_preview", 0.85), (route.Contract, route.Method, route.Key, route.Tool, route.Confidence));
         await Task.WhenAll(replies);
     }
 
@@ -287,7 +286,7 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
 
-        var outcome = await host.Get<IRouter>(scope).Dispatch("translate hello to French", [typeof(IApp).FullName!, typeof(ITimer).FullName!], ct);
+        var outcome = await host.Get<IRouter>(IRouter.Key(scope)).Dispatch("translate hello to French", [typeof(IApp).FullName!, typeof(ITimer).FullName!], ct);
 
         Assert.False(outcome.Dispatched);
         Assert.Equal(("", "", 0.0), (outcome.Route.Contract, outcome.Route.Method, outcome.Route.Confidence));
@@ -317,7 +316,7 @@ public sealed class SystemOneRouterFacts
         using var caller = alice.AsCaller();
         scope = alice.BrainId;
 
-        var run = await host.Get<IRouter>(scope).Achieve("write a note for me", [typeof(IText).FullName!], ct);
+        var run = await host.Get<IRouter>(IRouter.Key(scope)).Achieve("write a note for me", [typeof(IText).FullName!], ct);
 
         Assert.Single(run.Steps);
         Assert.Equal("Set", run.Steps[0].Method);
@@ -338,7 +337,7 @@ public sealed class SystemOneRouterFacts
         var alice = await host.PersonAsync("alice", ct);
         using var caller = alice.AsCaller();
         var scope = alice.BrainId;
-        var router = host.Get<IRouter>(scope);
+        var router = host.Get<IRouter>(IRouter.Key(scope));
         await using var routed = await host.Observe<Routed>(router, ct);
 
         var id = Guid.NewGuid();
@@ -368,7 +367,7 @@ public sealed class SystemOneRouterFacts
         var alice = await host.PersonAsync("alice", ct);
         using var caller = alice.AsCaller();
         var scope = alice.BrainId;
-        var systemOne = host.Get<ISystemOne>(scope);
+        var systemOne = host.Get<ISystemOne>(ISystemOne.Key(scope));
         await using var decided = await host.Observe<SystemOneDecided>(systemOne, ct);
 
         await systemOne.Ask(new SystemOneRequest("the integration keeps failing",
@@ -395,7 +394,7 @@ public sealed class SystemOneRouterFacts
         await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct);
         var alice = await host.PersonAsync("alice", ct);
         using var caller = alice.AsCaller();
-        var router = host.Get<IRouter>(alice.BrainId);
+        var router = host.Get<IRouter>(IRouter.Key(alice.BrainId));
         await using var routed = await host.Observe<Routed>(router, ct);
         var id = Guid.NewGuid();
 
@@ -426,7 +425,7 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(Calculator(), "spec");
 
-        var route = await host.Get<IRouter>(scope).Route("start a countdown please", [typeof(ITimer).FullName!], ct);
+        var route = await host.Get<IRouter>(IRouter.Key(scope)).Route("start a countdown please", [typeof(ITimer).FullName!], ct);
 
         Assert.Equal((typeof(ITimer).FullName, "Start", null), (route.Contract, route.Method, route.App));
         Assert.DoesNotContain("calculator.open", (await replies[0]).Body, StringComparison.Ordinal);
@@ -448,8 +447,8 @@ public sealed class SystemOneRouterFacts
         await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct, services => services.RemoveAll<IAppRuntime>());
         var alice = await host.PersonAsync("alice", ct);
         var scope = alice.BrainId;
-        var router = host.Get<IRouter>(scope);
-        SignalProbe<Routed> routed;
+        var router = host.Get<IRouter>(IRouter.Key(scope));
+        PlainSignalProbe<Routed> routed;
         using (alice.AsCaller())
         {
             await host.Get<IApp>(IApp.Key(scope, "assistant")).Create(new AppManifest("Assistant", "talk to your brain",
@@ -458,10 +457,10 @@ public sealed class SystemOneRouterFacts
             {
                 await host.Get<IApp>(IApp.Key(scope, "ino")).Create(new AppManifest("Ino", "talk to your brain",
                     [new("open", "compose the assistant surface"), new("send", "start a turn with this message")], [], []), "spec");
-                var grains = host.Services.GetRequiredService<IGrainFactory>();
-                var old = grains.GetGrain<IAppMigration>(IApp.Key(scope, "assistant"));
+                var grains = host.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+                var old = grains.Get<IAppMigration>(IApp.Key(scope, "assistant"));
                 await old.Pause("test");
-                await grains.GetGrain<IAppMigration>(IApp.Key(scope, "ino")).Pause("test");
+                await grains.Get<IAppMigration>(IApp.Key(scope, "ino")).Pause("test");
                 await old.Redirect("test", IApp.Key(scope, "ino"));
             }
             await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(Calculator(), "spec");
@@ -498,7 +497,7 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         var app = host.Get<IApp>(IApp.Key(scope, "calculator"));
         await app.Create(Calculator(), "spec");
-        var router = host.Get<IRouter>(scope);
+        var router = host.Get<IRouter>(IRouter.Key(scope));
         await using var routed = await host.Observe<Routed>(router, ct);
         await using var requested = await host.Observe<AppRequested>(app, ct);
         var id = Guid.NewGuid();
@@ -532,7 +531,7 @@ public sealed class SystemOneRouterFacts
         var scope = alice.BrainId;
         await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(Calculator(), "spec");
 
-        var outcome = await host.Get<IRouter>(scope).Dispatch("Use the calculator to add 17+25 and tell me the sum", null, ct);
+        var outcome = await host.Get<IRouter>(IRouter.Key(scope)).Dispatch("Use the calculator to add 17+25 and tell me the sum", null, ct);
 
         Assert.False(outcome.Dispatched);
         Assert.Equal(("calculator", "add", 0.95), (outcome.Route.App, outcome.Route.Operation, outcome.Route.Confidence));
@@ -557,7 +556,7 @@ public sealed class SystemOneRouterFacts
         await app.Create(Calculator(), "spec");
         await using var requested = await host.Observe<AppRequested>(app, ct);
 
-        var outcome = await host.Get<IRouter>(alice.BrainId).Dispatch("clear the calculator display", null, ct);
+        var outcome = await host.Get<IRouter>(IRouter.Key(alice.BrainId)).Dispatch("clear the calculator display", null, ct);
 
         Assert.True(outcome.Dispatched, outcome.Error);
         var request = await requested.NextAsync(ct: ct);
@@ -580,7 +579,7 @@ public sealed class SystemOneRouterFacts
         var alice = await host.PersonAsync("alice", ct);
         using var caller = alice.AsCaller();
         scope = alice.BrainId;
-        var router = host.Get<IRouter>(scope);
+        var router = host.Get<IRouter>(IRouter.Key(scope));
 
         var first = await router.Achieve("write a note for me", [typeof(IText).FullName!], ct);
         var second = await router.Achieve("write a note for me", [typeof(IText).FullName!], ct);
@@ -621,7 +620,7 @@ public sealed class SystemOneRouterFacts
         using var caller = alice.AsCaller();
         var catalog = host.Services.GetRequiredService<AppOperationCatalog>();
         catalog.Replace(alice.BrainId, [("calculator", [new MenuOperation("calculator", "open", "open the keypad")])]);
-        var router = host.Get<IRouter>(alice.BrainId);
+        var router = host.Get<IRouter>(IRouter.Key(alice.BrainId));
         reads.Armed = true;
 
         await router.Ask(new RouteRequest(Guid.NewGuid(), "open the calculator"), ct);
@@ -662,9 +661,9 @@ public sealed class SystemOneRouterFacts
             .WithIntegration(AIModule.TypeSafeIntegration, "ApiKey", "test-key")
             .WithIntegration(AIModule.TypeSafeIntegration, "Endpoint", endpoint)
             .WithModule<AIModule>()
-            .WithModule<IntoChat.OS.Apps.AppsModule>()
-            .WithModule<IntoChat.OS.Flutter.FlutterModule>()
-            .WithModule<IntoChat.OS.Time.TimeModule>()
+            .WithModule<IntoChat.OS.Modules.Apps.AppsModule>()
+            .WithModule<IntoChat.OS.Modules.Flutter.FlutterModule>()
+            .WithModule<IntoChat.OS.Modules.Time.TimeModule>()
             .WithChatModel(model);
         return (services is null ? brain : brain.ConfigureServices(services)).StartAsync(ct);
     }

@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Compute;

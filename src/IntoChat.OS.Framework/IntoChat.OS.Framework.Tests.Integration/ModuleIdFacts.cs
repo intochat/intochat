@@ -1,3 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+
 namespace IntoChat.OS.Framework.Tests.Integration;
 
 public sealed class ModuleIdFacts
@@ -25,5 +28,5 @@ public sealed class ModuleIdFacts
     [Fact]
     public void The_configuration_sections_speak_module_id()
         => Assert.Equal("IntoChatOS:Modules:ai:Options",
-            IntoChat.OS.Framework.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(new IntoChat.OS.Framework.Modules.ModuleId("ai")));
+            IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(new IntoChat.OS.Framework.Modules.ModuleId("ai")));
 }

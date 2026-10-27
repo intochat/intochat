@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Authority.Secrets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

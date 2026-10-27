@@ -1,4 +1,4 @@
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Chat;
 

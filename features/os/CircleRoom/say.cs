@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 
 // "say": one line in the circle's chat; the chat dedups at-least-once delivery by the request id.

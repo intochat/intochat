@@ -1,5 +1,4 @@
-using IntoChat.OS.ClickHouse;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.ClickHouse.Tests.Integration;

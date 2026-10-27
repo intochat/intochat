@@ -9,7 +9,6 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit;
 public sealed class DiscoveryModule(string id, Assembly? contracts = null) : IntoChat.OS.Framework.Modules.Module(new ModuleId(id))
 {
     public override Assembly? Contracts => contracts ?? typeof(IDiscoveryFixture).Assembly;
-    public override void Configure(ISiloBuilder builder) { }
 }
 
 public interface IPlainCapability
@@ -17,7 +16,7 @@ public interface IPlainCapability
     Task<string> Capability();
 }
 
-public interface IDiscoveryBase : IntoChat.OS.Tools.IToolSource, IPlainCapability
+public interface IDiscoveryBase : IntoChat.OS.Modules.Tools.IToolSource, IPlainCapability
 {
     Task<DiscoveryAddress> Inherited(CancellationToken cancellationToken);
     Task<Verdict> Check(CancellationToken cancellationToken = default);

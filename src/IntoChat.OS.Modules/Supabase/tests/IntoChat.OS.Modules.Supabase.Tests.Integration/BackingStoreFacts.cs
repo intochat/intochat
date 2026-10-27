@@ -1,5 +1,5 @@
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Supabase;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Supabase;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;

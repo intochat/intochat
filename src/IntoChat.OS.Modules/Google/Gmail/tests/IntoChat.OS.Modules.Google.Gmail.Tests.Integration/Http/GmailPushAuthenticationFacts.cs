@@ -1,7 +1,6 @@
-using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
-using IntoChat.OS.Google.Gmail;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 

@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Modules.Mcp;
 
 // A PhotoCraft tool changed the document outside an editor turn (the assistant ran PhotoCraft's tools
 // itself): the preview is rendered again from the active document. An editor turn is left to preview.cs,

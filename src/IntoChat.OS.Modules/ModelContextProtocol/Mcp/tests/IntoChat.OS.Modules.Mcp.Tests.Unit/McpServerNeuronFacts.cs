@@ -1,13 +1,22 @@
-using IntoChat.OS.Mcp;
-using IntoChat.OS.Tools;
+using DigitalBrain.Spi;
+using DigitalBrain.Testing;
+using IntoChat.OS.Modules.Tools;
 
 namespace IntoChat.OS.Modules.Mcp.Tests.Unit;
 
 // The neuron's argument and state rules, answered before any session is opened: no server, no socket.
 public sealed class McpServerNeuronFacts
 {
+    // A plain neuron on a fake context (06-06d), its state seeded before it activates.
     private static McpServerNeuron Neuron(McpServerState? state = null)
-        => new(new FakeStore { State = state is null ? new() : new() { State = state } });
+    {
+        var neuron = new McpServerNeuron();
+        var context = new FakeNeuronContext(DigitalBrain.NeuronId.Parse("facts/mcp.server/mcp/fake"));
+        if (state is not null) { context.MemoryState.Save(new McpServerStore { State = state }, []).GetAwaiter().GetResult(); }
+        NeuronAttachment.Attach(neuron, context);
+        NeuronAttachment.Activate(neuron, CancellationToken.None).GetAwaiter().GetResult();
+        return neuron;
+    }
 
     [Theory]
     [InlineData("not a url")]
@@ -75,18 +84,5 @@ public sealed class McpServerNeuronFacts
     {
         var connected = new McpServerState("Fake", "https://example.test/mcp", true, [], null, null);
         await Assert.ThrowsAsync<ArgumentException>(() => Neuron(connected).Run("echo", arguments, TestContext.Current.CancellationToken));
-    }
-
-    private sealed class FakeStore : IPersistentState<McpServerStore>
-    {
-        public McpServerStore State { get; set; } = new();
-        public string Etag => "";
-        public bool RecordExists => true;
-        public Task ClearStateAsync() => Task.CompletedTask;
-        public Task ClearStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task WriteStateAsync() => Task.CompletedTask;
-        public Task WriteStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ReadStateAsync() => Task.CompletedTask;
-        public Task ReadStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

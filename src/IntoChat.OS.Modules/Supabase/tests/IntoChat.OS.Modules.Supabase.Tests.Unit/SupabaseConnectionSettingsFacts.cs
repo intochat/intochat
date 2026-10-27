@@ -1,4 +1,3 @@
-using IntoChat.OS.Supabase;
 using Npgsql;
 
 namespace IntoChat.OS.Modules.Supabase.Tests.Unit;

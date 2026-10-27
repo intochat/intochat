@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Button;
-using IntoChat.OS.Flutter.Select;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Button;
+using IntoChat.OS.Modules.Flutter.Select;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Integrations;
 
 // Durable view state ({app}/view-state): what is shown (AppsTarget's text, "" for the library), whether Remove is
@@ -23,7 +23,7 @@ public static class Apps
         => brain.Setting("Brain") is { Length: > 0 } scope ? scope : Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
     public static IText ViewState(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/view-state");
     public static IAppStore Store(IntoChatOSConnection brain) => brain.Get<IAppStore>(IAppStore.Key(Scope(brain)));
-    public static IConnectionRequests Connections(IntoChatOSConnection brain) => brain.Get<IConnectionRequests>(Scope(brain));
+    public static IConnectionRequests Connections(IntoChatOSConnection brain) => brain.Get<IConnectionRequests>(IConnectionRequests.Key(Scope(brain)));
     public static ISelect Slot(IntoChatOSConnection brain, int i) => brain.Get<ISelect>(Key(brain) + "/slot/" + i.ToString(CultureInfo.InvariantCulture));
     public static long Revision(IntoChatOSConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
@@ -154,10 +154,10 @@ public static class Apps
         for (var i = 0; i < slots.Length; i++)
         {
             var slot = slots[i];
-            var provider = kinds.FirstOrDefault(kind => kind.Id == slot.Connector)?.DisplayName ?? slot.Connector;
+            var provider = kinds.FirstOrDefault(kind => kind.Id == slot.Connector)?.DisplayName ?? slot.Binds;
             SelectOption[] options =
             [
-                .. connected.Where(item => item.Kind == slot.Connector).OrderBy(item => item.Id, StringComparer.Ordinal)
+                .. connected.Where(item => slot.Capability is { } capability ? AppCapabilities.Satisfies(item.Provides, capability) : item.Kind == slot.Connector).OrderBy(item => item.Id, StringComparer.Ordinal)
                     .Select(item => new SelectOption(item.Id, provider + " · " + (item.Account is { Length: > 0 } account ? account : item.Id))),
                 new(AppsView.NewChoice, AppsCopy.NewConnection(provider)),
             ];

@@ -1,14 +1,14 @@
 /*
 # Files
 
-Browse every connected storage. A storage is any connection whose connector declares the
-`storage` capability; today that is a Windows PC and Google Drive. Startup publishes one
+Browse every connected storage. A storage is any connection whose module provides the
+`storage@1` capability; today that is a Windows PC and Google Drive. Startup publishes one
 presentation with storages and their roots in side and the filter, listing and text preview in
 main. The `open` operation returns the listing to Storages. Each storage connection is listed
 explicitly with its kind and status, then its roots (a PC's allowed folders, My Drive), then the
-selected folder's contents. Connectors without the capability do not imply file support.
+selected folder's contents. Modules without the capability do not imply file support.
 
-Every storage is reached through the same IStorage neuron on its connection key, with the same
+Every storage is reached through the same ILegacyStorage neuron on its connection key, with the same
 operations: roots, list, read text and breadcrumb ancestors. Each storage enforces its own
 confinement; a Windows PC refuses anything outside its allowed roots. Breadcrumbs come from the
 storage's own ancestors, so they navigate only through the chosen storage's hierarchy. A name
@@ -26,12 +26,12 @@ nonmatching filters and failed text previews are observable states. With no stor
 the side collection explains how to connect a Windows PC and allow a folder, or connect Google Drive.
 */
 
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 static class App
 {
     public const string Name = "files";
-    public const string Version = "2.1.1";
+    public const string Version = "2.2.0";
 
     public static readonly AppManifest Manifest = new(
         Title: "Files",
@@ -51,5 +51,5 @@ static class App
             new("up", Icon: "arrow-up", Label: "Up"),
             new("open", Icon: "folder", Label: "Storages"),
         ],
-        Requires: new(Connectors: ["windows", "google-drive"]));
+        Requires: new(Capabilities: ["storage@1"]));
 }

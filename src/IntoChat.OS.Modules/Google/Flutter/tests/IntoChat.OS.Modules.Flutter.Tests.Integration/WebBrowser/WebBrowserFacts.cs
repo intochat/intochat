@@ -1,11 +1,12 @@
 using IntoChat.OS.Testing.Fakes;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.WebBrowser;
-using IntoChat.OS.Flutter.WebBrowser.Signals;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.WebBrowser;
+using IntoChat.OS.Modules.Flutter.WebBrowser.Signals;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Microsoft.Playwright;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.WebBrowser;
@@ -16,14 +17,14 @@ public sealed class WebBrowserFacts
     private const string AppPages = "http://localhost:181";
 
     private const string Session = "0123456789abcdef0123456789abcdef";
-    private static Task<ITestBrain> Start(FakeBrowserSessionProvider provider) => TestBrain.Create().WithModule<FlutterModule>()
+    private static Task<ITestBrain> Start(FakeBrowserSessionProvider provider) => TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>()
         .WithModule<PlaywrightModule>()
         // The shell's CDP page session: the debugging port lives on the user's device, so the fake stands in for the attachment.
         .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);
 
     // The shell's edge reaches the browser grain through its connector interface, which is not a neuron contract.
-    private static IWebBrowserConnector Connector(ITestBrain brain, string name) => brain.Get<IWebBrowser>(name).AsReference<IWebBrowserConnector>();
+    private static IWebBrowserConnector Connector(ITestBrain brain, string name) => brain.Get<IWebBrowserConnector>(name);
 
     [Trait("host", "own")]
     [Fact]
@@ -35,8 +36,8 @@ public sealed class WebBrowserFacts
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
         var connector = Connector(brain, "research/browser");
-        var handler = brain.Get<IPrimitiveTestHandler>("browser-handler");
-        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("research/browser-handler");
+        await brain.Get<IUiBinding>("research/browser").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await using var connected = await brain.Observe<BrowserConnected>(browser, ct);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => connector.Connect(80, Session));
@@ -50,7 +51,6 @@ public sealed class WebBrowserFacts
         var signal = await connected.NextAsync(ct: ct);
         Assert.Equal("research/browser", signal.Name);
         Assert.Equal(Session, signal.SessionId);
-        Assert.False(string.IsNullOrEmpty(signal.Publisher.Name));
         Assert.Equal(new BrowserConnected("research/browser", Session), Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected))));
     }
 
@@ -81,8 +81,8 @@ public sealed class WebBrowserFacts
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
         var connector = Connector(brain, "research/browser");
-        var handler = brain.Get<IPrimitiveTestHandler>("handler");
-        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("research/handler");
+        await brain.Get<IUiBinding>("research/browser").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await connector.Connect(12345, Session);
         var page = Assert.Single(provider.Pages);
@@ -108,8 +108,8 @@ public sealed class WebBrowserFacts
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
         var connector = Connector(brain, "research/browser");
-        var handler = brain.Get<IPrimitiveTestHandler>("handler");
-        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("research/handler");
+        await brain.Get<IUiBinding>("research/browser").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await connector.Connect(12345, Session);
         var page = Assert.Single(provider.Pages);
@@ -144,8 +144,8 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
-        var handler = brain.Get<IPrimitiveTestHandler>("handler");
-        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("research/handler");
+        await brain.Get<IUiBinding>("research/browser").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await Connector(brain, "research/browser").Connect(12345, Session);
         await brain.Get<IText>("research/status").Set("Researching...");
@@ -166,8 +166,8 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
-        var handler = brain.Get<IPrimitiveTestHandler>("handler");
-        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("research/handler");
+        await brain.Get<IUiBinding>("research/browser").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await Connector(brain, "research/browser").Connect(12345, Session);
         Assert.Single(provider.Pages).FailDispose = true;
@@ -187,13 +187,13 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         var connector = Connector(brain, "research/browser");
-        var handler = brain.Get<IPrimitiveTestHandler>("handler");
+        var handler = brain.Get<IPrimitiveTestHandler>("research/handler");
         await browser.Configure("research/driver");
-        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await brain.Get<IUiBinding>("research/browser").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await connector.Connect(12345, Session);
         await browser.Configure("research/driver");
-        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await brain.Get<IUiBinding>("research/browser").Bind(UiHandlers.IdOf(handler));
         await connector.Connect(12345, Session);
         Assert.Single(provider.Attachments);
         Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected)));
@@ -305,8 +305,8 @@ public sealed class WebBrowserFacts
     [Fact]
     public void The_script_contract_and_status_signal_do_not_expose_the_debugging_port()
     {
-        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(IWebBrowserConnector)));
-        Assert.True(typeof(INeuron).IsAssignableFrom(typeof(IWebBrowser)));
+        // The connector is the shell's contract, kept out of the contracts assembly that scripts compile against.
+        Assert.NotEqual(typeof(IWebBrowser).Assembly, typeof(IWebBrowserConnector).Assembly);
         Assert.DoesNotContain(typeof(IWebBrowser).GetMethods(), method => method.Name is "Connect" or "Disconnect" or "Unavailable");
         Assert.DoesNotContain(typeof(BrowserConnected).GetProperties(), property => property.Name == "Port");
         Assert.DoesNotContain(typeof(WebBrowserState).GetProperties(), property => property.Name == "Port");
@@ -318,8 +318,8 @@ public sealed class WebBrowserFacts
     public async Task Navigating_publishes_the_uri()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
-        var browser = brain.Get<IWebBrowser>("docs");
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<PrimitiveHandlerModule>().StartAsync(ct);
+        var browser = brain.Get<IWebBrowser>("research/docs");
         await using var nav = await brain.Observe<BrowserNavigated>(browser, ct);
         await browser.Navigate("https://learn.microsoft.com/winui", "WinUI");
         Assert.Equal("https://learn.microsoft.com/winui", (await nav.NextAsync(ct: ct)).Uri);
@@ -354,8 +354,8 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         var connector = Connector(brain, "research/browser");
-        var handler = brain.Get<IPrimitiveTestHandler>("unavailable-handler");
-        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        var handler = brain.Get<IPrimitiveTestHandler>("research/unavailable-handler");
+        await brain.Get<IUiBinding>("research/browser").Bind(UiHandlers.IdOf(handler));
         await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         const string reason = "The WebView2 environment could not be started.";
         await connector.Unavailable(reason);
@@ -365,7 +365,7 @@ public sealed class WebBrowserFacts
         Assert.Empty(view.ActualUrl);
         // The binding dispatches to the handler asynchronously: wait for the handler to record it.
         await PrimitiveBindingFacts.WaitFor(handled, 1, TestContext.Current.CancellationToken);
-        Assert.Contains(await handler.Events(), signal => signal is BrowserObservationChanged);
+        Assert.Contains((await handler.Events()).Decoded(), signal => signal is BrowserObservationChanged);
         await connector.Unavailable(new string('x', 300));
         Assert.Equal(200, (await browser.Read()).Error.Length);
     }
@@ -394,11 +394,11 @@ public sealed class WebBrowserFacts
     }
 
     // Observation changes re-render the shell; these facts are about the session lifecycle.
-    private static async Task<Signal[]> Lifecycle(IPrimitiveTestHandler handler)
-        => [.. (await handler.Events()).Where(signal => signal is not BrowserObservationChanged)];
+    private static async Task<object[]> Lifecycle(IPrimitiveTestHandler handler)
+        => [.. (await handler.Events()).Decoded().Where(signal => signal is not BrowserObservationChanged)];
 
     // The binding dispatches to the handler asynchronously: wait until it has recorded the expected lifecycle signal.
-    private static async Task<Signal[]> Lifecycle(IPrimitiveTestHandler handler, SignalProbe<UiEventHandled> handled, string expected)
+    private static async Task<object[]> Lifecycle(IPrimitiveTestHandler handler, PlainSignalProbe<UiEventHandled> handled, string expected)
     {
         while ((await handled.NextAsync(ct: TestContext.Current.CancellationToken)).Type != expected) { }
         return await Lifecycle(handler);

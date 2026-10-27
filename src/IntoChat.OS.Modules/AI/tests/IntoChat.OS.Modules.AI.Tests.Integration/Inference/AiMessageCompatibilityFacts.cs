@@ -1,8 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Inference;
+using IntoChat.OS.Modules.AI.Inference;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
 

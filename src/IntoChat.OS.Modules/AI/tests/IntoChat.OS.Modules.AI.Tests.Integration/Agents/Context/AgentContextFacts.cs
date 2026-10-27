@@ -1,6 +1,5 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents.Context;
-using IntoChat.OS.AI.Agents.Context.Signals;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents.Context;
 

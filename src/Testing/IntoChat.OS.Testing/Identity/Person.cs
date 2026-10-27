@@ -1,9 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Testing;
@@ -122,7 +126,8 @@ public sealed class Person : IDisposable
 
     // The Open posture's synthetic owner: no cookie, account and brain "owner".
     // Without an HTTP edge, the owner's client has no address.
-    internal static Person OpenOwner(HttpClient? http) => new("owner", "owner", "owner", http ?? NoEdge, ownsHttp: false);
+    /// <summary>The Open posture's synthetic owner (account and brain "owner"); <paramref name="http"/> is the HTTP edge, if any.</summary>
+    public static Person OpenOwner(HttpClient? http) => new("owner", "owner", "owner", http ?? NoEdge, ownsHttp: false);
 
     // Registered without an HTTP edge: no cookie session, a client with no address.
     internal static Person Registered(Member member) => new(member.PrincipalId, member.AccountId, member.BrainId, NoEdge, ownsHttp: false);

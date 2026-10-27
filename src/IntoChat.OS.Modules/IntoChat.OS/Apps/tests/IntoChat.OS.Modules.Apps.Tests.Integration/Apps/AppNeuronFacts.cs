@@ -1,9 +1,9 @@
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 public sealed class AppNeuronFacts
 {
@@ -45,7 +45,7 @@ public sealed class AppNeuronFacts
         await app.Create(Manifest(), "spec");
         await app.WriteBehavior("synapses/echo.cs", "// echo", Guid.NewGuid());
         await app.Delete();
-        var deploy = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppDeploy>(key);
+        var deploy = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppDeploy>(key);
 
         var program = await deploy.Program();
         var unsettled = await deploy.Unsettle(Guid.NewGuid(), "late", 1, 1, null);
@@ -158,7 +158,7 @@ public sealed class AppNeuronFacts
 
         const string Bad = """
             await using var brain = await IntoChatOSClient.ConnectAsync(args);
-            await foreach (var request in brain.On<IntoChat.OS.Apps.Signals.AppRequested>(brain.Get<IntoChat.OS.Apps.IApp>(brain.Setting("App")!), brain.Stopping))
+            await foreach (var request in brain.On<IntoChat.OS.Modules.Apps.Signals.AppRequested>(brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting("App")!), brain.Stopping))
             { int x = "no"; }
             """;
 

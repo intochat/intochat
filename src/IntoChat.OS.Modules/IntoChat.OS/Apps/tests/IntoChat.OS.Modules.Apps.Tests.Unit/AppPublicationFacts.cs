@@ -1,5 +1,3 @@
-using IntoChat.OS.Apps;
-
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
 public sealed class AppPublicationFacts
@@ -57,9 +55,9 @@ public sealed class AppPublicationFacts
         => Assert.False(AppRules.Declared(new Dictionary<string, string> { ["main.cs"] = "Console.WriteLine(1);\nclass R : ILogic { }" }));
 
     [Fact]
-    public void ASynapseExampleIsNamedByOriginAndPathAndScoredBySimilarityPlusHistory()
+    public void AReactionExampleIsNamedByOriginAndPathAndScoredBySimilarityPlusHistory()
     {
-        var example = new SynapseExample("os", "timer/app.cs", "spec", "source", null, Similarity: 0.5, History: 0.125);
+        var example = new ReactionExample("os", "timer/app.cs", "spec", "source", null, Similarity: 0.5, History: 0.125);
 
         Assert.Equal("os/timer/app.cs", example.Name);
         Assert.Equal(0.625, example.Score);

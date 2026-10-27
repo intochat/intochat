@@ -14,7 +14,10 @@ public sealed partial class CollectionCompatibilityFacts
         using var provider = BuildProvider();
         var serializer = provider.GetRequiredService<Serializer>();
         var options = new JsonSerializerOptions { IgnoreReadOnlyProperties = true };
-        Assert.Equal(46, samples.Length);
+        // 06-06d: CSharpFileState is plain JSON state (clean break); its Orleans sample went. 06-08: so are AppState and its
+        // AppVersionRecord (the plain app, R4-24), whose five samples went; and the C# runtime's BrainRuntimeState and
+        // ProgramAssignment (three samples).
+        Assert.Equal(37, samples.Length);
         Assert.All(samples, sample =>
         {
             var value = serializer.Deserialize<object>(Convert.FromBase64String(sample.Payload));
@@ -36,15 +39,13 @@ public sealed partial class CollectionCompatibilityFacts
             Path.Combine(AppContext.BaseDirectory, "CollectionCompatibilitySamples.json")))!;
         string[] migrated =
         [
-            "IntoChat.OS.Apps.AppState", "IntoChat.OS.Apps.AppVersionRecord", "IntoChat.OS.Flutter.Workspace.ProblemReportsState",
-            "IntoChat.OS.Microsoft.CSharp.Files.CSharpFileState", "IntoChat.OS.Microsoft.CSharp.Runtime.BrainRuntimeState",
-            "IntoChat.OS.Microsoft.CSharp.Runtime.ProgramAssignment",
+            "IntoChat.OS.Modules.Flutter.Workspace.ProblemReportsState",
         ];
         using var provider = BuildProvider();
         var serializer = provider.GetRequiredService<Serializer>();
         var options = new JsonSerializerOptions { IgnoreReadOnlyProperties = true };
         var covered = samples.Where(sample => migrated.Contains(sample.Type, StringComparer.Ordinal)).ToArray();
-        Assert.Equal(10, covered.Length);
+        Assert.Single(covered);
         Assert.All(covered, sample =>
         {
             var older = serializer.Deserialize<object>(Convert.FromBase64String(sample.Payload))!;
@@ -65,7 +66,7 @@ public sealed partial class CollectionCompatibilityFacts
     [Fact]
     public void AnEntryArrayWinsOverTheOlderDictionary()
     {
-        var state = new IntoChat.OS.Apps.AppState
+        var state = new IntoChat.OS.Modules.Apps.AppState
         {
             LegacyFiles = new() { ["a"] = "old", ["b"] = "old" },
             FileEntries = [new("a", "new")],

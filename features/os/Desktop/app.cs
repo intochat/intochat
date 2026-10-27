@@ -42,7 +42,7 @@ whose activation hands the shell {kind: reconnect} with the `layout` request: la
 stores "classic" or "desktop" in the desktop's layout text and the shell connects again, so the
 next root is the v1 Workspace (or the desktop). Open views are the same workspace either way.
 */
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "desktop";

@@ -32,6 +32,10 @@ public sealed class OsCatalogFacts
         {
             Assert.Contains(module.GetType().Assembly.GetName().Name!, libraries);
         }
+        // The core vocabulary arrives as DigitalBrain (CORE-02), by project reference into framework/ since 06-00.
+        Assert.Contains("DigitalBrain", libraries);
+        Assert.Equal("project", dependencies.RootElement.GetProperty("libraries").EnumerateObject()
+            .Single(library => library.Name.Split('/')[0] == "DigitalBrain").Value.GetProperty("type").GetString());
     }
 
     // The MCP host reads a neuron's contract from its own loaded assemblies; a catalog

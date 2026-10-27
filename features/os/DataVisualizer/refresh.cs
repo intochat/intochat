@@ -1,14 +1,14 @@
 using System.Globalization;
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Chart;
-using IntoChat.OS.Flutter.TextField;
-using IntoChat.OS.Postgres;
-using AppTable = IntoChat.OS.Postgres.Tables.ITable;
-using ViewTable = IntoChat.OS.Flutter.Table.ITable;
-using ViewColumn = IntoChat.OS.Flutter.Table.TableColumn;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Chart;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Postgres;
+using AppTable = IntoChat.OS.Modules.Postgres.Tables.ITable;
+using ViewTable = IntoChat.OS.Modules.Flutter.Table.ITable;
+using ViewColumn = IntoChat.OS.Modules.Flutter.Table.TableColumn;
 
 // The sole writer of query results: a refresh request names a view (or all views) and this behavior
 // reads the current source and filters, retries when it was superseded, and writes the table/chart.

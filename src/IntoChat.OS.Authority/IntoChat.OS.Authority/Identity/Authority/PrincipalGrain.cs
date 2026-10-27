@@ -1,6 +1,10 @@
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Orleans;
 using Orleans.Runtime;
 
@@ -20,7 +24,7 @@ internal sealed class PrincipalGrain(
     [PersistentState("principal", IntoChatOSNames.PlatformGrainStorage)] IPersistentState<PrincipalState> storage,
     TimeProvider clock) : IdentityStateGrain<PrincipalState>(storage), IPrincipal
 {
-    private AuthorityNeurons Platform => new(GrainFactory);
+    private AuthorityNeurons Platform => ServiceProvider.GetRequiredService<AuthorityNeurons>();
 
     // Password hashes are held by PrincipalPasswords.
     public async Task<BrainProvision> Register(string displayName)

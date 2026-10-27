@@ -1,13 +1,13 @@
 using System.Globalization;
 using IntoChat.OS;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Circles;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Card;
-using IntoChat.OS.Flutter.Collection;
-using IntoChat.OS.Flutter.Layout;
-using IntoChat.OS.Flutter.Person;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Card;
+using IntoChat.OS.Modules.Flutter.Collection;
+using IntoChat.OS.Modules.Flutter.Layout;
+using IntoChat.OS.Modules.Flutter.Person;
+using IntoChat.OS.Modules.Flutter.Text;
 
 public static class Friends
 {

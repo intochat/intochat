@@ -1,4 +1,3 @@
-using IntoChat.OS.Postgres;
 using Npgsql;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Unit;

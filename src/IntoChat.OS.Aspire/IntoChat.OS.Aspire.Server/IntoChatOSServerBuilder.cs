@@ -1,9 +1,14 @@
 using IntoChat.OS;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+
 namespace IntoChat.OS.Aspire.Server;
 
 public sealed class IntoChatOSServerBuilder
@@ -45,11 +50,29 @@ public sealed class IntoChatOSServerBuilder
 
     public IntoChatOSServerBuilder UseOrleansDashboard() { Dashboard = true; return this; }
 
+    private readonly List<Type> _neuronModules = [];
+
+    // A DigitalBrain module (a [Module] class with a static ModuleManifest): its plain [Neuron] classes run on the runtime's
+    // host grains beside the Framework modules, and its manifest's Needs are validated against the topology at start (06-02).
+    public IntoChatOSServerBuilder AddNeuronModule(Type moduleType)
+    {
+        ArgumentNullException.ThrowIfNull(moduleType);
+        if (!typeof(DigitalBrain.Module).IsAssignableFrom(moduleType))
+        { throw new ArgumentException($"{moduleType.FullName} is not a DigitalBrain module.", nameof(moduleType)); }
+        if (!_neuronModules.Contains(moduleType)) { _neuronModules.Add(moduleType); }
+        return this;
+    }
+
+    public IntoChatOSServerBuilder AddNeuronModule<TModule>() where TModule : DigitalBrain.Module => AddNeuronModule(typeof(TModule));
+
+    internal IReadOnlyList<Type> NeuronModules => _neuronModules;
+
     // Registered modules run; configuration can only subtract (Enabled=false) — and a
     // configuration that affirms a module this server never registered is a deployment bug.
     // A module with a LicenseProduct also needs a valid licence: without one it is subtracted and
     // reported Unlicensed, unless IntoChatOS:Modules:{id}:Required is true, which refuses to start.
-    internal ModuleSelection SelectModules(IConfiguration configuration)
+    /// <summary>Applies configuration and licences to the registered modules: what runs, and every module's status.</summary>
+    public ModuleSelection SelectModules(IConfiguration configuration)
     {
         // Configuration keys are case-insensitive, so the ids match that way too.
         var sections = configuration.GetSection(IntoChatOSConfiguration.ModulesSectionName).GetChildren().ToArray();
@@ -89,4 +112,5 @@ public sealed class IntoChatOSServerBuilder
     }
 }
 
-internal readonly record struct ModuleSelection(Module[] Modules, ModuleStatus[] Statuses);
+/// <summary>The modules a server runs and the status of every registered module.</summary>
+public readonly record struct ModuleSelection(Module[] Modules, ModuleStatus[] Statuses);

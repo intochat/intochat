@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
-using IntoChat.OS.Framework.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Authority.Neurons.Proto;
 using IntoChat.OS.Testing.Neurons;
 using Google.Protobuf;
@@ -23,7 +24,7 @@ public sealed class SelectedBrainFacts
         var destination = provision.Member.BrainId;
         using (person.AsCallerIn(destination))
         {
-            await brain.Get<IBrain>(destination).Create(new Owner(person.AccountId));
+            await brain.Get<IBrain>(IBrain.Key(destination)).Create(new Owner(person.AccountId));
         }
         using var handler = new HttpClientHandler();
         using var http = new HttpClient(handler, disposeHandler: false) { BaseAddress = brain.HttpClient.BaseAddress };

@@ -1,6 +1,6 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter;
 
 namespace IntoChat.OS.Kernel.Testing;
 
@@ -19,7 +19,7 @@ public class ProductionBrainFixture : ReferenceBrainFixture
             .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .InEnvironment("Production")
             // R81: the AppHost's own machines share one configured custody root (R74); production accepts it only acknowledged.
-            .WithConfiguration(IntoChat.OS.Framework.IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey, "true")
+            .WithConfiguration(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey, "true")
             .WithDashboardTelemetry()
             .StartAsync(cancellationToken);
 }

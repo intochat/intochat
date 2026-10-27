@@ -1,9 +1,9 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
@@ -134,10 +134,10 @@ public sealed class OsInoModelFacts
     public async Task TheFullInoViewPassesViewValidation(bool narrow)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<IntoChat.OS.Apps.AppsModule>().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<IntoChat.OS.Modules.Apps.AppsModule>().WithModule<FlutterModule>().StartAsync(ct);
         var person = await brain.PersonAsync("view", ct);
         using var caller = person.AsCaller();
-        var app = IntoChat.OS.Apps.IApp.Key(person.BrainId, "ino");
+        var app = IntoChat.OS.Modules.Apps.IApp.Key(person.BrainId, "ino");
         var nothing = Nothing(Local(false));
         var model = new InoViewModel(
             [new(Chat, "Trip", DateTimeOffset.UnixEpoch, false), new("main", "Main", DateTimeOffset.UnixEpoch.AddMinutes(1), false)], Chat, "tr",
@@ -257,10 +257,6 @@ public sealed class OsInoModelFacts
 
     private abstract class FakeNeuron : INeuron
     {
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 
     private sealed class FakeCatalog(ModelChoices choices) : FakeNeuron, IModelCatalog

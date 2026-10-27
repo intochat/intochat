@@ -1,7 +1,8 @@
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Orleans.Hosting;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Connections;
@@ -17,11 +18,11 @@ public sealed class ExampleConnectionModule() : Module(new ModuleId("example"))
     };
     // ClientSecret is optional, as GitHub's is, so a Ready integration can still lack an OAuth client.
     public static IntegrationSchema Integration => IntegrationSchema.For("example-oauth", "Example OAuth").RequiresSecret("ClientId").OffersSecret("ClientSecret");
-    public override void Configure(ISiloBuilder silo) { }
+    public override Type? Neurons => typeof(ExampleConnectorNeurons);
 }
 
-[Alias("example"), Orleans.Metadata.DefaultGrainType("example")]
-public interface IExample : INeuron
+[DigitalBrain.Contracts.NeuronAlias("example"), DigitalBrain.Contracts.DefaultNeuronType("example")]
+public interface IExample
 {
     Task<string> Echo();
     Task<string> SeenValue();
@@ -33,10 +34,9 @@ public sealed class ExampleState : ConnectionState
     [Id(8)] public int ProbeCount { get; set; }
 }
 
-[GrainType("example")]
-internal sealed class ExampleConnectionNeuron(
-    [PersistentState("example", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<ExampleState> store)
-    : ConnectionNeuron<ExampleState>(store), IExample
+[DigitalBrain.Neuron("example", State = "example")]
+internal sealed class ExampleConnectionNeuron()
+    : ConnectionNeuron<ExampleState>, IExample
 {
     public const string LeakedToken = "tok-4f1c9e-secret";
     private string? _seen;
@@ -72,7 +72,6 @@ public sealed class UnservedConnectorModule() : Module(new ModuleId("unserved"))
     {
         OAuthMethods = [new("oauth", "https://unserved.test/authorize", "https://unserved.test/token", ["read"], "sample-oauth")],
     };
-    public override void Configure(ISiloBuilder silo) { }
 }
 
 // A second connector beside "example", so a silo holds two IConnection implementations and every
@@ -85,11 +84,11 @@ public sealed class SampleConnectionModule() : Module(new ModuleId("sample"))
         OAuthMethods = [new("oauth", "https://sample.test/authorize", "https://sample.test/token", ["read"], "sample-oauth")],
     };
     public static IntegrationSchema Integration => IntegrationSchema.For("sample-oauth", "Sample OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
-    public override void Configure(ISiloBuilder silo) { }
+    public override Type? Neurons => typeof(ExampleConnectorNeurons);
 }
 
-[Alias("sample"), Orleans.Metadata.DefaultGrainType("sample")]
-public interface ISample : INeuron
+[DigitalBrain.Contracts.NeuronAlias("sample"), DigitalBrain.Contracts.DefaultNeuronType("sample")]
+public interface ISample
 {
     Task<string> Kind();
 }
@@ -97,13 +96,19 @@ public interface ISample : INeuron
 [GenerateSerializer, Alias("sample.state")]
 public sealed class SampleState : ConnectionState { }
 
-[GrainType("sample")]
-internal sealed class SampleConnectionNeuron(
-    [PersistentState("sample", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<SampleState> store)
-    : ConnectionNeuron<SampleState>(store), ISample
+[DigitalBrain.Neuron("sample", State = "sample")]
+internal sealed class SampleConnectionNeuron()
+    : ConnectionNeuron<SampleState>, ISample
 {
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
         => Task.FromResult(ConnectionProbeResult.Connected("sample"));
 
     public Task<string> Kind() => Task.FromResult("sample");
+}
+
+// The fact's connection neurons are plain (06-08): this module's assembly [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module("example-connectors")]
+public sealed class ExampleConnectorNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

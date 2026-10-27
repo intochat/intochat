@@ -1,8 +1,7 @@
 using System.Reflection;
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Entries;
-using IntoChat.OS.Flutter.Entries.Signals;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Entries;
+using IntoChat.OS.Modules.Flutter.Entries.Signals;
 using IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
 using Xunit;
 
@@ -57,7 +56,8 @@ public sealed class EntryControlFacts(FlutterHost host)
     public async Task ChangedPublishesOnlyTheNeuronName()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<IntoChat.OS.Modules.Apps.AppsNeurons>()
+            .ConfigureServices(services => global::DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(services, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly)).StartAsync(ct);
         var control = brain.Get<IEntryControl>(brain.Owner.Key("settings/keys-openai"));
         await ShippedSettings.Install(brain.Get<IApp>, brain.Owner);
         using (ShippedSettings.Caller(brain.Owner)) { await control.Configure(new(EntryControlMode.Key, "OpenAI", "provider:openai")); }

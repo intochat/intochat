@@ -5,21 +5,24 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Tests.Integration;
 
-// Open posture serves every anonymous caller as the owner. In Aspire run mode on the host it may listen on loopback
-// only; publish and container modes are out of scope. Cases (a)-(g) pin the configured-URL check and the post-bind backstop.
+// Open posture serves every anonymous caller as the owner. On IntoChatOS:Topology local (or local+cloud, its earlier spelling local-cloud, or unset) on the host it
+// may listen on loopback only; cloud and containers are out of scope. Cases (a)-(g) are the former run-mode cases, now driven by
+// the topology with the same outcomes; (h)-(j) pin the unset topology and IntoChatOS:Bind (D-21).
 public sealed class OpenPostureLoopbackFacts
 {
     private const string OptIn = OpenPostureLoopback.AllowOpenOnNetworkKey;
 
     [Fact]
-    public async Task A_RunModeOpenOnLoopbackStartsAndLogsItsUrl()
+    public async Task A_LocalOpenOnLoopbackStartsAndLogsItsUrl()
     {
         var logs = new CapturingProvider();
         var exit = new RecordingExit();
-        await using var app = Build(Run(("urls", "http://127.0.0.1:0")), logs, exit);
+        await using var app = Build(Local(("urls", "http://127.0.0.1:0")), logs, exit);
         await app.StartAsync(TestContext.Current.CancellationToken);
         Assert.Contains(logs.Messages, message => message.StartsWith("Open posture listening on http://127.0.0.1:", StringComparison.Ordinal));
         Assert.Equal(0, exit.Failures);
@@ -27,40 +30,72 @@ public sealed class OpenPostureLoopbackFacts
     }
 
     [Fact]
-    public void B_RunModeOpenOnAWildcardIsRefusedBeforeBindNamingTheOptIn()
+    public void B_LocalOpenOnAWildcardIsRefusedBeforeBindNamingTheOptIn()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() => OpenPostureLoopback.Validate(Configuration(Run(("urls", "http://0.0.0.0:0")))));
+        var exception = Assert.Throws<InvalidOperationException>(() => OpenPostureLoopback.Validate(Configuration(Local(("urls", "http://0.0.0.0:0")))));
         Assert.Contains("http://0.0.0.0:0", exception.Message);
         Assert.Contains(OptIn, exception.Message);
         // The same refusal comes from the service defaults every server and client carries, before the host is built.
         var builder = WebApplication.CreateBuilder();
-        foreach (var (key, value) in Run(("urls", "http://0.0.0.0:0"))) { builder.Configuration[key] = value; }
+        foreach (var (key, value) in Local(("urls", "http://0.0.0.0:0"))) { builder.Configuration[key] = value; }
         builder.Configuration[LegacyConfigurationGuard.IgnoreLegacyDataDirectoryKey] = "true";
         Assert.Throws<InvalidOperationException>(() => builder.AddServiceDefaults());
     }
 
     [Fact]
     public void C_TheExplicitOptInAllowsTheWildcard()
-        => OpenPostureLoopback.Validate(Configuration(Run(("urls", "http://0.0.0.0:0"), (OptIn, "true"))));
+        => OpenPostureLoopback.Validate(Configuration(Local(("urls", "http://0.0.0.0:0"), (OptIn, "true"))));
 
     [Fact]
     public void D_SecuredPostureMayListenOnTheNetwork()
-        => OpenPostureLoopback.Validate(Configuration(Run(("urls", "http://0.0.0.0:0"), (OpenPostureLoopback.PostureKey, "Secured"))));
+        => OpenPostureLoopback.Validate(Configuration(Local(("urls", "http://0.0.0.0:0"), (OpenPostureLoopback.PostureKey, "Secured"))));
 
     [Theory]
-    [InlineData("publish")]
+    [InlineData("cloud")]
     [InlineData("container")]
-    [InlineData(null)]
-    public void E_PublishAndContainerModesAreOutOfScope(string? mode)
+    public void E_CloudAndContainersAreOutOfScope(string scope)
     {
         List<(string, string?)> values = [(OpenPostureLoopback.PostureKey, "Open"), ("urls", "http://+:8080")];
-        if (mode == "container")
+        if (scope == "container")
         {
-            values.Add((OpenPostureLoopback.ModeKey, IntoChat.OS.Framework.IntoChatOSNames.HostingModeRun));
+            values.Add((Topology, IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyLocal));
             values.Add(("DOTNET_RUNNING_IN_CONTAINER", "true"));
         }
-        else if (mode is not null) { values.Add((OpenPostureLoopback.ModeKey, mode)); }
+        else { values.Add((Topology, IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyCloud)); }
         OpenPostureLoopback.Validate(Configuration(values));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("local")]
+    [InlineData("local+cloud")]
+    [InlineData("local-cloud")]
+    public void H_UnsetLocalAndLocalCloudAllRefuseAWildcard(string? topology)
+    {
+        List<(string, string?)> values = [(OpenPostureLoopback.PostureKey, "Open"), ("urls", "http://0.0.0.0:0")];
+        if (topology is not null) { values.Add((Topology, topology)); }
+        var exception = Assert.Throws<InvalidOperationException>(() => OpenPostureLoopback.Validate(Configuration(values)));
+        Assert.Contains(OptIn, exception.Message);
+    }
+
+    [Theory]
+    [InlineData("0.0.0.0")]
+    [InlineData("::")]
+    [InlineData("192.168.1.10")]
+    public void I_AnExplicitBindBeyondLoopbackIsRefusedForOpenPostureNamingTheBindAndThePosture(string bind)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => OpenPostureLoopback.Validate(Configuration(Local(("urls", "http://127.0.0.1:0"), (Bind, bind)))));
+        Assert.Contains(Bind, exception.Message);
+        Assert.Contains("Open posture", exception.Message);
+        Assert.Contains(OptIn, exception.Message);
+        Assert.DoesNotContain(bind == "::" ? "[::]" : bind, exception.Message);
+    }
+
+    [Fact]
+    public void J_AnExplicitBindWithTheOptInStartsAndALoopbackBindNeedsNoOptIn()
+    {
+        OpenPostureLoopback.Validate(Configuration(Local(("urls", "http://0.0.0.0:0"), (Bind, "0.0.0.0"), (OptIn, "true"))));
+        OpenPostureLoopback.Validate(Configuration(Local(("urls", "http://127.0.0.1:0"), (Bind, "127.0.0.1,localhost"))));
     }
 
     [Theory]
@@ -70,7 +105,7 @@ public sealed class OpenPostureLoopbackFacts
     [InlineData("DOTNET_HTTPS_PORTS")]
     public void F_ABarePortBindsEveryInterfaceAndIsRefused(string key)
     {
-        var exception = Assert.Throws<InvalidOperationException>(() => OpenPostureLoopback.Validate(Configuration(Run((key, "8080")))));
+        var exception = Assert.Throws<InvalidOperationException>(() => OpenPostureLoopback.Validate(Configuration(Local((key, "8080")))));
         Assert.Contains(key, exception.Message);
         Assert.Contains(OptIn, exception.Message);
     }
@@ -84,14 +119,14 @@ public sealed class OpenPostureLoopbackFacts
     [InlineData("http://example.test:5080", false)]
     public void UrlClassification(string urls, bool loopback)
     {
-        var configured = OpenPostureLoopback.NonLoopbackConfigured(Configuration(Run(("urls", urls))));
+        var configured = OpenPostureLoopback.NonLoopbackConfigured(Configuration(Local(("urls", urls))));
         Assert.Equal(loopback, configured.Count == 0);
     }
 
     [Fact]
     public void KestrelEndpointUrlsAreChecked()
     {
-        var configured = OpenPostureLoopback.NonLoopbackConfigured(Configuration(Run(("Kestrel:Endpoints:Web:Url", "http://0.0.0.0:5080"))));
+        var configured = OpenPostureLoopback.NonLoopbackConfigured(Configuration(Local(("Kestrel:Endpoints:Web:Url", "http://0.0.0.0:5080"))));
         Assert.Single(configured);
     }
 
@@ -101,7 +136,7 @@ public sealed class OpenPostureLoopbackFacts
         var logs = new CapturingProvider();
         var exit = new RecordingExit();
         var started = false;
-        await using var app = Build(Run(), logs, exit, web => web.ConfigureKestrel(kestrel => kestrel.ListenAnyIP(0)));
+        await using var app = Build(Local(), logs, exit, web => web.ConfigureKestrel(kestrel => kestrel.ListenAnyIP(0)));
         var stopping = new TaskCompletionSource();
         app.Lifetime.ApplicationStopping.Register(() => stopping.TrySetResult());
         try
@@ -115,8 +150,11 @@ public sealed class OpenPostureLoopbackFacts
         Assert.Contains(logs.Errors, message => message.Contains(OptIn, StringComparison.Ordinal));
     }
 
-    private static (string Key, string? Value)[] Run(params (string Key, string? Value)[] extra)
-        => [(OpenPostureLoopback.PostureKey, "Open"), (OpenPostureLoopback.ModeKey, IntoChat.OS.Framework.IntoChatOSNames.HostingModeRun), .. extra];
+    private const string Topology = IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey;
+    private const string Bind = IntoChat.OS.Contracts.Configuration.IntoChatOSNames.BindKey;
+
+    private static (string Key, string? Value)[] Local(params (string Key, string? Value)[] extra)
+        => [(OpenPostureLoopback.PostureKey, "Open"), (Topology, IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyLocal), .. extra];
 
     private static IConfiguration Configuration(IEnumerable<(string Key, string? Value)> values)
     {

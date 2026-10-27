@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Connections;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Connections.OAuth;

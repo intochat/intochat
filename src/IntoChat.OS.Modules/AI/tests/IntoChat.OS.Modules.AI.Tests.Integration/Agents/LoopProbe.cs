@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
-using IntoChat.OS.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
-using IntoChat.OS.Framework.Surface;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,8 +11,8 @@ namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 
 // A contract the turn loop's facts compose, so a model action reaches a real neuron that echoes,
 // waits, fails or answers with more than a model should keep.
-[Alias("test.loop-probe")]
-public interface ILoopProbe : INeuron
+[DigitalBrain.Contracts.NeuronAlias("test.loop-probe"), DigitalBrain.Contracts.DefaultNeuronType(LoopProbe.Type)]
+public interface ILoopProbe
 {
     Task<string> Echo(string word);
     Task<string> Wait(CancellationToken ct);
@@ -22,9 +23,11 @@ public interface ILoopProbe : INeuron
     Task<string> SeenByAgent(string agent);
 }
 
-[GrainType("test-loop-probe")]
-public sealed class LoopProbe : Neuron, ILoopProbe
+// A plain neuron (06-08), hosted by LoopProbeNeurons.
+[DigitalBrain.Neuron(Type)]
+public sealed class LoopProbe : DigitalBrain.Neuron, ILoopProbe
 {
+    public const string Type = "test-loop-probe";
     public const int DumpCharacters = 300_000;
     public static readonly ConcurrentDictionary<string, TaskCompletionSource> Entered = new();
 
@@ -32,7 +35,7 @@ public sealed class LoopProbe : Neuron, ILoopProbe
 
     public async Task<string> Wait(CancellationToken ct)
     {
-        Entered.GetOrAdd(this.GetPrimaryKeyString(), _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
+        Entered.GetOrAdd($"{Id.Brain.Value}/{Id.Key}", _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
         await Task.Delay(Timeout.InfiniteTimeSpan, ct);
         return "done";
     }
@@ -48,9 +51,15 @@ public sealed class LoopProbe : Neuron, ILoopProbe
     // The agent must have recorded the call before the neuron it reaches runs.
     public async Task<string> SeenByAgent(string agent)
     {
-        var run = (await GrainFactory.GetGrain<IAgent>(agent).Read()).ActiveRun;
+        var run = (await Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAgent>(agent).Read()).ActiveRun;
         return run?.ToolCalls.Any(item => item.Name == NeuronSurfaceTools.CallName) == true ? "recorded" : "unrecorded";
     }
+}
+
+[DigitalBrain.Module("test.loop-probe")]
+public sealed class LoopProbeNeurons : DigitalBrain.Module
+{
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }
 
 internal static class Probe
@@ -64,7 +73,7 @@ internal static class Probe
     // The probe's contract joins what the turns may compose: the host's compiled layer carries the
     // test assembly too, which has no module of its own to register it.
     public static Task<ITestBrain> Brain(IChatClient model, CancellationToken ct)
-        => AgentFacts.Builder(model)
-            .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
+        => AgentFacts.Builder(model).WithNeuronModule<LoopProbeNeurons>()
+            .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(IntoChat.OS.Signal).Assembly, typeof(ILoopProbe).Assembly])))
             .StartAsync(ct);
 }

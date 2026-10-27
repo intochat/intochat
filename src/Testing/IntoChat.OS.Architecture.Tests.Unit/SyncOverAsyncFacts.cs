@@ -6,7 +6,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // The file list is closed (extend it as more code is cleaned); a name must resolve to exactly one file.
 public sealed partial class SyncOverAsyncFacts
 {
-    private static readonly string[] Files = ["BrainLog.cs", "BrainLogs.cs", "BrainLogOwnership.cs", "BlobLeaseBrainLogOwnership.cs", "Drain.cs"];
+    private static readonly string[] Files = ["LegacyGrainStorage.cs", "LegacySignalJournal.cs", "Drain.cs"];
 
     // A task's Result read on the line that has just checked IsCompletedSuccessfully is a completed-task read, not a wait.
     [GeneratedRegex(@"\.GetAwaiter\(\)\s*\.GetResult\(\)|\.Wait\(|Thread\.Sleep\(|\.Result\b", RegexOptions.CultureInvariant)]

@@ -1,5 +1,3 @@
-using IntoChat.OS.Microsoft.Windows;
-
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
 public sealed class MachineFacts : IDisposable

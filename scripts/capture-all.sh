@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Cross-platform twin of capture-all.ps1: regenerates every pinned contract artifact, additive-only by default.
-# Usage: scripts/capture-all.sh [--allow-breaking] [--skip-sync] [--out DIR] [--help]
-# Delegates to pwsh when it is installed (flags are forwarded as -AllowBreaking/-SkipSync/-Out); otherwise runs the
+# Usage: scripts/capture-all.sh [--allow-breaking] [--keys-only] [--skip-sync] [--out DIR] [--help]
+# Delegates to pwsh when it is installed (flags are forwarded as -AllowBreaking/-KeysOnly/-SkipSync/-Out); otherwise runs the
 # same `dotnet test --explicit only` captures and compares old/new pins with jq.
 set -euo pipefail
 
-allow=0; sync=1; out=""
+allow=0; keys=0; sync=1; out=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --help|-h) sed -n '2,5p' "$0"; exit 0 ;;
     --allow-breaking) allow=1 ;;
+    --keys-only) keys=1 ;;
     --skip-sync) sync=0 ;;
     --out) out="$2"; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -23,12 +24,15 @@ cd "$root"
 if command -v pwsh >/dev/null 2>&1; then
   args=()
   [ "$allow" = 1 ] && args+=(-AllowBreaking)
+  [ "$keys" = 1 ] && args+=(-KeysOnly)
   [ "$sync" = 0 ] && args+=(-SkipSync)
   [ -n "$out" ] && args+=(-Out "$out")
   exec pwsh -NoProfile -File scripts/capture-all.ps1 "${args[@]}"
 fi
 
 command -v jq >/dev/null 2>&1 || { echo "capture-all.sh needs pwsh or jq" >&2; exit 1; }
+# The keys-only check (D-23) is PowerShell; without pwsh refuse rather than skip it.
+if [ "$keys" = 1 ]; then echo "--keys-only needs pwsh (scripts/keys-only-check.ps1)" >&2; exit 1; fi
 
 arch=$(git ls-files -- 'src/**/*Architecture.Tests.Unit.csproj')
 flutter=$(git ls-files -- 'src/**/*Modules.Flutter.Tests.Integration.csproj')
@@ -37,9 +41,14 @@ nightly=$(grep -oE '<[A-Za-z0-9]*Nightly\b' Directory.Build.props | tr -d '<' | 
 
 pins=(
   "$archdir/ContractManifest.json" "$archdir/GrainFactoryOwners.json" "$archdir/OrleansReferenceOwners.json"
-  "$archdir/ConfigurationKeyOwners.json" "$archdir/TestTierBaseline.json" "$archdir/CollectionCompatibilitySamples.json"
+  "$archdir/ConfigurationKeyOwners.json" "$archdir/TestTierBaseline.json" "$archdir/CollectionCompatibilitySamples.json" "$archdir/SynapseWordAllowlist.json"
+  "$archdir/FrameworkVendorBaseline.json" "$archdir/AppsModuleIdBaseline.json"
+  "$archdir/NeuronsStillGrains.json" "$archdir/OrleansAttributeOwners.json" "$archdir/GrainInterfaceOwners.json" "$archdir/NeuronGrainTypes.json"
+  "$archdir/ObserverPathOwners.json" "$archdir/ModulesMissingManifest.json"
   "$contracts/flutter-wire-names.golden.json" "$contracts/flutter-aliasless-enums.golden.json" "$contracts/ui-states.golden.json"
 )
+# Shrinking ratchets: removals there are the point, so they are not breaking.
+shrinking=" FrameworkVendorBaseline.json AppsModuleIdBaseline.json NeuronsStillGrains.json OrleansAttributeOwners.json GrainInterfaceOwners.json ObserverPathOwners.json ModulesMissingManifest.json "
 snap=$(mktemp -d); trap 'rm -rf "$snap"' EXIT
 for pin in "${pins[@]}"; do mkdir -p "$snap/$(dirname "$pin")"; cp "$pin" "$snap/$pin"; done
 
@@ -50,7 +59,8 @@ capture() {
   # shellcheck disable=SC2086
   dotnet test --project "$1" -c Release -p:CodeGraphRefresh=false $nightly --filter-method "*$2" --explicit only --nologo
 }
-for m in CaptureContractManifest CaptureGrainFactoryOwners CaptureOrleansReferenceOwners CaptureConfigurationKeyOwners CaptureTestTierBaseline CaptureCollectionCompatibilitySamples; do capture "$arch" "$m"; done
+for m in CaptureContractManifest CaptureGrainFactoryOwners CaptureOrleansReferenceOwners CaptureConfigurationKeyOwners CaptureTestTierBaseline CaptureCollectionCompatibilitySamples CaptureSynapseWordAllowlist \
+         CaptureFrameworkVendorBaseline CaptureAppsModuleIdBaseline          CaptureNeuronsStillGrains CaptureOrleansAttributeOwners CaptureGrainInterfaceOwners CaptureNeuronGrainTypes          CaptureObserverPathOwners CaptureModulesMissingManifest; do capture "$arch" "$m"; done
 for m in CaptureFlutterWireNames CaptureUiStateGoldens; do capture "$flutter" "$m"; done
 
 # Leaves as "path<TAB>value": objects recurse, arrays contribute one line per element (same rule as the ps1).
@@ -60,6 +70,7 @@ leaves() {
 }
 breaking=0
 for pin in "${pins[@]}"; do
+  case "$shrinking" in *" $(basename "$pin") "*) continue ;; esac
   removed=$(comm -23 <(leaves "$snap/$pin") <(leaves "$pin") || true)
   if [ -n "$removed" ]; then breaking=1; echo "$(basename "$pin"):"; echo "$removed" | head -20 | sed 's/^/  /'; fi
 done

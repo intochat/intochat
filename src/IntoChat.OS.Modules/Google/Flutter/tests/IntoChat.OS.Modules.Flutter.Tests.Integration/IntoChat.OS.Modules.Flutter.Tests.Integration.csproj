@@ -1,15 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../../../../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
-    <ProjectReference Include="../../../../IntoChat.OS/Flame/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Flame/src/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
+    <!-- 06-07b: the plain SSE feed fact watches the plain Time timer. -->
+    <ProjectReference Include="../../../../Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <Using Include="IntoChat.OS.Testing" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Fakes/IntoChat.OS.Testing.Fakes.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
-    <ProjectReference Include="../../../../Microsoft/Playwright/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
-    <ProjectReference Include="../../../../IntoChat.OS/Circles/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
-    <ProjectReference Include="../../../../IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
-    <ProjectReference Include="../../../../Microsoft/CSharp/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
+    <ProjectReference Include="../../../../Microsoft/Playwright/src/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Circles/src/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <ProjectReference Include="../../../../Microsoft/CSharp/Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" />
     <None Include="Contracts/*.golden.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
+    <Compile Include="../IntoChat.OS.Modules.Flutter.Tests.Unit/ControlNeuronFacts.cs" Link="Neurons/ControlNeuronFacts.cs" />
   </ItemGroup>
 </Project>

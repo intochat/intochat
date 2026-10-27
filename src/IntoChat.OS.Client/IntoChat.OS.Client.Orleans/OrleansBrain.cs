@@ -2,21 +2,17 @@ using IntoChat.OS;
 
 namespace IntoChat.OS.Client.Orleans;
 
-// One brain over the cluster client. Transitional: keys are still module-composed, so an id is
-// used as the grain key as given; prefixing with the brain lands with brain-owned keys.
+// One brain over the cluster client: neurons by full key, the brain neuron at {brain}/main.
 internal sealed class OrleansBrain(BrainClient client, string brainId) : IIntoChatOS
 {
-    public T Get<T>(NeuronId id) where T : INeuron => client.Grain<T>(id.Name);
+    public T Get<T>(NeuronId id) where T : class => (T)client.Get(typeof(T), id.Name);
 
-    public T Neuron<T>(NeuronId relative) where T : INeuron => Get<T>(relative.Within(brainId));
+    public T Neuron<T>(NeuronId relative) where T : class => Get<T>(relative.Within(brainId));
 
-    public IAsyncEnumerable<T> On<T>(INeuron neuron, CancellationToken cancellationToken = default) where T : Signal
-        => client.On<T>(neuron, cancellationToken);
-
-    public IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+    public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => client.On<T>(neuron, onSubscribed, cancellationToken);
 
-    public IBrain Self => client.Grain<IBrain>(brainId);
+    public IBrain Self => Get<IBrain>(IBrain.Key(brainId));
 
-    public IKernelView Kernel => new IntoChat.OS.Framework.Kernel(client.Grains);
+    public IKernelView Kernel => client.Kernel;
 }

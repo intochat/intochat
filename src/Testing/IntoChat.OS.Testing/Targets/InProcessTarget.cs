@@ -5,11 +5,13 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Client.Orleans;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Microsoft.Orleans;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.Orleans;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -21,8 +23,8 @@ using Orleans.Runtime;
 namespace IntoChat.OS.Testing;
 
 // The product recipe in the test process: AddIntoChatOSServer + MapIntoChatOSServer on a loopback
-// port, the orleans integration absent (localhost clustering, memory reminders) and grain state in a
-// harness-owned MemoryStores that a restart builds over again.
+// port, on Topology=local (localhost clustering, file grain stores and reminders) over a temporary Home
+// that a restart builds over again, so grain state outlives the restart.
 public sealed class InProcessTarget : ITestTarget
 {
     private const int StartAttempts = 3;
@@ -43,11 +45,10 @@ public sealed class InProcessTarget : ITestTarget
             using var reservation = _ports();
             var (siloPort, gatewayPort) = (reservation.Ports[0], reservation.Ports[1]);
             var session = new InProcessSession(
-                new MemoryStores(),
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 Path.Combine(Path.GetTempPath(), $"intochat-os-machine-{Guid.NewGuid():N}"),
-                siloPort, gatewayPort);
+                TestHome.Create(), siloPort, gatewayPort);
             try
             {
                 reservation.ReleaseSockets();
@@ -57,6 +58,7 @@ public sealed class InProcessTarget : ITestTarget
             catch (Exception error)
             {
                 if (Directory.Exists(session.MachineDirectory)) { Directory.Delete(session.MachineDirectory, recursive: true); }
+                session.Home.Dispose();
                 if (attempt == StartAttempts || !AddressInUse(error)) { throw; }
                 plan.Execution.Diagnostics?.Invoke(new TestDiagnostic("in-process-start",
                     $"Ports {siloPort}/{gatewayPort} were taken before the silo bound them; retrying ({attempt}/{StartAttempts - 1})."));
@@ -85,18 +87,17 @@ public sealed class InProcessTarget : ITestTarget
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [IntoChatOSNames.MasterKeyConfigurationKey] = session.MasterKey,
-            [IntoChat.OS.Authority.Storage.BrainStoreOptions.Key + ":Directory"] = Path.Combine(session.MachineDirectory, "brain-store"),
+            // A temporary Home per brain: the brain log lives in <Home>/state, never in the developer's ~/.intochat.
+            [IntoChatOSNames.HomeKey] = session.Home.Path,
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = session.RunTokenKey,
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
-            [OrleansStorageHosting.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
-            [OrleansStorageHosting.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
+            [global::DigitalBrain.Runtime.Orleans.TopologyContext.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
+            [global::DigitalBrain.Runtime.Orleans.TopologyContext.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
             // The AppHost's Orleans resource turns grain-call tracing on for every silo; the test host does when the fact collects diagnostics.
             ["Orleans:EnableDistributedTracing"] = plan.Execution.Diagnostics is null ? "false" : "true",
         });
         foreach (var module in plan.Modules) { builder.Configuration.AddInMemoryCollection(module.Settings); }
         builder.Configuration.AddInMemoryCollection(plan.Configuration);
-        // Before the orleans module configures: its TryAddSingleton keeps this instance.
-        builder.Services.AddSingleton(session.Stores);
         builder.Services.AddSingleton<ActivationIndex>();
         builder.Services.AddSingleton<IActivationWorkingSetObserver>(services => services.GetRequiredService<ActivationIndex>());
         builder.AddIntoChatOSServer(server =>
@@ -104,17 +105,12 @@ public sealed class InProcessTarget : ITestTarget
             if (plan.LicenseCheck is { } check) { server.UseLicenseCheck(check); }
             server.AddModule<OrleansModule>();
             foreach (var module in plan.Modules.Where(module => module.Module is not OrleansModule)) { server.AddModule(module.Module); }
+            foreach (var module in plan.NeuronModules ?? []) { server.AddNeuronModule(module); }
         });
         if (plan.Services is { } services)
         {
-            // After the server's and Orleans' registrations, so a fact replaces or decorates theirs; the kernel wraps the
-            // cluster storage after it, so a storage the fact replaced or decorated is wrapped once, outermost.
-            builder.UseOrleans(silo =>
-            {
-                silo.TryRemoveKernelRegistration();
-                services(silo.Services);
-                silo.TryAddKernelRegistration();
-            });
+            // After the server's and Orleans' registrations, so a fact replaces or decorates theirs.
+            builder.UseOrleans(silo => services(silo.Services));
         }
         var app = builder.Build();
         try
@@ -145,7 +141,7 @@ public sealed class InProcessTarget : ITestTarget
     }
 }
 
-internal sealed record InProcessSession(MemoryStores Stores, string MasterKey, string RunTokenKey, string MachineDirectory, int SiloPort, int GatewayPort);
+internal sealed record InProcessSession(string MasterKey, string RunTokenKey, string MachineDirectory, TestHome Home, int SiloPort, int GatewayPort);
 
 // The silo's live activations by grain id, so a fact can deactivate one and wait for it to finish.
 internal sealed class ActivationIndex : IActivationWorkingSetObserver
@@ -194,6 +190,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
         _lifetime.Own("machine-directory", new Release(() =>
         {
             if (Directory.Exists(_session.MachineDirectory)) { Directory.Delete(_session.MachineDirectory, recursive: true); }
+            _session.Home.Dispose();
             return ValueTask.CompletedTask;
         }));
         _lifetime.Own("host", new Release(StopHostAsync));
@@ -211,28 +208,23 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
         }
     }
     public TestExecutionOptions Execution => _plan.Execution;
-    int ITrackedBrain.BufferCapacity => Services.GetRequiredService<IOptions<SubscriptionOptions>>().Value.BufferCapacity;
+    int ITrackedBrain.BufferCapacity => ITrackedBrain.DefaultBufferCapacity;
     void ITrackedBrain.Track(IAsyncDisposable resource) => _observations.Own("observation", resource);
 
     private IIntoChatOSBrains Brains => Services.GetRequiredService<IIntoChatOSBrains>();
 
-    public T Get<T>(string id) where T : class, INeuron => Brains.Grain<T>(id);
-    T IIntoChatOS.Get<T>(NeuronId id) => Brains.Grain<T>(id.Name);
-    public T Neuron<T>(NeuronId relative) where T : INeuron => Brains.Grain<T>(relative.Within(BrainScope.CurrentId()).Name);
+    // Neurons through the product's in-process client (06-08: every neuron is a DigitalBrain plain neuron).
+    public T Get<T>(string id) where T : class => Brains.Get<T>(id);
+    T IIntoChatOS.Get<T>(NeuronId id) => Brains.Get<T>(id.Name);
+    public T Neuron<T>(NeuronId relative) where T : class => Brains.Get<T>(relative.Within(BrainScope.CurrentId()).Name);
     public IBrain Self => Brains.Open(BrainScope.CurrentId()).Self;
     public IKernelView Kernel => Brains.Open(BrainScope.CurrentId()).Kernel;
 
-    public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        => Services.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<T>(source, cancellationToken);
-
-    public IAsyncEnumerable<T> On<T>(INeuron neuron, CancellationToken cancellationToken = default) where T : Signal
-        => Brains.On<T>(neuron, cancellationToken);
-
-    public IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+    public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
         => Brains.On<T>(neuron, onSubscribed, cancellationToken);
 
-    Task ISignalDelivery.DeliveredAsync(CancellationToken cancellationToken)
-        => Services.GetService<ILocalSignalHub>() is { } hub ? hub.FlushAsync(cancellationToken) : Task.CompletedTask;
+    // Saved signals are delivered by the runtime's synapses; there is no local hub left to flush (06-08).
+    Task ISignalDelivery.DeliveredAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public async Task DeactivateAsync(IAddressable neuron, CancellationToken cancellationToken = default)
     {
@@ -262,7 +254,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
         var person = _http is { } http
             ? await Person.RegisterAsync(http, name, cancellationToken).ConfigureAwait(false)
             // No HTTP edge: the identity directory, which runs the registration the /identity/register endpoint runs.
-            : Person.Registered(await Services.GetRequiredService<IGrainFactory>().GetGrain<IIdentityDirectory>(Services.GetRequiredService<IOptions<IdentityHostOptions>>().Value.DirectoryKey)
+            : Person.Registered(await Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<IIdentityDirectory>(Services.GetRequiredService<IOptions<IdentityHostOptions>>().Value.DirectoryKey)
                 .RegisterAsync(name, Person.Password(name), name, cancellationToken).ConfigureAwait(false));
         _lifetime.Own("person", new Release(() => { person.Dispose(); return ValueTask.CompletedTask; }));
         return person;

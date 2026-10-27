@@ -1,5 +1,3 @@
-using IntoChat.OS.Flame;
-
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Flame.Tests.Integration.FlameHost))]
 
 namespace IntoChat.OS.Modules.Flame.Tests.Integration;

@@ -5,10 +5,11 @@ public interface IIntoChatOSBrains
 {
     IIntoChatOS Open(string brainId);
 
-    // A neuron by raw grain key, outside any brain: hosts and test harnesses only.
-    T Grain<T>(string key) where T : INeuron;
+    // A neuron by its full key "{brain}/{key}", outside any brain: hosts and test harnesses only.
+    T Get<T>(string key) where T : class => (T)Get(typeof(T), key);
 
-    // Watching needs no brain: the reference already names its grain.
-    IAsyncEnumerable<T> On<T>(INeuron neuron, CancellationToken cancellationToken = default) where T : Signal;
-    IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal;
+    object Get(Type contract, string key);
+
+    // Watching needs no brain: the reference already names its neuron.
+    IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal;
 }

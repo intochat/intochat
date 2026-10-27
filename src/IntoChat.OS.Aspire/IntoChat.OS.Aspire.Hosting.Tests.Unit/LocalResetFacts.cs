@@ -10,7 +10,9 @@ public sealed class LocalResetFacts
     private static readonly string Local = Path.GetFullPath("/fake/local");
     private static readonly string Secrets = Path.GetFullPath("/fake/secrets/id");
     private static readonly string WorkDir = Path.Combine(Repo, ".intochat-os");
-    private static readonly string Runtime = Path.Combine(Local, "IntoChatOS", "runtime");
+    private static readonly string Home = Path.GetFullPath("/fake/home");
+    // reset clears <Home>/state, never the rest of the Home.
+    private static readonly string Runtime = Path.Combine(Home, "state");
 
     private sealed class FakeEnvironment(string name) : IHostEnvironment
     {
@@ -49,7 +51,7 @@ public sealed class LocalResetFacts
         var fs = new FakeFileSystem();
         var docker = new FakeDocker();
         var output = new StringWriter();
-        return (new LocalReset(new FakeEnvironment(environment), runMode, Repo, Local, Hash, Secrets, fs, docker, new StringReader(answer + "\n"), output, interactive), fs, docker, output);
+        return (new LocalReset(new FakeEnvironment(environment), runMode, Repo, Local, Home, Hash, Secrets, fs, docker, new StringReader(answer + "\n"), output, interactive), fs, docker, output);
     }
 
     [Fact]
@@ -70,7 +72,7 @@ public sealed class LocalResetFacts
     }
 
     [Fact]
-    public async Task ThePlanListsWorkdirRuntimeContainersAndVolumesByThisCheckoutsHash()
+    public async Task ThePlanListsWorkdirHomeStateContainersAndVolumesByThisCheckoutsHash()
     {
         var (reset, _, _, _) = Make();
         var plan = await reset.BuildPlanAsync(false, false, TestContext.Current.CancellationToken);

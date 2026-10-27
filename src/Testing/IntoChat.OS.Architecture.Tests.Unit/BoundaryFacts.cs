@@ -1,32 +1,30 @@
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
-using IntoChat.OS.Framework.Platform.Identity;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Framework.Platform.Secrets;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Secrets;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 public sealed class BoundaryFacts
 {
-    // IntoChat.OS.Contracts.Configuration is innermost: configuration names with no dependencies, which deployments share.
+    // DigitalBrain (the core package) is the lowest layer; IntoChat.OS.Contracts.Configuration is the innermost os layer:
+    // configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Sdk", "IntoChat.OS.Sdk.Identity", "IntoChat.OS.Sdk.Http", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
-        "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
+        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
+        "IntoChat.OS.Connections", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
     ];
 
     [Theory]
+    [InlineData("DigitalBrain", "IntoChat.OS")]
     [InlineData("IntoChat.OS", "IntoChat.OS.Framework")]
+    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Connections")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client.Orleans")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Authority")]
     [InlineData("IntoChat.OS.Client", "IntoChat.OS.Authority")]
     [InlineData("IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority")]
-    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Framework")]
-    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Authority")]
-    [InlineData("IntoChat.OS.Sdk", "IntoChat.OS.Client")]
-    [InlineData("IntoChat.OS.Sdk.Identity", "IntoChat.OS.Framework")]
-    [InlineData("IntoChat.OS.Sdk.Identity", "IntoChat.OS.Authority")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
             .Check(ProductionArchitecture.Graph.Value);
@@ -60,7 +58,7 @@ public sealed class BoundaryFacts
         Assert.Equal(["IntoChat.OS.Modules.Apps"], implementations);
         var circles = Assert.Single(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name == "IntoChat.OS.Modules.Circles");
         Assert.Contains(circles.GetTypes(), type => type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .Any(constructor => constructor.GetParameters().Any(parameter => parameter.ParameterType.FullName == "IntoChat.OS.Apps.FeatureLoader")));
+            .Any(constructor => constructor.GetParameters().Any(parameter => parameter.ParameterType.FullName == "IntoChat.OS.Modules.Apps.FeatureLoader")));
     }
 
     [Fact]
@@ -81,7 +79,7 @@ public sealed class BoundaryFacts
     {
         var contracts = ProductionArchitecture.Assemblies.Where(ContractRing.IsContractAssembly).ToArray();
         var runtime = ProductionArchitecture.Assemblies.Except(contracts)
-            .Where(assembly => assembly.GetName().Name != "IntoChat.OS").ToArray();
+            .Where(assembly => assembly.GetName().Name is not ("IntoChat.OS" or "DigitalBrain" or "DigitalBrain.UI")).ToArray();
         Assert.NotEmpty(contracts);
         foreach (var contract in contracts.Where(ContractRing.IsContractsProject))
         {
@@ -133,8 +131,9 @@ public sealed class BoundaryFacts
     }
 
     internal static bool IsCredentialContract(Type type) => type.IsInterface && (
-        InNamespace(type, "IntoChat.OS.Framework.Platform.Secrets") || InNamespace(type, "IntoChat.OS.Framework.Platform.Identity")
-        || InNamespace(type, "IntoChat.OS.Framework.Platform.Integrations"));
+        InNamespace(type, "IntoChat.OS.Connections.Platform.Secrets")
+        || InNamespace(type, "IntoChat.OS.Connections.Platform.Identity") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Identity")
+        || InNamespace(type, "IntoChat.OS.Connections.Platform.Integrations") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Integrations"));
 
     private static bool InNamespace(Type type, string name) =>
         type.Namespace == name || type.Namespace?.StartsWith(name + ".", StringComparison.Ordinal) == true;

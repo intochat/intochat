@@ -1,11 +1,13 @@
 using IntoChat.OS.Client.Orleans;
+using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Storage;
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Kernel.Composition;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -13,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
+using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
 
 namespace IntoChat.OS.Aspire.Server;
 
@@ -54,8 +57,43 @@ public static class ServerHostingExtensions
             builder.Services.AddHealthChecks().AddCheck("module-" + status.Module, () => HealthCheckResult.Degraded(status.Reason));
         }
         builder.Services.AddHostedService<ModuleStatusLogger>();
+        // IntoChatOS:Topology is the one setting that picks clustering, grain stores, streams, reminders and secrets (TOPO-01):
+        // the digitalbrain topology is selected and validated before the silo exists, and a partial or unknown setting stops
+        // the host naming every issue. The cluster store is the runtime BrainLog over the DigitalBrain modules' assemblies
+        // (06-02, R4-09); their manifests pass through UseModuleTopology, which refuses a Need the topology does not bind.
+        // os never calls AddDigitalBrainRuntime itself: ConfigureTopologySilo does.
+        // A Framework module that brings plain neurons names its DigitalBrain module (Module.Neurons, 06-03); it is hosted when
+        // the Framework module is selected.
+        // The Authority's plain neurons (the connection index and requests, 06-08) are hosted on every silo, as its grains are.
+        IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
+            .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons)).Distinct()];
+        // A connection key addresses only a connector a hosted connection neuron serves (06-08).
+        builder.Services.AddSingleton(new IntoChat.OS.Connections.Platform.Connections.ConnectionNeuronTypes(neuronModules));
+        // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both. The kernel's own
+        // signals (the brain neuron's Created, Activated and instance announcements, 06-08) live in IntoChat.OS, and every
+        // connector's connection signals (ConnectionConnected and the rest, 06-08) in IntoChat.OS.Connections.
+        builder.UseKernelStorage([.. neuronModules.Select(static module => module.Assembly)
+            .Concat(modules.Where(static module => module.Neurons is not null).Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
+            .Append(typeof(IBrain).Assembly)
+            .Append(typeof(IntoChat.OS.Connections.Platform.Connections.IConnection).Assembly)
+            // The Authority's connection requests publish ConnectionsChanged and ConnectionRequested (06-08).
+            .Append(typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly)
+            .Distinct()]);
+        // Capabilities (05-07): the registry accepts the os storage binding before ConfigureTopologySilo validates every module's
+        // Provides, and the kernel lists and binds connections for the runtime broker.
+        IntoChat.OS.Kernel.Composition.Capabilities.KernelCapabilities.AddKernelCapabilities(builder);
+        TopologyHosting.UseModuleTopology(builder, neuronModules, RetiredTopologySettings,
+            [.. modules.OfType<ITopologyModule>().SelectMany(module => module.TopologyProfiles)]);
         builder.UseOrleans(silo =>
         {
+            // The topology first; it runs the host-bound cluster store (BrainLog) last, then the legacy store and journal of
+            // the unmigrated Framework neurons compose over the same logs, then the modules.
+            TopologyHosting.ConfigureTopologySilo(silo);
+            silo.AddLegacyStorage();
+            // os grain state keeps the Orleans binary format it had in memory and on blob storage (persisted-format rule):
+            // the topology's file and blob stores use the silo serializer, so it is this one, not the JSON default.
+            silo.Services.AddSingleton<global::Orleans.Storage.IGrainStorageSerializer>(static services =>
+                new global::Orleans.Storage.OrleansGrainStorageSerializer(services.GetRequiredService<global::Orleans.Serialization.Serializer>()));
             // Development silos restart constantly (rolls, aspire restarts): rows of silos that are gone are swept
             // within minutes, not the default week. Startup connectivity validation stays on; machine silos beat often enough that their own stale rows are skipped (R105).
             if (builder.Environment.IsDevelopment())
@@ -72,21 +110,22 @@ public static class ServerHostingExtensions
             // call to 4 spans (measured); it was removed so exactly one registration remains.
             if (definition.Dashboard) { global::Orleans.Dashboard.ServiceCollectionExtensions.AddDashboard(silo); }
             silo.AddIntoChatOS(modules);
+            // Identity-backed brain membership, connector types, secret redaction and connection bindings (D-18).
+            silo.AddIntoChatOSConnections();
             foreach (var module in modules)
             {
-                module.Configure(silo);
+                module.ConfigureServices(silo.Services, silo.Configuration);
                 silo.Services.AddSingleton(module);
             }
-            // The cluster grain storage may be composed after this delegate; startup validation refuses a
-            // server whose storage was never wrapped, so no instance registration is silently lost.
-            silo.TryAddKernelRegistration();
         });
-        // Storage, clustering and reminders are the orleans module's; the platform and the machine part
-        // log compose over whatever it registered.
+        // Storage, clustering and reminders are the topology's; the platform composes over whatever it registered.
         builder.AddIntoChatOSPlatform();
-        builder.AddBrainStorage();
         return builder;
     }
+
+    // The retired settings LegacyConfigurationGuard refuses, handed to the topology validator as well (P2-D-11).
+    private static readonly DigitalBrain.Runtime.Orleans.RetiredSetting[] RetiredTopologySettings =
+        [.. LegacyConfigurationGuard.RetiredSettings.Select(static row => new DigitalBrain.Runtime.Orleans.RetiredSetting(row.Name, row.Replacement))];
 
     public static WebApplication MapIntoChatOSServer(this WebApplication app)
     {
@@ -123,11 +162,9 @@ public static class ServerHostingExtensions
     {
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _ = services.GetRequiredService<IntoChat.OS.Framework.IBrainAccess>();
+            _ = services.GetRequiredService<IntoChat.OS.Framework.Modules.IBrainAccess>();
             if (!services.GetServices<IntoChat.OS.Framework.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddIntoChatOSPlatform before starting the server."); }
-            if (!IntoChat.OS.Framework.BrainHosting.HasKernelRegistration(services))
-            { throw new InvalidOperationException("The cluster grain storage is not wrapped by the kernel registration: register it before the silo delegate runs."); }
             return Task.CompletedTask;
         }
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

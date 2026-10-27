@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Collection;
+using IntoChat.OS.Modules.Flutter.Collection;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 await foreach (var selected in brain.On<CollectionActivated>(brain.Get<ICollectionView>(CircleView.Key(brain) + "/feed-items"), brain.Stopping))

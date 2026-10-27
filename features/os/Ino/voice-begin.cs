@@ -1,5 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 // The dock's mic: "voice" composes the surface and begins a voice message on the composer under the
 // request id. The composer captures the recording and voice.cs transcribes it into the draft. A

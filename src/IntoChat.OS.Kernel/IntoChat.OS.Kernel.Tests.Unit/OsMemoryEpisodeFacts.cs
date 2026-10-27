@@ -178,7 +178,7 @@ public sealed class OsMemoryConsolidationFacts
     public void TheCapRefusalIsRecognisedByTheFactsNeuronsWording()
     {
         // The exact message FactsNeuron.Assert throws at the cap; its integration fact pins the same prefix.
-        var refusal = new InvalidOperationException($"At most {(global::IntoChat.OS.AI.Agents.Facts.IFacts.Cap)} facts can be current; invalidate or forget one first.");
+        var refusal = new InvalidOperationException($"At most {(global::IntoChat.OS.Modules.AI.Agents.Facts.IFacts.Cap)} facts can be current; invalidate or forget one first.");
         Assert.True(global::Consolidation.IsCapRefusal(refusal));
         Assert.False(global::Consolidation.IsCapRefusal(new InvalidOperationException("something else")));
     }

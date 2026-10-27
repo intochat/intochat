@@ -1,4 +1,4 @@
-using IntoChat.OS.Microsoft.Aspire;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 
 // A healthy child is verified with the plan it was proposed with. Each candidate is followed only until it
 // is past Healthy, so one that never gets healthy cannot hold up the next. Verify is idempotent on stage:

@@ -1,4 +1,4 @@
-using IntoChat.OS.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit;
 

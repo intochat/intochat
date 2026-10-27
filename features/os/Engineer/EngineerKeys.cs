@@ -1,4 +1,4 @@
-using IntoChat.OS.AI.Models;
+using IntoChat.OS.Modules.AI.Models;
 
 public static partial class Engineer
 {

@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
 

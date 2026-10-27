@@ -1,6 +1,10 @@
 using System.Collections.Concurrent;
 using IntoChat.OS.Authority.Compute;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Compute;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
@@ -321,8 +325,11 @@ public sealed class AccountingRecoveryFacts
         Assert.Equal(125, total.Micros);
     }
 
-    internal sealed class FaultingAccountingStorage : IGrainStorage
+    internal sealed class FaultingAccountingStorage : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
     {
+        // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
+        public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+
         private readonly ConcurrentDictionary<(string, GrainId), byte[]> _records = new();
         private Serializer? _serializer;
         private string? _stateName;

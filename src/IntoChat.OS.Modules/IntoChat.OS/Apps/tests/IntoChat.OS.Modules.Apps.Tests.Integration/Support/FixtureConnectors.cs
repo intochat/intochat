@@ -1,13 +1,14 @@
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Orleans.Hosting;
 
-namespace IntoChat.OS.Apps.Tests;
+namespace IntoChat.OS.Modules.Apps.Tests;
 
-// Two connector kinds a slot can bind, each with a pasted credential that probes connected, except a mailbox
-// credential named "fixture-value-expired", which probes expired.
+// Two connection kinds a slot can bind, each with a pasted credential that probes connected, except the credential
+// "fixture-value-expired", which probes expired. Drive's module provides storage@1, as the Windows and Google
+// Drive modules do.
 public sealed class FixtureConnectorsModule() : Module(new ModuleId("fixture-connectors"))
 {
     public static ConnectorDefinition[] Connectors =>
@@ -16,33 +17,46 @@ public sealed class FixtureConnectorsModule() : Module(new ModuleId("fixture-con
         new("drive", "Drive", ["api-key"], []) { Neurons = [typeof(IFixtureDrive)] },
     ];
 
-    public override void Configure(ISiloBuilder silo) { }
+    public override Type? Neurons => typeof(FixtureConnectorNeurons);
 }
 
-[Alias("fixture.mailbox"), Orleans.Metadata.DefaultGrainType("mailbox")]
-public interface IFixtureMailbox : INeuron { Task<string> Kind(); }
+[DigitalBrain.Contracts.NeuronAlias("fixture.mailbox"), DigitalBrain.Contracts.DefaultNeuronType("mailbox")]
+public interface IFixtureMailbox { Task<string> Kind(); }
 
-[Alias("fixture.drive"), Orleans.Metadata.DefaultGrainType("drive")]
-public interface IFixtureDrive : INeuron { Task<string> Kind(); }
+[DigitalBrain.Contracts.NeuronAlias("fixture.drive"), DigitalBrain.Contracts.DefaultNeuronType("drive")]
+public interface IFixtureDrive : IntoChat.OS.Integrations.ILegacyStorage { Task<string> Kind(); }
 
 [GenerateSerializer, Alias("fixture.connection.state")]
 public sealed class FixtureConnectionState : ConnectionState { }
 
-[GrainType("mailbox")]
-internal sealed class FixtureMailboxNeuron(
-    [PersistentState("mailbox", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<FixtureConnectionState> store)
-    : ConnectionNeuron<FixtureConnectionState>(store), IFixtureMailbox
+[DigitalBrain.Neuron("mailbox", State = "mailbox")]
+internal sealed class FixtureMailboxNeuron()
+    : ConnectionNeuron<FixtureConnectionState>, IFixtureMailbox
 {
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
         => Task.FromResult(credential.Value == "fixture-value-expired" ? ConnectionProbeResult.Expired("expired by fixture") : ConnectionProbeResult.Connected());
     public Task<string> Kind() => Task.FromResult("mailbox");
 }
 
-[GrainType("drive")]
-internal sealed class FixtureDriveNeuron(
-    [PersistentState("drive", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<FixtureConnectionState> store)
-    : ConnectionNeuron<FixtureConnectionState>(store), IFixtureDrive
+[DigitalBrain.Neuron("drive", State = "drive")]
+internal sealed class FixtureDriveNeuron()
+    : ConnectionNeuron<FixtureConnectionState>, IFixtureDrive
 {
-    protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct) => Task.FromResult(ConnectionProbeResult.Connected());
+    protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
+        => Task.FromResult(credential.Value == "fixture-value-expired" ? ConnectionProbeResult.Expired("expired by fixture") : ConnectionProbeResult.Connected());
     public Task<string> Kind() => Task.FromResult("drive");
+
+    // An empty storage: install facts need the capability declared, not its content.
+    public Task<IntoChat.OS.Integrations.StorageEntry[]> Roots(CancellationToken cancellationToken = default) => Task.FromResult<IntoChat.OS.Integrations.StorageEntry[]>([]);
+    public Task<IntoChat.OS.Integrations.StorageEntry[]> List(string location, CancellationToken cancellationToken = default) => Task.FromResult<IntoChat.OS.Integrations.StorageEntry[]>([]);
+    public Task<string> Read(string location, CancellationToken cancellationToken = default) => Task.FromResult("");
+    public Task<IntoChat.OS.Integrations.StorageEntry[]> Ancestors(string location, CancellationToken cancellationToken = default) => Task.FromResult<IntoChat.OS.Integrations.StorageEntry[]>([]);
+}
+
+// The fact's connection neurons are plain (06-08): this module's assembly [Neuron] classes run on the runtime's host grains.
+[DigitalBrain.Module("fixture-connectors")]
+public sealed class FixtureConnectorNeurons : DigitalBrain.Module
+{
+    // storage@1 reaches only the drive connection: the mailbox neuron implements no storage binding (05-07).
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [DigitalBrain.Capabilities.Capability.Storage.V1], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

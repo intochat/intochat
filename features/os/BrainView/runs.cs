@@ -1,4 +1,4 @@
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // Coalesce invalidations, then read every retained run from the runtime. No app-owned
 // history is written; one immutable tree replaces separate card, text and layout neurons.

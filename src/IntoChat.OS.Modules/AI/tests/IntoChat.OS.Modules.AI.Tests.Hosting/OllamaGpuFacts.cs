@@ -1,9 +1,9 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using CommunityToolkit.Aspire.Hosting.Ollama;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Aspire.Hosting;
-using IntoChat.OS.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Aspire.Hosting;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 using static IntoChat.OS.Aspire.Testing.AspireCompositionTest;
@@ -21,7 +21,7 @@ public sealed class OllamaGpuFacts
     {
         var builder = CreateBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [IntoChatOSHostingOptions.LocalGpuKey] = gpu ? "true" : "false" });
-        builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai.WithDefaultLlm<IQwen35>().WithoutWebSearch());
 
         var ollama = Assert.Single(builder.Resources.OfType<OllamaResource>());
@@ -35,7 +35,7 @@ public sealed class OllamaGpuFacts
     public void TheOllamaImageIsPinnedToAVersion()
     {
         var builder = CreateBuilder();
-        builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai.WithDefaultLlm<IQwen35>().WithoutWebSearch());
         var image = Assert.Single(Assert.Single(builder.Resources.OfType<OllamaResource>()).Annotations.OfType<ContainerImageAnnotation>());
         Assert.NotEqual("latest", image.Tag);

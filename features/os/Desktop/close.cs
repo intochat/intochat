@@ -1,6 +1,6 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Viewport;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Viewport;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // `close:<windowId>/<index>` closes that tab; closing a window's last tab closes the window and clears its viewport.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

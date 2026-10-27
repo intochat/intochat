@@ -9,9 +9,10 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.ServiceDefaults;
 
-// Open posture resolves every anonymous caller as the owner, so in Aspire run mode on the host it may listen on
-// loopback only. Publish and container modes are out of scope: they already require an explicit posture
-// (IdentityHosting), and the isolated candidate containers opt in explicitly.
+// Open posture resolves every anonymous caller as the owner, so on IntoChatOS:Topology local or local+cloud (unset means local)
+// on the host it may listen on loopback only (D-21; this replaced the retired run-mode marker). Cloud and containers are out of
+// scope: they already require an explicit posture (IdentityHosting), and the isolated candidate containers opt in explicitly.
+// An IntoChatOS:Bind beyond loopback does not lift the rule: Open posture there still needs AllowOpenOnNetwork=true.
 //
 // Two layers: Validate reads the URLs Kestrel will read from configuration and throws before anything binds;
 // the backstop inspects the addresses the server actually bound (code-level UseUrls/ListenAnyIP are invisible
@@ -21,21 +22,13 @@ public static class OpenPostureLoopback
     public const string PostureKey = "IntoChatOS:Auth:Posture";
     public const string AllowOpenOnNetworkKey = "IntoChatOS:Auth:AllowOpenOnNetwork";
 
-    // Run-mode marker the AppHost projects to the processes it starts (IntoChatOS__Hosting__Mode=run). It is a
-    // child of the Hosting section, which hosted-authority detection must ignore.
-    public const string ModeKey = IntoChat.OS.Framework.IntoChatOSNames.HostingModeConfigurationKey;
-
     private static readonly string[] UrlKeys = ["urls", "ASPNETCORE_URLS", "DOTNET_URLS"];
     private static readonly string[] PortKeys =
         ["ASPNETCORE_HTTP_PORTS", "ASPNETCORE_HTTPS_PORTS", "DOTNET_HTTP_PORTS", "DOTNET_HTTPS_PORTS", "HTTP_PORTS", "HTTPS_PORTS"];
 
-    public static bool IsRunMode(IConfiguration configuration)
-        => string.Equals(configuration[ModeKey], IntoChat.OS.Framework.IntoChatOSNames.HostingModeRun, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(configuration["DOTNET_RUNNING_IN_CONTAINER"], "true", StringComparison.OrdinalIgnoreCase);
-
-    // True when the check applies: run mode, Open posture, no explicit opt-in.
+    // True when the check applies: local topology on the host (BindPolicy), Open posture, no explicit opt-in.
     public static bool Applies(IConfiguration configuration)
-        => IsRunMode(configuration)
+        => BindPolicy.IsLocal(configuration)
             && string.Equals(configuration[PostureKey], "Open", StringComparison.OrdinalIgnoreCase)
             && !configuration.GetValue(AllowOpenOnNetworkKey, false);
 
@@ -43,11 +36,12 @@ public static class OpenPostureLoopback
     {
         ArgumentNullException.ThrowIfNull(configuration);
         if (!Applies(configuration)) { return; }
-        var offenders = NonLoopbackConfigured(configuration);
+        var offenders = NonLoopbackConfigured(configuration).ToList();
+        if (BindPolicy.From(configuration).HasNonLoopback) { offenders.Add($"{BindPolicy.BindKey} beyond loopback"); }
         if (offenders.Count == 0) { return; }
         throw new InvalidOperationException(
-            "Open posture serves every anonymous caller as the owner, so in Aspire run mode it may listen on loopback only. Not loopback: "
-            + string.Join(", ", offenders) + $". Bind 127.0.0.1/localhost, or set {AllowOpenOnNetworkKey}=true to accept network exposure.");
+            $"Open posture serves every anonymous caller as the owner, so on {BindPolicy.TopologyKey} local it may listen on loopback only. Not loopback: "
+            + string.Join(", ", offenders) + $". Bind 127.0.0.1/localhost (remove {BindPolicy.BindKey}), or set {AllowOpenOnNetworkKey}=true to accept network exposure.");
     }
 
     public static IReadOnlyList<string> NonLoopbackConfigured(IConfiguration configuration)
@@ -107,7 +101,7 @@ public static class OpenPostureLoopback
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StartedAsync(CancellationToken cancellationToken)
         {
-            if (!IsRunMode(configuration) || !string.Equals(configuration[PostureKey], "Open", StringComparison.OrdinalIgnoreCase)) { return Task.CompletedTask; }
+            if (!BindPolicy.IsLocal(configuration) || !string.Equals(configuration[PostureKey], "Open", StringComparison.OrdinalIgnoreCase)) { return Task.CompletedTask; }
             var addresses = services.GetService<IServer>()?.Features.Get<IServerAddressesFeature>()?.Addresses.ToArray();
             if (addresses is null) { return Task.CompletedTask; }
             if (addresses.Length == 0)
@@ -125,7 +119,7 @@ public static class OpenPostureLoopback
             var exposed = addresses.Where(address => !IsLoopbackUrl(address)).ToArray();
             if (exposed.Length > 0 && !configuration.GetValue(AllowOpenOnNetworkKey, false))
             {
-                logger.LogError("Open posture serves every anonymous caller as the owner and may listen on loopback only in Aspire run mode; bound {Urls}. Bind loopback or set {Key}=true.",
+                logger.LogError("Open posture serves every anonymous caller as the owner and may listen on loopback only on a local topology; bound {Urls}. Bind loopback or set {Key}=true.",
                     string.Join(", ", exposed), AllowOpenOnNetworkKey);
                 exit.Fail();
                 lifetime.StopApplication();

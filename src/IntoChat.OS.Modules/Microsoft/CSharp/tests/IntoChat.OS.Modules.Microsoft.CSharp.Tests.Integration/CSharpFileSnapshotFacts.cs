@@ -1,6 +1,6 @@
-using IntoChat.OS.Microsoft.CSharp.Files;
-using IntoChat.OS.Microsoft.CSharp.Files.Signals;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files;
+using IntoChat.OS.Modules.Microsoft.CSharp.Files.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 

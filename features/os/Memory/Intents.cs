@@ -3,8 +3,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using IntoChat.OS;
-using IntoChat.OS.AI.Agents.Facts;
-using IntoChat.OS.AI.Agents.Intents;
+using IntoChat.OS.Modules.AI.Agents.Facts;
+using IntoChat.OS.Modules.AI.Agents.Intents;
 
 // Shared by "intend": where Memory's rephrasing agent and its answers live, how the ask and the model's
 // reply are read, and how the active intents are rendered for the rephrase prompt.
@@ -21,9 +21,13 @@ internal static class Intents
     public static string ReminderKey(string appKey, Guid intentId) => appKey + "/cues/" + intentId;
 
     // A signal cue matches by alias alone, or by alias and one top-level property holding exactly EqualTo as a string.
-    public static bool CueMatches(Cue cue, Signal signal)
+    // A plain neuron's signal (06-05) is a [Signal("alias")] record; a grain's carries its alias as before.
+    public static bool CueMatches(Cue cue, object signal)
     {
-        if (cue.SignalAlias != NeuronAliasAttribute.Of(signal.GetType())) { return false; }
+        ArgumentNullException.ThrowIfNull(signal);
+        var alias = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<DigitalBrain.SignalAttribute>(signal.GetType())?.Alias
+            ?? NeuronAliases.Of(signal.GetType());
+        if (cue.SignalAlias != alias) { return false; }
         if (cue.Field is not { Length: > 0 } field) { return true; }
         var json = JsonSerializer.SerializeToElement(signal, signal.GetType());
         if (json.ValueKind != JsonValueKind.Object) { return false; }

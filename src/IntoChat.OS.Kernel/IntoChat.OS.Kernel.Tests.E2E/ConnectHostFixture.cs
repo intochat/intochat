@@ -1,9 +1,11 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Google.Gmail;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Modules.Google.Gmail;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -21,8 +23,8 @@ public sealed class ConnectHostFixture : ReferenceBrainFixture
         _tokens = await TokenEndpointStub.StartAsync(cancellationToken);
         return await ReferenceBrain.Create(privateConfiguration: new()
         {
-            [IntegrationSchema.Key(GmailModule.Integration.Id, "ClientId")] = "os-client",
-            [IntegrationSchema.Key(GmailModule.Integration.Id, "ClientSecret")] = "os-secret",
+            [IntegrationSchema.Key(IntoChat.OS.Modules.Google.Auth.GoogleAuth.Integration, "ClientId")] = "os-client",
+            [IntegrationSchema.Key(IntoChat.OS.Modules.Google.Auth.GoogleAuth.Integration, "ClientSecret")] = "os-secret",
             [IntoChatOSConfiguration.ConnectionsTokenEndpointKey("gmail")] = _tokens.TokenEndpoint.AbsoluteUri,
             [IntoChatOSConfiguration.ConnectionsPublicOriginKey] = _tokens.Origin.AbsoluteUri,
         })

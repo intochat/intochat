@@ -16,9 +16,9 @@ namespace IntoChat.OS.ServiceDefaults;
 // direct local caller may drain: a request through the front carries X-Forwarded-For and is refused.
 public static class HealthProbes
 {
-    public const string HealthPath = IntoChat.OS.Framework.HostProbePaths.Health;
-    public const string ReadyPath = IntoChat.OS.Framework.HostProbePaths.Ready;
-    public const string AlivePath = IntoChat.OS.Framework.HostProbePaths.Alive;
+    public const string HealthPath = IntoChat.OS.Contracts.Configuration.HostProbePaths.Health;
+    public const string ReadyPath = IntoChat.OS.Contracts.Configuration.HostProbePaths.Ready;
+    public const string AlivePath = IntoChat.OS.Contracts.Configuration.HostProbePaths.Alive;
     public const string DrainPath = "/drain";
     public const string LiveTag = "live";
     public const string DrainTag = "drain";

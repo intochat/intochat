@@ -1,6 +1,6 @@
 using IntoChat.OS;
-using IntoChat.OS.AI.Inference;
-using IntoChat.OS.Flutter.Chat;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.Flutter.Chat;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
@@ -216,9 +216,5 @@ public sealed class OsInoChatsFacts
         public Task Unarchive(string id) => throw new NotSupportedException();
         public Task Touch(string id, string? firstMessage) => throw new NotSupportedException();
         public Task SetModel(string id, string? modelChoice) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<Guid> Watch(INeuronObserver observer, string[] signals) => throw new NotSupportedException();
-        public Task Unwatch(INeuronObserver observer) => throw new NotSupportedException();
-        public Task<SignalPage> Read(long since, int limit) => throw new NotSupportedException();
     }
 }

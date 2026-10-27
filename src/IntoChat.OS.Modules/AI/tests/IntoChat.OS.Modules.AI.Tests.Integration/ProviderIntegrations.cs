@@ -1,5 +1,4 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
@@ -22,5 +21,5 @@ internal static class ProviderIntegrations
 
     // The deployment's registration of a provider: a kernel grain, not a neuron, so it is reached through the host.
     public static IIntegration Integration(this ITestBrain brain, string id)
-        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IIntegration>("integration/" + id);
+        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<IIntegration>("integration/" + id);
 }

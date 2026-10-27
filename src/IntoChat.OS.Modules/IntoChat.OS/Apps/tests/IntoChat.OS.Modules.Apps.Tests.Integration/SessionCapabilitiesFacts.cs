@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using IntoChat.OS;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -29,7 +29,7 @@ public sealed class SessionCapabilitiesFacts
 
     private sealed class Sandbox(bool canRun) : IScriptSandbox
     {
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => canRun;
         public string AuthoringDescription => "External script process";

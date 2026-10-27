@@ -17,7 +17,8 @@ public static class AspireBrainExtensions
         return app.CreateHttpClient(resourceName, endpointName);
     }
 
-    internal static AspireBrain Of(ITestBrain brain)
+    /// <summary>The Aspire brain behind <paramref name="brain"/>; throws when the brain is not on an Aspire target.</summary>
+    public static AspireBrain Of(ITestBrain brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
         return brain as AspireBrain

@@ -1,10 +1,10 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using System.Text.Json;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
-using IntoChat.OS.Microsoft.CSharp.Runtime;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 // Shared by every BrainView synapse: keys, the panel (always rebuilt whole), and the
 // runtime-owned recent history. The old JSON log is read once for compatibility.
@@ -62,7 +62,7 @@ public static class BrainView
 
     public static Run[] Merge(IEnumerable<Run> legacy, IEnumerable<BrainRunEntry> recent, string owner)
         => [.. legacy.Where(run => run.Outcome != "Skipped" && run.Behavior != owner && !run.Behavior.StartsWith(owner + "/", StringComparison.Ordinal))
-            .Concat(recent.Where(run => run.Owner != owner && run.Outcome != IntoChat.OS.Microsoft.CSharp.Runtime.Signals.RunOutcome.Skipped)
+            .Concat(recent.Where(run => run.Owner != owner && run.Outcome != IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals.RunOutcome.Skipped)
                 .Select(run => new Run(run.Behavior, run.Behavior[(run.Behavior.LastIndexOf('/') + 1)..],
                 run.Outcome.ToString(), run.DurationMicroseconds, run.TraceId ?? "-", run.Mark)))
             .GroupBy(run => run.Mark, StringComparer.Ordinal).Select(group => group.Last()).TakeLast(200)];

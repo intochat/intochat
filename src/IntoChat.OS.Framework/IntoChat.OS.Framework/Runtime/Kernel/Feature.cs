@@ -1,3 +1,5 @@
+using IntoChat.OS.Framework.Modules;
+
 namespace IntoChat.OS.Framework;
 
 // A feature loaded into a brain: an app's program, from the features folder, the Marketplace or the

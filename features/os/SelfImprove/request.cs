@@ -1,6 +1,6 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Microsoft.Aspire;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 
 // A request is a change set; the index commits it into a worktree and starts it when nothing
 // else is live. The answer is the sha in the last neuron (empty when the request was refused); the

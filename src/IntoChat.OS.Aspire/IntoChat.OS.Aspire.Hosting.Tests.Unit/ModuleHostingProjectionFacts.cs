@@ -2,12 +2,15 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Connections.Configuration;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Salesforce;
-using IntoChat.OS.Salesforce.Aspire.Hosting;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Modules.Google.Gmail;
+using IntoChat.OS.Modules.Salesforce;
+using IntoChat.OS.Modules.Salesforce.Aspire.Hosting;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
@@ -18,7 +21,6 @@ public sealed class ModuleHostingProjectionFacts
         public static IntegrationSchema Integration { get; } = IntegrationSchema.For("projection-sample", "Projection sample")
             .RequiresSecret("ApiKey").RequiresSecret("ClientSecret").OffersSecret("Token").RequiresSetting("Region");
 
-        public override void Configure(Orleans.Hosting.ISiloBuilder silo) { }
     }
 
     private sealed class SampleHosting : ModuleHosting<SampleModule>;
@@ -34,7 +36,7 @@ public sealed class ModuleHostingProjectionFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         foreach (var pair in values) { builder.Configuration[schema.Key(pair.Key)] = pair.Value; }
-        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions { PersistentStorage = false });
+        var brain = builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions());
         if (hosted) { brain.WithHosting<THosting>(); }
         return (builder, builder.AddExecutable("host", "unused", ".").WithReference(brain));
     }
@@ -98,9 +100,9 @@ public sealed class ModuleHostingProjectionFacts
     [Fact]
     public async Task GmailHostingProjectsTheSameEnvironmentNamesAndValuesAsWithoutIt()
     {
-        await AssertEquivalent<GmailModuleHosting>(GmailModule.Integration,
+        await AssertEquivalent<IntoChat.OS.Modules.Google.Auth.GoogleAuthModuleHosting>(IntoChat.OS.Modules.Google.Auth.GoogleAuthModule.Integration,
             new Dictionary<string, string> { ["ClientId"] = "client-id", ["ClientSecret"] = "client-secret" });
-        await AssertEquivalent<GmailModuleHosting>(GmailModule.Integrations[0],
+        await AssertEquivalent<GmailModuleHosting>(GmailModule.Integration,
             new Dictionary<string, string> { ["Audience"] = "https://audience", ["ServiceAccountEmail"] = "sa@example.test" });
     }
 

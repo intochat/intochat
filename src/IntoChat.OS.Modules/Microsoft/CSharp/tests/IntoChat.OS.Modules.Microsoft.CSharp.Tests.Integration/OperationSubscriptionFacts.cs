@@ -1,7 +1,7 @@
 using System.Text.Json;
-using IntoChat.OS.Apps.Signals;
+using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime.V1;
-using IntoChat.OS.Microsoft.CSharp.Runtime.Signals;
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -12,7 +12,7 @@ public sealed class OperationSubscriptionFacts
     public async Task AnOperationSelectorDeliversOnlyThatOperationAndKeepsItsWatermark()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        await using var brain = await RuntimeBrain.StartWithAppsAsync(new FakeSessionHost(), ct);
         const string scope = "acc-brain";
         const string owner = "acc-brain/apps/x";
         await RuntimeBrain.Programs(brain, scope).Assign(owner, new Dictionary<string, string>(StringComparer.Ordinal)
@@ -24,31 +24,33 @@ public sealed class OperationSubscriptionFacts
         var session = (await runtime.Inspect(ct)).SessionId!;
         var edge = RuntimeBrain.Edge(brain, scope);
         await edge.Connected(session, RuntimeBrain.Fingerprint(brain));
-        var source = brain.Get<IPinger>("ops");
-        var neuron = source.GetGrainId().ToString();
+        // The app is a plain neuron (06-08): its requests are AppRequested [Signal] records, named to the edge by alias.
+        var source = brain.Get<IntoChat.OS.Modules.Apps.IApp>(IntoChat.OS.Modules.Apps.IApp.Key(scope, "ops"));
+        await source.Create(new IntoChat.OS.Modules.Apps.AppManifest("Ops", "", [new("open", ""), new("send", "")], [], []), "spec");
+        var neuron = RuntimeBrain.Plain<IntoChat.OS.Modules.Apps.IApp>(brain, IntoChat.OS.Modules.Apps.IApp.Key(scope, "ops"));
         var send = owner + "/synapses/send.cs";
         var all = owner + "/synapses/all.cs";
-        var sendId = await edge.Subscribed(session, send, neuron, nameof(AppRequested), "send");
-        var allId = await edge.Subscribed(session, all, neuron, nameof(AppRequested));
+        var sendId = await edge.Subscribed(session, send, neuron, RuntimeBrain.Requested, "send");
+        var allId = await edge.Subscribed(session, all, neuron, RuntimeBrain.Requested);
         await using var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
 
-        await source.Request("open");
+        await source.Request("open", "");
         var opened = await Until(changes, async () => Single(await edge.PendingBatches(session), allId), ct);
         Assert.Equal(["open"], opened.Signals.Select(Operation).ToArray());
         Assert.DoesNotContain(await edge.PendingBatches(session), batch => batch.Subscription == sendId);
 
-        await source.Request("send");
+        await source.Request("send", "");
         var sent = await Until(changes, async () => Single(await edge.PendingBatches(session), sendId), ct);
         Assert.Equal(["send"], sent.Signals.Select(Operation).ToArray());
         var watermark = sent.Watermark;
 
-        var replaced = await edge.Subscribed(session, send, neuron, nameof(AppRequested), "open");
+        var replaced = await edge.Subscribed(session, send, neuron, RuntimeBrain.Requested, "open");
         Assert.Equal(sendId, replaced);
         var kept = Assert.Single(await edge.PendingBatches(session), batch => batch.Subscription == sendId);
         Assert.Equal(watermark, kept.Watermark);
         Assert.Equal(["send"], kept.Signals.Select(Operation).ToArray());
 
-        await source.Request("open");
+        await source.Request("open", "");
         var narrowed = await Until(changes, async () =>
         {
             var batch = Single(await edge.PendingBatches(session), sendId);
@@ -57,7 +59,7 @@ public sealed class OperationSubscriptionFacts
         Assert.Equal(["send", "open"], narrowed.Signals.Select(Operation).ToArray());
     }
 
-    private static async Task<SignalBatchEvent> Until(SignalProbe<BrainRuntimeChanged> changes, Func<Task<SignalBatchEvent?>> ready, CancellationToken ct)
+    private static async Task<SignalBatchEvent> Until(PlainSignalProbe<BrainRuntimeChanged> changes, Func<Task<SignalBatchEvent?>> ready, CancellationToken ct)
     {
         while (true)
         {

@@ -1,4 +1,4 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
 
 // "create": a new circle brain through the factory, the only way a script creates one; the index is rebuilt after it.

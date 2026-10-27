@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 08-05: instantiates the intochat-app template outside the repository and builds and tests the instance.
+       No project references: the instance consumes packed DigitalBrain packages, like an author's machine. -->
+</Project>

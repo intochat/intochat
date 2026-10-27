@@ -1,5 +1,5 @@
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Postgres;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.Postgres;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration;
@@ -14,25 +14,25 @@ public sealed class IntegrationMaterializationFacts
         var ct = TestContext.Current.CancellationToken;
         var integration = new ChangingIntegration();
         await using var provider = new PostgresSourceRegistry(integration, Options.Create(new PostgresModuleOptions()));
-        var initial = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => provider.Get(IntoChat.OS.Postgres.Tables.TablePlacement.Shared, ct)));
+        var initial = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => provider.Get(IntoChat.OS.Modules.Postgres.Tables.TablePlacement.Shared, ct)));
         Assert.All(initial, value => Assert.Same(initial[0], value));
         Assert.Equal(8, integration.Reads);
         Assert.Equal(1, integration.Releases);
 
         integration.Revision = 2;
         integration.RotateDuringRelease = true;
-        var rotated = await provider.Get(IntoChat.OS.Postgres.Tables.TablePlacement.Shared, ct);
+        var rotated = await provider.Get(IntoChat.OS.Modules.Postgres.Tables.TablePlacement.Shared, ct);
         Assert.NotSame(initial[0], rotated);
-        Assert.Same(rotated, await provider.Get(IntoChat.OS.Postgres.Tables.TablePlacement.Shared, ct));
+        Assert.Same(rotated, await provider.Get(IntoChat.OS.Modules.Postgres.Tables.TablePlacement.Shared, ct));
         Assert.Equal(3, integration.Revision);
         Assert.Equal(2, integration.Releases);
 
         integration.Status = revokedStatus;
-        await Assert.ThrowsAsync<PostgresUnavailableException>(() => provider.Get(IntoChat.OS.Postgres.Tables.TablePlacement.Shared, ct));
+        await Assert.ThrowsAsync<PostgresUnavailableException>(() => provider.Get(IntoChat.OS.Modules.Postgres.Tables.TablePlacement.Shared, ct));
         Assert.Equal(2, integration.Releases);
         integration.Status = IntegrationStatus.Ready;
         integration.Revision = 4;
-        Assert.NotSame(rotated, await provider.Get(IntoChat.OS.Postgres.Tables.TablePlacement.Shared, ct));
+        Assert.NotSame(rotated, await provider.Get(IntoChat.OS.Modules.Postgres.Tables.TablePlacement.Shared, ct));
         Assert.Equal(3, integration.Releases);
     }
 

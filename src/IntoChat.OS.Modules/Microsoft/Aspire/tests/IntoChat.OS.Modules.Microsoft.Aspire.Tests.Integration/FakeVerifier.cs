@@ -1,6 +1,6 @@
-using IntoChat.OS.Microsoft.Aspire.Verification;
+using IntoChat.OS.Modules.Microsoft.Aspire.Verification;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 internal sealed class FakeVerifier : ICandidateVerifier
 {

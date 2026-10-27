@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Framework;
+namespace IntoChat.OS.Contracts.Configuration;
 
 public static class IntoChatOSNames
 {
@@ -10,11 +10,31 @@ public static class IntoChatOSNames
     public const string Reminders = "reminders";
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
+    // Transitional (06-02, deleted in 06-08): on an os server the runtime BrainLog is the cluster store, and unmigrated
+    // Framework grains that declare the cluster store persist through this key instead (the kernel composition's
+    // LegacyGrainStorage over the same BrainLog).
+    public const string LegacyClusterGrainStorage = "cluster.legacy";
     public const string PlatformGrainStorage = "platform";
+    // Pinned equal to DigitalBrain.Runtime.Orleans.IntoChatOSNames (and Topology.ToConfigValue()) by TopologyKeysMatchRuntimeFacts.
+    // Kept because their consumers (ServiceDefaults, AppHost, Aspire hosting, module installers) stay Orleans-free (03-13).
+    // Where local state lives (<Home>/state, <Home>/secrets); unset means ~/.intochat.
+    public const string HomeKey = "IntoChatOS:Home";
+    public const string TopologyKey = "IntoChatOS:Topology";
+    public const string TopologyLocal = "local";
+    public const string TopologyLocalCloud = "local+cloud";
+    // The earlier spelling of local+cloud: still accepted (the runtime warns), never written.
+    public const string TopologyLocalCloudAlias = "local-cloud";
+    public const string TopologyCloud = "cloud";
+    // Widens binding beyond loopback on local and local+cloud: a comma list of IP literals or localhost (0.0.0.0 or :: for every
+    // interface). Unset means loopback only.
+    public const string BindKey = "IntoChatOS:Bind";
+    // Topology=cloud: the one storage account (tables, blobs, queues) and the Key Vault the cloud topology reads
+    // (the same strings as DigitalBrain.Runtime.Orleans IntoChatOSNames.CloudStorageKey and CloudKeyVaultKey, P2-D-22).
+    public const string CloudStorageConfigurationKey = "IntoChatOS:Cloud:Storage";
+    public const string CloudKeyVaultConfigurationKey = "IntoChatOS:Cloud:KeyVault";
     public const string MasterKeyConfigurationKey = "IntoChatOS:MasterKey";
     public const string MasterKeyEnvironmentVariable = "IntoChatOS__MasterKey";
     public const string BrainStorageConfigurationKey = "IntoChatOS:Platform:Storage";
-    public const string BrainStorageDirectoryConfigurationKey = BrainStorageConfigurationKey + ":Directory";
     public const string BrainStorageWriteFormatConfigurationKey = BrainStorageConfigurationKey + ":WriteFormat";
     public const string ConfiguredCustodyAcknowledgedConfigurationKey = BrainStorageConfigurationKey + ":ConfiguredCustodyAcknowledged";
     // Shared with the Windows module without a dependency on the Platform implementation.
@@ -25,11 +45,5 @@ public static class IntoChatOSNames
     // BrainLogOwnershipKind's member names, as configuration spells them.
     public const string BrainStorageOwnershipBlobLease = "BlobLease";
     public const string BrainStorageOwnershipWriterLock = "WriterLock";
-    // Run-mode marker the AppHost projects to the processes it starts (value "run"). The literal is pinned by RunModeMarkerFacts;
-    // the loopback guard for the Open posture reads it, so it must not be renamed or derived.
-    public const string HostingModeConfigurationKey = "IntoChatOS:Hosting:Mode";
-    public const string HostingModeRun = "run";
     public const string IntegrationsSectionName = "IntoChatOS:Integrations";
-    // Where the deployment tells the runtime its vault lives.
-    public const string KeyVaultUriConfigurationKey = "IntoChatOS:KeyVault:Uri";
 }

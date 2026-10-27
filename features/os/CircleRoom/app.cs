@@ -19,7 +19,7 @@ transcript shows it.
 Startup publishes one sphere and a main layout hosting the existing room content.
 */
 
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 
 static class App
 {

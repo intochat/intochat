@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Workspace;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Workspace;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);

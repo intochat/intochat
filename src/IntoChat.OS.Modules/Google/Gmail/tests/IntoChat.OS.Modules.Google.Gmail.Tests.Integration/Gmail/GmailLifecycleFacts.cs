@@ -1,8 +1,7 @@
 using System.Net;
 using System.Text;
-using IntoChat.OS.Framework.Platform.Connections;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Google.Gmail.Testing;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
@@ -24,7 +23,7 @@ public sealed class GmailLifecycleFacts
         var gmail = brain.Get<IGmail>(key);
         google.WatchReplies.Enqueue(new(401));
         clock.Advance(TimeSpan.FromDays(1));
-        await gmail.AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(key, ct);
         using (brain.Owner.AsCaller())
         {
             var view = await brain.Get<IConnection>(key).Read();
@@ -32,9 +31,33 @@ public sealed class GmailLifecycleFacts
             Assert.Contains("Reconnect", view.Detail, StringComparison.Ordinal);
         }
         clock.Advance(TimeSpan.FromDays(1));
-        await gmail.AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(key, ct);
         Assert.Equal(2, google.Requests.Count(request => request.Path.EndsWith("/watch", StringComparison.Ordinal)));
-        Assert.Empty((await brain.Services.GetRequiredService<IReminderTable>().ReadRows(gmail.GetGrainId(), ct)).Reminders);
+        Assert.Empty((await brain.Services.GetRequiredService<IReminderTable>().ReadRows(GmailBrain.GmailHost(key), ct)).Reminders);
+    }
+
+    // DigitalBrain (plan 04-20) runs activation on the host grain's scheduler: the lifecycle reminder a watched
+    // connection needs is read and set in the activation itself, so it is back before the activating call answers.
+    [Trait("host", "own")]
+    [Fact]
+    public async Task ActivationRestoresALostLifecycleReminderBeforeItsFirstCallAnswers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var google = await GoogleStub.StartAsync(ct);
+        await using var brain = await GmailBrain.Compose(TestBrain.Create(), google, watch: true).StartAsync(ct);
+        await brain.Owner.ConnectAsync("restored", ct);
+        var key = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "restored");
+        var table = brain.Services.GetRequiredService<IReminderTable>();
+        var host = GmailBrain.GmailHost(key);
+        var registered = Assert.Single((await table.ReadRows(host, ct)).Reminders);
+        Assert.Equal(GmailNeuron.LifecycleReminder, registered.ReminderName);
+
+        await brain.DeactivateAsync(brain.Get<IGmail>(key), ct);
+        Assert.True(await table.RemoveRow(host, registered.ReminderName, registered.ETag!, ct));
+        Assert.Empty((await table.ReadRows(host, ct)).Reminders);
+        using (brain.Owner.AsCaller()) { await brain.Get<IConnection>(key).Read(); }
+
+        Assert.Equal(GmailNeuron.LifecycleReminder, Assert.Single((await table.ReadRows(host, ct)).Reminders).ReminderName);
     }
 
     [Trait("host", "own")]
@@ -73,7 +96,7 @@ public sealed class GmailLifecycleFacts
             Assert.Contains("retry", failed.Detail, StringComparison.Ordinal);
         }
         clock.Advance(TimeSpan.FromMinutes(1));
-        await brain.Get<IGmail>(key).AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(key, ct);
         using (brain.Owner.AsCaller()) { Assert.Null((await brain.Get<IConnection>(key).Read()).Detail); }
         Assert.Equal(2, google.Requests.Count(request => request.Path.EndsWith("/watch", StringComparison.Ordinal)));
     }
@@ -109,7 +132,8 @@ public sealed class GmailLifecycleFacts
         await using var google = await GoogleStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(google, ct);
         await brain.Owner.ConnectAsync("paged", ct);
-        var gmail = brain.Get<IGmail>(ConnectionKeys.For(brain.Owner.BrainId, "gmail", "paged"));
+        var gmailKey = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "paged");
+        var gmail = brain.Get<IGmail>(gmailKey);
         for (var page = 1; page <= 10; page++)
         { google.HistoryReplies.Enqueue(new(200, new { historyId = "150", nextPageToken = $"page-{page}", history = Array.Empty<object>() })); }
         google.HistoryReplies.Enqueue(new(200, new { historyId = "150", history = Array.Empty<object>() }));
@@ -118,7 +142,7 @@ public sealed class GmailLifecycleFacts
         Assert.Equal(10, google.Requests.Count(request => request.Path.EndsWith("/history", StringComparison.Ordinal)));
         await brain.DeactivateAsync(gmail, ct);
         await using var changes = await brain.Observe<MailReceived>(gmail, ct);
-        await gmail.AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(gmailKey, ct);
         Assert.Equal("150", (await changes.NextAsync(ct: ct)).HistoryId);
         var pages = google.Requests.Where(request => request.Path.EndsWith("/history", StringComparison.Ordinal)).ToArray();
         Assert.Equal(11, pages.Length);
@@ -136,15 +160,16 @@ public sealed class GmailLifecycleFacts
         await using var brain = await GmailBrain.Compose(TestBrain.Create(), google, watch: true)
             .ConfigureServices(services => services.AddKeyedSingleton<TimeProvider>(GmailModule.ClockKey, clock)).StartAsync(ct);
         await brain.Owner.ConnectAsync("watch", ct);
-        var gmail = brain.Get<IGmail>(ConnectionKeys.For(brain.Owner.BrainId, "gmail", "watch"));
+        var gmailKey = ConnectionKeys.For(brain.Owner.BrainId, "gmail", "watch");
+        var gmail = brain.Get<IGmail>(gmailKey);
         Assert.Single(google.Requests, request => request.Path.EndsWith("/watch", StringComparison.Ordinal));
         clock.Advance(TimeSpan.FromDays(1));
-        await gmail.AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        await brain.RemindGmail(gmailKey, ct);
         Assert.Equal(2, google.Requests.Count(request => request.Path.EndsWith("/watch", StringComparison.Ordinal)));
-        using (brain.Owner.AsCaller()) { await gmail.AsReference<IConnection>().Disconnect(); }
-        await gmail.AsReference<IRemindable>().ReceiveReminder("gmail-lifecycle", default, ct);
+        using (brain.Owner.AsCaller()) { await brain.Get<IConnection>(gmailKey).Disconnect(); }
+        await brain.RemindGmail(gmailKey, ct);
         Assert.DoesNotContain(google.Requests, request => request.Path.EndsWith("/stop", StringComparison.Ordinal));
-        Assert.Empty((await brain.Services.GetRequiredService<IReminderTable>().ReadRows(gmail.GetGrainId(), ct)).Reminders);
+        Assert.Empty((await brain.Services.GetRequiredService<IReminderTable>().ReadRows(GmailBrain.GmailHost(gmailKey), ct)).Reminders);
     }
 
     [Trait("host", "own")]

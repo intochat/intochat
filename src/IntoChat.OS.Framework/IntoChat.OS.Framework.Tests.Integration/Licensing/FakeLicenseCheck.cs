@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Framework.Tests.Integration.Licensing;
 

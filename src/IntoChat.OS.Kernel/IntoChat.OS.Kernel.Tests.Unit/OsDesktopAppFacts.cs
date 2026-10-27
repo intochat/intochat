@@ -1,6 +1,5 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -128,7 +127,7 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void HiddenAppsNeverBecomeWindows()
     {
-        IntoChat.OS.Flutter.Workspace.WorkspaceViewRef[] views = [new("desktop", "brain/apps/desktop", "full", ""), new("workspace", "brain/apps/workspace", "full", ""), new("calculator", "brain/apps/calculator", "full", "")];
+        IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef[] views = [new("desktop", "brain/apps/desktop", "full", ""), new("workspace", "brain/apps/workspace", "full", ""), new("calculator", "brain/apps/calculator", "full", "")];
         Assert.Equal(["calculator"], Desktop.Windowed("brain", views).Select(view => view.Id));
     }
 
@@ -486,8 +485,8 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void TabIndicesResolveAgainstVisibleTabsAndStaleOnesAreNull()
     {
-        static IntoChat.OS.Flutter.Workspace.WorkspaceViewRef View(string id) => new(id, "brain/apps/" + id, "full", "");
-        var state = new IntoChat.OS.Flutter.Workspace.WorkspaceState(1, [], [])
+        static IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef View(string id) => new(id, "brain/apps/" + id, "full", "");
+        var state = new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1, [], [])
         { Windows = [new("w-1", [View("notes"), View("desktop"), View("calc")], "calc")] };
         Assert.Equal("notes", Desktop.TabAt("brain", state, "w-1", "0"));
         // The hidden desktop tab is skipped, so index 1 is calc.
@@ -505,8 +504,8 @@ public sealed class OsDesktopAppFacts
     [Fact]
     public void FocusOnAHiddenActiveTabStillResolvesToItsWindow()
     {
-        static IntoChat.OS.Flutter.Workspace.WorkspaceViewRef View(string id) => new(id, "brain/apps/" + id, "full", "");
-        var state = new IntoChat.OS.Flutter.Workspace.WorkspaceState(1, [], [])
+        static IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef View(string id) => new(id, "brain/apps/" + id, "full", "");
+        var state = new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1, [], [])
         {
             Windows = [new("w-1", [View("ino")], "ino"), new("w-2", [View("notes"), View("desktop")], "desktop")],
             FocusedViewId = "desktop",

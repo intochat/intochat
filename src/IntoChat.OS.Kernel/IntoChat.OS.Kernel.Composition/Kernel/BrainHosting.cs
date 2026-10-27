@@ -1,0 +1,56 @@
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Framework.Modules;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Orleans.Configuration;
+using Orleans.Versions.Compatibility;
+using Orleans.Versions.Selector;
+using IntoChat.OS.Contracts.Configuration;
+
+namespace IntoChat.OS.Kernel.Composition;
+
+public static class BrainHosting
+{
+    public static ISiloBuilder AddIntoChatOS(this ISiloBuilder silo)
+        => silo.AddIntoChatOS([]);
+
+    public static ISiloBuilder AddIntoChatOS(this ISiloBuilder silo, IEnumerable<Module> modules)
+    {
+        ArgumentNullException.ThrowIfNull(silo);
+        var selected = modules.ToArray();
+        // The host registers what became of every module it was given; a bare silo reports its modules Active.
+        silo.Services.AddSingleton(provider => new ModuleInventory(selected, provider.GetService<IReadOnlyList<ModuleStatus>>()));
+        foreach (var module in selected) { ModuleOptionsBinding.Add(silo.Services, module); }
+        silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
+        silo.Services.TryAddSingleton(TimeProvider.System);
+        // Stored pre-alias bytes still name pre-0.7.0 namespaces.
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<Orleans.Serialization.ITypeConverter, LegacyTypeNames>());
+        silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainNeuronCallFilter>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainInstanceRegistration>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, RuntimeCallerMirror>());
+        silo.AddPlacementDirector<BrainAffinePlacement, BrainAffinePlacementDirector>();
+        silo.Services.TryAddSingleton<ISignalJournal, MemorySignalJournal>();
+        silo.Services.AddOptions<MemorySignalJournalOptions>();
+        silo.Services.TryAddSingleton<IIntoChatOS, CurrentBrain>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.INeuronResolver, GrainNeuronResolver>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainNeurons, PlainNeurons>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IBrainCalls, BrainCalls>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainSignals, PlainSignals>();
+        silo.Services.AddAuthorityGrains();
+        silo.Services.TryAddSingleton<Kernel>();
+        silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
+        silo.Services.TryAddSingleton<IKernelView>(sp => sp.GetRequiredService<Kernel>());
+        // Ledger 38: bound each "{brain}/{type}" instance directory so a brain's core does not grow without bound.
+        silo.Services.AddOptions<InstanceDirectoryOptions>().BindConfiguration(InstanceDirectoryOptions.Key)
+            .Validate(options => options.Limit > 0, "The instance directory limit must be positive.").ValidateOnStart();
+        silo.Configure<GrainVersioningOptions>(options =>
+        {
+            options.DefaultCompatibilityStrategy = nameof(BackwardCompatible);
+            options.DefaultVersionSelectorStrategy = nameof(LatestVersion);
+        });
+        return silo;
+    }
+}

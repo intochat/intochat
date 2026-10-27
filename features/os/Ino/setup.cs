@@ -1,6 +1,6 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // The first-run card's view actions. "setup-local" picks the first available local model for the selected chat
 // (the index change marks the view dirty); "setup-retry" republishes, which re-reads the model catalog.

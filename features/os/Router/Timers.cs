@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Text;
 
 // The timers the router started and the ticks it heard, as two line ledgers, and the "Timer" text part
 // derived from them. A started timer is one line in the timers neuron (written by ask.cs); a tick is one

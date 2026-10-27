@@ -1,5 +1,4 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
@@ -9,6 +8,9 @@ internal static class AgentFacts
 {
     public const string Scope = "owner";
     public static string Key(string name) => Scope + "/agents/" + name;
+
+    // Where a plain agent's state lives in the cluster store (06-06d): the runtime host grain of "{brain}/agent/{key}", state "agent".
+    public static Orleans.Runtime.GrainId StateId(string key) => Orleans.Runtime.GrainId.Create("neuron.host", $"{Scope}/agent/{key[(Scope.Length + 1)..]}");
 
     public static TestBrain Builder(IChatClient model) => TestBrain.Create().WithModule<AIModule>().WithChatModel(model);
 

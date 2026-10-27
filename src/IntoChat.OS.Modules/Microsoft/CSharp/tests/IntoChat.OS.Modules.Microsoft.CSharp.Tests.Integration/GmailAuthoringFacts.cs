@@ -1,5 +1,5 @@
-using IntoChat.OS.Google.Gmail.Testing;
-using IntoChat.OS.Microsoft.CSharp.Catalog;
+using IntoChat.OS.Modules.Google.Gmail.Testing;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;

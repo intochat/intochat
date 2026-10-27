@@ -1,18 +1,21 @@
 using System.Security.Cryptography;
-using IntoChat.OS.AI;
+using IntoChat.OS.Modules.AI;
 using IntoChat.OS.AppHost;
-using IntoChat.OS.Apps;
-using IntoChat.OS.ClickHouse;
-using IntoChat.OS.Flutter;
+using IntoChat.OS.Modules.ClickHouse;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
-using IntoChat.OS.Google.Gmail;
-using IntoChat.OS.Authority.Identity.Configuration;
-using IntoChat.OS.Postgres;
-using IntoChat.OS.Qdrant;
-using IntoChat.OS.Salesforce;
-using IntoChat.OS.Supabase;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Modules.Google.Gmail;
+using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Modules.Postgres;
+using IntoChat.OS.Modules.Qdrant;
+using IntoChat.OS.Modules.Salesforce;
+using IntoChat.OS.Modules.Supabase;
 
 namespace IntoChat.OS.Kernel.Testing;
 

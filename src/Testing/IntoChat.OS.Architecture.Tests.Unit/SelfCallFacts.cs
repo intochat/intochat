@@ -22,6 +22,10 @@ public sealed partial class SelfCallFacts
     [GeneratedRegex(@"Self<(?<i>\w+)>\(\)\s*\.\s*(?<m>\w+)", RegexOptions.CultureInvariant)]
     private static partial Regex Self();
 
+    // A plain neuron (DigitalBrain) reaches itself through its own id.
+    [GeneratedRegex(@"(?:await|return)\s+Get<(?<i>\w+)>\(Id\)\s*\.\s*(?<m>\w+)", RegexOptions.CultureInvariant)]
+    private static partial Regex PlainSelf();
+
     [GeneratedRegex(@"\bclass\s+(?<c>\w+)", RegexOptions.CultureInvariant)]
     private static partial Regex Class();
 
@@ -34,7 +38,7 @@ public sealed partial class SelfCallFacts
             {
                 var text = File.ReadAllText(path);
                 var key = Repository.ProjectKey(path);
-                return Awaited().Matches(text).Concat(Self().Matches(text)).Select(hit =>
+                return Awaited().Matches(text).Concat(Self().Matches(text)).Concat(PlainSelf().Matches(text)).Select(hit =>
                 {
                     var owner = Class().Matches(text[..hit.Index]).LastOrDefault()?.Groups["c"].Value ?? "";
                     return new Site(key, owner, hit.Groups["i"].Value, hit.Groups["m"].Value);
@@ -54,9 +58,11 @@ public sealed partial class SelfCallFacts
     {
         var methods = Targets(site);
         Assert.True(methods.Length > 0, $"{site.File}: {site.Interface} has no method {site.Method}.");
-        var reentrant = ProductionArchitecture.Types.Any(type => type.Name == site.Class && type.IsDefined(typeof(ReentrantAttribute), false));
+        var reentrant = ProductionArchitecture.Types.Any(type => type.Name == site.Class
+            && (type.IsDefined(typeof(ReentrantAttribute), false) || type.IsDefined(typeof(global::DigitalBrain.ReentrantAttribute), false)));
         return reentrant || methods.All(method => method.IsDefined(typeof(OneWayAttribute), false)
-            || method.IsDefined(typeof(AlwaysInterleaveAttribute), false) || method.IsDefined(typeof(IntoChat.OS.OneWayCallAttribute), false));
+            || method.IsDefined(typeof(AlwaysInterleaveAttribute), false) || method.IsDefined(typeof(IntoChat.OS.OneWayCallAttribute), false)
+            || method.IsDefined(typeof(global::DigitalBrain.OneWayCallAttribute), false) || method.IsDefined(typeof(global::DigitalBrain.InterleavesAttribute), false));
     }
 
     private static Owner[] Owners() => JsonSerializer.Deserialize<Owner[]>(

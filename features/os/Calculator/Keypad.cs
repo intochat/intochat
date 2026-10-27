@@ -1,8 +1,8 @@
 using System.Data;
 using System.Globalization;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Views;
 
 // Shared by the calculator's synapses. The keypad neuron is the truth: its first line is the
 // expression, the other lines are the clicks already applied, so a click delivered again is not

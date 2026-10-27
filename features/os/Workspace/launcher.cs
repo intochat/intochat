@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Select;
+using IntoChat.OS.Modules.Flutter.Select;
 
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var key = Workspace.Key(brain);

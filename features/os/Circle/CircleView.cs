@@ -1,9 +1,9 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Circles;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Text;
-using IntoChat.OS.Flutter.Button;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Button;
 
 public static class CircleView
 {

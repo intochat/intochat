@@ -1,5 +1,4 @@
 using System.Text;
-using IntoChat.OS.Google.Gmail;
 using MimeKit;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Unit;

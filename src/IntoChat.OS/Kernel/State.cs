@@ -1,3 +1,5 @@
+using DigitalBrain.State;
+
 namespace IntoChat.OS;
 
 /// <summary>What a brain persists: whose it is and when it came to be.</summary>

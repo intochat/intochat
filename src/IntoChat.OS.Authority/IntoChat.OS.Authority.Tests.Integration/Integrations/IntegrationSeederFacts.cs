@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using IntoChat.OS.Authority.Integrations;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -159,8 +161,11 @@ public sealed class IntegrationSeederFacts
         }
     }
 
-    private sealed class FailingRegistrationStorage(IGrainStorageSerializer serializer, int failures) : IGrainStorage
+    private sealed class FailingRegistrationStorage(IGrainStorageSerializer serializer, int failures) : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
     {
+        // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
+        public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+
         private readonly ConcurrentDictionary<(string, GrainId), BinaryData> data = new();
         public ConcurrentQueue<long> Attempts { get; } = new();
         public TaskCompletionSource FirstWrite { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

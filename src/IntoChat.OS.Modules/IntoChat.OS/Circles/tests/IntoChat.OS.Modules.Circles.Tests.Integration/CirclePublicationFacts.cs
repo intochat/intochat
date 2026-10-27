@@ -1,7 +1,7 @@
-using IntoChat.OS.Apps;
-using static IntoChat.OS.Circles.Tests.CircleBrainRooms;
+using IntoChat.OS.Modules.Apps;
+using static IntoChat.OS.Modules.Circles.Tests.CircleBrainRooms;
 
-namespace IntoChat.OS.Circles.Tests;
+namespace IntoChat.OS.Modules.Circles.Tests;
 
 public sealed class CirclePublicationFacts(CirclesHost host)
 {

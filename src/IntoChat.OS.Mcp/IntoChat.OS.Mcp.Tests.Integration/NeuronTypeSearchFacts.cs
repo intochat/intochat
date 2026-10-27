@@ -1,5 +1,6 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Contracts;
+using IntoChat.OS.Connections.Contracts;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Mcp.Tests.Integration;
@@ -15,7 +16,7 @@ public sealed class NeuronTypeSearchFacts(McpHost host)
         using var caller = brain.Owner.AsCaller();
         var read = await new NeuronTypeSearch(kernel, [], null).Capabilities(ct);
         Assert.Equal(Neurons(kernel), read.Select(type => type.Id).ToArray());
-        Assert.Contains(read, type => type.Contract == "IntoChat.OS.Time.Timers.ITimer" && type.Id == "timer");
+        Assert.Contains(read, type => type.Contract == "IntoChat.OS.Modules.Time.Timers.ITimer" && type.Id == "timer");
     }
 
     [Fact]
@@ -54,7 +55,7 @@ public sealed class NeuronTypeSearchFacts(McpHost host)
         var ct = TestContext.Current.CancellationToken;
         var search = new NeuronTypeSearch(Deployed.Kernel(), [], null);
         var tool = new NeuronType("tool:one/mcp/x/sharpen", "tools", "Sharpen", "sharpen the image",
-            ["Task<ToolResult> Run(\"sharpen\", arguments)"], "IntoChat.OS.Tools.IToolSource", "one/mcp/x", "sharpen");
+            ["Task<ToolResult> Run(\"sharpen\", arguments)"], "IntoChat.OS.Modules.Tools.IToolSource", "one/mcp/x", "sharpen");
         var hit = Assert.Single(await search.Search("sharpen the image", [tool], ct: ct));
         Assert.Equal("tool:one/mcp/x/sharpen", hit.Type.Id);
         Assert.Equal(("one/mcp/x", "sharpen"), (hit.Type.Key, hit.Type.Tool));
@@ -77,14 +78,14 @@ public sealed class NeuronTypeSearchFacts(McpHost host)
     private static string[] Neurons(FixedKernel kernel) => [.. kernel.Entries.Where(type => type.Kind == TypeKind.Neuron).Select(type => type.Alias)];
 
     private static NeuronType Tool(string name)
-        => new($"tool:k/{name}", "tools", $"Tool {name}", $"does {name}", [$"run {name}"], "IntoChat.OS.Tools.IToolSource", "k", name);
+        => new($"tool:k/{name}", "tools", $"Tool {name}", $"does {name}", [$"run {name}"], "IntoChat.OS.Modules.Tools.IToolSource", "k", name);
 
     private sealed class OneBrainSource(string one) : IRuntimeCapabilitySource
     {
         public Task<IReadOnlyList<NeuronType>> Read(string brainId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<NeuronType>>(brainId == one
                 ? [new($"tool:{one}/mcp/x/list", "tools", "List", "list engine commands",
-                    ["Task<ToolResult> Run(\"command_list\", arguments)"], "IntoChat.OS.Tools.IToolSource", $"{one}/mcp/x", "command_list")]
+                    ["Task<ToolResult> Run(\"command_list\", arguments)"], "IntoChat.OS.Modules.Tools.IToolSource", $"{one}/mcp/x", "command_list")]
                 : []);
     }
 

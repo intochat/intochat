@@ -1,11 +1,11 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Aspire.Hosting;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Testing.Model;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
@@ -45,7 +45,7 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
         var text = Text(request);
         if (!text.Contains("Fill one neuron call", StringComparison.Ordinal)) { return null; }
         var scope = Regex.Match(text, @"brain scope is (\S+)\.") is { Success: true } match ? match.Groups[1].Value : "scope";
-        return text.Contains("Method: " + nameof(IntoChat.OS.Apps.IApp.Request), StringComparison.Ordinal) || text.Contains("Request(", StringComparison.Ordinal)
+        return text.Contains("Method: " + nameof(IntoChat.OS.Modules.Apps.IApp.Request), StringComparison.Ordinal) || text.Contains("Request(", StringComparison.Ordinal)
             ? FakeReply.Text("{\"key\":\"" + scope + "/apps/calculator\",\"arguments\":[\"open\",\"\"]}")
             : FakeReply.Text("{\"key\":\"" + scope + "/timer\",\"arguments\":[\"00:05:00\",null]}");
     }

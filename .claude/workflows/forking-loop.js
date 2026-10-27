@@ -52,6 +52,6 @@ const triage = await agent(`${context}
 
 You triage the unmet customer outcomes of forking-loop round ${args.round}:
 ${JSON.stringify(unmet, null, 1)}
-Classify each: "fast-path" (a synapse that should have worked: name the prompt, example or error-text change in src/IntoChat.OS.Modules/IntoChat.OS/Apps/IntoChat.OS.Modules.Apps/Apps/FastPath or Authoring/AgentPrompts.cs), "synapse" (a missing or broken synapse in a features app: name the app and file), "module" (needs module code but no new contract), or "gate" (needs a new contract or signal, external credentials, or touches an open design front: cross-app subscription scopes, renderable palette, run-token tightening). Read the relevant code to be precise. Do not edit files.`, { label: 'triage', phase: 'Triage', schema: TRIAGE })
+Classify each: "fast-path" (a synapse that should have worked: name the prompt, example or error-text change in src/IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/Apps/FastPath or Authoring/AgentPrompts.cs), "synapse" (a missing or broken synapse in a features app: name the app and file), "module" (needs module code but no new contract), or "gate" (needs a new contract or signal, external credentials, or touches an open design front: cross-app subscription scopes, renderable palette, run-token tightening). Read the relevant code to be precise. Do not edit files.`, { label: 'triage', phase: 'Triage', schema: TRIAGE })
 
 return { round: args.round, outcomes, wishes: triage?.wishes || [] }

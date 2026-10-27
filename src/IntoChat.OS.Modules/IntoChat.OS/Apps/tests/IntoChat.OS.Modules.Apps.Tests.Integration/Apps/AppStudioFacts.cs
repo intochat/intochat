@@ -1,6 +1,5 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models.OpenAI;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Testing;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +25,7 @@ public sealed class AppStudioFacts
         var alice = await brain.PersonAsync("alice", ct);
 
         using var _ = alice.AsCaller();
-        var built = await brain.Get<IAppStudio>(alice.BrainId).Build("a calculator with a keypad", ct);
+        var built = await brain.Get<IAppStudio>(IAppStudio.Key(alice.BrainId)).Build("a calculator with a keypad", ct);
 
         Assert.Equal(AppStatus.Live, built.Status);
         Assert.Equal("Calculator", built.Manifest.Title);
@@ -63,7 +62,7 @@ public sealed class AppStudioFacts
 
     private sealed class CreatorSandbox : IScriptSandbox
     {
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";

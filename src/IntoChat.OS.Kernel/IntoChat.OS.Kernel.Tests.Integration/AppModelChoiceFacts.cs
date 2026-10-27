@@ -1,6 +1,6 @@
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Models;
-using IntoChat.OS.Framework.Platform.Entries;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Connections.Platform.Entries;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
@@ -24,7 +24,7 @@ public sealed class AppModelChoiceFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(ct);
-        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainEntries>(Keyed)
+        await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<IBrainEntries>(Keyed)
             .Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, "brain-only-key-8c21");
 
         Assert.Equal(new ModelSelection("IGpt54Nano"), await brain.Get<IModelCatalog>(catalogKey(Keyed)).Select("preset:IGpt54Nano"));

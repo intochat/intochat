@@ -1,6 +1,4 @@
-using IntoChat.OS.Microsoft.CSharp;
-using IntoChat.OS.Microsoft.CSharp.Authoring;
-using IntoChat.OS.Microsoft.CSharp.Edge;
+using IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -34,7 +32,7 @@ public sealed class CSharpRouteFacts
     {
         var builder = WebApplication.CreateBuilder();
         IntoChat.OS.Testing.TestLogging.Apply(builder.Configuration);
-        builder.Services.AddSingleton<IntoChat.OS.Microsoft.CSharp.Edge.RuntimeEdge>(_ => null!);
+        builder.Services.AddSingleton<IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge>(_ => null!);
         builder.Services.AddSingleton(new ScopedCSharpTools(null!, null!, null, "scope", canRun: false));
         builder.Services.Configure<CSharpOptions>(options => options.Authoring = false);
         var app = builder.Build();
@@ -48,7 +46,7 @@ public sealed class CSharpRouteFacts
         var builder = WebApplication.CreateBuilder();
         IntoChat.OS.Testing.TestLogging.Apply(builder.Configuration);
         builder.Configuration.AddInMemoryCollection(settings.Select(setting => new KeyValuePair<string, string?>(setting.Key, setting.Value)));
-        builder.Services.AddSingleton<IntoChat.OS.Microsoft.CSharp.Edge.RuntimeEdge>(_ => null!);
+        builder.Services.AddSingleton<IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge>(_ => null!);
         builder.Services.AddSingleton(new ScopedCSharpTools(null!, null!, null, "scope", canRun: false));
         var app = builder.Build();
         new CSharpModule().Configure(app);

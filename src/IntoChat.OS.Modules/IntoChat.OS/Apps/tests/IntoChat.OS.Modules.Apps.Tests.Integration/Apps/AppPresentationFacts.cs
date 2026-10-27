@@ -1,11 +1,12 @@
-using IntoChat.OS.Apps.Signals;
-using IntoChat.OS.Flame.Scene;
+using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Apps.Tests.Apps;
+namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
 public sealed class AppPresentationFacts
 {
@@ -63,7 +64,7 @@ public sealed class AppPresentationFacts
         var app = await Create(brain);
         var key = IApp.Key(brain.Owner.BrainId, "files");
         var revision = (await app.Read()).ProgramRevision;
-        using var signals = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<PresentationChanged>();
+        await using var signals = await ClusterTap<PresentationChanged>.Open(brain);
         using (brain.Owner.AsApp(key))
         {
             var state = await app.Present(revision, Root());
@@ -94,13 +95,14 @@ public sealed class AppPresentationFacts
     {
         await using var brain = await Start();
         var app = await Create(brain);
-        using var signals = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<PresentationChanged>();
+        await using var signals = await ClusterTap<PresentationChanged>.Open(brain);
         using (brain.Owner.AsApp(IApp.Key(brain.Owner.BrainId, "files")))
         {
             await app.Present(0, Root());
             Assert.Equal(1, (await app.Present(0, Root())).Presentation!.Revision);
         }
-        Assert.True(signals.Reader.TryRead(out _));
+        await Next(signals, TestContext.Current.CancellationToken);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
         Assert.False(signals.Reader.TryRead(out _));
     }
 
@@ -172,33 +174,32 @@ public sealed class AppPresentationFacts
             await app.WriteBlackboard(0, new() { ["mood"] = "custom" });
         }
         var revision = (await app.Read()).Presentation?.Revision ?? 0;
-        using var changes = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<PresentationChanged>();
-        using var activities = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<AppActivity>();
+        await using var changes = await ClusterTap<PresentationChanged>.Open(brain);
+        await using var activities = await ClusterTap<AppActivity>.Open(brain);
         await app.Progress("working", "first detail");
         var first = (await app.Read()).Presentation;
         Assert.NotNull(first);
         Assert.Equal("true", first.Blackboard["running"]);
         Assert.Equal("false", first.Blackboard["attention"]);
         Assert.Equal(revision + 1, first.Revision);
-        Assert.True(changes.Reader.TryRead(out var initial));
+        // 06-08: cluster listeners hear a plain app's saved signals after the call returns, so each is awaited; a change the
+        // "reading" detail wrongly published would arrive before the attention change and fail its revision.
+        var initial = await Next(changes, ct);
         Assert.Equal(first.Revision, initial.Revision);
-        Assert.False(changes.Reader.TryRead(out _));
 
         await app.Progress("reading", "different detail");
         Assert.Equal(first.Revision, (await app.Read()).Presentation!.Revision);
-        Assert.False(changes.Reader.TryRead(out _));
-        Assert.True(activities.Reader.TryRead(out var working));
-        Assert.Equal("first detail", working.Detail);
-        Assert.True(activities.Reader.TryRead(out var reading));
-        Assert.Equal("different detail", reading.Detail);
+        Assert.Equal("first detail", (await Next(activities, ct)).Detail);
+        Assert.Equal("different detail", (await Next(activities, ct)).Detail);
 
         await app.Progress("attention", "needs input");
         var last = (await app.Read()).Presentation!;
         Assert.Equal("false", last.Blackboard["running"]);
         Assert.Equal("true", last.Blackboard["attention"]);
         Assert.Equal(first.Revision + 1, last.Revision);
-        Assert.True(changes.Reader.TryRead(out var attention));
+        var attention = await Next(changes, ct);
         Assert.Equal(last.Revision, attention.Revision);
+        await Task.Delay(200, ct);
         Assert.False(changes.Reader.TryRead(out _));
         if (published) { Assert.Equal("custom", last.Blackboard["mood"]); }
         await brain.DeactivateAsync(app, ct);
@@ -214,13 +215,12 @@ public sealed class AppPresentationFacts
     {
         await using var brain = await Start();
         var app = await Create(brain);
-        using var activities = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<AppActivity>();
+        await using var activities = await ClusterTap<AppActivity>.Open(brain);
         await app.Progress("listening", "heard", new() { ["mood"] = "listening" });
         var early = (await app.Read()).Presentation!;
         Assert.Equal("true", early.Blackboard["running"]);
         Assert.False(early.Blackboard.ContainsKey("mood"));
-        Assert.True(activities.Reader.TryRead(out var heard));
-        Assert.Equal("heard", heard.Detail);
+        Assert.Equal("heard", (await Next(activities, TestContext.Current.CancellationToken)).Detail);
 
         using (brain.Owner.AsApp(IApp.Key(brain.Owner.BrainId, "files")))
         { await app.Present(0, new(new Sphere("icon.svg", []))); }
@@ -231,4 +231,7 @@ public sealed class AppPresentationFacts
         await app.Progress("working", "later", new() { ["mood"] = "thinking" });
         Assert.Equal("thinking", (await app.Read()).Presentation!.Blackboard["mood"]);
     }
+
+    private static async Task<T> Next<T>(ClusterTap<T> tap, CancellationToken ct) where T : DigitalBrain.Signal
+        => await tap.Reader.ReadAsync(ct).AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct);
 }

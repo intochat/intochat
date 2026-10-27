@@ -1,10 +1,12 @@
 using System.Net;
 using System.Text.Json;
-using IntoChat.OS.Apps;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -76,13 +78,13 @@ public sealed class SessionCookieFacts(McpHost host)
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "intochat.session";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))] = "IntoChat.v1";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
-        builder.Services.AddSingleton(brain.Services.GetRequiredService<IGrainFactory>());
+        global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, brain.Services);
         if (mcp) { builder.Services.AddIntoChatOSMcp(); }
         else
         {
             builder.Services.AddIdentity();
             // The runtime's identity endpoints sign in through the machine's passwords and the trust clients.
-            builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Framework.Platform.Identity.IIdentityClient>());
+            builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
             foreach (var name in new[] { "IntoChat.OS.Authority.Identity.PrincipalPasswords", "IntoChat.OS.Authority.Identity.BrainBirths" })
             {
                 var type = typeof(IntoChat.OS.Authority.PlatformHosting).Assembly.GetType(name, throwOnError: true)!;

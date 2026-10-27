@@ -74,14 +74,15 @@ void main() {
   }
 
   test('the view tree decodes as nodes with kind, key and children', () {
-    final view = states['IntoChat.OS.Flutter.Views.UiView'] as Map;
+    final view = states['IntoChat.OS.Modules.Flutter.Views.UiView'] as Map;
     expect(view['generation'], isNotNull);
     expectNode('UiView.root', view['root']);
-    expectNode('UiNode', states['IntoChat.OS.Flutter.Views.UiNode']);
+    expectNode('UiNode', states['IntoChat.OS.Modules.Flutter.Views.UiNode']);
   });
 
   test('the posted UI event carries its kind, name and action', () {
-    final event = states['IntoChat.OS.Flutter.AppUiEndpoints+UiEvent'] as Map;
+    final event =
+        states['IntoChat.OS.Modules.Flutter.AppUiEndpoints+UiEvent'] as Map;
     for (final field in ['kind', 'name', 'action']) {
       expect(event[field], isA<String>(), reason: 'UiEvent.$field');
     }

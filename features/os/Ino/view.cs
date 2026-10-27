@@ -1,5 +1,5 @@
 using IntoChat.OS.Client;
-using IntoChat.OS.Flutter.Text.Signals;
+using IntoChat.OS.Modules.Flutter.Text.Signals;
 
 // The single writer of Ino's view. Every other script only changes state and writes the view state, which is
 // the dirty signal (index.cs does that for chat index changes). A shown toast is republished away at expiry.

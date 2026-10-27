@@ -1,13 +1,14 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
-using IntoChat.OS.AI;
-using IntoChat.OS.AI.Aspire.Hosting;
-using IntoChat.OS.AI.Models.FoundryLocal;
-using IntoChat.OS.AI.Models.Ollama;
-using IntoChat.OS.AI.Models.OpenRouter;
+using IntoChat.OS.Modules.AI.Aspire.Hosting;
+using IntoChat.OS.Modules.AI.Models.FoundryLocal;
+using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using static IntoChat.OS.Aspire.Testing.AspireCompositionTest;
 
@@ -25,7 +26,7 @@ public sealed class CloudModelSecretFacts
             [IntegrationSchema.Key("openrouter", "ApiKey")] = "sk-test",
             [IntegrationSchema.Key("openai", "ApiKey")] = "  ",
         });
-        var brain = builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        var brain = builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai.WithDefaultLlm<IDeepSeekV41Flash>().WithTavilySearch().WithoutLocalModels());
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
@@ -42,7 +43,7 @@ public sealed class CloudModelSecretFacts
     public void ALocalModelStartsOllamaAndCreatesNoApiKeyParameter()
     {
         var builder = CreateBuilder();
-        builder.AddIntoChatOS("brain", new() { PersistentStorage = false })
+        builder.AddIntoChatOS("brain", new())
             .WithHosting<AIModuleHosting, AIOptions>(ai => ai
                 .WithDefaultLlm<IQwen35>()
                 .WithDefaultEmbedding<IEmbeddingGemma>()

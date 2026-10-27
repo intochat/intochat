@@ -3,11 +3,14 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Aspire.Server;
-using IntoChat.OS.Authority.Identity.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Client.Orleans;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Microsoft.Orleans;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -31,7 +34,6 @@ public sealed class AspireTestSession : IAsyncDisposable
 
     public DistributedApplication App { get; }
     public IIntoChatOSBrains Brains => _client!.Services.GetRequiredService<IIntoChatOSBrains>();
-    public IBrainSubscriptions Subscriptions => _client!.Services.GetRequiredService<IBrainSubscriptions>();
     public HttpClient HttpClient { get; private set; } = null!;
     public Uri? BrowserEndpoint { get; private set; }
     public string? BrowserReadySelector { get; private set; }
@@ -199,9 +201,13 @@ public sealed class AspireTestSession : IAsyncDisposable
                         context.EnvironmentVariables[ServerHostingExtensions.ConfigurationFileEnvironmentVariable] = privateSettings.FilePath));
                 }
                 // The harness exposes the host on the network on purpose, so it opts in to the Open-posture network check here, where the exposure is decided.
+                // The silo binds every interface below, so the local bind policy is widened explicitly too (IntoChatOS:Bind, D-21).
                 resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
+                {
                     context.EnvironmentVariables[IntoChatOSConfiguration.EnvironmentName(
-                        AuthOptions.Key(nameof(AuthOptions.AllowOpenOnNetwork)))] = "true"));
+                        AuthOptions.Key(nameof(AuthOptions.AllowOpenOnNetwork)))] = "true";
+                    context.EnvironmentVariables[IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.BindKey)] = "0.0.0.0";
+                }));
                 // The AppHost publishes a fixed port. A testing builder also copies launchSettings ports,
                 // so clear both or every session binds the same endpoint. The endpoint also stays
                 // unproxied: the proxy buffers the Aspire bridge's SSE command stream, so commands
@@ -329,8 +335,8 @@ public sealed class AspireTestSession : IAsyncDisposable
             {
                 if (connection is not null)
                 {
-                    var settings = new ConfigurationBuilder().AddEnvironmentVariables().Build();
-                    client.UseAzureStorageClustering(storage => storage.TableServiceClient = OrleansStorageHosting.ClusteringClient(settings, connection));
+                    // The silo's cloud topology clusters on the tables of the Azurite account the AppHost projected.
+                    client.UseAzureStorageClustering(storage => storage.TableServiceClient = new global::Azure.Data.Tables.TableServiceClient(connection));
                 }
                 else
                 {

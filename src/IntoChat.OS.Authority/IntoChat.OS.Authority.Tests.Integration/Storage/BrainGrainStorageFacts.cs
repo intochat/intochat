@@ -1,14 +1,15 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Authority.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Storage;
 
-public interface IPartCounter : INeuron { Task<int> Increment(); Task<int> Read(); Task Clear(); }
+// A raw grain on the cluster store, as the Authority grains that stay grains are (06-08: the Framework neuron base is gone).
+public interface IPartCounter : IGrainWithStringKey { Task<int> Increment(); Task<int> Read(); Task Clear(); }
 
 [GrainType("test.part-counter")]
-public sealed class PartCounterNeuron([PersistentState("counter", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<PartCounterState> state) : Neuron, IPartCounter
+public sealed class PartCounterNeuron([PersistentState("counter", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<PartCounterState> state) : Grain, IPartCounter
 {
     public async Task<int> Increment() { state.State.Value++; await state.WriteStateAsync(); return state.State.Value; }
     public Task<int> Read() => Task.FromResult(state.State.Value);
@@ -40,7 +41,7 @@ public sealed class BrainGrainStorageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var counter = brain.Get<IPartCounter>(Counter);
+        var counter = PartCounter(brain);
         await counter.Increment();
 
         await counter.Clear();
@@ -48,7 +49,7 @@ public sealed class BrainGrainStorageFacts
         Assert.Equal(0, await counter.Read());
         Assert.Equal(1, await counter.Increment());
         await brain.RestartAsync(ct);
-        Assert.Equal(1, await brain.Get<IPartCounter>(Counter).Read());
+        Assert.Equal(1, await PartCounter(brain).Read());
     }
 
     [Fact(Timeout = 120_000)]
@@ -56,12 +57,12 @@ public sealed class BrainGrainStorageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var counter = brain.Get<IPartCounter>(Counter);
+        var counter = PartCounter(brain);
         for (var i = 0; i < 3; i++) { await counter.Increment(); }
 
         await brain.RestartAsync(ct);
 
-        Assert.Equal(3, await brain.Get<IPartCounter>(Counter).Read());
+        Assert.Equal(3, await PartCounter(brain).Read());
     }
 
     [Fact(Timeout = 60_000)]
@@ -69,7 +70,7 @@ public sealed class BrainGrainStorageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var counter = brain.Get<IPartCounter>(Counter);
+        var counter = PartCounter(brain);
         await counter.Increment();
 
         var state = new GrainState<PartCounterState>();
@@ -83,11 +84,10 @@ public sealed class BrainGrainStorageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var counter = brain.Get<IPartCounter>(Counter);
+        var counter = PartCounter(brain);
         await counter.Increment();
         await counter.Increment();
-        var storage = brain.Services.GetRequiredService<BrainLogs>();
-        var direct = new BrainGrainStorage(storage, brain.Services.GetRequiredService<Orleans.Serialization.Serializer>());
+        var direct = Storage(brain, IntoChatOSNames.LegacyClusterGrainStorage);
 
         var stale = new GrainState<PartCounterState>(new PartCounterState { Value = 9 }, "0");
 
@@ -99,10 +99,10 @@ public sealed class BrainGrainStorageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var counter = brain.Get<IPartCounter>(Counter);
+        var counter = PartCounter(brain);
         await counter.Increment();
         await counter.Increment();
-        var direct = new BrainGrainStorage(brain.Services.GetRequiredService<BrainLogs>(), brain.Services.GetRequiredService<Orleans.Serialization.Serializer>());
+        var direct = Storage(brain, IntoChatOSNames.LegacyClusterGrainStorage);
         var stale = new GrainState<PartCounterState>(new PartCounterState { Value = 9 }, "0");
         Signal[] signals = [new Signal()];
 
@@ -120,26 +120,11 @@ public sealed class BrainGrainStorageFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
 
-        var error = await Assert.ThrowsAnyAsync<Exception>(() => brain.Grains.GetGrain<IOutsideCounter>("@platform/x").Increment());
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => brain.Grains.Get<IOutsideCounter>("@platform/x").Increment());
 
         Assert.IsType<ArgumentException>(error as ArgumentException ?? error.InnerException);
     }
 
-    [Fact(Timeout = 60_000)]
-    public async Task TheKernelRegistersANeuronWrittenToItsPartLog()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().StartAsync(ct);
-
-        await brain.Get<IPartCounter>(Counter).Increment();
-
-        Assert.Contains(await Listed(brain, ct), instance => instance.Key == Counter);
-    }
-
-    private static async Task<List<Instance>> Listed(ITestBrain brain, CancellationToken ct)
-    {
-        List<Instance> listed = [];
-        await foreach (var instance in new Framework.Kernel(brain.Grains).InstancesIn(Scope, null, ct)) { listed.Add(instance); }
-        return listed;
-    }
+    // The probe is a raw grain, reached as the Authority's own grains are (06-08).
+    private static IPartCounter PartCounter(ITestBrain brain) => brain.Grains.Get<IPartCounter>(Counter);
 }

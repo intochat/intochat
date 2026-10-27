@@ -1,4 +1,4 @@
-/// Mirrors C# `IntoChat.OS.Flutter.Preferences.PreferenceStore`: where a
+/// Mirrors C# `IntoChat.OS.Modules.Flutter.Preferences.PreferenceStore`: where a
 /// preference lives. The `local*` stores belong to this device.
 enum PreferenceStore {
   notifyAgentFinished(0),

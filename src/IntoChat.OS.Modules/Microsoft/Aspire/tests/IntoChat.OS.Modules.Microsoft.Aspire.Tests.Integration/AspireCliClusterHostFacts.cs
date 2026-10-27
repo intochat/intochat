@@ -1,8 +1,8 @@
 using System.Net;
-using IntoChat.OS.Microsoft.Aspire.Candidates;
-using IntoChat.OS.Microsoft.Aspire.Deployment;
+using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
+using IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
-namespace IntoChat.OS.Microsoft.Aspire.Tests;
+namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests;
 
 // The cluster host keeps {Workdir}/live.json and drives the live AppHost through the aspire CLI.
 public sealed class AspireCliClusterHostFacts : IDisposable

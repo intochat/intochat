@@ -1,7 +1,8 @@
-using IntoChat.OS.Apps;
-using IntoChat.OS.Flutter;
-using IntoChat.OS.Flutter.Chat;
-using IntoChat.OS.Flutter.Text;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -19,7 +20,7 @@ public sealed class OsInoMigrationFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = new IdleRuntime();
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<FlutterModule>().WithModule<IntoChat.OS.Modules.AI.AIModule>()
             .ConfigureServices(services =>
             {
                 services.RemoveAll<IAppRuntime>();
@@ -90,13 +91,13 @@ public sealed class OsInoMigrationFacts
                 Assert.Empty(transcript.UnreadMessageIds);
             }
             Assert.Equal(inoKey, (await legacy.Read()).MigrationTarget);
-            var retained = await ino.AsReference<IRetainsSignals>().Retained(nameof(IntoChat.OS.Apps.Signals.AppRequested), 0);
-            Assert.Single(retained, item => item.Signal is IntoChat.OS.Apps.Signals.AppRequested request && request.RequestId == requestId);
+            var retained = await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(inoKey).RetainedRequests();
+            Assert.Single(retained, item => item.Request.RequestId == requestId);
             var merged = (await brain.Get<IText>(legacyKey + "/handled/new").Read()).Markdown.Split('\n').TakeLast(256).ToArray();
             Assert.Contains(oldHandled.ToString(), merged);
             Assert.Contains(forwardedHandled.ToString(), merged);
         }
-        var archived = await brain.Get<IApp>(legacyKey).AsReference<IAppMigration>().Archive("ino-v3");
+        var archived = await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(legacyKey).Archive("ino-v3");
         Assert.Equal("public static class Mine { }", archived.Files["custom.cs"]);
     }
 
@@ -124,7 +125,7 @@ public sealed class OsInoMigrationFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = new IdleRuntime();
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<FlutterModule>().WithModule<IntoChat.OS.Modules.AI.AIModule>()
             .ConfigureServices(services =>
             {
                 services.RemoveAll<IAppRuntime>();
@@ -159,9 +160,14 @@ public sealed class OsInoMigrationFacts
         Assert.Equal(legacyKey + "/transcript", (await composer.Read()).FollowedChat);
     }
 
-    private sealed class QuietSource(IIntoChatOSBrains brains) : IChatAgentSource
+    private sealed class QuietSource : IChatAgentSource
     {
-        public INeuron Source(string key) => brains.Grain<IText>(key);
+        public ChatAgentSubscription Subscription(string key)
+        {
+            var brain = key[..key.IndexOf('/', StringComparison.Ordinal)];
+            return new(new(new DigitalBrain.BrainId(brain), IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.NeuronType, key[(brain.Length + 1)..]),
+                IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.All);
+        }
         public Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
             => Task.FromResult(new ChatAgentSnapshot(new(key, selectionRevision, 0, []), null));
     }

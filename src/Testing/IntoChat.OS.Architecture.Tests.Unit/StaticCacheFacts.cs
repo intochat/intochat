@@ -9,15 +9,18 @@ public sealed partial class StaticCacheFacts
 {
     private static readonly Dictionary<string, string> Owners = new(StringComparer.Ordinal)
     {
-        ["CallMarkers.Methods"] = "MethodInfo",
         ["LoadedContracts.Found"] = "string",
-        ["Neuron.OneWayTargets"] = "MethodInfo",
-        ["NeuronCallFilter.Policies"] = "(Type",
-        ["NeuronProxy.Casts"] = "Type",
+        ["KernelInvocationSink.Contracts"] = "string",
+        ["KernelInvocationSink.HostTypes"] = "string",
         ["NeutralCallMapping.Methods"] = "MethodInfo",
         ["NeutralCallMapping.Predicates"] = "Type",
+        ["PlainInstanceRegistration.ReadOnly"] = "(string Contract",
+        ["PlainInstanceRegistration.StateNames"] = "string",
+        ["PlainNeuronCallFilter.Policies"] = "(string Contract",
+        ["PlainNeurons.Factories"] = "Type",
         ["SignalTypes.Loaded"] = "string",
         ["TaskBoxing.Boxes"] = "Type",
+        ["ToolCapabilitySource.PlainSources"] = "string",
     };
 
     [GeneratedRegex(@"\bstatic\s+(?:readonly\s+)?(?:System\.Collections\.Concurrent\.)?(?:Concurrent)?Dictionary<(?<key>[^,<>]+(?:<[^>]*>)?|\([^)]*\)),[^=;]*>\s+(?<name>\w+)\s*(?:=|;)", RegexOptions.CultureInvariant)]
