@@ -17,6 +17,8 @@ public sealed class BehaviorRun : IAsyncDisposable
     private readonly RunLog _log;
     private AssemblyLoadContext? _context;
     private MethodInfo? _entry;
+    // The framework [App] class of a program that has no entry point (see AppRunner).
+    private Type? _app;
 
     private BehaviorRun(AssignmentEvent assignment, AssemblyLoadContext context, int logLines)
     {
@@ -45,10 +47,9 @@ public sealed class BehaviorRun : IAsyncDisposable
 
     public static BehaviorRun Start(SessionConnection session, AssignmentEvent assignment, AssemblyLoadContext context, Assembly assembly, int logLines, ILogger logger)
     {
-        var run = new BehaviorRun(assignment, context, logLines)
-        {
-            _entry = assembly.EntryPoint ?? throw new InvalidOperationException($"{assignment.Behavior} has no entry point."),
-        };
+        var run = new BehaviorRun(assignment, context, logLines);
+        if (assembly.EntryPoint is { } entry) { run._entry = entry; }
+        else { run._app = AppRunner.AppTypeIn(assembly) ?? throw new InvalidOperationException($"{assignment.Behavior} has no entry point and does not declare exactly one [App] class."); }
         run.Completion = Task.Run(() => run.ExecuteAsync(session, assignment.Settings, logger));
         return run;
     }
@@ -57,6 +58,7 @@ public sealed class BehaviorRun : IAsyncDisposable
     [MethodImpl(MethodImplOptions.NoInlining)]
     private object? InvokeEntry()
     {
+        if (Interlocked.Exchange(ref _app, null) is { } app) { return AppRunner.RunAsync(app, _stopping.Token); }
         var entry = Interlocked.Exchange(ref _entry, null)!;
         object?[] arguments = entry.GetParameters().Length == 0 ? [] : [Array.Empty<string>()];
         return entry.Invoke(null, arguments);

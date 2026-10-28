@@ -37,16 +37,18 @@ internal sealed class PrebuiltRig : IAsyncDisposable
         public Session? Session { get; private set; }
     public SessionConnection? Connection { get; private set; }
 
-    public static async Task<PrebuiltRig> Start(CancellationToken ct, Action<SandboxOptions>? sandbox = null)
+    public static async Task<PrebuiltRig> Start(CancellationToken ct, Action<SandboxOptions>? sandbox = null, string[]? operations = null, bool views = false)
     {
         var store = new MemoryBehaviorAssemblies();
-        var brain = await RuntimeBrain.Create(new FakeSessionHost(), apps: true)
+        var created = RuntimeBrain.Create(new FakeSessionHost(), apps: true);
+        if (views) { created = created.WithModule<IntoChat.OS.Modules.Flutter.FlutterModule>(); }
+        var brain = await created
             .ConfigureServices(services => services.AddSingleton<IBehaviorAssemblies>(store)).StartAsync(ct);
         var options = new SandboxOptions { CacheRoot = Path.Combine(Path.GetTempPath(), "prebuilt-behaviors-" + Guid.NewGuid().ToString("N")) };
         sandbox?.Invoke(options);
         var rig = new PrebuiltRig(brain, store, options);
         using (brain.Owner.AsCaller())
-        { await rig.App.Create(new("Counter", "", [new("add", ""), new("pong", ""), new("started", "")], [], []), "spec"); }
+        { await rig.App.Create(new("Counter", "", [.. (operations ?? ["add", "pong", "started"]).Select(name => new AppOperation(name, ""))], [], []), "spec"); }
         return rig;
     }
 
