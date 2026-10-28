@@ -356,3 +356,253 @@ Tests:
 ### Step 7 status
 
 Deleted 3 files, 220 lines: the shard pin, `TestShardFacts`, and `verify-single-runtime.py`. Ported nothing. The tier trait and `IntoChatOSOnlyTier` keep one `dotnet test` from failing on the other tiers, and framework tests stay on the `framework-*` jobs. Release build 0 errors, 0 warnings. Touched tests: architecture 202 passed, 0 failed; Hosting tier 3 passed, exit 0. Deferred to step 8: the end-state command block and the live kernel. Deferred to 0.8.0: the empty hosting shells, which are still projects with no facts.
+
+## Step 8 — Live proof
+
+The plan's bash block was run from PowerShell (`rg` in place of `grep`, `Test-Path` in place of `ls`). Counts are the plan's filters, case-sensitive, so a `tests` directory is not excluded by `Tests`.
+
+```
+=== vocabulary paths (expect absent) ===
+absent src/IntoChat.OS/Neurons
+absent src/IntoChat.OS/Signals
+absent src/IntoChat.OS/Synapses
+EXISTS src/IntoChat.OS/Runtime
+absent src/IntoChat.OS.Framework
+absent src/IntoChat.OS.Authority
+absent src/IntoChat.OS.Connections
+absent framework/src/DigitalBrain/Spi/LegacySpi.cs
+=== harness paths (expect absent) ===
+absent src/Testing/IntoChat.OS.Testing
+absent src/Testing/IntoChat.OS.Testing.Aspire
+absent src/Testing/IntoChat.OS.Testing.Neurons
+absent src/Testing/IntoChat.OS.Testing.Fakes
+absent src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Testing
+EXISTS compiled-apps
+absent src/IntoChat.OS.BuiltinApps
+=== Microsoft.Orleans csproj outside runtime, Orleans module, Tests (expect 0) ===
+count 13
+=== using Orleans | IGrainWithStringKey | GenerateSerializer outside obj, Tests, Orleans module (expect 0) ===
+count 127
+=== Module< or new ModuleId( (expect 0) ===
+count 16
+=== ShippedApps.Is | AppSource.Shipped | CompiledBuiltinCatalog | ShippedPrograms (expect 0) ===
+count 12
+=== TestBrain.Create | ReferenceBrain (expect 0) ===
+count 0
+=== architecture json (expect <= 2) ===
+count 1
+ContractManifest.json
+=== IntoChat.Cloud in kernel csproj ===
+41:    <ProjectReference Include="../../IntoChat.Cloud/Modules/Auth/src/IntoChat.Cloud.Auth/IntoChat.Cloud.Auth.csproj" />
+42:    <ProjectReference Include="../../IntoChat.Cloud/Modules/Circle/src/IntoChat.Cloud.Circle.Server/IntoChat.Cloud.Circle.Server.csproj" />
+=== dotnet build Intochat.OS.slnx -c Release ===
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+Time Elapsed 00:00:09.53
+=== curl -f http://localhost:5000/health ===
+curl: (7) Failed to connect to localhost:5000 after 2264 ms: Could not connect to server
+CURL_EXIT 7
+```
+
+
+Matching paths from those counts:
+
+Orleans csproj:
+- src\IntoChat.OS\IntoChat.OS.csproj
+- src\IntoChat.OS.Aspire\IntoChat.OS.Aspire.Server\IntoChat.OS.Aspire.Server.csproj
+- src\IntoChat.Cloud\Modules\Circle\src\IntoChat.Cloud.Circle.Server\IntoChat.Cloud.Circle.Server.csproj
+- src\IntoChat.OS.Aspire\IntoChat.OS.Aspire.Client\IntoChat.OS.Aspire.Client.csproj
+- src\IntoChat.OS.Kernel\IntoChat.OS.Kernel.Composition\IntoChat.OS.Kernel.Composition.csproj
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\IntoChat.OS.Framework.csproj
+- src\IntoChat.OS.Client\IntoChat.OS.Client.Orleans\IntoChat.OS.Client.Orleans.csproj
+- src\IntoChat.OS.Client\IntoChat.OS.Client\IntoChat.OS.Client.csproj
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\IntoChat.OS.Modules.Flutter.csproj
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\IntoChat.OS.Modules.AI.csproj
+- src\IntoChat.OS.Modules\Microsoft\Aspire\src\IntoChat.OS.Modules.Microsoft.Aspire\IntoChat.OS.Modules.Microsoft.Aspire.csproj
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\IntoChat.OS.Modules.Identity.csproj
+- src\IntoChat.OS.Modules\Microsoft\CSharp\src\IntoChat.OS.Modules.Microsoft.CSharp\IntoChat.OS.Modules.Microsoft.CSharp.csproj
+
+using Orleans, IGrainWithStringKey, or GenerateSerializer:
+- src\IntoChat.OS\Runtime\ILogic.cs
+- src\IntoChat.OS.Client\IntoChat.OS.Client\Runtime\V1\RuntimeProtocol.cs
+- src\IntoChat.OS.Aspire\IntoChat.OS.Aspire.Server\ServerHostingExtensions.cs
+- src\IntoChat.OS\Runtime\Trace.cs
+- src\IntoChat.OS\Runtime\State.cs
+- src\IntoChat.OS\Runtime\StaleActionException.cs
+- src\IntoChat.OS\Runtime\ServiceUnavailableException.cs
+- src\IntoChat.OS.Kernel\IntoChat.OS.Kernel.Composition\Kernel\BrainHosting.cs
+- src\IntoChat.OS\Runtime\Owner.cs
+- src\IntoChat.OS.Kernel\IntoChat.OS.Kernel.Composition\Kernel\KernelInvocationSink.cs
+- src\IntoChat.OS.Kernel\IntoChat.OS.Kernel.Composition\Kernel\PlainInstanceRegistration.cs
+- src\IntoChat.OS.Kernel\IntoChat.OS.Kernel.Composition\Kernel\KernelGrains.cs
+- src\IntoChat.OS.Kernel\IntoChat.OS.Kernel.Composition\Kernel\RuntimeCallerMirror.cs
+- src\IntoChat.OS.Kernel\IntoChat.OS.Kernel.Composition\Kernel\Testing\KernelTestHooks.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Runtime\Placement\BrainAffinePlacement.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Runtime\NeutralCallMapping.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Runtime\Kernel\KernelGrains.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Runtime\Kernel\Feature.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Runtime\Hosting\LegacyTypeNames.cs
+- src\IntoChat.OS.Modules\ArtCraft\ArtCraft\src\IntoChat.OS.Modules.ArtCraft\Contracts\IArtCraftStudio.cs
+- src\IntoChat.OS.Modules\Salesforce\src\IntoChat.OS.Modules.Salesforce\Salesforce\SalesforceState.cs
+- src\IntoChat.Cloud\Modules\Circle\src\IntoChat.Cloud.Circle.Server\MachineCredentialNeuron.cs
+- src\IntoChat.OS.Modules\ClickHouse\src\IntoChat.OS.Modules.ClickHouse\Query\ClickHouseNeuron.cs
+- src\IntoChat.OS.Modules\Salesforce\src\IntoChat.OS.Modules.Salesforce\Salesforce\SalesforceExceptions.cs
+- src\IntoChat.Cloud\Modules\Circle\src\IntoChat.Cloud.Circle.Server\MachineAuthenticationHandler.cs
+- src\IntoChat.Cloud\Modules\Circle\src\IntoChat.Cloud.Circle.Server\EnrollmentEndpoints.cs
+- src\IntoChat.OS.Modules\Google\Drive\src\IntoChat.OS.Modules.Google.Drive\DriveNeuron.cs
+- src\IntoChat.OS.Modules\Google\Drive\src\IntoChat.OS.Modules.Google.Drive\DriveModule.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Routing\RouterState.cs
+- src\IntoChat.OS.Modules\Postgres\src\IntoChat.OS.Modules.Postgres\Tables\TablePlacement.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Routing\AppMenuHost.cs
+- src\IntoChat.OS.Modules\Postgres\src\IntoChat.OS.Modules.Postgres\Tables\TableNeuron.cs
+- src\IntoChat.OS.Modules\Postgres\src\IntoChat.OS.Modules.Postgres\Tables\TableIndexNeuron.cs
+- src\IntoChat.OS.Modules\Postgres\src\IntoChat.OS.Modules.Postgres\Tables\TableDescriptor.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Gmail\GmailState.cs
+- src\IntoChat.OS.Modules\Postgres\src\IntoChat.OS.Modules.Postgres\PostgresServerNeuron.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Gmail\GmailLifecycleState.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Gmail\GmailExceptions.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Gmail\GmailCredentialException.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Metering\IntentUsageNeuron.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Modules\Identity\CallerContext.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Modules\Identity\Brains.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Modules\Identity\Accounts.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Contracts\Gmail\IGmail.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Contracts\Gmail\GmailValues.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Contracts\Gmail\GmailResults.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Contracts\Gmail\GmailRequests.cs
+- src\IntoChat.OS.Modules\Google\Gmail\src\IntoChat.OS.Modules.Google.Gmail\Contracts\Gmail\GmailDraftPreview.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Embeddings\VectorIndexNeuron.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Workspace\WorkspaceNeuron.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Workspace\ProblemReportsState.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Compute\TraceOutgoingFilter.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Workspace\ProblemReport.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Workspace\LiveSignalEndpoints.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Callers\ICallFilter.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Callers\CallRequest.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Views\ViewNeuron.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Callers\CallerContextStamper.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\FlutterModule.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Viewport\ViewportNeuron.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Agents\Intents\IntentsNeuron.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Clients\AIClients.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Agents\Facts\FactsNeuron.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\AIModule.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Agents\Context\AgentContextNeuron.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Chat\ComposerNeuron.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Chat\ChatIndexNeuron.cs
+- src\IntoChat.OS.Modules\Microsoft\Windows\src\IntoChat.OS.Modules.Microsoft.Windows\Contracts\IWindows.cs
+- src\IntoChat.OS.Modules\Microsoft\Windows\src\IntoChat.OS.Modules.Microsoft.Windows\WindowsNeuron.cs
+- src\IntoChat.OS.Modules\Microsoft\Windows\src\IntoChat.OS.Modules.Microsoft.Windows\Contracts\IConsole.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Ports\VaultPort.cs
+- src\IntoChat.OS.Modules\Microsoft\Roslyn\src\IntoChat.OS.Modules.Microsoft.Roslyn\Workspace\WorkspaceState.cs
+- src\IntoChat.OS.Modules\Microsoft\Roslyn\src\IntoChat.OS.Modules.Microsoft.Roslyn\Workspace\WorkspaceNotReadyException.cs
+- src\IntoChat.OS.Modules\Microsoft\Roslyn\src\IntoChat.OS.Modules.Microsoft.Roslyn\Workspace\RoslynNeuron.cs
+- src\IntoChat.OS.Modules\Microsoft\Azure\src\IntoChat.OS.Modules.Microsoft.Azure\AzureNeuron.cs
+- src\IntoChat.OS.Modules\Microsoft\Aspire\src\IntoChat.OS.Modules.Microsoft.Aspire\Deployment\DeploymentState.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\OperationReceipt.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Integrations\IntegrationState.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Integrations\IntegrationSeeder.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Types\TypeValidationException.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Platform\Secrets\ISecrets.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Types\StringEntry.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Types\SemanticType.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Marketplace\MarketplaceWriteGuard.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Platform\Integrations\IIntegration.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Types\SecretRef.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Secrets\VaultSecretValueSource.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Secrets\SecretState.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\AuthorityNeurons.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Hosting\SiloDiagnostics.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Files\FilesHost.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Platform\Identity\Grant.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Entries\BrainProviderKeys.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Authoring\CreatorModelWorker.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Platform\Entries\IBrainEntries.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Entries\BrainEntriesNeuron.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\AppsModule.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Hosting\IdentityBrainMembership.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\PrincipalCredentialGrain.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Features\FeatureBoot.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Contracts\NeuronType.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Platform\Connections\ConnectionState.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\External\ExternalTicketReplayGrain.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Brain\BrainSceneHost.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Platform\Connections\IConnectionCatalogUpdates.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Connections\Platform\Connections\IConnection.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\Authority\AccountGrain.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Apps\IAppMigration.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\Authority\BrainAuthorityGrain.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\Directory\IdentityStartup.cs
+- src\IntoChat.OS.Modules\Microsoft\GitHub\src\IntoChat.OS.Modules.Microsoft.GitHub\GitHubExceptions.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\Authority\IdentityActors.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Apps\FastPath\ReactionWriter.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\Authority\PrincipalGrain.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Apps\AppState.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\Authority\Invitation.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\Authority\IdentityStateGrain.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Apps\FastPath\IAppDeploy.cs
+- src\IntoChat.OS.Modules\Microsoft\GitHub\src\IntoChat.OS.Modules.Microsoft.GitHub\Repository\GitHubRepository.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Apps\Creator.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\Directory\DeploymentStorageIdentity.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Identity\src\IntoChat.OS.Modules.Identity\Authority\Identity\CallerContextScope.cs
+- src\IntoChat.OS.Modules\Microsoft\GitHub\src\IntoChat.OS.Modules.Microsoft.GitHub\Repository\GitHubRepositoryState.cs
+- src\IntoChat.OS.Modules\Microsoft\CSharp\src\IntoChat.OS.Modules.Microsoft.CSharp\CSharpModule.cs
+- src\IntoChat.OS.Modules\Microsoft\CSharp\src\IntoChat.OS.Modules.Microsoft.CSharp\Runtime\BrainRuntimeState.cs
+- src\IntoChat.OS.Modules\Microsoft\CSharp\src\IntoChat.OS.Modules.Microsoft.CSharp\Edge\RuntimeEdge.cs
+- src\IntoChat.OS.Modules\Microsoft\CSharp\src\IntoChat.OS.Modules.Microsoft.CSharp\Runtime\Subscription.cs
+
+Module< or new ModuleId(:
+- src\IntoChat.OS.AppHost\RunProfile.cs
+- src\IntoChat.OS.Modules\Time\src\IntoChat.OS.Modules.Time\TimeModule.cs
+- src\IntoChat.OS.Aspire\IntoChat.OS.Aspire.Server\IntoChatOSServerBuilder.cs
+- src\IntoChat.OS.Aspire\IntoChat.OS.Aspire.Hosting.Tests.Unit\ModuleOptionValidationFacts.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\Configuration\AIKeys.cs
+- src\IntoChat.OS.Modules\AI\src\IntoChat.OS.Modules.AI\AIModule.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Modules\OsModule.cs
+- src\IntoChat.OS.Aspire\IntoChat.OS.Aspire.Hosting\Composition\ModuleHosting.cs
+- src\IntoChat.OS.Aspire\IntoChat.OS.Aspire.Hosting\Composition\IntoChatOSBuilder.cs
+- src\IntoChat.OS\Hosting\IntoChat.OS.Framework\Modules\Configuration\IntoChatOSConfiguration.cs
+- src\IntoChat.OS.Modules\Microsoft\GitHub\src\IntoChat.OS.Modules.Microsoft.GitHub\Configuration\GitHubModuleOptions.cs
+- src\IntoChat.OS.Modules\Microsoft\CSharp\src\IntoChat.OS.Modules.Microsoft.CSharp\CSharpModule.cs
+- src\IntoChat.OS.Modules\Microsoft\CSharp\src\IntoChat.OS.Modules.Microsoft.CSharp\Configuration\CSharpOptions.cs
+- src\IntoChat.OS.Modules\Postgres\src\IntoChat.OS.Modules.Postgres\PostgresModule.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\AppsModule.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\FlutterModule.cs
+
+ShippedApps.Is, AppSource.Shipped, CompiledBuiltinCatalog, or ShippedPrograms:
+- src\IntoChat.OS.Kernel\IntoChat.OS.Kernel\OsWorkspaceRoot.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Workspace\WorkspaceNeuron.cs
+- src\IntoChat.OS.Modules\Google\Flutter\src\IntoChat.OS.Modules.Flutter\Settings\SettingsCaller.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\tests\IntoChat.OS.Modules.Apps.Tests.Unit\AppStateJsonFacts.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Circles\src\IntoChat.OS.Modules.Circles\CircleBirth.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\tests\IntoChat.OS.Modules.Apps.Tests.Integration\FeatureCatalogFacts.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Apps\AppNeuron.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Features\FeatureReconciler.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Features\FeatureCatalog.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Marketplace\AppInstaller.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\src\IntoChat.OS.Modules.Apps\Marketplace\AppStoreNeuron.cs
+- src\IntoChat.OS.Modules\IntoChat.OS\Apps\Contracts\IntoChat.OS.Modules.Apps.Contracts\Apps\ShippedApps.cs
+
+Lines the plan expected to be 0, and why they are not:
+
+- `src/IntoChat.OS/Runtime` still exists. Step 1 removed the old neuron/signal files. What remains is the brain contract surface (`IBrain.cs`, `ILogic.cs`, `NeuronProxies.cs`, `BrainSignals/`, `Watch/`, and the other files listed by `Get-ChildItem`).
+- `compiled-apps` still exists and contains `os`. Step 3's deletion did not remove that tree. It was not deleted in this step.
+- Orleans csproj count is 13. Package references: `IntoChat.OS`, `IntoChat.OS.Framework`, `IntoChat.OS.Client`, `IntoChat.OS.Client.Orleans`, `IntoChat.OS.Aspire.Server`, `IntoChat.OS.Aspire.Client` (the silo-host set), plus the shrinking allow-list `IntoChat.OS.Modules.AI`, `IntoChat.OS.Modules.Flutter`, `IntoChat.OS.Modules.Microsoft.CSharp`, `IntoChat.Cloud.Circle.Server`, plus `IntoChat.OS.Modules.Identity` (unported grains, not on the allow-list). `IntoChat.OS.Kernel.Composition` matches on a project reference, not a package. `IntoChat.OS.Modules.Microsoft.Aspire` matches because it project-references `IntoChat.OS.Modules.Microsoft.Orleans.Contracts`; it has no Orleans package. The allow-list still shrinks to zero in 0.8.0.
+- The source pattern count is 127 files, none under a `tests` directory: 40 contain `using Orleans`, 11 contain `IGrainWithStringKey`, 86 contain `GenerateSerializer` (a file can match more than one). `[GenerateSerializer]` was kept on wire records. Identity, Apps, the host, and the client still compile grains. That is the 0.8.0 remainder, not a hidden zero.
+- `Module<` / `new ModuleId(` is 16 files. The hits are `new ModuleId(...)` in module option sections and `AddModule<` / `WithModule<` / `AddNeuronModule<` methods. There is no `class Module<TOptions>` declaration in those lines.
+- `ShippedApps.Is` / `AppSource.Shipped` is 12 files. They stayed on purpose for the folder scripts. No fact was added about them. `CompiledBuiltinCatalog` and `ShippedPrograms` are in the same pattern and were not separated by the plan's command.
+
+`%LOCALAPPDATA%\DigitalBrain` exists. `%LOCALAPPDATA%\IntoChatOS` does not. The directory was not renamed, moved, or deleted.
+
+Kernel attempts, in order:
+
+1. `ASPNETCORE_ENVIRONMENT=Production`, `--IntoChatOS:Topology=local`, `--urls http://localhost:5000`. The temp Home assignment used `$home`, which PowerShell treats as read-only, so the process was given `IntoChatOS:Home=C:\Users\vhorb` and exited in the guard before it created state. `LegacyConfigurationGuard` threw: `Configuration written for the previous product name is not read (no compatibility layer; see release notes 0.3.0): %LOCALAPPDATA%\DigitalBrain -> %LOCALAPPDATA%\IntoChatOS. Rename each setting, then start again.` Setting Home does not suppress that check. After this attempt, `%USERPROFILE%\state`, `secrets`, `apps`, and `logs` were absent. `%USERPROFILE%\.intochat` was already there (2026-10-25) and was not used.
+
+2. `ASPNETCORE_ENVIRONMENT=Development` (the launch profile's environment; the guard warns instead of throwing), `IntoChatOS:Home=C:\Users\vhorb\AppData\Local\Temp\intochat-cutover-0caaac692794456293b0bd3760a44fd1`, `Topology=local`. The guard let the host through. Startup then threw `OptionsValidationException: Configure IntoChatOS:Auth:Posture (Open or Secured) before starting the host.` The AppHost sets `Open` for a local run. The kernel project has no default.
+
+3. The same Home and topology, plus `--IntoChatOS:Auth:Posture=Open`. The silo refused to start: `OrleansConfigurationException` — `IntoChat.OS.Modules.AI.Inference.InferenceResult` and `InferenceRequest` have no serializer or copier, referenced by `IntoChat.OS.Modules.Apps.ICreatorModel.Generate`. Nothing listened on port 5000. `/health` was not served. The shell checks (Workspace, Desktop, Settings, Files, Calculator, reconnect, Settings modules and connections) and the Brain app check (neurons, synapses, a Calculator particle) were not run, because the process never accepted a connection.
+
+### Step 8 status
+
+Deleted nothing. Ported nothing. The end-state build is 0 errors, 0 warnings. The kernel does not boot: the legacy data directory blocks Production, and in Development the Apps grain `ICreatorModel` still demands Orleans serializers that the cut-over removed. `/health` is curl exit 7. Shell and Brain checks were not observed. Left for 0.8.0: the five-assembly Orleans allow-list, Identity and Apps grains, the silo-host packages, `src/IntoChat.OS/Runtime`, `compiled-apps/os`, and `ShippedApps` / `AppSource.Shipped`.
