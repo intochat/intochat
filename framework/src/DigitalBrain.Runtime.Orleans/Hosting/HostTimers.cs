@@ -21,7 +21,7 @@ internal interface IHostTicks
 
 /// <summary>
 /// <see cref="ITimers"/> and <see cref="IReminders"/> of a hosted neuron. Timer and reminder ticks both reach
-/// <see cref="IRemindedNeuron.OnReminder"/> as host grain turns, as on TestOS (04-08).
+/// <see cref="DigitalBrain.Neuron.OnReminder"/> as host grain turns, as on TestOS (04-08).
 /// </summary>
 internal sealed class HostTimers(IHostTicks ticks, NeuronRegistration registration) : ITimers, IReminders
 {

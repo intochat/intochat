@@ -1,6 +1,5 @@
 using DigitalBrain.Confirmation;
 using DigitalBrain.Contracts;
-using DigitalBrain.Spi;
 using IntoChat.OS.Confirmation;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -27,7 +26,7 @@ internal sealed record ConfirmationState
 
 [DigitalBrain.Neuron("runtime.confirmations")]
 internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
-    : DigitalBrain.Neuron<ConfirmationState>, IConfirmationEntity, IConfirmationInbox, IRemindedNeuron
+    : DigitalBrain.Neuron<ConfirmationState>, IConfirmationEntity, IConfirmationInbox
 {
     private const string ExpiryTimer = "confirmation-expiry";
 
@@ -100,7 +99,7 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
         return End(planId, ConfirmationOutcome.Denied, ConfirmationDenyReason.PlanInvalid, null);
     }
 
-    public Task OnReminder(string name, CancellationToken cancellationToken) => name == ExpiryTimer ? Expire() : Task.CompletedTask;
+    protected override Task OnReminder(string name, CancellationToken cancellationToken) => name == ExpiryTimer ? Expire() : Task.CompletedTask;
 
     private CallerContext? RequireOwnCaller(bool required)
     {

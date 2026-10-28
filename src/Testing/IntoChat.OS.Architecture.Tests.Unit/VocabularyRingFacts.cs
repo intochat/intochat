@@ -94,10 +94,8 @@ public sealed class VocabularyRingFacts
                 "IntoChat.OS.Runtime.PlainWatch"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
-            ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.Spi.ICallerContextCarrier", "DigitalBrain.Spi.IDeactivatingNeuron", "DigitalBrain.Spi.INeuronTimers",
-                "DigitalBrain.Spi.IRemindedNeuron", "DigitalBrain.Spi.IRuntimeEndpoint", "DigitalBrain.State.IStateCodec", "DigitalBrain.State.StoredRecord", "DigitalBrain.State.WriteResult"],
-            new[] { typeof(DigitalBrain.BrainId), typeof(DigitalBrain.DeactivationCause), typeof(DigitalBrain.Spi.ICallerContextCarrier), typeof(DigitalBrain.Spi.IDeactivatingNeuron),
-                typeof(DigitalBrain.Spi.INeuronTimers), typeof(DigitalBrain.Spi.IRemindedNeuron), typeof(DigitalBrain.Spi.IRuntimeEndpoint), typeof(DigitalBrain.State.IStateCodec),
+            ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.State.IStateCodec", "DigitalBrain.State.StoredRecord", "DigitalBrain.State.WriteResult"],
+            new[] { typeof(DigitalBrain.BrainId), typeof(DigitalBrain.DeactivationCause), typeof(DigitalBrain.State.IStateCodec),
                 typeof(DigitalBrain.State.StoredRecord), typeof(DigitalBrain.State.WriteResult) }.Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.DoesNotContain(PublicTypes(), t => t.Name is "BrainId" or "DeactivationCause");
     }

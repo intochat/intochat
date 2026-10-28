@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
 [Neuron(UIVocabulary.WebBrowserType), DigitalBrain.Reentrant]
 internal sealed class WebBrowserNeuron
-    : UiNeuron<WebBrowserState>, IWebBrowser, IWebBrowserConnector, DigitalBrain.Spi.IRemindedNeuron
+    : UiNeuron<WebBrowserState>, IWebBrowser, IWebBrowserConnector
 {
     private const int ReasonClip = 200;
     // Keeps the activation (and with it the attached session) alive while a page is attached (R4-18, ITimers keep-alive).
@@ -150,9 +150,6 @@ internal sealed class WebBrowserNeuron
         await Publish(signal);
         await Dispatch(UiEvent.Of(signal));
     }
-
-    // The keep-alive tick has nothing to do: holding the activation is its whole purpose.
-    public Task OnReminder(string name, CancellationToken cancellationToken) => Task.CompletedTask;
 
     protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
     {

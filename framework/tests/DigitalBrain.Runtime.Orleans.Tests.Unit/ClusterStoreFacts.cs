@@ -33,7 +33,7 @@ public sealed class ClusterStoreFacts : IDisposable
     [Fact]
     public void A_module_needing_cluster_is_reported_once_when_the_hook_is_missing()
     {
-        var issues = TopologyValidator.ValidateNeeds(Topology.Local, HostBound, [Manifests.Needing("m", Need.GrainStore("cluster"))], clusterStoreRegistered: false);
+        var issues = TopologyValidator.ValidateNeeds(Topology.Local, HostBound, [Manifests.Needing("m", Need.State("cluster"))], clusterStoreRegistered: false);
 
         var issue = Assert.Single(issues);
         Assert.Contains(nameof(ClusterStoreHosting.UseClusterStore), issue.Message, StringComparison.Ordinal);
@@ -47,7 +47,7 @@ public sealed class ClusterStoreFacts : IDisposable
         builder.UseClusterStore(registration);
         var local = new FakeTopology(Topology.Local, HostBound);
 
-        builder.UseTopology([Manifests.Needing("m", Need.GrainStore("cluster"))], [], local);
+        builder.UseTopology([Manifests.Needing("m", Need.State("cluster"))], [], local);
         Assert.True(local.ServicesConfigured);
 
         var silo = new FakeSilo(builder.Services, builder.Configuration);
@@ -71,14 +71,14 @@ public sealed class ClusterStoreFacts : IDisposable
     [Fact]
     public void Without_host_bound_binding_a_cluster_need_is_plainly_unbound()
     {
-        var issues = TopologyValidator.ValidateNeeds(Topology.Local, FakeTopology.AllBound, [Manifests.Needing("m", Need.GrainStore("cluster"))], clusterStoreRegistered: true);
+        var issues = TopologyValidator.ValidateNeeds(Topology.Local, FakeTopology.AllBound, [Manifests.Needing("m", Need.State("cluster"))], clusterStoreRegistered: true);
 
         Assert.Contains("module m", Assert.Single(issues).Key, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Other_named_stores_still_follow_grain_store_bindings()
-        => Assert.Empty(TopologyValidator.ValidateNeeds(Topology.Local, HostBound, [Manifests.Needing("m", Need.GrainStore("platform"), Need.GrainStore("pubsubstore"))], clusterStoreRegistered: true));
+        => Assert.Empty(TopologyValidator.ValidateNeeds(Topology.Local, HostBound, [Manifests.Needing("m", Need.State("platform"), Need.State("pubsubstore"))], clusterStoreRegistered: true));
 
     public void Dispose()
     {

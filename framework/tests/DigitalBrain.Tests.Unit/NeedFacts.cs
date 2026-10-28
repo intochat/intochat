@@ -5,8 +5,8 @@ public sealed class NeedFacts
     [Fact]
     public void GrainStore_keeps_its_name()
     {
-        var need = Need.GrainStore("drive");
-        Assert.Equal(NeedKind.GrainStore, need.Kind);
+        var need = Need.State("drive");
+        Assert.Equal(NeedKind.State, need.Kind);
         Assert.Equal("drive", need.Name);
     }
 
@@ -18,14 +18,14 @@ public sealed class NeedFacts
     [InlineData("a/b")]
     public void GrainStore_rejects_unsafe_names(string name)
     {
-        Assert.ThrowsAny<ArgumentException>(() => Need.GrainStore(name));
+        Assert.ThrowsAny<ArgumentException>(() => Need.State(name));
     }
 
     [Fact]
     public void GrainStore_rejects_names_over_63_characters()
     {
-        Need.GrainStore("a" + new string('b', 62));
-        Assert.ThrowsAny<ArgumentException>(() => Need.GrainStore("a" + new string('b', 63)));
+        Need.State("a" + new string('b', 62));
+        Assert.ThrowsAny<ArgumentException>(() => Need.State("a" + new string('b', 63)));
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class NeedFacts
     public void NeedKind_has_exactly_seven_members()
     {
         Assert.Equal(
-            ["GrainStore", "Streams", "Reminders", "Secrets", "Http", "Sandbox", "Model"],
+            ["State", "Streams", "Reminders", "Secrets", "Http", "Sandbox", "Model"],
             Enum.GetNames<NeedKind>());
     }
 }

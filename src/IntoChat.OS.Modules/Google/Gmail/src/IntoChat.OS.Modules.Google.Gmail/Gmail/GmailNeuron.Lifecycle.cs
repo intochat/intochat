@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
-internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
+internal sealed partial class GmailNeuron
 {
     internal const string LifecycleReminder = "gmail-lifecycle";
     private static readonly TimeSpan LifecyclePeriod = TimeSpan.FromMinutes(1);
@@ -96,7 +96,7 @@ internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
     }
 
     // The lifecycle reminder is the runtime host's durable reminder (06-08: a plain neuron's Context.Reminders).
-    public async Task OnReminder(string reminderName, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string reminderName, CancellationToken cancellationToken)
     {
         if (reminderName != LifecycleReminder) { return; }
         if (!IsGrantReady) { await RemoveReminderAsync(); return; }

@@ -47,7 +47,7 @@ internal sealed class BrainRuntimeNeuron(
     IOptions<CSharpOptions> deployment,
     ILogger<BrainRuntimeNeuron> logger,
     RuntimeDirectory directory)
-    : DigitalBrain.Neuron<BrainRuntimeState>, IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainProgramChanges, IBrainRuntimeArrivals, IBrainRuntimeContinuations, IBrainRuntimeSession, DigitalBrain.Spi.IRemindedNeuron
+    : DigitalBrain.Neuron<BrainRuntimeState>, IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainProgramChanges, IBrainRuntimeArrivals, IBrainRuntimeContinuations, IBrainRuntimeSession
 {
     private BrainRuntimeState Snapshot => State;
     private IServiceProvider ServiceProvider => Context.Services;
@@ -881,7 +881,7 @@ internal sealed class BrainRuntimeNeuron(
     }
 
     // The reconcile reminder, and the subscription renewal timer (both reach here as ticks of the runtime host, 06-08).
-    public async Task OnReminder(string reminderName, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string reminderName, CancellationToken cancellationToken)
     {
         if (reminderName == RenewalTimer) { await RenewWatches(); return; }
         if (reminderName != ReconcileReminder) { return; }

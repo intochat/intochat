@@ -15,7 +15,7 @@ internal sealed class DeploymentNeuron(
     global::IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
     IOptions<AspireOptions> options,
     ILogger<DeploymentNeuron> log)
-    : DigitalBrain.Neuron, IDeployment, IDeploymentDriver, DigitalBrain.Spi.IRemindedNeuron
+    : DigitalBrain.Neuron, IDeployment, IDeploymentDriver
 {
     // The state, loaded on activation; a step that moves nothing visible saves it without a signal.
     private DeploymentState Snapshot = new();
@@ -93,7 +93,7 @@ internal sealed class DeploymentNeuron(
         return Describe();
     }
 
-    public async Task OnReminder(string reminderName, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string reminderName, CancellationToken cancellationToken)
     {
         if (reminderName != RollReminder) { return; }
         if (Moving(Snapshot.Stage)) { Drive(); }

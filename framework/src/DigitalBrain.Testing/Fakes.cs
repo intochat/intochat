@@ -129,8 +129,8 @@ public sealed class ManualReminders : IReminders
 {
     private readonly Dictionary<string, (TimeSpan Due, TimeSpan Period)> _reminders = new(StringComparer.Ordinal);
 
-    /// <summary>The neuron that receives <see cref="IRemindedNeuron.OnReminder"/>.</summary>
-    public object? Target { get; set; }
+    /// <summary>The neuron that receives <see cref="DigitalBrain.Neuron.OnReminder"/>.</summary>
+    public Neuron? Target { get; set; }
 
     /// <inheritdoc />
     public Task Start(string name, TimeSpan due, TimeSpan period)
@@ -151,11 +151,11 @@ public sealed class ManualReminders : IReminders
     public Task<IReadOnlyList<string>> Names() => Task.FromResult<IReadOnlyList<string>>([.. _reminders.Keys.Order(StringComparer.Ordinal)]);
 
     /// <summary>Delivers the named reminder to the attached neuron.</summary>
-    /// <exception cref="InvalidOperationException">The target does not implement <see cref="IRemindedNeuron"/>.</exception>
+    /// <exception cref="InvalidOperationException">No neuron is attached.</exception>
     public Task Fire(string name, CancellationToken cancellationToken = default)
-        => Target is IRemindedNeuron reminded
-            ? reminded.OnReminder(name, cancellationToken)
-            : throw new InvalidOperationException($"{Target?.GetType().FullName ?? "No neuron"} does not implement {nameof(IRemindedNeuron)}.");
+        => Target is { } neuron
+            ? NeuronAttachment.Remind(neuron, name, cancellationToken)
+            : throw new InvalidOperationException("No neuron is attached.");
 }
 
 /// <summary>The synapses one subscriber holds, in memory. Ensure is idempotent and refuses a self-synapse.</summary>

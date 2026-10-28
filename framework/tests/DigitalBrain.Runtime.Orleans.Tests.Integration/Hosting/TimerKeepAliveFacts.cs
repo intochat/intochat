@@ -43,7 +43,7 @@ public interface IKeepAliveProbe
 }
 
 [Neuron("probe.keepalive")]
-public sealed class KeepAliveProbe : Neuron, IKeepAliveProbe, IRemindedNeuron
+public sealed class KeepAliveProbe : Neuron, IKeepAliveProbe
 {
     public Task Arm(string name, int dueMs)
     {
@@ -51,7 +51,7 @@ public sealed class KeepAliveProbe : Neuron, IKeepAliveProbe, IRemindedNeuron
         return Task.CompletedTask;
     }
 
-    public Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override Task OnReminder(string name, CancellationToken cancellationToken)
     {
         KeepAliveLog.Fired.AddOrUpdate($"{Id}:{name}", 1, static (_, count) => count + 1);
         return Task.CompletedTask;

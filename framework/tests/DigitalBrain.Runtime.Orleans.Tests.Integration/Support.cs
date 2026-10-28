@@ -35,7 +35,7 @@ public sealed class ProbeGrain([PersistentState("probe", IntoChatOSNames.Platfor
 [Module("drive-test")]
 public sealed class DriveModule : Module
 {
-    public static ModuleManifest Manifest { get; } = new([], [], [Need.GrainStore("drive")], [], []);
+    public static ModuleManifest Manifest { get; } = new([], [], [Need.State("drive")], [], []);
 }
 
 [Module("circle-test")]

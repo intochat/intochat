@@ -23,12 +23,12 @@ public sealed class NeedsBindingFacts
     [Fact]
     public void Named_grain_store_is_bound_by_grain_stores()
     {
-        var need = Need.GrainStore("drive");
+        var need = Need.State("drive");
         Assert.True(FakeTopology.AllBound.Binds(need.Kind));
         Assert.False((FakeTopology.AllBound with { GrainStores = GrainStoreBinding.None }).Binds(need.Kind));
 
         var issue = Assert.Single(TopologyValidator.ValidateNeeds(Topology.Cloud, Bindings.Unbound, [Manifests.Needing("m", need)]));
-        Assert.Contains("GrainStore(drive)", issue.Message, StringComparison.Ordinal);
+        Assert.Contains("State(drive)", issue.Message, StringComparison.Ordinal);
     }
 
     public static readonly TheoryData<NeedKind> Kinds = new(Enum.GetValues<NeedKind>());

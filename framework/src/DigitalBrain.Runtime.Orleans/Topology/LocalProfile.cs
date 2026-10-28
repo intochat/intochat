@@ -77,7 +77,7 @@ public sealed class LocalProfile : ITopologyProfile
         ArgumentNullException.ThrowIfNull(modules);
         foreach (var module in modules)
         {
-            foreach (var need in module.Needs.Where(n => n.Kind == NeedKind.GrainStore && n.Name is not null && Reserved.Contains(n.Name)))
+            foreach (var need in module.Needs.Where(n => n.Kind == NeedKind.State && n.Name is not null && Reserved.Contains(n.Name)))
             {
                 yield return new TopologyIssue($"module {module.Id ?? "(unnamed)"}",
                     $"grain store {need.Name} is reserved by the runtime; choose another name.");
@@ -103,7 +103,7 @@ public sealed class LocalProfile : ITopologyProfile
 
         var stores = new List<string> { IntoChatOSNames.PlatformGrainStorage, IntoChatOSNames.PubSubStore };
         stores.AddRange(context.Modules.SelectMany(m => m.Needs)
-            .Where(n => n.Kind == NeedKind.GrainStore && n.Name is not null && n.Name != IntoChatOSNames.ClusterGrainStorage && !Reserved.Contains(n.Name))
+            .Where(n => n.Kind == NeedKind.State && n.Name is not null && n.Name != IntoChatOSNames.ClusterGrainStorage && !Reserved.Contains(n.Name))
             .Select(n => n.Name!));
         foreach (var name in stores.Distinct(StringComparer.Ordinal))
         {

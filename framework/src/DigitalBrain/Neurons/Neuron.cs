@@ -83,4 +83,9 @@ public abstract class Neuron
 
     /// <summary>Runs when the activation ends.</summary>
     protected virtual Task OnDeactivate(DeactivationCause cause, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>Runs when the named timer or reminder fires. Ticks are turns.</summary>
+    protected virtual Task OnReminder(string name, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    internal Task Remind(string name, CancellationToken cancellationToken) => OnReminder(name, cancellationToken);
 }

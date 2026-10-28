@@ -19,7 +19,7 @@ namespace DigitalBrain.Runtime.Orleans.Signalling;
 [Neuron(SessionSynapses.NeuronType)]
 internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> options, RuntimeClock clock, JournalPayloads payloads,
     IOptions<global::Orleans.Configuration.SiloMessagingOptions> messaging)
-    : Neuron, ISessionSynapses, ISignalSink, IRemindedNeuron
+    : Neuron, ISessionSynapses, ISignalSink
 {
     internal const string SweepTimer = "session.ttl";
 
@@ -153,7 +153,7 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
         return Task.CompletedTask;
     }
 
-    public async Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         if (name != SweepTimer || clock.Now - _lastAck < _options.SessionTtl) { return; }
         await End().ConfigureAwait(true);

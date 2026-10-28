@@ -309,7 +309,7 @@ DigitalBrain.Testing.ManualReminders.ManualReminders() -> void
 DigitalBrain.Testing.ManualReminders.Names() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 DigitalBrain.Testing.ManualReminders.Start(string! name, System.TimeSpan due, System.TimeSpan period) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.ManualReminders.Stop(string! name) -> System.Threading.Tasks.Task!
-DigitalBrain.Testing.ManualReminders.Target.get -> object?
+DigitalBrain.Testing.ManualReminders.Target.get -> DigitalBrain.Neuron?
 DigitalBrain.Testing.ManualReminders.Target.set -> void
 DigitalBrain.Testing.ManualTime
 DigitalBrain.Testing.ManualTime.Advance(System.TimeSpan by) -> void

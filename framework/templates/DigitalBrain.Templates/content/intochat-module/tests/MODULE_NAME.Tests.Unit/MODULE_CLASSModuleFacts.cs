@@ -11,7 +11,7 @@ public sealed class MODULE_CLASSModuleFacts
         var manifest = ModuleManifest.Of(typeof(MODULE_CLASSModule));
 
         Assert.Equal("MODULE_ID", manifest.Id);
-        Assert.Equal([Need.GrainStore("state")], manifest.Needs);
+        Assert.Equal([Need.State("state")], manifest.Needs);
         Assert.Equal(typeof(MODULE_CLASSOptions), Assert.Single(manifest.Settings).OptionsType);
     }
 
