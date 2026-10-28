@@ -1,8 +1,0 @@
-{
-  "declared:ChatRole": "0005",
-  "object:ChatRole": "10012F1F56F51975692E636861742D726F6C6505",
-  "declared:ChatRunStatus": "0011",
-  "object:ChatRunStatus": "1001C94577532575692E636861742D72756E2D73746174757311",
-  "declared:BrowserConnection": "000D",
-  "object:BrowserConnection": "1001659710052B75692E62726F777365722D636F6E6E656374696F6E0D"
-}

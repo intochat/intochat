@@ -2,5 +2,4 @@
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.Cloud.Mail.Templates/IntoChat.Cloud.Mail.Templates.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
 </Project>

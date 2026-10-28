@@ -2,7 +2,5 @@
   <ItemGroup>
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
-    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
 </Project>

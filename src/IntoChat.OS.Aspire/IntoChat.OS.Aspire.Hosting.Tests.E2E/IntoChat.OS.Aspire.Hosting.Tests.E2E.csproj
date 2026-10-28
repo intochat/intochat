@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
     <ProjectReference Include="../IntoChat.OS.Aspire.Client/IntoChat.OS.Aspire.Client.csproj" />
     <!-- Pack roots of PackedCompositionFacts: referenced so the CI build covers them before the no-build pack. -->

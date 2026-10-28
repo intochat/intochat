@@ -1,4 +1,4 @@
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Time.Tests;
 

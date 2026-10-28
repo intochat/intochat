@@ -4,5 +4,4 @@
     <ProjectReference Include="../IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" />
   </ItemGroup>
   <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /></ItemGroup>
-  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
 </Project>

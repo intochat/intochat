@@ -102,3 +102,89 @@ Tests: `IntoChat.OS.Kernel.Tests.Unit` 464 passed. `IntoChat.OS.Client.Tests.Uni
 ### Step 2 status
 
 The old neuron, signal, synapse, and kernel vocabulary is gone. Callers use DigitalBrain neurons, `NeuronId`, `Signal`, `INeuronProxies`, `ISignalWatch`, and `IBrainObserver`. `src/IntoChat.OS` keeps `Runtime/`, the moved host, and the two contract projects. Module projects that still call Orleans still reference it. `OrleansHostWiring`'s cloud storage overlay and `IClusterMembershipFeed` stay; their callers are still live.
+
+## Step 5 — one harness
+
+### cutover(5): one harness on DigitalBrain.Testing
+
+`DigitalBrain.Testing` (`TestOS`, `NeuronHarness`, `SiloHost`, the storage/secrets/identity kits) is the harness. The silo adapter is the unpackable project `framework/src/DigitalBrain.Testing.Silo` (namespace `DigitalBrain.Testing`). It holds `BothRuntimesFixture`, `INeuronRuntime`, and `NeuronRuntimeKind`, and it references `DigitalBrain.Runtime.Orleans` so `DigitalBrain.Testing` itself stays free of Orleans. `ModuleOnTestOSFacts<TModule>` is public on `DigitalBrain.Testing`. `BrowserSession` from the Playwright harness now lives in `IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser`. The Aspire `BrainBrowser` opener was deleted with the Aspire host.
+
+Deleted: 666 files, 73314 lines (`git diff --numstat --diff-filter=D`).
+
+Harness trees and their integration projects: 101 files, 6259 lines.
+
+| Tree | Files | Lines |
+| --- | ---: | ---: |
+| `src/Testing/IntoChat.OS.Testing` | 35 | 2323 |
+| `src/Testing/IntoChat.OS.Testing.Aspire` | 15 | 1404 |
+| `src/Testing/IntoChat.OS.Testing.Tests.Integration` | 15 | 810 |
+| `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Testing` | 14 | 519 |
+| `src/Testing/IntoChat.OS.Testing.Aspire.Tests.Integration` | 6 | 402 |
+| `src/Testing/IntoChat.OS.Testing.Playwright` | 5 | 342 |
+| `src/Testing/IntoChat.OS.Testing.Neurons` | 5 | 275 |
+| `src/Testing/IntoChat.OS.Testing.Fakes` | 3 | 106 |
+| `src/Testing/IntoChat.OS.Aspire.Testing` | 3 | 78 |
+
+`Directory.Build.props` no longer imports `IntoChat.OS.Testing`, `IntoChat.OS.Testing.Aspire`, or `IntoChat.OS.Kernel.Testing`. Test projects that still exercise behaviour reference `DigitalBrain.Testing` or `DigitalBrain.Testing.Silo`.
+
+Ported onto the new harness:
+
+- `BothRuntimesFixture` moved into `DigitalBrain.Testing.Silo`. Time, AI, ArtCraft, Flutter, Flame, Roslyn, Mcp, and CSharp integration projects use it.
+- `ModuleOnTestOSFacts<TModule>` plus a subclass in each module unit project that has a `[Module]` type: AI, ArtCraft, ClickHouse, Drive, Flutter, Gmail, Apps, Circles, Flame, Aspire, Azure, CSharp, GitHub, Playwright, Roslyn, Windows, Mcp, Postgres, Salesforce, Time.
+- `*ModuleSiloFacts` (`SiloHost.Local`) for integration projects that had no `BothRuntimesFixture`: ClickHouse, Drive, Gmail, Apps, Circles, Aspire, Azure, GitHub, Playwright, Windows, Postgres, Salesforce.
+- `WindowsStorageKit : StorageConformance<IStorage>` for `storage@1` on `WindowsModule`. Windows unit: 50 succeeded, 1 skipped.
+- `BrowserSession` in the Playwright browser project. That project passed.
+
+Tests deleted because they reference Authority, Connections, BuiltinApps, compiled apps, or `features/os` apps other than Calculator, FilmCraft, and PhotoCraft (83 files, 9362 lines). FilmCraft and PhotoCraft had no tests in this deletion set. `OsCalculatorAppFacts` was deleted with the kernel harness (`SolutionProjects`); the Calculator app source was left for step 3.
+
+Authority integration (the whole `IntoChat.OS.Authority.Tests.Integration` tree that this step removed):
+
+- `AccountingRecoveryFacts.cs`, `AuthorityHost.cs`, `AuthorityRenameFacts.cs`, `BrainGrains.cs`, `CircleReservationFacts.cs`, `CircleShareGuardFacts.cs`, `ComputeReaderFacts.cs`, `ComputeReservationFacts.cs`, `ComputeTraceEndpointFacts.cs`, `CostMeterFacts.cs`, `ExternalCallFacts.cs`, `ExternalCallTransportFacts.cs`, `LedgerFacts.cs`, `MasterKeyWrapperFacts.cs`, `PlatformHostingFacts.cs`, `SecretsFacts.cs`, `TraceJournalFacts.cs`, `UsageFacts.cs`, `WorkshopSandboxFacts.cs`
+- `Connections/`: `ConnectionIndexFacts.cs`, `ConnectionNeuronFacts.cs`, `ConnectionRouteFacts.cs`, `ConnectionSharingFacts.cs`, `ExampleConnectionModule.cs`, `GalleryConnectFacts.cs`, `LegacyStorageAdapterFacts.cs`, `OAuthFlowFacts.cs`, `SecretSealerFacts.cs`, `TwoConnectorFacts.cs`
+- `Entries/BrainEntriesFacts.cs`
+- `Hosting/SiloDiagnosticsFacts.cs`
+- `Identity/`: `AccountFacts.cs`, `AuthPostureFacts.cs`, `BrainEstablishmentFacts.cs`, `BrainMembershipFilterFacts.cs`, `BrainOwnerDispatchFacts.cs`, `DefaultBrainFacts.cs`, `DeploymentStorageIdentityFacts.cs`, `ExternalSignInFacts.cs`, `FrozenCryptoContextFacts.cs`, `GrantFacts.cs`, `IdentityHostingFacts.cs`, `KernelCorsFacts.cs`, `MarketplaceAuthorityFacts.cs`, `NeutralDefaultsFacts.cs`, `OwnerProvisioningFacts.cs`, `PasswordEndpointSwitchFacts.cs`, `PrivilegedModuleGateFacts.cs`, `RemovePrincipalMemberFacts.cs`, `RuntimeManagementFacts.cs`, `ScopedAuthorityFacts.cs`, `SecretOwnershipFacts.cs`, `SessionCharacterizationFacts.cs`, `SessionIssuerFacts.cs`, `SignInHandlerFacts.cs`
+- `Integrations/`: `CallerContextScopeFacts.cs`, `ConnectorBindingFacts.cs`, `IntegrationSeederFacts.cs`, `RegistrationFacts.cs`, `ScriptAccountFacts.cs`
+- `Keys/MasterKeyCustodyFacts.cs`
+- `Neurons/`: `BrainCallFacts.cs`, `ConfirmationWatchFacts.cs`, `NeuronsCallFacts.cs`, `NeuronsLimitsFacts.cs`, `NeuronsRouteFacts.cs`, `NeuronsWatchFacts.cs`, `PlainWatchFacts.cs`, `SelectedBrainFacts.cs`, `SignalTypesFacts.cs`
+- `Storage/`: `BrainGrainStorageFacts.cs`, `BrainStorageFacts.cs`, `SegmentSealFacts.cs`
+
+Connections, BuiltinApps, compiled apps:
+
+- `src/IntoChat.OS.Connections/IntoChat.OS.Connections.Tests.Unit/ConnectionsHostingFacts.cs`
+- `src/IntoChat.OS.Connections/IntoChat.OS.Connections.Tests.Unit/SecretRedactorFacts.cs`
+- `src/IntoChat.OS.BuiltinApps/IntoChat.OS.BuiltinApps.Tests.Unit/BuiltinPackageFacts.cs`
+- `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Testing/Workspace/UserConnections.cs`
+- `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/Capabilities/KernelCapabilityConnectionsFacts.cs`
+- `Apps/CompiledAppAssignmentFacts.cs`, `CompiledAppInstallFacts.cs`, `CompiledAppDevelopmentFacts.cs`, `CompiledAppPackagesFacts.cs`, `CompiledAppReviewFacts.cs`
+
+`features/os` app tests deleted with the harness (Ino, Memory, SelfImprove, Assistant, Friends, Router):
+
+- Kernel unit: `AssistantViewFacts.cs`, `OsAssistantAppFacts.cs`, `OsInoChatCommandsFacts.cs`, `OsInoChatsFacts.cs`, `OsInoIntentFacts.cs`, `OsInoLinkFacts.cs`, `OsInoMigrationFacts.cs`, `OsInoModelFacts.cs`, `OsInoSecretFacts.cs`, `OsInoToolsFacts.cs`, `OsInoViewFacts.cs`, `OsMemoryEpisodeFacts.cs`, `OsMemoryIntendFacts.cs`, `OsMemoryPromptFacts.cs`, `OsMemoryRecallFacts.cs`, `OsSelfImproveAppFacts.cs`, `FriendsPostAdapter.cs`, `FriendsReplayFacts.cs`
+- Kernel integration: `InoOpenBackfillFacts.cs`, `InoScanRecoveryFacts.cs`, `MemoryIntendRecoveryFacts.cs`, `SelfImproveAvailabilityFacts.cs`
+- Kernel E2E: `AssistantGateFacts.cs`, `InoChatFacts.cs`, `InoSecretFacts.cs`, `IntentLoopFacts.cs`, `MemoryLoopFacts.cs`, `SelfImproveFacts.cs`, `SelfImproveHostFixture.cs`, `RouterHostFacts.cs`, `RouterHostFixture.cs`
+- AI integration: `Scenarios/AssistantGateFacts.cs`, `Scenarios/AssistantScenarioFacts.cs`, `Scenarios/ShippedAssistant.cs`
+- Flutter integration: `Space/FriendsSpaceFacts.cs`
+- Circles integration: `FriendsPublicationFacts.cs`
+
+Also deleted, because they only proved the old plumbing or a pre-step-2 wire pin: DI descriptor checks, assembly inventories, service-type names, product HTTP/`Person`/`AppHost` journeys, and the Orleans serializer pins `FlutterWireNameFacts` (plus `flutter-wire-names.golden.json` and `flutter-aliasless-enums.golden.json`) and `SolutionMapCompatibilityFacts`. `*OnlyShrink` fact sources and `OrleansAttributeOwners.json` were left for step 6. That JSON still names `FlutterWireNameFacts.cs`.
+
+`dotnet build Intochat.OS.slnx -c Release` before this commit: Build succeeded. 0 Warning(s). 0 Error(s). Time Elapsed 00:00:05.33.
+
+Tests, from the per-project logs under `%TEMP%\cutover5-test-*.log`, with Flutter integration, Roslyn unit, Windows unit, Time unit, and Time integration replaced by their reruns after the pin deletions: 1563 passed, 2 failed, 20 skipped. 77 logs. 17 projects ran zero tests and exited 8 (empty after the harness deletion; the projects stay in the solution for step 6): Cloud.Auth integration, Circle.Server integration, Aspire.Hosting E2E, Authority integration, BuiltinApps unit, CLI integration, Client.Orleans integration, Connections unit, Kernel E2E, Kernel integration, Mcp integration, AI hosting, GitHub hosting, Orleans hosting, Postgres hosting, Supabase hosting, Supabase integration. `IntoChat.OS.Modules.Google.Gmail.Tests.Support` is a support library; the runner reported "No test projects were found" (exit 1).
+
+The 2 failures are `IntoChat.OS.Aspire.Hosting.Tests.Unit` (60 passed, 2 failed): `DrainOrderFacts.TheDrainStopsTheServerInStoppingAsyncBeforeAnyHostedServiceStops` and `ConfigurationFileFacts.ConfigurationFileIsLoadedWhenTheKeyIsSet`. `LegacyConfigurationGuard.Verify` throws because this machine still has `%LOCALAPPDATA%\DigitalBrain`. Production guard code was left as it is.
+
+Cited reruns: Flutter integration 27 passed; Roslyn unit 9 passed; Windows unit 50 passed, 1 skipped; Time integration 21 passed; Time unit 9 passed.
+
+End state: the seven harness directories are gone. `rg "TestBrain\.Create|ReferenceBrain" -g *.cs src` is 2 hits, both in `IntoChat.OS.Architecture.Tests.Unit` (`CredentialBoundaryFacts.cs:107`, `TestTierFacts.cs:110`). Those fact strings stay for step 6.
+
+### Step 5 status
+
+Deleted 666 files, 73314 lines, including the eight harness trees and their two integration projects (101 files, 6259 lines). Ported the dual-runtime fixture into unpackable `DigitalBrain.Testing.Silo`, added `ModuleOnTestOSFacts`, a Windows `storage@1` kit, per-module TestOS and SiloHost facts, and `BrowserSession` in the Playwright browser project. The build broke on missing harness types; plumbing and pin tests were deleted and behaviour tests were pointed at `TestOS` and `SiloHost`. The architecture project lost its `IntoChat.OS.Testing` reference so the solution compiles. Release build 0 errors, 0 warnings. Touched tests: 1563 passed, 2 failed, 20 skipped; 17 projects ran zero tests. Deferred to step 6: `ModuleTestTierFacts.InProcessHosts` still names the deleted harness projects, the two `ReferenceBrain` fact strings, `*OnlyShrink`, and `OrleansAttributeOwners.json`. Drive `storage@1` has no kit because Drive storage still goes through Connections. Cloud.Auth, Authority, and Kernel.Composition have no unit project, so they have no `ModuleOnTestOSFacts`. The two Aspire hosting failures are this machine's leftover `%LOCALAPPDATA%\DigitalBrain` directory.
+
+### Outside this step's area
+
+- `src/Testing/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj` — removed the `ProjectReference` to `../IntoChat.OS.Testing/IntoChat.OS.Testing.csproj`. No fact source was edited.
+- `Intochat.OS.slnx` — removed the deleted harness projects and `IntoChat.OS.Kernel.Testing`; added `DigitalBrain.Testing.Silo`.
+- `framework/DigitalBrain.slnx` — added `DigitalBrain.Testing.Silo` so the framework solution lists every framework project.

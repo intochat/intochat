@@ -1,7 +1,7 @@
 using IntoChat.OS.Modules.Time.Reminders;
 using IntoChat.OS.Modules.Time.Reminders.Signals;
 using IntoChat.OS.Modules.Time.Tests;
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Runtime;
