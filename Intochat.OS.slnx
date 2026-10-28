@@ -18,10 +18,6 @@
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Tests.Unit/IntoChat.OS.Client.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
   </Folder>
-  <Folder Name="/Connections/">
-    <Project Path="src/IntoChat.OS.Connections/IntoChat.OS.Connections.Tests.Unit/IntoChat.OS.Connections.Tests.Unit.csproj" />
-    <Project Path="src/IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" />
-  </Folder>
   <Folder Name="/Desktop/">
     <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
   </Folder>
@@ -152,6 +148,12 @@
   </Folder>
   <Folder Name="/Modules/IntoChat.OS/Circles/src/">
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Circles/src/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
+  </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Identity/Contracts/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Identity/src/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
   </Folder>
   <Folder Name="/Modules/IntoChat.OS/Flame/">
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Flame/tests/IntoChat.OS.Modules.Flame.Tests.Integration/IntoChat.OS.Modules.Flame.Tests.Integration.csproj" />
@@ -346,11 +348,6 @@
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Integration/IntoChat.OS.Kernel.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/IntoChat.OS.Kernel.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
-  </Folder>
-  <Folder Name="/Authority/">
-    <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
-    <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority.Tests.Integration/IntoChat.OS.Authority.Tests.Integration.csproj" />
-    <Project Path="src/IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
   </Folder>
   <Folder Name="/Trust/" />
   <Folder Name="/Solution Items/">

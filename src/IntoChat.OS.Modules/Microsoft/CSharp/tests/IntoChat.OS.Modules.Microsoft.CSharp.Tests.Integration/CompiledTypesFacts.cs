@@ -31,7 +31,6 @@ public sealed class CompiledTypesFacts(CSharpHost host)
         Assert.Equal(typeof(IPinger), contracts.Contract(typeof(IPinger).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(IntoChat.OS.Connections.Platform.Secrets.ISecrets).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(IntoChat.OS.Connections.Platform.Integrations.IIntegration).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(IntoChat.OS.Authority.Workshop.IWorkshop).FullName!));
     }
 
     [Fact]

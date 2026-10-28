@@ -9,8 +9,8 @@ using DigitalBrain.Testing.Conformance.Storage;
 namespace IntoChat.OS.Kernel.Tests.Unit.Capabilities;
 
 // D-06, R4-04: a module whose ModuleManifest.Provides lists a capability has a concrete subclass of that capability's kit in a
-// test project of its own tests/ folder; the kernel's single-connection capabilities (secrets@1, identity@1) have theirs in the
-// kernel's integration tests. A module that cannot pass its kit cannot declare the capability.
+// test project of its own tests/ folder. identity@1 and secrets@1 are declared by the identity module; the host still registers
+// one keyed capability over the directory and vault ports, and those kits stay in the kernel integration tests.
 public sealed class CapabilityKitCoverageFacts
 {
     private static readonly Dictionary<CapabilityId, Type> Kits = new()
@@ -20,7 +20,9 @@ public sealed class CapabilityKitCoverageFacts
         [Capability.Identity.V1] = typeof(IdentityConformance<>),
     };
 
-    // The kernel registers secrets@1 and identity@1 itself (keyed singletons over the Authority ports), not through a module.
+    // The identity module declares these. Their kits are the kernel integration subclasses, not a second copy under tests/.
+    private static readonly CapabilityId[] KernelOwnedCapabilities = [Capability.Secrets.V1, Capability.Identity.V1];
+
     private const string KernelTests = "IntoChat.OS.Kernel.Tests.Integration";
 
     [Fact]
@@ -30,7 +32,9 @@ public sealed class CapabilityKitCoverageFacts
         Assert.Contains(modules, module => DigitalBrain.ModuleManifest.Of(module).Provides.Count > 0);
         var gaps = KitCoverage.Missing(modules, modules.Select(module => (module, TestsOf(module))).Where(pair => pair.Item2 is not null)
             .ToDictionary(pair => pair.module, pair => pair.Item2!), Kits);
-        var open = gaps.Select(gap => (gap.ModuleId, gap.Capability.ToString())).ToList();
+        var open = gaps.Where(gap => gap.ModuleId != IntoChat.OS.Authority.IdentityModule.Id
+                || !KernelOwnedCapabilities.Contains(gap.Capability))
+            .Select(gap => (gap.ModuleId, gap.Capability.ToString())).ToList();
         Assert.True(open.Count == 0, "Modules provide capabilities without a kit subclass in their own tests/: "
             + string.Join(", ", open.Select(gap => $"{gap.ModuleId} {gap.Item2}")));
     }

@@ -154,3 +154,48 @@ A host without the C# runtime neuron logs that the install did not finish: an em
 `ShippedApps` stays until Workspace, Desktop and Settings are in-process apps. `AppSource.Shipped` stays for folder scripts. Ino, Memory and the other `features/os` apps other than Calculator, FilmCraft and PhotoCraft are still on disk.
 
 Tests: `IntoChat.OS.Modules.Apps.Tests.Unit` 45 passed, 0 failed. `FeatureCompileFacts` 3 passed, 0 failed (18 features). `FeatureDirectoryFacts` and `AppDeclarationFacts` 20 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings.
+
+## Step 4 — one identity
+
+### cutover(4): one identity module, drop marketplace workshop and pricing
+
+Deleted 119 files, 10713 lines. `src/IntoChat.OS.Authority` and `src/IntoChat.OS.Connections` are gone. That includes Marketplace, Workshop, Compute, Enforcement, pricing, the Authority integration tests, and the Connections unit tests. `AuthorityVaultPort` and `AuthorityDirectoryPort` are gone. `KernelCapabilityConnections` stays: the broker still asks it for a brain's connections.
+
+Ported into `src/IntoChat.OS.Modules/IntoChat.OS/Identity`: identity, secrets, connections, and the script contracts (`IntoChat.OS.Modules.Identity.Contracts`, so behaviors still compile against `IntoChat.OS.Integrations`). The module provides `identity@1` and `secrets@1`. `IdentityNeuron` and `SecretsNeuron` are `[Neuron]` types. The kernel registers `VaultPort` and `DirectoryPort` once. Account, principal, brain-authority, and vault state is still on the grains those ports call. Custody (`BrainStoreCustody`, master key) is unchanged.
+
+Call sites that named the dropped types: Flutter `ComputeNeuron` returns an empty 30-day window. Circles no longer call `ICircleShares`. Apps marketplace list is empty and upsert throws `NotSupportedException` ("Marketplace returns in 0.8.0."). `AddMeteredHttpClient` adds no handler when `ICostMeter` or `IExternalCallContextAccessor` is absent. Deleted `MarketplaceClientFacts` and `MarketplaceRecordFacts` (they only proved the dropped catalog). Removed the `IWorkshop` assertion from `CompiledTypesFacts`.
+
+`dotnet build Intochat.OS.slnx -c Release`: 0 errors, 0 warnings.
+
+Tests: `IntoChat.OS.Kernel.Tests.Unit` filter `AuthorityVaultNamed|KernelCapability` 9 passed, 0 failed.
+
+Still open in this step: collapse `CallerContext`, `KitCaller`, `UiEventCaller`, `AuthCaller`, `SessionMember`, and both `SessionView`s onto `CapabilityCaller`; replace the Authority cookie issuer with `DigitalBrain.Runtime.Http.ISessionIssuer`; move directory and vault state onto `Neuron<TState>`.
+
+## Merge
+
+### cutover(merge): identity
+
+Conflicts, per file:
+
+- `docs/cutover-ledger.md`: kept Step 3 and Step 4, in that order.
+- `src/IntoChat.OS.BuiltinApps/IntoChat.OS.BuiltinApps/IntoChat.OS.BuiltinApps.csproj`: step 3 deleted the project and step 4 edited the project file. The project stays deleted.
+- `src/IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj`: dropped the `IntoChat.OS.Connections` project reference. Dropped `IncludeCompiledFiles`, which packaged `IntoChat.Files.dll`. Step 3 moved Files into the Apps module, so that target has no assembly. Kept the Identity module reference from step 4 and the Flame contracts reference from step 3.
+
+References re-pointed:
+
+- `Intochat.OS.slnx` no longer lists Authority, Connections, BuiltinApps, or `features/os/Files`. It lists `IntoChat.OS.Modules.Identity` and `IntoChat.OS.Modules.Identity.Contracts`.
+- `IntoChat.OS.Kernel.csproj` no longer references `IntoChat.OS.Authority`. The module glob references the Identity project. The `features/os` pack item stays removed with step 3.
+- Call sites that named Authority and Connections compile against the Identity module. That module keeps the `IntoChat.OS.Authority` and `IntoChat.OS.Connections` namespaces. `using DigitalBrain.Spi` on the moved `NeuronsService` and `NeuronTypeSearch` survived the rename.
+
+`CapabilityKitCoverageFacts` counts `identity@1` and `secrets@1` as covered by the kernel integration kits (`IdentityCapabilityConformance`, `SecretsCapabilityConformance`). The identity module declares both capabilities. Step 4 did not add a module test project.
+
+`dotnet build Intochat.OS.slnx -c Release`: 0 errors, 0 warnings.
+
+Tests:
+
+- `IntoChat.OS.Kernel.Tests.Unit`: 442 passed, 0 failed.
+- `IntoChat.OS.Modules.Apps.Tests.Unit`: 45 passed, 0 failed.
+- `DigitalBrain.Tests.Unit`: 191 passed, 1 failed.
+- `DigitalBrain.Testing.Tests.Unit`: 316 passed, 0 failed, 17 skipped.
+
+Left failing: `DigitalBrain.Tests.Unit.CoreVocabularyFacts.Spi_is_interfaces_only`. `ObservedSynapse` and `SignalDelivery` are records in `DigitalBrain.Spi`. Step 3 added them. The fact still requires every `DigitalBrain.Spi` type to be an interface or a static class. The identity merge did not change that fact or those records.

@@ -37,8 +37,12 @@ public static class MeteredHttpClients
                 case ISingleAttemptHttpTransport: break;
                 default: throw new InvalidOperationException("A metered custom primary handler must implement ISingleAttemptHttpTransport.");
             }
-            builder.AdditionalHandlers.Add(new ExternalCallHandler(builder.Services.GetRequiredService<ICostMeter>(),
-                builder.Services.GetRequiredService<ModulePriceListRegistry>(), builder.Services.GetRequiredService<IExternalCallContextAccessor>(),
+            // Pricing is 0.8.0. Without a cost meter the call is not charged.
+            if (builder.Services.GetService<ICostMeter>() is not { } meter
+                || builder.Services.GetService<IExternalCallContextAccessor>() is not { } accessor)
+            { return; }
+            builder.AdditionalHandlers.Add(new ExternalCallHandler(meter,
+                builder.Services.GetRequiredService<ModulePriceListRegistry>(), accessor,
                 builder.Services.GetService<TimeProvider>(), builder.Services.GetService<ILogger<ExternalCallHandler>>()));
         };
     }

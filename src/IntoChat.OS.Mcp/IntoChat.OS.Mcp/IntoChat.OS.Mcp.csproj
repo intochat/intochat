@@ -3,7 +3,7 @@
     <RootNamespace>IntoChat.OS.Mcp</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Client/IntoChat.OS.Aspire.Client.csproj" />
     <!-- Every module Contracts project, by convention: the host reads a neuron contract from its own loaded assemblies. -->
@@ -19,5 +19,4 @@
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

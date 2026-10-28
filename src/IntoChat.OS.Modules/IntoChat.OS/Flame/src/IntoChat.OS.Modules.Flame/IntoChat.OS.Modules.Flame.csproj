@@ -11,5 +11,5 @@
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Flame.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Flame.Tests.Integration" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" /></ItemGroup>
 </Project>

@@ -3,7 +3,7 @@
     <ProjectReference Include="../../../../Google/Flutter/src/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
     <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
-    <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+    <ProjectReference Include="../../../Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
   <ItemGroup><PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" /></ItemGroup>

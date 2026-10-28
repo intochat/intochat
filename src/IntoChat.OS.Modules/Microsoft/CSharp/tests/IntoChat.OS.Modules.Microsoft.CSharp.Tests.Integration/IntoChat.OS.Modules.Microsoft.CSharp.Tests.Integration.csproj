@@ -6,7 +6,7 @@
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
-    <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../../../../Google/Flutter/src/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Apps.Packaging/DigitalBrain.Apps.Packaging.csproj" />
     <ProjectReference Include="../../../../Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />

@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
-    <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Circles/Contracts/IntoChat.OS.Modules.Circles.Contracts/IntoChat.OS.Modules.Circles.Contracts.csproj" />
     <ProjectReference Include="../../../../Microsoft/Playwright/Contracts/IntoChat.OS.Modules.Microsoft.Playwright.Contracts/IntoChat.OS.Modules.Microsoft.Playwright.Contracts.csproj" />
@@ -23,5 +23,4 @@
     <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.Flutter.Contracts/IntoChat.OS.Modules.Flutter.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

@@ -20,7 +20,6 @@
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
-    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The OS is the composition of the portable modules in the repo; OperatingSystemModules names them in
