@@ -58,7 +58,8 @@ public sealed partial class RepositoryPathLiteralFacts
         "IntoChat.OS.Modules.Supabase.Tests.Hosting/SupabaseHostingFacts.cs",
         "IntoChat.OS.Kernel.Tests.Unit/ProductCompositionFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/ModuleHostingProjectionFacts.cs",
-        "IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/InstallPlanTopologyFacts.cs"
+        "IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/InstallPlanTopologyFacts.cs",
+        "IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/ManifestEnvironmentFacts.cs"
     ];
 
     [Fact]
