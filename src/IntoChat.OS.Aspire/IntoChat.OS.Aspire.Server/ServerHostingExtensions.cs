@@ -12,9 +12,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
+using Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans;
 using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
 
 namespace IntoChat.OS.Aspire.Server;
@@ -73,13 +76,16 @@ public static class ServerHostingExtensions
         // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both. The kernel's own
         // signals (the brain neuron's Created, Activated and instance announcements, 06-08) live in IntoChat.OS, and every
         // connector's connection signals (ConnectionConnected and the rest, 06-08) in IntoChat.OS.Connections.
-        builder.UseKernelStorage([.. neuronModules.Select(static module => module.Assembly)
+        var signalAssemblies = neuronModules.Select(static module => module.Assembly)
             .Concat(modules.Where(static module => module.Neurons is not null).Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
             .Append(typeof(IBrain).Assembly)
             .Append(typeof(IntoChat.OS.Connections.Platform.Connections.IConnection).Assembly)
             // The Authority's connection requests publish ConnectionsChanged and ConnectionRequested (06-08).
             .Append(typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly)
-            .Distinct()]);
+            .Distinct()
+            .ToArray();
+        builder.Services.TryAddSingleton<IBrainKeyCustody>(static services => new OsBrainKeyCustody(services.GetRequiredService<IntoChat.OS.Framework.Parts.IMasterKeyCustody>()));
+        builder.UseClusterStore(new BrainStorageRegistration(signalAssemblies));
         // Capabilities (05-07): the registry accepts the os storage binding before ConfigureTopologySilo validates every module's
         // Provides, and the kernel lists and binds connections for the runtime broker.
         IntoChat.OS.Kernel.Composition.Capabilities.KernelCapabilities.AddKernelCapabilities(builder);
@@ -90,7 +96,12 @@ public static class ServerHostingExtensions
             // The topology first; it runs the host-bound cluster store (BrainLog) last, then the legacy store and journal of
             // the unmigrated Framework neurons compose over the same logs, then the modules.
             TopologyHosting.ConfigureTopologySilo(silo);
-            silo.AddLegacyStorage();
+            silo.AddStartupTask(static (provider, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                IntoChat.OS.Authority.Storage.BrainStoreCustody.Validate(provider);
+                return Task.CompletedTask;
+            });
             // os grain state keeps the Orleans binary format it had in memory and on blob storage (persisted-format rule):
             // the topology's file and blob stores use the silo serializer, so it is this one, not the JSON default.
             silo.Services.AddSingleton<global::Orleans.Storage.IGrainStorageSerializer>(static services =>

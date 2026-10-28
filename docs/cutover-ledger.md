@@ -12,9 +12,13 @@ Ported: timer and reminder ticks go to `Neuron.OnReminder` through `NeuronAttach
 
 Tests: `DigitalBrain.Tests.Unit` 192 passed; `DigitalBrain.Testing.Tests.Unit` 315 passed, 17 skipped; `DigitalBrain.Runtime.Orleans.Tests.Unit` 224 passed; `VocabularyRingFacts` 6 passed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings.
 
-Deferred in this commit: kernel composition `Calls`/`Storage`/`Authority`, `RetiredReminders`, `OrleansHostWiring` legacy branches, and `src/IntoChat.OS/Runtime` plain-neuron facades. Those still compile against the old host path.
+### cutover(1): legacy grain storage and retired reminders
+
+Deleted: 9 files, 436 lines. The kernel `Storage` folder (legacy grain store, journal, persistent-state factory) and `RetiredReminders.cs`. The host registers BrainLog with `UseClusterStore(new BrainStorageRegistration(...))` and `OsBrainKeyCustody` before `ConfigureTopologySilo`, which is what calls `AddDigitalBrainRuntime`. Production custody is still checked by `BrainStoreCustody.Validate` on silo startup. `OsStorageFacts` and `RetiredReminderFacts` were DI and migration checks and were deleted with the code.
+
+`IntoChat.OS.Kernel.Tests.Unit` 464 passed. `SyncOverAsyncFacts` 1 passed. `TopologyCompositionFacts` and `SideBySideRuntimeFacts` 5 passed. Solution build 0 errors, 0 warnings.
 
 ### Still to do in step 1
 
-- `Program.cs` / server composition only through `AddDigitalBrainRuntime` and `TopologyHosting`.
-- Delete `Kernel/{Calls,Storage,Authority}/*`, `RetiredReminders.cs`, legacy `OrleansHostWiring` branches, and `Runtime/{PlainNeurons,PlainSignals,IStillGrains,IBrainCalls}.cs`.
+- Delete `Kernel/{Calls,Authority}/*` and `Runtime/{PlainNeurons,PlainSignals,IStillGrains,IBrainCalls}.cs`, and point callers at `SiloNeurons` / session synapses.
+- Remove the legacy branches in `OrleansHostWiring` (cloud container overlay, membership feed) once their callers are on the topology profile.

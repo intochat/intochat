@@ -73,17 +73,12 @@ public sealed class TopologyCompositionFacts
         Assert.Equal("devstoreaccount1", container.AccountName);
     }
 
-    // The runtime BrainLog is the cluster store (06-02, R4-09); unmigrated Framework grains reach the same logs through the
-    // legacy store, which the kernel registration wraps.
+    // The runtime BrainLog is the cluster store.
     private static void AssertBrainLogIsTheClusterStore(IServiceCollection services, IServiceProvider provider)
     {
-        Assert.True(KernelStorage.IsComposed(services));
         Assert.True(ClusterStoreHosting.HasClusterStore(services));
         var cluster = provider.GetRequiredKeyedService<IGrainStorage>(OsNames.ClusterGrainStorage);
         Assert.Equal("DigitalBrain.Runtime.Orleans.BrainGrainStorage", cluster.GetType().FullName);
         Assert.NotNull(provider.GetRequiredService<IBrainJournalWriter>());
-        Assert.NotNull(provider.GetRequiredKeyedService<IGrainStorage>(OsNames.LegacyClusterGrainStorage));
-        Assert.IsType<LegacyPersistentStateFactory>(provider.GetRequiredService<global::Orleans.Runtime.IPersistentStateFactory>());
-        Assert.IsType<LegacySignalJournal>(provider.GetRequiredService<global::IntoChat.OS.Framework.ISignalJournal>());
     }
 }

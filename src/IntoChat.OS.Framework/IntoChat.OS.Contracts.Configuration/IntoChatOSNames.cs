@@ -10,9 +10,7 @@ public static class IntoChatOSNames
     public const string Reminders = "reminders";
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
-    // Transitional (06-02, deleted in 06-08): on an os server the runtime BrainLog is the cluster store, and unmigrated
-    // Framework grains that declare the cluster store persist through this key instead (the kernel composition's
-    // LegacyGrainStorage over the same BrainLog).
+    // Nothing registers this store. The name remains so old configuration that names it is still a known key.
     public const string LegacyClusterGrainStorage = "cluster.legacy";
     public const string PlatformGrainStorage = "platform";
     // Pinned equal to DigitalBrain.Runtime.Orleans.IntoChatOSNames (and Topology.ToConfigValue()) by TopologyKeysMatchRuntimeFacts.

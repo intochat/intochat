@@ -5,8 +5,7 @@ using IntoChat.OS.Modules.Time.Timers;
 namespace IntoChat.OS.Modules.Time.Reminders;
 
 // A plain neuron (06-03): one durable reminder named "tick" on the runtime host, which reactivates the neuron; each tick is a
-// turn (Neuron.OnReminder) that publishes ReminderTick. Reminders the Framework neuron registered before the
-// migration are moved onto this neuron's host by the kernel composition's RetiredReminderGrain when they next fire.
+// turn (Neuron.OnReminder) that publishes ReminderTick. A reminder registered on the retired grain type is not migrated.
 [Neuron("reminder")]
 internal sealed class ReminderNeuron : DigitalBrain.Neuron, IReminder
 {

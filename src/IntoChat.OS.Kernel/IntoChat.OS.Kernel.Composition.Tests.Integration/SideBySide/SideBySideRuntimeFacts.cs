@@ -75,7 +75,7 @@ public sealed class SideBySideRuntimeFacts
 
         builder.AddIntoChatOSServer(server => server.AddModule<OrleansModule>().AddNeuronModule<SandboxProbeModule>());
 
-        Assert.True(KernelStorage.IsComposed(builder.Services) || ClusterStoreHosting.HasClusterStore(builder.Services));
+        Assert.True(ClusterStoreHosting.HasClusterStore(builder.Services));
     }
 
     // The local topology without a sandbox binding (test only).
