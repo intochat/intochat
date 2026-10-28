@@ -357,9 +357,6 @@
     <File Path=".editorconfig" />
     <File Path="Directory.Packages.props" />
   </Folder>
-  <Folder Name="/features/os/Files/">
-    <Project Path="features/os/Files/compiled/IntoChat.Files.csproj" />
-  </Folder>
   <Folder Name="/framework/src/">
     <Project Path="framework/src/DigitalBrain.Analyzers.CodeFixes/DigitalBrain.Analyzers.CodeFixes.csproj" />
     <Project Path="framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" />

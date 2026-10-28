@@ -98,12 +98,11 @@ public sealed class AppDeclarationFacts
         Assert.Equal(["postgres"], read.Connectors!);
         Assert.Equal(["openai-key"], read.Secrets!);
 
-        var features = Features();
-        var files = AppDeclaration.Read(File.ReadAllText(Path.Combine(features, "os", "Files", "app.cs"))).Manifest.Requires!;
+        var files = FilesRequests.Bundle.Manifest.Requires!;
         // 05-10: Files asks for the storage capability and names no module.
         Assert.Equal(["storage@1"], files.Capabilities!);
         Assert.Null(files.Connectors);
-        var memory = AppDeclaration.Read(File.ReadAllText(Path.Combine(features, "os", "Memory", "app.cs"))).Manifest.Requires!;
+        var memory = AppDeclaration.Read(File.ReadAllText(Path.Combine(Repo(), "features", "os", "Memory", "app.cs"))).Manifest.Requires!;
         Assert.Equal(["postgres"], memory.Connectors!);
     }
 
@@ -161,7 +160,7 @@ public sealed class AppDeclarationFacts
     [Fact]
     public void TheFilesManifestNamesNoModule()
     {
-        var source = File.ReadAllText(Path.Combine(Features(), "os", "Files", "app.cs"));
+        var source = File.ReadAllText(Path.Combine(Repo(), "src", "IntoChat.OS.Modules", "IntoChat.OS", "Apps", "src", "IntoChat.OS.Modules.Apps", "Files", "Files.cs"));
         Assert.DoesNotContain("windows", source, StringComparison.Ordinal);
         Assert.DoesNotContain("google-drive", source, StringComparison.Ordinal);
         Assert.Contains("storage@1", source, StringComparison.Ordinal);
@@ -176,13 +175,12 @@ public sealed class AppDeclarationFacts
         Assert.Equal(["storage@1"], AppConsent.Added(new(), new(Capabilities: ["storage@1"])).Capabilities!);
     }
 
-    private static string Features()
+    private static string Repo()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            var features = Path.Combine(dir.FullName, "features");
-            if (Directory.Exists(Path.Combine(features, "os", "Files"))) { return features; }
+            if (File.Exists(Path.Combine(dir.FullName, "Intochat.OS.slnx"))) { return dir.FullName; }
         }
-        throw new DirectoryNotFoundException("features/os/Files not found above the test output.");
+        throw new DirectoryNotFoundException("Intochat.OS.slnx was not found above the test output.");
     }
 }

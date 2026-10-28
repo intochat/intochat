@@ -34,14 +34,19 @@ internal sealed class BrainSceneHost(
             _ = OpenAsync(publisher.Brain.Value, caller, token);
             return Task.CompletedTask;
         });
-        _ = await listeners.Listen<SceneInput>(nameof(BrainSceneHost), (publisher, signal, token) =>
+        try
         {
-            if (signal.Kind != "tap" || signal.Name != IScene.Key(publisher.Brain.Value, "brain", BrainScene.SceneName))
-            { return Task.CompletedTask; }
-            if (!CallerContextStamper.TryGet(out var caller) || caller.BrainId != publisher.Brain.Value) { return Task.CompletedTask; }
-            _ = ZoomAsync(publisher.Brain.Value, caller, token);
-            return Task.CompletedTask;
-        });
+            _ = await listeners.Listen<SceneInput>(nameof(BrainSceneHost), (publisher, signal, token) =>
+            {
+                if (signal.Kind != "tap" || signal.Name != IScene.Key(publisher.Brain.Value, "brain", BrainScene.SceneName))
+                { return Task.CompletedTask; }
+                if (!CallerContextStamper.TryGet(out var caller) || caller.BrainId != publisher.Brain.Value) { return Task.CompletedTask; }
+                _ = ZoomAsync(publisher.Brain.Value, caller, token);
+                return Task.CompletedTask;
+            });
+        }
+        catch (ArgumentException error)
+        { logger.LogWarning(error, "The brain scene will not zoom until Flame signals are registered."); }
         cancellationToken.ThrowIfCancellationRequested();
     }
 

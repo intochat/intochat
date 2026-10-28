@@ -2,22 +2,14 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 
-namespace IntoChat.OS.Kernel.Tests.Unit;
+namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
-public sealed class OsFilesEntryFacts
+public sealed class FilesRequestFacts
 {
     [Fact]
-    public void TheShippedManifestDeclaresStorageSelection()
+    public void ThePresentationNamesTheFullDesktopView()
     {
-        var bundle = SolutionProjects.FeaturesOf("os").Single(app => app.Name == "files");
-        Assert.Contains(bundle.Manifest.Operations, operation => operation.Name == "storage");
-        Assert.Contains("FilesEntry.cs", bundle.Files.Keys);
-    }
-
-    [Fact]
-    public void TheShippedPresentationNamesTheFullDesktopView()
-    {
-        var presentation = FilesEntry.Presentation("owner/apps/files");
+        var presentation = FilesRequests.Presentation("owner/apps/files");
         Assert.Equal(new(UIVocabulary.ViewType, "owner/apps/files/side"), presentation.Side);
         Assert.Equal(new(UIVocabulary.ViewType, "owner/apps/files/main"), presentation.Main);
         var full = Assert.Single(presentation.Views ?? [], view => view.Id == "full");
@@ -29,7 +21,7 @@ public sealed class OsFilesEntryFacts
     {
         var workspace = new Workspace();
         var request = new AppRequested("storage", "{\"Input\":{\"Index\":2}}", Guid.NewGuid());
-        Assert.Null(await FilesEntry.Forward(workspace, request, TestContext.Current.CancellationToken));
+        Assert.Null(await FilesRequests.Forward(workspace, request, TestContext.Current.CancellationToken));
         Assert.Equal(("storage", 2, 17L, request.RequestId), Assert.Single(workspace.Calls));
         Assert.Equal(1, workspace.RevisionReads);
     }
@@ -43,11 +35,11 @@ public sealed class OsFilesEntryFacts
     public async Task WritesNeverReplaceAnAbsentOrExplicitExpectedRevision(string operation)
     {
         var workspace = new Workspace();
-        Assert.NotNull(await FilesEntry.Forward(workspace, new(operation, "{}", Guid.NewGuid()), TestContext.Current.CancellationToken));
+        Assert.NotNull(await FilesRequests.Forward(workspace, new(operation, "{}", Guid.NewGuid()), TestContext.Current.CancellationToken));
         Assert.Empty(workspace.Calls);
         Assert.Equal(0, workspace.RevisionReads);
         var request = new AppRequested(operation, "{\"ExpectedRevision\":6}", Guid.NewGuid());
-        Assert.Null(await FilesEntry.Forward(workspace, request, TestContext.Current.CancellationToken));
+        Assert.Null(await FilesRequests.Forward(workspace, request, TestContext.Current.CancellationToken));
         Assert.Equal((operation, null, 6L, request.RequestId), Assert.Single(workspace.Calls));
         Assert.Equal(0, workspace.RevisionReads);
     }

@@ -142,3 +142,15 @@ Tests: `IntoChat.OS.Modules.Apps.Tests.Unit` 35 passed, 0 failed. `FeatureCompil
 `FeatureDirectory.IsCompiledSource` still stays until Files leaves `features/os`. `ShippedApps` still stays until Workspace, Desktop and Settings are in-process apps. `AppSource.Shipped` stays for folder scripts.
 
 Tests: `IntoChat.OS.Modules.Apps.Tests.Unit` 38 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings.
+
+### cutover(3): move Files into the Apps module
+
+`features/os/Files` is gone: `app.cs`, `open.cs`, `FilesEntry.cs`, `hosting/`, and the `compiled/` project. `FilesApp` and the workspace neuron now compile in the Apps module. `FilesHost` installs the empty-program app on activation and forwards `AppRequested` to `IFilesWorkspace`, then presents the same side, main and full views. `FeatureDirectory.IsCompiledSource` is gone with that folder. `IFilesWorkspace` stays: it is the grain the in-process host calls, and the neuron still publishes the Flutter trees through it.
+
+`OsFilesEntryFacts` was deleted with `FilesEntry`. The same checks live in `FilesRequestFacts`. The kernel unit project no longer links `FilesEntry.cs`. `Intochat.OS.slnx` no longer lists `IntoChat.Files`.
+
+A host without the C# runtime neuron logs that the install did not finish: an empty program still asks that runtime to retire. Hosts that load the C# module install the app.
+
+`ShippedApps` stays until Workspace, Desktop and Settings are in-process apps. `AppSource.Shipped` stays for folder scripts. Ino, Memory and the other `features/os` apps other than Calculator, FilmCraft and PhotoCraft are still on disk.
+
+Tests: `IntoChat.OS.Modules.Apps.Tests.Unit` 45 passed, 0 failed. `FeatureCompileFacts` 3 passed, 0 failed (18 features). `FeatureDirectoryFacts` and `AppDeclarationFacts` 20 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings.

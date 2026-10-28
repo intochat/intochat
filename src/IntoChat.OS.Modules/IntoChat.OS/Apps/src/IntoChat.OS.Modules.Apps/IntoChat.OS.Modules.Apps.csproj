@@ -3,14 +3,11 @@
     <IsPackable>true</IsPackable>
     <Description>App manifests, install, versions and Save as app.</Description>
     <RootNamespace>IntoChat.OS.Modules.Apps</RootNamespace>
-    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeCompiledFiles</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../../../../features/os/Files/compiled/IntoChat.Files.csproj" PrivateAssets="all" />
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Apps.Packaging/DigitalBrain.Apps.Packaging.csproj" />
-    <Compile Include="../../../../../../features/os/Files/hosting/*.cs" Link="Files/%(Filename)%(Extension)" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />
     <ProjectReference Include="../../../Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
@@ -24,11 +21,4 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
-  <!-- Files is a framework-only feature assembly shipped with Apps, not a separate NuGet package. -->
-  <Target Name="IncludeCompiledFiles" DependsOnTargets="ResolveReferences">
-    <ItemGroup>
-      <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)"
-                            Condition="'%(ReferenceCopyLocalPaths.Filename)' == 'IntoChat.Files' And '%(ReferenceCopyLocalPaths.Extension)' == '.dll'" />
-    </ItemGroup>
-  </Target>
 </Project>

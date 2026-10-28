@@ -48,6 +48,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         // FeatureBoot runs once the silo is active, as an Orleans startup task did.
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FeatureBootLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, BrainSceneLifecycle>();
+        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
     }
 
