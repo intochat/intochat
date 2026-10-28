@@ -181,6 +181,12 @@ Clean break: cookies that carried `os.account` or `NameIdentifier` do not resolv
 
 Tests: `IntoChat.OS.Architecture.Tests.Unit` 202 passed. `IntoChat.OS.Modules.Identity.Tests.Unit` 39 passed. `IntoChat.OS.Kernel.Tests.Unit` 21 passed. `IntoChat.OS.Modules.Apps.Tests.Unit` 32 passed. `IntoChat.OS.Modules.Circles.Tests.Unit` 24 passed. `DigitalBrain.Testing.Tests.Unit` 316 passed, 17 skipped. `DigitalBrain.Capabilities.Identity.Tests.Unit` 39 passed. `DigitalBrain.Runtime.Orleans.Tests.Unit` capability filter 67 passed. `IntoChat.OS.Cli.Tests.Unit` 32 passed. `IntoChat.OS.Modules.Flutter.Tests.Unit` 18 passed.
 
+### cutover(9): local production session-token key
+
+A configured csharp `RunTokenKey` still wins. Development with no key still mints an ephemeral key that dies with the process. Production (and any non-Development host) with `Topology` unset, `local`, `local+cloud` or `local-cloud` mints a 32-byte key on first start, protects it the same way as the master key, and stores it at `<Home>/secrets/session-token.key`. The next start reads that file. `Topology=cloud` still throws before listen when `RunTokenKey` is absent, and it does not create the file.
+
+`dotnet build Intochat.OS.slnx -c Release`: 0 errors, 0 warnings. `IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit` 6 passed (5 of them are `SessionTokensFacts`).
+
 ## Step 5 — one harness
 
 ### cutover(5): one harness on DigitalBrain.Testing
