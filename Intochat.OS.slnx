@@ -191,6 +191,13 @@
   <Folder Name="/Modules/IntoChat.OS/Tools/src/">
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Tools/src/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
   </Folder>
+  <Folder Name="/Modules/LocalDisk/">
+    <Project Path="src/IntoChat.OS.Modules/LocalDisk/tests/IntoChat.OS.Modules.LocalDisk.Tests.Integration/IntoChat.OS.Modules.LocalDisk.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/LocalDisk/tests/IntoChat.OS.Modules.LocalDisk.Tests.Unit/IntoChat.OS.Modules.LocalDisk.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Modules/LocalDisk/src/">
+    <Project Path="src/IntoChat.OS.Modules/LocalDisk/src/IntoChat.OS.Modules.LocalDisk/IntoChat.OS.Modules.LocalDisk.csproj" />
+  </Folder>
   <Folder Name="/Modules/Microsoft/" />
   <Folder Name="/Modules/Microsoft/Aspire/Contracts/">
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Aspire/Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts.csproj" />

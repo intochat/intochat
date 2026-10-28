@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Framework.Machine;
 using IntoChat.OS.Framework;
@@ -52,15 +53,28 @@ internal sealed class WindowsNeuron(
     public Task<StorageEntry[]> Roots(CancellationToken cancellationToken = default) =>
         Task.FromResult(Snapshot.Roots.Select(root => new StorageEntry(root, Name(root), true)).ToArray());
 
-    public Task<StorageEntry[]> List(string location, CancellationToken cancellationToken = default)
+    public async Task<StorageEntry[]> List(string location, CancellationToken cancellationToken = default)
     {
         var folder = PathConfinement.Resolve(Snapshot.Roots, location);
-        return Task.FromResult(Directory.GetDirectories(folder).Select(path => new StorageEntry(path, Name(path), true))
-            .Concat(Directory.GetFiles(folder).Select(path => new StorageEntry(path, Name(path), false))).ToArray());
+        var storage = Storage;
+        var items = new List<StorageEntry>();
+        string? cursor = null;
+        do
+        {
+            var page = await storage.List(WindowsStorage.IdOf(folder), new StorageV1.ListQuery(cursor, StorageV1.ListQuery.MaxPageSize), cancellationToken).ConfigureAwait(false);
+            items.AddRange(page.Items.Select(item => new StorageEntry(Path.Combine(folder, item.Name), item.Name, item.Kind == StorageV1.ItemKind.Folder)));
+            cursor = page.NextCursor;
+        }
+        while (cursor is not null);
+        return [.. items];
     }
 
-    public Task<string> Read(string location, CancellationToken cancellationToken = default) =>
-        File.ReadAllTextAsync(PathConfinement.Resolve(Snapshot.Roots, location), cancellationToken);
+    public async Task<string> Read(string location, CancellationToken cancellationToken = default)
+    {
+        var full = PathConfinement.Resolve(Snapshot.Roots, location);
+        var content = await Storage.Read(WindowsStorage.IdOf(full), null, cancellationToken).ConfigureAwait(false);
+        return Encoding.UTF8.GetString(content.Bytes.Span);
+    }
 
     public Task<StorageEntry[]> Ancestors(string location, CancellationToken cancellationToken = default)
     {
