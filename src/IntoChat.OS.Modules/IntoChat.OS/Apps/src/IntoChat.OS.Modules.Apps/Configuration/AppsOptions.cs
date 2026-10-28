@@ -21,7 +21,7 @@ public sealed class AppsOptions : IModuleOptions
     public int BuildFreshForSeconds { get; set; } = 900;
 
     // The features folder: {owner}/{App}/app.cs. The host loads it at boot and lists it in the
-    // Marketplace; a relative path resolves against the host's base directory. Unset: no features.
+    // Marketplace; a relative path resolves against the host's base directory. Unset: <Home>/apps.
     public string? Features { get; set; }
 
     public void Validate()

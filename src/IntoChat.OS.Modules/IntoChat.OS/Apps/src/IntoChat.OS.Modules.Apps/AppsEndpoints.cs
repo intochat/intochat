@@ -75,7 +75,7 @@ internal static class AppsEndpoints
 
         apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
-            var snapshot = await creator.Implement(brain, Key(name), request?.Text, ct);
+            var snapshot = await creator.Implement(brain, AppKey(name), request?.Text, ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
         }));
 
@@ -174,9 +174,9 @@ internal static class AppsEndpoints
         ? Results.Json(new { status = "refused", error = outcome.Message }, statusCode: 403)
         : Results.Conflict(new { status = "refused", error = outcome.Message });
 
-    private static string Key(string name) => IApp.Key(BrainScope.CurrentId(), name);
+    private static string AppKey(string name) => IApp.Key(BrainScope.CurrentId(), name);
 
-    private static IApp App(INeuronProxies brain, string name) => brain.Get<IApp>(Key(name));
+    private static IApp App(INeuronProxies brain, string name) => brain.Get<IApp>(AppKey(name));
 
     // The wire view: the snapshot plus status as a string the shell can switch on.
     // An icon is a bundle file the manifest names; the shell renders it by its content type.

@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using DigitalBrain.Runtime.Orleans;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -9,7 +11,7 @@ namespace IntoChat.OS.Modules.Apps;
 // code, not content anyone wrote at runtime. Loaded at boot and on first read; only Save to source
 // reloads it. A bundle that does not compile never reaches the catalog, so loading is where a
 // feature passes the publish gate; one that fails is skipped and reported through Failures, and
-// every other feature still loads. A host with no folder configured has no features.
+// every other feature still loads. A host with no folder configured reads <Home>/apps.
 public sealed class FeatureCatalog
 {
     internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Apps.Features");
@@ -26,12 +28,17 @@ public sealed class FeatureCatalog
     }
 
     // A relative folder resolves against the host's base directory, where a published image carries it.
+    // Unset means the person's script folder, <Home>/apps. The directory is created only for that default.
     internal static FeatureCatalog From(IServiceProvider services)
     {
         var path = services.GetRequiredService<IOptions<AppsOptions>>().Value.Features;
         var development = services.GetService<IHostEnvironment>()?.IsDevelopment() == true;
-        var directory = string.IsNullOrWhiteSpace(path) ? null
-            : new FeatureDirectory(System.IO.Path.GetFullPath(path, AppContext.BaseDirectory), development);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            path = StateHome.Resolve(services.GetService<IConfiguration>()).Apps;
+            System.IO.Directory.CreateDirectory(path);
+        }
+        var directory = new FeatureDirectory(System.IO.Path.GetFullPath(path, AppContext.BaseDirectory), development);
         return new(directory, services.GetService<IScriptSandbox>());
     }
 

@@ -132,3 +132,13 @@ Contract records `CompiledAppReview` and `CompiledAppDevelopmentLease` stay so `
 `AppSource.Shipped` stays. Folder scripts in the marketplace still use that source. `ShippedApps.Is` stays until Workspace, Desktop, and Settings are in-process apps.
 
 Tests: `IntoChat.OS.Modules.Apps.Tests.Unit` 35 passed, 0 failed. `FeatureCompileFacts` 3 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings. `FeatureReconcilerFacts` still fails to boot a silo with `CodecNotFoundException` for `PriceQuote`. That failure is from step 2 stripping Contract serializers. It was not rerun as a pass.
+
+### cutover(3): add the brain scene and default script folder
+
+`[App("brain")] BrainScene` lives in the Apps module. `Compose` places one `sphere` per neuron on a circle and one `path` per synapse whose ends are those neurons. A `SignalDelivery` adds a repeating `particles` tween along the matching path. `NextZoom` multiplies the camera zoom by 1.5 up to 4. `BrainSceneHost` installs the app on brain activation (empty program, operation `open`), and on `AppRequested` `open` reads `IBrainObserver` and sets `IScene` at `apps/brain/scenes/graph`. A tap on that scene zooms. Deliveries update particles on a separate pump that re-stamps the caller who opened the scene. `AppsEndpoints.Key` was renamed `AppKey` because an `[App]` in this assembly makes a static `Key` method a DB0026 error.
+
+`AppsOptions.Features` unset now loads `<Home>/apps` (`StateHome.Apps`). The directory is created only for that default. Hosts and tests that set `Features` keep their folder. Calculator, FilmCraft and PhotoCraft stay in `features/os` as examples; they are not copied into the home folder.
+
+`FeatureDirectory.IsCompiledSource` still stays until Files leaves `features/os`. `ShippedApps` still stays until Workspace, Desktop and Settings are in-process apps. `AppSource.Shipped` stays for folder scripts.
+
+Tests: `IntoChat.OS.Modules.Apps.Tests.Unit` 38 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings.
