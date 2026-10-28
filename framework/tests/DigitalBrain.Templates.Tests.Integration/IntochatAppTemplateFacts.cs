@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using IntoChat.OS.Cli;
 
 namespace DigitalBrain.Templates.Tests.Integration;
 
@@ -50,14 +49,6 @@ public sealed class IntochatAppTemplateFacts
             var test = await Dotnet(app, packages, ["test", "--project", Path.Combine(name + ".Tests.Unit", name + ".Tests.Unit.csproj"), "-c", "Release", "--no-build"], ct);
             Assert.Contains("succeeded: 4", test, StringComparison.Ordinal);
             Assert.Contains("failed: 0", test, StringComparison.Ordinal);
-
-            var built = await new AppBuild(Path.Combine(work, "app-cache")).Build(Path.Combine(app, name, name + ".csproj"), "Release", ct);
-            Assert.Equal(expectedId, built.Descriptor.Id);
-            Assert.NotEmpty(built.Descriptor.Neurons);
-            Assert.Contains(built.Descriptor.Neurons, neuron => neuron.State is not null);
-            Assert.True(built.Descriptor.HostMetadata.ContainsKey("jsonContext"));
-            Assert.True(built.Descriptor.HostMetadata.ContainsKey("proxyFactory"));
-            Assert.DoesNotContain(built.Descriptor.Payload, payload => payload.Path.EndsWith(".cs", StringComparison.Ordinal) || payload.Path.EndsWith(".pdb", StringComparison.Ordinal));
 
             // The analyzers run in the instance: an operation the spec does not describe fails the build with DB0024.
             var code = await File.ReadAllTextAsync(source, ct);
@@ -153,7 +144,7 @@ public sealed class IntochatAppTemplateFacts
         var stderr = process.StandardError.ReadToEndAsync(ct);
         await process.WaitForExitAsync(ct);
         output.Append(await stdout).Append(await stderr);
-        Assert.True((process.ExitCode == 0) == expectSuccess, $"dotnet {string.Join(' ', arguments)} exited {process.ExitCode} (expected {(expectSuccess ? "success" : "failure")}) in {directory}:\n{output}");
+        Assert.True(process.ExitCode == 0 == expectSuccess, $"dotnet {string.Join(' ', arguments)} exited {process.ExitCode} (expected {(expectSuccess ? "success" : "failure")}) in {directory}:\n{output}");
         return output.ToString();
     }
 

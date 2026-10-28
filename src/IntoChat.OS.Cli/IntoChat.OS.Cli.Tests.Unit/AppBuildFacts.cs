@@ -17,7 +17,6 @@ public sealed class AppBuildFacts
             Assert.Equal("[\"open\"]", package.Descriptor.Presentation["operations"]);
             Assert.Equal("App.With.Space.dll", package.Descriptor.EntryAssembly);
             Assert.Equal("Fixture.AppJsonContext", package.Descriptor.HostMetadata["jsonContext"]);
-            Assert.Equal("DigitalBrain.Generated.AppInvocationProxyFactory", package.Descriptor.HostMetadata["proxyFactory"]);
             Assert.Contains(package.Descriptor.SharedAssemblies, p => p.Key == "DigitalBrain");
             Assert.Contains(package.Descriptor.Payload, p => p.Path == "PrivateHelper.dll");
             Assert.Contains(package.Descriptor.Payload, p => p.Path == "assets/welcome.txt");

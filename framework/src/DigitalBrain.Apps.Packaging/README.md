@@ -24,7 +24,7 @@ those claims for its destination rather than infer ownership from aliases.
 
 `hostMetadata` is an ordinal map of extension names to opaque strings, normally
 canonical host-specific JSON. Reserve `intochat.os.v1` for OS operations,
-settings, slots, toolbar and semantic/secret/connector requirements. The library
+settings, slots, toolbar and semantic, secret and connection requirements. The library
 preserves those bytes without referencing OS assemblies. The host must validate
 the extension and reconcile it with the typed framework manifest after owner
 consent. An extension never grants or widens framework capabilities.

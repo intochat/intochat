@@ -6,7 +6,6 @@ using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Apps.Packaging;
 using DigitalBrain.Contracts;
-using DigitalBrain.Invocation;
 
 namespace IntoChat.OS.Cli;
 
@@ -39,10 +38,6 @@ internal static class BuildMetadata
                 if (context.GetTypeInfo(type) is null)
                 { throw new InvalidOperationException($"JsonSerializerContext {contexts[0].FullName} is missing {type.FullName}. Add [JsonSerializable(typeof({type.Name}))]."); }
             }
-            var factoryName = assembly.GetCustomAttributes<AssemblyMetadataAttribute>().SingleOrDefault(a => a.Key == "DigitalBrain.App.ProxyFactory")?.Value;
-            if (factoryName is null || assembly.GetType(factoryName) is not { IsAbstract: false } factory
-                || !typeof(IInvocationProxyFactory).IsAssignableFrom(factory) || factory.GetConstructor(Type.EmptyTypes) is null)
-            { throw new InvalidOperationException("Missing generated app invocation proxy factory. Enable <DigitalBrainCompiledApp>true</DigitalBrainCompiledApp> and the DigitalBrain analyzer."); }
             var descriptor = TrustedBuildMetadata.Extract(apps[0], definition.Manifest);
             var shared = ImmutableSortedDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
             foreach (var path in Directory.EnumerateFiles(directory, "*.dll"))
@@ -52,7 +47,7 @@ internal static class BuildMetadata
             }
             descriptor = descriptor with
             {
-                HostMetadata = descriptor.HostMetadata.Add("jsonContext", contexts[0].FullName!).Add("proxyFactory", factoryName),
+                HostMetadata = descriptor.HostMetadata.Add("jsonContext", contexts[0].FullName!),
                 SharedAssemblies = shared.ToImmutable(),
                 Presentation = descriptor.Presentation.SetItem("operations", JsonSerializer.Serialize(definition.Operations.Keys.Order(StringComparer.Ordinal))),
             };
