@@ -32,6 +32,12 @@
   </Folder>
   <Folder Name="/IntoChat.Cloud/" />
   <Folder Name="/IntoChat.Cloud/Modules/" />
+  <Folder Name="/IntoChat.Cloud/Modules/Auth/">
+    <Project Path="src/IntoChat.Cloud/Modules/Auth/tests/IntoChat.Cloud.Auth.Core.Tests.Unit/IntoChat.Cloud.Auth.Core.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Auth/src/">
+    <Project Path="src/IntoChat.Cloud/Modules/Auth/src/IntoChat.Cloud.Auth.Core/IntoChat.Cloud.Auth.Core.csproj" />
+  </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Circle/">
     <Project Path="src/IntoChat.Cloud/Modules/Circle/tests/IntoChat.Cloud.Circle.Contracts.Tests.Unit/IntoChat.Cloud.Circle.Contracts.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.Cloud/Modules/Circle/tests/IntoChat.Cloud.Circle.Server.Tests.Integration/IntoChat.Cloud.Circle.Server.Tests.Integration.csproj" />
@@ -42,6 +48,12 @@
   </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Circle/src/">
     <Project Path="src/IntoChat.Cloud/Modules/Circle/src/IntoChat.Cloud.Circle.Server/IntoChat.Cloud.Circle.Server.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Mail/">
+    <Project Path="src/IntoChat.Cloud/Modules/Mail/tests/IntoChat.Cloud.Mail.Templates.Tests.Unit/IntoChat.Cloud.Mail.Templates.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Mail/src/">
+    <Project Path="src/IntoChat.Cloud/Modules/Mail/src/IntoChat.Cloud.Mail.Templates/IntoChat.Cloud.Mail.Templates.csproj" />
   </Folder>
   <Folder Name="/LocalSetup/">
     <Project Path="src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/IntoChat.OS.LocalSetup.Tests.Unit.csproj" />

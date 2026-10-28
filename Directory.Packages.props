@@ -100,6 +100,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.4" />
+    <PackageVersion Include="Otp.NET" Version="1.4.1" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.2" />
     <PackageVersion Include="Microsoft.TemplateEngine.Authoring.Tasks" Version="11.0.100-rc.1.26425.128" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
