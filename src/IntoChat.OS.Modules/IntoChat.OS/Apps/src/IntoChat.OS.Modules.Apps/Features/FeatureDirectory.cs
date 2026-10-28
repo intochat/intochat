@@ -16,10 +16,19 @@ public sealed class FeatureDirectory(string path, bool writable = false)
     {
         var root = new DirectoryInfo(path);
         if (!root.Exists) { throw new DirectoryNotFoundException($"Features folder '{path}' does not exist."); }
-        return [.. root.EnumerateDirectories().OrderBy(owner => owner.Name, StringComparer.Ordinal)
-            .SelectMany(owner => owner.EnumerateDirectories().OrderBy(folder => folder.Name, StringComparer.Ordinal)
-                .Select(folder => new ShippedFeature(owner.Name, FeatureFolder.ToBundle($"{owner.Name}/{folder.Name}", ReadFolder(folder)), $"{owner.Name}/{folder.Name}")))];
+        var children = root.EnumerateDirectories().OrderBy(folder => folder.Name, StringComparer.Ordinal).ToArray();
+        // features/os holds one folder per app (app.cs directly inside). features holds one folder per owner.
+        if (children.Any(HasDeclaration))
+        { return [.. children.Where(HasDeclaration).Select(folder => Feature(root.Name, folder))]; }
+        return [.. children.SelectMany(owner => owner.EnumerateDirectories().OrderBy(folder => folder.Name, StringComparer.Ordinal)
+            .Select(folder => Feature(owner.Name, folder)))];
     }
+
+    private static bool HasDeclaration(DirectoryInfo folder)
+        => File.Exists(System.IO.Path.Combine(folder.FullName, AppFiles.DeclarationPath));
+
+    private static ShippedFeature Feature(string owner, DirectoryInfo folder)
+        => new(owner, FeatureFolder.ToBundle($"{owner}/{folder.Name}", ReadFolder(folder)), $"{owner}/{folder.Name}");
 
     public void Write(string owner, AppBundle bundle)
     {

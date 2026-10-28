@@ -7,8 +7,8 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Kernel;
 
-// The operating system's default apps: features every new brain installs from the Marketplace.
-// The list is deployment configuration; a distribution names its own.
+// The operating system's default apps: every script in the folder, plus ShippedApps.Roots.
+// A distribution adds its own through OsAppsOptions. Apps.
 public sealed record OsApp(string Publisher, string Name);
 
 public sealed class OsAppsOptions
@@ -24,8 +24,8 @@ public static class OsAppsHosting
 {
     private sealed class OsAppsRegistered;
 
-    // The operating system names its own apps; a distribution's configure only adds. The apps
-    // themselves are features the host loads from its features folder (AppsOptions.Features).
+    // The operating system installs the folder plus ShippedApps.Roots; a distribution's configure only adds.
+    // The apps themselves are features the host loads from its script folder (AppsOptions.Features).
     // Idempotent: the composition wires this itself, and a host calling it again is a no-op
     // apart from its own configure delegate.
     public static IServiceCollection AddOperatingSystemApps(this IServiceCollection services, Action<OsAppsOptions>? configure = null)
@@ -53,19 +53,25 @@ public static class OsAppsHosting
     }
 }
 
-// A new brain is born with the OS defaults: Create awaits this handler inside the owner's own
-// turn, so every default installs through the same Marketplace Install anyone uses, as the
-// owner. A present app is the person's, never replaced here. A circle brain gets none (R125): it
-// is born with its own room only.
+// A new brain is born with the OS defaults. Create awaits this handler inside the owner's own
+// turn. A present app is the person's, never replaced here. A circle brain gets none (R125): it
+// is born with its own room only. The folder and ShippedApps.Roots load through the feature loader;
+// a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
     IIntoChatOSBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
-    IntoChat.OS.Connections.Platform.Identity.IIdentityClient identity) : ICreationHandler
+    IntoChat.OS.Connections.Platform.Identity.IIdentityClient identity, FeatureCatalog catalog, FeatureLoader loader) : ICreationHandler
 {
     public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
         if (await identity.KindOf(brainId) == IntoChat.OS.Framework.Modules.Platform.Identity.BrainKind.Circle) { return; }
+        await ShippedInstall.Missing(catalog, loader, brainId,
+            async name => await brains.Get<IApp>($"{brainId}/apps/{name}").Read().WaitAsync(cancellationToken),
+            (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId),
+            cancellationToken);
+        var shipped = await catalog.BootSet();
         foreach (var app in options.Value.Apps)
         {
+            if (shipped.Any(item => item.Publisher == app.Publisher && item.Name == app.Name)) { continue; }
             try
             {
                 if ((await brains.Get<IApp>($"{brainId}/apps/{app.Name}").Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)

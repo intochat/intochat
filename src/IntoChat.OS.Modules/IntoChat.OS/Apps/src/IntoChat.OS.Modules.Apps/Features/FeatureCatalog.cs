@@ -1,45 +1,61 @@
 using System.Diagnostics;
-using DigitalBrain.Runtime.Orleans;
-using Microsoft.Extensions.Configuration;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The features the host loads from its features folder (IntoChatOS:Modules:apps:Options:Features):
+// The features the host loads from its script folder (IntoChatOS:Modules:apps:Options:Features):
 // code, not content anyone wrote at runtime. Loaded at boot and on first read; only Save to source
 // reloads it. A bundle that does not compile never reaches the catalog, so loading is where a
 // feature passes the publish gate; one that fails is skipped and reported through Failures, and
-// every other feature still loads. A host with no folder configured reads <Home>/apps.
+// every other feature still loads. Compiled [App] types in this module are listed beside the scripts.
+// Unset, the folder is features/os (the repository in Development, the publish directory otherwise).
 public sealed class FeatureCatalog
 {
     internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Apps.Features");
 
     private readonly FeatureDirectory? _directory;
     private readonly IScriptSandbox? _sandbox;
+    private readonly Assembly? _modules;
     private readonly Lock _gate = new();
     private Task<Loaded>? _loaded;
 
     public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null)
+        : this(directory, sandbox, null) { }
+
+    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, Assembly? modules)
     {
         _directory = directory;
         _sandbox = sandbox;
+        _modules = modules;
     }
 
     // A relative folder resolves against the host's base directory, where a published image carries it.
-    // Unset means the person's script folder, <Home>/apps. The directory is created only for that default.
+    // Unset walks to features/os: the repo root in Development, <base>/features/os when published.
     internal static FeatureCatalog From(IServiceProvider services)
     {
         var path = services.GetRequiredService<IOptions<AppsOptions>>().Value.Features;
         var development = services.GetService<IHostEnvironment>()?.IsDevelopment() == true;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            path = StateHome.Resolve(services.GetService<IConfiguration>()).Apps;
-            System.IO.Directory.CreateDirectory(path);
-        }
+        if (string.IsNullOrWhiteSpace(path)) { path = DefaultScriptFolder(development); }
         var directory = new FeatureDirectory(System.IO.Path.GetFullPath(path, AppContext.BaseDirectory), development);
-        return new(directory, services.GetService<IScriptSandbox>());
+        return new(directory, services.GetService<IScriptSandbox>(), typeof(AppsModule).Assembly);
+    }
+
+    // Development: the features/os next to Intochat.OS.slnx, walking up from the build output.
+    // Published: the features/os copied beside the host.
+    internal static string DefaultScriptFolder(bool development)
+    {
+        if (development)
+        {
+            for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            {
+                if (File.Exists(System.IO.Path.Combine(dir.FullName, "Intochat.OS.slnx")))
+                { return System.IO.Path.Combine(dir.FullName, "features", "os"); }
+            }
+        }
+        return System.IO.Path.Combine(AppContext.BaseDirectory, "features", "os");
     }
 
     public FeatureDirectory? Directory => _directory;
@@ -56,6 +72,22 @@ public sealed class FeatureCatalog
         => [.. (await Bundles()).Select(entry => new MarketplaceListing(
             entry.Key.Owner, new AppSource.Shipped(), entry.Key.Name,
             entry.Value.Manifest.Title, entry.Value.Manifest.Description, entry.Value.Version, entry.Value.Manifest.Icon, entry.Value.Manifest.Requires))];
+
+    public async Task<FeatureOrigin?> Origin(string owner, string name)
+        => (await Snapshot()).Origins.GetValueOrDefault((owner, name));
+
+    // Scripts in the folder, plus every ShippedApps root (a root may now live only as a compiled app).
+    public async Task<IReadOnlyList<(string Publisher, string Name)>> BootSet()
+    {
+        var loaded = await Snapshot();
+        var names = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var ((owner, name), origin) in loaded.Origins)
+        {
+            if (owner == ShippedApps.Publisher && origin is FeatureOrigin.Folder) { names.Add(name); }
+        }
+        foreach (var root in ShippedApps.Roots) { names.Add(root); }
+        return [.. names.Select(name => (ShippedApps.Publisher, name))];
+    }
 
     // Writes the bundle into the owner's folder and reloads, so Find and Listings switch to the new
     // contents together. A failed reload leaves the previous snapshot in place.
@@ -95,8 +127,11 @@ public sealed class FeatureCatalog
     private static async Task<Loaded> Replace(Task<Loaded> previous, string owner, AppBundle bundle)
     {
         var latest = await previous;
-        var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>(latest.Bundles.ToDictionary()) { [(owner, bundle.Name)] = bundle };
-        return new(bundles, [.. latest.Failures.Where(failure => failure.Owner != owner || failure.Name != bundle.Name)]);
+        var key = (owner, bundle.Name);
+        var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>(latest.Bundles.ToDictionary()) { [key] = bundle };
+        var origins = latest.Origins.ToDictionary();
+        if (!origins.ContainsKey(key)) { origins[key] = new FeatureOrigin.Folder(owner + "/" + bundle.Name); }
+        return new(bundles, [.. latest.Failures.Where(failure => failure.Owner != owner || failure.Name != bundle.Name)], origins);
     }
 
     internal async Task<IReadOnlyDictionary<(string Owner, string Name), AppBundle>> Bundles() => (await Snapshot()).Bundles;
@@ -107,17 +142,49 @@ public sealed class FeatureCatalog
     }
 
     private async Task<Loaded> LoadCombined()
-        => _directory is null ? Nothing : await Load(_directory, _sandbox);
+    {
+        Loaded scripts;
+        if (_directory is null) { scripts = Nothing; }
+        else
+        {
+            try { scripts = await Load(_directory, _sandbox); }
+            catch (DirectoryNotFoundException error)
+            { scripts = new(Nothing.Bundles, [new("", "", "", error.Message)], Nothing.Origins); }
+        }
+        if (_modules is null) { return scripts; }
+        var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>(scripts.Bundles.ToDictionary());
+        var origins = scripts.Origins.ToDictionary();
+        List<FeatureFailure> failures = [.. scripts.Failures];
+        foreach (var compiled in CompiledApps.Of(_modules))
+        {
+            var key = (compiled.Owner, compiled.Bundle.Name);
+            if (bundles.ContainsKey(key))
+            {
+                var reason = $"{compiled.Owner}/{compiled.Bundle.Name} ships twice: the features folder and {compiled.Origin.Assembly.GetName().Name}.";
+                failures.Add(new(compiled.Owner, compiled.Bundle.Name, compiled.Bundle.Version, reason));
+                bundles.Remove(key);
+                origins.Remove(key);
+                continue;
+            }
+            bundles[key] = compiled.Bundle;
+            origins[key] = compiled.Origin;
+        }
+        return new(bundles, [.. failures], origins);
+    }
 
-    private static readonly Loaded Nothing = new(new Dictionary<(string Owner, string Name), AppBundle>(), []);
+    private static readonly Loaded Nothing = new(new Dictionary<(string Owner, string Name), AppBundle>(), [], new Dictionary<(string Owner, string Name), FeatureOrigin>());
 
-    private sealed record Loaded(IReadOnlyDictionary<(string Owner, string Name), AppBundle> Bundles, FeatureFailure[] Failures);
+    private sealed record Loaded(
+        IReadOnlyDictionary<(string Owner, string Name), AppBundle> Bundles,
+        FeatureFailure[] Failures,
+        IReadOnlyDictionary<(string Owner, string Name), FeatureOrigin> Origins);
 
     private static async Task<Loaded> Load(FeatureDirectory directory, IScriptSandbox? sandbox)
     {
         using var load = Telemetry.StartActivity("features.load");
         load?.SetTag("features.path", directory.Path);
         var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>();
+        var origins = new Dictionary<(string Owner, string Name), FeatureOrigin>();
         List<FeatureFailure> failures = [];
         var shipped = directory.Load();
         var twice = shipped.GroupBy(feature => (feature.Owner, feature.Bundle.Name)).Where(group => group.Count() > 1).ToDictionary(group => group.Key, group => group.ToArray());
@@ -133,18 +200,21 @@ public sealed class FeatureCatalog
             each?.SetTag("feature.owner", feature.Owner);
             each?.SetTag("feature.name", feature.Bundle.Name);
             each?.SetTag("feature.version", feature.Bundle.Version);
-            bundles[(feature.Owner, feature.Bundle.Name)] = feature.Bundle;
+            var key = (feature.Owner, feature.Bundle.Name);
+            bundles[key] = feature.Bundle;
+            origins[key] = new FeatureOrigin.Folder(feature.Folder);
             try { await RequireCompiles(feature.Owner, feature.Bundle, sandbox); }
             catch (InvalidOperationException error)
             {
-                bundles.Remove((feature.Owner, feature.Bundle.Name));
+                bundles.Remove(key);
+                origins.Remove(key);
                 failures.Add(new(feature.Owner, feature.Bundle.Name, feature.Bundle.Version, error.Message));
                 each?.SetStatus(ActivityStatusCode.Error, error.Message);
             }
         }
         load?.SetTag("features.count", bundles.Count);
         load?.SetTag("features.failed", failures.Count);
-        return new(bundles, [.. failures]);
+        return new(bundles, [.. failures], origins);
     }
 
     // The same gate AppNeuron.Publish applies: the reaction shape always (it is syntax), the compile only

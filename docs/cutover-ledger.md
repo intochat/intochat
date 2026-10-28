@@ -666,3 +666,43 @@ AppHost kernel `OperatingSystem-a` reached `http://localhost:59909/health` with 
 `OsAppsOptions.Apps` is empty (`AddOperatingSystemApps()` with no configure), so `OsDefaults` installs no feature-folder apps. `FeatureReconciler` only updates apps the brain already has. Workspace, Desktop, Settings, and Calculator remain scripts under `features/os/` and were not installed into brain `owner`. FeatureBoot logged `Loaded 18 features from E:\intochat\os-wt\cutover\features`. No Dart file was edited.
 
 `dotnet build Intochat.OS.slnx -c Release`: Build succeeded. 0 Warning(s). 0 Error(s). Time Elapsed 00:00:04.69. `LegacyConfigurationGuardFacts`: 33 passed, 0 failed.
+
+## Step 3 — apps visible again
+
+Unset `AppsOptions.Features` resolves to `features/os`: in Development, walk up from `AppContext.BaseDirectory` to the directory that contains `Intochat.OS.slnx`; when published, `<AppContext.BaseDirectory>/features/os`. The kernel csproj again ships `features/os/**` to the publish output and to NuGet `contentFiles` (the `master` item). A flat folder whose children contain `app.cs` loads as one owner; `features` (owner/app) still loads the same apps. `FeatureCatalog.From` also lists compiled `[App]` types in the Apps assembly whose origin is that assembly. `ShippedInstall` installs every folder script for publisher `os` plus `ShippedApps.Roots` on brain birth, on connect, and from `FeatureReconciler`. A circle brain still gets none of that set. Workspace, Desktop, and Settings stay scripts.
+
+`ShippedScriptCatalogFacts.TheCatalogListsEveryShippedScriptAndFiles` boots the Apps module on TestOS with Features unset and a Development host. The catalog directory ends in `features/os` and lists the 18 script apps plus Files. Calculator's origin is the folder. Files' origin is `FeatureOrigin.Module` for the Apps assembly. `IntoChat.OS.Modules.Apps.Tests.Unit`: 32 passed, 0 failed. `IntoChat.OS.Kernel.Tests.Unit`: 21 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release`: Build succeeded. 0 Warning(s). 0 Error(s). Time Elapsed 00:00:05.71.
+
+Direct kernel, launch profile `http`, Development, `http://localhost:5310`:
+
+```
+dotnet run --project E:\intochat\os-wt\cutover\src\IntoChat.OS.Kernel\IntoChat.OS.Kernel\IntoChat.OS.Kernel.csproj -c Release --no-build -- --IntoChatOS:Topology=local --IntoChatOS:Home=C:\Users\vhorb\AppData\Local\Temp\intochat-cutover-fb39770c7be94d1f9caa37465a8f0157
+```
+
+`GET http://localhost:5310/health` returned 200 `Healthy`. The log line was `Open posture listening on http://localhost:5310`. The same process logged `Could not start brain owner's sandbox session` (`Configure csharp Deployment:SandboxUrl or Deployment:SessionPoolEndpoint`). That kernel has no Aspire sandbox, so script apps do not execute there.
+
+Shell, with that kernel still up, from the worktree. Home is a fresh temp directory so the proof does not install into `~/.intochat`:
+
+```
+dotnet run intochat-os.cs -- --IntoChatOS:Topology=local --IntoChatOS:Home=C:\Users\vhorb\AppData\Local\Temp\intochat-cutover-shell-0c926fab61114cfa935b4a788394bb56
+```
+
+AppHost kernel `OperatingSystem-a` reached `http://localhost:60009/health` with body `Healthy`. The console logged `Loaded 20 features from E:\intochat\os-wt\cutover\features` (18 scripts plus compiled Files and Brain). Flutter resource `FlutterShell` ran `flutter run -d windows` and opened a window titled IntoChat (process `intochat_os_flutter`). `POST /brains/owner/apps/connect` returned 200 with root `view` `owner/apps/desktop/view`. The widget tree was `BrainSessionGate` → `WorkspaceApp` → `NeuronView(owner/apps/desktop/view)`.
+
+`GET /brains/owner/apps` listed 20 Live apps: apps, brain, brainview, calculator, circle, circleroom, datavisualizer, desktop, engineer, files, filmcraft, friends, ino, memory, photocraft, router, selfimprove, settings, usage, workspace.
+
+Visible in that Desktop (view generation 1, and the same widgets on screen):
+
+- Dock: Ino (button text "Ino"), New tab, Apps.
+- Right side of the dock: `$0.00`, Me, Settings, Classic layout.
+- The window area was empty (`windows` had no children). Ino's window had not opened. `Desktop.FirstRun` is what opens it; this pass did not see that window.
+
+Not dock icons, and why:
+
+- `Desktop.DockOrder` shows Ino, pinned apps, and open apps. Nothing else was pinned or open, so the other installed apps open from the Apps button.
+- `Desktop.Hidden` is `ShippedApps.Services`: desktop, workspace, router, selfimprove, circleroom, usage. They are installed and are not windows or dock icons. Usage still shows as the `$0.00` spend text.
+- Settings is the More button, not a dock icon and not an open window.
+- Files and Brain are in the installed list (compiled origins) and were not open, so they were not dock icons.
+- Calculator, Circle, Data Visualizer, Engineer, FilmCraft, Friends, Memory, PhotoCraft, and BrainView are installed the same way and were not open.
+
+08-09 still owes porting Workspace, Desktop, and Settings to compiled `[App]` types. This pass leaves them as scripts under `features/os`. No Dart file was edited.

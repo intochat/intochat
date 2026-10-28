@@ -1,25 +1,34 @@
 using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Brings this brain's unedited features to the features folder's version through the loader, the
-// same path AppInstaller.Update takes; a copy the person edited, or that came from a person's
-// brain, is untouched. One app failing must not keep the others from catching up.
-// It only updates what a brain already has, so a circle brain (R125: born with its room, no OS
-// default) is reconciled like any other.
+// Installs every script in the features folder (and each ShippedApps root) that this brain does
+// not already have, then brings unedited shipped copies to the folder's version through the
+// loader, the same path AppInstaller.Update takes. A copy the person edited, or that came from
+// a person's brain, is untouched. One app failing must not keep the others from catching up.
+// A circle brain (R125) is born with its room only, so the install is skipped; updates still run.
 // A plain neuron (06-08), reading the brain's plain apps.
 [DigitalBrain.Neuron("apps.reconciler")]
 internal sealed class FeatureReconciler(
     IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
-    IEnumerable<IFeatureMigration> migrations)
+    IEnumerable<IFeatureMigration> migrations, IIdentityClient? identity = null)
     : DigitalBrain.Neuron, IFeatureReconciler
 {
     public async Task Reconcile(CancellationToken ct = default)
     {
         var brainId = Id.Brain.Value;
+        // A circle is born with its room only (R125). Every other brain receives the folder's scripts.
+        if (identity is null || await identity.KindOf(brainId) != BrainKind.Circle)
+        {
+            await ShippedInstall.Missing(catalog, loader, brainId, async name =>
+                await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/" + name)).Read().WaitAsync(ct),
+                (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId), ct);
+        }
         foreach (var migration in migrations)
         {
             try { await migration.PrepareBrain(brainId, ct); }

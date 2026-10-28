@@ -20,8 +20,9 @@ public sealed class AppsOptions : IModuleOptions
     // How long a Building status blocks a new build before it counts as a stale, dead attempt.
     public int BuildFreshForSeconds { get; set; } = 900;
 
-    // The features folder: {owner}/{App}/app.cs. The host loads it at boot and lists it in the
-    // Marketplace; a relative path resolves against the host's base directory. Unset: <Home>/apps.
+    // The script folder the host loads at boot and lists in the Marketplace. A relative path
+    // resolves against the host's base directory. Unset: features/os under the repository that
+    // contains Intochat.OS.slnx when the host is in Development, and <base>/features/os when published.
     public string? Features { get; set; }
 
     public void Validate()
