@@ -83,13 +83,18 @@ Addressing that is not a mapping exception: relative `Neuron<T>("apps/assistant"
 
 ### Orleans still reached from modules
 
-These call sites still take `IGrainFactory`, reminders, or Orleans `RequestContext`. Step 6 decides the allow-list. `TokenRequestContext` in `SessionRunner` is Azure identity, not Orleans.
+Recounted for cutover(9) on 2026-10-28. Product `.cs` under `src/IntoChat.OS.Kernel`, `src/IntoChat.OS`, `src/IntoChat.OS.Modules`, and `src/IntoChat.Cloud`, excluding `tests`, `Tests`, `obj`, and `bin`. Comment lines are skipped. `TokenRequestContext` in `SessionRunner` and in the Azure test token helper is Azure identity, not Orleans. `CallerContextStamper.RequestContextKey` is a constant name, not a call. Framework runtime and framework tests are the host, not this list. The named test files from the first pass (`ProviderIntegrations`, `BrainKeyFacts`, `AutomaticChoiceFacts`, `CredentialFacts`, `SpaceFacts`, `RuntimeEdgeBinderFacts`, `SourceWatchRaceFacts`) have no remaining `IGrainFactory` or Orleans `RequestContext` call.
 
-- Kernel composition: `Kernel`, `KernelInvocationSink` (`RequestContext.Set`), `KernelGrains` (`RequestContext.Remove`), `GrainNeuronResolver`, `AuthorityVaultPort`, `PlainInstanceRegistration`, `RuntimeCallerMirror` (`RequestContext.Remove`), `PlainNeuronCallFilter` (`RequestContext` get/set), `ConfirmationNeuron` (`RequestContext.Get`), `KernelTestHooks` (`IGrainFactory`, `IRemindable`).
-- AI: `BrainAwareCredentials`. Tests: `ProviderIntegrations`, `BrainKeyFacts`, `AutomaticChoiceFacts`, `CredentialFacts`.
-- Flutter: `SpaceNeuron` and `SpaceWatcher` (`RequestContext`). Test: `SpaceFacts`.
-- CSharp: `RuntimeEdge` (`IGrainFactory`), `BrainRuntimeNeuron` (`RequestContext`). Tests: `RuntimeEdgeBinderFacts`, `SourceWatchRaceFacts`.
-- Circle.Server: `EnrollmentEndpoints`, `MachineAuthenticationHandler`.
+28 files. 21 `IGrainFactory` mentions, 1 `IRemindable` (`KernelTestHooks`), 38 Orleans `RequestContext` mentions.
+
+- Kernel composition (9): `Kernel` (3), `KernelInvocationSink` (2 grain, 1 `RequestContext`), `KernelGrains` (2 `RequestContext`), `GrainNeuronResolver` (1), `PlainInstanceRegistration` (1), `RuntimeCallerMirror` (1 `RequestContext`), `PlainNeuronCallFilter` (2 `RequestContext`), `ConfirmationNeuron` (1 `RequestContext`), `KernelTestHooks` (3 grain, 1 `IRemindable`). `AuthorityVaultPort` is gone.
+- AI (1): `BrainAwareCredentials` (1 grain).
+- Flutter (2): `SpaceNeuron` (3 `RequestContext`), `SpaceWatcher` (2 `RequestContext`).
+- Apps (6): `AppNeuron` (4 `RequestContext`), `Creator` (1 grain), `ReactionWriter` (1 grain, 4 `RequestContext`), `BrainSceneHost` (1 `RequestContext`), `FeatureBoot` (1 `RequestContext`), `FilesHost` (1 `RequestContext`).
+- Identity (4): `AuthorityNeurons` (1 grain), `ConnectionBindings` (3 `RequestContext`), `BrainProviderKeys` (1 grain), `IdentityBrainMembership` (1 grain).
+- CSharp (2): `RuntimeEdge` (1 grain), `BrainRuntimeNeuron` (4 `RequestContext`).
+- Circle.Server (2): `EnrollmentEndpoints` (2 grain), `MachineAuthenticationHandler` (2 grain).
+- os host (2): `TraceContext` (6 `RequestContext`), `TraceOutgoingFilter` (2 `RequestContext`).
 
 ### cutover(2): one vocabulary
 
