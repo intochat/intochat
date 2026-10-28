@@ -2,7 +2,7 @@ using System.Text;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
-// Console output is a behavior's log. One writer is installed for the whole process and routes each
+// Console output, standard error as much as standard output, is a behavior's log. One writer per stream is installed for the process and routes each
 // line to the behavior whose code wrote it (an async-local sink); anything else goes to the real console.
 internal static class BehaviorConsole
 {
@@ -17,6 +17,7 @@ internal static class BehaviorConsole
             if (!_installed)
             {
                 Console.SetOut(new Router(Console.Out));
+                Console.SetError(new Router(Console.Error));
                 _installed = true;
             }
         }

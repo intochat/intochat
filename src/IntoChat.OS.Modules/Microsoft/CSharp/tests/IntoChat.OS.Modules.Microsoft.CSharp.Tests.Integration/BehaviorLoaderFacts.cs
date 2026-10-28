@@ -55,6 +55,25 @@ public sealed class BehaviorLoaderFacts
         Assert.Contains("timer tea", run.Tail(10), StringComparison.Ordinal);
     }
 
+    // An app's diagnostics go to stderr as often as to stdout; both are the behavior's log, and each stays its own run's.
+    [Fact]
+    public async Task ABehaviorsStandardErrorIsItsLogToo()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var edge = new FakeBrainEdge();
+        var compiled = Compile("Console.Error.WriteLine(\"warned\");\nConsole.Error.Write(\"partial\");\nConsole.WriteLine(\"said\");\nawait Task.CompletedTask;\n");
+        edge.Serve(compiled);
+        await using var session = await Open(edge, ct);
+
+        await using var run = await Loader(edge).LoadAsync(session, edge.Assignment("acc-brain/csharp/e", compiled), NullLogger.Instance, ct);
+
+        Assert.Equal(0, await run.Completion);
+        var log = run.Tail(10);
+        Assert.Contains("warned", log, StringComparison.Ordinal);
+        Assert.Contains("said", log, StringComparison.Ordinal);
+        Assert.Contains("partial", log, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AnAssemblyWhoseBytesDoNotMatchItsHashIsRefused()
     {
