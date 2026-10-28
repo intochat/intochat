@@ -12,6 +12,7 @@ using Google.Protobuf;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using CallRequest = IntoChat.OS.Authority.Neurons.Proto.CallRequest;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Authority.Neurons;
 

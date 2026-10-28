@@ -1,5 +1,6 @@
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Client.Orleans;
 

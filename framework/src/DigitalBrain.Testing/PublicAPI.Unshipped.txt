@@ -375,6 +375,7 @@ DigitalBrain.Testing.TestOS.Capabilities.get -> DigitalBrain.Testing.CapabilityF
 DigitalBrain.Testing.TestOS.Clock.get -> DigitalBrain.Testing.TestClock!
 DigitalBrain.Testing.TestOS.Cursor(DigitalBrain.NeuronId subscriber, DigitalBrain.NeuronId source) -> long?
 DigitalBrain.Testing.TestOS.Deactivate(DigitalBrain.NeuronId id) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestOS.Deliveries(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.Spi.SignalDelivery!>!
 DigitalBrain.Testing.TestOS.DisposeAsync() -> System.Threading.Tasks.ValueTask
 DigitalBrain.Testing.TestOS.DuplicatesDropped.get -> long
 DigitalBrain.Testing.TestOS.FailNextPublishAfterAppend(DigitalBrain.NeuronId publisher) -> void

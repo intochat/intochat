@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Mcp;
@@ -19,4 +20,8 @@ public sealed class FixedKernel(params System.Reflection.Assembly[] assemblies) 
     public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<BrainInstance>();
 
     public Task<string[]> Brains(CancellationToken cancellationToken = default) => Task.FromResult<string[]>([]);
+
+    public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default) => Task.FromResult<ObservedSynapse[]>([]);
+
+    public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<SignalDelivery>();
 }

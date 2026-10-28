@@ -22,6 +22,7 @@ using Orleans.Configuration;
 using System.Net.Http.Json;
 using IntoChat.OS.ServiceDefaults;
 using IntoChat.OS.Testing.Aspire.Diagnostics;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Testing.Aspire;
 

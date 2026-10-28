@@ -797,10 +797,5 @@ static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Live(System.IServicePro
 static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Newest(DigitalBrain.Runtime.Orleans.IBrainJournalWriter! journal, DigitalBrain.NeuronId publisher, string! alias, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.Signalling.SessionSignal?>!
 static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.ToSignal(DigitalBrain.Runtime.Orleans.JournalSignalEntry! entry) -> DigitalBrain.Runtime.Orleans.Signalling.SessionSignal!
 DigitalBrain.Runtime.Orleans.Signalling.SignalLog
-DigitalBrain.Runtime.Orleans.IBrainObserver
-DigitalBrain.Runtime.Orleans.IBrainObserver.Brains(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string![]!>!
-DigitalBrain.Runtime.Orleans.IBrainObserver.Instances(string? type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.BrainInstance!>!
-DigitalBrain.Runtime.Orleans.IBrainObserver.Instances<T>(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.BrainInstance!>!
-DigitalBrain.Runtime.Orleans.IBrainObserver.Types(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BrainType![]!>!
 DigitalBrain.Runtime.Orleans.Hosting.NeuronProxyHosting
 static DigitalBrain.Runtime.Orleans.Hosting.NeuronProxyHosting.AddNeuronProxies(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

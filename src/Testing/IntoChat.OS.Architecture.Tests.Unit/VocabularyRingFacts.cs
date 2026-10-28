@@ -1,4 +1,5 @@
 using System.Reflection;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

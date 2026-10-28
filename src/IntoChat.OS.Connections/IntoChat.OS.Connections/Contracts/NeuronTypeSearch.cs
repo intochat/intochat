@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Framework;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Connections.Contracts;
 

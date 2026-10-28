@@ -4,6 +4,7 @@ using IntoChat.OS.Runtime;
 using IntoChat.OS.Testing.Neurons;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Testing.Aspire.Tests.Integration;
 

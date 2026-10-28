@@ -24,6 +24,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
@@ -1366,6 +1367,8 @@ public sealed class FastPathFacts : IDisposable
             => inner.Instances<T>(cancellationToken);
         public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default) => inner.Instances(type, cancellationToken);
         public Task<string[]> Brains(CancellationToken cancellationToken = default) => inner.Brains(cancellationToken);
+        public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default) => inner.Synapses(cancellationToken);
+        public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default) => inner.Deliveries(cancellationToken);
         public Task<BrainInstance[]> Running(CancellationToken cancellationToken = default) => inner.Running(cancellationToken);
         public string TypeOf(Type contract) => inner.TypeOf(contract);
         public Task Retire(string type, string key, CancellationToken cancellationToken = default) => inner.Retire(type, key, cancellationToken);

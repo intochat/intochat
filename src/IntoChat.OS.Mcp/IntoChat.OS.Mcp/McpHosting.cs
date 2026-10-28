@@ -6,6 +6,7 @@ using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Mcp;
 

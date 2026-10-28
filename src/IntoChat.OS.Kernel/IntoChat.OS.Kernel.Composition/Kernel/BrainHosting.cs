@@ -8,6 +8,7 @@ using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
 using IntoChat.OS.Contracts.Configuration;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Kernel.Composition;
 
@@ -53,7 +54,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
         // AddDigitalBrainRuntime registers ClusterBrainObserver first. The product kernel replaces it: it sees
         // feature types and connection contracts, which the runtime-only observer does not.
-        silo.Services.Replace(ServiceDescriptor.Singleton<DigitalBrain.Runtime.Orleans.IBrainObserver>(sp => sp.GetRequiredService<Kernel>()));
+        silo.Services.Replace(ServiceDescriptor.Singleton<DigitalBrain.Spi.IBrainObserver>(sp => sp.GetRequiredService<Kernel>()));
         // Ledger 38: bound each "{brain}/{type}" instance directory so a brain's core does not grow without bound.
         silo.Services.AddOptions<InstanceDirectoryOptions>().BindConfiguration(InstanceDirectoryOptions.Key)
             .Validate(options => options.Limit > 0, "The instance directory limit must be positive.").ValidateOnStart();

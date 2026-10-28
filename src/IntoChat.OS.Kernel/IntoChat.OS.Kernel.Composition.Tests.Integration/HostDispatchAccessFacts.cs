@@ -44,7 +44,7 @@ public sealed class HostDispatchAccessFacts
         await brain.DeactivateAsync(counted, ct);
         var grains = brain.Services.GetRequiredService<IGrainFactory>();
         // Remove only the projection, retaining the saved neuron to expose any query-triggered registration.
-        var contract = typeof(IBrainObserver).Assembly.GetType("DigitalBrain.Runtime.Orleans.IInstanceDirectory", throwOnError: true)!;
+        var contract = typeof(DigitalBrain.Runtime.Orleans.StateHome).Assembly.GetType("DigitalBrain.Runtime.Orleans.IInstanceDirectory", throwOnError: true)!;
         var get = typeof(IGrainFactory).GetMethods().Single(method => method.Name == nameof(IGrainFactory.GetGrain)
             && method.IsGenericMethodDefinition && method.GetParameters() is [{ ParameterType: var type }] && type == typeof(GrainId));
         var directory = get.MakeGenericMethod(contract).Invoke(grains, [GrainId.Create("kernel.instances", "owner/" + PlainCounted.Type)])!;

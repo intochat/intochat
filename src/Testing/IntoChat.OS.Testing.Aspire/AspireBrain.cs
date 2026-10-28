@@ -2,6 +2,7 @@ using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Orleans;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Testing.Aspire;
 

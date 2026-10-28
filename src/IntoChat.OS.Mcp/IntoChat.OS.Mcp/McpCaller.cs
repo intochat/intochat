@@ -11,6 +11,7 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Mcp;
 

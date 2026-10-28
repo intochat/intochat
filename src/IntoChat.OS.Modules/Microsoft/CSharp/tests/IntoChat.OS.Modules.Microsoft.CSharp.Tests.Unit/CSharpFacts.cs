@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -235,5 +236,7 @@ public sealed class CSharpFacts
         public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<BrainType[]> Types(CancellationToken cancellationToken = default) => Task.FromResult(types);
         public Task<string[]> Brains(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

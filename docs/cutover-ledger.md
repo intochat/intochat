@@ -102,3 +102,19 @@ Tests: `IntoChat.OS.Kernel.Tests.Unit` 464 passed. `IntoChat.OS.Client.Tests.Uni
 ### Step 2 status
 
 The old neuron, signal, synapse, and kernel vocabulary is gone. Callers use DigitalBrain neurons, `NeuronId`, `Signal`, `INeuronProxies`, `ISignalWatch`, and `IBrainObserver`. `src/IntoChat.OS` keeps `Runtime/`, the moved host, and the two contract projects. Module projects that still call Orleans still reference it. `OrleansHostWiring`'s cloud storage overlay and `IClusterMembershipFeed` stay; their callers are still live.
+
+## Step 3 — one app path
+
+### cutover(3): move IBrainObserver to Spi and list synapses
+
+`IBrainObserver` moved from `DigitalBrain.Runtime.Orleans` to `framework/src/DigitalBrain/Spi/IBrainObserver.cs`. Core has no Orleans types. `ClusterBrainObserver` still implements it. `TestOS` implements it. `Synapses` on `TestOS` is an explicit implementation because the class already has a `Synapses` registry property.
+
+Added `ObservedSynapse` and `SignalDelivery`. `Synapses` scans the per-brain journal state named `synapses` (`BrainLog.Named`, `SynapseObservation.List`), skips the brain-wide sentinel, and reads the subscriber from the grain id (`neuron.host/`, `neuron.host.reentrant/`, `neuron.host.stateless/`). `Deliveries` is an in-memory fan-out with no replay. `SynapseEngine.React` notes a delivery after a successful reaction when the source is not brain-wide and the signal is not `Gap`. `TestOS` notes from `SynapseRegistry.React`. Product `Kernel` resolves `BrainLogs` and `DeliveryHub` from the service provider passed to `Kernel.For`. Empty when that provider is missing. `AddDigitalBrainRuntime` registers `DeliveryHub` before `IBrainObserver`. `AddIntoChatOS` still replaces `IBrainObserver` with `Kernel`.
+
+`HostDispatchAccessFacts` looks up `IInstanceDirectory` on `typeof(StateHome).Assembly` because `typeof(IBrainObserver).Assembly` is now `DigitalBrain`.
+
+`AppSource.Shipped` is unchanged. The script marketplace still names folder scripts with that source.
+
+Outside this worker's area, required for the move: `using DigitalBrain.Spi` on Aspire client hosting, Authority `NeuronsService`, Orleans `BrainClient` and `OrleansBrain`, Connections `NeuronTypeSearch`, MCP caller/hosting/identity facts/`FixedKernel`, Tools `ToolCapabilitySource`, `IKernel`, `TypeAdded`, and the harness files `VocabularyRingFacts`, `ClientCompositionFacts`, `AspireBrain`, `AspireTestSession`, `ITestBrain`, `InProcessTarget`. `HostDispatchAccessFacts` is the one-line assembly lookup. `Kernel.cs` and `BrainHosting.cs` gained the implementation and the registration. `FastPathFacts.TimedKernel` forwards the two new methods. `CSharpFacts.FakeKernel` throws `NotSupportedException` for them.
+
+Tests: `DigitalBrain.Testing.Tests.Unit` filter `ObserverFacts|ReactionDeliveryFacts` 10 passed, 0 failed. `DigitalBrain.Runtime.Orleans.Tests.Unit` filter `SynapseObservationFacts` 1 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings.

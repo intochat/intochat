@@ -1,3 +1,5 @@
+using System.Reflection;
+using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Invocation;
 using DigitalBrain.Spi;
@@ -304,6 +306,7 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
         {
             if (neuron is ISignalSink sink) { await sink.Deliver(item).ConfigureAwait(true); }
             else { await ReactionDispatcher.React(neuron, item.Signal, CancellationToken.None).ConfigureAwait(true); }
+            NoteDelivery(entry, item);
             await _drain().ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
@@ -347,6 +350,13 @@ internal sealed partial class SynapseEngine : IAsyncObserver<SignalReference>
         await store.WriteStateAsync(SynapseState.Name, _grainId, state).ConfigureAwait(true);
         _etag = state.ETag;
         if (reaction is not null && _etag is not null) { reaction.Committed(_etag); }
+    }
+
+    private void NoteDelivery(SynapseSource entry, JournaledSignal item)
+    {
+        if (entry.Source == BrainWide || item.Signal is Gap || _id.Brain.Value is not { } brain) { return; }
+        var alias = item.Signal.GetType().GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias ?? item.Signal.GetType().Name;
+        _services.GetService<DeliveryHub>()?.Publish(brain, new SignalDelivery(entry.Source, _id.ToString(), alias, item.Sequence));
     }
 
     private Task Report(SynapseSource entry)

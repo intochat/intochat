@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
+using DigitalBrain.Spi;
 
 namespace DigitalBrain.Testing;
 
@@ -38,7 +39,7 @@ public sealed class TestOSOptions
 /// scheduling attributes say otherwise; reactions ordered per source and deduped by cursor; timers and reminders as turns.
 /// There is no background checkpoint: <see cref="ForceCheckpoint(BrainId)"/> moves the history floor.
 /// </summary>
-public sealed partial class TestOS : IAsyncDisposable
+public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
 {
     private readonly ConcurrentDictionary<string, Type> _types = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<NeuronId, TestNeuronHost> _hosts = new();
@@ -177,6 +178,20 @@ public sealed partial class TestOS : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_hosts.Keys.Select(id => id.Brain.Value!).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
     }
+
+    /// <summary>Every synapse this TestOS holds. A TestOS has no stamped caller, so the list is not limited to one brain.</summary>
+    Task<ObservedSynapse[]> IBrainObserver.Synapses(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Synapses.All());
+    }
+
+    /// <summary>Deliveries from now on, across every brain of this TestOS.</summary>
+    public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default) => _deliveries.Listen(cancellationToken);
+
+    private readonly DeliveryFanout _deliveries = new();
+
+    internal void NoteDelivery(SignalDelivery delivery) => _deliveries.Publish(delivery);
 
     private static BrainInstance InstanceOf(TestNeuronHost host)
         => new(host.Id.Type, host.Id.ToString(), host.Created, null);

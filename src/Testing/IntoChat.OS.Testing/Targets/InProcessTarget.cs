@@ -25,6 +25,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Orleans.Runtime;
 using Orleans;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Testing;
 

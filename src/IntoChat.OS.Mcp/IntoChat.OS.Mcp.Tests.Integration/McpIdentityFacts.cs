@@ -11,6 +11,7 @@ using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Mcp.Tests.Integration;
 

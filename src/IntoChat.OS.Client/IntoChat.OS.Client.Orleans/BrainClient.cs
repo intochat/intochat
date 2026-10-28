@@ -3,6 +3,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Client.Orleans;
 

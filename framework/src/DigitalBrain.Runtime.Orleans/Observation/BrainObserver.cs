@@ -1,29 +1,11 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using DigitalBrain.Contracts;
+using DigitalBrain.Spi;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 
 namespace DigitalBrain.Runtime.Orleans;
-
-/// <summary>
-/// The kernel's read-only facts about the caller's brain: which neurons exist, which types are compiled, which brains the caller is in.
-/// The brain is the stamped caller's. Step 3 adds synapse listing and delivery subscription.
-/// </summary>
-public interface IBrainObserver
-{
-    /// <summary>Instances of one neuron contract in the caller's brain.</summary>
-    IAsyncEnumerable<BrainInstance> Instances<T>(CancellationToken cancellationToken) where T : class;
-
-    /// <summary>Instances of one grain type, or of every type when <paramref name="type"/> is null.</summary>
-    IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default);
-
-    /// <summary>The compiled modules' neurons, signals and connectors, then the brain's own features.</summary>
-    Task<BrainType[]> Types(CancellationToken cancellationToken = default);
-
-    /// <summary>The brains the stamped caller is a member of, the current one included.</summary>
-    Task<string[]> Brains(CancellationToken cancellationToken = default);
-}
 
 /// <summary>The stamped caller an <see cref="IBrainObserver"/> reads. The host registers it; a runtime-only silo has none.</summary>
 internal interface IObservedCaller
@@ -70,6 +52,23 @@ internal sealed class ClusterBrainObserver(IGrainFactory grains, IServiceProvide
         var caller = Caller();
         var members = await caller.BrainsOf(caller.PersonId, cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
         return members.Contains(caller.BrainId, StringComparer.Ordinal) ? members : [caller.BrainId, .. members];
+    }
+
+    public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default)
+        => services.GetService<BrainLogs>() is { } logs
+            ? SynapseObservation.List(logs, Caller().BrainId, cancellationToken)
+            : Task.FromResult<ObservedSynapse[]>([]);
+
+    public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default)
+        => services.GetService<DeliveryHub>() is { } hub
+            ? hub.Listen(Caller().BrainId, cancellationToken)
+            : EmptyDeliveries(cancellationToken);
+
+    private static async IAsyncEnumerable<SignalDelivery> EmptyDeliveries([EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.CompletedTask;
+        yield break;
     }
 
     private IObservedCaller Caller()

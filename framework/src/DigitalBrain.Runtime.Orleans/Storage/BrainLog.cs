@@ -102,6 +102,27 @@ internal sealed class BrainLog : IAsyncDisposable
         finally { gate.Release(); }
     }
 
+    /// <summary>Every stored record of <paramref name="stateName"/>, grain id to a copy of the bytes.</summary>
+    internal List<(string Grain, byte[] Record)> Named(string stateName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(stateName);
+        gate.Wait();
+        try
+        {
+            RequireOpen();
+            var found = new List<(string, byte[])>();
+            foreach (var (grain, states) in records)
+            {
+                if (states.TryGetValue(stateName, out var record) && record.Record.Length > 0)
+                {
+                    found.Add((grain, (byte[])record.Record.Clone()));
+                }
+            }
+            return found;
+        }
+        finally { gate.Release(); }
+    }
+
     /// <summary>
     /// Appends one entry: the state change of <paramref name="grainId"/> and the <paramref name="emitted"/> signals of
     /// <paramref name="publisher"/>. Returns the entry sequence (a record's ETag) and the publisher's last signal sequence.

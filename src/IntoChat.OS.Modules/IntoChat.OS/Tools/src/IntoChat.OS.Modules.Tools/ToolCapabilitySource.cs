@@ -3,6 +3,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Contracts;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Modules.Tools;
 
