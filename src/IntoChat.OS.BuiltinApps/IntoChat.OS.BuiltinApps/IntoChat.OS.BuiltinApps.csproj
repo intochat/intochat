@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Build tool: compiles every features/os/* program exactly as the source runtime does (CSharpScriptCheck, linked so
+       the compiler, implicit usings and carried reference set are one definition) and packs each app into a
+       deterministic compiled-apps/os/<name>.intochat-app. Set PackBuiltinApps=false to skip the pack step. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>IntoChat.OS.BuiltinApps</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <PackBuiltinApps Condition="'$(PackBuiltinApps)' == ''">true</PackBuiltinApps>
+    <BuiltinAppsOutput Condition="'$(BuiltinAppsOutput)' == ''">$([MSBuild]::NormalizePath($(MSBuildThisFileDirectory), "../../../compiled-apps/os"))</BuiltinAppsOutput>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp/Catalog/CSharpScriptCheck.cs" Link="Linked/CSharpScriptCheck.cs" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <ProjectReference Include="../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Apps.Packaging/DigitalBrain.Apps.Packaging.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <!-- The contract set the script compiler carries (what a built-in compiles against). -->
+    <ProjectReference Include="../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/**/Contracts/*/*.Contracts.csproj" />
+    <!-- Modules that keep their own contracts in their assembly (IntoChatOSContractsHost) are carried too. -->
+    <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/src/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/src/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/src/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Mcp/IntoChat.OS.Mcp/IntoChat.OS.Mcp.csproj" />
+    <InternalsVisibleTo Include="IntoChat.OS.BuiltinApps.Tests.Unit" />
+  </ItemGroup>
+  <ItemGroup>
+    <BuiltinSource Include="$(MSBuildThisFileDirectory)../../../features/os/**/*" Exclude="$(MSBuildThisFileDirectory)../../../features/os/**/bin/**;$(MSBuildThisFileDirectory)../../../features/os/**/obj/**" />
+  </ItemGroup>
+  <Target Name="PackBuiltinApps" AfterTargets="Build" Condition="'$(PackBuiltinApps)' == 'true'"
+          Inputs="@(BuiltinSource);$(TargetPath)" Outputs="$(BuiltinAppsOutput)/.packed">
+    <Exec Command="dotnet exec &quot;$(TargetPath)&quot; --features &quot;$(MSBuildThisFileDirectory)../../../features/os&quot; --out &quot;$(BuiltinAppsOutput)&quot;" />
+    <Touch Files="$(BuiltinAppsOutput)/.packed" AlwaysCreate="true" />
+  </Target>
+</Project>

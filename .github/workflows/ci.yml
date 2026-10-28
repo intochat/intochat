@@ -196,7 +196,10 @@ jobs:
       - name: Validate NuGet packages
         run: |
           dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
-          python3 scripts/check-app-packages.py artifacts/packages
+
+      # The solution build packs every features/os program (src/IntoChat.OS.BuiltinApps); check all 19 packages.
+      - name: Check built-in app packages
+        run: python3 scripts/check-app-packages.py compiled-apps/os features/os
 
       - uses: actions/upload-artifact@v7
         with:
