@@ -16,9 +16,33 @@ namespace IntoChat.OS.Kernel.Composition.Capabilities;
 // caller and hands it here; Authority is not edited. A caller stores in and removes from its own principal's vault; it resolves
 // only references its own vault issued (another owner's reference is denied, a removed one not found). Sealing uses the brain
 // key sealer (IBrainSecretSealer) of the caller's brain with the context inside the sealed text, so another context never opens.
-public sealed class AuthorityVaultPort(IntoChat.OS.Authority.IAuthorityGrains authority, IBrainSecretSealer? sealer = null) : ISecretVaultPort
+public sealed class AuthorityVaultPort(
+    IntoChat.OS.Authority.IAuthorityGrains authority,
+    IBrainSecretSealer? sealer = null,
+    Microsoft.Extensions.Configuration.IConfiguration? configuration = null) : ISecretVaultPort
 {
     private const string RuntimeApp = "runtime";
+
+    // A deployment secret (09-05): the installer carries a module's declared secret {s} in IntoChatOS:Modules:{module}:Secrets:{s}
+    // (ManifestEnvironment.SecretVariable). The runtime checked the module's manifest declares it; a name "{s}:Key" is covered
+    // by the declared "{s}". Unset when the deployment configured no value.
+    public Task<SecretVaultResult> Named(CapabilityCaller caller, string name, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var reference = SecretRef.NamedPrefix + name;
+        return Task.FromResult(SecretVaultResult.Stored(string.IsNullOrEmpty(DeploymentValue(caller, name))
+            ? SecretRef.Unset(reference, name)
+            : new SecretRef { Reference = reference, Label = name, Status = SecretStatus.Set }));
+    }
+
+    private string? DeploymentValue(CapabilityCaller caller, string name)
+    {
+        if (string.IsNullOrWhiteSpace(caller.AppId) || configuration is null) { return null; }
+        var colon = name.IndexOf(':', StringComparison.Ordinal);
+        var declared = colon < 0 ? name : name[..colon];
+        return configuration[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleSection(caller.AppId) + ":Secrets:" + declared];
+    }
 
     public async Task<SecretVaultResult> Set(CapabilityCaller caller, string name, string label, string value, CancellationToken cancellationToken)
     {
@@ -46,7 +70,12 @@ public sealed class AuthorityVaultPort(IntoChat.OS.Authority.IAuthorityGrains au
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(secret);
-        if (secret.IsNamed) { return SecretVaultResult.Denied; }
+        if (secret.IsNamed)
+        {
+            return DeploymentValue(caller, secret.Reference[SecretRef.NamedPrefix.Length..]) is { Length: > 0 } deployed
+                ? SecretVaultResult.Resolved(deployed) : SecretVaultResult.NotFound;
+        }
+
         if (!SecretReferences.IsReference(secret.Reference)) { return SecretVaultResult.NotFound; }
         var reference = SecretReferences.FromReference(secret.Reference, secret.Label);
         string owner;
