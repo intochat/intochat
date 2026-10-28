@@ -13,10 +13,15 @@ public interface IBrainPrograms
     // Interleaved: compiling and storing touch none of the runtime's state, so its other calls go on meanwhile;
     // the compiled program is applied in a turn of its own.
     [DigitalBrain.Interleaves] Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings);
+    // A program built ahead of time (MSBuild). One verified assembly per path; the hash must be the SHA-256 of the
+    // assembly bytes, the same name the sandbox verifies on download. Nothing is compiled; storing and assigning are as Assign.
+    [DigitalBrain.Interleaves] Task<ProgramView> AssignPrebuilt(string owner, Dictionary<string, PrebuiltBehavior> behaviors, Dictionary<string, string> settings);
     Task Retire(string owner);
     // A pure read: it never waits for a turn in progress.
     [DigitalBrain.Interleaves] Task<ProgramView?> Describe(string owner);
 }
+
+public sealed record PrebuiltBehavior(byte[] Assembly, byte[] Symbols, string Hash);
 
 public sealed record ProgramView(
     string Owner,

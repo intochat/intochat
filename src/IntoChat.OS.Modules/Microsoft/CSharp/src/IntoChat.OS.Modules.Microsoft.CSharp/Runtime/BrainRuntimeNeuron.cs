@@ -213,7 +213,27 @@ internal sealed class BrainRuntimeNeuron(
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(settings);
         // The caller is part of the request: the same program assigned by another principal is applied again.
-        var request = RequestKey(owner, sources, settings, CallerContextStamper.TryGet(out var caller) ? caller : null);
+        return Assigned(owner, RequestKey(owner, sources, settings, CallerContextStamper.TryGet(out var caller) ? caller : null), settings,
+            () => Compile(sources));
+    }
+
+    // The prebuilt twin of Assign: the program was compiled ahead of time and arrives as assemblies. Nothing is compiled; each
+    // assembly must hash to the name it is stored and loaded under, which is the check the sandbox repeats on download. A mismatch
+    // refuses the whole program before anything is stored or applied. Request idempotency, storing and applying are Assign's.
+    public Task<ProgramView> AssignPrebuilt(string owner, Dictionary<string, PrebuiltBehavior> behaviors, Dictionary<string, string> settings)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        ArgumentNullException.ThrowIfNull(behaviors);
+        ArgumentNullException.ThrowIfNull(settings);
+        if (behaviors.Values.Any(behavior => behavior?.Assembly is null || behavior.Symbols is null || behavior.Hash is null))
+        { throw new ArgumentException("A prebuilt behavior carries its assembly, its symbols and its hash.", nameof(behaviors)); }
+        var named = behaviors.ToDictionary(pair => pair.Key, pair => "prebuilt:" + pair.Value.Hash, StringComparer.Ordinal);
+        return Assigned(owner, RequestKey(owner, named, settings, CallerContextStamper.TryGet(out var caller) ? caller : null), settings,
+            () => Task.FromResult(Verified(behaviors)));
+    }
+
+    private Task<ProgramView> Assigned(string owner, string request, Dictionary<string, string> settings, Func<Task<IReadOnlyDictionary<string, CompiledBehavior>>> produce)
+    {
         if (_assigning.TryGetValue(request, out var running)) { return running; }
         if (_applied.TryGetValue(owner, out var applied) && applied.Request == request
             && Snapshot.Programs.FirstOrDefault(p => p.Owner == owner)?.Hash == applied.View.Hash)
@@ -223,7 +243,7 @@ internal sealed class BrainRuntimeNeuron(
             _changed[owner] = ++_tickets;
             return Task.FromResult(applied.View);
         }
-        var assigning = AssignOnce(owner, request, sources, settings);
+        var assigning = AssignOnce(owner, request, settings, produce);
         if (!assigning.IsCompleted) { _assigning[request] = assigning; }
         return assigning;
     }
@@ -237,30 +257,48 @@ internal sealed class BrainRuntimeNeuron(
         return owner + "\n" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
     }
 
-    private async Task<ProgramView> AssignOnce(string owner, string request, Dictionary<string, string> sources, Dictionary<string, string> settings)
+    private async Task<ProgramView> AssignOnce(string owner, string request, Dictionary<string, string> settings, Func<Task<IReadOnlyDictionary<string, CompiledBehavior>>> produce)
     {
         try
         {
-            var view = await Compiled(owner, sources, settings);
+            var view = await Stored(owner, settings, produce);
             _applied[owner] = (request, view);
             return view;
         }
         finally { _assigning.Remove(request); }
     }
 
-    private async Task<ProgramView> Compiled(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
+    private async Task<IReadOnlyDictionary<string, CompiledBehavior>> Compile(Dictionary<string, string> sources)
     {
-        var ticket = ++_tickets;
-        var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
         var compiled = await Task.Run(() => compiler.Compile(sources));
         if (!compiled.Success)
         {
             throw new InvalidOperationException("The program does not compile: "
                 + string.Join("; ", compiled.Errors.Select(error => $"{error.File} line {error.Line} {error.Id}: {error.Message}")));
         }
-        foreach (var behavior in compiled.Assemblies.Values)
+        return compiled.Assemblies;
+    }
+
+    private static IReadOnlyDictionary<string, CompiledBehavior> Verified(Dictionary<string, PrebuiltBehavior> behaviors)
+    {
+        foreach (var (path, behavior) in behaviors)
+        {
+            if (!string.Equals(Convert.ToHexStringLower(SHA256.HashData(behavior.Assembly)), behavior.Hash, StringComparison.Ordinal))
+            { throw new InvalidDataException($"The prebuilt assembly for {path} does not hash to {behavior.Hash}; refusing to assign it."); }
+        }
+        return behaviors.ToDictionary(pair => pair.Key, pair => new CompiledBehavior(pair.Value.Assembly, pair.Value.Symbols, pair.Value.Hash), StringComparer.Ordinal);
+    }
+
+    // The one tail both ways in share: the ticket is taken before the program is produced, so a later change outdates it; the
+    // assemblies are stored; and the program takes its turn.
+    private async Task<ProgramView> Stored(string owner, Dictionary<string, string> settings, Func<Task<IReadOnlyDictionary<string, CompiledBehavior>>> produce)
+    {
+        var ticket = ++_tickets;
+        var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
+        var produced = await produce();
+        foreach (var behavior in produced.Values)
         { if (!await assemblies.Exists(behavior.Hash, CancellationToken.None)) { await assemblies.Put(behavior, CancellationToken.None); } }
-        BehaviorAssembly[] behaviors = [.. compiled.Assemblies.OrderBy(file => file.Key, StringComparer.Ordinal)
+        BehaviorAssembly[] behaviors = [.. produced.OrderBy(file => file.Key, StringComparer.Ordinal)
             .Select(file => new BehaviorAssembly(file.Key, file.Value.Hash))];
         _compiled[ticket] = new(owner, behaviors, new(settings, StringComparer.Ordinal), caller);
         // This request holds no turn, so the call to itself waits only for the turn in progress, never for this one.
@@ -1211,6 +1249,7 @@ internal sealed class BrainRuntimeNeuron(
         if (!PlainSources.TryParse(key, out var source)) { return; }
         foreach (var owner in verdicts.Select(verdict => verdict.Key.Program).Concat(Snapshot.Programs.Select(program => program.Owner)).Distinct(StringComparer.Ordinal))
         { await PlainSignals.Session(Brain, PlainSources.SessionOf(owner)).Unsubscribe(source); }
+    }
     }
 
     // One long-poll per program session while it holds a plain source: each batch names the sources that spoke, and each is read
