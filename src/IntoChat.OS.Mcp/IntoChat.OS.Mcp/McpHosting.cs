@@ -16,9 +16,6 @@ public static class McpHosting
         services.AddSingleton<IRuntimeCapabilitySource, IntoChat.OS.Modules.Tools.ToolCapabilitySource>();
         services.AddIntoChatOSConnections();
         services.AddIdentity();
-        // IBrainAccess asks the trust side for memberships: the MCP composes the trust clients as a reader (R70).
-        global::IntoChat.OS.Kernel.Composition.AuthorityGrainsHosting.AddAuthorityGrains(services);
-        global::IntoChat.OS.Kernel.Composition.AuthorityGrainsHosting.AddPlainNeurons(services);
         services.AddLocalPlatformClients();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
         services.TryAddScoped<IIntoChatOS>(provider => provider.GetRequiredService<IIntoChatOSBrains>().Open(

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework;
 
@@ -25,7 +26,7 @@ public static class NeuronSurfaceTools
 // exists is the kernel's answer for the caller's brain; this process only needs a contract to call it.
 // A migrated plain contract (06-03) is called through the host's IPlainNeurons; it has no grain reference to watch.
 public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null,
-    IntoChat.OS.Runtime.IPlainNeurons? plain = null)
+    IServiceProvider? plain = null)
 {
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private static readonly MethodInfo GetNeuron = typeof(IIntoChatOS).GetMethod(nameof(IIntoChatOS.Get))!;
@@ -74,7 +75,7 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(type)) { return Plain().IdOf(type, key).ToString(); }
+        if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(type)) { return IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(type, key).ToString(); }
         return ((IAddressable)Neuron(type, key)).GetGrainId().ToString();
     }
 
@@ -122,7 +123,7 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        return IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) ? Plain().IdOf(type, key) : null;
+        return IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) ? IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(type, key) : null;
     }
 
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);
@@ -145,7 +146,7 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
     {
         if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract))
         {
-            try { return Plain().Get(contract, key); }
+            try { return SiloNeurons.Get(Plain(), contract, IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(contract, key)); }
             catch (ArgumentException error) { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.Message}", error); }
         }
         try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [new NeuronId(key)])!; }
@@ -153,7 +154,7 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
         { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.InnerException.Message}", error.InnerException); }
     }
 
-    private IntoChat.OS.Runtime.IPlainNeurons Plain()
+    private IServiceProvider Plain()
         => plain ?? throw new NotSupportedException("This host cannot reach plain neurons: it registers no IPlainNeurons (the silo's kernel composition does).");
 
     private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);

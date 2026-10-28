@@ -56,7 +56,7 @@ internal static class CircleBrainRooms
         using (person.AsCallerIn(brainId)) { await call(); }
     }
 
-    public static IntoChat.OS.Runtime.IPlainNeurons Plain(ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+    public static IServiceProvider Plain(ITestBrain brain) => brain.Services;
 
     public static ICircle Circle(ITestBrain brain, string circle) => brain.Get<ICircle>(ICircle.Key(circle));
 

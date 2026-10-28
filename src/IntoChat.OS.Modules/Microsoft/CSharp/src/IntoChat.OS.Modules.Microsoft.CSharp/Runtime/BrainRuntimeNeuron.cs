@@ -17,6 +17,9 @@ using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -129,8 +132,10 @@ internal sealed class BrainRuntimeNeuron(
     // A one-way call to this neuron: it completes when sent, and the work takes a turn of its own.
     private Task Self<T>(Func<T, Task> call) where T : class => call(Get<T>(Id));
 
-    private IntoChat.OS.Runtime.IPlainSignals PlainSignals => ServiceProvider.GetService<IntoChat.OS.Runtime.IPlainSignals>()
-        ?? throw new NotSupportedException("This host does not reach plain neurons' signals: the kernel composition registers them.");
+    private ISessionSynapses PlainSession(string session)
+        => SiloNeurons.Get<ISessionSynapses>(ServiceProvider, SessionSynapses.For(Id.Brain, session));
+
+    private IBrainJournalWriter Journal => ServiceProvider.GetRequiredService<IBrainJournalWriter>();
 
     // The traces still held for pushed batches; a settled batch lets go of its trace.
     internal int TracedBatches => _batchTraces.Count;
@@ -501,7 +506,7 @@ internal sealed class BrainRuntimeNeuron(
         {
             // A new subscription starts at its source's current seq; what came before is the retained seed's to give.
             PlainSources.TryParse(neuron, out var plain);
-            var position = (await PlainSignals.Read(plain, 0, 1, CancellationToken.None)).Last;
+            var position = (await Journal.ReadSince(plain.Brain.Value, plain.ToString(), 0, 1, CancellationToken.None)).Last;
             existing = new(Guid.NewGuid().ToString("N"), behavior, neuron, signal, [], 0, 0, position, selector);
             // A source that retains the signal seeds the new subscription with the backlog the synapse
             // missed. Watch before seeding: anything published between the seed and the watch arrives
@@ -870,10 +875,10 @@ internal sealed class BrainRuntimeNeuron(
         var limit = Math.Min(options.Value.MaximumPending, DigitalBrain.SignalPage.MaxLimit);
         while (true)
         {
-            var page = await PlainSignals.Read(source, since, limit, CancellationToken.None);
+            var page = await Journal.ReadSince(source.Brain.Value, source.ToString(), since, limit, CancellationToken.None);
             floor = Math.Max(floor, page.Floor);
             since = Math.Max(since, page.Floor);
-            foreach (var entry in page.Signals) { signals.Add(new(entry.Sequence, entry.Alias, entry.Json)); }
+            foreach (var entry in page.Signals) { signals.Add(new(entry.Sequence, entry.Type, Encoding.UTF8.GetString(entry.Json.Span))); }
             if (page.Signals.Count == 0) { return (floor, signals); }
             since = page.Signals[^1].Sequence;
             if (page.Last <= since) { return (floor, signals); }
@@ -1338,7 +1343,7 @@ internal sealed class BrainRuntimeNeuron(
             var caller = new BehaviorIdentity(program.Principal, program.Owner).Caller;
             try
             {
-                await AsProgram(caller, () => PlainSignals.Session(Brain, PlainSources.SessionOf(program.Owner)).Subscribe(source, aliases));
+                await AsProgram(caller, () => PlainSession(PlainSources.SessionOf(program.Owner)).Subscribe(source, aliases));
                 _accepted[(key, program.Owner)] = caller;
                 _unwatchable.Remove((key, program.Owner));
                 EnsurePlainSession(program.Owner);
@@ -1363,7 +1368,7 @@ internal sealed class BrainRuntimeNeuron(
         _unwatchable.RemoveWhere(refused => refused.Source == key);
         if (!PlainSources.TryParse(key, out var source)) { return; }
         foreach (var owner in verdicts.Select(verdict => verdict.Key.Program).Concat(Snapshot.Programs.Select(program => program.Owner)).Distinct(StringComparer.Ordinal))
-        { await PlainSignals.Session(Brain, PlainSources.SessionOf(owner)).Unsubscribe(source); }
+        { await PlainSession(PlainSources.SessionOf(owner)).Unsubscribe(source); }
         // A reassigned program's new build can subscribe to this source while the unsubscribe above is still on its way: the
         // source then sees the subscribe first and the unsubscribe last, and the new build would hear nothing. A source that
         // is named again is watched again, and read, because what it published during the gap was never pushed.
@@ -1386,7 +1391,7 @@ internal sealed class BrainRuntimeNeuron(
 
     private async Task PlainSessionAsync(string owner, CancellationToken stop)
     {
-        var session = PlainSignals.Session(Brain, PlainSources.SessionOf(owner));
+        var session = PlainSession(PlainSources.SessionOf(owner));
         long acked = 0;
         while (!stop.IsCancellationRequested)
         {
@@ -1425,7 +1430,7 @@ internal sealed class BrainRuntimeNeuron(
 
     private async Task EndPlainSessionAsync(string owner)
     {
-        try { await PlainSignals.Session(Brain, PlainSources.SessionOf(owner)).End(); }
+        try { await PlainSession(PlainSources.SessionOf(owner)).End(); }
         catch (Exception error) { logger.LogDebug(error, "Brain runtime {Runtime} could not end program {Program}'s plain session; it expires.", RuntimeId, owner); }
     }
 }

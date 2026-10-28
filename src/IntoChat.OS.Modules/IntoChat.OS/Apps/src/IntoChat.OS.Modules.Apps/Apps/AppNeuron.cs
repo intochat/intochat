@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -69,7 +70,7 @@ internal sealed partial class AppNeuron(
     private DigitalBrain.NeuronId AppId(string key) => new(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Id.Brain.Value.Length + 1)..]);
 
     // The platform-wide Marketplace is still a grain outside every brain.
-    private IMarketplace Marketplace => Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IMarketplace>(IMarketplace.Key);
+    private IMarketplace Marketplace => SiloNeurons.Get<IMarketplace>(Context.Services, IMarketplace.Key);
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
     private const int MaxPayloadLength = 64 * 1024;

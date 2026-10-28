@@ -1,5 +1,6 @@
 using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration.Tables;
 
@@ -15,15 +16,14 @@ public sealed class TableLifecycleGuardFacts
             .ConfigureServices(services => services.AddSingleton<ITableStore>(new PostgresWriteTableFacts.MemoryTables()))
             .StartAsync(TestContext.Current.CancellationToken);
         // The index is a plain neuron (06-08).
-        var neurons = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
         using (brain.Owner.AsCaller())
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new TableOwner("other-brain", "install").Key).ReadTables);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new global::DigitalBrain.NeuronId(new(brain.Owner.BrainId), TableIndexNeuron.GrainType, "not-a-key")).ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(SiloNeurons.Get<ITableIndex>(brain.Services, new TableOwner("other-brain", "install").Key).ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(SiloNeurons.Get<ITableIndex>(brain.Services, new global::DigitalBrain.NeuronId(new(brain.Owner.BrainId), TableIndexNeuron.GrainType, "not-a-key")).ReadTables);
         }
         using (brain.Owner.AsApp("install"))
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new TableOwner(brain.Owner.BrainId, "install").Key).ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(SiloNeurons.Get<ITableIndex>(brain.Services, new TableOwner(brain.Owner.BrainId, "install").Key).ReadTables);
         }
     }
 }

@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Button;
 
@@ -121,7 +122,7 @@ internal sealed partial class ButtonNeuron
     private async Task<bool> HoldsConnection(string scope, string? id)
     {
         if (string.IsNullOrEmpty(id)) { return false; }
-        foreach (var key in await ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(scope)).List())
+        foreach (var key in await SiloNeurons.Get<IConnectionIndex>(ServiceProvider, IConnectionIndex.Key(scope)).List())
         {
             if (ConnectionKeys.Parse(key).ConnectionId.Equals(id, StringComparison.OrdinalIgnoreCase)) { return true; }
         }

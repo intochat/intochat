@@ -6,6 +6,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Kernel.Tests.Unit;
 
@@ -91,13 +92,13 @@ public sealed class OsInoMigrationFacts
                 Assert.Empty(transcript.UnreadMessageIds);
             }
             Assert.Equal(inoKey, (await legacy.Read()).MigrationTarget);
-            var retained = await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(inoKey).RetainedRequests();
+            var retained = await SiloNeurons.Get<IAppMigration>(brain.Services, inoKey).RetainedRequests();
             Assert.Single(retained, item => item.Request.RequestId == requestId);
             var merged = (await brain.Get<IText>(legacyKey + "/handled/new").Read()).Markdown.Split('\n').TakeLast(256).ToArray();
             Assert.Contains(oldHandled.ToString(), merged);
             Assert.Contains(forwardedHandled.ToString(), merged);
         }
-        var archived = await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(legacyKey).Archive("ino-v3");
+        var archived = await SiloNeurons.Get<IAppMigration>(brain.Services, legacyKey).Archive("ino-v3");
         Assert.Equal("public static class Mine { }", archived.Files["custom.cs"]);
     }
 

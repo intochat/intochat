@@ -6,6 +6,7 @@ using IntoChat.OS.Modules.Microsoft.CSharp.Assemblies;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -45,19 +46,21 @@ internal static class RuntimeBrain
 
     // The runtime is a plain neuron (06-08); its module-internal faces are reached through the host seam.
     public static IBrainPrograms Programs(ITestBrain brain, string scope)
-        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainPrograms>(BrainRuntimeKeys.For(scope));
+        => SiloNeurons.Get<IBrainPrograms>(brain.Services, BrainRuntimeKeys.For(scope));
 
     // How a plain neuron (06-08: an app) is named to the runtime edge, and the alias of an app request.
     public static string Plain<T>(ITestBrain brain, string key) where T : class
-        => IntoChat.OS.Modules.Microsoft.CSharp.Runtime.PlainSources.Of(
-            global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(brain.Services).IdOf(typeof(T), key));
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        return IntoChat.OS.Modules.Microsoft.CSharp.Runtime.PlainSources.Of(SiloNeurons.IdOf(typeof(T), key));
+    }
 
-    public static readonly string Requested = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(IntoChat.OS.Modules.Apps.Signals.AppRequested));
+    public static readonly string Requested = DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(IntoChat.OS.Modules.Apps.Signals.AppRequested));
 
     public static IBrainRuntime Runtime(ITestBrain brain, string scope) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
 
     public static IBrainRuntimeEdge Edge(ITestBrain brain, string scope)
-        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainRuntimeEdge>(BrainRuntimeKeys.For(scope));
+        => SiloNeurons.Get<IBrainRuntimeEdge>(brain.Services, BrainRuntimeKeys.For(scope));
 
     // How a plain neuron obtained from brain.Get is named to the runtime edge as a subscription source.
     public static string Source(object neuron)

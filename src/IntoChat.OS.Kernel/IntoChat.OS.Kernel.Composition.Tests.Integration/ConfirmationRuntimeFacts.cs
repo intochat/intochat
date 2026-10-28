@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Runtime.Orleans.Operations;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -161,7 +162,7 @@ public sealed class ConfirmationRuntimeFacts
         "Delete report.txt?", "This removes report.txt.", "Delete", "Keep", "report.txt");
 
     private static IConfirmationEntity Entity(ITestBrain brain, string owner)
-        => SiloNeurons.Get<IConfirmationEntity>(brain.Services, new(new(owner), "runtime.confirmations", "confirmations"));
+        => SiloNeurons.Get<IConfirmationEntity>(brain.Services, new global::DigitalBrain.NeuronId(new BrainId(owner), "runtime.confirmations", "confirmations"));
 
     private sealed class Clock : TimeProvider
     {

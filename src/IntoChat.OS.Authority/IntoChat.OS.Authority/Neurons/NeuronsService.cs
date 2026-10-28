@@ -1,6 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Signalling;
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Surface;
@@ -14,8 +17,8 @@ namespace IntoChat.OS.Authority.Neurons;
 
 // The gRPC edge of the two operations every caller has: neurons_call and brain.On<T>. The brain
 // rides in the message, so each call decides access the way a /brains/{brainId} route does.
-internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, ILogger<NeuronsService> logger,
-    IntoChat.OS.Runtime.IPlainSignals? plain = null) : Proto.Neurons.NeuronsBase
+internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, ILogger<NeuronsService> logger, IServiceProvider services)
+    : Proto.Neurons.NeuronsBase
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
 
@@ -86,20 +89,21 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
     {
         try
         {
-            var signals = plain ?? throw new NotSupportedException("This host cannot watch plain neurons: it registers no IPlainSignals (the silo's kernel composition does).");
+            var journal = services.GetService<IBrainJournalWriter>()
+                ?? throw new NotSupportedException("This host cannot watch plain neurons: it registers no brain journal.");
             var types = wanted.Where(type => typeof(global::DigitalBrain.Signal).IsAssignableFrom(type))
-                .ToDictionary(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf, StringComparer.Ordinal);
+                .ToDictionary(SignalLog.Alias, StringComparer.Ordinal);
             if (types.Count != wanted.Length) { throw new RpcException(new Status(StatusCode.InvalidArgument, $"{key} is a plain neuron: watch its [Signal] types.")); }
             async Task Replay()
             {
                 foreach (var (alias, type) in types)
                 {
-                    if (await IntoChat.OS.Runtime.PlainWatch.Retained(signals, id, alias, ct) is { } retained) { await writer.WriteAsync(PlainEnvelope(key, id, type, retained), ct); }
+                    if (await SignalLog.Newest(journal, id, alias, ct) is { } retained) { await writer.WriteAsync(PlainEnvelope(key, id, type, retained), ct); }
                 }
             }
-            await foreach (var entry in IntoChat.OS.Runtime.PlainWatch.Live(signals, id, [.. types.Keys], "watch/" + Guid.NewGuid().ToString("N"), Replay, ct))
+            await foreach (var entry in SignalLog.Live(services, id, [.. types.Keys], "watch/" + Guid.NewGuid().ToString("N"), Replay, ct))
             {
-                if (!entry.IsGap && types.TryGetValue(entry.Alias, out var type)) { await writer.WriteAsync(PlainEnvelope(key, id, type, entry), ct); }
+                if (!SignalLog.IsGap(entry) && types.TryGetValue(entry.Alias, out var type)) { await writer.WriteAsync(PlainEnvelope(key, id, type, entry), ct); }
             }
         }
         catch (OperationCanceledException) { }
@@ -111,13 +115,13 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
     }
 
     // The payload re-encoded with this edge's options, so a plain signal reads as its grain predecessor did.
-    private static SignalEnvelope PlainEnvelope(string key, global::DigitalBrain.NeuronId id, Type type, IntoChat.OS.Runtime.PlainSignalEntry entry) => new()
+    private static SignalEnvelope PlainEnvelope(string key, global::DigitalBrain.NeuronId id, Type type, SessionSignal entry) => new()
     {
         Source = key,
         Type = type.Name,
         Publisher = id.ToString(),
         Sequence = entry.Sequence,
-        Payload = ByteString.CopyFromUtf8(JsonSerializer.Serialize(JsonSerializer.Deserialize(entry.Json, type, JsonSerializerOptions.Web), type, Json)),
+        Payload = ByteString.CopyFromUtf8(JsonSerializer.Serialize(JsonSerializer.Deserialize(entry.Payload.GetRawText(), type, JsonSerializerOptions.Web), type, Json)),
         ServerTimeMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     };
 }

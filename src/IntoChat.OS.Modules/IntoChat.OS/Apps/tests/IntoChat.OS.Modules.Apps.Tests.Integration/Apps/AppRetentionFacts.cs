@@ -1,8 +1,11 @@
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Testing;
 
 using IntoChat.OS.Modules.Apps.Tests.Integration;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
@@ -18,16 +21,15 @@ public sealed class AppRetentionFacts(AppsHost host)
         var key = IApp.Key(Brain, name);
         var app = brain.Get<IApp>(key);
         await app.Create(new AppManifest(name, "", [new("open", "")], [], []), "spec");
-        return (app, brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(key), key);
+        return (app, SiloNeurons.Get<IAppMigration>(brain.Services, key), key);
     }
 
     // What a late listener of the app's activity is replayed first.
     private static async Task<AppActivity?> RetainedActivity(ITestBrain brain, string key, CancellationToken ct)
     {
-        var id = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().IdOf(typeof(IApp), key);
-        var entry = await IntoChat.OS.Runtime.PlainWatch.Retained(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>(), id,
-            IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(AppActivity)), ct);
-        return entry is null ? null : IntoChat.OS.Runtime.PlainSignalTypes.Decode<AppActivity>(entry.Json);
+        var id = SiloNeurons.IdOf(typeof(IApp), key);
+        var entry = await SignalLog.Newest(brain.Services.GetRequiredService<IBrainJournalWriter>(), id, SignalLog.Alias(typeof(AppActivity)), ct);
+        return entry is null ? null : SignalLog.Decode<AppActivity>(entry.Payload.GetRawText());
     }
 
     [Fact]

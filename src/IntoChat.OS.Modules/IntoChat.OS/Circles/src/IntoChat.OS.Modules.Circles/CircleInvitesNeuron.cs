@@ -2,6 +2,7 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -46,7 +47,6 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
 
     // The invite key and the code index live in the system brain: module plumbing reached through the host seam, which a
     // neuron's own Get (same brain only) does not cross.
-    private IntoChat.OS.Runtime.IPlainNeurons Plain => Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
         => Snapshot = await Context.State.Load<CircleInvitesRecord>() ?? new();
@@ -65,7 +65,7 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
         var now = Now;
         var expiresAt = now + InviteCode.Clamp(request.ValidFor);
         var code = InviteCode.Generate();
-        var hash = InviteCode.Hash(code, await Plain.Get<IInviteKey>(IInviteKey.Key).Get());
+        var hash = InviteCode.Hash(code, await SiloNeurons.Get<IInviteKey>(Context.Services, IInviteKey.Key).Get());
         var invite = new CircleCodeInvite
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -80,7 +80,7 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
         // Unredeemed invites past their expiry carry nothing worth keeping.
         var kept = Snapshot.Invites.Where(known => known.AcceptedAt is not null || known.ExpiresAt > now);
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. kept, invite] });
-        await Plain.Get<IInviteCode>(IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
+        await SiloNeurons.Get<IInviteCode>(Context.Services, IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
         return new MintedInvite(code, expiresAt);
     }
 

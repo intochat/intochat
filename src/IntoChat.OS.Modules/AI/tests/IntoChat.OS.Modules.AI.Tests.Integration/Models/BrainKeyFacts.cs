@@ -4,6 +4,7 @@ using IntoChat.OS.Connections.Platform.Entries;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Orleans;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Models;
 
@@ -19,7 +20,7 @@ public sealed class BrainKeyFacts
     private static ModelCatalog Catalog(ITestBrain brain) => brain.Services.GetRequiredService<ModelCatalog>();
 
     private static IBrainEntries Entries(ITestBrain brain, string brainId)
-        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<IBrainEntries>(brainId);
+        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainEntries>(brainId);
 
     [Trait("host", "own")]
     [Fact]

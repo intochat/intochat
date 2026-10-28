@@ -1,9 +1,11 @@
 using System.Text.Json;
 using IntoChat.OS.Authority.Neurons.Proto;
 using IntoChat.OS.Modules.Time;
-using IntoChat.OS.Runtime;
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using Microsoft.Extensions.DependencyInjection;
 using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Neurons;
 
@@ -30,17 +32,17 @@ public sealed class PlainWatchFacts
         await using var brain = await TestBrain.Create().WithModule<TimeModule>().StartAsync(ct);
         var key = "owner/watched-timer";
         var timer = brain.Get<ITimer>(key);
-        var plain = brain.Services.GetRequiredService<IPlainSignals>();
-        var id = brain.Services.GetRequiredService<IPlainNeurons>().IdOf(typeof(ITimer), key);
+        var journal = brain.Services.GetRequiredService<IBrainJournalWriter>();
+        var id = SiloNeurons.IdOf(typeof(ITimer), key);
         // Two ticks before anyone watches: the replay is the second.
         for (var tick = 1; tick <= 2; tick++)
         {
             await timer.Start(TimeSpan.FromMilliseconds(10));
             using var waited = CancellationTokenSource.CreateLinkedTokenSource(ct);
             waited.CancelAfter(Within);
-            while ((await plain.Read(id, 0, 1, waited.Token)).Last < tick) { await Task.Delay(20, waited.Token); }
+            while ((await journal.ReadSince(id.Brain.Value, id.ToString(), 0, 1, waited.Token)).Last < tick) { await Task.Delay(20, waited.Token); }
         }
-        var retained = await PlainWatch.Retained(plain, id, "time.timer-tick", ct);
+        var retained = await SignalLog.Newest(journal, id, "time.timer-tick", ct);
         Assert.NotNull(retained);
 
         using var call = NeuronsCallFacts.Client(brain).Watch(Watch(key), cancellationToken: ct);

@@ -6,6 +6,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 
@@ -68,7 +69,7 @@ public sealed class AppReactivationFacts
         runtime.Block = false;
         try
         {
-            await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppDeploy>(key).Restore();
+            await SiloNeurons.Get<IAppDeploy>(brain.Services, key).Restore();
             await app.Read();
         }
         finally { runtime.Release.TrySetResult(); }

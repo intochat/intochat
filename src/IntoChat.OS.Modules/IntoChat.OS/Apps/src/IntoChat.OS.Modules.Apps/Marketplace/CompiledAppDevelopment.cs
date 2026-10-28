@@ -1,8 +1,9 @@
 using IntoChat.OS.Framework;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
-internal sealed class CompiledAppDevelopment(IntoChat.OS.Runtime.IPlainNeurons plain, CompiledAppInstaller installer,
+internal sealed class CompiledAppDevelopment(IServiceProvider plain, CompiledAppInstaller installer,
     CompiledAppPackages packages, ICompiledAppAssignment assignment, TimeProvider clock)
 {
     private readonly CompiledAppDevelopmentLeases leases = new(clock);
@@ -12,7 +13,7 @@ internal sealed class CompiledAppDevelopment(IntoChat.OS.Runtime.IPlainNeurons p
         if (!trustProject) { throw new UnauthorizedAccessException("Explicitly trust future builds of this project before starting development."); }
         ArgumentException.ThrowIfNullOrWhiteSpace(project);
         var owner = await installer.RequireOwner(ct);
-        var snapshot = await plain.Get<IApp>(IApp.Key(owner.BrainId, name)).Read().WaitAsync(ct);
+        var snapshot = await SiloNeurons.Get<IApp>(plain, IApp.Key(owner.BrainId, name)).Read().WaitAsync(ct);
         var active = await assignment.Current(owner.BrainId, name, snapshot, ct) ?? throw new InvalidOperationException("Install and approve the initial package first.");
         if (snapshot.MigrationTarget is not null || !active.DispatchReady || operationId == Guid.Empty || active.Receipt.Brain != owner.BrainId || active.Receipt.Name != name || active.OperationId != operationId || active.Revision != expectedRevision
             || snapshot.ProgramRevision != expectedRevision || active.Receipt.AccountId != owner.AccountId

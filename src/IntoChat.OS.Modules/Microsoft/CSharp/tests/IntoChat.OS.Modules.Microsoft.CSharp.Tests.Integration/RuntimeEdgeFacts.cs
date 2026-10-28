@@ -307,10 +307,10 @@ public sealed class RuntimeEdgeFacts
             new("", typeof(IBrain).FullName!, "another-brain/main", nameof(IBrain.Read), []), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, otherBrain.StatusCode);
         using var ownRootSubscription = await Report(brain, session,
-            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "acc-brain/main", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(Created)))), ct);
+            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "acc-brain/main", DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(Created)))), ct);
         Assert.Equal(HttpStatusCode.OK, ownRootSubscription.StatusCode);
         using var otherRootSubscription = await Report(brain, session,
-            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "another-brain/main", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(Created)))), ct);
+            new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IBrain).FullName!, "another-brain/main", DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(Created)))), ct);
         Assert.Equal(HttpStatusCode.Unauthorized, otherRootSubscription.StatusCode);
 
         foreach (var (method, path) in new[] { (HttpMethod.Post, RuntimeProtocol.Invoke), (HttpMethod.Post, RuntimeProtocol.Report), (HttpMethod.Get, RuntimeProtocol.Stream) })

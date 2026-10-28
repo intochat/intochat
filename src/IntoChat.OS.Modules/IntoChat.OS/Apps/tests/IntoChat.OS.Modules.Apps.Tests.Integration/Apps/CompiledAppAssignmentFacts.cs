@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
@@ -13,7 +14,7 @@ public sealed class CompiledAppAssignmentFacts
     private static readonly Dictionary<string, string> NoBindings = [];
 
     private static IBrainPrograms Programs(CompiledAppInstallFacts.Fixture fixture)
-        => fixture.Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainPrograms>(BrainRuntimeKeys.For(fixture.Person.BrainId));
+        => SiloNeurons.Get<IBrainPrograms>(fixture.Brain.Services, BrainRuntimeKeys.For(fixture.Person.BrainId));
 
     private static string Key(CompiledAppInstallFacts.Fixture fixture) => IApp.Key(fixture.Person.BrainId, "counter");
 
@@ -37,7 +38,7 @@ public sealed class CompiledAppAssignmentFacts
         Assert.Equal(package.Digest, current!.Digest);
         Assert.True(current.DispatchReady);
         // A restart reads the same installation back from the package cache.
-        var restarted = new SandboxCompiledApps(fixture.Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), fixture.Installer,
+        var restarted = new SandboxCompiledApps(fixture.Brain.Services, fixture.Installer,
             new(Path.Combine(fixture.Home, "packages", "active")));
         Assert.Equal(package.Digest, (await restarted.Current(fixture.Person.BrainId, "counter", snapshot, Ct))!.Digest);
     }

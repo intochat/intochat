@@ -4,6 +4,7 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using Orleans.Runtime;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
@@ -34,7 +35,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
 
     // The installation index is a plain neuron in the system brain (06-06d); this connection is still a grain.
     private IGitHubRepositoryIndex Index(long installationId)
-        => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(ServiceProvider).Get<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(installationId));
+        => SiloNeurons.Get<IGitHubRepositoryIndex>(ServiceProvider, IGitHubRepositoryIndex.Key(installationId));
 
     protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {

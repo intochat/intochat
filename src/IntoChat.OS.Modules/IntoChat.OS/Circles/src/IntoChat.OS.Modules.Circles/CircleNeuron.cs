@@ -11,6 +11,8 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.State;
+using Orleans;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -42,8 +44,7 @@ internal sealed record CircleBinding(string AccountId, string AppName, string Sl
 [DigitalBrain.Neuron(CircleGrainType.Name)]
 internal sealed class CircleNeuron(
     IIdentityClient identity,
-    IntoChat.OS.Runtime.IBrainCalls calls,
-    IntoChat.OS.Runtime.IPlainNeurons plain,
+    IServiceProvider plain,
     ILogger<CircleNeuron> logger,
     IntoChat.OS.Modules.Apps.FeatureLoader? loader = null)
     : DigitalBrain.Neuron<CircleRecord>, ICircle, ICircleStateReader
@@ -70,7 +71,7 @@ internal sealed class CircleNeuron(
     public Task BindPublicationButton()
     {
         MemberChange();
-        return plain.Get<IntoChat.OS.Modules.Flutter.IUiBinding>(IApp.Key(CircleBrain, "circleroom") + "/bring-button")
+        return SiloNeurons.Get<IntoChat.OS.Modules.Flutter.IUiBinding>(plain, IApp.Key(CircleBrain, "circleroom") + "/bring-button")
             .Bind(IntoChat.OS.Modules.Flutter.UiHandlers.IdOf(Id));
     }
 
@@ -187,7 +188,7 @@ internal sealed class CircleNeuron(
             {
                 if (binding.Copy) { await plain.GetConnection(binding.ConnectionKey).Disconnect(); }
                 else { await plain.GetConnection(binding.ConnectionKey).UnshareFrom(CircleBrain, app); }
-                await plain.Get<IntoChat.OS.Modules.Apps.IApp>(app).Configure([], new() { [binding.Slot] = "" });
+                await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, app).Configure([], new() { [binding.Slot] = "" });
             }
             // The gate also requires the sharer to be a member (R155), so a binding not cleared here admits nothing.
             catch (Exception error) when (error is not OperationCanceledException)
@@ -235,7 +236,7 @@ internal sealed class CircleNeuron(
 
     // The compute share is an Authority raw grain (allow-listed, NeuronsStillGrains.json): CircleShareGuard admits only the circle
     // neuron its key names, read from the calling host grain, so the call is made from this neuron's turn.
-    private ICircleShares Shares => Context.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<ICircleShares>(FullKey);
+    private ICircleShares Shares => Context.Services.GetRequiredService<IGrainFactory>().GetGrain<ICircleShares>(FullKey);
 
     // R126: inviting and accepting are a person's, on the /brains/{circle} route; an app's script is refused them.
     private static void RequirePerson()
@@ -264,7 +265,7 @@ internal sealed class CircleNeuron(
         {
             // Import persists its receipt before deployment; a failed deploy is still an installed copy.
             if (!string.IsNullOrWhiteSpace(targetName) && targetName.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-'))
-            { await IndexInstallation(await plain.Get<IntoChat.OS.Modules.Apps.IApp>(IApp.Key(CircleBrain, targetName)).Read()); }
+            { await IndexInstallation(await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IApp.Key(CircleBrain, targetName)).Read()); }
             throw;
         }
 
@@ -285,9 +286,9 @@ internal sealed class CircleNeuron(
         if (loader is null) { throw new InvalidOperationException($"Sharing into {next.Name} needs the Apps module."); }
         var source = await SharerBrain(caller, appName);
         // The sharer acts in its own brain: the same principal and account, stamped for that brain (R124, R148), through IBrainCalls.
-        var app = plain.Get<IntoChat.OS.Modules.Apps.IApp>(IntoChat.OS.Modules.Apps.IApp.Key(source, appName));
-        var shared = await calls.In(source, app.Read);
-        var bundle = await calls.In(source, app.Export);
+        var app = SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Modules.Apps.IApp.Key(source, appName));
+        var shared = await BrainActs.In(identity, source, app.Read);
+        var bundle = await BrainActs.In(identity, source, app.Export);
         await loader.Load(CircleBrain, appName, bundle,
             new IntoChat.OS.Modules.Apps.AppOrigin(caller.AccountId, new IntoChat.OS.Modules.Apps.AppSource.Brain(caller.AccountId, source), appName, bundle.Version), CancellationToken.None);
         var circleApp = IntoChat.OS.Modules.Apps.IApp.Key(CircleBrain, appName);
@@ -303,11 +304,11 @@ internal sealed class CircleNeuron(
             if (connectionIds.Contains(id, StringComparer.Ordinal))
             {
                 // R147: the circle's own copy holds the definition; R130 seals its credential under the circle key.
-                var view = await calls.In(source, () => plain.GetConnection(owned).Read());
+                var view = await BrainActs.In(identity, source, () => plain.GetConnection(owned).Read());
                 var copy = ConnectionKeys.For(CircleBrain, slot.Connector, id);
                 await plain.GetConnection(copy).Adopt(view.AuthMethodId, view.Account);
                 // Re-seal the selected credential for the destination brain; neuron calls carry ciphertext.
-                var reSealed = await calls.In(source, () => plain.GetConnection(owned).ExportFor(CircleBrain));
+                var reSealed = await BrainActs.In(identity, source, () => plain.GetConnection(owned).ExportFor(CircleBrain));
                 if (reSealed.Length > 0)
                 { await plain.GetConnection(copy).Import(view.AuthMethodId, view.Account, reSealed, ConnectionStatus.Connected, null); }
                 slots[slot.Name] = copy;
@@ -315,12 +316,12 @@ internal sealed class CircleNeuron(
             }
             else
             {
-                await calls.In(source, () => plain.GetConnection(owned).ShareInto(CircleBrain, circleApp));
+                await BrainActs.In(identity, source, () => plain.GetConnection(owned).ShareInto(CircleBrain, circleApp));
                 slots[slot.Name] = owned;
                 bindings.Add(new(caller.AccountId, appName, slot.Name, owned, Copy: false));
             }
         }
-        if (slots.Count > 0) { await plain.Get<IntoChat.OS.Modules.Apps.IApp>(circleApp).Configure([], slots); }
+        if (slots.Count > 0) { await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, circleApp).Configure([], slots); }
         if (!next.SharedApps.Contains(appName)) { next.SharedApps = [.. next.SharedApps, appName]; }
         next.Bindings = [.. next.Bindings.Where(known => known.AppName != appName), .. bindings];
         await CommitCore(next);
@@ -332,8 +333,8 @@ internal sealed class CircleNeuron(
         List<string> holding = [];
         foreach (var brain in (await identity.BrainsOf(caller.PersonId)).Where(entry => entry.Kind == BrainKind.Personal))
         {
-            var installed = await calls.In(brain.Id, async () =>
-                (await plain.Get<IntoChat.OS.Modules.Apps.IApp>(IntoChat.OS.Modules.Apps.IApp.Key(brain.Id, appName)).Read()).Manifest.Title.Length > 0);
+            var installed = await BrainActs.In(identity, brain.Id, async () =>
+                (await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Modules.Apps.IApp.Key(brain.Id, appName)).Read()).Manifest.Title.Length > 0);
             if (installed) { holding.Add(brain.Id); }
         }
         return holding.Count switch

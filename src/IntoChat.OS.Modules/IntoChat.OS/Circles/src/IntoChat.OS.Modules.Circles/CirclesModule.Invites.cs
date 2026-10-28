@@ -3,6 +3,7 @@ using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -14,7 +15,7 @@ public sealed partial class CirclesModule
 
     private static void MapInviteCodes(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/circle-invitations/{brainId}/codes", async (string brainId, MintCodeRequest? body, HttpContext http, IntoChat.OS.Runtime.IPlainNeurons plain) =>
+        endpoints.MapPost("/circle-invitations/{brainId}/codes", async (string brainId, MintCodeRequest? body, HttpContext http, IServiceProvider plain) =>
         {
             if (http.User.Identity?.IsAuthenticated != true || !CallerContextStamper.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp)
@@ -25,7 +26,7 @@ public sealed partial class CirclesModule
             CallerContextStamper.Stamp(caller with { BrainId = brainId });
             try
             {
-                var minted = await plain.Get<ICircleInvites>(ICircleInvites.Key(brainId)).Mint(request);
+                var minted = await SiloNeurons.Get<ICircleInvites>(plain, ICircleInvites.Key(brainId)).Mint(request);
                 http.Response.Headers.CacheControl = "no-store";
                 return Results.Ok(new { code = minted.Code, expiresAt = minted.ExpiresAt });
             }

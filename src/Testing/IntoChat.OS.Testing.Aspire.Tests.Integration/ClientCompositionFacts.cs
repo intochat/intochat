@@ -30,8 +30,6 @@ public sealed class ClientCompositionFacts
                 Assert.Same(host.Services.GetRequiredService<IKernelView>(), brain.Kernel);
                 break;
             case "signals":
-                var signals = host.Services.GetRequiredService<IPlainSignals>();
-                Assert.NotNull(signals.Session("owner", "client/composition"));
                 var pulse = brain.Get<IPulse>(new NeuronId("owner/pulse"));
                 Assert.NotNull(brain.On<Pulsed>(pulse, () => Task.CompletedTask, TestContext.Current.CancellationToken));
                 break;

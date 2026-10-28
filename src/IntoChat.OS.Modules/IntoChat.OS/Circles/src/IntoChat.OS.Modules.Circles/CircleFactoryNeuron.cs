@@ -5,6 +5,7 @@ using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.State;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -23,8 +24,7 @@ internal sealed class CircleFactoryRecord
 internal sealed class CircleFactoryNeuron(
     IIdentityClient identity,
     CircleBirth birth,
-    IntoChat.OS.Runtime.IBrainCalls calls,
-    IntoChat.OS.Runtime.IPlainNeurons plain)
+    IServiceProvider plain)
     : DigitalBrain.Neuron, ICircleFactory
 {
     private CircleFactoryRecord Snapshot = new();
@@ -45,7 +45,7 @@ internal sealed class CircleFactoryNeuron(
     public Task BindPublicationButton()
     {
         Own();
-        return plain.Get<IntoChat.OS.Modules.Flutter.IUiBinding>(IApp.Key(Brain, "circle") + "/fork-button")
+        return SiloNeurons.Get<IntoChat.OS.Modules.Flutter.IUiBinding>(plain, IApp.Key(Brain, "circle") + "/fork-button")
             .Bind(IntoChat.OS.Modules.Flutter.UiHandlers.IdOf(Id));
     }
 
@@ -65,9 +65,9 @@ internal sealed class CircleFactoryNeuron(
         // A retried Create completes a birth that failed before or inside the brain's creation: IBrain.Create is a no-op once the
         // brain exists, and a creation handler's failure is only logged there, so the birth runs again. The creator acts in the new
         // circle brain, a member of it since CreateBrain (06-08: IBrainCalls).
-        await calls.In(circle, async () =>
+        await BrainActs.In(identity, circle, async () =>
         {
-            await plain.Get<IBrain>(IBrain.Key(circle)).Create(new Owner(caller.AccountId));
+            await SiloNeurons.Get<IBrain>(plain, IBrain.Key(circle)).Create(new Owner(caller.AccountId));
             if (!provision.NewBrain) { await birth.Born(circle, CancellationToken.None); }
         });
         if (!Snapshot.Created.Any(created => created.BrainId == circle))
@@ -87,12 +87,12 @@ internal sealed class CircleFactoryNeuron(
         var caller = Own();
         List<AppPublication> items = [];
         HashSet<string> unavailable = new(StringComparer.Ordinal);
-        foreach (var listing in await plain.Get<IMarketplace>(IMarketplace.Key).List())
+        foreach (var listing in await SiloNeurons.Get<IMarketplace>(plain, IMarketplace.Key).List())
         {
             if (listing.Source is not AppSource.Brain source || publisher is { Length: > 0 } && listing.Publisher != publisher) { continue; }
             try
             {
-                var releases = await plain.Get<IntoChat.OS.Modules.Apps.IApp>(IApp.Key(BrainScope.Create(source.AccountId, source.BrainId).Id, listing.Name)).PublishedReleases();
+                var releases = await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IApp.Key(BrainScope.Create(source.AccountId, source.BrainId).Id, listing.Name)).PublishedReleases();
                 items.AddRange(releases.Where(release => release.Reference.Publisher == listing.Publisher
                     && release.Reference.Source == source && release.Reference.Name == listing.Name));
             }

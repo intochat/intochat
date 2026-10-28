@@ -236,7 +236,7 @@ public sealed class MemoryIntendRecoveryFacts
             {
                 var report = await request.Content!.ReadFromJsonAsync<RuntimeReport>(RuntimeProtocol.Json, cancellationToken);
                 if (report?.Subscribe is not { } subscribed) { return new(HttpStatusCode.OK); }
-                if (subscribed.Signal == IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(AppRequested)))
+                if (subscribed.Signal == DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(AppRequested)))
                 {
                     var input = JsonSerializer.Serialize(new { message = "Reply ready", requestId = RequestId, conversation = "main" });
                     Publish(subscribed.Signal, new AppRequested("intend", input, Guid.Parse(RequestId)));
@@ -255,7 +255,7 @@ public sealed class MemoryIntendRecoveryFacts
             if (call.Contract == typeof(IAgent).FullName && call.Method == nameof(IAgent.Start))
             {
                 var turn = call.Arguments[0].Deserialize<AgentTurn>(RuntimeProtocol.Json)!;
-                Publish(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(TurnCompleted)), new TurnCompleted(call.Key, turn.RunId!, ModelReply));
+                Publish(DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(TurnCompleted)), new TurnCompleted(call.Key, turn.RunId!, ModelReply));
                 return new(HttpStatusCode.NoContent);
             }
             if (call.Contract == typeof(IIntents).FullName)

@@ -5,6 +5,7 @@ using IntoChat.OS.Framework;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.AI.Routing;
 
@@ -12,7 +13,7 @@ namespace IntoChat.OS.Modules.AI.Routing;
 // The scan runs at startup, outside a person's request. A route after that reads the menu.
 // Apps are plain neurons (06-08): their AppChanged is heard on this silo through IClusterListeners and queued, so the refresh
 // runs here, in order, outside the turn that published it.
-internal sealed class AppMenuHost(DigitalBrain.Spi.IClusterListeners listeners, IntoChat.OS.Runtime.IPlainNeurons plain, IKernel kernel,
+internal sealed class AppMenuHost(DigitalBrain.Spi.IClusterListeners listeners, IServiceProvider plain, IKernel kernel,
     AppOperationCatalog catalog, ILogger<AppMenuHost> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -74,11 +75,11 @@ internal sealed class AppMenuHost(DigitalBrain.Spi.IClusterListeners listeners, 
         AppSnapshot snapshot;
         try
         {
-            snapshot = await plain.Get<IApp>(key).Read().WaitAsync(cancellationToken);
+            snapshot = await SiloNeurons.Get<IApp>(plain, key).Read().WaitAsync(cancellationToken);
             for (var attempt = 0; version is not null && snapshot.Version != version && attempt < 20; attempt++)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
-                snapshot = await plain.Get<IApp>(key).Read().WaitAsync(cancellationToken);
+                snapshot = await SiloNeurons.Get<IApp>(plain, key).Read().WaitAsync(cancellationToken);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)

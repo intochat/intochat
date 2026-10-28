@@ -5,6 +5,7 @@ using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Modules.Time;
 using Microsoft.Extensions.DependencyInjection;
 using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
+using Orleans;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.Hosting;
 
@@ -28,7 +29,7 @@ public sealed class HostDispatchCostFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<TimeModule>().StartAsync(ct);
-        var typed = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<IBrainEntries>("cost");
+        var typed = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainEntries>("cost");
         var host = brain.Get<ITimer>(brain.Owner.Key("timer/cost"));
 
         for (var i = 0; i < Warmup; i++)

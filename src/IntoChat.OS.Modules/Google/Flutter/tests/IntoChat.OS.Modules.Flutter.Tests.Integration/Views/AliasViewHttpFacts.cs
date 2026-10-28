@@ -10,6 +10,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Views;
 
@@ -97,8 +98,7 @@ public sealed class AliasViewHttpFacts(FlutterHost host)
         using var deniedAction = await person.Http.PostAsJsonAsync($"/brains/{person.BrainId}/apps/event",
             new { kind = "view", name = foreign, revision = 9, field = "go", action = "canonical", operationId = Guid.NewGuid() }, ct);
         Assert.False(deniedAction.IsSuccessStatusCode);
-        await Assert.ThrowsAsync<ArgumentException>(() => host.Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>()
-            .Get<IAppMigration>(legacy).Redirect("alias-http", "other/brain/apps/ino"));
+        await Assert.ThrowsAsync<ArgumentException>(() => SiloNeurons.Get<IAppMigration>(host.Brain.Services, legacy).Redirect("alias-http", "other/brain/apps/ino"));
         Assert.Equal(canonical, (await host.Brain.Get<IApp>(legacy).Read()).MigrationTarget);
     }
 
@@ -110,10 +110,9 @@ public sealed class AliasViewHttpFacts(FlutterHost host)
         var manifest = new AppManifest("Chat", "Chat", [], [], []);
         await host.Brain.Get<IApp>(legacy).Create(manifest, "legacy");
         await host.Brain.Get<IApp>(canonical).Create(manifest, "canonical");
-        var grains = host.Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
-        await grains.Get<IAppMigration>(legacy).Pause("alias-http");
-        await grains.Get<IAppMigration>(canonical).Pause("alias-http");
-        await grains.Get<IAppMigration>(legacy).Redirect("alias-http", canonical);
+        await SiloNeurons.Get<IAppMigration>(host.Brain.Services, legacy).Pause("alias-http");
+        await SiloNeurons.Get<IAppMigration>(host.Brain.Services, canonical).Pause("alias-http");
+        await SiloNeurons.Get<IAppMigration>(host.Brain.Services, legacy).Redirect("alias-http", canonical);
         return (legacy, canonical);
     }
 

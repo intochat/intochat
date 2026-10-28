@@ -105,7 +105,7 @@ public sealed class ExpansionSource : DigitalBrain.Neuron, IExpansionSource
     {
         _watches++;
         if (_fail) { _fail = false; throw new InvalidOperationException("Filter registration failed"); }
-        _selection = [.. request.Signals.Select(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf)];
+        _selection = [.. request.Signals.Select(DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias)];
         return base.AdmitSynapse(request);
     }
 }

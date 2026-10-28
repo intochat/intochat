@@ -27,7 +27,7 @@ public sealed class ModelAddressFacts
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
         await using var started = await brain.Observe<InferenceStarted>(brain.Get<IGpt56Luna>(ModelAddress.Key(Brain)), ct);
 
-        var answer = await ModelAddress.Complete(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), Brain, nameof(IGpt56Luna), "Be brief.", "hello", ct);
+        var answer = await ModelNeurons.Complete(brain.Services, Brain, nameof(IGpt56Luna), "Be brief.", "hello", ct);
 
         Assert.Equal("You said: hello", answer);
         Assert.Equal($"{Brain}/models", (await started.NextAsync(ct: ct)).NeuronId);
@@ -65,7 +65,7 @@ public sealed class ModelAddressFacts
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithFakeModel(model)
             .StartAsync(ct);
 
-        var answer = await ModelAddress.Complete(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), Owner, nameof(IGpt56Luna), "Be brief.", "hello", ct);
+        var answer = await ModelNeurons.Complete(brain.Services, Owner, nameof(IGpt56Luna), "Be brief.", "hello", ct);
 
         Assert.Equal("You said: hello", answer);
         var journaled = await brain.History<InferenceCompleted>(brain.Get<IGpt56Luna>(ModelAddress.Key(Owner)), ct);

@@ -21,7 +21,7 @@ namespace IntoChat.OS.Kernel.Tests.Integration;
 public sealed class SelfImproveAvailabilityFacts
 {
     // The candidates are plain neurons (06-06d): a script subscribes to their [Signal] record by its alias.
-    private static readonly string CandidateChangedSignal = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(CandidateChanged));
+    private static readonly string CandidateChangedSignal = DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(CandidateChanged));
 
     private const string Unavailable = "Self-improve is unavailable on this host because deployment is not configured.";
     private const string Change = """{"branch":"fixture","summary":"Fixture change","files":{"fixture.cs":"// fixture"},"plan":{"calls":[],"spans":[],"budget":"00:01:00"}}""";
@@ -326,7 +326,7 @@ public sealed class SelfImproveAvailabilityFacts
         public Guid Request(string operation, string input, Guid? id = null)
         {
             var requestId = id ?? Guid.NewGuid();
-            Publish(App, IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(AppRequested)), new AppRequested(operation, input, requestId));
+            Publish(App, DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(AppRequested)), new AppRequested(operation, input, requestId));
             return requestId;
         }
 

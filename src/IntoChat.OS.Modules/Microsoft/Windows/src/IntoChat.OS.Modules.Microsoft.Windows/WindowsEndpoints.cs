@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -20,15 +21,15 @@ internal static class WindowsEndpoints
             OperatingSystem.IsWindows()
                 ? Results.Ok(new { machineId = identity.Id, machineName = Environment.MachineName })
                 : Results.NotFound());
-        group.MapGet("/{machineId}/roots", (string machineId, [FromServices] IMachineIdentity identity, [FromServices] IntoChat.OS.Runtime.IPlainNeurons grains) =>
+        group.MapGet("/{machineId}/roots", (string machineId, [FromServices] IMachineIdentity identity, [FromServices] IServiceProvider grains) =>
             WithMachine(machineId, identity, grains, async machine => Results.Ok(await machine.Roots())));
-        group.MapPost("/{machineId}/roots/allow", (string machineId, WindowsRootInput input, [FromServices] IMachineIdentity identity, [FromServices] IntoChat.OS.Runtime.IPlainNeurons grains) =>
+        group.MapPost("/{machineId}/roots/allow", (string machineId, WindowsRootInput input, [FromServices] IMachineIdentity identity, [FromServices] IServiceProvider grains) =>
             ChangeRoot(machineId, input, identity, grains, true));
-        group.MapPost("/{machineId}/roots/revoke", (string machineId, WindowsRootInput input, [FromServices] IMachineIdentity identity, [FromServices] IntoChat.OS.Runtime.IPlainNeurons grains) =>
+        group.MapPost("/{machineId}/roots/revoke", (string machineId, WindowsRootInput input, [FromServices] IMachineIdentity identity, [FromServices] IServiceProvider grains) =>
             ChangeRoot(machineId, input, identity, grains, false));
     }
 
-    private static Task<IResult> ChangeRoot(string machineId, WindowsRootInput input, IMachineIdentity identity, [FromServices] IntoChat.OS.Runtime.IPlainNeurons grains, bool allow)
+    private static Task<IResult> ChangeRoot(string machineId, WindowsRootInput input, IMachineIdentity identity, [FromServices] IServiceProvider grains, bool allow)
         => WithMachine(machineId, identity, grains, async machine =>
         {
             if (string.IsNullOrWhiteSpace(input.Path) || !Path.IsPathFullyQualified(input.Path))
@@ -43,12 +44,12 @@ internal static class WindowsEndpoints
             { return Results.BadRequest(new { error = "The folder is unavailable on the connected Windows computer." }); }
         });
 
-    private static async Task<IResult> WithMachine(string machineId, IMachineIdentity identity, [FromServices] IntoChat.OS.Runtime.IPlainNeurons grains, Func<IWindows, Task<IResult>> action)
+    private static async Task<IResult> WithMachine(string machineId, IMachineIdentity identity, [FromServices] IServiceProvider grains, Func<IWindows, Task<IResult>> action)
     {
         if (!OperatingSystem.IsWindows() || machineId != identity.Id) { return Results.NotFound(); }
         var key = ConnectionKeys.For(BrainScope.CurrentId(), "windows", machineId);
         if ((await grains.GetConnection(key).Read()).Status != ConnectionStatus.Connected)
         { return Results.Conflict(new { error = "Connect this Windows computer before choosing allowed folders." }); }
-        return await action(grains.Get<IWindows>(key));
+        return await action(SiloNeurons.Get<IWindows>(grains, key));
     }
 }

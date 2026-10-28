@@ -6,6 +6,7 @@ using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Tests.Integration.Repository;
 
@@ -40,11 +41,11 @@ public sealed class GitHubRepositoryFacts
         return key;
     }
 
-    private static IntoChat.OS.Runtime.IPlainNeurons Plain(ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+    private static IServiceProvider Plain(ITestBrain brain) => brain.Services;
 
     // The installation index is a plain neuron in the system brain (06-06d).
     private static IGitHubRepositoryIndex Index(ITestBrain brain, long installation)
-        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(installation));
+        => SiloNeurons.Get<IGitHubRepositoryIndex>(brain.Services, IGitHubRepositoryIndex.Key(installation));
 
     private static GitHubWebhookIngress Ingress(ITestBrain brain) => brain.Services.GetRequiredService<GitHubWebhookIngress>();
 

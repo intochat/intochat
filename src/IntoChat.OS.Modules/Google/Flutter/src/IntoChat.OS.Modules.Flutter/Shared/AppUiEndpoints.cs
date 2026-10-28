@@ -35,6 +35,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter;
 
@@ -228,9 +229,9 @@ internal static class AppUiEndpoints
         });
 
         UiHttp.MapGet<ITable, TableState>(endpoints, "tables", neuron => neuron.Read());
-        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, [global::Microsoft.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
+        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, [global::Microsoft.AspNetCore.Mvc.FromServices] IServiceProvider plain, CancellationToken ct) =>
         {
-            await plain.Get<ITable>(name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
+            await SiloNeurons.Get<ITable>(plain, name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
             return Results.Accepted();
         });
     }

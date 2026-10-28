@@ -1,13 +1,15 @@
+using DigitalBrain.Runtime.Orleans.Hosting;
+
 namespace IntoChat.OS.Modules.Apps;
 
 // The one load path for a feature bundle into a brain, whatever the source: the features folder,
 // a person's Marketplace listing, or an app the Creator published. A new app is imported, an
 // existing one has its program replaced (settings, connections and data stay); either way the
 // copy remembers where it came from. Whether a load is allowed is the caller's policy.
-public sealed class FeatureLoader(IntoChat.OS.Runtime.IPlainNeurons plain, IEnumerable<IFeatureMigration> migrations, FeatureCatalog catalog)
+public sealed class FeatureLoader(IServiceProvider plain, IEnumerable<IFeatureMigration> migrations, FeatureCatalog catalog)
 {
     public Task<AppSnapshot> Create(string brain, string name, AppBundle bundle, AppOrigin origin, AppInstallReceipt installation, CancellationToken ct)
-        => plain.Get<IApp>(IApp.Key(brain, name)).Import(bundle with { Name = name }, origin, installation).WaitAsync(ct);
+        => SiloNeurons.Get<IApp>(plain, IApp.Key(brain, name)).Import(bundle with { Name = name }, origin, installation).WaitAsync(ct);
 
     // A shipped copy of exactly what the host's compiled package carries runs that package; a bundle a migration changed, or one
     // the host ships only as source, is compiled from its sources as before. The digest is only the name: the host's catalog supplies the bytes.
@@ -30,7 +32,7 @@ public sealed class FeatureLoader(IntoChat.OS.Runtime.IPlainNeurons plain, IEnum
         span?.SetTag("feature.owner", origin.Publisher);
         span?.SetTag("feature.name", name);
         span?.SetTag("feature.version", bundle.Version);
-        var target = plain.Get<IApp>(IApp.Key(brain, name));
+        var target = SiloNeurons.Get<IApp>(plain, IApp.Key(brain, name));
         var named = bundle with { Name = name };
         // The origin travels with the program in one write: a deploy that fails or outlasts this
         // call still leaves a copy that knows where it came from, and the next load finishes it.

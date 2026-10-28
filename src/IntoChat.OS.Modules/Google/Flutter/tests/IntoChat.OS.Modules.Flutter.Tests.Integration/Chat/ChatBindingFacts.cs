@@ -2,6 +2,7 @@ using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Chat;
 
@@ -50,7 +51,7 @@ public sealed class ChatBindingFacts
         var chat = brain.Get<IChat>(key);
         var text = brain.Get<IChatSourceText>(source);
         await text.Set("answer");
-        var adapter = new TestChatAgentSource(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>());
+        var adapter = new TestChatAgentSource(brain.Services);
         var snapshot = await adapter.Read(source, 7);
         await chat.Project(snapshot.Projection);
         await chat.MarkRead(source, 7, snapshot.Projection.Version, ["answer"]);
@@ -189,7 +190,7 @@ public sealed class ChatBindingFacts
     }
 }
 
-internal sealed class TestChatAgentSource(IntoChat.OS.Runtime.IPlainNeurons plain) : IChatAgentSource
+internal sealed class TestChatAgentSource(IServiceProvider plain) : IChatAgentSource
 {
     public string? FailSource { get; set; }
     public int ReadsUntilFailure { get; set; }
@@ -201,7 +202,7 @@ internal sealed class TestChatAgentSource(IntoChat.OS.Runtime.IPlainNeurons plai
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {
         if (key == FailSource && ReadsUntilFailure-- <= 0) { throw new InvalidOperationException("Source unavailable."); }
-        var text = await plain.Get<IChatSourceText>(key).Read();
+        var text = await SiloNeurons.Get<IChatSourceText>(plain, key).Read();
         return new(new(key, selectionRevision, text.Version,
             text.Markdown.Length == 0 ? [] : [new("answer", ChatRole.Assistant, text.Markdown)]),
             text.Markdown.Length == 0 ? null : new(key, selectionRevision, text.Version, "answer", ChatRunStatus.Completed));

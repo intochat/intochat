@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Orleans;
 
 namespace IntoChat.OS.Authority.Tests.Integration;
 
@@ -9,7 +10,7 @@ internal static class BrainGrains
     extension(ITestBrain brain)
     {
         public AuthorityNeurons Platform => brain.Services.GetRequiredService<AuthorityNeurons>();
-        public IntoChat.OS.Runtime.IStillGrains Grains => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>();
-        public IntoChat.OS.Runtime.IPlainNeurons Plain => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+        public IServiceProvider Plain => brain.Services;
+        public IGrainFactory Grains => brain.Services.GetRequiredService<IGrainFactory>();
     }
 }

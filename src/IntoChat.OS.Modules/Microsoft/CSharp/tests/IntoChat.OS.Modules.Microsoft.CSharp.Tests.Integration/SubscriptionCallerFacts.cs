@@ -35,7 +35,7 @@ public sealed class SubscriptionCallerFacts
         using (owner.AsApp(app)) { await table.Define(Definition); }
         var session = await AssignAsync(brain, owner, app, ct);
         var edge = RuntimeBrain.Edge(brain, owner.BrainId);
-        var subscribe = Subscribe<ITable>(app, app + "/items", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(RowUpserted)));
+        var subscribe = Subscribe<ITable>(app, app + "/items", DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(RowUpserted)));
 
         await SubscribeAsync(brain, owner.BrainId, session, subscribe, ct);
         await UpsertAsync(brain, owner, app, table, "one", ct);
@@ -65,9 +65,9 @@ public sealed class SubscriptionCallerFacts
         using (owner.AsApp(app)) { await table.Define(Definition); }
         var session = await AssignAsync(brain, owner, app, ct);
         using (owner.AsCaller()) { await RuntimeBrain.Programs(brain, owner.BrainId).Assign(other, RuntimeBrain.One(RuntimeBrain.Idle), []); }
-        await SubscribeAsync(brain, owner.BrainId, session, Subscribe<ITable>(app, app + "/items", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(RowUpserted))), ct);
+        await SubscribeAsync(brain, owner.BrainId, session, Subscribe<ITable>(app, app + "/items", DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(RowUpserted))), ct);
 
-        using var refused = await Report(brain, owner.BrainId, session, Subscribe<ITable>(other, app + "/items", IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(RowUpserted))), ct);
+        using var refused = await Report(brain, owner.BrainId, session, Subscribe<ITable>(other, app + "/items", DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(RowUpserted))), ct);
         await UpsertAsync(brain, owner, app, table, "one", ct);
 
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
@@ -209,7 +209,7 @@ public sealed class SubscriptionCallerFacts
     // A ping's number; null for any other signal, such as the refusing app's requests.
     private static int? Ping(string json) => JsonDocument.Parse(json).RootElement.TryGetProperty("number", out var number) ? number.GetInt32() : null;
 
-    private static readonly string RanAlias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(BehaviorRan));
+    private static readonly string RanAlias = DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(BehaviorRan));
 
     private static TableValue[] Row(string id) => [new("id", JsonSerializer.Serialize(id))];
     private static string RowId(string json)

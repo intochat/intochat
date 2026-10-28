@@ -9,6 +9,8 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Contracts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using Orleans;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -19,8 +21,8 @@ namespace IntoChat.OS.Modules.Apps;
 // the compiler gate it, with at most one repair; WriteBehavior makes it live and CompleteSynapse records
 // the outcome. The app neuron holds everything durable; the job completes its request on every path.
 internal sealed class ReactionWriter(
-    IntoChat.OS.Runtime.IStillGrains grains,
-    IntoChat.OS.Runtime.IPlainNeurons plain,
+    IGrainFactory grains,
+    IServiceProvider plain,
     IKernel kernel,
     ReactionExamples examples,
     NeuronTypeSearch search,
@@ -87,8 +89,8 @@ internal sealed class ReactionWriter(
         using var span = Telemetry.StartActivity("apps.fastpath.write", ActivityKind.Internal, parentContext: default, startTime: job.RequestedAt);
         span?.SetTag("apps.app", job.AppKey);
         span?.SetTag("apps.fastpath.operation", job.OperationId.ToString());
-        var app = plain.Get<IApp>(job.AppKey);
-        var deploys = plain.Get<IAppDeploy>(job.AppKey);
+        var app = SiloNeurons.Get<IApp>(plain, job.AppKey);
+        var deploys = SiloNeurons.Get<IAppDeploy>(plain, job.AppKey);
         // The job owns the request's completion: every path below, a throw or a cancellation included, ends in
         // CompleteSynapse, so no request stays Requested while its job is gone.
         Outcome outcome;
@@ -302,7 +304,7 @@ internal sealed class ReactionWriter(
         var settings = options.Value;
         var selection = new ModelSelection(Reasoning: settings.FastPathReasoning is { Length: > 0 } reasoning ? reasoning.ToLowerInvariant() : null,
             MaxOutputTokens: settings.FastPathMaxOutputTokens);
-        var result = await grains.Get<ICreatorModel>(0L).Generate(brain, Model, new InferenceRequest(
+        var result = await grains.GetGrain<ICreatorModel>(0L).Generate(brain, Model, new InferenceRequest(
             [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection)).WaitAsync(cancellationToken);
         span?.SetTag("apps.fastpath.input_tokens", result.Usage?.InputTokens);
         span?.SetTag("apps.fastpath.output_tokens", result.Usage?.OutputTokens);

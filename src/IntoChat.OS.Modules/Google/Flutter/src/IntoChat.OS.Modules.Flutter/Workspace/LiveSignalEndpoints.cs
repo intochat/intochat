@@ -2,7 +2,10 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using IntoChat.OS.Modules.Apps;
+using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Circles.Signals;
@@ -35,7 +38,7 @@ internal static class LiveSignalEndpoints
         Type Signal,
         Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> Sources)
     {
-        public Func<global::DigitalBrain.NeuronId, Func<Task>, CancellationToken, IAsyncEnumerable<IntoChat.OS.Runtime.PlainSignalEntry>>? Live { get; init; }
+        public Func<global::DigitalBrain.NeuronId, Func<Task>, CancellationToken, IAsyncEnumerable<SessionSignal>>? Live { get; init; }
     }
 
     internal static LiveFeed Feed<T>(
@@ -109,8 +112,7 @@ internal static class LiveSignalEndpoints
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         await http.Response.Body.FlushAsync(ct);
-        var plain = http.RequestServices.GetService(typeof(IntoChat.OS.Runtime.IPlainSignals)) as IntoChat.OS.Runtime.IPlainSignals;
-        await foreach (var envelope in Stream(brain, BrainScope.CurrentId(), selected, logs.CreateLogger("IntoChat.OS.Modules.Flutter.Live"), ct, plain: plain))
+        await foreach (var envelope in Stream(brain, BrainScope.CurrentId(), selected, logs.CreateLogger("IntoChat.OS.Modules.Flutter.Live"), ct, services: http.RequestServices))
         {
             await http.Response.WriteAsync("data: " + envelope + "\n\n", ct);
             await http.Response.Body.FlushAsync(ct);
@@ -159,7 +161,7 @@ internal static class LiveSignalEndpoints
     // when every feed has failed the stream ends with an error, so the client sees a failure instead of a silent hang.
     // A reader that falls more than `capacity` envelopes behind gets Resync and the stream ends.
     internal static async IAsyncEnumerable<string> Stream(IIntoChatOS brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct, int capacity = EnvelopeBuffer,
-        IntoChat.OS.Runtime.IPlainSignals? plain = null)
+        IServiceProvider? services = null)
     {
         var outbox = new Outbox(capacity);
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -171,7 +173,7 @@ internal static class LiveSignalEndpoints
                 if (Interlocked.Increment(ref failed) == feeds.Length)
                 { outbox.Fail(new InvalidOperationException("Every live feed failed; see the server log.")); }
             }
-            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, plain, outbox, log, Failed, stop.Token), CancellationToken.None)).ToArray();
+            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, services, outbox, log, Failed, stop.Token), CancellationToken.None)).ToArray();
             _ = Task.Run(async () =>
             {
                 try
@@ -197,18 +199,18 @@ internal static class LiveSignalEndpoints
 
     // Completes once the retained values of the sources listed at connect time are written (or the feed failed); discovery keeps
     // running after that. Each source is watched on its own session.
-    private static Task Discover(IIntoChatOS brain, string brainId, LiveFeed feed, IntoChat.OS.Runtime.IPlainSignals? plain, Outbox writer, ILogger log, Action failed, CancellationToken ct)
+    private static Task Discover(IIntoChatOS brain, string brainId, LiveFeed feed, IServiceProvider? services, Outbox writer, ILogger log, Action failed, CancellationToken ct)
     {
         var type = feed.Type;
         var replayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (plain is null && feed.Live is null)
+        if (services is null && feed.Live is null)
         {
-            log.LogWarning("Live {Type} feed dropped: this host registers no IPlainSignals.", type);
+            log.LogWarning("Live {Type} feed dropped: this host registers no neuron services.", type);
             failed();
             replayed.TrySetResult();
             return replayed.Task;
         }
-        var alias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(feed.Signal);
+        var alias = SignalLog.Alias(feed.Signal);
         List<Task> initial = [];
         void Listed()
         {
@@ -225,7 +227,7 @@ internal static class LiveSignalEndpoints
                 {
                     var replay = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                     if (listing) { lock (initial) { initial.Add(replay.Task); } }
-                    _ = Task.Run(() => Pump(plain, feed, alias, source, writer, log, replay, ct), CancellationToken.None);
+                    _ = Task.Run(() => Pump(services, feed, alias, source, writer, log, replay, ct), CancellationToken.None);
                 }
             }
             catch (OperationCanceledException) { }
@@ -235,24 +237,25 @@ internal static class LiveSignalEndpoints
         return replayed.Task;
     }
 
-    private static async Task Pump(IntoChat.OS.Runtime.IPlainSignals? plain, LiveFeed feed, string alias, global::DigitalBrain.NeuronId source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
+    private static async Task Pump(IServiceProvider? services, LiveFeed feed, string alias, global::DigitalBrain.NeuronId source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
     {
         var signal = feed.Signal;
+        var journal = services?.GetService<IBrainJournalWriter>();
         try
         {
             async Task Replay()
             {
                 try
                 {
-                    if (plain is not null && await IntoChat.OS.Runtime.PlainWatch.Retained(plain, source, alias, ct) is { } last) { await writer.Write(PlainEnvelope(signal, source, last, replay: true), ct); }
+                    if (journal is not null && await SignalLog.Newest(journal, source, alias, ct) is { } last) { await writer.Write(PlainEnvelope(signal, source, last, replay: true), ct); }
                 }
                 finally { replayed.TrySetResult(); }
             }
             var live = feed.Live is { } seam ? seam(source, Replay, ct)
-                : IntoChat.OS.Runtime.PlainWatch.Live(plain!, source, [alias], "live/" + Guid.NewGuid().ToString("N"), Replay, ct);
+                : SignalLog.Live(services!, source, [alias], "live/" + Guid.NewGuid().ToString("N"), Replay, ct);
             await foreach (var entry in live)
             {
-                if (!entry.IsGap && entry.Alias == alias) { await writer.Write(PlainEnvelope(signal, source, entry), ct); }
+                if (!SignalLog.IsGap(entry) && entry.Alias == alias) { await writer.Write(PlainEnvelope(signal, source, entry), ct); }
             }
         }
         catch (OperationCanceledException) { }
@@ -260,13 +263,13 @@ internal static class LiveSignalEndpoints
         finally { replayed.TrySetResult(); }
     }
 
-    internal static string PlainEnvelope(Type signal, global::DigitalBrain.NeuronId source, IntoChat.OS.Runtime.PlainSignalEntry entry, bool replay = false) => JsonSerializer.Serialize(
+    internal static string PlainEnvelope(Type signal, global::DigitalBrain.NeuronId source, SessionSignal entry, bool replay = false) => JsonSerializer.Serialize(
         new
         {
             type = signal.Name,
             publisher = source.ToString(),
             sequence = (long?)entry.Sequence,
             replay = replay ? true : (bool?)null,
-            payload = JsonSerializer.SerializeToElement(JsonSerializer.Deserialize(entry.Json, signal, JsonSerializerOptions.Web), signal, Json),
+            payload = JsonSerializer.SerializeToElement(JsonSerializer.Deserialize(entry.Payload.GetRawText(), signal, JsonSerializerOptions.Web), signal, Json),
         }, Json);
 }

@@ -154,7 +154,7 @@ public sealed class BrainRuntimeNeuronFacts
         var subscription = await edge.Subscribed(session, Behavior, RuntimeBrain.Source(source), Pings.Pinged);
         Assert.True((await runtime.Inspect(ct)).IsReady);
 
-        var continuations = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainRuntimeContinuations>(BrainRuntimeKeys.For(Brain));
+        var continuations = SiloNeurons.Get<IBrainRuntimeContinuations>(brain.Services, BrainRuntimeKeys.For(Brain));
         await Assert.ThrowsAnyAsync<ArgumentException>(() => continuations.Acquire(" "));
         await continuations.Acquire("route:1");
         await continuations.Acquire("route:1");
@@ -202,7 +202,7 @@ public sealed class BrainRuntimeNeuronFacts
         await edge.Reported(session, new(Behavior, assignment.Hash, "Initialized", null, null, assignment.Revision));
         var source = brain.Get<IPinger>(Brain + "/owed-runs");
         var subscription = await edge.Subscribed(session, Behavior, RuntimeBrain.Source(source), Pings.Pinged);
-        var continuations = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainRuntimeContinuations>(BrainRuntimeKeys.For(Brain));
+        var continuations = SiloNeurons.Get<IBrainRuntimeContinuations>(brain.Services, BrainRuntimeKeys.For(Brain));
         await continuations.Acquire("route:owed");
         var runs = brain.Get<IBrainRuns>(BrainRunsKeys.For(Brain));
         await using var revisions = await brain.Observe<BrainRunsChanged>(runs, ct);

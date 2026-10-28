@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StorageV1 = DigitalBrain.Capabilities.Storage.IStorage;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
 
@@ -42,7 +43,7 @@ public static class KernelCapabilities
 
 // ICapabilityConnections over the brain's connection requests neuron: ConnectionSummary.Order is the Settings order, its Provides
 // the module's ModuleManifest.Provides; only the brain's own connection keys bind.
-public sealed class KernelCapabilityConnections(IPlainNeurons plain, IServiceProvider services, ILogger<KernelCapabilityConnections>? logger = null)
+public sealed class KernelCapabilityConnections(IServiceProvider plain, IServiceProvider services, ILogger<KernelCapabilityConnections>? logger = null)
     : ICapabilityConnections
 {
     private readonly ILogger _logger = logger ?? (ILogger)NullLogger.Instance;
@@ -83,7 +84,7 @@ public sealed class KernelCapabilityConnections(IPlainNeurons plain, IServicePro
         _logger.LogInformation("{App} needs {Capability} in brain {Brain}: requested a {Kind} connection ({Request})", callerApp, capability, brain.Value, request.Kind, request.Id);
     }
 
-    private IConnectionRequests Requests(BrainId brain) => plain.Get<IConnectionRequests>(IConnectionRequests.Key(brain.Value));
+    private IConnectionRequests Requests(BrainId brain) => SiloNeurons.Get<IConnectionRequests>(plain, IConnectionRequests.Key(brain.Value));
 
     // A neuron implementing storage@1 itself is reached through its own contract (ConnectionStorage keeps streams host-local);
     // one implementing only the 0.6 contract through LegacyStorageAdapter (D-03).
@@ -93,8 +94,8 @@ public sealed class KernelCapabilityConnections(IPlainNeurons plain, IServicePro
         if (neuron is not null && typeof(StorageV1).IsAssignableFrom(neuron))
         {
             var id = ConnectionGrains.IdFor(key);
-            var uploads = typeof(IStorageUpload).IsAssignableFrom(neuron) ? (IStorageUpload)plain.Get(typeof(IStorageUpload), id) : null;
-            return new ConnectionStorage((StorageV1)plain.Get(typeof(StorageV1), id), key, uploads, services.GetService<IStorageWriteAuthorizer>());
+            var uploads = typeof(IStorageUpload).IsAssignableFrom(neuron) ? (IStorageUpload)SiloNeurons.Get(plain, typeof(IStorageUpload), id) : null;
+            return new ConnectionStorage((StorageV1)SiloNeurons.Get(plain, typeof(StorageV1), id), key, uploads, services.GetService<IStorageWriteAuthorizer>());
         }
         return new LegacyStorageAdapter(plain.GetNeuron<ILegacyStorage>(services, key), connector, connector);
     }

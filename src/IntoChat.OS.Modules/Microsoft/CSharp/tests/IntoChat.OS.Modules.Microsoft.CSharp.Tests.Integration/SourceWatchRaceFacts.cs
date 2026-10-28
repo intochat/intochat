@@ -1,10 +1,10 @@
-using System.Threading.Channels;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
-using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -22,9 +22,9 @@ public sealed class SourceWatchRaceFacts
     public async Task AnUnwatchStillInFlightWhenTheNewProgramSubscribesDoesNotEndItsWatch()
     {
         var ct = TestContext.Current.CancellationToken;
-        HoldingSignals? held = null;
+        var held = new UnsubscribeGate();
         await using var brain = await RuntimeBrain.Create(new FakeSessionHost(), apps: true)
-            .ConfigureServices(services => services.AddSingleton<IPlainSignals>(provider => held = new(provider))).StartAsync(ct);
+            .ConfigureServices(services => services.AddSingleton<IOutgoingGrainCallFilter>(held)).StartAsync(ct);
         var within = brain.Execution.AssertionTimeout;
         var app = brain.Get<IApp>(IApp.Key(Brain, "echo"));
         await app.Create(new AppManifest("Echo", "", [new("open", "")], [], []), "spec");
@@ -36,7 +36,7 @@ public sealed class SourceWatchRaceFacts
         var source = RuntimeBrain.Plain<IApp>(brain, IApp.Key(Brain, "echo"));
         await edge.Subscribed(session, Behavior, source, RuntimeBrain.Requested);
         var stream = brain.Services.GetRequiredService<SessionStreams>().Open(session);
-        held!.HoldUnsubscribe();
+        held.HoldUnsubscribe();
 
         await programs.Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle + "// a new build\n" }, []);
         await held.UnsubscribeEntered.WaitAsync(within, ct);
@@ -53,11 +53,9 @@ public sealed class SourceWatchRaceFacts
         }
     }
 
-    // Wraps the kernel's plain signals: an armed unwatch is held on its way to the source until the fact releases it.
-    private sealed class HoldingSignals(IServiceProvider services) : IPlainSignals
+    // Holds an armed session Unsubscribe on its way to the source until the fact releases it.
+    private sealed class UnsubscribeGate : IOutgoingGrainCallFilter
     {
-        private readonly IPlainSignals _inner = (IPlainSignals)ActivatorUtilities.CreateInstance(services,
-            typeof(IntoChat.OS.Kernel.Composition.KernelTestHooks).Assembly.GetType("IntoChat.OS.Kernel.Composition.PlainSignals")!);
         private TaskCompletionSource? _hold;
 
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -68,30 +66,18 @@ public sealed class SourceWatchRaceFacts
         public void HoldUnsubscribe() => _hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public void ReleaseUnsubscribe() => _hold!.TrySetResult();
 
-        public IPlainSession Session(string brain, string session) => new Held(this, _inner.Session(brain, session));
-
-        public Task<PlainSignalPage> Read(DigitalBrain.NeuronId publisher, long since, int limit, CancellationToken cancellationToken)
-            => _inner.Read(publisher, since, limit, cancellationToken);
-
-        private sealed class Held(HoldingSignals owner, IPlainSession inner) : IPlainSession
+        public async Task Invoke(IOutgoingGrainCallContext context)
         {
-            public Task Subscribe(DigitalBrain.NeuronId source, string[] aliases) => inner.Subscribe(source, aliases);
-
-            public async Task Unsubscribe(DigitalBrain.NeuronId source)
+            if (_hold is { } hold && context.InterfaceMethod.DeclaringType == typeof(ISessionSynapses)
+                && context.InterfaceMethod.Name == nameof(ISessionSynapses.Unsubscribe))
             {
-                if (owner._hold is { } hold)
-                {
-                    owner.Entered.TrySetResult();
-                    await hold.Task;
-                    await inner.Unsubscribe(source);
-                    owner.Done.TrySetResult();
-                    return;
-                }
-                await inner.Unsubscribe(source);
+                Entered.TrySetResult();
+                await hold.Task.ConfigureAwait(false);
+                await context.Invoke().ConfigureAwait(false);
+                Done.TrySetResult();
+                return;
             }
-
-            public Task<PlainSignalBatch?> Next(long acked, CancellationToken cancellationToken) => inner.Next(acked, cancellationToken);
-            public Task End() => inner.End();
+            await context.Invoke().ConfigureAwait(false);
         }
     }
 }

@@ -6,6 +6,7 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Agents;
 
@@ -51,7 +52,7 @@ public sealed class LoopProbe : DigitalBrain.Neuron, ILoopProbe
     // The agent must have recorded the call before the neuron it reaches runs.
     public async Task<string> SeenByAgent(string agent)
     {
-        var run = (await Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAgent>(agent).Read()).ActiveRun;
+        var run = (await SiloNeurons.Get<IAgent>(Context.Services, agent).Read()).ActiveRun;
         return run?.ToolCalls.Any(item => item.Name == NeuronSurfaceTools.CallName) == true ? "recorded" : "unrecorded";
     }
 }

@@ -9,6 +9,8 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using Orleans;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -16,8 +18,8 @@ namespace IntoChat.OS.Modules.Apps;
 // shapes the spec; the Builder loop runs on the work queue, streaming progress into the
 // neuron — never inside a request, never inside a grain turn.
 internal sealed class Creator(
-    IntoChat.OS.Runtime.IStillGrains grains,
-    IntoChat.OS.Runtime.IPlainNeurons plain,
+    IGrainFactory grains,
+    IServiceProvider plain,
     NeuronTypeSearch search,
     IOptions<AppsOptions> options,
     AppAuthoringPolicy policy,
@@ -102,7 +104,7 @@ internal sealed class Creator(
     {
         // The queue's grain client is unstamped (trusted cluster path); progress and results
         // land on the neuron, which is the only durable record of this run.
-        var app = plain.Get<IApp>(appKey);
+        var app = SiloNeurons.Get<IApp>(plain, appKey);
         try
         {
             var task = new StringBuilder()
@@ -174,7 +176,7 @@ internal sealed class Creator(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return Parse<AuthoredApp>(await grains.Get<ICreatorModel>(0L).Complete(brainId, AuthorModel, AgentPrompts.Author, prompt));
+                return Parse<AuthoredApp>(await grains.GetGrain<ICreatorModel>(0L).Complete(brainId, AuthorModel, AgentPrompts.Author, prompt));
             }
             catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException && retry < MaxAuthorRetries)
             {
@@ -195,7 +197,7 @@ internal sealed class Creator(
         for (var round = 0; round < MaxBuilderRounds; round++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await grains.Get<ICreatorModel>(0L).Generate(brainId, BuilderModel, new InferenceRequest(messages, Tools: BuilderTools.Definitions));
+            var result = await grains.GetGrain<ICreatorModel>(0L).Generate(brainId, BuilderModel, new InferenceRequest(messages, Tools: BuilderTools.Definitions));
             messages.AddRange(result.Messages);
             var calls = result.Messages.SelectMany(message => message.Content).OfType<AiToolCall>().ToArray();
             if (calls.Length == 0)

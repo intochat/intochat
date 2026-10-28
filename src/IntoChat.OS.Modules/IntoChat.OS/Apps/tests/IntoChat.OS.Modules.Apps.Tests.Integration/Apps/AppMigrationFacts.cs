@@ -2,6 +2,7 @@ using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
@@ -26,9 +27,9 @@ public sealed class AppMigrationFacts
         await source.Configure(new() { ["Model"] = "mine" }, new() { ["database"] = "mine" });
         await source.WriteBehavior("custom.cs", "public static class Custom { }", Guid.NewGuid());
         await target.Create(new("Ino", "new", [new("send", "send")], [], []), "ino spec");
-        var grains = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
-        var legacy = grains.Get<IAppMigration>(sourceKey);
-        var migrated = grains.Get<IAppMigration>(targetKey);
+        var grains = brain.Services;
+        var legacy = SiloNeurons.Get<IAppMigration>(brain.Services, sourceKey);
+        var migrated = SiloNeurons.Get<IAppMigration>(brain.Services, targetKey);
         await legacy.Pause("ino-v3");
         await migrated.Pause("ino-v3");
         var before = runtime.Deployed.Count;
@@ -44,7 +45,7 @@ public sealed class AppMigrationFacts
         Assert.Equal("my instructions", (await legacy.Archive("ino-v3")).Files["prompts/system.md"]);
         Assert.Equal("custom spec", (await source.Read()).Spec);
         Assert.Contains(sourceKey, runtime.Retired);
-        await grains.Get<IAppDeploy>(sourceKey).Restore();
+        await SiloNeurons.Get<IAppDeploy>(brain.Services, sourceKey).Restore();
         Assert.Equal(before, runtime.Deployed.Count);
         await Assert.ThrowsAsync<InvalidOperationException>(() => source.WriteBehavior("late.cs", "public static class Late { }", Guid.NewGuid()));
         await Assert.ThrowsAsync<InvalidOperationException>(source.Delete);
@@ -67,13 +68,13 @@ public sealed class AppMigrationFacts
         await source.Create(manifest, "source");
         await target.Create(manifest, "target");
         var oldId = await source.Request("send", "already handled");
-        var grains = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
-        var legacy = grains.Get<IAppMigration>(sourceKey);
-        await grains.Get<IAppMigration>(targetKey).Pause("ino-v3");
+        var grains = brain.Services;
+        var legacy = SiloNeurons.Get<IAppMigration>(brain.Services, sourceKey);
+        await SiloNeurons.Get<IAppMigration>(brain.Services, targetKey).Pause("ino-v3");
         await legacy.Pause("ino-v3");
         await legacy.Redirect("ino-v3", targetKey);
         var id = await source.Request("send", "new message");
-        var retained = await grains.Get<IAppMigration>(targetKey).RetainedRequests();
+        var retained = await SiloNeurons.Get<IAppMigration>(brain.Services, targetKey).RetainedRequests();
         var requests = retained.Select(item => item.Request).ToArray();
         Assert.Contains(requests, request => request.RequestId == oldId);
         var request = Assert.Single(requests, request => request.RequestId == id);

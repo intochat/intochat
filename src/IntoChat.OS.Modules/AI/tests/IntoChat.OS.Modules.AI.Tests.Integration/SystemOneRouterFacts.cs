@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Orleans;
 using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 
@@ -457,10 +458,9 @@ public sealed class SystemOneRouterFacts
             {
                 await host.Get<IApp>(IApp.Key(scope, "ino")).Create(new AppManifest("Ino", "talk to your brain",
                     [new("open", "compose the assistant surface"), new("send", "start a turn with this message")], [], []), "spec");
-                var grains = host.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
-                var old = grains.Get<IAppMigration>(IApp.Key(scope, "assistant"));
+                var old = SiloNeurons.Get<IAppMigration>(host.Services, IApp.Key(scope, "assistant"));
                 await old.Pause("test");
-                await grains.Get<IAppMigration>(IApp.Key(scope, "ino")).Pause("test");
+                await SiloNeurons.Get<IAppMigration>(host.Services, IApp.Key(scope, "ino")).Pause("test");
                 await old.Redirect("test", IApp.Key(scope, "ino"));
             }
             await host.Get<IApp>(IApp.Key(scope, "calculator")).Create(Calculator(), "spec");

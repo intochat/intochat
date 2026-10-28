@@ -9,6 +9,7 @@ using Npgsql;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Storage;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Postgres.Tests.Integration;
 
@@ -448,7 +449,7 @@ public sealed class PostgresWriteTableFacts
 
     // The index is a plain neuron (06-08), addressed by its owner key.
     private static ITableIndex Index(ITestBrain brain, string appId)
-        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITableIndex>(new TableOwner(brain.Owner.BrainId, appId).Key);
+        => SiloNeurons.Get<ITableIndex>(brain.Services, new TableOwner(brain.Owner.BrainId, appId).Key);
 
     private static Task<ITestBrain> Start(ITableStore? provider, string connection = "Host=localhost;Database=sample;Username=reader")
         => Builder(connection, services => { if (provider is not null) { services.AddSingleton(provider); } })

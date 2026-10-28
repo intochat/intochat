@@ -1,8 +1,11 @@
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using IntoChat.OS;
 using IntoChat.OS.Client;
 using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Testing;
 
@@ -24,9 +27,8 @@ public static class BrainTestExtensions
     {
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentNullException.ThrowIfNull(signals);
-        var plain = (IntoChat.OS.Runtime.IPlainSignals)brain.Services.GetService(typeof(IntoChat.OS.Runtime.IPlainSignals))!;
         var tracked = brain as ITrackedBrain;
-        var probe = await PlainSignalProbe<DigitalBrain.Signal>.StartAll(plain, source, signals, tracked?.BufferCapacity ?? ITrackedBrain.DefaultBufferCapacity,
+        var probe = await PlainSignalProbe<DigitalBrain.Signal>.StartAll(brain.Services, source, signals, tracked?.BufferCapacity ?? ITrackedBrain.DefaultBufferCapacity,
             tracked?.Execution ?? new(), cancellationToken).ConfigureAwait(false);
         tracked?.Track(probe);
         return probe;
@@ -39,13 +41,13 @@ public static class BrainTestExtensions
         ArgumentNullException.ThrowIfNull(brain);
         var target = neuron is DigitalBrain.Invocation.NeuronProxy proxy ? proxy.Target
             : throw new ArgumentException("Read the history of a plain neuron obtained from this brain's Get.", nameof(neuron));
-        var signals = (IntoChat.OS.Runtime.IPlainSignals)brain.Services.GetService(typeof(IntoChat.OS.Runtime.IPlainSignals))!;
-        var alias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(T));
+        var journal = brain.Services.GetRequiredService<IBrainJournalWriter>();
+        var alias = SignalLog.Alias(typeof(T));
         List<T> found = [];
         for (long since = 0; ;)
         {
-            var page = await signals.Read(target, since, DigitalBrain.SignalPage.MaxLimit, cancellationToken).ConfigureAwait(false);
-            found.AddRange(page.Signals.Where(entry => entry.Alias == alias).Select(entry => IntoChat.OS.Runtime.PlainSignalTypes.Decode<T>(entry.Json)));
+            var page = await journal.ReadSince(target.Brain.Value, target.ToString(), since, DigitalBrain.SignalPage.MaxLimit, cancellationToken).ConfigureAwait(false);
+            found.AddRange(page.Signals.Where(entry => entry.Type == alias).Select(entry => SignalLog.Decode<T>(entry.Json)));
             if (page.Signals.Count == 0 || page.Signals[^1].Sequence >= page.Last) { return [.. found]; }
             since = page.Signals[^1].Sequence;
         }

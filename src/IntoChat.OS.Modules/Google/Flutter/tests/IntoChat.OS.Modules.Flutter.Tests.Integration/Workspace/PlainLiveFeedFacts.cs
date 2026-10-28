@@ -3,10 +3,11 @@ using System.Text.Json;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Time;
 using IntoChat.OS.Modules.Time.Timers.Signals;
-using IntoChat.OS.Runtime;
+using DigitalBrain.Runtime.Orleans;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
 
@@ -30,17 +31,17 @@ public sealed class PlainLiveFeedFacts
         await using var brain = await TestBrain.Create().WithModule<TimeModule>().StartAsync(ct);
         var key = brain.Owner.Key("feed-timer");
         var timer = brain.Get<ITimer>(key);
-        var plain = brain.Services.GetRequiredService<IPlainSignals>();
-        var id = brain.Services.GetRequiredService<IPlainNeurons>().IdOf(typeof(ITimer), key);
+        var journal = brain.Services.GetRequiredService<IBrainJournalWriter>();
+        var id = SiloNeurons.IdOf(typeof(ITimer), key);
         await timer.Start(TimeSpan.FromMilliseconds(10));
         using (var waited = CancellationTokenSource.CreateLinkedTokenSource(ct))
         {
             waited.CancelAfter(Within);
-            while ((await plain.Read(id, 0, 1, waited.Token)).Last < 1) { await Task.Delay(20, waited.Token); }
+            while ((await journal.ReadSince(id.Brain.Value, id.ToString(), 0, 1, waited.Token)).Last < 1) { await Task.Delay(20, waited.Token); }
         }
 
         var feed = LiveSignalEndpoints.Feed<TimerTick>((_, _, listed, _) => One(id, listed));
-        await using var stream = LiveSignalEndpoints.Stream(brain, brain.Owner.BrainId, [feed], NullLogger.Instance, ct, plain: plain).GetAsyncEnumerator(ct);
+        await using var stream = LiveSignalEndpoints.Stream(brain, brain.Owner.BrainId, [feed], NullLogger.Instance, ct, services: brain.Services).GetAsyncEnumerator(ct);
         Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(Within, ct));
         using (var replay = JsonDocument.Parse(stream.Current))
         {

@@ -8,6 +8,7 @@ using IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
 using DB = DigitalBrain;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Kernel.Composition.Tests.Integration.SideBySide;
 
@@ -101,7 +102,7 @@ public sealed class SideBySideRuntimeFacts
     // 06-06d (R4-21(4)): a plain neuron registers once a call leaves it with state, never for a read-only call, and retires
     // when its state is cleared.
     private static IPlainCounted Counted(ITestBrain brain, string key)
-        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IPlainCounted>($"{Brain}/{key}");
+        => SiloNeurons.Get<IPlainCounted>(brain.Services, $"{Brain}/{key}");
 
     private static async Task<string[]> Listed(ITestBrain brain, string type, CancellationToken ct)
     {

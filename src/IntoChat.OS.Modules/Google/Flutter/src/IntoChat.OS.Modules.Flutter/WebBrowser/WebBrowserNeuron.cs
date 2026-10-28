@@ -8,6 +8,7 @@ using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using IntoChat.OS.Modules.Microsoft.Playwright;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
@@ -29,7 +30,7 @@ internal sealed class WebBrowserNeuron
     private Task? _disconnecting;
     private string DriverKey => Snapshot.PlaywrightKey ?? FullKey;
     // The browser is a plain neuron (06-06d); this neuron is still a grain and reaches it through the plain-neuron seam.
-    private IPlaywright Driver => ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IPlaywright>(DriverKey);
+    private IPlaywright Driver => SiloNeurons.Get<IPlaywright>(ServiceProvider, DriverKey);
 
     public async Task Configure(string playwrightKey)
     {

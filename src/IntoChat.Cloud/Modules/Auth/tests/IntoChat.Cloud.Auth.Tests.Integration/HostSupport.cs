@@ -21,6 +21,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.Cloud.Auth.Tests;
 
@@ -51,9 +52,9 @@ public sealed class AuthHostModule() : IntoChat.OS.Framework.Modules.Module(new 
 }
 
 // What the cloud host binds in 09-09, stood in for the tests: INeuronProxies over the kernel's plain neuron access.
-internal sealed class PlainNeuronProxies(IPlainNeurons plain) : INeuronProxies
+internal sealed class PlainNeuronProxies(IServiceProvider plain) : INeuronProxies
 {
-    public T Get<T>(NeuronId id) where T : class => plain.Get<T>(id);
+    public T Get<T>(NeuronId id) where T : class => SiloNeurons.Get<T>(plain, id);
 }
 
 // The host's ISessionIssuer: identity@1 ISessions.Issue (through the runtime capability, so the privileged grant is checked),
@@ -131,7 +132,7 @@ internal static class AuthCapabilities
         services.AddSingleton<IHostedService>(provider => new SeedDeploymentSecrets(provider.GetRequiredService<IConfiguration>(), deploymentSecrets));
         services.AddKeyedSingleton<ISessions>(Capability.Identity.V1Id, (provider, _) => new SessionsCapability(provider.GetRequiredService<AuthIdentityProvider>(), Declarations));
         services.AddSingleton<IAuthHostSeam, TestAuthHostSeam>();
-        services.AddSingleton<INeuronProxies>(provider => new PlainNeuronProxies(provider.GetRequiredService<IPlainNeurons>()));
+        services.AddSingleton<INeuronProxies>(provider => new PlainNeuronProxies(provider));
         services.AddSingleton<ISessionIssuer>(provider => new TestSessionIssuer(provider.GetRequiredKeyedService<ISessions>(Capability.Identity.V1Id), provider.GetServices<ISignInHandler>(), provider.GetRequiredService<IAuthHostSeam>()));
     }
 }

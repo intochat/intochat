@@ -8,10 +8,11 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Connections.Identity;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
-internal sealed class CircleMembers(IIdentityClient identity, IntoChat.OS.Runtime.IPlainNeurons plain)
+internal sealed class CircleMembers(IIdentityClient identity, IServiceProvider plain)
 {
     internal sealed record Friend(string Account, string Brain, string[] Circles);
 
@@ -26,7 +27,7 @@ internal sealed class CircleMembers(IIdentityClient identity, IntoChat.OS.Runtim
         {
             if ((await identity.Membership(entry.Id, account.OwnerPrincipalId))?.AccountId != account.AccountId) { continue; }
             string[] members;
-            try { members = await plain.Get<ICircleStateReader>(ICircle.Key(entry.Id)).Members(); }
+            try { members = await SiloNeurons.Get<ICircleStateReader>(plain, ICircle.Key(entry.Id)).Members(); }
             catch (KeyNotFoundException) { continue; }
             if (!members.Contains(account.AccountId, StringComparer.Ordinal)) { continue; }
             foreach (var member in members.Where(m => m != account.AccountId))
@@ -62,7 +63,7 @@ internal sealed class CircleMembers(IIdentityClient identity, IntoChat.OS.Runtim
         List<string> posts = [];
         foreach (var circle in friend.Circles)
         {
-            foreach (var line in (await plain.Get<ICirclePostReader>(ICircleChat.Key(circle)).PostReferences()).Reverse())
+            foreach (var line in (await SiloNeurons.Get<ICirclePostReader>(plain, ICircleChat.Key(circle)).PostReferences()).Reverse())
             {
                 if (line.Speaker != friend.Account || !line.Text.StartsWith("post ", StringComparison.Ordinal)) { continue; }
                 var key = line.Text[5..];
@@ -79,13 +80,13 @@ internal sealed class CircleMembers(IIdentityClient identity, IntoChat.OS.Runtim
         foreach (var friend in await FriendsOf(viewer))
         {
             var profileKey = friend.Brain + "/profile";
-            var profile = await plain.Get<ISharedPersonReader>(profileKey).Read();
+            var profile = await SiloNeurons.Get<ISharedPersonReader>(plain, profileKey).Read();
             entries.Add(new(profileKey, string.IsNullOrWhiteSpace(profile.DisplayName) ? "Friend" : profile.DisplayName, "Friend",
                 new(0, profile.Version, new(new Sphere("person", []), Side: new("collection", friend.Brain + "/posts"), Main: new("person", profileKey)), null, []), []));
             if (focus != profileKey && PostBrain(focus) != friend.Brain) { continue; }
             foreach (var key in await Posts(friend))
             {
-                var card = await plain.Get<ISharedCardReader>(key).Read();
+                var card = await SiloNeurons.Get<ISharedCardReader>(plain, key).Read();
                 entries.Add(new(key, card.Title, "Post", new(0, card.Version, new(new Sphere("post", []), Main: new("card", key)), null, []), []));
             }
         }

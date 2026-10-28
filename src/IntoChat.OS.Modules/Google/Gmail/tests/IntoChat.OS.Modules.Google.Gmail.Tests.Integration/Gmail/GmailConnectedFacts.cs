@@ -3,6 +3,7 @@ using IntoChat.OS.Modules.Google.Gmail.Testing;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Connections.Signals;
 using Microsoft.AspNetCore.Http;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Integration;
 
@@ -24,7 +25,7 @@ public sealed class GmailConnectedFacts
             Assert.Equal("user@gmail.com", view.Account);
         }
         Assert.Equal("user@gmail.com", (await connected.NextAsync(ct: ct)).Account);
-        Assert.Equal([key], await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IConnectionIndex>(IConnectionIndex.Key(brain.Owner.BrainId)).List());
+        Assert.Equal([key], await SiloNeurons.Get<IConnectionIndex>(brain.Services, IConnectionIndex.Key(brain.Owner.BrainId)).List());
     }
 
     [Trait("host", "own")]

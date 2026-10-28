@@ -127,8 +127,8 @@ public sealed class CompiledAppInstallFacts
         internal IApp App => Brain.Get<IApp>(IApp.Key(Person.BrainId, "counter"));
         internal string Archive(string digest) => Path.Combine(home.Path, "packages", "archives", digest + ".intochat-app");
         internal string Home => home.Path;
-        internal SandboxCompiledApps Assignment => new(Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), Installer, new(Path.Combine(home.Path, "packages", "active")));
-        internal CompiledAppInstaller Installer { get; } = new(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(),
+        internal SandboxCompiledApps Assignment => new(Brain.Services, Installer, new(Path.Combine(home.Path, "packages", "active")));
+        internal CompiledAppInstaller Installer { get; } = new(brain.Services,
             ActivatorUtilities.CreateInstance<AppInstaller>(brain.Services, identity), packages, new(TimeProvider.System), TimeProvider.System);
 
         internal static async Task<Fixture> Start()

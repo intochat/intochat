@@ -12,6 +12,7 @@ using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -460,7 +461,7 @@ public sealed class RunFactsFacts
         var theirs = rig.Brain.Get<IBrainRuns>(BrainRunsKeys.For(Other));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => rig.Edge.Subscribed(rig.Session, Reaction, RuntimeBrain.Source(theirs),
-            IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(BehaviorRan))));
+            DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(BehaviorRan))));
         Assert.Empty(Assert.Single((await rig.Runtime.Inspect(ct)).Behaviors, view => view.Id == Reaction).Subscriptions);
     }
 
@@ -476,8 +477,7 @@ public sealed class RunFactsFacts
         var forged = new BehaviorRan(BrainRuntimeKeys.For(Acc), Owner, Owner + "/synapses/forged.cs", "forged", RuntimeBrain.Source(pinger),
             Pings.Pinged, 1, RunOutcome.Succeeded, 1, 0, 0, null);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => rig.Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>()
-            .Get<IBrainRunsRecorder>(BrainRunsKeys.For(Acc)).Record([RunFact.Of(forged, First)], true));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => SiloNeurons.Get<IBrainRunsRecorder>(rig.Brain.Services, BrainRunsKeys.For(Acc)).Record([RunFact.Of(forged, First)], true));
         // The runtime's own next fact is the barrier: the runs neuron took the forged call before it.
         await PingAsync(pinger, 1, First);
         await rig.Started.NextAsync(ct: ct);
@@ -569,7 +569,7 @@ public sealed class RunFactsFacts
     private static async Task<(string Reacting, SignalBatchEvent Delivered)> RunWithAReactionAsync(Rig rig, CancellationToken ct)
     {
         var pinger = rig.Brain.Get<IPinger>(Acc + "/one");
-        var reacting = await rig.Edge.Subscribed(rig.Session, Reaction, RuntimeBrain.Source(rig.Runs), IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(BehaviorRan)));
+        var reacting = await rig.Edge.Subscribed(rig.Session, Reaction, RuntimeBrain.Source(rig.Runs), DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(BehaviorRan)));
         var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, RuntimeBrain.Source(pinger), Pings.Pinged);
         await PingAsync(pinger, 1, First);
         await rig.Started.NextAsync(ct: ct);

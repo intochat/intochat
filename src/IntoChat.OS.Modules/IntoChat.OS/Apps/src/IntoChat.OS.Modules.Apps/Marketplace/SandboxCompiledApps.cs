@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain.Apps.Packaging;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -10,7 +11,7 @@ namespace IntoChat.OS.Modules.Apps;
 // stores them by hash and has the sandbox load exactly those bytes. Authorization (owner trust, review, consent, bindings) is complete before
 // this is called; nothing here widens it. The digest that is running is kept in the package cache's active record, so the installation is
 // known after a restart and a development lease can be matched against it.
-internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plain, CompiledAppInstaller installer,
+internal sealed class SandboxCompiledApps(IServiceProvider plain, CompiledAppInstaller installer,
     ActiveCompiledApps active) : ICompiledAppAssignment
 {
     public async Task<CompiledAppInstallation?> Current(string brain, string name, AppSnapshot snapshot, CancellationToken ct)
@@ -26,7 +27,7 @@ internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plai
         ArgumentNullException.ThrowIfNull(app);
         var receipt = app.Receipt;
         var key = IApp.Key(receipt.Brain, receipt.Name);
-        var target = plain.Get<IApp>(key);
+        var target = SiloNeurons.Get<IApp>(plain, key);
         var snapshot = await target.Read().WaitAsync(ct);
         if (snapshot.ProgramRevision != receipt.ExpectedRevision)
         { throw new InvalidOperationException("The app changed after it was reviewed; review the package again."); }
@@ -47,7 +48,7 @@ internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plai
         return await target.Read().WaitAsync(ct);
     }
 
-    private IBrainPrograms Programs(string brain) => plain.Get<IBrainPrograms>(BrainRuntimeKeys.For(brain));
+    private IBrainPrograms Programs(string brain) => SiloNeurons.Get<IBrainPrograms>(plain, BrainRuntimeKeys.For(brain));
 
     // Every assembly of the package that is a behavior. A built-in program package lists its synapses; any other package is its one entry assembly.
     // Nothing is loaded or reflected here: the bytes are read and hashed, and the sandbox is what runs them.

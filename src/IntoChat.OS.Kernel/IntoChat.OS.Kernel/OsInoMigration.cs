@@ -3,6 +3,7 @@ using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Kernel;
 
@@ -52,9 +53,9 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
             await target.RecordOrigin(new("os", new AppSource.Shipped(), "ino", bundle.Version)).WaitAsync(ct);
         }
         // The app neuron's host-only migration contract (06-08: apps are plain), reached through the silo's plain seam.
-        var plain = services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
-        var old = plain.Get<IAppMigration>(sourceKey);
-        var destination = plain.Get<IAppMigration>(targetKey);
+        var plain = services;
+        var old = SiloNeurons.Get<IAppMigration>(services, sourceKey);
+        var destination = SiloNeurons.Get<IAppMigration>(services, targetKey);
         await old.Pause(Migration).WaitAsync(ct);
         await destination.Pause(Migration).WaitAsync(ct);
         await destination.Adopt(Migration, sourceKey).WaitAsync(ct);
@@ -99,7 +100,7 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
         var app = brains.Open(brain).Neuron<IApp>("apps/ino");
         var current = await app.Read().WaitAsync(ct);
         if (current.Settings.ContainsKey("ChatDataApp") && current.Settings.GetValueOrDefault("CompletedAppMigration") != Migration)
-        { await services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(IApp.Key(brain, "ino")).Resume(Migration).WaitAsync(ct); }
+        { await SiloNeurons.Get<IAppMigration>(services, IApp.Key(brain, "ino")).Resume(Migration).WaitAsync(ct); }
     }
 
     private static async Task MergeLedger(IIntoChatOS scope, NeuronId from, NeuronId to, HashSet<Guid> replayable, CancellationToken ct)

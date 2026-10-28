@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities;
+using Orleans;
 using DigitalBrain.Capabilities.Secrets;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
@@ -17,7 +18,7 @@ namespace IntoChat.OS.Kernel.Composition.Capabilities;
 // only references its own vault issued (another owner's reference is denied, a removed one not found). Sealing uses the brain
 // key sealer (IBrainSecretSealer) of the caller's brain with the context inside the sealed text, so another context never opens.
 public sealed class AuthorityVaultPort(
-    IntoChat.OS.Authority.IAuthorityGrains authority,
+    IGrainFactory authority,
     IBrainSecretSealer? sealer = null,
     Microsoft.Extensions.Configuration.IConfiguration? configuration = null) : ISecretVaultPort
 {
@@ -114,7 +115,7 @@ public sealed class AuthorityVaultPort(
         return bound.StartsWith(prefix, StringComparison.Ordinal) ? Convert.FromBase64String(bound[prefix.Length..]) : null;
     }
 
-    private OsSecrets Vault(CapabilityCaller caller) => authority.Get<OsSecrets>(caller.PrincipalId);
+    private OsSecrets Vault(CapabilityCaller caller) => authority.GetGrain<OsSecrets>(caller.PrincipalId);
 
     private static CallerContext Owner(CapabilityCaller caller) => new()
     {

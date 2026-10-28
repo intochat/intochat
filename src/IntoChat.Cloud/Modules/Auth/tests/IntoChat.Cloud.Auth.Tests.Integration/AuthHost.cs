@@ -22,6 +22,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 [assembly: AssemblyFixture(typeof(IntoChat.Cloud.Auth.Tests.AuthHost))]
 
@@ -129,7 +130,7 @@ public sealed class AuthHost : BrainHostFixture
 
     public string EmailHash(string email) => Hashing.EmailSubject(EmailNormalizer.Normalize(email)!);
 
-    public T Neuron<T>(string fullKey) where T : class => Brain.Services.GetRequiredService<IPlainNeurons>().Get<T>(fullKey);
+    public T Neuron<T>(string fullKey) where T : class => SiloNeurons.Get<T>(Brain.Services, fullKey);
 
     internal IAuthEmailIndex Index(string email) => Neuron<IAuthEmailIndex>(IAuthEmailIndex.Key(EmailHash(email)));
 

@@ -85,8 +85,8 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     public async Task A_Reentrant_class_is_hosted_by_neuron_host_reentrant_and_interleaves_everything()
     {
         var id = NeuronId.Parse("b1/turn.reentrant/r");
-        var host = new OrleansInvocationSink(silo.Grains, silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
-            .Host(id, new DigitalBrain.Invocation.RuntimeInvocation("", DigitalBrain.Invocation.NeuronProxy.ContractName(typeof(ITurnProbe)), id.ToString(), "Plain", []));
+        var host = (await new OrleansInvocationSink(silo.Grains, silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
+            .Host(id, new DigitalBrain.Invocation.RuntimeInvocation("", DigitalBrain.Invocation.NeuronProxy.ContractName(typeof(ITurnProbe)), id.ToString(), "Plain", []), CancellationToken.None)).Host;
         Assert.Equal("neuron.host.reentrant", host.GetGrainId().Type.ToString());
         Assert.True(await RunsDuringHold("b1/turn.reentrant/r", probe => probe.Plain()));
         Assert.True(await RunsDuringHold("b1/turn.reentrant/r", probe => probe.Flagged(false)));

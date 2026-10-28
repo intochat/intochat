@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -26,14 +27,14 @@ public sealed partial class CirclesModule() : Module(new ModuleId("circles")), I
     {
         // Joining precedes membership. Only this invitation-checked operation is reachable here;
         // ordinary circle routes still require membership before entering the brain.
-        endpoints.MapPost("/circle-invitations/{brainId}/accept", async (string brainId, HttpContext http, IntoChat.OS.Runtime.IPlainNeurons plain) =>
+        endpoints.MapPost("/circle-invitations/{brainId}/accept", async (string brainId, HttpContext http, IServiceProvider plain) =>
         {
             if (http.User.Identity?.IsAuthenticated != true || !CallerContextStamper.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp)
             { return Results.Unauthorized(); }
             if (!BrainScope.IsValidId(brainId)) { return Results.BadRequest(); }
             CallerContextStamper.Stamp(caller with { BrainId = brainId });
-            try { return Results.Ok(await plain.Get<ICircle>(ICircle.Key(brainId)).Accept()); }
+            try { return Results.Ok(await SiloNeurons.Get<ICircle>(plain, ICircle.Key(brainId)).Accept()); }
             catch (Exception error) when (error is UnauthorizedAccessException or InvalidOperationException)
             { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             finally { CallerContextStamper.Stamp(caller); }

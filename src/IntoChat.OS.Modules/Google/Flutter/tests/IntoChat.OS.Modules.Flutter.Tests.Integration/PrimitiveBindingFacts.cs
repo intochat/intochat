@@ -14,6 +14,7 @@ using Orleans;
 using Orleans.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration;
 
@@ -165,7 +166,7 @@ public sealed class PrimitiveTestHandler : DigitalBrain.Neuron, IPrimitiveTestHa
     {
         _events.Add(uiEvent);
         if (_projection is not null && uiEvent.As<TextFieldChanged>() is { } changed)
-        { await Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITextField>(_projection).SetValue("projected: " + changed.Value); }
+        { await SiloNeurons.Get<ITextField>(Context.Services, _projection).SetValue("projected: " + changed.Value); }
         await Publish(new UiEventHandled(_events.Count, uiEvent.Type[(uiEvent.Type.LastIndexOf('.') + 1)..]));
     }
     public Task<IReadOnlyList<UiEvent>> Events() => Task.FromResult<IReadOnlyList<UiEvent>>(_events.ToArray());

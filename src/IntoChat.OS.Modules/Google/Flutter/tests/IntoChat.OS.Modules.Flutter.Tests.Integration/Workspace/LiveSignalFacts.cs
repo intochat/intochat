@@ -1,7 +1,7 @@
-using Microsoft.Extensions.DependencyInjection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,7 +29,7 @@ public sealed class LiveSignalFacts
         => LiveSignalEndpoints.Feed<Beat>((_, _, listed, ct) => Keys(now, later, listed, ct));
 
     private static IAsyncEnumerator<string> Open(ITestBrain brain, LiveSignalEndpoints.LiveFeed[] feeds, CancellationToken ct)
-        => LiveSignalEndpoints.Stream(brain, "owner", feeds, NullLogger.Instance, ct, plain: brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>()).GetAsyncEnumerator(ct);
+        => LiveSignalEndpoints.Stream(brain, "owner", feeds, NullLogger.Instance, ct, services: brain.Services).GetAsyncEnumerator(ct);
 
     private static IBeater BeaterOf(ITestBrain brain, string key) => brain.Get<IBeater>("owner/" + key);
 
@@ -114,7 +114,7 @@ public sealed class LiveSignalFacts
         await using var brain = await CirclesBrain(ct);
         var alice = await brain.PersonAsync("alice", ct);
         var circle = await Circle(brain, alice);
-        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [SpokeFeed], NullLogger.Instance, ct, plain: brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>()).GetAsyncEnumerator(ct);
+        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [SpokeFeed], NullLogger.Instance, ct, services: brain.Services).GetAsyncEnumerator(ct);
         var next = await AfterReady(stream, ct);
         using (alice.AsCallerIn(circle)) { await brain.Get<ICircleChat>(ICircleChat.Key(circle)).Say("hi"); }
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
@@ -134,7 +134,7 @@ public sealed class LiveSignalFacts
         await using var brain = await CirclesBrain(ct);
         var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
         var circle = await Circle(brain, alice);
-        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [ChangedFeed], NullLogger.Instance, ct, plain: brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>()).GetAsyncEnumerator(ct);
+        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [ChangedFeed], NullLogger.Instance, ct, services: brain.Services).GetAsyncEnumerator(ct);
         var next = await AfterReady(stream, ct);
         using (alice.AsCallerIn(circle)) { await brain.Get<ICircle>(ICircle.Key(circle)).Invite(bob.AccountId); }
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
@@ -264,14 +264,14 @@ public sealed class LiveSignalFacts
         => LiveSignalEndpoints.Feed<Beat>((_, _, listed, ct) => Keys([key], null, listed, ct)) with
         { Live = (source, subscribed, ct) => Beats(source, subscribed, count, published, ct) };
 
-    private static async IAsyncEnumerable<IntoChat.OS.Runtime.PlainSignalEntry> Beats(DigitalBrain.NeuronId source, Func<Task> subscribed, int count,
+    private static async IAsyncEnumerable<SessionSignal> Beats(DigitalBrain.NeuronId source, Func<Task> subscribed, int count,
         TaskCompletionSource published, [EnumeratorCancellation] CancellationToken ct)
     {
         await subscribed();
         for (var pulse = 0; pulse < count; pulse++)
         {
             ct.ThrowIfCancellationRequested();
-            yield return new(source.ToString(), pulse + 1, BeatAlias, JsonSerializer.Serialize(new { pulse }), DateTimeOffset.UtcNow);
+            yield return new(source.ToString(), pulse + 1, BeatAlias, JsonSerializer.SerializeToElement(new { pulse }), DateTimeOffset.UtcNow);
         }
         published.TrySetResult();
     }
@@ -284,7 +284,7 @@ public sealed class LiveSignalFacts
         await using var brain = await Start(ct);
         var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var stream = LiveSignalEndpoints.Stream(brain, "owner", [Burst("beater-flood", 100, published)], NullLogger.Instance, ct, capacity: 8,
-            plain: brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainSignals>()).GetAsyncEnumerator(ct);
+            services: brain.Services).GetAsyncEnumerator(ct);
         // The reader stalls while 100 envelopes are published into a buffer of 8.
         Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
         await published.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);

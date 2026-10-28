@@ -43,7 +43,7 @@ internal sealed class ConnectionRequestsNeuron(
     public async Task<ConnectionSummary[]> ListConnections()
     {
         var result = new List<ConnectionSummary>();
-        var plain = Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
+        var plain = Context.Services;
         foreach (var key in Ordered(await Get<IConnectionIndex>(IConnectionIndex.Id(BrainId)).List()))
         {
             var identity = ConnectionKeys.Parse(key);

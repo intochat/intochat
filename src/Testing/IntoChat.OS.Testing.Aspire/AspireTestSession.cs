@@ -354,7 +354,6 @@ public sealed class AspireTestSession : IAsyncDisposable
     internal static void AddClientServices(IServiceCollection services)
     {
         services.AddIntoChatOSClient();
-        IntoChat.OS.Kernel.Composition.AuthorityGrainsHosting.AddPlainNeurons(services);
         services.TryAddSingleton<IKernelView>(IntoChat.OS.Kernel.Composition.Kernel.For);
     }
 

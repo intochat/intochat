@@ -78,20 +78,10 @@ public sealed class VocabularyRingFacts
         // The Orleans-bound half stays legacy in IntoChat.OS.Runtime; the pure half comes from the DigitalBrain package (03-03 name map).
         Assert.Equal(
             [
-                // 06-08 (R4-21(2)): marks the plain contracts every connection neuron implements; the connection key names the type.
                 "IntoChat.OS.Runtime.ConnectionContractAttribute",
-                // 06-08 (R4-21(3)): a plain neuron acting in another brain, as the stamped member there (Circles).
-                "IntoChat.OS.Runtime.IBrainCalls",
                 "IntoChat.OS.Runtime.INeuronResolver", "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
-                // Transitional (06-03, R4-14; deleted in 06-08): plain contracts reached from the os surfaces.
-                // Transitional (06-07, R4-15; deleted in 06-08): the os clients' calls and session synapse subscriptions to plain neurons.
-                "IntoChat.OS.Runtime.IPlainNeurons", "IntoChat.OS.Runtime.IPlainSession", "IntoChat.OS.Runtime.IPlainSignals",
                 "IntoChat.OS.Runtime.IRuntimeBuilder",
-                // Transitional (06-09, D-04): the one path to the allow-listed still-grains outside the kernel composition (Phase 12).
-                "IntoChat.OS.Runtime.IStillGrains", "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.PlainNeuronContracts",
-                "IntoChat.OS.Runtime.PlainSignalBatch", "IntoChat.OS.Runtime.PlainSignalEntry", "IntoChat.OS.Runtime.PlainSignalPage", "IntoChat.OS.Runtime.PlainSignalTypes",
-                // Transitional (06-07b, R4-17; deleted in 06-08): the shell watch and SSE feeds of plain neurons.
-                "IntoChat.OS.Runtime.PlainWatch"],
+                "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.PlainNeuronContracts"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.State.IStateCodec", "DigitalBrain.State.StoredRecord", "DigitalBrain.State.WriteResult"],

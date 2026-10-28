@@ -11,6 +11,7 @@ using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
 using Xunit;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Time.Tests.Integration;
 
@@ -53,12 +54,12 @@ public sealed class LocalRestartFacts
     }
 
     internal static IReminder Reminder(ITestBrain brain, string key)
-        => (IReminder)brain.Services.GetRequiredService<IPlainNeurons>().Get(typeof(IReminder), key);
+        => SiloNeurons.Get<IReminder>(brain.Services, key);
 
     // Waits until the reminder at the os key has journaled at least count ticks; returns how many it has.
     internal static async Task<int> Ticks(ITestBrain brain, string key, int count, CancellationToken ct)
     {
-        var id = brain.Services.GetRequiredService<IPlainNeurons>().IdOf(typeof(IReminder), key);
+        var id = SiloNeurons.IdOf(typeof(IReminder), key);
         var journal = brain.Services.GetRequiredService<IBrainJournalWriter>();
         using var bound = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bound.CancelAfter(Bound);

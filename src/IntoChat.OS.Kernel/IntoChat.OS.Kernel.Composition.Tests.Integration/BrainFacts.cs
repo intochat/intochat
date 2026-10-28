@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Tests.Integration;
 
@@ -64,8 +65,7 @@ public sealed class BrainFacts(OrleansHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var alice = await host.PersonAsync("alice", ct);
-        var announcer = host.Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>()
-            .Get<IntoChat.OS.Kernel.Composition.IBrainAnnouncer>(IBrain.Key(alice.BrainId));
+        var announcer = SiloNeurons.Get<IntoChat.OS.Kernel.Composition.IBrainAnnouncer>(host.Brain.Services, IBrain.Key(alice.BrainId));
         var created = await Listen<InstanceCreated>(host.Brain, nameof(AStampedCallerCannotAnnounceForTheKernel));
         using (alice.AsCaller()) { await announcer.InstanceCreated("forged", alice.BrainId + "/forged"); }
         using var quiet = CancellationTokenSource.CreateLinkedTokenSource(ct);

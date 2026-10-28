@@ -146,7 +146,7 @@ public sealed class FriendsReplayFacts
     {
         await brain.DeactivateAsync(app, ct);
         // The plain app keeps its requests in its state (06-08); the host-only migration contract reads them.
-        var retention = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(IApp.Key(brain.Owner.BrainId, "friends"));
+        var retention = SiloNeurons.Get<IAppMigration>(brain.Services, IApp.Key(brain.Owner.BrainId, "friends"));
         return Assert.Single(await retention.RetainedRequests()).Request;
     }
 

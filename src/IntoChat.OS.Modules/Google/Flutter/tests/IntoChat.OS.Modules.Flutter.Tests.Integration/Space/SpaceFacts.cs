@@ -63,9 +63,9 @@ public sealed class SpaceFacts
         await space.Rebuild();
         var scene = brain.Get<IScene>(brain.Owner.Key("space"));
         await TestWait.UntilAsync(_ => scene.Read(), state => state.Definition.Nodes.Any(node => node.Id == oldKey), TimeSpan.FromSeconds(10), ct);
-        var migration = brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(oldKey);
+        var migration = SiloNeurons.Get<IAppMigration>(brain.Services, oldKey);
         await migration.Pause("alias-test");
-        await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IAppMigration>(targetKey).Pause("alias-test");
+        await SiloNeurons.Get<IAppMigration>(brain.Services, targetKey).Pause("alias-test");
         await migration.Redirect("alias-test", targetKey);
         var beforeRefresh = (await scene.Read()).Revision;
         await space.RefreshApp(oldKey);
@@ -414,7 +414,7 @@ public sealed class SpaceFacts
         var scene = brain.Get<IScene>(brain.Owner.BrainId + "/space");
         await using var changed = await brain.Observe<SceneChanged>(scene, ct);
         calls.Count = 0;
-        await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ISpace>(ISpace.Key(brain.Owner.BrainId)).Rebuild();
+        await SiloNeurons.Get<ISpace>(brain.Services, ISpace.Key(brain.Owner.BrainId)).Rebuild();
         await changed.NextAsync(ct: ct);
         Assert.Equal(0, calls.Count);
     }

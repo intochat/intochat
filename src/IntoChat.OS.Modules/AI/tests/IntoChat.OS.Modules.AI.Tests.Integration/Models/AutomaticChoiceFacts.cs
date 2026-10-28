@@ -1,6 +1,7 @@
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Connections.Platform.Entries;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration.Models;
 
@@ -23,7 +24,7 @@ public sealed class AutomaticChoiceFacts(AIHost host)
         Assert.Equal("claude-haiku-4-5", (await Catalog(brain).List(null, null, ct)).Automatic.Model);
 
         // A brain that adds an OpenAI key gets GPT-5.4 nano ($0.15), the cheapest across both providers.
-        await brain.Services.GetRequiredService<IntoChat.OS.Runtime.IStillGrains>().Get<IBrainEntries>("automatic-brain")
+        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainEntries>("automatic-brain")
             .Put(BrainEntries.ProviderEntry("openai"), EntryKind.Secret, "brain-openai-key-3f19");
         var forBrain = await Catalog(brain).Resolve("automatic-brain", null, true, ct);
         Assert.Equal((AiProvider.OpenAI, "gpt-5.4-nano"), (forBrain.Provider, forBrain.Model));

@@ -8,8 +8,13 @@ using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Capabilities;
 using IntoChat.OS.Modules.Google.Drive;
+using System.Reflection;
+using System.Text.Json;
+using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans;
 using StorageV1 = DigitalBrain.Capabilities.Storage.IStorage;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Capabilities;
@@ -93,7 +98,8 @@ public sealed class KernelCapabilityConnectionsFacts
         await Assert.ThrowsAsync<ArgumentException>(() => kernel.Bind<StorageV1>(new BrainId("b2"), Drive, "files", Ct));
         Assert.IsType<LegacyStorageAdapter>(await kernel.Bind<StorageV1>(new BrainId(Brain), Legacy, "files", Ct));
         Assert.IsType<ConnectionStorage>(await kernel.Bind<StorageV1>(new BrainId(Brain), Pc, "files", Ct));
-        Assert.IsType<FakeLegacyStorage>(await kernel.Bind<ILegacyStorage>(new BrainId(Brain), Legacy, "files", Ct));
+        var legacy = await kernel.Bind<ILegacyStorage>(new BrainId(Brain), Legacy, "files", Ct);
+        Assert.Empty(await legacy.Roots(Ct));
     }
 
     [Fact]
@@ -127,7 +133,7 @@ public sealed class KernelCapabilityConnectionsFacts
         services.AddSingleton<IReadOnlyList<ConnectorDefinition>>([DriveModule.Connector, new ConnectorDefinition("windows", "Windows", ["device"], []),
             new ConnectorDefinition(LegacyOnlyNeurons.Connector, "Legacy", ["api-key"], [])]);
         services.AddSingleton(new ConnectionNeuronTypes([typeof(DriveNeurons), typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsNeurons), typeof(LegacyOnlyNeurons)]));
-        services.AddSingleton<IPlainNeurons>(new FakePlain(requests));
+        services.AddSingleton(DispatchGrains.Create(requests, new FakeLegacyStorage()));
         services.AddSingleton<ICapabilityConnections, KernelCapabilityConnections>();
         return services.BuildServiceProvider();
     }
@@ -138,16 +144,71 @@ public sealed class KernelCapabilityConnectionsFacts
         public static DigitalBrain.ModuleManifest Manifest { get; } = new([CapabilityId.Parse("storage@2")], [], [], [], []);
     }
 
-    private sealed class FakePlain(FakeRequests requests) : IPlainNeurons
+    private class DispatchGrains : DispatchProxy
     {
-        public object Get(Type contract, string fullKey)
-            => contract == typeof(IConnectionRequests) && fullKey == IConnectionRequests.Key(Brain) ? requests : throw new ArgumentException(fullKey);
+        private FakeRequests _requests = null!;
+        private FakeLegacyStorage _legacy = null!;
+        private readonly INeuronHostCatalog _catalog = new Catalog();
 
-        public object Get(Type contract, DigitalBrain.NeuronId id)
-            => contract == typeof(ILegacyStorage) ? new FakeLegacyStorage()
-            : contract == typeof(StorageV1) ? new LegacyStorageAdapter(new FakeLegacyStorage())
-            : contract == typeof(DigitalBrain.Capabilities.Storage.IStorageUpload) ? new FakeUploads()
-            : throw new ArgumentException(id.ToString());
+        public static IGrainFactory Create(FakeRequests requests, FakeLegacyStorage legacy)
+        {
+            var proxy = Create<IGrainFactory, DispatchGrains>();
+            var grains = (DispatchGrains)(object)proxy;
+            grains._requests = requests;
+            grains._legacy = legacy;
+            return proxy;
+        }
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            var grainType = targetMethod!.IsGenericMethod ? targetMethod.GetGenericArguments()[0] : args![0] as Type
+                ?? throw new NotSupportedException(targetMethod.Name);
+            if (grainType == typeof(INeuronHostCatalog)) { return _catalog; }
+            if (grainType == typeof(INeuronHost)) { return new DispatchHost(Target(args)); }
+            throw new NotSupportedException($"{targetMethod.Name} {grainType.Name}");
+        }
+
+        private object Target(object?[]? args)
+        {
+            var key = args is null ? "" : string.Join(' ', args.Select(arg => arg?.ToString()));
+            return key.Contains("integrations.accounts", StringComparison.Ordinal) ? _requests : _legacy;
+        }
+
+        private sealed class Catalog : INeuronHostCatalog
+        {
+            public Task<string?> HostType(string neuronType) => Task.FromResult<string?>("neuron.host");
+        }
+
+        private sealed class DispatchHost(object target) : INeuronHost
+        {
+            public Task<bool> IsInterleaved(RuntimeInvocation call) => Task.FromResult(false);
+            public Task<JsonElement?> Invoke(RuntimeInvocation call, CancellationToken cancellationToken = default) => Task.FromResult(Run(call));
+            public Task<JsonElement?> InvokeInterleaved(RuntimeInvocation call, CancellationToken cancellationToken = default) => Invoke(call, cancellationToken);
+            public Task Post(RuntimeInvocation call) => Task.CompletedTask;
+            public Task PostInterleaved(RuntimeInvocation call) => Task.CompletedTask;
+            public async IAsyncEnumerable<JsonElement> Stream(RuntimeInvocation call, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+            { await Task.CompletedTask; yield break; }
+
+            private JsonElement? Run(RuntimeInvocation call)
+            {
+                var method = target.GetType().GetMethods().First(candidate => candidate.Name == call.Method
+                    && candidate.GetParameters().Count(parameter => parameter.ParameterType != typeof(CancellationToken)) == call.Arguments.Length);
+                var parameters = method.GetParameters();
+                var values = new object?[parameters.Length];
+                for (int index = 0, argument = 0; index < parameters.Length; index++)
+                {
+                    values[index] = parameters[index].ParameterType == typeof(CancellationToken)
+                        ? CancellationToken.None
+                        : call.Arguments[argument++].Deserialize(parameters[index].ParameterType, RuntimeProtocol.Json);
+                }
+                var returned = method.Invoke(target, values);
+                if (returned is not Task task) { return returned is null ? null : JsonSerializer.SerializeToElement(returned, method.ReturnType, RuntimeProtocol.Json); }
+                task.GetAwaiter().GetResult();
+                if (!method.ReturnType.IsGenericType) { return null; }
+                var result = task.GetType().GetProperty("Result")!.GetValue(task);
+                return result is null ? null : JsonSerializer.SerializeToElement(result, method.ReturnType.GetGenericArguments()[0], RuntimeProtocol.Json);
+            }
+        }
     }
 
     private sealed class FakeUploads : DigitalBrain.Capabilities.Storage.IStorageUpload

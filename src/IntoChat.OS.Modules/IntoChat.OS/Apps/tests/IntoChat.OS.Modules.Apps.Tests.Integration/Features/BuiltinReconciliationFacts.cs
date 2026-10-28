@@ -7,6 +7,7 @@ using IntoChat.OS.Modules.Apps.Tests.Integration;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Features;
 
@@ -31,7 +32,7 @@ public sealed class BuiltinReconciliationFacts : IDisposable
         .StartAsync(Ct);
 
     private static IBrainPrograms Programs(ITestBrain brain, Person person)
-        => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainPrograms>(BrainRuntimeKeys.For(person.BrainId));
+        => SiloNeurons.Get<IBrainPrograms>(brain.Services, BrainRuntimeKeys.For(person.BrainId));
 
     private static IFeatureReconciler Reconciler(ITestBrain brain, Person person) => brain.Get<IFeatureReconciler>(IFeatureReconciler.Key(person.BrainId));
 

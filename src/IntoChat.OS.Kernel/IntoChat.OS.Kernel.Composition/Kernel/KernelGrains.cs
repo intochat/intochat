@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using DigitalBrain.State;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Kernel.Composition;
 
@@ -72,7 +73,7 @@ internal sealed class InstanceDirectoryGrain(
     private void Announce(Func<IBrainAnnouncer, Task> announce)
     {
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        _ = announce(ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainAnnouncer>(IBrain.Key(Brain)));
+        _ = announce(SiloNeurons.Get<IBrainAnnouncer>(ServiceProvider, IBrain.Key(Brain)));
     }
 }
 
@@ -98,7 +99,7 @@ internal sealed class InstanceTypesGrain(
 }
 
 [GrainType("kernel.compiledtypes")]
-internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, ICompiledTypeTable
+internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, ICompiledTypeTable, DigitalBrain.Runtime.Orleans.Hosting.INeuronHostCatalog
 {
     public Task<TypeEntry[]> List() => Task.FromResult(compiled.Addressed(contract => Kernel.StillGrainType(GrainFactory, contract)));
 
@@ -147,7 +148,7 @@ internal sealed class TypeTableGrain(
         if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain)
         {
             RequestContext.Remove(CallerContextStamper.RequestContextKey);
-            var announcer = ServiceProvider.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainAnnouncer>(IBrain.Key(brain));
+            var announcer = SiloNeurons.Get<IBrainAnnouncer>(ServiceProvider, IBrain.Key(brain));
             foreach (var added in stamped.Where(type => !known.Contains(type.Name)))
             { _ = announcer.TypeAdded(added.Name); }
         }

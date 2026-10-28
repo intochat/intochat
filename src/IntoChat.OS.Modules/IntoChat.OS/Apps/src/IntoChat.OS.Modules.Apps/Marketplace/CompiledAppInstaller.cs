@@ -1,12 +1,13 @@
 using DigitalBrain.Apps.Packaging;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
 internal sealed record AuthorizedCompiledApp(ValidatedAppPackage Package, AppManifest Manifest, CompiledAppTrustReceipt Receipt);
 
-internal sealed class CompiledAppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, AppInstaller policy,
+internal sealed class CompiledAppInstaller(IServiceProvider plain, AppInstaller policy,
     CompiledAppPackages packages, CompiledAppReviewStore reviews, TimeProvider clock)
 {
     // Inspection is inert: artifacts and metadata are read without initializing package code. Missing capabilities
@@ -19,7 +20,7 @@ internal sealed class CompiledAppInstaller(IntoChat.OS.Runtime.IPlainNeurons pla
         var package = await packages.Read(digest, ct);
         var manifest = CompiledPackageMetadata.Manifest(package);
         await policy.CheckCapabilities(brain, manifest, ct);
-        var snapshot = await plain.Get<IApp>(IApp.Key(brain, name)).Read().WaitAsync(ct);
+        var snapshot = await SiloNeurons.Get<IApp>(plain, IApp.Key(brain, name)).Read().WaitAsync(ct);
         if (snapshot.MigrationTarget is not null) { throw new InvalidOperationException("Choose the app's current destination before installing a package."); }
         await CheckBindings(brain, manifest, snapshot.Connections, ct);
         return reviews.Create(brain, name, package.Digest, snapshot.ProgramRevision, snapshot.Manifest.Title.Length > 0,

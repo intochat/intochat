@@ -7,13 +7,14 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Integrations;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
 // The one way an app crosses brains: a listed bundle goes into the caller's brain through the
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
 // comes from the features folder. An app that reads data installs only for the brain's owner.
-public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
+public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
     IEnumerable<IFeatureMigration> migrations, ICapabilitySatisfaction capabilities, IIdentityClient? identity = null,
     IOptions<AuthOptions>? auth = null)
 {
@@ -49,7 +50,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
             var listing = await marketplace.Read(reference.Publisher, reference.App, ct);
             if (listing?.Source is not AppSource.Brain published || (source is not null && published != source))
             { throw new KeyNotFoundException("This publication's source is unavailable."); }
-            bundle = await plain.Get<IApp>(IApp.Key(published.Scope()!, reference.App)).ExportRelease(reference.Version!, reference.Digest!).WaitAsync(ct);
+            bundle = await SiloNeurons.Get<IApp>(plain, IApp.Key(published.Scope()!, reference.App)).ExportRelease(reference.Version!, reference.Digest!).WaitAsync(ct);
             if (bundle.Version != reference.Version || AppPublicationDigest.Of(bundle) != reference.Digest)
             { throw new InvalidDataException("The published content does not match the selected release."); }
             // The publication (fork) path: refused before loader.Create makes the copy.
@@ -64,7 +65,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
             var listing = await marketplace.Read(reference.Publisher, reference.App, ct)
                 ?? throw new KeyNotFoundException($"{reference.Publisher}/{reference.App} is not in the Marketplace.");
             if (listing.Source.Scope() == scope) { throw new InvalidOperationException($"{name} is already yours: you published it."); }
-            if ((await plain.Get<IApp>(IApp.Key(scope, name)).Read().WaitAsync(ct)).Manifest.Title.Length > 0)
+            if ((await SiloNeurons.Get<IApp>(plain, IApp.Key(scope, name)).Read().WaitAsync(ct)).Manifest.Title.Length > 0)
             { throw new InvalidOperationException($"You already have an app named {name}."); }
             bundle = await Bundle(listing.Source, listing.Publisher, reference.App, ct);
             origin = new(listing.Publisher, listing.Source, reference.App, bundle.Version);
@@ -78,7 +79,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
         { return InstallOutcome.Refused(OwnerOnly); }
 
         // A retried exact install resumes a copy that exists already; only a copy this call created is rolled back.
-        var existed = exact && (await plain.Get<IApp>(IApp.Key(scope, name)).Read().WaitAsync(ct)).Manifest.Title.Length > 0;
+        var existed = exact && (await SiloNeurons.Get<IApp>(plain, IApp.Key(scope, name)).Read().WaitAsync(ct)).Manifest.Title.Length > 0;
         var consented = origin with { Consented = Recorded(requires) };
         _ = exact
             ? await loader.Create(scope, name, bundle, consented, receipt!, ct)
@@ -88,7 +89,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
         {
             await Grant(key, requires.SemanticTypes, caller, ct);
             if (request.Bindings is { Count: > 0 } bindings)
-            { await plain.Get<IApp>(key).Configure([], new(bindings, StringComparer.Ordinal)).WaitAsync(ct); }
+            { await SiloNeurons.Get<IApp>(plain, key).Configure([], new(bindings, StringComparer.Ordinal)).WaitAsync(ct); }
         }
         catch
         {
@@ -117,7 +118,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
     internal async Task<string?> Unbound(string scope, AppManifest manifest, Dictionary<string, string>? bindings, CancellationToken ct)
     {
         if (bindings is not { Count: > 0 }) { return null; }
-        var connections = await plain.Get<IConnectionRequests>(IConnectionRequests.Key(scope)).ListConnections().WaitAsync(ct);
+        var connections = await SiloNeurons.Get<IConnectionRequests>(plain, IConnectionRequests.Key(scope)).ListConnections().WaitAsync(ct);
         foreach (var (slotName, id) in bindings)
         {
             if (manifest.Slots.FirstOrDefault(slot => slot.Name == slotName) is not { } slot)
@@ -147,7 +148,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
                 catch (UnauthorizedAccessException) { break; }
             }
         }
-        await plain.Get<IApp>(appKey).Delete();
+        await SiloNeurons.Get<IApp>(plain, appKey).Delete();
     }
 
     // Installing is the one consent the install view asks for: the owner grants the app every semantic type it reads, always.
@@ -175,7 +176,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
         ArgumentNullException.ThrowIfNull(request);
         var name = request.Name;
         var scope = BrainScope.CurrentId();
-        var target = plain.Get<IApp>(IApp.Key(scope, name));
+        var target = SiloNeurons.Get<IApp>(plain, IApp.Key(scope, name));
         var current = await target.Read().WaitAsync(ct);
         if (current.MigrationTarget is { } alias)
         {
@@ -216,7 +217,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
         ArgumentNullException.ThrowIfNull(listing);
         var scope = BrainScope.CurrentId();
         if (listing.Source.Scope() == scope) { return new(listing, true, false); }
-        var local = await plain.Get<IApp>(IApp.Key(scope, listing.Name)).Read().WaitAsync(ct);
+        var local = await SiloNeurons.Get<IApp>(plain, IApp.Key(scope, listing.Name)).Read().WaitAsync(ct);
         var installed = local.Origin is { } origin && origin.Publisher == listing.Publisher && origin.Name == listing.Name;
         var update = installed && !local.Edited && AppVersions.Compare(listing.Version, local.Origin!.Version) > 0;
         return new(listing, installed, update);
@@ -228,7 +229,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
         ArgumentNullException.ThrowIfNull(source);
         return source switch
         {
-            AppSource.Brain => await plain.Get<IApp>(IApp.Key(source.Scope()!, name)).ExportPublished().WaitAsync(ct),
+            AppSource.Brain => await SiloNeurons.Get<IApp>(plain, IApp.Key(source.Scope()!, name)).ExportPublished().WaitAsync(ct),
             AppSource.Shipped => await catalog.Find(publisher, name) ?? throw Gone(source, publisher, name),
             _ => throw new NotSupportedException($"Unknown app source {source.GetType().Name}."),
         };
