@@ -80,11 +80,13 @@ public sealed class AppDefinitionFacts
 
     private sealed class UnmarkedApp : App;
     [App("generic")] private sealed class GenericApp<T> : App;
-    [App("mismatch")] private sealed class MismatchedApp : App
+    [App("mismatch")]
+    private sealed class MismatchedApp : App
     {
         public static AppManifest Manifest { get; } = new("other", "Other", "1", [], new AppRequirements([]));
     }
-    [App("duplicate")] private sealed class DuplicateApp : App
+    [App("duplicate")]
+    private sealed class DuplicateApp : App
     {
         [On] public void Open() { }
         [On] public void OPEN(string input) { }

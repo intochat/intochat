@@ -8,8 +8,11 @@ public sealed class CompiledAppReviewFacts
     private const string Digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static readonly CallerContext Owner = new()
     {
-        AccountId = "account", BrainId = "brain", PrincipalId = "person",
-        Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+        AccountId = "account",
+        BrainId = "brain",
+        PrincipalId = "person",
+        Kind = CallerKind.User,
+        StampedBy = TrustedEdge.AuthenticatedHttp,
     };
     private static readonly string Scope = BrainScope.Create(Owner.AccountId, Owner.BrainId).Id;
 

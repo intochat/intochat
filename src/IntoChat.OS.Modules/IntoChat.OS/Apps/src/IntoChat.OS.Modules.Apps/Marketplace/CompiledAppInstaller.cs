@@ -61,8 +61,11 @@ internal sealed class CompiledAppInstaller(IntoChat.OS.Runtime.IPlainNeurons pla
     {
         var caller = new CallerContext
         {
-            AccountId = receipt.AccountId, BrainId = receipt.Brain, PrincipalId = receipt.PrincipalId,
-            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+            AccountId = receipt.AccountId,
+            BrainId = receipt.Brain,
+            PrincipalId = receipt.PrincipalId,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
         };
         if (!await policy.IsOwner(receipt.Brain, caller).WaitAsync(ct)) { throw new UnauthorizedAccessException(AppInstaller.OwnerOnly); }
         await policy.Grant(IApp.Key(receipt.Brain, receipt.Name), receipt.Requires.SemanticTypes, caller, ct);

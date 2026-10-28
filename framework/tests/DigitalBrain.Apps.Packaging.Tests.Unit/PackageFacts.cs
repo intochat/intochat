@@ -287,7 +287,11 @@ public sealed class PackageFacts : IDisposable
 
     private static CompiledAppDescriptor Descriptor() => new()
     {
-        Id = "example.app", Name = "Example", Version = "1.0.0", EntryAssembly = "example.dll", EntryType = "Example.App"
+        Id = "example.app",
+        Name = "Example",
+        Version = "1.0.0",
+        EntryAssembly = "example.dll",
+        EntryType = "Example.App"
     };
 
     private string Build()

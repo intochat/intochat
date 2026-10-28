@@ -87,7 +87,11 @@ public sealed class CompiledPackageMetadataFacts
 
     private static CompiledAppDescriptor Descriptor() => new()
     {
-        Id = "counter", Name = "Counter", Version = "1", EntryAssembly = "Counter.dll", EntryType = "CounterApp",
+        Id = "counter",
+        Name = "Counter",
+        Version = "1",
+        EntryAssembly = "Counter.dll",
+        EntryType = "CounterApp",
         Capabilities = ["storage@1"],
         Presentation = ImmutableSortedDictionary<string, string>.Empty.Add("operations", "[\"open\",\"increment\"]"),
     };

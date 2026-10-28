@@ -37,13 +37,19 @@ public static class TrustedBuildMetadata
         { contracts.TryAdd(type, Contract(type)); }
         var descriptor = hostMetadata ?? new CompiledAppDescriptor
         {
-            Id = manifest.Id, Name = manifest.Name, Version = manifest.Version,
-            EntryAssembly = entryType.Assembly.GetName().Name + ".dll", EntryType = PortableName(entryType)
+            Id = manifest.Id,
+            Name = manifest.Name,
+            Version = manifest.Version,
+            EntryAssembly = entryType.Assembly.GetName().Name + ".dll",
+            EntryType = PortableName(entryType)
         };
         return PackageFormat.Canonical(descriptor with
         {
-            Id = manifest.Id, Name = manifest.Name, Version = manifest.Version,
-            EntryAssembly = entryType.Assembly.GetName().Name + ".dll", EntryType = PortableName(entryType),
+            Id = manifest.Id,
+            Name = manifest.Name,
+            Version = manifest.Version,
+            EntryAssembly = entryType.Assembly.GetName().Name + ".dll",
+            EntryType = PortableName(entryType),
             Capabilities = [.. manifest.Requires.Capabilities.Select(c => c.ToString())],
             Neurons = [.. descriptors],
             Contracts = [.. contracts.Where(c => !typeof(Signal).IsAssignableFrom(c.Key)).Select(c => c.Value)],
