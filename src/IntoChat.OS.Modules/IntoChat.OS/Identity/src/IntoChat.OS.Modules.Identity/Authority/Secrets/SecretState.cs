@@ -1,9 +1,8 @@
 using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Authority.Secrets;
 
+// Neuron state keeps the published field ids. The grain is gone; the layout is not.
 [GenerateSerializer, Alias("mydata.state")]
 internal sealed class SecretsState
 {

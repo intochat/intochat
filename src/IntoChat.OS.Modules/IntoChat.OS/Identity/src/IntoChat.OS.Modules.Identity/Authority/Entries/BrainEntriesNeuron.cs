@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Text;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -85,7 +86,7 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
         Audit("remove", name, kind);
     }
 
-    public async Task<string?> Release(CallerContext caller, string name)
+    public async Task<string?> Release(CapabilityCaller caller, string name)
     {
         // As IIntegration.Release: only a module's own call stamped by the Platform edge. Users and
         // assistants (authenticated HTTP), apps (app proxy) and the scheduler never qualify.

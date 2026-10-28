@@ -33,6 +33,6 @@ internal sealed class RuntimeCallerMirror : IOutgoingGrainCallFilter
         foreach (var key in Keys) { RequestContext.Remove(key); }
     }
 
-    internal static CapabilityCaller Of(IntoChat.OS.Framework.Modules.CallerContext caller)
-        => new(caller.PrincipalId, caller.AccountId, BrainScope.Create(caller.AccountId, caller.BrainId).Id, caller.AppId, caller.ConversationId);
+    internal static CapabilityCaller Of(CapabilityCaller caller)
+        => caller with { BrainId = BrainScope.Create(caller.AccountId, caller.BrainId).Id };
 }

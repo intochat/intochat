@@ -11,7 +11,7 @@ namespace DigitalBrain.Runtime.Orleans.Tests.Unit.Capabilities;
 // Stamps the kit caller the way a host edge does: through RuntimeCallerContext.
 internal sealed class RuntimeCallerScope : CallerScope
 {
-    public override IDisposable As(KitCaller caller)
+    public override IDisposable As(CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
         return RuntimeCallerContext.Stamp(new CapabilityCaller(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.AppId, caller.ConversationId));

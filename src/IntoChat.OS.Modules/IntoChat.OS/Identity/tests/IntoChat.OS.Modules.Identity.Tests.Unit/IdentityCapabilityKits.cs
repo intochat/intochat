@@ -11,7 +11,7 @@ namespace IntoChat.OS.Authority;
 
 internal sealed class RuntimeCallerScope : CallerScope
 {
-    public override IDisposable As(KitCaller caller)
+    public override IDisposable As(CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
         return RuntimeCallerContext.Stamp(new CapabilityCaller(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.AppId, caller.ConversationId));

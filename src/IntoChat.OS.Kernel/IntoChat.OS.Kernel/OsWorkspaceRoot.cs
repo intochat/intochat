@@ -1,13 +1,13 @@
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
 using IntoChat.OS.Runtime;
-using IntoChat.OS.Connections.Platform.Identity;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Kernel;
@@ -15,7 +15,7 @@ namespace IntoChat.OS.Kernel;
 // Deployment/migration only. The installed Workspace program composes every visible control.
 internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kernel, AppInstaller installer, ILogger<OsWorkspaceRoot> logger,
     IEnumerable<IFeatureMigration> migrations, IOptions<OsAppsOptions> options, FeatureCatalog catalog, FeatureLoader loader,
-    IIdentityClient identity) : IUiRootProvider
+    ICapabilityBroker capabilities) : IUiRootProvider
 {
     public string ActivationApp => "workspace";
 
@@ -31,7 +31,7 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
             { logger.LogWarning(error, "An app migration is incomplete in {Brain}; its saved state is retained.", scope); }
         }
         // The same set a new brain is born with: the folder plus ShippedApps.Roots. A circle keeps only its room.
-        if (await identity.KindOf(scope) != BrainKind.Circle)
+        if (await (await capabilities.Identity(cancellationToken)).KindOf(scope, cancellationToken) != BrainKind.Circle)
         {
             await ShippedInstall.Missing(catalog, loader, scope, async name => await Neuron<IApp>($"apps/{name}").Read(),
                 (error, app) => logger.LogWarning(error, "Default app {App} did not install in {Brain}.", app, scope), cancellationToken);

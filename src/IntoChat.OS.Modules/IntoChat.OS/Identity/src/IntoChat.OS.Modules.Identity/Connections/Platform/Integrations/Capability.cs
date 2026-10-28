@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 
@@ -8,11 +9,11 @@ public sealed record Capability(string IntegrationId, string Kind, string Id, st
 // Capabilities are derived on every call from live registrations and accounts, never stored.
 public interface ICapabilities
 {
-    Task<Capability[]> List(CallerContext caller, string? kind = null, CancellationToken ct = default);
+    Task<Capability[]> List(CapabilityCaller caller, string? kind = null, CancellationToken ct = default);
 }
 
 // A module contributes the kinds of capability its integrations provide.
 public interface ICapabilitySource
 {
-    Task<Capability[]> Derive(CallerContext caller, CancellationToken ct);
+    Task<Capability[]> Derive(CapabilityCaller caller, CancellationToken ct);
 }

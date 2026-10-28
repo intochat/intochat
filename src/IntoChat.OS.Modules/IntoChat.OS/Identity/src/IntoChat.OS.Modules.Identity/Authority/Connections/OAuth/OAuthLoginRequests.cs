@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Security.Cryptography;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -6,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Connections.OAuth;
 
-internal sealed record PendingLogin(string ConnectionKey, string AuthMethodId, string CodeVerifier, string? Target, CallerContext Owner, DateTimeOffset ExpiresAt);
+internal sealed record PendingLogin(string ConnectionKey, string AuthMethodId, string CodeVerifier, string? Target, CapabilityCaller Owner, DateTimeOffset ExpiresAt);
 
 // A ten-minute capability for an in-flight browser redirect. Process memory on purpose: losing
 // it on restart costs the user one more click and can never connect the wrong brain.
@@ -16,7 +17,7 @@ internal sealed class OAuthLoginRequests(IOptions<ConnectionsOptions> options, T
 {
     private readonly Dictionary<string, PendingLogin> _pending = new(StringComparer.Ordinal);
 
-    public (string State, string CodeVerifier) Begin(string connectionKey, string authMethodId, string? target, CallerContext owner)
+    public (string State, string CodeVerifier) Begin(string connectionKey, string authMethodId, string? target, CapabilityCaller owner)
     {
         lock (_pending)
         {

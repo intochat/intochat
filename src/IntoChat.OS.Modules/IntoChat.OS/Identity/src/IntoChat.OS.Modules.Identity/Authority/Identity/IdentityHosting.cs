@@ -58,7 +58,9 @@ public static class IdentityHosting
                 };
             });
         // Host-only keys: modules reach these through IPrivilegedServices, which checks IdentityHostOptions.PrivilegedModules.
-        services.TryAddKeyedSingleton<IntoChat.OS.Framework.Modules.Platform.Identity.ISessionIssuer, AccountSessionIssuer>(PrivilegedModuleGate.HostKey);
+        services.TryAddSingleton<DigitalBrain.Runtime.Http.ISessionIssuer, AccountSessionIssuer>();
+        services.TryAddKeyedSingleton<DigitalBrain.Runtime.Http.ISessionIssuer>(PrivilegedModuleGate.HostKey,
+            (provider, _) => provider.GetRequiredService<DigitalBrain.Runtime.Http.ISessionIssuer>());
         services.TryAddKeyedSingleton<IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityProvisioning>(PrivilegedModuleGate.HostKey,
             (provider, _) => (IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityProvisioning)provider.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         services.TryAddSingleton<IntoChat.OS.Framework.Modules.Identity.IPrivilegedServices, PrivilegedModuleGate>();

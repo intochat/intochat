@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Reflection;
 using System.Reflection.Emit;
 using IntoChat.OS.Contracts.Configuration;
@@ -20,12 +21,12 @@ public sealed class CredentialBoundaryFacts
     public void NoModuleConstructsACallerContext()
     {
         var offenders = ModuleMethods().Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity")
-            .Where(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext)) || SetsAPlatformStamp(m))
+            .Where(m => Calls(m).Any(ConstructsACaller) || SetsAPlatformStamp(m))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
         Assert.Empty(offenders);
     }
 
-    // A platform stamp is any CallerContext whose Kind or StampedBy is set to Platform, by an object
+    // A platform stamp is any CapabilityCaller whose Kind or StampedBy is set to Platform, by an object
     // initializer or by a with-expression. The OAuth callback stamps the owner recorded at login and
     // makes none. The authenticated edge constructs user stamps only, so it is the one other site
     // that may call the constructor.
@@ -42,33 +43,17 @@ public sealed class CredentialBoundaryFacts
         Assert.Equal(["IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
             Sites(SetsAPlatformStamp));
         Assert.Equal(
-            ["IntoChat.OS.Authority.DirectoryPort", "IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
-            Sites(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext))));
+            ["IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.VaultPort"],
+            Sites(m => Calls(m).Any(ConstructsACaller)));
     }
 
     private static Type Outermost(Type type) => type.DeclaringType is { } outer ? Outermost(outer) : type;
 
+    private static bool ConstructsACaller(MethodBase called)
+        => called.DeclaringType == typeof(CapabilityCallers) && called.Name == nameof(CapabilityCallers.Of);
+
     private static bool SetsAPlatformStamp(MethodBase method)
-    {
-        int? constant = null;
-        foreach (var (code, operand) in Instructions(method))
-        {
-            if ((code == OpCodes.Call || code == OpCodes.Callvirt) && Resolve(method, operand) is { } called
-                && called.DeclaringType == typeof(CallerContext)
-                && ((called.Name == "set_Kind" && constant == (int)CallerKind.Platform)
-                    || (called.Name == "set_StampedBy" && constant == (int)TrustedEdge.Platform)))
-            { return true; }
-            constant = Constant(code, operand);
-        }
-        return false;
-    }
-
-    private static readonly OpCode[] SmallConstants = [OpCodes.Ldc_I4_0, OpCodes.Ldc_I4_1, OpCodes.Ldc_I4_2, OpCodes.Ldc_I4_3, OpCodes.Ldc_I4_4, OpCodes.Ldc_I4_5, OpCodes.Ldc_I4_6, OpCodes.Ldc_I4_7, OpCodes.Ldc_I4_8];
-
-    private static int? Constant(OpCode code, int operand)
-        => Array.IndexOf(SmallConstants, code) is var small and >= 0 ? small
-            : code == OpCodes.Ldc_I4_S || code == OpCodes.Ldc_I4 ? operand
-            : null;
+        => Calls(method).Any(called => called.DeclaringType == typeof(CapabilityCallers) && called.Name == nameof(CapabilityCallers.Platform));
 
     [Fact]
     public void OptionsAndContractsConfigurationCannotCarrySecrets()

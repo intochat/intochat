@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
@@ -63,7 +64,7 @@ internal sealed class BrainSceneHost(
         { logger.LogWarning(error, "The brain app was not installed in {Brain}.", brain); }
     }
 
-    private async Task OpenAsync(string brain, CallerContext caller, CancellationToken cancellationToken)
+    private async Task OpenAsync(string brain, CapabilityCaller caller, CancellationToken cancellationToken)
     {
         try
         {
@@ -79,13 +80,13 @@ internal sealed class BrainSceneHost(
         { logger.LogWarning(error, "The brain scene for {Brain} did not open.", brain); }
     }
 
-    private void StartPump(string brain, CallerContext caller)
+    private void StartPump(string brain, CapabilityCaller caller)
     {
         lock (_gate) { if (!_pumps.Add(brain)) { return; } }
         _ = PumpAsync(brain, caller);
     }
 
-    private async Task PumpAsync(string brain, CallerContext caller)
+    private async Task PumpAsync(string brain, CapabilityCaller caller)
     {
         try
         {
@@ -106,7 +107,7 @@ internal sealed class BrainSceneHost(
         { logger.LogWarning(error, "The brain scene for {Brain} stopped following deliveries.", brain); }
     }
 
-    private async Task ZoomAsync(string brain, CallerContext caller, CancellationToken cancellationToken)
+    private async Task ZoomAsync(string brain, CapabilityCaller caller, CancellationToken cancellationToken)
     {
         try
         {
@@ -120,7 +121,7 @@ internal sealed class BrainSceneHost(
         { logger.LogWarning(error, "The brain scene for {Brain} did not zoom.", brain); }
     }
 
-    private async Task SetAsync(string brain, CallerContext caller, SceneDefinition definition, CancellationToken cancellationToken)
+    private async Task SetAsync(string brain, CapabilityCaller caller, SceneDefinition definition, CancellationToken cancellationToken)
     {
         var scene = SiloNeurons.Get<IScene>(services, IScene.Key(brain, "brain", BrainScene.SceneName));
         for (var attempt = 0; attempt < 2; attempt++)

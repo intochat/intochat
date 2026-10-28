@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 
@@ -8,11 +9,11 @@ namespace IntoChat.OS.Connections;
 // caller and the connection's owner are both members of the caller's brain (R155).
 public interface IConnectionBindings
 {
-    ValueTask<bool> IsBound(CallerContext caller, string connectionKey, CancellationToken cancellationToken = default);
+    ValueTask<bool> IsBound(CapabilityCaller caller, string connectionKey, CancellationToken cancellationToken = default);
 }
 
 internal sealed class NoConnectionBindings : IConnectionBindings
 {
-    public ValueTask<bool> IsBound(CallerContext caller, string connectionKey, CancellationToken cancellationToken = default)
+    public ValueTask<bool> IsBound(CapabilityCaller caller, string connectionKey, CancellationToken cancellationToken = default)
         => ValueTask.FromResult(false);
 }

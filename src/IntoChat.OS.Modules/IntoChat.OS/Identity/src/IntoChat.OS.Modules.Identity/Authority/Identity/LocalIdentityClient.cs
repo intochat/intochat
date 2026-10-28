@@ -1,54 +1,37 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
 
 namespace IntoChat.OS.Authority.Identity;
 
-// Platform-only callers use the local authority; user authorization remains in the authenticated edges and grains.
+// The in-module directory facade. State lives on DirectoryNeuron; product callers use ICapabilityBroker.
 internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityClient, IIdentityProvisioning
 {
-    private IAccount Account(string id) => neurons.Account(id);
-    private IPrincipal Principal(string id) => neurons.Principal(id);
-    private IBrainAuthority Authority(string id) => neurons.BrainAuthority(id);
-    public Task<Account?> ReadAccount(string accountId) => Account(accountId).Read();
-    public async Task<Account?> OwnerOfBrain(string brainId) => await Authority(brainId).Account() is { } account ? await ReadAccount(account) : null;
-    public Task EnsureAccount(Account account) => Account(account.AccountId).EnsureCreated(account);
+    private IDirectoryStore Directory => neurons.Directory();
+
+    public Task<Account?> ReadAccount(string accountId) => Directory.ReadAccount(accountId);
+    public Task<Account?> OwnerOfBrain(string brainId) => Directory.OwnerOfBrain(brainId);
+    public Task EnsureAccount(Account account) => Directory.EnsureAccount(account);
     public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind)
-        => Account(accountId).CreateBrain(principalId, operationId, displayName, kind);
-    public async Task<BrainProvision> EnsureBrain(Member owner) => new(owner, await Account(owner.AccountId).EnsureBrain(owner));
-    public async Task<BrainProvision> ProvisionOwner(Member owner) => new(owner, await Authority(BrainScope.Create(owner.AccountId, owner.BrainId).Id).ProvisionOwner(owner));
-    public Task<bool> IsRegistered(string principalId) => Principal(principalId).IsRegistered();
-    public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName) => Principal(principalId).Register(displayName);
-    public Task<BrainProvision?> CompleteRegistration(string principalId) => Principal(principalId).CompleteRegistration();
-    public Task<BrainEntry[]> BrainsOf(string principalId) => Principal(principalId).Brains();
-    public Task<BrainKind> KindOf(string brainScopeId) => Authority(brainScopeId).Kind();
-    public async Task<bool> BrainExists(string brainScopeId) => await Authority(brainScopeId).Account() is not null;
-    public Task<Member?> Membership(string brainScopeId, string principalId) => Authority(brainScopeId).Membership(principalId);
-    public async Task<Member?> EnsureMember(Member member)
-    {
-        var authority = Authority(BrainScope.Create(member.AccountId, member.BrainId).Id);
-        await authority.EnsureMember(member);
-        return await authority.Membership(member.PrincipalId);
-    }
-    public Task RemoveMember(string brainScopeId, string accountId) => Authority(brainScopeId).RemoveAccount(accountId);
-    public Task RemovePrincipalMember(string brainScopeId, string principalId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(brainScopeId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
-        return Authority(brainScopeId).RemovePrincipal(principalId);
-    }
-    public async Task<CallDecision?> Authorize(CallRequest request)
-    {
-        var authority = Authority(BrainScope.Create(request.Caller.AccountId, request.Caller.BrainId).Id);
-        var decision = await authority.Authorize(request);
-        return decision is { Allowed: true, ConsumesOnce: true } ? await authority.Consume(request) : decision;
-    }
-    public Task<Grant[]> ListGrants(string brainScopeId) => Authority(brainScopeId).ListGrants();
-    public Task<Grant> GrantAsOwner(CallerContext caller, Grant grant) => Authority(BrainScope.Create(caller.AccountId, caller.BrainId).Id).GrantAsOwner(caller, grant);
-    public Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode)
-        => Authority(BrainScope.Create(caller.AccountId, caller.BrainId).Id).RevokeAsOwner(caller, appId, semanticTypeId, mode);
+        => Directory.CreateBrain(accountId, principalId, operationId, displayName, kind);
+    public Task<BrainProvision> EnsureBrain(Member owner) => Directory.EnsureBrain(owner);
+    public Task<BrainProvision> ProvisionOwner(Member owner) => Directory.ProvisionOwner(owner);
+    public Task<bool> IsRegistered(string principalId) => Directory.IsRegistered(principalId);
+    public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName) => Directory.RegisterPrincipal(principalId, displayName);
+    public Task<BrainProvision?> CompleteRegistration(string principalId) => Directory.CompleteRegistration(principalId);
+    public Task<BrainEntry[]> BrainsOf(string principalId) => Directory.BrainsOf(principalId);
+    public Task<BrainKind> KindOf(string brainScopeId) => Directory.KindOf(brainScopeId);
+    public Task<bool> BrainExists(string brainScopeId) => Directory.BrainExists(brainScopeId);
+    public Task<Member?> Membership(string brainScopeId, string principalId) => Directory.Membership(brainScopeId, principalId);
+    public Task<Member?> EnsureMember(Member member) => Directory.EnsureMember(member);
+    public Task RemoveMember(string brainScopeId, string accountId) => Directory.RemoveMember(brainScopeId, accountId);
+    public Task RemovePrincipalMember(string brainScopeId, string principalId) => Directory.RemovePrincipalMember(brainScopeId, principalId);
+    public Task<CallDecision?> Authorize(CallRequest request) => Directory.Authorize(request);
+    public Task<Grant[]> ListGrants(string brainScopeId) => Directory.ListGrants(brainScopeId);
+    public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => Directory.GrantAsOwner(caller, grant);
+    public Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
+        => Directory.RevokeAsOwner(caller, appId, semanticTypeId, mode);
 }

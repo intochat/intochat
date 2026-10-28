@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using Xunit;
 
@@ -521,7 +522,7 @@ public abstract class IdentityConformance<TIdentity>
         return s.Sessions!;
     }
 
-    private static KitCaller Privileged(IdentitySubject s, Member owner) => AppCaller(owner, s.PrivilegedModule!);
+    private static CapabilityCaller Privileged(IdentitySubject s, Member owner) => AppCaller(owner, s.PrivilegedModule!);
 
     private static string Unique(string prefix) => $"kit-{prefix}-{Guid.NewGuid():N}";
 
@@ -547,9 +548,9 @@ public abstract class IdentityConformance<TIdentity>
         DisplayName = "Kit guest",
     };
 
-    private static KitCaller Caller(Member member) => new(member.PrincipalId, member.AccountId, member.BrainId);
+    private static CapabilityCaller Caller(Member member) => new(member.PrincipalId, member.AccountId, member.BrainId);
 
-    private static KitCaller AppCaller(Member owner, string appId, string? conversationId = null) =>
+    private static CapabilityCaller AppCaller(Member owner, string appId, string? conversationId = null) =>
         new($"app:{appId}", owner.AccountId, owner.BrainId, appId, conversationId);
 
     private static Grant NewGrant(string appId, string brainId, GrantMode mode) =>

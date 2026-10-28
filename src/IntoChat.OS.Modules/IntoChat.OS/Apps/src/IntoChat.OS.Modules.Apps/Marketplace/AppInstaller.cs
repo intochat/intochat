@@ -1,9 +1,10 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using Idn = DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Integrations;
 using Microsoft.Extensions.Options;
@@ -15,7 +16,7 @@ namespace IntoChat.OS.Modules.Apps;
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
 // comes from the features folder. An app that reads data installs only for the brain's owner.
 public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
-    IEnumerable<IFeatureMigration> migrations, ICapabilitySatisfaction capabilities, IIdentityClient? identity = null,
+    IEnumerable<IFeatureMigration> migrations, ICapabilitySatisfaction capabilities, ICapabilityBroker? directory = null,
     IOptions<AuthOptions>? auth = null)
 {
 
@@ -132,39 +133,46 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
 
     // A person, not an app or a script, who owns this brain: its Owner member, or the Open posture's owner in its own
     // brain, by the same rule the brain's authority grants with.
-    internal async Task<bool> IsOwner(string scope, CallerContext? caller)
-        => identity is not null && caller is { Kind: CallerKind.User } && caller.StampedBy != TrustedEdge.AppProxy
+    internal async Task<bool> IsOwner(string scope, CapabilityCaller? caller)
+        => directory is not null && caller?.Kind == CallerKind.User && caller.StampedBy != TrustedEdge.AppProxy
             && BrainScope.Create(caller.AccountId, caller.BrainId).Id == scope
             && (AuthOptions.IsOpenPostureOwner(auth?.Value.Posture, caller)
-                || (await identity.Membership(scope, caller.PrincipalId))?.Role == MemberRole.Owner);
+                || (await (await directory.Identity()).Membership(scope, caller.PrincipalId))?.Role == Idn.MemberRole.Owner);
 
-    private async Task RollBack(string appKey, string[]? types, CallerContext? caller)
+    private async Task RollBack(string appKey, string[]? types, CapabilityCaller? caller)
     {
-        if (identity is not null && caller is not null)
+        if (directory is not null && caller is not null)
         {
-            foreach (var type in types ?? [])
+            using (RuntimeCallerContext.Stamp(caller))
             {
-                try { await identity.RevokeAsOwner(caller, appKey, type, GrantMode.Always); }
-                catch (UnauthorizedAccessException) { break; }
+                var grants = await directory.Grants();
+                foreach (var type in types ?? [])
+                {
+                    try { await grants.RevokeAsOwner(appKey, type, Idn.GrantMode.Always); }
+                    catch (UnauthorizedAccessException) { break; }
+                }
             }
         }
         await SiloNeurons.Get<IApp>(plain, appKey).Delete();
     }
 
     // Installing is the one consent the install view asks for: the owner grants the app every semantic type it reads, always.
-    internal async Task Grant(string appKey, string[]? types, CallerContext? caller, CancellationToken ct)
+    // Grants read the stamped caller, so the installer's explicit caller is stamped for the grant and then restored.
+    internal async Task Grant(string appKey, string[]? types, CapabilityCaller? caller, CancellationToken ct)
     {
         if (types is not { Length: > 0 }) { return; }
-        if (identity is null || caller is null) { throw new UnauthorizedAccessException(OwnerOnly); }
+        if (directory is null || caller is null) { throw new UnauthorizedAccessException(OwnerOnly); }
+        using var scope = RuntimeCallerContext.Stamp(caller);
+        var grants = await directory.Grants(ct);
         foreach (var type in types)
         {
-            await identity.GrantAsOwner(caller, new Grant
+            await grants.GrantAsOwner(new Idn.Grant
             {
                 AppId = appKey,
                 SemanticTypeId = type,
-                Mode = GrantMode.Always,
+                Mode = Idn.GrantMode.Always,
                 WorkspaceId = caller.BrainId,
-            }).WaitAsync(ct);
+            }, ct);
         }
     }
 

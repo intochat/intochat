@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Modules.Google.Gmail;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -127,7 +128,7 @@ internal sealed partial class GmailNeuron()
         PublishToolAvailability();
     }
 
-    private CallerContext RequireCaller()
+    private CapabilityCaller RequireCaller()
     {
         var caller = CallerContextStamper.Require();
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)

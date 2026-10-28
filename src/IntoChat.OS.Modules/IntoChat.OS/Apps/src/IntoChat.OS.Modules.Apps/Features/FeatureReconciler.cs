@@ -1,8 +1,8 @@
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.Connections.Platform.Identity;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -16,14 +16,14 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron("apps.reconciler")]
 internal sealed class FeatureReconciler(
     IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
-    IEnumerable<IFeatureMigration> migrations, IIdentityClient? identity = null)
+    IEnumerable<IFeatureMigration> migrations, ICapabilityBroker? directory = null)
     : DigitalBrain.Neuron, IFeatureReconciler
 {
     public async Task Reconcile(CancellationToken ct = default)
     {
         var brainId = Id.Brain.Value;
         // A circle is born with its room only (R125). Every other brain receives the folder's scripts.
-        if (identity is null || await identity.KindOf(brainId) != BrainKind.Circle)
+        if (directory is null || await (await directory.Identity(ct)).KindOf(brainId, ct) != BrainKind.Circle)
         {
             await ShippedInstall.Missing(catalog, loader, brainId, async name =>
                 await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/" + name)).Read().WaitAsync(ct),

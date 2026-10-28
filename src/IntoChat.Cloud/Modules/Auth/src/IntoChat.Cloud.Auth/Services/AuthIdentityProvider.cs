@@ -20,7 +20,7 @@ internal sealed class AuthIdentityProvider(AuthCalls calls, AuthHashing hashing,
         var sessionId = Base64Url(Encoding.UTF8.GetBytes(member.PrincipalId)) + "." + Base64Url(RandomNumberGenerator.GetBytes(32));
         var created = await calls.Sessions(member.PrincipalId, sessions => sessions.Issue(new SessionOpen(
             hashing.SidHash(sessionId), hashing.SessionHandle(sessionId), "Other", request.Lifetime ?? options.SessionLifetime,
-            new SessionMember(member.PrincipalId, member.AccountId, member.BrainId, member.Role.ToString(), member.DisplayName))));
+            member)));
         return new SessionIssued(sessionId, created.ExpiresAt);
     }
 
@@ -34,14 +34,7 @@ internal sealed class AuthIdentityProvider(AuthCalls calls, AuthHashing hashing,
     {
         if (PrincipalOf(sessionId) is not { } principal) { return null; }
         var row = await calls.Sessions(principal, sessions => sessions.Find(hashing.SidHash(sessionId)));
-        return row is null || !Enum.TryParse<MemberRole>(row.Role, out var role) ? null : new Member
-        {
-            PrincipalId = row.PrincipalId,
-            AccountId = row.AccountId,
-            BrainId = row.BrainId,
-            Role = role,
-            DisplayName = row.DisplayName,
-        };
+        return row;
     }
 
     public IdentityProviderDescriptor Describe() => new() { ProviderId = ProviderId, Posture = options.Posture };

@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -49,7 +50,7 @@ public interface IIdentityClient
 
     Task<Grant[]> ListGrants(string brainScopeId);
 
-    Task<Grant> GrantAsOwner(CallerContext caller, Grant grant);
+    Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant);
 
-    Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode);
+    Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
 }

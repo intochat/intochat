@@ -6,6 +6,7 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
 using DigitalBrain.Spi;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Drive;

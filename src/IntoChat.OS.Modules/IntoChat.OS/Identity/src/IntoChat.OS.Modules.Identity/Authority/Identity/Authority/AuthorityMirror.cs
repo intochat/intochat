@@ -11,9 +11,9 @@ namespace IntoChat.OS.Authority.Identity.Authority;
 // grant is never answered here: that spend stays a single turn on the grain. A miss falls back too.
 internal sealed class AuthorityMirror
 {
-    private readonly ConcurrentDictionary<string, BrainAuthorityState> _states = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, BrainRow> _states = new(StringComparer.Ordinal);
 
-    public void Publish(string brainScopeId, BrainAuthorityState state)
+    public void Publish(string brainScopeId, BrainRow state)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainScopeId);
         ArgumentNullException.ThrowIfNull(state);

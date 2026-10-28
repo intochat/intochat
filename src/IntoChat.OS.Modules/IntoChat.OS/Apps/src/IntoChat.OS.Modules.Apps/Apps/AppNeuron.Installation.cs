@@ -1,8 +1,8 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -26,10 +26,11 @@ internal sealed partial class AppNeuron
     // authority, or a brain nobody owns yet, records none; the app proxy still stamps the app principal.
     private async Task EnsureAppPrincipal()
     {
-        if (ServiceProvider.GetService<IIdentityClient>() is not { } identity || Snapshot.Manifest is not { } manifest) { return; }
+        if (ServiceProvider.GetService<ICapabilityBroker>() is not { } broker || Snapshot.Manifest is not { } manifest) { return; }
         var brain = BrainId();
-        if (await identity.OwnerOfBrain(brain) is not { } account) { return; }
-        await identity.EnsureMember(new Member
+        var directory = await broker.Identity();
+        if (await directory.OwnerOfBrain(brain) is not { } account) { return; }
+        await directory.EnsureMember(new Member
         {
             PrincipalId = AppPrincipal.Id(Key),
             AccountId = account.AccountId,
@@ -42,10 +43,11 @@ internal sealed partial class AppNeuron
 
     private async Task RemoveAppPrincipal()
     {
-        if (ServiceProvider.GetService<IIdentityClient>() is not { } identity) { return; }
+        if (ServiceProvider.GetService<ICapabilityBroker>() is not { } broker) { return; }
         var brain = BrainId();
         var principal = AppPrincipal.Id(Key);
-        if (await identity.Membership(brain, principal) is { Role: MemberRole.App })
-        { await identity.RemovePrincipalMember(brain, principal); }
+        var directory = await broker.Identity();
+        if (await directory.Membership(brain, principal) is { Role: MemberRole.App })
+        { await directory.RemovePrincipalMember(brain, principal); }
     }
 }

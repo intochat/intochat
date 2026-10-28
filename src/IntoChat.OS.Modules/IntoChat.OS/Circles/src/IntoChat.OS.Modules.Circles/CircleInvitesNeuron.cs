@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -151,7 +152,7 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
         => new(invite.MachineId!, invite.MachineName, invite.MachineKeyThumbprint!, invite.Role, invite.AccountId, invite.AcceptedAt!.Value);
 
     // D-10: owners and admins mint and revoke; a person, never a script (R126).
-    private async Task<CallerContext> Steward()
+    private async Task<CapabilityCaller> Steward()
     {
         var caller = await MemberCaller();
         if (await Circle.RoleOf(caller.AccountId) is not ("owner" or "admin"))
@@ -159,7 +160,7 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
         return caller;
     }
 
-    private async Task<CallerContext> MemberCaller()
+    private async Task<CapabilityCaller> MemberCaller()
     {
         if (!CallerContextStamper.TryGet(out var caller)) { throw new UnauthorizedAccessException("Circle invites act only on a stamped caller."); }
         if (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy)

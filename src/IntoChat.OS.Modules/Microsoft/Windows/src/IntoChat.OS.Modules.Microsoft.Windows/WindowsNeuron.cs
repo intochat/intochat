@@ -1,6 +1,7 @@
 using System.Text.Json;
 using IntoChat.OS.Framework.Machine;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Integrations;
 using StorageV1 = DigitalBrain.Capabilities.Storage;

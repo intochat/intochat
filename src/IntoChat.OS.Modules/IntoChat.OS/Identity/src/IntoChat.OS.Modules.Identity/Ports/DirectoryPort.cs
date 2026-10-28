@@ -154,30 +154,10 @@ public sealed class DirectoryPort(IIdentityClient identity) : IIdentityDirectory
         throw new UnauthorizedAccessException("Only the brain's owner changes its membership.");
     }
 
-    // An app caller is the app proxy's stamp; anyone else is an authenticated person.
-    private static CallerContext Stamped(CapabilityCaller caller) => caller.AppId is { Length: > 0 } app
-        ? new CallerContext
-        {
-            PrincipalId = caller.PrincipalId,
-            AccountId = caller.AccountId,
-            BrainId = caller.BrainId,
-            Kind = CallerKind.App,
-            StampedBy = TrustedEdge.AppProxy,
-            AppId = app,
-            ConversationId = caller.ConversationId,
-        }
-        : User(caller);
+    // Kind follows the app id, so the capability caller is already the stamp the directory stores.
+    private static CapabilityCaller Stamped(CapabilityCaller caller) => caller;
 
-    private static CallerContext User(CapabilityCaller caller) => new()
-    {
-        PrincipalId = caller.PrincipalId,
-        AccountId = caller.AccountId,
-        BrainId = caller.BrainId,
-        Kind = caller.AppId is null ? CallerKind.User : CallerKind.App,
-        StampedBy = caller.AppId is null ? TrustedEdge.AuthenticatedHttp : TrustedEdge.AppProxy,
-        AppId = caller.AppId,
-        ConversationId = caller.ConversationId,
-    };
+    private static CapabilityCaller User(CapabilityCaller caller) => caller;
 
     private static Account? ToAccount(Os.Account? account) => account is null ? null : new Account
     {

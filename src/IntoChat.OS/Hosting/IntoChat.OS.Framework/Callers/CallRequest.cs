@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
@@ -16,7 +17,7 @@ public enum CallDenial
 [GenerateSerializer, Alias("enforcement.call-request")]
 public sealed record CallRequest
 {
-    [Id(0)] public required CallerContext Caller { get; init; }
+    [Id(0)] public required CapabilityCaller Caller { get; init; }
     [Id(1)] public required string TargetNeuron { get; init; }
     [Id(2)] public required string Operation { get; init; }
     [Id(3)] public string[] SemanticTypeIds { get; init; } = [];

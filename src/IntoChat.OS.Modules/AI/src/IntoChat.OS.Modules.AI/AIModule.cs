@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Runtime;
 using DigitalBrain.Spi;
 using IntoChat.OS;
@@ -83,7 +84,7 @@ public sealed class AIModule : DigitalBrain.Module, IHttpModule
     }
 
     // A caller stamped without a valid brain (or no caller) gets the deployment's list, not a 500.
-    internal static string CatalogKey(CallerContext? caller)
+    internal static string CatalogKey(CapabilityCaller? caller)
         => caller is not null && BrainScope.IsValidId(caller.BrainId) && !string.IsNullOrWhiteSpace(caller.AccountId)
             ? IModelCatalog.Key(caller.BrainId) : IModelCatalog.DeploymentKey;
 }

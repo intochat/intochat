@@ -28,7 +28,7 @@ internal static class SecretsEndpoints
                 return Results.BadRequest();
             }
 
-            var secret = await neurons.Secrets(owner).Set(caller, body.Name, body.Label ?? body.Name, body.Value);
+            var secret = await neurons.Vault(owner).Set(caller, body.Name, body.Label ?? body.Name, body.Value);
             return Results.Ok(secret);
         });
     }

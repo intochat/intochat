@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -33,12 +34,5 @@ public sealed class RuntimeDirectoryFacts
     private static SessionRecord Session(SessionStatus status)
         => new("session-1", status, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
 
-    private static CallerContext Principal() => new()
-    {
-        PrincipalId = "principal",
-        AccountId = "account",
-        BrainId = "acc-brain",
-        Kind = CallerKind.User,
-        StampedBy = TrustedEdge.AuthenticatedHttp,
-    };
+    private static CapabilityCaller Principal() => new("principal", "account", "acc-brain");
 }

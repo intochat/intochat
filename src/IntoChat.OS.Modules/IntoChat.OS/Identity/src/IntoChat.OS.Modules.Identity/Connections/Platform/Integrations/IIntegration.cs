@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Text;
 using Orleans.Concurrency;
 using IntoChat.OS.Framework;
@@ -30,7 +31,7 @@ public interface IIntegration : IGrainWithStringKey
     // never touched.
     Task<IntegrationSnapshot> Seed(ConfigureIntegration request);
 
-    Task<ReleasedIntegration> Release(CallerContext caller);
+    Task<ReleasedIntegration> Release(CapabilityCaller caller);
 }
 
 [GenerateSerializer, Alias("integration.registration.snapshot")]

@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Contracts;
 using IntoChat.OS.Confirmation;
@@ -101,7 +102,7 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
 
     protected override Task OnReminder(string name, CancellationToken cancellationToken) => name == ExpiryTimer ? Expire() : Task.CompletedTask;
 
-    private CallerContext? RequireOwnCaller(bool required)
+    private CapabilityCaller? RequireOwnCaller(bool required)
     {
         if (!CallerContextStamper.TryGet(out var caller))
         {

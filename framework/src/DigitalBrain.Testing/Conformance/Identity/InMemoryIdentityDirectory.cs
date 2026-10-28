@@ -152,6 +152,6 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     private IDisposable As(CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return _callers.As(new KitCaller(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.AppId, caller.ConversationId));
+        return _callers.As(new CapabilityCaller(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.AppId, caller.ConversationId));
     }
 }

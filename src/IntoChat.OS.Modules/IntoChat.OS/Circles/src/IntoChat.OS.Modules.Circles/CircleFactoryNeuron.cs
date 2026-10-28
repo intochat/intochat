@@ -1,10 +1,10 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Runtime;
 using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using DigitalBrain.Capabilities.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using DigitalBrain.State;
@@ -25,7 +25,7 @@ internal sealed class CircleFactoryRecord
 // The record of created circles is bookkeeping no one watches: it saves without a signal.
 [DigitalBrain.Neuron("circles.factory")]
 internal sealed class CircleFactoryNeuron(
-    IIdentityClient identity,
+    ICapabilityBroker broker,
     CircleBirth birth,
     IServiceProvider plain)
     : DigitalBrain.Neuron, ICircleFactory
@@ -63,12 +63,13 @@ internal sealed class CircleFactoryNeuron(
         if (!ICircle.IsValidName(name)) { throw new ArgumentException("A circle name is 1 to 40 of a-z, 0-9 and '-'.", nameof(name)); }
         var caller = Own();
         var operation = string.IsNullOrWhiteSpace(requestId) ? Guid.NewGuid().ToString("N") : $"circle|{requestId}";
-        var provision = await identity.CreateBrain(caller.AccountId, caller.PersonId, operation, name, BrainKind.Circle);
+        var directory = await broker.Identity();
+        var provision = await directory.CreateBrain(caller.AccountId, caller.PersonId, operation, name, BrainKind.Circle);
         var circle = provision.Member.BrainId;
         // A retried Create completes a birth that failed before or inside the brain's creation: IBrain.Create is a no-op once the
         // brain exists, and a creation handler's failure is only logged there, so the birth runs again. The creator acts in the new
         // circle brain, a member of it since CreateBrain (06-08: IBrainCalls).
-        await BrainActs.In(identity, circle, async () =>
+        await BrainActs.In(broker, circle, async () =>
         {
             await SiloNeurons.Get<IBrain>(plain, IBrain.Key(circle)).Create(new Owner(caller.AccountId));
             if (!provision.NewBrain) { await birth.Born(circle, CancellationToken.None); }
@@ -81,7 +82,7 @@ internal sealed class CircleFactoryNeuron(
     public async Task<CircleEntry[]> Circles()
     {
         var caller = Own();
-        return [.. (await identity.BrainsOf(caller.PersonId)).Where(entry => entry.Kind == BrainKind.Circle)
+        return [.. (await (await broker.Identity()).BrainsOf(caller.PersonId)).Where(entry => entry.Kind == BrainKind.Circle)
             .Select(entry => Snapshot.Created.FirstOrDefault(created => created.BrainId == entry.Id) ?? new CircleEntry(entry.Id, entry.Id))];
     }
 
@@ -115,13 +116,13 @@ internal sealed class CircleFactoryNeuron(
     public async Task<AppSnapshot> Fork(AppPublicationRef publication, string targetName, Guid operationId)
     {
         Own();
-        if (await identity.KindOf(Brain) != BrainKind.Personal)
+        if (await (await broker.Identity()).KindOf(Brain) != BrainKind.Personal)
         { throw new UnauthorizedAccessException("Fork to my brain needs a personal brain. Use Bring into a circle for shared copies."); }
         return await ServiceProvider.GetRequiredService<AppInstaller>().InstallExact(ServiceProvider.GetRequiredService<INeuronProxies>(), publication, targetName, operationId);
     }
 
     // The member acts in its own brain.
-    private CallerContext Own()
+    private CapabilityCaller Own()
     {
         if (!CallerContextStamper.TryGet(out var caller) || BrainScope.Create(caller.AccountId, caller.BrainId).Id != Brain)
         { throw new UnauthorizedAccessException($"{Brain}/{Id.Key} belongs to brain {Brain}."); }

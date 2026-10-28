@@ -3,8 +3,8 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // R-B4 (clean-core W1, section 4.2): every grain type, alias, field id, state name and signal short name in
 // ContractManifest.json is persisted or on the wire, so each must survive every later PR unchanged. Additions are
 // allowed, as additive state already is; a rename, renumbering or removal fails. Additions stay unpinned until the
-// baseline is recaptured, which TheBaselineRecordsEveryCurrentIdentity enforces. CaptureContractManifest rewrites
-// the baseline when run explicitly (the test executable with --filter-method "*CaptureContractManifest" --explicit only).
+// baseline is recaptured, which TheBaselineRecordsEveryCurrentIdentity enforces. Rewrite ContractManifest.json from
+// ContractManifest.Capture().ToJson() in the same change. The cut-over removed the Capture* facts.
 public sealed class ContractManifestFacts
 {
     [Fact]

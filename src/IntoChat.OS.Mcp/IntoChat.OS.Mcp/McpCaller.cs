@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.ComponentModel;
 using DigitalBrain.Runtime.Orleans;
 using System.Text.Json;
@@ -29,7 +30,7 @@ internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions>
 
     // MCP dispatch can run in a separate execution context. Stamp from the current HTTP
     // request at the tool boundary, rather than inheriting a previous MCP session's caller.
-    internal CallerContext Stamp()
+    internal CapabilityCaller Stamp()
     {
         var context = http.HttpContext ?? throw new UnauthorizedAccessException("MCP requires an HTTP caller.");
         var caller = AccountSession.ResolveCaller(context, auth.Value)

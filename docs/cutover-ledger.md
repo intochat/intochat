@@ -169,7 +169,17 @@ Call sites that named the dropped types: Flutter `ComputeNeuron` returns an empt
 
 Tests: `IntoChat.OS.Kernel.Tests.Unit` filter `AuthorityVaultNamed|KernelCapability` 9 passed, 0 failed.
 
-Still open in this step: collapse `CallerContext`, `KitCaller`, `UiEventCaller`, `AuthCaller`, `SessionMember`, and both `SessionView`s onto `CapabilityCaller`; replace the Authority cookie issuer with `DigitalBrain.Runtime.Http.ISessionIssuer`; move directory and vault state onto `Neuron<TState>`.
+### cutover(9): callers, directory and vault on neurons
+
+`CallerContext`, `KitCaller`, `UiEventCaller`, `AuthCaller` and `SessionMember` are `DigitalBrain.CapabilityCaller`. Kind, stamped-by, person and on-behalf-of are extension members; `CapabilityCallers` encodes the edge in `AppId` (empty is the person, `platform` / `scheduler` / `assistant` are the trusted edges). Auth `SessionView` stays the device-list row. `GET /identity/session` returns `CapabilityCaller` and drops role; the CLI session role is optional. The os `ISessionIssuer` is gone. `AccountSessionIssuer` is `DigitalBrain.Runtime.Http.ISessionIssuer`. Cookie claims are `SessionClaims` only.
+
+Directory state is `DirectoryNeuron` (`Neuron<DirectoryState>`, brain `system`, key `main`). Vault state is `VaultNeuron` (`Neuron<SecretsState>`). The account, principal, brain-authority and vault grains are deleted. Product modules reach identity and grants through `ICapabilityBroker`. The Identity module's own facade stays `IIdentityClient` over `DirectoryNeuron`. `SecretsState` keeps its field ids (`mydata.state`). `ContractManifest.json` drops the deleted grain identities and pins `DirectoryChanged` and `VaultChanged`.
+
+Clean break: cookies that carried `os.account` or `NameIdentifier` do not resolve, and stored grain documents are not read. A caller cannot be an app and a platform stamp at once, because both facts are the one `AppId`. Platform vault release uses `AppId` `platform` and drops the previous app id.
+
+`dotnet build Intochat.OS.slnx -c Release`: 0 errors, 0 warnings.
+
+Tests: `IntoChat.OS.Architecture.Tests.Unit` 202 passed. `IntoChat.OS.Modules.Identity.Tests.Unit` 39 passed. `IntoChat.OS.Kernel.Tests.Unit` 21 passed. `IntoChat.OS.Modules.Apps.Tests.Unit` 32 passed. `IntoChat.OS.Modules.Circles.Tests.Unit` 24 passed. `DigitalBrain.Testing.Tests.Unit` 316 passed, 17 skipped. `DigitalBrain.Capabilities.Identity.Tests.Unit` 39 passed. `DigitalBrain.Runtime.Orleans.Tests.Unit` capability filter 67 passed. `IntoChat.OS.Cli.Tests.Unit` 32 passed. `IntoChat.OS.Modules.Flutter.Tests.Unit` 18 passed.
 
 ## Step 5 — one harness
 

@@ -1,11 +1,10 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles.Signals;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Connections.Identity;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Circles;
@@ -23,7 +22,7 @@ internal sealed class CircleChatRecord
 // said it. A line said twice under one request id is one line.
 // A plain neuron (06-08) at "{circle}/chat".
 [DigitalBrain.Neuron("circles.chat")]
-internal sealed class CircleChatNeuron(IIdentityClient identity)
+internal sealed class CircleChatNeuron(ICapabilityBroker broker)
     : DigitalBrain.Neuron<CircleChatRecord>, ICircleChat, ICirclePostReader
 {
     private const int Kept = 500;
@@ -65,11 +64,12 @@ internal sealed class CircleChatNeuron(IIdentityClient identity)
             || postKey.Length == prefix.Length
             || !postKey[prefix.Length..].All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
         { throw new UnauthorizedAccessException("Only the personal Friends app publishes its own post references."); }
-        var owner = await identity.Membership(brain, caller.PersonId);
+        var directory = await broker.Identity();
+        var owner = await directory.Membership(brain, caller.PersonId);
         if (owner?.AccountId != caller.AccountId || owner.Role != MemberRole.Owner
-            || await identity.KindOf(brain) != BrainKind.Personal)
+            || await directory.KindOf(brain) != BrainKind.Personal)
         { throw new UnauthorizedAccessException("The author must own the personal brain."); }
-        var membership = await identity.Membership(CircleBrain, caller.PersonId);
+        var membership = await directory.Membership(CircleBrain, caller.PersonId);
         var circle = await Get<ICircleStateReader>(new DigitalBrain.NeuronId(Id.Brain, CircleGrainType.Name, "circle")).State();
         if (membership?.AccountId != caller.AccountId || !circle.Members.Contains(caller.AccountId, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The author must currently belong to the circle."); }

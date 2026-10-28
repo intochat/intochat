@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -73,21 +74,21 @@ public static class GrantRules
     // grant subject, which is the AppId grants were always keyed by, so stored grants need no migration. A principal
     // naming another app than AppId is not this app. An app caller still carrying a person principal (stamped before
     // apps had principals) is identified by AppId, as before.
-    public static string? AppOf(CallerContext caller)
+    public static string? AppOf(CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
         if (string.IsNullOrWhiteSpace(caller.AppId)) { return null; }
         return AppPrincipal.AppKeyOf(caller.PrincipalId) is { } app && app != caller.AppId ? null : caller.AppId;
     }
 
-    internal static bool IsGranted(CallerContext caller, string semanticTypeId, IReadOnlyList<Grant> grants)
+    internal static bool IsGranted(CapabilityCaller caller, string semanticTypeId, IReadOnlyList<Grant> grants)
         => AppOf(caller) is { } app && grants.Any(grant => !grant.Revoked
             && string.Equals(grant.WorkspaceId, caller.BrainId, StringComparison.Ordinal)
             && string.Equals(grant.AppId, app, StringComparison.Ordinal)
             && string.Equals(grant.SemanticTypeId, semanticTypeId, StringComparison.Ordinal)
             && ModeSatisfied(grant, caller));
 
-    private static bool ModeSatisfied(Grant grant, CallerContext caller) => grant.Mode switch
+    private static bool ModeSatisfied(Grant grant, CapabilityCaller caller) => grant.Mode switch
     {
         GrantMode.Always or GrantMode.Once => true,
         GrantMode.ThisChat => caller.ConversationId is { Length: > 0 }

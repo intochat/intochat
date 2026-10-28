@@ -1,22 +1,22 @@
 using System.Diagnostics.CodeAnalysis;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
 
-// A caller context is stamped only at a trusted edge: authenticated HTTP, the app proxy or the
-// scheduler. Stamping validates that the claimed edge may speak for that caller kind, then places
-// the context on the Orleans RequestContext so it travels with the grain call. A principal that
-// did not pass through this gate is rejected by the call filter as untrusted.
+// A caller is stamped only at a trusted edge: authenticated HTTP, the app proxy or the scheduler. Stamping checks that
+// the caller is complete, then writes the runtime's capability-caller keys so they travel with the grain call.
 public static class CallerContextStamper
 {
-    public const string RequestContextKey = "intochatos.caller-context";
+    public const string RequestContextKey = "db.cap.principal";
 
     // A call a module relays inside the cluster (a contributed machine serving a circle member's own brain): the
     // filter admits it as module plumbing, the same a call made through an injected client after leaving a grain.
     public const string ModuleCallKey = "intochatos.trusted-module-call";
 
-    public static CallerContext Stamp(CallerContext context)
+    public static CapabilityCaller Stamp(CapabilityCaller context)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (!IsTrusted(context))
@@ -25,7 +25,8 @@ public static class CallerContextStamper
                 $"Caller kind {context.Kind} cannot be stamped by {context.StampedBy}.");
         }
 
-        RequestContext.Set(RequestContextKey, context);
+        // Stamp restores on dispose. The edge keeps the caller for the rest of the call, so the restore is not taken.
+        _ = RuntimeCallerContext.Stamp(context);
         if (TraceContext.Current is null)
         {
             var origin = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(context.BrainId), "edge", "request");
@@ -34,36 +35,26 @@ public static class CallerContextStamper
         return context;
     }
 
-    public static bool TryGet([NotNullWhen(true)] out CallerContext? context)
+    public static bool TryGet([NotNullWhen(true)] out CapabilityCaller? context)
     {
-        context = RequestContext.Get(RequestContextKey) as CallerContext;
+        context = RuntimeCallerContext.Current;
         return context is not null;
     }
 
-    public static CallerContext Require()
+    public static CapabilityCaller Require()
         => TryGet(out var context)
             ? context
             : throw new UntrustedCallerException("No caller context was stamped at a trusted edge.");
 
     // A call the agent runtime makes on a model's behalf carries the conversation it serves.
-    public static bool IsModelOriginated(CallerContext caller) => caller.ConversationId is not null;
+    public static bool IsModelOriginated(CapabilityCaller caller) => caller.ConversationId is not null;
 
-    public static bool IsTrusted(CallerContext context) =>
+    public static bool IsTrusted(CapabilityCaller context) =>
         !string.IsNullOrWhiteSpace(context.PrincipalId)
         && !string.IsNullOrWhiteSpace(context.AccountId)
         && !string.IsNullOrWhiteSpace(context.BrainId)
         && Enum.IsDefined(context.Kind)
-        && Enum.IsDefined(context.StampedBy)
-        && IsEdgeAllowed(context.Kind, context.StampedBy);
-
-    private static bool IsEdgeAllowed(CallerKind kind, TrustedEdge edge) => kind switch
-    {
-        CallerKind.User or CallerKind.Assistant => edge == TrustedEdge.AuthenticatedHttp,
-        CallerKind.App => edge == TrustedEdge.AppProxy,
-        CallerKind.Scheduler => edge == TrustedEdge.Scheduler,
-        CallerKind.Platform => edge == TrustedEdge.Platform,
-        _ => false,
-    };
+        && Enum.IsDefined(context.StampedBy);
 }
 
 [GenerateSerializer, Alias("enforcement.untrusted-caller")]

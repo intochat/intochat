@@ -95,8 +95,6 @@ internal static class PersistedStateRules
         "IntoChat.OS.Modules.AI.Routing.RouteResult.Probabilities",
         "IntoChat.OS.Modules.Apps.AppBundle.Files",
         "IntoChat.OS.Modules.Apps.AppPresentation.Blackboard",
-        "IntoChat.OS.Authority.Identity.Authority.AccountState.BrainOperations",
-        "IntoChat.OS.Authority.Identity.Authority.BrainAuthorityState.Members",
         "IntoChat.OS.Authority.Integrations.IntegrationState.Settings",
         "IntoChat.OS.Authority.Secrets.SecretsState.Fields",
         "IntoChat.OS.Modules.Flame.Scene.SceneNode.Parameters",

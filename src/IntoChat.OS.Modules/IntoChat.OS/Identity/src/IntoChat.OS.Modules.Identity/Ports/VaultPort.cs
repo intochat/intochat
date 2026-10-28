@@ -1,12 +1,12 @@
 using DigitalBrain.Capabilities;
-using Orleans;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework.Modules;
 using OsSealedSecret = IntoChat.OS.Connections.Platform.Connections.SealedSecret;
 using OsSecretRef = IntoChat.OS.Connections.SecretRef;
-using OsSecrets = IntoChat.OS.Connections.Platform.Secrets.ISecrets;
 using SealedSecret = DigitalBrain.Capabilities.Secrets.SealedSecret;
 using SecretRef = DigitalBrain.Capabilities.Secrets.SecretRef;
 using SecretStatus = DigitalBrain.Capabilities.Secrets.SecretStatus;
@@ -15,11 +15,10 @@ namespace IntoChat.OS.Authority;
 
 // secrets@1's vault port over the vault neuron. A caller stores in and removes from its own principal's vault.
 public sealed class VaultPort(
-    IGrainFactory authority,
+    IServiceProvider? services,
     IBrainSecretSealer? sealer = null,
     Microsoft.Extensions.Configuration.IConfiguration? configuration = null) : ISecretVaultPort
 {
-    private const string RuntimeApp = "runtime";
 
     // A deployment secret (09-05): the installer carries a module's declared secret {s} in IntoChatOS:Modules:{module}:Secrets:{s}
     // (ManifestEnvironment.SecretVariable). The runtime checked the module's manifest declares it; a name "{s}:Key" is covered
@@ -47,7 +46,7 @@ public sealed class VaultPort(
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
-            var stored = await Vault(caller).Set(Owner(caller), name, label, value, cancellationToken).ConfigureAwait(false);
+            var stored = await Vault(caller).Set(Owner(caller), name, label, value).WaitAsync(cancellationToken).ConfigureAwait(false);
             return SecretVaultResult.Stored(ToRef(stored));
         }
         catch (InvalidOperationException) { return SecretVaultResult.Denied; }
@@ -58,7 +57,7 @@ public sealed class VaultPort(
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
-            await Vault(caller).Remove(Owner(caller), name, cancellationToken).ConfigureAwait(false);
+            await Vault(caller).Remove(Owner(caller), name).WaitAsync(cancellationToken).ConfigureAwait(false);
             return SecretVaultStatus.Ok;
         }
         catch (InvalidOperationException) { return SecretVaultStatus.Denied; }
@@ -83,7 +82,7 @@ public sealed class VaultPort(
         try
         {
             // The vault releases plaintext only to a trusted outbound call: the runtime, on behalf of the stamped caller's app.
-            return SecretVaultResult.Resolved(await Vault(caller).Resolve(Platform(caller), reference, cancellationToken).ConfigureAwait(false));
+            return SecretVaultResult.Resolved(await Vault(caller).Resolve(Platform(caller), reference).WaitAsync(cancellationToken).ConfigureAwait(false));
         }
         catch (InvalidOperationException error) when (error.Message.Contains("another owner", StringComparison.Ordinal)) { return SecretVaultResult.Denied; }
         catch (InvalidOperationException) { return SecretVaultResult.NotFound; }
@@ -112,29 +111,17 @@ public sealed class VaultPort(
         return bound.StartsWith(prefix, StringComparison.Ordinal) ? Convert.FromBase64String(bound[prefix.Length..]) : null;
     }
 
-    private OsSecrets Vault(CapabilityCaller caller) => authority.GetGrain<OsSecrets>(caller.PrincipalId);
+    private IVault Vault(CapabilityCaller caller)
+        => services is null ? throw new InvalidOperationException("The vault is not hosted.")
+            : SiloNeurons.Get<IVault>(services, IVault.Key(caller.PrincipalId));
 
-    private static CallerContext Owner(CapabilityCaller caller) => new()
-    {
-        PrincipalId = caller.PrincipalId,
-        AccountId = caller.AccountId,
-        BrainId = caller.BrainId,
-        Kind = CallerKind.User,
-        StampedBy = TrustedEdge.AuthenticatedHttp,
-        AppId = caller.AppId,
-        ConversationId = caller.ConversationId,
-    };
+    // Set and remove run as the person who owns the vault, even when an app is on the call.
+    private static CapabilityCaller Owner(CapabilityCaller caller)
+        => CapabilityCallers.Of(caller.PrincipalId, caller.AccountId, caller.BrainId, CallerKind.User, conversationId: caller.ConversationId);
 
-    private static CallerContext Platform(CapabilityCaller caller) => new()
-    {
-        PrincipalId = caller.PrincipalId,
-        AccountId = caller.AccountId,
-        BrainId = caller.BrainId,
-        Kind = CallerKind.Platform,
-        StampedBy = TrustedEdge.Platform,
-        AppId = caller.AppId is { Length: > 0 } app ? app : RuntimeApp,
-        ConversationId = caller.ConversationId,
-    };
+    // Resolve is a platform edge. The app id is the platform sentinel, which is enough for the vault's non-empty check.
+    private static CapabilityCaller Platform(CapabilityCaller caller)
+        => CapabilityCallers.Platform(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.ConversationId);
 
     private static SecretRef ToRef(OsSecretRef stored) => new()
     {

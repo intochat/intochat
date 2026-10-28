@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -13,7 +14,7 @@ namespace IntoChat.OS.Authority.Identity.Grants;
 internal interface IGrantPolicySource
 {
     ValueTask<CallDecision?> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken);
-    ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CallerContext caller, CancellationToken cancellationToken);
+    ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CapabilityCaller caller, CancellationToken cancellationToken);
 }
 
 internal sealed class GrainGrantPolicySource(IIdentityClient identity, AuthorityMirror mirror, IOptions<AuthOptions>? auth = null) : IGrantPolicySource
@@ -61,6 +62,6 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
         => decision is { Denial: CallDenial.OutsideWorkspace }
             && auth?.Value.Posture == IdentityPosture.Open
             && request.Caller.AccountId == AccountSession.DefaultLogin;
-    public async ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CallerContext caller, CancellationToken cancellationToken)
+    public async ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CapabilityCaller caller, CancellationToken cancellationToken)
         => await identity.ListGrants(BrainScope.Create(caller.AccountId, caller.BrainId).Id).WaitAsync(cancellationToken);
 }

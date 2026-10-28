@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
@@ -276,7 +277,7 @@ internal sealed class BrainRuntimeNeuron(
         return assigning;
     }
 
-    private static string RequestKey(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings, CallerContext? caller)
+    private static string RequestKey(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings, CapabilityCaller? caller)
     {
         var text = new StringBuilder(owner).Append('\0').Append(caller?.ToString()).Append('\0');
         foreach (var (path, source) in sources.OrderBy(file => file.Key, StringComparer.Ordinal)) { text.Append(path).Append('\0').Append(source).Append('\0'); }
@@ -403,7 +404,7 @@ internal sealed class BrainRuntimeNeuron(
     private sealed record Superseded(ProgramAssignment Program, Subscription[] Subscriptions, Dictionary<string, string> Revisions,
         Dictionary<string, string> Initialized, string NewHash);
 
-    private sealed record CompiledProgram(string Owner, BehaviorAssembly[] Behaviors, Dictionary<string, string> Settings, CallerContext? Caller);
+    private sealed record CompiledProgram(string Owner, BehaviorAssembly[] Behaviors, Dictionary<string, string> Settings, CapabilityCaller? Caller);
 
     public async Task Retire(string owner)
     {
@@ -601,7 +602,7 @@ internal sealed class BrainRuntimeNeuron(
         if (priced.Length > 0 && Meter is { } meter) { _pricing = PriceAsync(_pricing, meter, priced); }
     }
 
-    private sealed record PricedRun(string Subscription, long Watermark, long CpuMicroseconds, string Behavior, string? App, long Delivered, Trace? Trace, CallerContext? Caller);
+    private sealed record PricedRun(string Subscription, long Watermark, long CpuMicroseconds, string Behavior, string? App, long Delivered, Trace? Trace, CapabilityCaller? Caller);
 
     // A pushed batch's trace and the traceparent it carried: the run's span sits under the batch's own span.
     private sealed record BatchTrace(Trace Trace, string TraceParent);
@@ -1278,7 +1279,7 @@ internal sealed class BrainRuntimeNeuron(
 
     // A call on a source carries the program's caller and nothing of the turn's own: no caller when the program
     // has none. RequestContext is async-local, so the turn's caller is back once this returns.
-    private static async Task AsProgram(CallerContext? caller, Func<Task> call)
+    private static async Task AsProgram(CapabilityCaller? caller, Func<Task> call)
     {
         if (caller is not null) { CallerContextStamper.Stamp(caller); }
         else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
@@ -1293,7 +1294,7 @@ internal sealed class BrainRuntimeNeuron(
 
     // Per source and program, the caller the source last accepted a watch from on this activation (null: the
     // program has none). Memory only: a reactivated runtime asks every source again before it buffers anything for it.
-    private readonly Dictionary<(string Source, string Program), CallerContext?> _accepted = [];
+    private readonly Dictionary<(string Source, string Program), CapabilityCaller?> _accepted = [];
     private readonly HashSet<(string Source, string Program)> _unwatchable = [];
 
     // One subscription per distinct source across every behavior; returns the sources no subscription names any more.

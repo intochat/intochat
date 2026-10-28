@@ -1,3 +1,4 @@
+using CapabilityCaller = DigitalBrain.Capabilities.CapabilityCaller;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -11,7 +12,7 @@ namespace IntoChat.OS.Authority.Integrations;
 
 internal sealed class Capabilities(IEnumerable<ICapabilitySource> sources) : ICapabilities
 {
-    public async Task<Capability[]> List(CallerContext caller, string? kind = null, CancellationToken ct = default)
+    public async Task<Capability[]> List(CapabilityCaller caller, string? kind = null, CancellationToken ct = default)
     {
         var derived = new List<Capability>();
         foreach (var source in sources)

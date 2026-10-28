@@ -1,69 +1,74 @@
-using System.Security.Claims;
-using IntoChat.OS.Contracts.Configuration;
+using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Runtime.Http;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Framework.Diagnostics;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using OsMember = IntoChat.OS.Framework.Modules.Platform.Identity.Member;
+using OsRole = IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole;
 
 namespace IntoChat.OS.Authority.Identity;
 
-// The one place the session cookie is issued: login, register and select-brain, and any module that authenticates a member itself.
-internal sealed class AccountSessionIssuer : ISessionIssuer
+// The one place the session cookie is issued. Claims are the identity-owned names (principal, account, brain, role).
+// When the host registered identity@1 sessions, the cookie's session id is the one that capability issued.
+internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalBrain.Runtime.Http.ISessionIssuer
 {
     public async Task<SessionIssued> IssueAsync(HttpContext http, SessionRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(request);
-        var member = request.Member;
-        var host = AccountSession.IdentityOf(http);
-        string[] reserved = [ClaimTypes.NameIdentifier, ClaimTypes.Role, host.AccountClaim, host.BrainClaim];
-        if (request.AdditionalClaims?.FirstOrDefault(claim => reserved.Contains(claim.Type, StringComparer.Ordinal)) is { } clash)
-        { throw new ArgumentException($"Claim type '{clash.Type}' is set by the platform and cannot be supplied.", nameof(request)); }
-
-        var identity = new ClaimsIdentity(
-        [
-            new Claim(ClaimTypes.NameIdentifier, member.PrincipalId),
-            new Claim(host.AccountClaim, member.AccountId),
-            new Claim(host.BrainClaim, member.BrainId),
-            new Claim(ClaimTypes.Role, member.Role.ToString()),
-        ], CookieAuthenticationDefaults.AuthenticationScheme);
-        if (request.AdditionalClaims is { } extra) { identity.AddClaims(extra); }
-
-        DateTimeOffset? expires = null;
-        if (request.Lifetime is { } lifetime)
-        {
-            expires = DateTimeOffset.UtcNow + lifetime;
-            await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity),
-                new AuthenticationProperties { ExpiresUtc = expires, IsPersistent = true });
-        }
-        else
-        {
-            await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
-        }
-        await SignedInAsync(member, http);
-        return new SessionIssued(member, expires);
+        SessionClaims.Validate(request);
+        var issued = services.GetService<ISessions>() is { } sessions
+            ? await sessions.Issue(request, cancellationToken).ConfigureAwait(false)
+            : new SessionIssued(Guid.NewGuid().ToString("N"), Expires(request));
+        var principal = SessionPrincipal.Create(request, issued, CookieAuthenticationDefaults.AuthenticationScheme);
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
+            new AuthenticationProperties { ExpiresUtc = issued.ExpiresAt, IsPersistent = request.Lifetime is not null }).ConfigureAwait(false);
+        await SignedInAsync(request.Member, http).ConfigureAwait(false);
+        return issued;
     }
 
-    public Task EndAsync(HttpContext http)
+    public async Task EndAsync(HttpContext http, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(http);
-        return http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        if (SessionPrincipal.SessionId(http.User) is { Length: > 0 } sid && services.GetService<ISessions>() is { } sessions)
+        {
+            try { await sessions.End(sid, cancellationToken).ConfigureAwait(false); }
+            catch (UnauthorizedAccessException exception)
+            {
+                services.GetService<ILoggerFactory>()?.CreateLogger(typeof(AccountSessionIssuer))
+                    .LogSwallowed(exception, "session end");
+            }
+        }
+        await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
     }
 
-    // Modules react to a sign-in as the member who just proved who they are; none of them can fail it.
+    private static DateTimeOffset Expires(SessionRequest request)
+        => DateTimeOffset.UtcNow + (request.Lifetime is { } lifetime && lifetime > TimeSpan.Zero ? lifetime : TimeSpan.FromDays(14));
+
     private static async Task SignedInAsync(Member member, HttpContext http)
     {
-        var handlers = http.RequestServices.GetServices<ISignInHandler>().ToArray();
+        var handlers = http.RequestServices.GetServices<IntoChat.OS.Framework.Modules.Platform.Identity.ISignInHandler>().ToArray();
         if (handlers.Length == 0) { return; }
-        CallerContextStamper.Stamp(AccountSession.ForMember(member));
-        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ISignInHandler));
+        var os = new OsMember
+        {
+            PrincipalId = member.PrincipalId,
+            AccountId = member.AccountId,
+            BrainId = member.BrainId,
+            Role = (OsRole)(int)member.Role,
+            DisplayName = member.DisplayName,
+            JoinedAt = member.JoinedAt,
+        };
+        CallerContextStamper.Stamp(AccountSession.ForMember(os));
+        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(IntoChat.OS.Framework.Modules.Platform.Identity.ISignInHandler));
         foreach (var handler in handlers)
         {
-            try { await handler.SignedIn(member, http.RequestAborted); }
+            try { await handler.SignedIn(os, http.RequestAborted); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Sign-in handler {Handler} failed for {Principal}", handler.GetType().Name, member.PrincipalId); }
         }

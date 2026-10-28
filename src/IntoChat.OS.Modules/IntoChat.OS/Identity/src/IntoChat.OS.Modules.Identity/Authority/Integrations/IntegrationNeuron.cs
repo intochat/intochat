@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -15,15 +16,9 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
 
     // The Platform's own stamp for releasing a registration to module code. ":" cannot occur in a
     // principal id (^[a-z0-9][a-z0-9-]*$), so no account can ever be this caller.
-    internal static readonly CallerContext PlatformCaller = new()
-    {
-        PrincipalId = "integration.registration",
-        AccountId = ":integrations",
-        BrainId = ":integrations",
-        Kind = CallerKind.Platform,
-        StampedBy = TrustedEdge.Platform,
-        AppId = "integration.registration",
-    };
+    // ":" cannot occur in a principal id, so no account can ever be this caller.
+    internal static readonly CapabilityCaller PlatformCaller = CapabilityCallers.Platform(
+        "integration.registration", ":integrations", ":integrations");
 
     private const int MaxValueLength = 16 * 1024;
 
@@ -185,7 +180,7 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
         return await Commit(next);
     }
 
-    public Task<ReleasedIntegration> Release(CallerContext caller)
+    public Task<ReleasedIntegration> Release(CapabilityCaller caller)
     {
         // Release is unreachable from scripts (IIntegration is not a neuron); an app-stamped ambient context is a platform call chain, not an app caller.
         // Values leave only to trusted platform code: a module's own grain call stamped by the Platform

@@ -5,14 +5,13 @@ using IntoChat.OS.Modules.Flutter.Person;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Connections.Identity;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
-internal sealed class CircleMembers(IIdentityClient identity, IServiceProvider plain)
+internal sealed class CircleMembers(ICapabilityBroker broker, IServiceProvider plain)
 {
     internal sealed record Friend(string Account, string Brain, string[] Circles);
 
@@ -20,20 +19,21 @@ internal sealed class CircleMembers(IIdentityClient identity, IServiceProvider p
     {
         // Creation/default installation can rebuild a space while the brain's Create turn is active.
         // Resolve ownership in the local identity directory; reading IBrain here would wait on that same turn.
-        var account = await OwnerAccount(brain);
+        var directory = await broker.Identity();
+        var account = await directory.OwnerOfBrain(brain);
         if (account is null) { return []; }
         Dictionary<string, (string Account, List<string> Circles)> friends = new(StringComparer.Ordinal);
-        foreach (var entry in (await identity.BrainsOf(account.OwnerPrincipalId)).Where(b => b.Kind == BrainKind.Circle))
+        foreach (var entry in (await directory.BrainsOf(account.OwnerPrincipalId)).Where(b => b.Kind == BrainKind.Circle))
         {
-            if ((await identity.Membership(entry.Id, account.OwnerPrincipalId))?.AccountId != account.AccountId) { continue; }
+            if ((await directory.Membership(entry.Id, account.OwnerPrincipalId))?.AccountId != account.AccountId) { continue; }
             string[] members;
             try { members = await SiloNeurons.Get<ICircleStateReader>(plain, ICircle.Key(entry.Id)).Members(); }
             catch (KeyNotFoundException) { continue; }
             if (!members.Contains(account.AccountId, StringComparer.Ordinal)) { continue; }
             foreach (var member in members.Where(m => m != account.AccountId))
             {
-                if (await identity.ReadAccount(member) is not { } memberAccount
-                    || (await identity.Membership(entry.Id, memberAccount.OwnerPrincipalId))?.AccountId != member) { continue; }
+                if (await directory.ReadAccount(member) is not { } memberAccount
+                    || (await directory.Membership(entry.Id, memberAccount.OwnerPrincipalId))?.AccountId != member) { continue; }
                 foreach (var personal in await PersonalBrains(member))
                 {
                     if (!friends.TryGetValue(personal, out var friend)) { friend = (member, []); friends.Add(personal, friend); }
@@ -44,15 +44,14 @@ internal sealed class CircleMembers(IIdentityClient identity, IServiceProvider p
         return friends.Select(pair => new Friend(pair.Value.Account, pair.Key, pair.Value.Circles.ToArray())).ToArray();
     }
 
-    private Task<Account?> OwnerAccount(string brain) => identity.OwnerOfBrain(brain);
-
     public async Task<string[]> PersonalBrains(string accountId)
     {
-        if (await identity.ReadAccount(accountId) is not { } account) { return []; }
+        var directory = await broker.Identity();
+        if (await directory.ReadAccount(accountId) is not { } account) { return []; }
         List<string> result = [];
-        foreach (var brain in (await identity.BrainsOf(account.OwnerPrincipalId)).Where(b => b.Kind == BrainKind.Personal))
+        foreach (var brain in (await directory.BrainsOf(account.OwnerPrincipalId)).Where(b => b.Kind == BrainKind.Personal))
         {
-            var member = await identity.Membership(brain.Id, account.OwnerPrincipalId);
+            var member = await directory.Membership(brain.Id, account.OwnerPrincipalId);
             if (member?.AccountId == accountId && member.Role == MemberRole.Owner) { result.Add(brain.Id); }
         }
         return result.ToArray();

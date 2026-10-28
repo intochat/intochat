@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Security.Cryptography;
 using System.Text;
 using IntoChat.OS.Contracts.Configuration;
@@ -14,7 +15,7 @@ internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExch
         => new(options.Value.PublicOrigin ?? throw new InvalidOperationException("Configure IntoChatOS:Connections:PublicOrigin before starting a browser login."),
             $"connections/oauth/{Uri.EscapeDataString(connectorId)}/callback");
 
-    public async Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, CallerContext owner, CancellationToken ct)
+    public async Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, CapabilityCaller owner, CancellationToken ct)
     {
         var (_, connector, _) = ConnectionKeys.Parse(connectionKey);
         var method = exchange.Method(connector, authMethodId);

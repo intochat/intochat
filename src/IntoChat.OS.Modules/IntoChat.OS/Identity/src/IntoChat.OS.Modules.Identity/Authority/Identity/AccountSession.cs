@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Security.Cryptography;
 using System.Text;
 using IntoChat.OS.Contracts.Configuration;
@@ -14,7 +15,7 @@ namespace IntoChat.OS.Authority.Identity;
 
 // The authenticated edge. A cookie session (issued by the identity endpoints) or the configured
 // Basic bootstrap credential decides the principal; only the declared Open posture lets an
-// anonymous request act as the synthetic owner. Resolving a principal stamps a CallerContext on
+// anonymous request act as the synthetic owner. Resolving a principal stamps a CapabilityCaller on
 // the Orleans RequestContext so it travels with grain calls.
 public static class AccountSession
 {
@@ -62,7 +63,7 @@ public static class AccountSession
 
     // A cookie session wins; otherwise the configured Basic bootstrap credential; otherwise only
     // the declared Open posture lets the request act as the synthetic owner — Secured answers 401.
-    public static CallerContext? ResolveCaller(HttpContext context, AuthOptions options)
+    public static CapabilityCaller? ResolveCaller(HttpContext context, AuthOptions options)
         => ResolvePrincipal(context, options.Posture, BasicCredential.FromOptions(options));
 
     // The one seam for "which brain is this caller using": the session may declare a brain, else
@@ -81,29 +82,21 @@ public static class AccountSession
     private static readonly IdentityHostOptions DefaultIdentity = new();
 
     // The member a sign-in just proved, stamped exactly as their next authenticated request will be.
-    internal static CallerContext ForMember(Member member)
+    internal static CapabilityCaller ForMember(Member member)
     {
         ArgumentNullException.ThrowIfNull(member);
-        return new CallerContext
-        {
-            PrincipalId = member.PrincipalId,
-            AccountId = member.AccountId,
-            BrainId = member.BrainId,
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        };
+        return CapabilityCallers.Of(member.PrincipalId, member.AccountId, member.BrainId);
     }
 
-    private static CallerContext? ResolvePrincipal(HttpContext context, IdentityPosture? posture, BasicCredential? credential)
+    private static CapabilityCaller? ResolvePrincipal(HttpContext context, IdentityPosture? posture, BasicCredential? credential)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
-            var principalId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var principalId = DigitalBrain.Runtime.Http.SessionPrincipal.PrincipalId(context.User);
             if (!string.IsNullOrWhiteSpace(principalId))
             {
-                var host = IdentityOf(context);
-                var accountId = context.User.FindFirst(host.AccountClaim)?.Value ?? principalId;
-                var claimBrain = context.User.FindFirst(host.BrainClaim)?.Value;
+                var accountId = context.User.FindFirst(DigitalBrain.Capabilities.Identity.SessionClaims.Account)?.Value ?? principalId;
+                var claimBrain = context.User.FindFirst(DigitalBrain.Capabilities.Identity.SessionClaims.Brain)?.Value;
                 return Build(principalId, accountId, context, claimBrain);
             }
         }
@@ -117,20 +110,13 @@ public static class AccountSession
         return posture == IdentityPosture.Open ? Build(DefaultLogin, DefaultLogin, context) : null;
     }
 
-    private static CallerContext Build(string principalId, string accountId, HttpContext context, string? claimBrain = null)
+    private static CapabilityCaller Build(string principalId, string accountId, HttpContext context, string? claimBrain = null)
     {
         var brainId = context.Request.RouteValues.TryGetValue("brainId", out var routeBrain)
             && routeBrain is string { Length: > 0 } brainValue
                 ? brainValue
                 : DefaultBrain(accountId, claimBrain);
-        return new CallerContext
-        {
-            PrincipalId = principalId,
-            AccountId = accountId,
-            BrainId = brainId,
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        };
+        return CapabilityCallers.Of(principalId, accountId, brainId);
     }
 
     private static bool IsAnonymous(HttpRequest request)

@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -59,11 +61,11 @@ public static class OsAppsHosting
 // a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
     IIntoChatOSBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
-    IntoChat.OS.Connections.Platform.Identity.IIdentityClient identity, FeatureCatalog catalog, FeatureLoader loader) : ICreationHandler
+    ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader) : ICreationHandler
 {
     public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
-        if (await identity.KindOf(brainId) == IntoChat.OS.Framework.Modules.Platform.Identity.BrainKind.Circle) { return; }
+        if (await (await capabilities.Identity(cancellationToken)).KindOf(brainId, cancellationToken) == BrainKind.Circle) { return; }
         await ShippedInstall.Missing(catalog, loader, brainId,
             async name => await brains.Get<IApp>($"{brainId}/apps/{name}").Read().WaitAsync(cancellationToken),
             (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId),

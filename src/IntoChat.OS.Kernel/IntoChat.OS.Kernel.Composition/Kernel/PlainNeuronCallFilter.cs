@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Collections.Concurrent;
 using System.Reflection;
 using DigitalBrain.Access;
@@ -41,7 +42,7 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
     }
 
     // The target scope and publicity the os access policy gives one call of caller into the plain neuron id.
-    private static (string? Scope, bool IsPublic) Classify(CallerContext caller, global::DigitalBrain.NeuronId id, RuntimeInvocation call) => Policy(call) switch
+    private static (string? Scope, bool IsPublic) Classify(CapabilityCaller caller, global::DigitalBrain.NeuronId id, RuntimeInvocation call) => Policy(call) switch
     {
         PublicAttribute => (null, true),
         InternalAttribute => (null, false),
@@ -53,7 +54,7 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
     // The os access policy for one call of caller into the plain neuron id. Orleans hands a streaming call to the host grain through
     // its async-enumerable extension, which no incoming filter sees, so the sink that starts a stream asks here first (06-06d).
     /// <exception cref="UnauthorizedAccessException">The policy refuses the call.</exception>
-    internal static async Task Authorize(ICallFilter filter, ILogger logger, CallerContext caller, global::DigitalBrain.NeuronId id, RuntimeInvocation call)
+    internal static async Task Authorize(ICallFilter filter, ILogger logger, CapabilityCaller caller, global::DigitalBrain.NeuronId id, RuntimeInvocation call)
     {
         if (IsPlumbing(call)) { return; }
         var (scope, isPublic) = Classify(caller, id, call);

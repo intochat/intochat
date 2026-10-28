@@ -1,3 +1,6 @@
+using DigitalBrain.Capabilities;
+using IntoChat.OS.Framework.Modules;
+
 namespace IntoChat.OS.Connections.Identity.Configuration;
 
 // Open: single-tenant development and test — anonymous requests act as the synthetic "owner".
@@ -23,7 +26,7 @@ public sealed class AuthOptions
     // it owns its own brain before the brain's authority records any membership. Every owner rule asks this.
     public const string OpenOwner = "owner";
 
-    public static bool IsOpenPostureOwner(IdentityPosture? posture, IntoChat.OS.Framework.Modules.CallerContext caller)
+    public static bool IsOpenPostureOwner(IdentityPosture? posture, CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
         return posture == IdentityPosture.Open && caller.Kind == IntoChat.OS.Framework.Modules.CallerKind.User

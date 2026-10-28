@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
@@ -12,7 +13,7 @@ namespace IntoChat.OS.Authority.Neurons;
 // the same membership decision, then the brain stamped into the caller for BrainScope.CurrentId().
 internal static class BrainCall
 {
-    public static async Task<CallerContext> Enter(ServerCallContext context, string brainId)
+    public static async Task<CapabilityCaller> Enter(ServerCallContext context, string brainId)
     {
         if (!BrainScope.IsValidId(brainId)) { throw new RpcException(new Status(StatusCode.InvalidArgument, "brain_id is not a valid brain id.")); }
         var caller = CallerContextStamper.Require() with { BrainId = brainId };

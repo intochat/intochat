@@ -1,5 +1,8 @@
+using DigitalBrain.Runtime.Http;
+using Cap = DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity;
 using System.Security.Claims;
+using OsMember = IntoChat.OS.Framework.Modules.Platform.Identity.Member;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Identity;
@@ -21,8 +24,7 @@ namespace IntoChat.OS.Authority.Identity;
 // and grants remain scoped to the owning account and workspace.
 internal static class IdentityEndpoints
 {
-    private const string PrincipalClaim = ClaimTypes.NameIdentifier;
-    private const string RoleClaim = ClaimTypes.Role;
+    private const string PrincipalClaim = Cap.SessionClaims.Principal;
 
     public static void Map(IEndpointRouteBuilder routes)
     {
@@ -60,7 +62,7 @@ internal static class IdentityEndpoints
     internal static async Task<IResult> CreateBrainAsync(HttpContext http, [FromServices] IIdentityClient identity, [FromServices] BrainBirths births, CancellationToken ct)
     {
         var principal = http.User.FindFirstValue(PrincipalClaim);
-        var account = http.User.FindFirstValue(AccountSession.IdentityOf(http).AccountClaim);
+        var account = http.User.FindFirstValue(Cap.SessionClaims.Account);
         if (http.User.Identity?.IsAuthenticated != true || string.IsNullOrEmpty(principal) || string.IsNullOrEmpty(account))
         {
             return Results.Unauthorized();
@@ -115,19 +117,36 @@ internal static class IdentityEndpoints
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
     }
 
-    private static async Task<IResult> IssueSessionAsync(Member member, HttpContext http, IReadOnlyCollection<Claim>? carried = null)
+    private static async Task<IResult> IssueSessionAsync(OsMember member, HttpContext http, IReadOnlyCollection<Claim>? carried = null)
     {
-        var issued = await http.RequestServices.GetRequiredKeyedService<ISessionIssuer>(PrivilegedModuleGate.HostKey).IssueAsync(http, new SessionRequest(member, carried), http.RequestAborted);
-        return Results.Ok(issued.Member);
+        await http.RequestServices.GetRequiredKeyedService<ISessionIssuer>(PrivilegedModuleGate.HostKey)
+            .IssueAsync(http, SessionFor(member, carried), http.RequestAborted);
+        return Results.Ok(member);
     }
+
+    private static Cap.SessionRequest SessionFor(OsMember member, IReadOnlyCollection<Claim>? carried) => new()
+    {
+        Member = new Cap.Member
+        {
+            PrincipalId = member.PrincipalId,
+            AccountId = member.AccountId,
+            BrainId = member.BrainId,
+            Role = (Cap.MemberRole)(int)member.Role,
+            DisplayName = member.DisplayName,
+            JoinedAt = member.JoinedAt,
+        },
+        Claims = carried is null
+            ? new Dictionary<string, string>()
+            : carried.Where(claim => !Cap.SessionClaims.IsIdentityOwned(claim.Type)).GroupBy(claim => claim.Type, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.Ordinal),
+    };
 
     // A brain switch keeps what a module put on the caller's session (an Auth session id, for one) so that module can
     // still end it. The claims the issuer reserves are never copied: they come from the selected membership alone.
     private static Claim[] CarriedClaims(HttpContext http)
     {
-        var host = AccountSession.IdentityOf(http);
-        string[] reserved = [ClaimTypes.NameIdentifier, ClaimTypes.Role, host.AccountClaim, host.BrainClaim];
-        return [.. http.User.Claims.Where(claim => !reserved.Contains(claim.Type, StringComparer.Ordinal)).Select(claim => new Claim(claim.Type, claim.Value, claim.ValueType))];
+        return [.. http.User.Claims.Where(claim => !Cap.SessionClaims.IsIdentityOwned(claim.Type) && claim.Type != SessionPrincipal.SessionIdClaim)
+            .Select(claim => new Claim(claim.Type, claim.Value, claim.ValueType))];
     }
 
     // Every resolved caller learns its brain, whichever posture resolved it: the shell's
@@ -137,11 +156,7 @@ internal static class IdentityEndpoints
         var caller = AccountSession.ResolveCaller(http, auth.Value);
         return caller is null
             ? Results.NoContent()
-            : Results.Ok(new SessionView(
-                caller.PrincipalId,
-                caller.AccountId,
-                caller.BrainId,
-                http.User.Identity?.IsAuthenticated == true ? http.User.FindFirstValue(RoleClaim) ?? "" : ""));
+            : Results.Ok(caller);
     }
 
     private static async Task<IResult> LogoutAsync(HttpContext http)
@@ -155,5 +170,4 @@ internal static class IdentityEndpoints
     internal sealed record RegisterRequest(string PrincipalId, string? Password = null, string? DisplayName = null);
     internal sealed record RevokeGrant(string AppId, string SemanticTypeId, GrantMode Mode);
     internal sealed record BrainView(string Id, string Kind);
-    internal sealed record SessionView(string PrincipalId, string AccountId, string BrainId, string Role);
 }

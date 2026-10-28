@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Platform.Connections.Signals;
 using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
@@ -347,7 +348,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     // Members of the brain named in the key; never an installed app.
     private void RequireMember()
     {
-        CallerContext caller;
+        CapabilityCaller caller;
         try { caller = CallerContextStamper.Require(); }
         catch (UntrustedCallerException error) { throw new UnauthorizedAccessException(error.Message, error); }
         if (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy

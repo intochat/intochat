@@ -90,8 +90,20 @@ internal static class ExternalSignIn
             new(AuthTimeClaim, clock.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
             new(IssuerClaim, claims.Issuer),
         ];
-        await http.RequestServices.GetRequiredKeyedService<ISessionIssuer>(PrivilegedModuleGate.HostKey)
-            .IssueAsync(http, new SessionRequest(member, session), http.RequestAborted);
+        await http.RequestServices.GetRequiredKeyedService<DigitalBrain.Runtime.Http.ISessionIssuer>(PrivilegedModuleGate.HostKey)
+            .IssueAsync(http, new DigitalBrain.Capabilities.Identity.SessionRequest
+            {
+                Member = new DigitalBrain.Capabilities.Identity.Member
+                {
+                    PrincipalId = member.PrincipalId,
+                    AccountId = member.AccountId,
+                    BrainId = member.BrainId,
+                    Role = (DigitalBrain.Capabilities.Identity.MemberRole)(int)member.Role,
+                    DisplayName = member.DisplayName,
+                    JoinedAt = member.JoinedAt,
+                },
+                Claims = session.ToDictionary(claim => claim.Type, claim => claim.Value, StringComparer.Ordinal),
+            }, http.RequestAborted);
         log.LogInformation("External sign-in from {Issuer} for {Principal} ({NewBrain})", claims.Issuer, principalId, provision.NewBrain ? "new brain" : "existing brain");
         return Results.Redirect(returnUrl);
     }
