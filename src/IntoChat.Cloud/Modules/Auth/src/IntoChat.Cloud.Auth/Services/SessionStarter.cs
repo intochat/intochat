@@ -8,7 +8,7 @@ namespace IntoChat.Cloud.Auth.Services;
 
 // The one way Auth signs a member in: the host's ISessionIssuer issues the session (identity@1 ISessions.Issue, which this
 // module's port stores in the sessions table) and writes its cookie with auth_time and amr; the row then learns its device.
-internal sealed class SessionStarter(ISessionIssuer issuer, AuthCalls calls, AuthHashing hashing, AuthModuleOptions options, TimeProvider clock)
+internal sealed class SessionStarter(ISessionIssuer issuer, IAuthHostSeam host, AuthCalls calls, AuthHashing hashing, AuthModuleOptions options, TimeProvider clock)
 {
     public const string SidClaim = SessionPrincipal.SessionIdClaim;
     public const string AuthTimeClaim = "auth_time";
@@ -28,7 +28,7 @@ internal sealed class SessionStarter(ISessionIssuer issuer, AuthCalls calls, Aut
         };
         SessionIssued issued;
         // The runtime reads the module from the stamped caller: only a module granted Issue may issue a session.
-        using (AuthSecrets.Stamp())
+        using (AuthSecrets.Stamp(host))
         {
             issued = await issuer.IssueAsync(http, request, ct);
         }

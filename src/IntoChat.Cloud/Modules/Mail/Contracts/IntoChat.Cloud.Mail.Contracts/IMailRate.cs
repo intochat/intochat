@@ -1,5 +1,5 @@
-using IntoChat.Cloud.Mail.Templates;
 using DigitalBrain.Access;
+using IntoChat.Cloud.Mail.Templates;
 
 namespace IntoChat.Cloud.Mail;
 

@@ -1,7 +1,7 @@
-using IntoChat.Cloud.Mail;
-using IntoChat.Cloud.Mail.Templates;
 using DigitalBrain.Access;
 using IntoChat.Cloud.Auth.Core;
+using IntoChat.Cloud.Mail;
+using IntoChat.Cloud.Mail.Templates;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 

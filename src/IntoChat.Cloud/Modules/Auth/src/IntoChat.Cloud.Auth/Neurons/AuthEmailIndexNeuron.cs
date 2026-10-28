@@ -77,8 +77,13 @@ internal sealed class AuthEmailIndexNeuron(
         }
         await SaveQuietly(new AuthEmailIndexState
         {
-            Status = EmailIndexStatus.ChangePending, PrincipalId = principalId, AccountId = accountId, BrainId = brainId,
-            Email = email, PreviousEmailHash = previousEmailHash, ChangeExpiresAt = clock.GetUtcNow() + TimeSpan.FromMinutes(10),
+            Status = EmailIndexStatus.ChangePending,
+            PrincipalId = principalId,
+            AccountId = accountId,
+            BrainId = brainId,
+            Email = email,
+            PreviousEmailHash = previousEmailHash,
+            ChangeExpiresAt = clock.GetUtcNow() + TimeSpan.FromMinutes(10),
         });
         return true;
     }

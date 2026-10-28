@@ -1,5 +1,6 @@
 using IntoChat.Cloud.Auth.Core;
 using IntoChat.Cloud.Auth.Services;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -7,8 +8,10 @@ namespace IntoChat.Cloud.Auth.Neurons;
 internal sealed class AuthCodeNeuron(
     AuthHashing hashing,
     CodeMailer mailer,
-    TimeProvider clock) : AuthNeuron<AuthCodeState>, IAuthCode
+    TimeProvider clock,
+    ILogger<AuthCodeNeuron> logger) : AuthNeuron<AuthCodeState>, IAuthCode
 {
+
     private CodeEngine? engine;
 
     private CodeEngine Engine => engine ??= new CodeEngine(new CodeRules(), hashing.For(AuthHashing.Codes), clock);
@@ -169,7 +172,19 @@ internal sealed class AuthCodeNeuron(
             : notice && delivery.NoticeTemplate is not null ? () => mailer.SendAsync(delivery, null)
             : null;
         if (send is null) { return; }
-        // Runs after this turn ends, off the request path: the code was saved first and lives only in this closure.
-        Defer(send);
+        // Off the request path and outside this turn: the code was saved first and lives only in this closure. The execution context
+        // does not flow, so the delivery carries neither the requesting person's stamp nor this turn's request context (an internal
+        // continuation is not an operation in the requester's selected brain). The mailer absorbs every mail outcome.
+        using (ExecutionContext.SuppressFlow())
+        {
+            _ = Task.Run(async () =>
+            {
+                try { await send(); }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    logger.LogWarning("Auth code delivery failed: {Error}", error.GetType().Name);
+                }
+            });
+        }
     }
 }

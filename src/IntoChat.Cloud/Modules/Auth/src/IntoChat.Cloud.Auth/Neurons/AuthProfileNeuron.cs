@@ -30,6 +30,33 @@ internal sealed class AuthProfileNeuron(
         return true;
     }
 
+    private string? uploadType;
+    private MemoryStream? upload;
+
+    public Task BeginAvatar(string contentType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+        uploadType = contentType;
+        upload = new MemoryStream();
+        return Task.CompletedTask;
+    }
+
+    public Task AppendAvatar(byte[] chunk)
+    {
+        ArgumentNullException.ThrowIfNull(chunk);
+        if (upload is null) { throw new InvalidOperationException("No avatar upload is open."); }
+        upload.Write(chunk);
+        return Task.CompletedTask;
+    }
+
+    public async Task CommitAvatar()
+    {
+        if (upload is null || uploadType is null) { throw new InvalidOperationException("No avatar upload is open."); }
+        var (type, bytes) = (uploadType, upload.ToArray());
+        (uploadType, upload) = (null, null);
+        await SetAvatar(type, bytes);
+    }
+
     public async Task SetAvatar(string contentType, byte[] bytes)
     {
         var next = Copy(Snapshot);

@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
-using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Auth.Core;
 using IntoChat.Cloud.Auth.Neurons;
 using IntoChat.Cloud.Auth.Services;
+using IntoChat.Cloud.Mail.Templates;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

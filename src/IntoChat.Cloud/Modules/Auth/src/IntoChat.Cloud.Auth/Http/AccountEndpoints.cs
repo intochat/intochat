@@ -94,7 +94,14 @@ internal static class AccountEndpoints
 
         var bytes = buffer.ToArray();
         if (AvatarImages.Detect(bytes) is not { } detected || detected != declared) { return AuthProblems.BadRequest(AvatarInvalid); }
-        await calls.Profile(caller.PrincipalId, profile => profile.SetAvatar(detected, bytes));
+        await calls.Profile(caller.PrincipalId, profile => profile.BeginAvatar(detected));
+        for (var offset = 0; offset < bytes.Length; offset += IAuthProfile.AvatarChunkBytes)
+        {
+            var part = bytes[offset..Math.Min(bytes.Length, offset + IAuthProfile.AvatarChunkBytes)];
+            await calls.Profile(caller.PrincipalId, profile => profile.AppendAvatar(part));
+        }
+
+        await calls.Profile(caller.PrincipalId, profile => profile.CommitAvatar());
         return Results.NoContent();
     }
 

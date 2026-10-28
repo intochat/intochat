@@ -11,7 +11,6 @@
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
     <PackageReference Include="Otp.NET" />
     <ProjectReference Include="../IntoChat.Cloud.Auth.Core/IntoChat.Cloud.Auth.Core.csproj" />

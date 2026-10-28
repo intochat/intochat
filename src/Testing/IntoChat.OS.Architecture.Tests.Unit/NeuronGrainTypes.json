@@ -888,5 +888,60 @@
     "Type": "tests.csharp.program-restorer",
     "Store": null,
     "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Neurons.AuthAuditNeuron": {
+    "Type": "auth.audit",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Neurons.AuthCodeNeuron": {
+    "Type": "auth.code",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Neurons.AuthCredentialNeuron": {
+    "Type": "auth.credential",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Neurons.AuthEmailIndexNeuron": {
+    "Type": "auth.email-index",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Neurons.AuthProfileNeuron": {
+    "Type": "auth.profile",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Neurons.AuthSessionsNeuron": {
+    "Type": "auth.sessions",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Neurons.AuthSystemAuditNeuron": {
+    "Type": "auth.system-audit",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Neurons.IpThrottleNeuron": {
+    "Type": "auth.ip-throttle",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Tests.OrgMembershipStandIn": {
+    "Type": "organisations.membership",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Tests.OrganisationDirectoryStandIn": {
+    "Type": "organisations.directory",
+    "Store": null,
+    "StateName": null
+  },
+  "IntoChat.Cloud.Auth.Tests.OrganisationStandIn": {
+    "Type": "organisations.organisation",
+    "Store": null,
+    "StateName": null
   }
 }

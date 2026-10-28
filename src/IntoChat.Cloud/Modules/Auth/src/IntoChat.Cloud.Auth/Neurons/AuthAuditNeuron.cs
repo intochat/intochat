@@ -1,8 +1,7 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Spi;
 using IntoChat.Cloud.Auth.Services;
-using Microsoft.Extensions.DependencyInjection;
 using IntoChat.Cloud.Organisations;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -15,7 +14,7 @@ internal sealed class AuthAuditNeuron(
 
     public async Task<AuthAuditEntry[]> Read(int take)
     {
-        var caller = RuntimeCallerContext.Current ?? throw new UnauthorizedAccessException("The audit log is read by a signed-in organisation Admin.");
+        var caller = ServiceProvider.GetRequiredService<IAuthHostSeam>().CurrentCaller ?? throw new UnauthorizedAccessException("The audit log is read by a signed-in organisation Admin.");
         var role = await ServiceProvider.GetRequiredService<INeuronProxies>()
             .Get<IOrganisation>(AuthIds.Of(IOrganisation.Type, IOrganisation.Key(OrgBrain()))).RoleOf(caller.PrincipalId);
         if (role != OrganisationRole.Admin)

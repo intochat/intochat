@@ -1,5 +1,5 @@
-using IntoChat.Cloud.Mail;
 using DigitalBrain.Access;
+using IntoChat.Cloud.Mail;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -21,6 +21,19 @@ public interface IAuthProfile
     // True exactly once per principal: the caller that gets true owns sending the welcome mail.
     [Internal]
     Task<bool> ClaimWelcome();
+
+    // The avatar is up to 5 MiB but one neuron call carries at most 1 MiB of arguments: it arrives in chunks of AvatarChunkBytes.
+    // Nothing is stored until CommitAvatar; BeginAvatar discards an unfinished upload.
+    const int AvatarChunkBytes = 512 * 1024;
+
+    [Internal]
+    Task BeginAvatar(string contentType);
+
+    [Internal]
+    Task AppendAvatar(byte[] chunk);
+
+    [Internal]
+    Task CommitAvatar();
 
     [Internal]
     Task SetAvatar(string contentType, byte[] bytes);

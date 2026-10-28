@@ -65,8 +65,18 @@ internal sealed class AuthSessionsNeuron(
 
     private static AuthSession Relabelled(AuthSession row, string label) => new()
     {
-        SidHash = row.SidHash, Handle = row.Handle, CreatedAt = row.CreatedAt, LastSeenAt = row.LastSeenAt, ExpiresAt = row.ExpiresAt, Label = label,
-        RevokedAt = row.RevokedAt, PrincipalId = row.PrincipalId, AccountId = row.AccountId, BrainId = row.BrainId, Role = row.Role, DisplayName = row.DisplayName,
+        SidHash = row.SidHash,
+        Handle = row.Handle,
+        CreatedAt = row.CreatedAt,
+        LastSeenAt = row.LastSeenAt,
+        ExpiresAt = row.ExpiresAt,
+        Label = label,
+        RevokedAt = row.RevokedAt,
+        PrincipalId = row.PrincipalId,
+        AccountId = row.AccountId,
+        BrainId = row.BrainId,
+        Role = row.Role,
+        DisplayName = row.DisplayName,
     };
 
     public Task<bool> Check(string sidHash)

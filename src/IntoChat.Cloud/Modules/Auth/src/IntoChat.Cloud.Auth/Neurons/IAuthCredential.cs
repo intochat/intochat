@@ -1,6 +1,6 @@
-using IntoChat.Cloud.Mail;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Secrets;
+using IntoChat.Cloud.Mail;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 

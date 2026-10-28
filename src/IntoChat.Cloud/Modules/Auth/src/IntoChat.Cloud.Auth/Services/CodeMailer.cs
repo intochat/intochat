@@ -1,6 +1,6 @@
+using IntoChat.Cloud.Auth.Neurons;
 using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
-using IntoChat.Cloud.Auth.Neurons;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.Cloud.Auth.Services;

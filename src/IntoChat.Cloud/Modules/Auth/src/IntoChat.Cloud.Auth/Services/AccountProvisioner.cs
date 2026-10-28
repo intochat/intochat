@@ -1,8 +1,8 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.Cloud.Auth.Neurons;
-using Microsoft.Extensions.DependencyInjection;
 using IntoChat.Cloud.Organisations;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.Cloud.Auth.Services;
 

@@ -30,6 +30,7 @@
   "IntoChat.OS.Framework/Modules/Http/ForwardedHeadersSetup.cs",
   "IntoChat.OS.Framework/Machine/MachineIdFile.cs",
   "IntoChat.OS.Modules.Circles/InviteCodeNeuron.cs",
+  "IntoChat.Cloud.Auth/AuthModule.cs",
   "IntoChat.Cloud.Circle.Server.Tests.Unit/CircleServerModuleFacts.cs",
   "IntoChat.Cloud.Circle.Server/CircleServerModule.cs",
   "IntoChat.OS.Kernel.Composition/Confirmations/ConfirmationOptions.cs"
