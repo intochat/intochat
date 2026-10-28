@@ -13,16 +13,14 @@ public interface IImageCanvas
     [DigitalBrain.ReadOnlyCall] Task<ImageCanvasState> Read();
 }
 
-[GenerateSerializer, Alias("ui.imagecanvas-definition")]
-public sealed record ImageCanvasDefinition([property: Id(0)] string AssetId, [property: Id(1)] int Width, [property: Id(2)] int Height, [property: Id(3)] ImageRecipe Recipe, [property: Id(4)] long DocumentRevision);
+public sealed record ImageCanvasDefinition(string AssetId, int Width, int Height, ImageRecipe Recipe, long DocumentRevision);
 
-[GenerateSerializer, Alias("ui.imagecanvas-state")]
 [ExportableState]
 public sealed class ImageCanvasState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public long Revision { get; set; }
-    [Id(2)] public ImageCanvasDefinition Definition { get; set; } = new("", 0, 0, new(), 0);
+    public string Name { get; set; } = "";
+    public long Revision { get; set; }
+    public ImageCanvasDefinition Definition { get; set; } = new("", 0, 0, new(), 0);
 }
 
 [Signal("ui.imagecanvas-changed")]

@@ -5,7 +5,6 @@
     <RootNamespace>IntoChat.OS.Integrations</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
   </ItemGroup>
 </Project>

@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-[GenerateSerializer, Alias("ai.provider-inference-options")]
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$provider")]
 [JsonDerivedType(typeof(OpenAI.OpenAIInferenceOptions), "openai")]
 [JsonDerivedType(typeof(Ollama.OllamaInferenceOptions), "ollama")]

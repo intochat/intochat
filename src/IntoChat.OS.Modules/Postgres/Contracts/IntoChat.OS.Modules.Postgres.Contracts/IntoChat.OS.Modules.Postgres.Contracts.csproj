@@ -9,5 +9,4 @@
     <!-- Neuron interfaces and signals use the IntoChat.OS wire vocabulary; module runtime uses Framework. -->
     <ProjectReference Include="../../../../IntoChat.OS/IntoChat.OS.csproj" />
   </ItemGroup>
-  <ItemGroup><PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" /></ItemGroup>
 </Project>

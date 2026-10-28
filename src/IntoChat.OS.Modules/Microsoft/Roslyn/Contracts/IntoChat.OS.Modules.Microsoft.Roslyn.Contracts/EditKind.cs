@@ -1,7 +1,5 @@
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[GenerateSerializer]
-[Alias("coding.edit-kind")]
 public enum EditKind
 {
     ReplaceMember = 0,

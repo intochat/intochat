@@ -14,11 +14,10 @@ public interface IText
     [DigitalBrain.ReadOnlyCall] Task<TextState> Read();
 }
 
-[GenerateSerializer, Alias("ui.text-state")]
 [ExportableState]
 public sealed class TextState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Markdown { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Markdown { get; set; } = "";
 }

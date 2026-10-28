@@ -15,19 +15,17 @@ public interface ISelect
     [DigitalBrain.ReadOnlyCall] Task<SelectState> Read();
 }
 
-[GenerateSerializer, Alias("ui.select-option")]
-public sealed record SelectOption([property: Id(0)] string Id, [property: Id(1)] string Label, [property: Id(2)] bool Enabled = true, [property: Id(3)] ControlVisual? Visual = null);
+public sealed record SelectOption(string Id, string Label, bool Enabled = true, ControlVisual? Visual = null);
 
-[GenerateSerializer, Alias("ui.select-state")]
 [ExportableState]
 public sealed class SelectState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public long Revision { get; set; }
-    [Id(2)] public string Label { get; set; } = "";
-    [Id(3)] public SelectOption[] Options { get; set; } = [];
-    [Id(4)] public string? Selected { get; set; }
-    [Id(5)] public ControlVisual? Visual { get; set; }
+    public string Name { get; set; } = "";
+    public long Revision { get; set; }
+    public string Label { get; set; } = "";
+    public SelectOption[] Options { get; set; } = [];
+    public string? Selected { get; set; }
+    public ControlVisual? Visual { get; set; }
 }
 
 [Signal("ui.select-changed")]

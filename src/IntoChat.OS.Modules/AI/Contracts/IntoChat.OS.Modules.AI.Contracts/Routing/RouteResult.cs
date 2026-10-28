@@ -7,16 +7,15 @@ namespace IntoChat.OS.Modules.AI.Routing;
 // An app route names the app and operation instead of a contract fill path; Dispatch then posts
 // IApp.Request and no language model runs, when the operation's input needs no filling ("open", a
 // toolbar button's "").
-[GenerateSerializer, Alias("ai.route-result")]
 public sealed record RouteResult(
-    [property: Id(0)] string Contract,
-    [property: Id(1)] string Method,
-    [property: Id(2)] double Confidence,
-    [property: Id(3)] Dictionary<string, double> Probabilities,
-    [property: Id(4)] string? Key = null,
-    [property: Id(5)] string? Tool = null,
-    [property: Id(6)] string? App = null,
-    [property: Id(7)] string? Operation = null)
+    string Contract,
+    string Method,
+    double Confidence,
+    Dictionary<string, double> Probabilities,
+    string? Key = null,
+    string? Tool = null,
+    string? App = null,
+    string? Operation = null)
 {
     private const int MaxAlternatives = 3;
 
@@ -38,11 +37,10 @@ public sealed record RouteResult(
 
 // The route, whether it was dispatched, and the call it made: the neuron key, the JSON arguments,
 // and the JSON result (or the refusal reason).
-[GenerateSerializer, Alias("ai.route-outcome")]
 public sealed record RouteOutcome(
-    [property: Id(0)] RouteResult Route,
-    [property: Id(1)] bool Dispatched,
-    [property: Id(2)] string? Key = null,
-    [property: Id(3)] string? Arguments = null,
-    [property: Id(4)] string? Result = null,
-    [property: Id(5)] string? Error = null);
+    RouteResult Route,
+    bool Dispatched,
+    string? Key = null,
+    string? Arguments = null,
+    string? Result = null,
+    string? Error = null);

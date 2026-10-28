@@ -23,13 +23,11 @@ public interface IModelCatalog
     [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<ModelSelection?> Select(string? id, string? defaultModel = null);
 }
 
-[GenerateSerializer, Alias("ai.model-choices")]
-public sealed record ModelChoices([property: Id(0)] ModelChoice Automatic, [property: Id(1)] ModelChoice[] Models);
+public sealed record ModelChoices(ModelChoice Automatic, ModelChoice[] Models);
 
-[GenerateSerializer, Alias("ai.model-choice")]
-public sealed record ModelChoice([property: Id(0)] string? Id, [property: Id(1)] string Label, [property: Id(2)] string? Provider,
-    [property: Id(3)] string? Model, [property: Id(4)] bool Available, [property: Id(5)] string[] Capabilities)
+public sealed record ModelChoice(string? Id, string Label, string? Provider,
+    string? Model, bool Available, string[] Capabilities)
 {
     // Why an unavailable model cannot be chosen; null when available. Additive: older readers ignore it.
-    [Id(6)] public string? Reason { get; init; }
+    public string? Reason { get; init; }
 }

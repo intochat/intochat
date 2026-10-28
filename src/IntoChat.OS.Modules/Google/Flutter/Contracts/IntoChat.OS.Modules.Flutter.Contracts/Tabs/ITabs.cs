@@ -13,18 +13,16 @@ public interface ITabs
     [DigitalBrain.ReadOnlyCall] Task<TabsState> Read();
 }
 
-[GenerateSerializer, Alias("ui.tab-item")]
 public sealed record TabItem(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string Title,
-    [property: Id(2)] UiChildRef Child);
+    string Id,
+    string Title,
+    UiChildRef Child);
 
-[GenerateSerializer, Alias("ui.tabs-state")]
 [ExportableState]
 public sealed class TabsState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public List<TabItem> Tabs { get; set; } = [];
-    [Id(3)] public string SelectedId { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public List<TabItem> Tabs { get; set; } = [];
+    public string SelectedId { get; set; } = "";
 }

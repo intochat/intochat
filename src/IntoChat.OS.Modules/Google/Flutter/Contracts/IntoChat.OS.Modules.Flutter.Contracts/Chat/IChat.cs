@@ -16,22 +16,20 @@ public interface IChat
     [DigitalBrain.ReadOnlyCall] Task<ChatState> Read();
 }
 
-[GenerateSerializer, Alias("ui.chat-projection")]
 public sealed record ChatProjection(
-    [property: Id(0)] string Source,
-    [property: Id(1)] long Generation,
-    [property: Id(2)] long Version,
-    [property: Id(3)] ChatEntry[] Messages)
+    string Source,
+    long Generation,
+    long Version,
+    ChatEntry[] Messages)
 {
-    [Id(4)] public ChatAction[] Actions { get; init; } = [];
+    public ChatAction[] Actions { get; init; } = [];
 }
 
-[GenerateSerializer, Alias("ui.chat-action")]
 public sealed record ChatAction(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string Label,
-    [property: Id(2)] string Payload,
-    [property: Id(3)] bool Enabled = true);
+    string Id,
+    string Label,
+    string Payload,
+    bool Enabled = true);
 
 [Signal("ui.chat-action-activated")]
 public sealed record ChatActionActivated(
@@ -42,35 +40,30 @@ public sealed record ChatActionActivated(
     string Payload,
     Guid RequestId) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.chat-state")]
 [ExportableState]
 public sealed record ChatState
 {
-    [Id(0)] public string Name { get; init; } = "";
-    [Id(1)] public long Revision { get; init; }
-    [Id(2)] public ChatProjection? Projection { get; init; }
-    [Id(3)] public ChatReadReceipt[] ReadReceipts { get; init; } = [];
-    [Id(4)] public string[] UnreadMessageIds { get; init; } = [];
-    [Id(5)] public ChatSelection? Selection { get; init; }
-    [Id(6)] public ChatRunSnapshot? Run { get; init; }
-    [Id(7)] public long ActivityRevision { get; init; }
+    public string Name { get; init; } = "";
+    public long Revision { get; init; }
+    public ChatProjection? Projection { get; init; }
+    public ChatReadReceipt[] ReadReceipts { get; init; } = [];
+    public string[] UnreadMessageIds { get; init; } = [];
+    public ChatSelection? Selection { get; init; }
+    public ChatRunSnapshot? Run { get; init; }
+    public long ActivityRevision { get; init; }
     // Receipts are persisted with selection, but never exposed by Read.
-    [Id(8)] public ChatSelectionReceipt[] SelectionReceipts { get; init; } = [];
+    public ChatSelectionReceipt[] SelectionReceipts { get; init; } = [];
 }
 
-[GenerateSerializer, Alias("ui.chat-selection")]
-public sealed record ChatSelection([property: Id(0)] string Agent, [property: Id(1)] long Revision);
+public sealed record ChatSelection(string Agent, long Revision);
 
-[GenerateSerializer, Alias("ui.chat-selection-receipt")]
-public sealed record ChatSelectionReceipt([property: Id(0)] Guid OperationId, [property: Id(1)] ChatSelection Selection);
+public sealed record ChatSelectionReceipt(Guid OperationId, ChatSelection Selection);
 
-[GenerateSerializer, Alias("ui.chat-run-status")]
 public enum ChatRunStatus { Running, Completed, Failed, Cancelled, Interrupted }
 
-[GenerateSerializer, Alias("ui.chat-run-snapshot")]
 public sealed record ChatRunSnapshot(
-    [property: Id(0)] string Source, [property: Id(1)] long SelectionRevision,
-    [property: Id(2)] long Version, [property: Id(3)] string RunId, [property: Id(4)] ChatRunStatus Status);
+    string Source, long SelectionRevision,
+    long Version, string RunId, ChatRunStatus Status);
 
 [Signal("ui.chat-selection-changed")]
 public sealed record ChatSelectionChanged(string Name, ChatSelection Selection) : DigitalBrain.Signal;
@@ -81,12 +74,11 @@ public sealed record ChatRunChanged(
     long ActivityRevision,
     ChatRunStatus? Status = null) : DigitalBrain.Signal;
 
-[GenerateSerializer, Alias("ui.chat-read-receipt")]
 public sealed record ChatReadReceipt(
-    [property: Id(0)] string PrincipalId,
-    [property: Id(1)] string Source,
-    [property: Id(2)] string MessageId,
-    [property: Id(3)] string ContentHash);
+    string PrincipalId,
+    string Source,
+    string MessageId,
+    string ContentHash);
 
 [Signal("ui.chat-changed")]
 public sealed record ChatChanged(string Name, long Revision) : DigitalBrain.Signal;

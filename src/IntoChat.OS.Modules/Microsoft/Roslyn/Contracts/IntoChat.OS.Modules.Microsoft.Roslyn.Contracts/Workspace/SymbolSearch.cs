@@ -1,5 +1,3 @@
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[GenerateSerializer]
-[Alias("coding.symbol-search")]
-public sealed record SymbolSearch([property: Id(0)] string Query, [property: Id(1)] int Limit = 20);
+public sealed record SymbolSearch(string Query, int Limit = 20);

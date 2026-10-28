@@ -9,10 +9,9 @@ public enum FundingKind
 }
 
 // The selected connection determines funding; these values never establish caller authority.
-[GenerateSerializer, Alias("compute.funding")]
 public readonly record struct Funding(
-    [property: Id(0)] FundingKind Kind,
-    [property: Id(1)] string? CircleKey = null)
+    FundingKind Kind,
+    string? CircleKey = null)
 {
     public static Funding Local => new(FundingKind.Local);
     public static Funding OwnConnection => new(FundingKind.OwnConnection);
@@ -25,8 +24,7 @@ public readonly record struct Funding(
     }
 }
 
-[GenerateSerializer, Alias("compute.cost-subject")]
 public sealed record CostSubject(
-    [property: Id(0)] string? Synapse = null,
-    [property: Id(1)] string? App = null,
-    [property: Id(2)] string? Neuron = null);
+    string? Synapse = null,
+    string? App = null,
+    string? Neuron = null);

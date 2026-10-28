@@ -1,5 +1,3 @@
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[GenerateSerializer]
-[Alias("coding.implementations-query")]
-public sealed record ImplementationsQuery([property: Id(0)] string SymbolId, [property: Id(1)] int Limit = 50);
+public sealed record ImplementationsQuery(string SymbolId, int Limit = 50);

@@ -1,16 +1,12 @@
 namespace IntoChat.OS.Modules.Flutter.ImageCanvas;
 
-[GenerateSerializer, Alias("ui.image-point")]
-public sealed record ImagePoint([property: Id(0)] double X, [property: Id(1)] double Y);
-[GenerateSerializer, Alias("ui.crop-rect")]
-public sealed record CropRect([property: Id(0)] int X, [property: Id(1)] int Y, [property: Id(2)] int Width, [property: Id(3)] int Height);
-[GenerateSerializer, Alias("ui.pen-stroke")]
-public sealed record PenStroke([property: Id(0)] uint ColorArgb, [property: Id(1)] double Width, [property: Id(2)] ImagePoint[] Points);
-[GenerateSerializer, Alias("ui.image-recipe")]
+public sealed record ImagePoint(double X, double Y);
+public sealed record CropRect(int X, int Y, int Width, int Height);
+public sealed record PenStroke(uint ColorArgb, double Width, ImagePoint[] Points);
 public sealed record ImageRecipe
 {
-    [Id(0)] public CropRect? Crop { get; init; }
-    [Id(1)] public PenStroke[] Strokes { get; init; } = [];
+    public CropRect? Crop { get; init; }
+    public PenStroke[] Strokes { get; init; } = [];
     public void Validate(int width, int height)
     {
         if (width <= 0 || height <= 0 || (long)width * height > 40_000_000) { throw new ArgumentException("Image dimensions exceed the supported limit."); }

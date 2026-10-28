@@ -12,19 +12,16 @@ public interface IGraph
     [DigitalBrain.ReadOnlyCall] Task<GraphState> Read();
 }
 
-[GenerateSerializer, Alias("ui.graph-node")]
-public sealed record GraphNode([property: Id(0)] string Id, [property: Id(1)] string Label);
+public sealed record GraphNode(string Id, string Label);
 
-[GenerateSerializer, Alias("ui.graph-edge")]
-public sealed record GraphEdge([property: Id(0)] string From, [property: Id(1)] string To);
+public sealed record GraphEdge(string From, string To);
 
-[GenerateSerializer, Alias("ui.graph-state")]
 [ExportableState]
 public sealed class GraphState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Title { get; set; } = "";
-    [Id(3)] public List<GraphNode> Nodes { get; set; } = [];
-    [Id(4)] public List<GraphEdge> Edges { get; set; } = [];
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Title { get; set; } = "";
+    public List<GraphNode> Nodes { get; set; } = [];
+    public List<GraphEdge> Edges { get; set; } = [];
 }

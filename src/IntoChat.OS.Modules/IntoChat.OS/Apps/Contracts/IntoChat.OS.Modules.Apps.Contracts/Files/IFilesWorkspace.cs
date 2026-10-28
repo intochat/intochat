@@ -11,10 +11,9 @@ public interface IFilesWorkspace
     Task Request(string operation, FilesWorkspaceInput input, long expectedRevision, Guid requestId, CancellationToken ct = default);
 }
 
-[GenerateSerializer, Alias("files.workspace-input")]
 public sealed record FilesWorkspaceInput(
-    [property: Id(0)] int? Index = null,
-    [property: Id(1)] string? Name = null,
-    [property: Id(2)] string? Text = null,
-    [property: Id(3)] string? Query = null,
-    [property: Id(4)] bool Everywhere = false);
+    int? Index = null,
+    string? Name = null,
+    string? Text = null,
+    string? Query = null,
+    bool Everywhere = false);

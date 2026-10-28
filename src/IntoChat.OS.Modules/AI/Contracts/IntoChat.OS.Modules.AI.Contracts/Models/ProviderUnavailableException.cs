@@ -1,6 +1,5 @@
 namespace IntoChat.OS.Modules.AI.Models;
 
-[GenerateSerializer, Alias("db.ai.provider-unavailable")]
 public sealed class ProviderUnavailableException : InvalidOperationException
 {
     public ProviderUnavailableException(string integration, string status, string[] missing)
@@ -13,10 +12,10 @@ public sealed class ProviderUnavailableException : InvalidOperationException
         Missing = missing;
     }
 
-    [Id(0)] public string Integration { get; }
+    public string Integration { get; }
 
-    [Id(1)] public string Status { get; }
+    public string Status { get; }
 
-    [Id(2)] public string[] Missing { get; }
+    public string[] Missing { get; }
 }
 

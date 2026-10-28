@@ -23,8 +23,7 @@ public interface ILegacyStorage
     Task<StorageEntry[]> Ancestors(string location, CancellationToken cancellationToken = default);
 }
 
-[GenerateSerializer, Alias("storage.entry")]
 public sealed record StorageEntry(
-    [property: Id(0)] string Location,
-    [property: Id(1)] string Name,
-    [property: Id(2)] bool IsFolder);
+    string Location,
+    string Name,
+    bool IsFolder);

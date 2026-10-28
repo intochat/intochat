@@ -16,14 +16,13 @@ public interface IVideo
     [DigitalBrain.ReadOnlyCall] Task<VideoState> Read();
 }
 
-[GenerateSerializer, Alias("ui.video-state")]
 [ExportableState]
 public sealed class VideoState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Url { get; set; } = "";
-    [Id(3)] public bool Playing { get; set; }
-    [Id(4)] public double Position { get; set; }
-    [Id(5)] public double Duration { get; set; }
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Url { get; set; } = "";
+    public bool Playing { get; set; }
+    public double Position { get; set; }
+    public double Duration { get; set; }
 }

@@ -13,13 +13,12 @@ public interface IFileInput
     [DigitalBrain.ReadOnlyCall] Task<FileInputState> Read();
 }
 
-[GenerateSerializer, Alias("ui.fileinput-state")]
 [ExportableState]
 public sealed class FileInputState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public long Revision { get; set; }
-    [Id(2)] public string Label { get; set; } = "";
+    public string Name { get; set; } = "";
+    public long Revision { get; set; }
+    public string Label { get; set; } = "";
 }
 
 [Signal("ui.file-captured")]

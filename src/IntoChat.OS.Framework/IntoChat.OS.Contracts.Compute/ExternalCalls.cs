@@ -1,20 +1,18 @@
 namespace IntoChat.OS.Contracts.Compute;
 
-[GenerateSerializer, Alias("compute.external-call-request")]
 public sealed record ExternalCallRequest
 {
-    [Id(0)] public required string Operation { get; init; }
-    [Id(1)] public required decimal Quantity { get; init; }
-    [Id(2)] public required string Unit { get; init; }
-    [Id(3)] public required Funding Funding { get; init; }
-    [Id(4)] public required string InvocationId { get; init; }
-    [Id(5)] public required string CostId { get; init; }
-    [Id(6)] public CostSubject? Subject { get; init; }
+    public required string Operation { get; init; }
+    public required decimal Quantity { get; init; }
+    public required string Unit { get; init; }
+    public required Funding Funding { get; init; }
+    public required string InvocationId { get; init; }
+    public required string CostId { get; init; }
+    public CostSubject? Subject { get; init; }
 }
 
 // An opaque capability validated by Authority against its durable reservation.
-[GenerateSerializer, Alias("compute.external-call-handle")]
-public readonly record struct ExternalCallHandle([property: Id(0)] string Value);
+public readonly record struct ExternalCallHandle(string Value);
 
 public enum ExternalCallOutcomeKind
 {
@@ -26,11 +24,10 @@ public enum ExternalCallOutcomeKind
     Uncertain = 5,
 }
 
-[GenerateSerializer, Alias("compute.external-call-outcome")]
 public sealed record ExternalCallOutcome(
-    [property: Id(0)] ExternalCallOutcomeKind Kind,
-    [property: Id(1)] int? HttpStatusCode = null,
-    [property: Id(2)] string? ProviderRequestId = null);
+    ExternalCallOutcomeKind Kind,
+    int? HttpStatusCode = null,
+    string? ProviderRequestId = null);
 
 public enum ExternalAccountingStatus
 {
@@ -49,8 +46,7 @@ public enum ExternalCallState
     Uncertain = 5,
 }
 
-[GenerateSerializer, Alias("compute.external-call-completion")]
 public sealed record ExternalCallCompletion(
-    [property: Id(0)] ExternalCallHandle Handle,
-    [property: Id(1)] ExternalAccountingStatus Status,
-    [property: Id(2)] Cost? Cost = null);
+    ExternalCallHandle Handle,
+    ExternalAccountingStatus Status,
+    Cost? Cost = null);

@@ -15,14 +15,13 @@ public interface ITextField
     [DigitalBrain.ReadOnlyCall] Task<TextFieldState> Read();
 }
 
-[GenerateSerializer, Alias("ui.textfield-state")]
 [ExportableState]
 public sealed class TextFieldState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Label { get; set; } = "";
-    [Id(3)] public string Kind { get; set; } = "text";
-    [Id(4)] public string Value { get; set; } = "";
-    [Id(5)] public string? SubmitButton { get; set; }
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Label { get; set; } = "";
+    public string Kind { get; set; } = "text";
+    public string Value { get; set; } = "";
+    public string? SubmitButton { get; set; }
 }
