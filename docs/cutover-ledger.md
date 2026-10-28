@@ -337,3 +337,22 @@ Tests:
 ### Step 6 status
 
 Deleted 39 files, 4212 lines: the shrink ratchets, the capture facts, and every pin JSON except `ContractManifest.json`. Ported nothing new. The architecture suite was red on stale pins, deleted project names, and unlogged catches; the pins were deleted or recaptured, the identity module got its two test projects, and a catch that classifies or logs its exception now satisfies `SwallowFacts`. Release build 0 errors, 0 warnings. Touched tests: 248 passed, 0 failed. Deferred to step 7: shard JSON, the md5 bucket script, and `TestShardFacts`. Deferred to 0.8.0: the five-assembly Orleans allow-list, the Identity and Apps grains, and the silo-host assemblies (those hosts are not on the shrinking list).
+
+## Step 7 — CI
+
+Deleted 3 files, 220 lines: `.github/test-shards.json` (18), `src/Testing/IntoChat.OS.Architecture.Tests.Unit/TestShardFacts.cs` (112), `scripts/verify-single-runtime.py` (90). Nothing in the repo called the Python script. `scripts/dx04-drive.sh` stays: the `dx04-packages` job runs it. `gitleaks.yml` stays as its own workflow. The md5 `bucket()` script is gone from `ci.yml`.
+
+`ci.yml` still builds `Intochat.OS.slnx` once (`-p:IntoChatOSNightly=false`), archives `artifacts/bin`, then runs one `dotnet test` per PR-gate tier. The matrix is Unit, Integration, Hosting. Each command is `dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=<tier> -p:CodeGraphRefresh=false --filter "Tier=<tier>"`. `Directory.Build.props` stamps `Xunit.TraitAttribute("Tier", <suffix>)`. `IntoChatOSOnlyTier` drops every other tier from that invocation, because a project whose filter matches nothing exits 8. On this SDK a solution run still exits 0 when some modules are empty and at least one test ran. Framework test projects do not import the root props, so `framework/Directory.Build.props` treats a non-empty `IntoChatOSOnlyTier` as "not a test project". The `framework-*` jobs do not pass that property, so they still run. Empty hosting shells (AI, GitHub, Orleans, Postgres, Supabase) and empty integration projects stay in the solution; a Hosting run here executed Flutter's 3 tests and exited 0.
+
+`e2e.yml` and `ci.yml` accept `workflow_call`. `release.yml` jobs are `ci`, `e2e-latest` (`uses: ./.github/workflows/e2e.yml`), and `release` with `needs: [ci, e2e-latest]`. No workflow was dispatched.
+
+`dotnet build Intochat.OS.slnx -c Release -p:IntoChatOSNightly=false`: Build succeeded. 0 Warning(s). 0 Error(s). Time Elapsed 00:00:10.39.
+
+Tests:
+
+- `IntoChat.OS.Architecture.Tests.Unit`: 202 passed, 0 failed.
+- Hosting tier, solution, `--filter Tier=Hosting`: 3 passed, 0 failed, exit 0. Five hosting projects have no tests and print exit code 8 per module; the solution summary is Passed.
+
+### Step 7 status
+
+Deleted 3 files, 220 lines: the shard pin, `TestShardFacts`, and `verify-single-runtime.py`. Ported nothing. The tier trait and `IntoChatOSOnlyTier` keep one `dotnet test` from failing on the other tiers, and framework tests stay on the `framework-*` jobs. Release build 0 errors, 0 warnings. Touched tests: architecture 202 passed, 0 failed; Hosting tier 3 passed, exit 0. Deferred to step 8: the end-state command block and the live kernel. Deferred to 0.8.0: the empty hosting shells, which are still projects with no facts.

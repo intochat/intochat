@@ -7,6 +7,7 @@ on:
     branches: [master, 'refactor/**']
   # A dropped push event leaves a master commit without ci, which release.yml requires; rerun it by hand.
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -22,9 +23,8 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
-# Build once, then run the PR gate (Unit, Integration, Hosting) as shards of prebuilt test
-# modules. Shard membership is by convention from .github/test-shards.json (tier globs, md5 buckets, pins); TestShardFacts holds every PR-gate
-# project to exactly one shard. The nightly tiers (E2E, Browser) run in e2e.yml.
+# Build once, then one `dotnet test` per PR-gate tier (Unit, Integration, Hosting), filtered on the
+# Tier trait. The nightly tiers (E2E, Browser) run in e2e.yml.
 jobs:
   format:
     name: format
@@ -118,81 +118,19 @@ jobs:
           path: ${{ env.NUGET_PACKAGES }}
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
-      # One archive per shard, rooted at artifacts/bin so the test job unpacks it under the checkout:
-      # each test output carries its own copy of every dependency, so zstd's long window
-      # deduplicates across projects, and native assets for other RIDs are dropped.
-      - name: Archive test modules per shard
+      # One archive of the build. The tier jobs unpack it under the checkout and test with --no-build.
+      # Native assets for other RIDs are dropped; zstd's long window deduplicates the copied dependencies.
+      - name: Archive the build
         run: |
-          shards=.github/test-shards.json
-          mkdir -p artifacts/shards
-          bucket() { echo $(( 16#$(printf '%s' "$1" | md5sum | cut -c1-8) % $2 )); }
-          # Golden bucket table: TestShardFacts asserts the same six names and values.
-          golden="IntoChat.OS.Kernel.Tests.Integration=1 IntoChat.OS.Modules.Time.Tests.Integration=2 IntoChat.OS.Modules.Postgres.Tests.Integration=3 IntoChat.OS.Modules.ArtCraft.Tests.Integration=0 IntoChat.OS.Modules.Apps.Tests.Integration=1 IntoChat.OS.Client.Orleans.Tests.Integration=3"
-          for entry in $golden; do
-            [ "$(bucket "${entry%=*}" 4)" = "${entry#*=}" ] || { echo "::error::bucket drift for $entry"; exit 1; }
-          done
-          rm -f artifacts/shards/*.txt
-          for tier in $(jq -r '.tiers | keys[]' "$shards"); do
-            n=$(jq -r --arg t "$tier" '.buckets[$t]' "$shards")
-            matched=0
-            while read -r glob; do
-              found=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name "${glob##*/}")
-              if [ -z "$found" ]; then echo "::error::$tier: $glob matches no test module"; exit 1; fi
-              while read -r dll; do
-                project=$(basename "$dll" .dll)
-                pin=$(jq -r --arg p "$project" '.pins[$p] // empty' "$shards")
-                b=${pin:-$(bucket "$project" "$n")}
-                if [ "$n" -eq 1 ]; then shard=$tier; else letters=(a b c d e f g h); shard="$tier-${letters[$b]}"; fi
-                echo "$dll" >> "artifacts/shards/$shard.txt"
-                matched=$((matched + 1))
-              done <<< "$found"
-            done < <(jq -r --arg t "$tier" '.tiers[$t][]' "$shards")
-            echo "$tier: $matched modules"
-          done
-          for list in artifacts/shards/*.txt; do
-            shard=$(basename "$list" .txt)
-            dirs=()
-            while read -r dll; do dirs+=("$(dirname "$(dirname "$dll")")"); done < "$list"
-            for dir in "${dirs[@]}"; do
-              if [ -d "$dir/release/runtimes" ]; then
-                find "$dir/release/runtimes" -mindepth 1 -maxdepth 1 -type d ! -name linux-x64 ! -name linux ! -name unix -exec rm -rf {} +
-              fi
-            done
-            archive="artifacts/shards/$shard.tar.zst"
-            tar -I 'zstd -T0 -3 --long=30' -cf "$archive" "$list" "${dirs[@]}"
-            echo "$shard: ${#dirs[@]} modules, $(du -h "$archive" | cut -f1)"
-          done
+          find artifacts/bin -type d -path '*/release/runtimes/*' ! -name linux-x64 ! -name linux ! -name unix -prune -exec rm -rf {} +
+          tar -I 'zstd -T0 -3 --long=30' -cf artifacts/build.tar.zst artifacts/bin
+          echo "build: $(du -h artifacts/build.tar.zst | cut -f1)"
           df -h /
 
-      # One upload per shard in .github/test-shards.json; a new shard adds a step here and a matrix entry below.
       - uses: actions/upload-artifact@v7
         with:
-          name: test-modules-unit
-          path: artifacts/shards/unit.tar.zst
-          compression-level: 0
-          retention-days: 1
-      - uses: actions/upload-artifact@v7
-        with:
-          name: test-modules-integration-a
-          path: artifacts/shards/integration-a.tar.zst
-          compression-level: 0
-          retention-days: 1
-      - uses: actions/upload-artifact@v7
-        with:
-          name: test-modules-integration-b
-          path: artifacts/shards/integration-b.tar.zst
-          compression-level: 0
-          retention-days: 1
-      - uses: actions/upload-artifact@v7
-        with:
-          name: test-modules-integration-c
-          path: artifacts/shards/integration-c.tar.zst
-          compression-level: 0
-          retention-days: 1
-      - uses: actions/upload-artifact@v7
-        with:
-          name: test-modules-integration-d
-          path: artifacts/shards/integration-d.tar.zst
+          name: build
+          path: artifacts/build.tar.zst
           compression-level: 0
           retention-days: 1
 
@@ -211,16 +149,16 @@ jobs:
           retention-days: 7
 
   test:
-    name: test (${{ matrix.shard }})
+    name: test (${{ matrix.tier }})
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        shard: [unit, integration-a, integration-b, integration-c, integration-d]
+        tier: [Unit, Integration, Hosting]
     steps:
-      # Facts read the repository (the solution, sources, golden files); the modules unpack into artifacts/bin under it.
+      # Facts read the repository. The build unpacks into artifacts/bin, where --no-build expects it.
       - uses: actions/checkout@v7
 
       - uses: actions/setup-dotnet@v6
@@ -229,35 +167,24 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: test-modules-${{ matrix.shard }}
-          path: artifacts/shards
+          name: build
+          path: artifacts
 
-      - name: Unpack test modules
-        run: tar -I 'zstd -d --long=30' -xf artifacts/shards/${{ matrix.shard }}.tar.zst
-
-      - name: Resolve shard globs
-        id: globs
-        run: |
-          globs=()
-          while read -r dll; do
-            [ -f "$dll" ] || { echo "::error::$dll missing from the shard archive"; exit 1; }
-            globs+=("$dll")
-          done < artifacts/shards/${{ matrix.shard }}.txt
-          echo "${#globs[@]} modules"
-          echo "value=$(IFS=';'; echo "${globs[*]}")" >> "$GITHUB_OUTPUT"
+      - name: Unpack the build
+        run: tar -I 'zstd -d --long=30' -xf artifacts/build.tar.zst
 
       - name: Test
-        run: dotnet test --test-modules "${{ steps.globs.outputs.value }}" --max-parallel-test-modules 2 --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=${{ matrix.tier }} -p:CodeGraphRefresh=false --filter "Tier=${{ matrix.tier }}" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
 
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: trx-${{ matrix.shard }}
+          name: trx-${{ matrix.tier }}
           path: artifacts/trx
           retention-days: 7
 
   # framework/ (the DigitalBrain framework, folded in 06-00) keeps its own build props, so its test output stays under
-  # framework/**/bin rather than artifacts/bin and the shard archive never sees it; these jobs carry the former
+  # framework/**/bin rather than artifacts/bin and the build archive never sees it; these jobs carry the former
   # digitalbrain ci: unit, analyzer, testing and runtime facts (framework-test), the e2e (framework-e2e), the template
   # smoke (framework-template) and the DX-04 pack-and-build proof (dx04-packages).
   framework-test:
@@ -403,7 +330,7 @@ jobs:
 
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
-  # shard reports the whole run instead of only the rerun jobs (attempts/N/jobs lists only that attempt's jobs).
+  # tier job reports the whole run instead of only the rerun jobs (attempts/N/jobs lists only that attempt's jobs).
   report:
     name: report
     needs: [format, build, test]
