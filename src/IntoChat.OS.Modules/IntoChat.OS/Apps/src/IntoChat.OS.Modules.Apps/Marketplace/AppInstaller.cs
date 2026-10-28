@@ -101,7 +101,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
 
     // Every capability the app requires must be provided by a connected connection in this brain, before any state is
     // created. A requirement is a need, never a grant: this only reads connections and grants nothing.
-    private async Task CheckCapabilities(string scope, AppManifest manifest, CancellationToken ct)
+    internal async Task CheckCapabilities(string scope, AppManifest manifest, CancellationToken ct)
     {
         foreach (var capability in manifest.Requires?.Capabilities ?? [])
         {
@@ -114,7 +114,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
     private static AppRequirements? Recorded(AppRequirements requires) => AppConsent.IsEmpty(requires) ? null : requires;
 
     // Each binding names a slot the manifest declares and one of this brain's live connections of that slot's connector.
-    private async Task<string?> Unbound(string scope, AppManifest manifest, Dictionary<string, string>? bindings, CancellationToken ct)
+    internal async Task<string?> Unbound(string scope, AppManifest manifest, Dictionary<string, string>? bindings, CancellationToken ct)
     {
         if (bindings is not { Count: > 0 }) { return null; }
         var connections = await plain.Get<IConnectionRequests>(IConnectionRequests.Key(scope)).ListConnections().WaitAsync(ct);
@@ -131,7 +131,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
 
     // A person, not an app or a script, who owns this brain: its Owner member, or the Open posture's owner in its own
     // brain, by the same rule the brain's authority grants with.
-    private async Task<bool> IsOwner(string scope, CallerContext? caller)
+    internal async Task<bool> IsOwner(string scope, CallerContext? caller)
         => identity is not null && caller is { Kind: CallerKind.User } && caller.StampedBy != TrustedEdge.AppProxy
             && BrainScope.Create(caller.AccountId, caller.BrainId).Id == scope
             && (AuthOptions.IsOpenPostureOwner(auth?.Value.Posture, caller)
@@ -151,7 +151,7 @@ public sealed class AppInstaller(IntoChat.OS.Runtime.IPlainNeurons plain, Market
     }
 
     // Installing is the one consent the install view asks for: the owner grants the app every semantic type it reads, always.
-    private async Task Grant(string appKey, string[]? types, CallerContext? caller, CancellationToken ct)
+    internal async Task Grant(string appKey, string[]? types, CallerContext? caller, CancellationToken ct)
     {
         if (types is not { Length: > 0 }) { return; }
         if (identity is null || caller is null) { throw new UnauthorizedAccessException(OwnerOnly); }

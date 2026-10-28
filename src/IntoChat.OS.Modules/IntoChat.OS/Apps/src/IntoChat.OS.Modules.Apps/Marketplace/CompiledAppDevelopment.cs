@@ -3,7 +3,7 @@ using IntoChat.OS.Framework;
 namespace IntoChat.OS.Modules.Apps;
 
 internal sealed class CompiledAppDevelopment(IntoChat.OS.Runtime.IPlainNeurons plain, CompiledAppInstaller installer,
-    CompiledAppPackages packages, TimeProvider clock)
+    CompiledAppPackages packages, ICompiledAppAssignment assignment, TimeProvider clock)
 {
     private readonly CompiledAppDevelopmentLeases leases = new(clock);
     internal async Task<CompiledAppDevelopmentLease> Begin(string name, string project, Guid operationId, long expectedRevision,
@@ -13,7 +13,7 @@ internal sealed class CompiledAppDevelopment(IntoChat.OS.Runtime.IPlainNeurons p
         ArgumentException.ThrowIfNullOrWhiteSpace(project);
         var owner = await installer.RequireOwner(ct);
         var snapshot = await plain.Get<IApp>(IApp.Key(owner.BrainId, name)).Read().WaitAsync(ct);
-        var active = snapshot.ActiveCompiled ?? throw new InvalidOperationException("Install and approve the initial package first.");
+        var active = await assignment.Current(owner.BrainId, name, snapshot, ct) ?? throw new InvalidOperationException("Install and approve the initial package first.");
         if (snapshot.MigrationTarget is not null || !active.DispatchReady || operationId == Guid.Empty || active.Receipt.Brain != owner.BrainId || active.Receipt.Name != name || active.OperationId != operationId || active.Revision != expectedRevision
             || snapshot.ProgramRevision != expectedRevision || active.Receipt.AccountId != owner.AccountId
             || active.Receipt.PrincipalId != owner.PrincipalId)

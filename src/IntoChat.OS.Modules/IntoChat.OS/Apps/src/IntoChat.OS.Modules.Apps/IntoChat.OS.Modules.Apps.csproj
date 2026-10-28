@@ -8,6 +8,8 @@
   <ItemGroup>
     <ProjectReference Include="../../../../../../features/os/Files/compiled/IntoChat.Files.csproj" PrivateAssets="all" />
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Apps.Packaging/DigitalBrain.Apps.Packaging.csproj" />
     <Compile Include="../../../../../../features/os/Files/hosting/*.cs" Link="Files/%(Filename)%(Extension)" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />

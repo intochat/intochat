@@ -21,7 +21,13 @@ internal static class CompiledAppDevelopmentEndpoints
             => AppsEndpoints.Respond(async () => Results.Ok(await development.Renew(body.Token, body.Project, ct))));
         routes.MapPost("/revoke", (LeaseBody body, [FromServices] CompiledAppDevelopment development, CancellationToken ct)
             => AppsEndpoints.Respond(async () => { await development.Revoke(body.Token, body.Project, ct); return Results.NoContent(); }));
-        routes.MapPost("/reload", (ReloadBody body, IIntoChatOS brain, CancellationToken ct)
-            => AppsEndpoints.Respond(async () => Results.Ok(AppsEndpoints.View(await brain.Get<IApp>(IApp.Key(BrainScope.CurrentId(), body.Name)).ReloadCompiled(body.Reload).WaitAsync(ct)))));
+        routes.MapPost("/reload", (ReloadBody body, [FromServices] CompiledAppDevelopment development,
+            [FromServices] ICompiledAppAssignment assignment, IIntoChatOS brain, CancellationToken ct)
+            => AppsEndpoints.Respond(async () =>
+        {
+            var snapshot = await brain.Get<IApp>(IApp.Key(BrainScope.CurrentId(), body.Name)).Read().WaitAsync(ct);
+            var authorized = await development.Authorize(body.Reload, body.Name, snapshot.ProgramRevision, snapshot.Connections, ct);
+            return Results.Ok(AppsEndpoints.View(await assignment.Assign(authorized, ct)));
+        }));
     }
 }

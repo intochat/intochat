@@ -36,6 +36,21 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
+        services.TryAddSingleton<CompiledAppReviewStore>();
+        services.TryAddSingleton<CompiledAppInstaller>();
+        services.TryAddSingleton<CompiledAppDevelopment>();
+        // TODO Phase 8 Task 3: replace with the Sandbox assignment.
+        services.TryAddSingleton<ICompiledAppAssignment, UnassignedCompiledApps>();
+        services.TryAddSingleton(_ => new CompiledAppPackages(
+            Path.Combine(DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).Apps, "packages"),
+            new[]
+            {
+                typeof(DigitalBrain.App).Assembly,
+                typeof(DigitalBrain.UI.IPresenter).Assembly,
+                typeof(DigitalBrain.Capabilities.Storage.IStorage).Assembly,
+                typeof(DigitalBrain.Capabilities.Secrets.ISecrets).Assembly,
+                typeof(DigitalBrain.Capabilities.Identity.IIdentity).Assembly,
+            }.Select(assembly => assembly.GetName()).ToDictionary(name => name.Name!, name => name.Version!.ToString(), StringComparer.Ordinal)));
         services.TryAddSingleton<AppWorkQueue>();
         services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
@@ -53,6 +68,8 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
             Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
+        CompiledAppsEndpoints.Map(endpoints);
+        CompiledAppDevelopmentEndpoints.Map(endpoints);
     }
 }
 
