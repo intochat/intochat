@@ -1249,7 +1249,14 @@ internal sealed class BrainRuntimeNeuron(
         if (!PlainSources.TryParse(key, out var source)) { return; }
         foreach (var owner in verdicts.Select(verdict => verdict.Key.Program).Concat(Snapshot.Programs.Select(program => program.Owner)).Distinct(StringComparer.Ordinal))
         { await PlainSignals.Session(Brain, PlainSources.SessionOf(owner)).Unsubscribe(source); }
-    }
+        // A reassigned program's new build can subscribe to this source while the unsubscribe above is still on its way: the
+        // source then sees the subscribe first and the unsubscribe last, and the new build would hear nothing. A source that
+        // is named again is watched again, and read, because what it published during the gap was never pushed.
+        if (_plain.Contains(key))
+        {
+            await PlainWatchAsync(key, required: null);
+            await Self<IBrainRuntimeArrivals>(arrivals => arrivals.Read(key));
+        }
     }
 
     // One long-poll per program session while it holds a plain source: each batch names the sources that spoke, and each is read
@@ -1287,10 +1294,12 @@ internal sealed class BrainRuntimeNeuron(
         }
     }
 
-    // A program that no longer subscribes to any plain source ends its session, which removes its synapses.
+    // A program that is no longer assigned ends its session, which removes its synapses. An assigned program keeps its session even
+    // while it holds no subscription: a reassigned program drops its old subscriptions before the new build subscribes again, and
+    // an end sent in between would reach the session after the new build's subscribe and silence it.
     private void StopIdlePlainSessions()
     {
-        var owners = Snapshot.Subscriptions.Where(s => PlainSources.Is(s.Neuron)).Select(s => Find(s.Behavior)?.Owner).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        var owners = Snapshot.Programs.Select(program => program.Owner).ToHashSet(StringComparer.Ordinal);
         foreach (var owner in _plainLoops.Keys.Where(owner => !owners.Contains(owner)).ToArray())
         {
             _plainLoops[owner].Cancel();
