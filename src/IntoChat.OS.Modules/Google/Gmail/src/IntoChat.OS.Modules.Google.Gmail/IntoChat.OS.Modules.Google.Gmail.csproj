@@ -17,7 +17,6 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
     <PackageReference Include="MimeKit" />
-    <PackageReference Include="Microsoft.Orleans.Reminders" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />

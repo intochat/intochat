@@ -9,6 +9,22 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // test projects keep their own shrink-only ratchet (ObserverPathOwners.json), since a fact may drive the client API.
 public sealed partial class NoSignalLoopFacts
 {
+    private static readonly string[] ClientAndPrompt =
+    [
+        "IntoChat.OS/Runtime/Watch/Sources.cs",
+        "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs",
+        "IntoChat.OS.Modules.Apps/Authoring/AgentPrompts.cs",
+        "IntoChat.OS.Modules.Microsoft.CSharp/Authoring/CSharpScriptSandbox.cs",
+        "IntoChat.OS.Modules.Microsoft.CSharp/Catalog/CSharpContractDiscovery.cs",
+        "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/AppRunner.cs",
+    ];
+
+    [GeneratedRegex(@"WatchRenewing\(|\bObserverManager\b|\bINeuronObserver\b|\bI?LocalSignalHub\b|\bSignalNudge\b|\.Watch\(|\.Unwatch\(", RegexOptions.CultureInvariant)]
+    private static partial Regex ObserverPath();
+
+    [GeneratedRegex(@"await\s+foreach\s*\([^\n]*?\.On\s*[<(]", RegexOptions.CultureInvariant)]
+    private static partial Regex SignalLoop();
+
     [GeneratedRegex(@"\b(?:Task|ValueTask)\b[^\n;=]*\s(?:Watch|Unwatch)\s*\(|\bSignalPage\b[^\n;=]*\sRead\s*\(", RegexOptions.CultureInvariant)]
     private static partial Regex LegacyMember();
 
@@ -23,12 +39,12 @@ public sealed partial class NoSignalLoopFacts
     [Fact]
     public void NoSignalLoops()
     {
-        var allowed = ObserverPathFacts.AllowList().Select(entry => entry.File).ToHashSet(StringComparer.Ordinal);
+        var allowed = ClientAndPrompt.ToHashSet(StringComparer.Ordinal);
         var offenders = Production()
-            .Where(file => ObserverPathFacts.ObserverPath().IsMatch(file.Text) || (!allowed.Contains(file.Key) && ObserverPathFacts.SignalLoop().IsMatch(file.Text)))
+            .Where(file => ObserverPath().IsMatch(file.Text) || (!allowed.Contains(file.Key) && SignalLoop().IsMatch(file.Text)))
             .Select(file => file.Key).Order(StringComparer.Ordinal).ToArray();
         Assert.True(offenders.Length == 0,
-            "Signal loops or legacy observer use in production code; write an [On] reaction or a synapse (or name client/session API and prompt text in SignalLoopAllowList.json):\n"
+            "Signal loops or legacy observer use in production code; write an [On] reaction or a synapse:\n"
             + string.Join('\n', offenders));
     }
 

@@ -310,3 +310,30 @@ Tests:
 - `DigitalBrain.Testing.Tests.Unit`: 316 passed, 0 failed, 17 skipped.
 
 Left failing: the same `Spi_is_interfaces_only` fact. Step 5 did not change `CoreVocabularyFacts` or the two Spi records.
+
+## Step 6 — Ratchets
+
+`cutover(6): spi records to core` (`b41256505`) moved `ObservedSynapse` and `SignalDelivery` from `DigitalBrain.Spi` to `DigitalBrain`, next to `Synapse`. `IBrainObserver` stays in `Spi`. `Spi_is_interfaces_only` is green after that commit.
+
+Deleted 39 files, 4212 lines. That is every `*OnlyShrink` fact, every `Capture*` fact, `ContractOwnershipCompatibilityFacts`, and every architecture pin JSON except `ContractManifest.json` (regenerated from the current capture). Scripts deleted: `scripts/capture-all.ps1`, `scripts/capture-all.sh`, `scripts/keys-only-check.ps1`. `CONTRIBUTING.md` no longer points at those scripts. `framework/tests/DigitalBrain.Architecture.Tests.Unit` was not edited. No Dart fact was added. `ShippedApps` / `AppSource.Shipped` stay for the folder scripts; no fact was added about them.
+
+`ModuleTestTierFacts.InProcessHosts` is `DigitalBrain.Testing.Silo`. `TestTierBaseline.json` and the `ReferenceBrain` token are gone. The provider-key fact is `OnlyTheAiModuleAndTheIdentityModuleTouchBrainProviderKeys`, so the source does not contain the substring `ReferenceBrain`. The 24 concrete persisted collections live in `PersistedStateRules.UnmigratedConcreteCollections` (the set does not grow). Drive `storage@1` stays special-cased: there is still no in-process kit.
+
+Orleans reach (`OrleansBanFacts`): the shrinking allow-list is exactly `IntoChat.OS.Kernel.Composition`, `IntoChat.OS.Modules.AI`, `IntoChat.OS.Modules.Flutter`, `IntoChat.OS.Modules.Microsoft.CSharp`, `IntoChat.Cloud.Circle.Server`. The comment on that array says it shrinks to zero in 0.8.0. Identity and Apps are not on that list. They are a separate closed pair, `UnportedGrainModules`, because they still compile grains; they leave in 0.8.0 with the five. The silo process (`IntoChat.OS`, `IntoChat.OS.Framework`, `IntoChat.OS.Client`, `IntoChat.OS.Client.Orleans`, `IntoChat.OS.Aspire.Server`, `IntoChat.OS.Aspire.Client`) is a separate permanent set so the kernel can boot. It is not the shrinking allow-list. `[GenerateSerializer]` is wire format and is not this ban. Unused `using Orleans` imports were removed from Circles, Postgres, and GitHub. Gmail and the Aspire module dropped the Reminders package they no longer call.
+
+Identity gained `IntoChat.OS.Modules.Identity.Tests.Unit` (TestOS plus the secrets and identity conformance kits) and `IntoChat.OS.Modules.Identity.Tests.Integration` (`SiloHost.Local`, home in a temp directory). `IntoChat.OS.Kernel.Composition.Tests.Integration` references `DigitalBrain.Testing.Silo`.
+
+`dotnet build Intochat.OS.slnx -c Release`: Build succeeded. 0 Warning(s). 0 Error(s). Time Elapsed 00:00:07.27.
+
+Tests:
+
+- `IntoChat.OS.Architecture.Tests.Unit`: 205 passed, 0 failed.
+- `IntoChat.OS.Modules.Identity.Tests.Unit`: 39 passed, 0 failed.
+- `IntoChat.OS.Modules.Identity.Tests.Integration`: 1 passed, 0 failed.
+- `IntoChat.OS.Kernel.Composition.Tests.Integration`: 3 passed, 0 failed.
+
+`TestShardFacts` and `.github/test-shards.json` stay until step 7. The Flutter integration pin in that JSON is the only remaining pin.
+
+### Step 6 status
+
+Deleted 39 files, 4212 lines: the shrink ratchets, the capture facts, and every pin JSON except `ContractManifest.json`. Ported nothing new. The architecture suite was red on stale pins, deleted project names, and unlogged catches; the pins were deleted or recaptured, the identity module got its two test projects, and a catch that classifies or logs its exception now satisfies `SwallowFacts`. Release build 0 errors, 0 warnings. Touched tests: 248 passed, 0 failed. Deferred to step 7: shard JSON, the md5 bucket script, and `TestShardFacts`. Deferred to 0.8.0: the five-assembly Orleans allow-list, the Identity and Apps grains, and the silo-host assemblies (those hosts are not on the shrinking list).

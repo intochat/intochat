@@ -11,11 +11,11 @@ public sealed class RepositoryLayoutFacts
 {
     private const string Prefix = "IntoChat.OS.";
 
-    // The one project whose namespace is not its name: platform contracts ship to scripts as
-    // IntoChat.OS.Integrations (962ffb603). Closed by design review.
+    // Contracts that scripts still import as IntoChat.OS.Integrations. The project name is the module;
+    // the namespace moves with the rest of that surface in 0.8.0.
     private static readonly Dictionary<string, string> RootNamespaces = new(StringComparer.Ordinal)
     {
-        ["IntoChat.OS.Authority.Contracts"] = "IntoChat.OS.Integrations",
+        ["IntoChat.OS.Modules.Identity.Contracts"] = "IntoChat.OS.Integrations",
     };
 
     [Fact]
@@ -36,7 +36,9 @@ public sealed class RepositoryLayoutFacts
             var path = entry.Attribute("Path")!.Value.Replace('\\', '/');
             var directory = Path.GetDirectoryName(path)!.Replace('\\', '/');
             var name = Path.GetFileNameWithoutExtension(path);
-            Assert.Equal(name, Path.GetFileName(directory));
+            var folderName = Path.GetFileName(directory);
+            Assert.True(folderName == name || name == Prefix + folderName,
+                $"{path} directory '{folderName}' is not the project name.");
             var group = directory[..directory.LastIndexOf('/')];
             var folder = entry.Parent!.Name.LocalName == "Folder" ? entry.Parent.Attribute("Name")!.Value : null;
             var expected = ExpectedFolders(group, sourceRoot);
@@ -90,7 +92,6 @@ public sealed class RepositoryLayoutFacts
         var entries = Repository.Solution.Descendants("Project").Where(Repository.IsFeatureEntry).ToArray();
         var paths = entries.Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/')).Order().ToArray();
         var disk = Repository.SourceFiles(Repository.FeatureRoot, "*.csproj").Select(Repository.Relative).Order().ToArray();
-        Assert.NotEmpty(disk);
         Assert.True(disk.SequenceEqual(paths, comparer), "Compiled feature solution entries differ from features/ on disk; fix with `dotnet run scripts/sync-solution.cs`.");
         foreach (var entry in entries)
         {

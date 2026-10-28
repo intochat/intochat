@@ -19,7 +19,8 @@ public sealed class CredentialBoundaryFacts
     [Fact]
     public void NoModuleConstructsACallerContext()
     {
-        var offenders = ModuleMethods().Where(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext)) || SetsAPlatformStamp(m))
+        var offenders = ModuleMethods().Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity")
+            .Where(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext)) || SetsAPlatformStamp(m))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
         Assert.Empty(offenders);
     }
@@ -31,16 +32,17 @@ public sealed class CredentialBoundaryFacts
     [Fact]
     public void OnlyTheIntegrationReleaseConstructsAPlatformStamp()
     {
-        var platform = ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == "IntoChat.OS.Authority");
+        var platform = ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == "IntoChat.OS.Modules.Identity");
         var methods = platform.GetTypes().Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).Cast<MethodBase>()
                 .Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)))
             .ToArray();
         string[] Sites(Func<MethodBase, bool> does) => [.. methods.Where(does).Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order()];
 
-        Assert.Equal(["IntoChat.OS.Authority.Integrations.IntegrationNeuron"],
+        Assert.Equal(["IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
             Sites(SetsAPlatformStamp));
-        Assert.Equal(["IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.Integrations.IntegrationNeuron"],
+        Assert.Equal(
+            ["IntoChat.OS.Authority.DirectoryPort", "IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
             Sites(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext))));
     }
 
@@ -86,7 +88,8 @@ public sealed class CredentialBoundaryFacts
     public void RuntimeModulesCannotBypassIntegrationHandles()
     {
         var offenders = ModuleMethods().Where(m =>
-            !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
+            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity"
+            && !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal))
             .Where(m => Calls(m).Any(c => c.DeclaringType == typeof(IIntegration)
                 || (c.IsGenericMethod && c.GetGenericArguments().Contains(typeof(IIntegration)))
@@ -96,18 +99,16 @@ public sealed class CredentialBoundaryFacts
     }
 
     // IBrainProviderKeys releases a brain's plaintext provider key to whoever injects it, so only the
-    // AI module (its one consumer) and Authority (its implementation) may reference it. It is a public SPI of
-    // Connections since 02-09a (no InternalsVisibleTo), so the guard is the reference scan below, which counts
-    // typeof/ldtoken lookups, plus its home outside every script-visible assembly.
+    // AI module (its one consumer) and the identity module (its implementation) may reference it.
     [Fact]
-    public void BrainProviderKeysLivesInConnections()
-        => Assert.Equal("IntoChat.OS.Connections", typeof(IBrainProviderKeys).Assembly.GetName().Name);
+    public void BrainProviderKeysLivesInTheIdentityModule()
+        => Assert.Equal("IntoChat.OS.Modules.Identity", typeof(IBrainProviderKeys).Assembly.GetName().Name);
 
     [Fact]
-    public void OnlyTheAiModuleAndAuthorityReferenceBrainProviderKeys()
+    public void OnlyTheAiModuleAndTheIdentityModuleTouchBrainProviderKeys()
     {
         var keys = typeof(IBrainProviderKeys);
-        string[] allowed = ["IntoChat.OS.Connections", "IntoChat.OS.Authority", "IntoChat.OS.Modules.AI"];
+        string[] allowed = ["IntoChat.OS.Modules.Identity", "IntoChat.OS.Modules.AI"];
         var offenders = ProductionArchitecture.Assemblies.Where(a => !allowed.Contains(a.GetName().Name))
             .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)

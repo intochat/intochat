@@ -200,7 +200,7 @@ jobs:
         run: |
           dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
 
-      # The solution build packs every features/os program (src/IntoChat.OS.BuiltinApps); check all 19 packages.
+      # The solution build packs the features/os programs; check the built packages.
       - name: Check built-in app packages
         run: python3 scripts/check-app-packages.py compiled-apps/os features/os
 

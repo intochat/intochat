@@ -132,7 +132,10 @@ internal sealed class BrainSceneHost(
                 await scene.Set(definition, revision);
                 return;
             }
-            catch (RevisionConflictException) when (attempt == 0) { }
+            catch (RevisionConflictException error) when (attempt == 0)
+            {
+                logger.LogDebug(error, "The brain scene for {Brain} was written again after a revision conflict.", brain);
+            }
         }
         cancellationToken.ThrowIfCancellationRequested();
     }

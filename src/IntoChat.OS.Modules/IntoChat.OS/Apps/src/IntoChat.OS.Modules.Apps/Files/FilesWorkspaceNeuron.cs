@@ -1,5 +1,7 @@
 using System.Globalization;
 using DigitalBrain;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
@@ -78,7 +80,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         await Field("content").Configure("File content", "multiline");
         foreach (var slot in new[] { "side", "main", "full" })
         { await Context.Synapses.Ensure<ViewAction>(new(Id.Brain, UIVocabulary.ViewType, AppPath + "/" + slot)); }
-        foreach (var operation in State.Operations.Where(item => !item.Done)) { await Watch(operation.Id, ct); }
+        foreach (var operation in State.Operations.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
 
@@ -149,7 +151,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                         Operations = [.. State.Operations.Where(item => !item.Done).Concat(State.Operations.Where(item => item.Done).TakeLast(23)),
                             new(started.Id.Value, plan.DryRun ? "Dry run" : operation == "delete" ? "Move to trash" : operation, 0, "Waiting or working")],
                     });
-                    await Watch(started.Id.Value, ct); break;
+                    await FollowOperation(started.Id.Value, ct); break;
                 case "cancel":
                     var cancelling = At(State.Operations, input.Index);
                     if (!cancelling.Done) { await Context.Operations.Cancel(new(cancelling.Id), ct); }
@@ -171,7 +173,10 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         if (parts.Length is < 2 or > 3 || !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var revision)) { return; }
         int? index = parts.Length == 3 && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
         try { await Request(parts[1] == "search-all" ? "search" : parts[1], new(Index: index, Everywhere: parts[1] == "search-all"), revision, action.RequestId); }
-        catch (StaleActionException) { }
+        catch (StaleActionException error)
+        {
+            Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files view action was stale.");
+        }
     }
 
     [On]
@@ -209,7 +214,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         await Render();
     }
 
-    private async Task Watch(string operation, CancellationToken ct = default)
+    private async Task FollowOperation(string operation, CancellationToken ct = default)
     {
         var source = new DigitalBrain.NeuronId(Id.Brain, "runtime.operation", operation);
         // Ensure starts a fresh cursor at the tail. Read durable history after subscribing so a fast completion cannot fall

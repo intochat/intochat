@@ -14,7 +14,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Postgres;
 

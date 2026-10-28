@@ -58,9 +58,10 @@ public static class TelemetryExportBarrier
                 }
                 return Results.Ok(new TelemetryExportReceipt(marker, DateTimeOffset.UtcNow));
             }
-            catch (Exception)
+            catch (Exception error)
             {
-                // Do not expose exporter configuration or credentials in diagnostic failures.
+                // The HTTP result stays a status code. The exception reaches the log, not the response.
+                app.Logger.LogDebug(error, "Telemetry export barrier flush failed.");
                 return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
             }
         }).AllowAnonymous(); // The per-run capability above authenticates this opt-in endpoint.

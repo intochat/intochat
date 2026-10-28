@@ -13,8 +13,6 @@
     "integration": 4
   },
   "pins": {
-    "IntoChat.OS.Authority.Tests.Integration": 0,
-    "IntoChat.OS.Modules.Flutter.Tests.Integration": 1,
-    "IntoChat.OS.Framework.Tests.Integration": 2
+    "IntoChat.OS.Modules.Flutter.Tests.Integration": 1
   }
 }

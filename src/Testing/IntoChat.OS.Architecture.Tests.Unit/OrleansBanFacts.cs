@@ -1,94 +1,100 @@
-using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// Phase 6 closure (06-09, success criterion 4): grain interfaces and the attributes that shape a grain's scheduling or storage
-// live only in the kernel composition and with the allow-listed still-grains (NeuronsStillGrains.json, which only shrinks).
-// Strict facts, not ratchets: a new grain interface or grain attribute anywhere else fails at once. The serializer attributes
-// (GenerateSerializer, Id, Alias and their Orleans using) are wire and persisted format, not grain shape; they stay on the
-// OrleansAttributeOwners ratchet until Phase 12 retires the Orleans codecs with Authority. This project (the checker) quotes
-// the attributes in its messages and is not scanned.
-public sealed partial class OrleansBanFacts
+// Orleans stays in DigitalBrain.Runtime.Orleans and in the Microsoft Orleans module.
+// The silo host and its clients are the process that runs that runtime; they are not modules.
+// The module allow-list is exactly the assemblies the ledger still names. It shrinks to zero in 0.8.0.
+// Identity and Apps still compile grain types (the authority grains, and the Apps creator worker).
+// They are a second closed list, not extra names on the shrinking allow-list, and they leave in the same pass.
+public sealed class OrleansBanFacts
 {
-    // Phase 12 vocabulary leftovers, closed: each names why it is not a still-grain's and where it goes. A grain interface
-    // here is one only through the member-less INeuron marker (itself IGrainWithStringKey until Phase 12 drops the marker).
-    private static readonly Dictionary<string, string> Leftovers = new(StringComparer.Ordinal);
+    private static readonly string[] Allow =
+    [
+        "IntoChat.OS.Kernel.Composition",
+        "IntoChat.OS.Modules.AI",
+        "IntoChat.OS.Modules.Flutter",
+        "IntoChat.OS.Modules.Microsoft.CSharp",
+        "IntoChat.Cloud.Circle.Server",
+    ];
 
-    [GeneratedRegex(@"^(?!\s*//).*?\[(?:[\w.]*\s*,\s*)*(?:GrainType|AlwaysInterleave|MayInterleave|ResponseTimeout|PersistentState|StatelessWorker)\b|^(?!\s*//).*\[(?:ReadOnly|OneWay)\]",
-        RegexOptions.CultureInvariant | RegexOptions.Multiline)]
-    private static partial Regex GrainAttribute();
+    private static readonly string[] SiloHost =
+    [
+        "IntoChat.OS",
+        "IntoChat.OS.Framework",
+        "IntoChat.OS.Client",
+        "IntoChat.OS.Client.Orleans",
+        "IntoChat.OS.Aspire.Server",
+        "IntoChat.OS.Aspire.Client",
+    ];
 
-    // Classes that may be grains: the allow-list, and the kernel composition's own grains.
-    private static SourceTypes.Declared[] PermittedGrains()
+    private static readonly string[] UnportedGrainModules =
+    [
+        "IntoChat.OS.Modules.Identity",
+        "IntoChat.OS.Modules.Apps",
+    ];
+
+    [Fact]
+    public void TheModuleAllowListIsExactlyTheLedgerFive()
+        => Assert.Equal(
+            ["IntoChat.Cloud.Circle.Server", "IntoChat.OS.Kernel.Composition", "IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Flutter", "IntoChat.OS.Modules.Microsoft.CSharp"],
+            Allow.Order(StringComparer.Ordinal).ToArray());
+
+    [Fact]
+    public void OrleansStaysInTheRuntimeTheOrleansModuleAndTheAllowList()
     {
-        var allowList = NeuronMigrationFacts.Baseline<string[]>(NeuronMigrationFacts.StillGrainsFile).ToHashSet(StringComparer.Ordinal);
-        return [.. SourceTypes.Grains.Value.Where(type => allowList.Contains(type.FullName) || NeuronMigrationFacts.InKernelComposition(type.FullName))];
-    }
-
-    // The grain interfaces the permitted grains implement, with every grain interface those derive.
-    private static HashSet<string> PermittedInterfaces()
-    {
-        var interfaces = SourceTypes.GrainInterfaces.Value.GroupBy(type => type.Name.Split('`')[0], StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
-        var permitted = new HashSet<string>(StringComparer.Ordinal);
-        var pending = new Queue<string>(PermittedGrains().SelectMany(type => type.Bases));
-        while (pending.TryDequeue(out var name))
+        var offenders = new List<string>();
+        foreach (var project in Repository.Projects.Values.Concat(FrameworkProjects()))
         {
-            if (!interfaces.TryGetValue(name.Split('`')[0], out var matches)) { continue; }
-            foreach (var match in matches.Where(match => permitted.Add(match.FullName)))
+            if (Permitted(project.Name, project.Path)) { continue; }
+            foreach (var package in Repository.PackageReferences(project.Path).Where(package => package.StartsWith("Microsoft.Orleans", StringComparison.Ordinal)))
             {
-                foreach (var next in match.Bases) { pending.Enqueue(next); }
+                offenders.Add($"{project.Name}: PackageReference {package}");
+            }
+            foreach (var file in Repository.SourceFiles(project.Directory, "*.cs"))
+            {
+                if (!Owns(project, file)) { continue; }
+                var text = File.ReadAllText(file);
+                if (ReachesOrleans(text)) { offenders.Add($"{project.Name}: {Repository.Relative(file)}"); }
             }
         }
-        return permitted;
+        Assert.True(offenders.Count == 0,
+            "Orleans is banned outside the runtime, the Orleans module, the silo host, and the 0.8.0 allow-list:\n" + string.Join('\n', offenders.Order(StringComparer.Ordinal)));
     }
 
-    // Leftovers and their derivatives (a test contract whose only grain base is INeuron) are vocabulary, not grain shape.
-    private static bool Leftover(SourceTypes.Declared type)
+    // Grain reach: a package is not required when the framework already flows the attribute.
+    // [GenerateSerializer] is persisted wire format and is not this ban.
+    private static bool ReachesOrleans(string text)
+        => System.Text.RegularExpressions.Regex.IsMatch(text, @"(?m)^\s*using\s+Orleans\b")
+            || text.Contains("IGrainWithStringKey", StringComparison.Ordinal)
+            || text.Contains("IGrainWithIntegerKey", StringComparison.Ordinal)
+            || text.Contains("IGrainFactory", StringComparison.Ordinal);
+
+    private static bool Permitted(string name, string path)
     {
-        if (Leftovers.ContainsKey(type.FullName)) { return true; }
-        var interfaces = SourceTypes.GrainInterfaces.Value.GroupBy(each => each.Name.Split('`')[0], StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
-        var grainBases = type.Bases.Select(name => name.Split('`')[0])
-            .Where(name => SourceTypes.GrainInterfaceRoots.Contains(name) || interfaces.ContainsKey(name)).ToArray();
-        return grainBases.Length > 0 && grainBases.All(name => interfaces.TryGetValue(name, out var bases) && bases.All(Leftover));
+        if (name.Contains(".Tests", StringComparison.Ordinal) || name.Contains(".Testing", StringComparison.Ordinal)) { return true; }
+        var relative = path.Replace('\\', '/');
+        if (relative.Contains("DigitalBrain.Runtime.Orleans", StringComparison.Ordinal)) { return true; }
+        if (relative.Contains("Modules/Microsoft/Orleans", StringComparison.Ordinal)) { return true; }
+        return Allow.Contains(name, StringComparer.Ordinal)
+            || SiloHost.Contains(name, StringComparer.Ordinal)
+            || UnportedGrainModules.Contains(name, StringComparer.Ordinal);
     }
 
-    [Fact]
-    public void GrainInterfacesServeOnlyAllowListedGrains()
-    {
-        var permitted = PermittedInterfaces();
-        var offenders = SourceTypes.GrainInterfaces.Value
-            .Where(type => !NeuronMigrationFacts.InKernelComposition(type.FullName) && !permitted.Contains(type.FullName) && !Leftover(type))
-            .Select(type => $"{type.FullName} ({type.File})").Order(StringComparer.Ordinal).ToArray();
-        Assert.True(offenders.Length == 0,
-            "Grain interfaces no allow-listed still-grain implements; declare a plain contract a [Neuron] class implements (D-11, D-16):\n" + string.Join('\n', offenders));
-    }
+    private static IEnumerable<Repository.Project> FrameworkProjects()
+        => Repository.Solution.Descendants("Project").Where(Repository.IsFrameworkEntry).Select(entry =>
+        {
+            var relative = entry.Attribute("Path")!.Value.Replace('\\', '/');
+            return new Repository.Project(Path.GetFileNameWithoutExtension(relative), Path.GetFullPath(Path.Combine(Repository.Root, relative)), "/framework/");
+        });
 
-    private const string Checker = "IntoChat.OS.Architecture.Tests.Unit/";
-
-    [Fact]
-    public void GrainAttributesStayOnAllowListedGrains()
+    private static bool Owns(Repository.Project project, string path)
     {
-        var permitted = PermittedInterfaces();
-        var files = PermittedGrains().Select(type => type.File)
-            .Concat(SourceTypes.GrainInterfaces.Value.Where(type => permitted.Contains(type.FullName) || Leftovers.ContainsKey(type.FullName)).Select(type => type.File))
-            .ToHashSet(StringComparer.Ordinal);
-        var offenders = Repository.ProjectFiles("*.cs", path => !path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase))
-            .Select(path => (Key: Repository.ProjectKey(path), Text: File.ReadAllText(path)))
-            .Where(file => !NeuronMigrationFacts.InKernelCompositionFile(file.Key) && !file.Key.StartsWith(Checker, StringComparison.Ordinal)
-                && !files.Contains(file.Key) && GrainAttribute().IsMatch(file.Text))
-            .Select(file => file.Key).Order(StringComparer.Ordinal).ToArray();
-        Assert.True(offenders.Length == 0,
-            "Orleans grain attributes outside the kernel composition and the allow-listed still-grains; use the neutral DigitalBrain attributes (D-06):\n"
-            + string.Join('\n', offenders));
-    }
-
-    [Fact]
-    public void LeftoversAreStillGrainInterfaces()
-    {
-        var known = SourceTypes.GrainInterfaces.Value.Select(type => type.FullName).ToHashSet(StringComparer.Ordinal);
-        var stale = Leftovers.Keys.Where(name => !known.Contains(name)).Order(StringComparer.Ordinal).ToArray();
-        Assert.True(stale.Length == 0, "Stale Orleans ban leftovers; drop them from OrleansBanFacts.Leftovers:\n" + string.Join('\n', stale));
+        var full = Path.GetFullPath(path);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var projects = Repository.Projects.Values.Concat(FrameworkProjects());
+        var owner = projects.Where(candidate => full.StartsWith(candidate.Directory + Path.DirectorySeparatorChar, comparison))
+            .MaxBy(candidate => candidate.Directory.Length);
+        return owner?.Name == project.Name;
     }
 }

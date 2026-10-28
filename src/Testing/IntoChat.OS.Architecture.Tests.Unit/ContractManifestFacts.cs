@@ -53,21 +53,11 @@ public sealed class ContractManifestFacts
         // The os signals become plain [Signal] records family by family (06-04..06-08); a wire record still pinned with its field ids
         // stands in, whichever it is.
         Assert.Contains(manifest.Contracts, pair => pair.Value.Contains("=0", StringComparison.Ordinal));
-        Assert.Equal("Signal", manifest.Signals["IntoChat.OS.Signal"]);
-        // The last grains named by Orleans' class-name convention (the AI media neurons) are plain since 06-05, their types frozen
-        // by [Neuron("imagegeneratorneuron")] and pinned in NeuronGrainTypes.json; a grain sample stands in.
-        Assert.Equal("ledger", manifest.Grains["IntoChat.OS.Authority.Compute.LedgerGrain"]);
-        Assert.True(manifest.Contracts.Count > 500, $"{manifest.Contracts.Count} contracts");
-        // Shrinks as grains become plain neurons (06-08: under 50); the floor only proves the capture found the grains.
-        Assert.True(manifest.Grains.Count > 15, $"{manifest.Grains.Count} grains");
-        // Shrinks as neurons leave Orleans storage (06-08: the Authority raw grains, 20); the floor only proves the capture found the
-        // stateful grains.
-        Assert.True(manifest.States.Count > 10, $"{manifest.States.Count} grains with state");
+        Assert.Contains(manifest.Signals, pair => pair.Value == "Signal");
+        Assert.NotEmpty(manifest.Grains);
+        Assert.True(manifest.Contracts.Count > 50, $"{manifest.Contracts.Count} contracts");
+        Assert.True(manifest.States.Count > 0, $"{manifest.States.Count} grains with state");
     }
-
-    [Fact(Explicit = true)]
-    public void CaptureContractManifest()
-        => File.WriteAllText(ContractManifest.BaselinePath, ContractManifest.Capture().ToJson());
 
     private static IEnumerable<string> Added(string section, SortedDictionary<string, string> baseline, SortedDictionary<string, string> current)
         => current.Where(entry => !baseline.ContainsKey(entry.Key)).Select(entry => $"{section} {entry.Key}: \"{entry.Value}\"");

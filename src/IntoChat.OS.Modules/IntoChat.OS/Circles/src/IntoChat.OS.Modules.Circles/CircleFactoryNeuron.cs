@@ -6,6 +6,7 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using DigitalBrain.State;
 using DigitalBrain.Runtime.Orleans.Hosting;
 
@@ -98,7 +99,11 @@ internal sealed class CircleFactoryNeuron(
                 items.AddRange(releases.Where(release => release.Reference.Publisher == listing.Publisher
                     && release.Reference.Source == source && release.Reference.Name == listing.Name));
             }
-            catch (Exception) { unavailable.Add(listing.Publisher); }
+            catch (Exception error)
+            {
+                plain.GetRequiredService<ILogger<CircleFactoryNeuron>>().LogDebug(error, "A publisher feed could not be read.");
+                unavailable.Add(listing.Publisher);
+            }
         }
         return new([.. items.OrderByDescending(item => item.PublishedAt)
             .ThenBy(item => item.Reference.Publisher, StringComparer.Ordinal)

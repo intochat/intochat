@@ -80,21 +80,45 @@ internal static class PersistedStateRules
                 && member.GetCustomAttribute<IdAttribute>()!.Id == 1) { continue; }
             yield return $"{type.FullName}.{member.Name}: persisted collections must use concrete arrays, not collection interfaces";
         }
-        foreach (var name in ConcreteCollectionMembers(type).Where(name => !Baseline.Contains(name)))
+        foreach (var name in ConcreteCollectionMembers(type).Where(name => !UnmigratedConcreteCollections.Contains(name)))
         {
             yield return $"{name}: persisted collections must be arrays (a keyed map is an entry array), not Dictionary/List/HashSet/SortedDictionary/Queue/Stack";
         }
     }
 
-    // QUAL-03: persisted state holds arrays. A member that still holds a concrete collection is listed here
-    // (type full name + "." + member), never grows, and goes away with its migration. A member marked
-    // [LegacyShape] is the read-only older form of a migrated member and is exempt.
+    // Members that still store a concrete collection. There is no JSON pin: this set is the list, it does not grow,
+    // and a member leaves it only when its stored shape becomes an array. [LegacyShape] members are exempt above.
+    internal static readonly HashSet<string> UnmigratedConcreteCollections = new(StringComparer.Ordinal)
+    {
+        "IntoChat.OS.Modules.AI.Embeddings.VectorEntry.Payload",
+        "IntoChat.OS.Modules.AI.Metering.IntentUsageStorage.Entries",
+        "IntoChat.OS.Modules.AI.Routing.RouteResult.Probabilities",
+        "IntoChat.OS.Modules.Apps.AppBundle.Files",
+        "IntoChat.OS.Modules.Apps.AppPresentation.Blackboard",
+        "IntoChat.OS.Authority.Identity.Authority.AccountState.BrainOperations",
+        "IntoChat.OS.Authority.Identity.Authority.BrainAuthorityState.Members",
+        "IntoChat.OS.Authority.Integrations.IntegrationState.Settings",
+        "IntoChat.OS.Authority.Secrets.SecretsState.Fields",
+        "IntoChat.OS.Modules.Flame.Scene.SceneNode.Parameters",
+        "IntoChat.OS.Modules.Flutter.Calendar.CalendarState.Selected",
+        "IntoChat.OS.Modules.Flutter.Card.CardState.Children",
+        "IntoChat.OS.Modules.Flutter.Chart.ChartState.Points",
+        "IntoChat.OS.Modules.Flutter.Expander.ExpanderState.Children",
+        "IntoChat.OS.Modules.Flutter.Form.FormFieldState.Choices",
+        "IntoChat.OS.Modules.Flutter.Form.FormState.Fields",
+        "IntoChat.OS.Modules.Flutter.Graph.GraphState.Edges",
+        "IntoChat.OS.Modules.Flutter.Graph.GraphState.Nodes",
+        "IntoChat.OS.Modules.Flutter.Map.MapState.Markers",
+        "IntoChat.OS.Modules.Flutter.Sheet.SheetState.Cells",
+        "IntoChat.OS.Modules.Flutter.Table.TableState.Columns",
+        "IntoChat.OS.Modules.Flutter.Table.TableState.Rows",
+        "IntoChat.OS.Modules.Flutter.Tabs.TabsState.Tabs",
+        "IntoChat.OS.Modules.Flutter.Tree.TreeState.Nodes",
+    };
+
     internal static IEnumerable<string> ConcreteCollectionMembers(Type type) => Members(type)
         .Where(member => !member.IsDefined(typeof(LegacyShapeAttribute)) && ContainsConcreteCollection(ContractRules.MemberType(member)))
         .Select(member => $"{type.FullName}.{member.Name}");
-
-    internal static readonly HashSet<string> Baseline = JsonSerializer.Deserialize<string[]>(
-        File.ReadAllText(Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "PersistedStateCollectionBaseline.json")))!.ToHashSet(StringComparer.Ordinal);
 
     private static readonly Type[] ConcreteCollections =
         [typeof(Dictionary<,>), typeof(List<>), typeof(HashSet<>), typeof(SortedDictionary<,>), typeof(Queue<>), typeof(Stack<>)];

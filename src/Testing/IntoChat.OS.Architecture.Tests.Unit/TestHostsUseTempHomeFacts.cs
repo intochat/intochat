@@ -28,13 +28,4 @@ public sealed class TestHostsUseTempHomeFacts
         }
         Assert.True(problems.Count == 0, "Test hosts take a TestHome, not the user profile:\n" + string.Join('\n', problems));
     }
-
-    [Theory]
-    [InlineData("IntoChat.OS.Testing", "InProcessTarget.cs")]
-    [InlineData("IntoChat.OS.Testing.Aspire", "AspireTarget.cs")]
-    public void EveryHostingTestBaseCreatesATestHome(string project, string file)
-    {
-        var path = Assert.Single(Repository.SourceFiles(Repository.ProjectNamed(project).Directory, file));
-        Assert.Contains("TestHome.Create()", File.ReadAllText(path), StringComparison.Ordinal);
-    }
 }

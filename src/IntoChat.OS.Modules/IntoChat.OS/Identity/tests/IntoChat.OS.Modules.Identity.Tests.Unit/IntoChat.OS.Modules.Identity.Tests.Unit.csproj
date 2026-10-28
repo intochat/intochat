@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
+  </ItemGroup>
+</Project>
