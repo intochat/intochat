@@ -9,7 +9,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration" />
-    <ProjectReference Include="../../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>

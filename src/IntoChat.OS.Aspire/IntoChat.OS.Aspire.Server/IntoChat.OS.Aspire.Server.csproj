@@ -11,7 +11,7 @@
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>

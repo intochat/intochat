@@ -19,7 +19,7 @@
     <ProjectReference Include="../../../Azure/Contracts/IntoChat.OS.Modules.Microsoft.Azure.Contracts/IntoChat.OS.Modules.Microsoft.Azure.Contracts.csproj" />
     <ProjectReference Include="../../../../AI/Contracts/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
 
-    <ProjectReference Include="../../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../../../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>

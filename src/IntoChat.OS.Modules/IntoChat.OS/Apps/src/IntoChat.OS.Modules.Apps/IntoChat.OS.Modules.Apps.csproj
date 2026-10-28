@@ -17,7 +17,7 @@
     <ProjectReference Include="../../../../Microsoft/CSharp/Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
     <ProjectReference Include="../../../../AI/Contracts/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" /></ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />

@@ -33,7 +33,7 @@
   <ItemGroup>
     <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
     <ProjectReference Include="../../../IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
-    <ProjectReference Include="../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
   </ItemGroup>
 
   <ItemGroup>

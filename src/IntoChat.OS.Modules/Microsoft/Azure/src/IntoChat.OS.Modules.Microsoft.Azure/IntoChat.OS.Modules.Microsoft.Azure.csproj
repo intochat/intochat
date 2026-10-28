@@ -8,7 +8,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit" />
     <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.Microsoft.Azure.Contracts/IntoChat.OS.Modules.Microsoft.Azure.Contracts.csproj" />
-    <ProjectReference Include="../../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Identity" />

@@ -20,7 +20,7 @@
     <PackageReference Include="Microsoft.Orleans.Reminders" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority.Contracts/IntoChat.OS.Authority.Contracts.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Tools/Contracts/IntoChat.OS.Modules.Tools.Contracts/IntoChat.OS.Modules.Tools.Contracts.csproj" />
   </ItemGroup>

@@ -4,7 +4,7 @@
     <ProjectReference Include="../IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <!-- RetiredKeyFacts reads the retired table of LegacyConfigurationGuard. -->
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
-    <ArchitectureProject Include="../../IntoChat.OS/**/*.csproj;../../IntoChat.OS.AppHost/**/*.csproj;../../IntoChat.OS.Client/**/*.csproj;../../IntoChat.OS.Framework/**/*.csproj;../../IntoChat.OS.Connections/**/*.csproj;../../IntoChat.OS.Mcp/**/*.csproj;../../IntoChat.OS.Kernel/**/*.csproj;../../IntoChat.OS.Authority/**/*.csproj;../../IntoChat.OS.Trust/**/*.csproj;../../IntoChat.OS.Modules/**/*.csproj"
+    <ArchitectureProject Include="../../IntoChat.OS/**/*.csproj;../../IntoChat.OS.AppHost/**/*.csproj;../../IntoChat.OS.Client/**/*.csproj;../../IntoChat.OS.Connections/**/*.csproj;../../IntoChat.OS.Mcp/**/*.csproj;../../IntoChat.OS.Kernel/**/*.csproj;../../IntoChat.OS.Authority/**/*.csproj;../../IntoChat.OS.Trust/**/*.csproj;../../IntoChat.OS.Modules/**/*.csproj"
                          Exclude="../../**/tests/**;../../**/*.Generators.csproj;../../**/*.Generators.Tests.*/**;../../**/*.Tests.csproj;../../**/*.Tests.*.csproj;../../**/*.Testing/**;../../**/*.Aspire.Hosting/**;../../**/*.Deployment/**;../../**/*.Sandbox/**" />
     <ProjectReference Include="@(ArchitectureProject)" />
     <None Include="NonExportableStates.json;ExportedStateBaseline.json" CopyToOutputDirectory="PreserveNewest" />

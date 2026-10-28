@@ -8,6 +8,6 @@
     <ProjectReference Include="../IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
     <ProjectReference Include="../../../../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>

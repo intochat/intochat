@@ -8,7 +8,7 @@
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser" />
     <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.Microsoft.Playwright.Contracts/IntoChat.OS.Modules.Microsoft.Playwright.Contracts.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Tools/Contracts/IntoChat.OS.Modules.Tools.Contracts/IntoChat.OS.Modules.Tools.Contracts.csproj" />
-    <ProjectReference Include="../../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" /></ItemGroup>
 </Project>
