@@ -59,7 +59,7 @@ internal static class AppRunner
     {
         try { await definition.Invoke(instance, operation, Argument(definition.FindOperation(operation)!, request.Input), Json, stopping).ConfigureAwait(false); }
         catch (Exception error) when (error is not OperationCanceledException)
-        { Console.Error.WriteLine($"{definition.Manifest.Id}.{operation} failed for request {request.RequestId}: {error}"); }
+        { AppLog.Log($"{definition.Manifest.Id}.{operation} failed for request {request.RequestId}: {error}"); }
     }
 
     // A request's input is text. An operation that takes a string gets it as is; one that takes a signal or a value gets it read as JSON,

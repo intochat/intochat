@@ -18,5 +18,6 @@
   "IntoChat.OS.Testing.Tests.Integration/TestHarnessFacts.cs": 1,
   "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/PlainScriptFacts.cs": 1,
   "IntoChat.OS.Authority.Tests.Integration/Neurons/PlainWatchFacts.cs": 2,
-  "IntoChat.OS.Authority.Tests.Integration/Neurons/ConfirmationWatchFacts.cs": 1
+  "IntoChat.OS.Authority.Tests.Integration/Neurons/ConfirmationWatchFacts.cs": 1,
+  "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/PrebuiltRig.cs": 1
 }

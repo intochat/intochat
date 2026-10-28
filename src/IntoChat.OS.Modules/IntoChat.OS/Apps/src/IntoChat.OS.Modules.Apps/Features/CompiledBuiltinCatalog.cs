@@ -65,9 +65,14 @@ internal sealed class CompiledBuiltinCatalog(string directory, CompiledAppPackag
                     }
                     entries[file.FullName] = new(publisher.Name, package, files);
                 }
-                catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException)
+                catch (InvalidDataException error) { Refuse(error); }
+                catch (IOException error) { Refuse(error); }
+                catch (UnauthorizedAccessException error) { Refuse(error); }
+                catch (ArgumentException error) { Refuse(error); }
+
+                // A bad replacement is visible in diagnostics, while the previous known-good artifact remains usable.
+                void Refuse(Exception error)
                 {
-                    // A bad replacement is visible in diagnostics, while the previous known-good artifact remains usable.
                     if (previous is not null) { entries[file.FullName] = previous; }
                     failures.Add(new(publisher.Name, previous?.Package.Descriptor.Id ?? Path.GetFileNameWithoutExtension(file.Name),
                         previous?.Package.Descriptor.Version ?? "", error.Message));

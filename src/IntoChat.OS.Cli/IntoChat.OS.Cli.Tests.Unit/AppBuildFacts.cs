@@ -70,6 +70,14 @@ public sealed class AppBuildFacts
         finally { Clean(root); }
     }
 
+    private static string SolutionProject(string root, string project)
+    {
+        var entry = System.Xml.Linq.XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
+            .Select(element => element.Attribute("Path")!.Value)
+            .Single(path => Path.GetFileNameWithoutExtension(path) == project);
+        return Path.GetFullPath(Path.Combine(root, entry));
+    }
+
     private static async Task<string> Project(string root, string mode = "valid")
     {
         var repo = new DirectoryInfo(AppContext.BaseDirectory);
@@ -77,8 +85,8 @@ public sealed class AppBuildFacts
         if (repo is null) { throw new InvalidOperationException("Repository not found."); }
         var directory = Path.Combine(root, "source with spaces");
         Directory.CreateDirectory(directory);
-        var core = Path.Combine(repo.FullName, "framework", "src", "DigitalBrain", "DigitalBrain.csproj");
-        var analyzer = Path.Combine(repo.FullName, "framework", "src", "DigitalBrain.Analyzers", "DigitalBrain.Analyzers.csproj");
+        var core = SolutionProject(repo.FullName, "DigitalBrain");
+        var analyzer = SolutionProject(repo.FullName, "DigitalBrain.Analyzers");
         var helper = Path.Combine(root, "private dependency");
         Directory.CreateDirectory(helper);
         await File.WriteAllTextAsync(Path.Combine(helper, "PrivateHelper.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");

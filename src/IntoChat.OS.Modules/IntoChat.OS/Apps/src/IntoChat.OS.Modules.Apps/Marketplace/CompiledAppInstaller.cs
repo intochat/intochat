@@ -55,19 +55,13 @@ internal sealed class CompiledAppInstaller(IntoChat.OS.Runtime.IPlainNeurons pla
             caller.AccountId, caller.PrincipalId, clock.GetUtcNow(), review.Requires, review.HostAdapters, review.ReplacesExisting));
     }
 
-    // The committed owner calls this before admitting dispatch, and again on interrupted recovery. Authority grants
-    // are idempotent. A revoked owner cannot silently grant new access during recovery; the generation stays blocked.
+    // The assignment runs under the owner's own request, and applies the grants the owner reviewed. Authority grants are
+    // idempotent. A caller who is not the reviewing owner of this receipt cannot grant, so a revoked owner stays blocked.
     internal async Task ApplyGrants(CompiledAppTrustReceipt receipt, CancellationToken ct)
     {
-        var caller = new CallerContext
-        {
-            AccountId = receipt.AccountId,
-            BrainId = receipt.Brain,
-            PrincipalId = receipt.PrincipalId,
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        };
-        if (!await policy.IsOwner(receipt.Brain, caller).WaitAsync(ct)) { throw new UnauthorizedAccessException(AppInstaller.OwnerOnly); }
+        var caller = await RequireOwner(ct);
+        if (caller.BrainId != receipt.Brain || caller.AccountId != receipt.AccountId || caller.PrincipalId != receipt.PrincipalId)
+        { throw new UnauthorizedAccessException(AppInstaller.OwnerOnly); }
         await policy.Grant(IApp.Key(receipt.Brain, receipt.Name), receipt.Requires.SemanticTypes, caller, ct);
     }
 

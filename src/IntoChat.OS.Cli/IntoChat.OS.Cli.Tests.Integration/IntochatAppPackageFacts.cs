@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Xml.Linq;
 using IntoChat.OS.Cli;
+using IntoChat.OS.Testing;
 
 namespace IntoChat.OS.Cli.Tests.Integration;
 
@@ -75,7 +77,7 @@ public sealed class IntochatAppPackageFacts
 
     private static async Task<(string Feed, string Version)> Packages(string root, string work, CancellationToken ct)
     {
-        if (Environment.GetEnvironmentVariable("DIGITALBRAIN_TEMPLATE_PACKAGES") is { Length: > 0 } given)
+        if (DotNetTestProcess.TemplatePackages() is { Length: > 0 } given)
         {
             var testing = Directory.GetFiles(given, "DigitalBrain.Testing.*.nupkg").Where(path => !path.EndsWith(".snupkg", StringComparison.Ordinal))
                 .OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault()
@@ -86,11 +88,11 @@ public sealed class IntochatAppPackageFacts
         var feed = Path.Combine(work, "feed");
         var artifacts = Path.Combine(work, "artifacts");
         // DigitalBrain bundles the code-fix assembly, which none of the packed projects references, so pack's restore misses it.
-        await Dotnet(root, null, ["restore", Path.Combine(root, "src", "DigitalBrain.Analyzers.CodeFixes", "DigitalBrain.Analyzers.CodeFixes.csproj"),
+        await Dotnet(root, null, ["restore", ProjectFile("DigitalBrain.Analyzers.CodeFixes"),
             "--artifacts-path", artifacts], ct);
         foreach (var id in Packed)
         {
-            await Dotnet(root, null, ["pack", Path.Combine(root, "src", id, id + ".csproj"), "-c", "Release", "-o", feed,
+            await Dotnet(root, null, ["pack", ProjectFile(id), "-c", "Release", "-o", feed,
                 "--artifacts-path", artifacts, "-p:VersionSuffix=" + suffix, "-p:IncludeSymbols=false"], ct);
         }
         var version = (await File.ReadAllTextAsync(Path.Combine(root, "VERSION"), ct)).Trim() + "-" + suffix;
@@ -137,15 +139,7 @@ public sealed class IntochatAppPackageFacts
             UseShellExecute = false,
         };
         foreach (var argument in arguments) { start.ArgumentList.Add(argument); }
-        start.Environment["DOTNET_NOLOGO"] = "1";
-        start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
-        start.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
-        // The test host's own MSBuild and runner settings must not leak into the child build.
-        foreach (var name in new[] { "MSBuildSDKsPath", "MSBUILD_EXE_PATH", "MSBuildExtensionsPath", "DOTNET_HOST_PATH", "TESTINGPLATFORM_DOTNETTEST_EXECUTIONID" })
-        {
-            start.Environment.Remove(name);
-        }
-        if (packages is not null) { start.Environment["NUGET_PACKAGES"] = packages; }
+        DotNetTestProcess.IsolateChildBuild(start, packages);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("dotnet did not start.");
         var output = new StringBuilder();
         var stdout = process.StandardOutput.ReadToEndAsync(ct);
@@ -154,6 +148,15 @@ public sealed class IntochatAppPackageFacts
         output.Append(await stdout).Append(await stderr);
         Assert.True(process.ExitCode == 0 == expectSuccess, $"dotnet {string.Join(' ', arguments)} exited {process.ExitCode} (expected {(expectSuccess ? "success" : "failure")}) in {directory}:\n{output}");
         return output.ToString();
+    }
+
+    // The framework projects are found through the solution by name, never by a path literal.
+    private static string ProjectFile(string project)
+    {
+        var solution = Path.Combine(Root(), "..", "Intochat.OS.slnx");
+        var entry = XDocument.Load(solution).Descendants("Project").Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Single(path => Path.GetFileNameWithoutExtension(path) == project);
+        return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(solution)!, entry));
     }
 
     private static string Root()

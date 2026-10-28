@@ -19,7 +19,7 @@ internal sealed class ViewPresenter(IntoChatOSConnection brain, string appKey, l
         if (main is not null) { Enqueue(_main, main); }
     }
 
-    public void Toast(Toast toast) => Console.Error.WriteLine("toast: " + toast.Message);
+    public void Toast(Toast toast) => AppLog.Log("toast: " + toast.Message);
 
     // Completes once everything presented so far has been published.
     public Task DrainAsync()
@@ -37,7 +37,7 @@ internal sealed class ViewPresenter(IntoChatOSConnection brain, string appKey, l
     {
         await previous.ConfigureAwait(false);
         try { await publisher.Publish(tree).ConfigureAwait(false); }
-        catch (Exception error) when (error is not OperationCanceledException) { Console.Error.WriteLine("The view could not be published: " + error.Message); }
+        catch (Exception error) when (error is not OperationCanceledException) { AppLog.Log("The view could not be published: " + error.Message); }
     }
 
     // The framework's renderer-neutral nodes as the shell's view tree. A button's action is its operation and arguments, as the host's

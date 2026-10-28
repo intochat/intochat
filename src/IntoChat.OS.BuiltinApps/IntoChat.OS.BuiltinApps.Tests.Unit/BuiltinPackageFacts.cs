@@ -114,13 +114,24 @@ public sealed class BuiltinPackageFacts : IClassFixture<BuiltinPackageFacts.Pack
         }
     }
 
+    // Module contracts projects, found through the solution rather than a directory walk.
+    private static IEnumerable<string> ContractsProjects()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(System.IO.Path.Combine(root.FullName, "Intochat.OS.slnx"))) { root = root.Parent; }
+        if (root is null) { throw new DirectoryNotFoundException("Repository root not found."); }
+        return System.Xml.Linq.XDocument.Load(System.IO.Path.Combine(root.FullName, "Intochat.OS.slnx")).Descendants("Project")
+            .Select(element => element.Attribute("Path")!.Value)
+            .Where(path => System.IO.Path.GetFileName(path).StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
+                && path.EndsWith(".Contracts.csproj", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task EverySynapseAssemblyResolvesAgainstTheCarriedReferenceSet()
     {
         var carried = CSharpScriptCheck.ReferenceNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
         // The host's modules: every module contracts project and every contracts-hosting module is carried.
-        foreach (var contracts in Directory.EnumerateFiles(System.IO.Path.Combine(packages.Features, "..", "..", "src", "IntoChat.OS.Modules"), "*.Contracts.csproj", SearchOption.AllDirectories)
-                     .Where(path => !path.Contains($"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+        foreach (var contracts in ContractsProjects())
         {
             Assert.Contains(System.IO.Path.GetFileNameWithoutExtension(contracts), carried);
         }

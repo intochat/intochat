@@ -23,5 +23,10 @@
     "File": "IntoChat.OS.Modules.Microsoft.CSharp/Catalog/CSharpContractDiscovery.cs",
     "Kind": "prompt-text",
     "Reason": "the example script shown to authors with the contract catalog; not executed os code"
+  },
+  {
+    "File": "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/AppRunner.cs",
+    "Kind": "client-session-api",
+    "Reason": "the generic [App] runner is a client program: it serves each brain.On(app, operation) request with the matching [On] method, as TestOS does"
   }
 ]

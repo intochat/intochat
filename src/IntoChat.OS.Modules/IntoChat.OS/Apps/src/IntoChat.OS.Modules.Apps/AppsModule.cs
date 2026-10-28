@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
@@ -42,12 +43,10 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         services.TryAddSingleton(configured => new ActiveCompiledApps(
             Path.Combine(DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).Apps, "packages", "active")));
         services.TryAddSingleton<ICompiledAppAssignment, SandboxCompiledApps>();
-        var compiledFeatures = configuration[IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("apps")) + ":CompiledFeatures"];
-        if (!string.IsNullOrWhiteSpace(compiledFeatures))
-        {
-            services.TryAddSingleton(provider => new CompiledBuiltinCatalog(Path.GetFullPath(compiledFeatures, AppContext.BaseDirectory),
-                provider.GetRequiredService<CompiledAppPackages>()));
-        }
+        // The OS publish output carries the prebuilt built-ins under compiled-apps/{publisher}; Features:CompiledFeatures overrides the folder.
+        services.TryAddSingleton(provider => new CompiledBuiltinCatalog(
+            Path.GetFullPath(provider.GetRequiredService<IOptions<AppsOptions>>().Value.CompiledFeatures is { Length: > 0 } given ? given : "compiled-apps", AppContext.BaseDirectory),
+            provider.GetRequiredService<CompiledAppPackages>()));
         services.TryAddSingleton(_ => new CompiledAppPackages(
             Path.Combine(DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).Apps, "packages"),
             new[]
