@@ -18,10 +18,7 @@ public sealed class IntoChatOSServerBuilder
     private ILicenseCheck? _licenseCheck;
     internal bool Dashboard { get; private set; }
     public IntoChatOSServerBuilder AddModule<TModule>() where TModule : class, new()
-        => typeof(Module).IsAssignableFrom(typeof(TModule))
-            ? AddModule((Module)Activator.CreateInstance(typeof(TModule))!)
-            : AddModule(OsModule.FromDigital(typeof(TModule)));
-    public IntoChatOSServerBuilder AddModule(Module module) => AddModule(OsModule.From(module));
+        => AddModule(OsModule.FromDigital(typeof(TModule)));
     public IntoChatOSServerBuilder AddModule(OsModule module)
     {
         ArgumentNullException.ThrowIfNull(module);

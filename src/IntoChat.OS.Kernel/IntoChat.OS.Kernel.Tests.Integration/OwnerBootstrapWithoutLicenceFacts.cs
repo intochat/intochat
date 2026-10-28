@@ -13,8 +13,8 @@ public sealed class OwnerBootstrapWithoutLicenceFacts
     [Fact]
     public void NoModuleOfTheOsCatalogNeedsALicence()
     {
-        Assert.NotEmpty(OsCatalog.Modules);
-        Assert.All(OsCatalog.Modules, module => Assert.Null(module.LicenseProduct));
+        Assert.NotEmpty(OperatingSystemModules.Modules);
+        Assert.All(OperatingSystemModules.Modules, module => Assert.Null(module.LicenseProduct));
     }
 
     [Trait("host", "own")]

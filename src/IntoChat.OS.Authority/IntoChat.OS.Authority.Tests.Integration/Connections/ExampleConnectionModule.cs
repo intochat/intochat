@@ -9,8 +9,10 @@ namespace IntoChat.OS.Authority.Tests.Integration.Connections;
 
 // A connector whose probe is scripted by the fact: the value "expired" probes Expired, "broken" Failing,
 // "throws" throws an exception whose message carries a token-bearing URL.
-public sealed class ExampleConnectionModule() : Module(new ModuleId("example"))
+[DigitalBrain.Module("example")]
+public sealed class ExampleConnectionModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static ConnectorDefinition Connector => new("example", "Example", ["api-key", "oauth"], ["example-oauth"])
     {
         Neurons = [typeof(IExample)],
@@ -18,7 +20,7 @@ public sealed class ExampleConnectionModule() : Module(new ModuleId("example"))
     };
     // ClientSecret is optional, as GitHub's is, so a Ready integration can still lack an OAuth client.
     public static IntegrationSchema Integration => IntegrationSchema.For("example-oauth", "Example OAuth").RequiresSecret("ClientId").OffersSecret("ClientSecret");
-    public override Type? Neurons => typeof(ExampleConnectorNeurons);
+    public static Type Neurons => typeof(ExampleConnectorNeurons);
 }
 
 [DigitalBrain.Contracts.NeuronAlias("example"), DigitalBrain.Contracts.DefaultNeuronType("example")]
@@ -66,8 +68,10 @@ internal sealed class ExampleConnectionNeuron()
 
 // A connector declared and offered with a paste and an OAuth method, but served by no connection
 // neuron (as the AI providers' api-key connectors are): no route may address a grain for it.
-public sealed class UnservedConnectorModule() : Module(new ModuleId("unserved"))
+[DigitalBrain.Module("unserved")]
+public sealed class UnservedConnectorModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static ConnectorDefinition Connector => new("unserved", "Unserved", ["api-key", "oauth"], ["sample-oauth"])
     {
         OAuthMethods = [new("oauth", "https://unserved.test/authorize", "https://unserved.test/token", ["read"], "sample-oauth")],
@@ -76,15 +80,17 @@ public sealed class UnservedConnectorModule() : Module(new ModuleId("unserved"))
 
 // A second connector beside "example", so a silo holds two IConnection implementations and every
 // connection grain must resolve by the connector in its key, not by the contract.
-public sealed class SampleConnectionModule() : Module(new ModuleId("sample"))
+[DigitalBrain.Module("sample")]
+public sealed class SampleConnectionModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static ConnectorDefinition Connector => new("sample", "Sample", ["api-key", "oauth"], ["sample-oauth"])
     {
         Neurons = [typeof(ISample)],
         OAuthMethods = [new("oauth", "https://sample.test/authorize", "https://sample.test/token", ["read"], "sample-oauth")],
     };
     public static IntegrationSchema Integration => IntegrationSchema.For("sample-oauth", "Sample OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
-    public override Type? Neurons => typeof(ExampleConnectorNeurons);
+    public static Type Neurons => typeof(ExampleConnectorNeurons);
 }
 
 [DigitalBrain.Contracts.NeuronAlias("sample"), DigitalBrain.Contracts.DefaultNeuronType("sample")]

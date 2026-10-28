@@ -5,18 +5,11 @@ namespace IntoChat.OS.Testing.Neurons;
 // A kernel-known neuron that retains its last signal: what a fact subscribes to when it needs a real source with retention.
 // Start the brain with WithModule<PulseModule>(). A plain neuron (06-08): the last pulse is its saved state and its journal's
 // last Pulsed, so it survives a restart and a late watcher gets it first (the runtime's retained replay).
-public sealed class PulseModule() : IntoChat.OS.Framework.Modules.Module(new IntoChat.OS.Framework.Modules.ModuleId("pulse"))
-{
-    public override System.Reflection.Assembly? Contracts => typeof(IPulse).Assembly;
-
-    public override Type? Neurons => typeof(PulseNeurons);
-}
-
-// The DigitalBrain module of the pulse neuron.
 [DigitalBrain.Module("pulse")]
-public sealed class PulseNeurons : DigitalBrain.Module
+public sealed class PulseModule : DigitalBrain.Module
 {
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    public static System.Reflection.Assembly? Contracts => typeof(IPulse).Assembly;
 }
 
 [DigitalBrain.Signal("testing.pulsed")]

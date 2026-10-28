@@ -20,11 +20,11 @@ public sealed class IntoChatOSBuilder
     public IConfiguration GetModuleConfiguration(string id)
         => _compiledConfiguration.TryGetValue(id, out var configuration) ? configuration : ApplicationBuilder.Configuration;
 
-    public IntoChatOSBuilder WithModule(Module module, IIntoChatOSModuleHosting? hosting = null,
+    public IntoChatOSBuilder WithModule(DigitalBrain.Module module, IIntoChatOSModuleHosting? hosting = null,
         IReadOnlyDictionary<string, string?>? settings = null)
     {
         ArgumentNullException.ThrowIfNull(module);
-        return Register(module.Id, hosting, settings);
+        return Register(HostedModuleId.Of(module.GetType()), hosting, settings);
     }
 
     public IntoChatOSBuilder WithHosting(IIntoChatOSModuleHosting hosting, IReadOnlyDictionary<string, string?>? settings = null)

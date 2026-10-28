@@ -23,7 +23,7 @@ public static class OsTestBrain
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(tokens);
         return brain
-            .WithModules(OsCatalog.InProcessModules)
+            .WithModules(OperatingSystemModules.InProcessModules)
             .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .WithFakeModel(model)
             // Google is the stub: a configured OAuth client, its token exchange and the profile Gmail reads once connected.

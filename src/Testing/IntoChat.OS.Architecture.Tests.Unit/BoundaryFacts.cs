@@ -1,3 +1,4 @@
+using System.Reflection;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
@@ -125,7 +126,7 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {
-            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly, typeof(IntoChat.OS.Framework.Modules.Module).Assembly, typeof(IIdentityProvisioning).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly, typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly, typeof(IIdentityProvisioning).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }
@@ -142,23 +143,16 @@ public sealed class BoundaryFacts
     public void ModuleOptionsContainNoCredentialMembers()
     {
         var options = ProductionArchitecture.Types.Where(type => !type.IsAbstract)
-            .Select(ModuleOptionsType)
-            .Where(type => type is not null)
-            .Select(type => type!)
+            .SelectMany(ModuleOptionsTypes)
             .Distinct().ToArray();
         Assert.NotEmpty(options);
         Assert.Empty(options.SelectMany(ContractRules.CredentialMembers));
     }
 
-    // Module options are the generic argument of a concrete module's Module<TOptions> base.
-    private static Type? ModuleOptionsType(Type type)
+    private static IEnumerable<Type> ModuleOptionsTypes(Type type)
     {
-        for (var current = type.BaseType; current is not null; current = current.BaseType)
-        {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Framework.Modules.Module<>))
-            { return current.GetGenericArguments()[0]; }
-        }
-        return null;
+        if (type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null || !typeof(DigitalBrain.Module).IsAssignableFrom(type)) { yield break; }
+        foreach (var setting in DigitalBrain.ModuleManifest.Of(type).Settings) { yield return setting.OptionsType; }
     }
 
     [Fact]

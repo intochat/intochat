@@ -14,11 +14,23 @@ namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
 public sealed class ModuleOptionOverlayFacts
 {
-    private sealed class ExampleModule() : Module(new ModuleId("example"));
+    [DigitalBrain.Module("example")]
+    private sealed class ExampleModule : DigitalBrain.Module
+    {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    }
 
-    private sealed class OverlaidModule() : Module(new ModuleId("OverlaidModule"));
+    [DigitalBrain.Module("OverlaidModule")]
+    private sealed class OverlaidModule : DigitalBrain.Module
+    {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    }
 
-    private sealed class ScopedModule() : Module(new ModuleId("scoped"));
+    [DigitalBrain.Module("scoped")]
+    private sealed class ScopedModule : DigitalBrain.Module
+    {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    }
 
     public sealed class OverlaidOptions : IModuleOptions
     {

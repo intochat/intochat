@@ -9,15 +9,17 @@ namespace IntoChat.OS.Modules.Apps.Tests;
 // Two connection kinds a slot can bind, each with a pasted credential that probes connected, except the credential
 // "fixture-value-expired", which probes expired. Drive's module provides storage@1, as the Windows and Google
 // Drive modules do.
-public sealed class FixtureConnectorsModule() : Module(new ModuleId("fixture-connectors"))
+[DigitalBrain.Module("fixture-connectors")]
+public sealed class FixtureConnectorsModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static ConnectorDefinition[] Connectors =>
     [
         new("mailbox", "Mailbox", ["api-key"], []) { Neurons = [typeof(IFixtureMailbox)] },
         new("drive", "Drive", ["api-key"], []) { Neurons = [typeof(IFixtureDrive)] },
     ];
 
-    public override Type? Neurons => typeof(FixtureConnectorNeurons);
+    public static Type Neurons => typeof(FixtureConnectorNeurons);
 }
 
 [DigitalBrain.Contracts.NeuronAlias("fixture.mailbox"), DigitalBrain.Contracts.DefaultNeuronType("mailbox")]

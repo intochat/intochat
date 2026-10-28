@@ -80,8 +80,10 @@ public sealed class ConnectorBindingFacts
         { if (level == LogLevel.Warning) { Warnings.Add(format(state, error)); } }
     }
 
-    public sealed class InfrastructureModule() : Module(new ModuleId("infrastructure"))
+    [DigitalBrain.Module("infrastructure")]
+    public sealed class InfrastructureModule : DigitalBrain.Module
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
         public static IntegrationSchema Integration => IntegrationSchema.For("infrastructure", "Infrastructure");
         public static IntegrationSchema[] Integrations => [IntegrationSchema.For("additional", "Additional")];
     }
@@ -108,8 +110,10 @@ public sealed class ConnectorBindingFacts
         await Assert.ThrowsAsync<InvalidOperationException>(() => handle.ReadSecretAsync("ApiKey", ct));
     }
 
-    public sealed class ExampleModule() : Module(new ModuleId("example"))
+    [DigitalBrain.Module("example")]
+    public sealed class ExampleModule : DigitalBrain.Module
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
         public static IntegrationSchema Integration => IntegrationSchema.For("example", "Example").RequiresSecret("ApiKey").RequiresSetting("Endpoint");
         public static ConnectorDefinition Connector => new("example", "Example", ["api-key"], ["example"]);
     }
@@ -118,7 +122,7 @@ public sealed class ConnectorBindingFacts
     public void ModuleCannotAcquireAnUndeclaredIntegration()
     {
         var services = new ServiceCollection().BuildServiceProvider();
-        var bindings = new ModuleIntegrations<ExampleModule>(services, new ModuleInventory([new ExampleModule()]));
+        var bindings = new ModuleIntegrations<ExampleModule>(services, new ModuleInventory([OsModule.FromDigital(typeof(ExampleModule))]));
         Assert.Throws<UnauthorizedAccessException>(() => bindings.Get("other"));
     }
 

@@ -57,5 +57,9 @@ public sealed class ModuleSelectionFacts
         Assert.Throws<InvalidOperationException>(() => server.SelectModules(configuration));
     }
 
-    public sealed class SampleModule() : Module(new ModuleId("sample"));
+    [DigitalBrain.Module("sample")]
+    public sealed class SampleModule : DigitalBrain.Module
+    {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    }
 }

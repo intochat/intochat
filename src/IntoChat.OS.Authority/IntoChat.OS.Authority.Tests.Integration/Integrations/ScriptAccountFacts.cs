@@ -66,8 +66,10 @@ public sealed class ScriptAccountFacts
         await Assert.ThrowsAsync<ArgumentException>(() => accounts.Request("missing"));
     }
 
-    public sealed class PostgresKindModule() : Module(new ModuleId(nameof(PostgresKindModule)))
+    [DigitalBrain.Module(nameof(PostgresKindModule))]
+    public sealed class PostgresKindModule : DigitalBrain.Module
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
         public static IntegrationSchema Integration { get; } = IntegrationSchema.For("postgres", "Postgres");
         public static ConnectorDefinition Connector => new("postgres", "Postgres", ["connection-string"], []);
     }

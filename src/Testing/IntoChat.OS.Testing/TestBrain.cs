@@ -7,8 +7,6 @@ using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
-using ModuleContract = IntoChat.OS.Framework.Modules.Module;
-
 namespace IntoChat.OS.Testing;
 
 public sealed class TestBrain
@@ -29,8 +27,7 @@ public sealed class TestBrain
     public TestBrain WithModule<TModule>() where TModule : class, new()
     {
         EnsureMutable();
-        if (typeof(ModuleContract).IsAssignableFrom(typeof(TModule))) { Invoke(nameof(WithLegacyModule), [typeof(TModule)], null); }
-        else { _composition.RememberDigital(typeof(TModule)); }
+        _composition.RememberDigital(typeof(TModule));
         return this;
     }
 
@@ -38,12 +35,8 @@ public sealed class TestBrain
         where TModule : class, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
-        if (typeof(Module<TOptions>).IsAssignableFrom(typeof(TModule))) { Invoke(nameof(WithLegacyModuleOptions), [typeof(TModule), typeof(TOptions)], options); }
-        else
-        {
-            _composition.RememberDigital(typeof(TModule));
-            if (options is not null) { _composition.ProjectDigitalOptions(ModuleIdOf(typeof(TModule)), options); }
-        }
+        _composition.RememberDigital(typeof(TModule));
+        if (options is not null) { _composition.ProjectDigitalOptions(ModuleIdOf(typeof(TModule)), options); }
         return this;
     }
 
@@ -68,8 +61,7 @@ public sealed class TestBrain
         where TModule : class, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
-        if (typeof(Module<TOptions>).IsAssignableFrom(typeof(TModule))) { Invoke(nameof(WithLegacyOptions), [typeof(TModule), typeof(TOptions)], options); }
-        else { _composition.ProjectDigitalOptions(ModuleIdOf(typeof(TModule)), options); }
+        _composition.ProjectDigitalOptions(ModuleIdOf(typeof(TModule)), options);
         return this;
     }
 
@@ -185,7 +177,7 @@ public sealed class TestBrain
         Dictionary<string, string?> configuration = new(_execution.PrivateConfiguration, StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in _configuration) { configuration[key] = value; }
         foreach (var (key, value) in composition.OptionOverrides) { configuration[key] = value; }
-        var services = composition.RequiresLocalServices ? composition.ConfigureLocalServices + _services : _services;
+        var services = _services;
         var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, LicenseCheck: _licenseCheck,
             NeuronModules: [.. _neuronModules.Concat(composition.DigitalModules).Distinct()]);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -193,34 +185,9 @@ public sealed class TestBrain
         return await _target.StartAsync(plan, deadline.Token).ConfigureAwait(false);
     }
 
-    private void WithLegacyModule<TModule>() where TModule : ModuleContract, new() => _composition.WithModule<TModule>();
-
-    private void WithLegacyModuleOptions<TModule, TOptions>(Action<TOptions>? options)
-        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
-        => _composition.WithModule<TModule, TOptions>(options);
-
-    private void WithLegacyOptions<TModule, TOptions>(Action<TOptions> options)
-        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
-    {
-        // A declared module carries its options; an undeclared one belongs to the target's host, which replaces its own.
-        if (_composition.Declares<TModule>()) { _composition.ConfigureModule<TModule, TOptions>(options); }
-        else { _composition.ProjectOptions<TModule, TOptions>(options); }
-    }
-
     private static string ModuleIdOf(Type type)
         => type.GetCustomAttribute<DigitalBrain.ModuleAttribute>()?.Id
             ?? throw new InvalidOperationException($"{type.FullName} has no [Module(id)].");
-
-    private void Invoke(string name, Type[] types, object? argument)
-    {
-        var method = typeof(TestBrain).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
-            .Single(candidate => candidate.Name == name && candidate.GetGenericArguments().Length == types.Length);
-        try
-        {
-            method.MakeGenericMethod(types).Invoke(this, argument is null && method.GetParameters().Length == 0 ? null : [argument]);
-        }
-        catch (TargetInvocationException ex) { throw ex.InnerException ?? ex; }
-    }
 
     private void EnsureMutable()
     {

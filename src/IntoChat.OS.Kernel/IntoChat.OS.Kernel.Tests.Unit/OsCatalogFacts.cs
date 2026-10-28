@@ -1,3 +1,4 @@
+using System.Reflection;
 using IntoChat.OS;
 using IntoChat.OS.Kernel;
 
@@ -12,15 +13,15 @@ public sealed class OsCatalogFacts
     {
         string[] containerBacked = ["artcraft", "clickhouse", "postgres", "qdrant", "supabase"];
         string[] cloudOnly = ["auth", "circle-server"];
-        Assert.Equal(containerBacked, OsCatalog.Modules.Where(module => module.RequiresContainer).Select(module => module.Id.Value).Order(StringComparer.Ordinal));
-        var expected = OsCatalog.Modules.Select(module => module.Id.Value)
+        Assert.Equal(containerBacked, OperatingSystemModules.Modules.Where(module => module.RequiresContainer).Select(module => module.Id.Value).Order(StringComparer.Ordinal));
+        var expected = OperatingSystemModules.Modules.Select(module => module.Id.Value)
             .Except(containerBacked, StringComparer.OrdinalIgnoreCase)
             .Except(cloudOnly, StringComparer.OrdinalIgnoreCase);
-        Assert.Equal(expected, OsCatalog.InProcessModules.Select(module => module.Id.Value));
-        Assert.All(cloudOnly, id => Assert.Contains(OsCatalog.Modules, module => module.Id.Value == id && !module.LoadsUnder("local") && module.LoadsUnder("cloud")));
-        Assert.All(containerBacked, id => Assert.Contains(OsCatalog.Modules, module => module.Id.Value == id));
-        Assert.DoesNotContain(OsCatalog.Modules, module => module.Id.Value == "windows");
-        Assert.Equal([.. OsCatalog.Modules.Select(module => module.Id.Value), "windows"], OsCatalog.WithWindowsEdge().Select(module => module.Id.Value));
+        Assert.Equal(expected, OperatingSystemModules.InProcessModules.Select(module => module.Id.Value));
+        Assert.All(cloudOnly, id => Assert.Contains(OperatingSystemModules.Modules, module => module.Id.Value == id && !module.LoadsUnder("local") && module.LoadsUnder("cloud")));
+        Assert.All(containerBacked, id => Assert.Contains(OperatingSystemModules.Modules, module => module.Id.Value == id));
+        Assert.DoesNotContain(OperatingSystemModules.Modules, module => module.Id.Value == "windows");
+        Assert.Equal([.. OperatingSystemModules.Modules.Select(module => module.Id.Value), "windows"], OperatingSystemModules.WithWindowsEdge().Select(module => module.Id.Value));
     }
 
     // The OS csproj references modules by glob; this guards its exclude patterns against
@@ -32,7 +33,7 @@ public sealed class OsCatalogFacts
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "IntoChat.OS.Kernel.deps.json")));
         var libraries = dependencies.RootElement.GetProperty("libraries").EnumerateObject()
             .Select(library => library.Name.Split('/')[0]).ToHashSet(StringComparer.Ordinal);
-        foreach (var module in OsCatalog.Modules)
+        foreach (var module in OperatingSystemModules.Modules)
         {
             Assert.Contains(module.Type.Assembly.GetName().Name!, libraries);
         }
@@ -51,7 +52,7 @@ public sealed class OsCatalogFacts
             .Descendants("Project").Select(project => Path.GetFileNameWithoutExtension(project.Attribute("Path")!.Value))
             .ToHashSet(StringComparer.Ordinal);
         var mcp = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Mcp"), "IntoChat.OS.Mcp.csproj"));
-        foreach (var module in OsCatalog.WithWindowsEdge())
+        foreach (var module in OperatingSystemModules.WithWindowsEdge())
         {
             var assembly = module.Type.Assembly.GetName().Name;
             var contracts = assembly + ".Contracts";
@@ -69,12 +70,12 @@ public sealed class OsCatalogFacts
 
     [Fact]
     public void TheOperatingSystemComposesTheAspireModule()
-        => Assert.Contains(OsCatalog.Modules, module => module.Id.ToString() == "aspire");
+        => Assert.Contains(OperatingSystemModules.Modules, module => module.Id.ToString() == "aspire");
 
     [Fact]
     public void CatalogIdsAreUnique()
     {
-        var ids = OsCatalog.Modules.Select(module => module.Id.ToString()).ToArray();
+        var ids = OperatingSystemModules.Modules.Select(module => module.Id.ToString()).ToArray();
         Assert.Equal(ids.Length, ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 
@@ -82,7 +83,7 @@ public sealed class OsCatalogFacts
     [Fact]
     public void OrleansComesFirstAndTheRestAreOrdinal()
     {
-        var ids = OsCatalog.Modules.Select(module => module.Id.Value).ToArray();
+        var ids = OperatingSystemModules.Modules.Select(module => module.Id.Value).ToArray();
         Assert.Equal("orleans", ids[0]);
         Assert.Equal(ids.Skip(1).Order(StringComparer.Ordinal), ids.Skip(1));
     }
@@ -94,7 +95,7 @@ public sealed class OsCatalogFacts
     {
         using var dependencies = System.Text.Json.JsonDocument.Parse(
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "IntoChat.OS.Kernel.deps.json")));
-        var cataloged = OsCatalog.Modules.Select(module => module.Type).ToHashSet();
+        var cataloged = OperatingSystemModules.Modules.Select(module => module.Type).ToHashSet();
         var shipped = dependencies.RootElement.GetProperty("libraries").EnumerateObject()
             .Select(library => library.Name.Split('/')[0])
             .Where(name => name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal));
@@ -103,9 +104,12 @@ public sealed class OsCatalogFacts
             System.Reflection.Assembly assembly;
             try { assembly = System.Reflection.Assembly.Load(name); }
             catch (FileNotFoundException) { continue; }
-            foreach (var type in assembly.GetExportedTypes().Where(type => !type.IsAbstract && typeof(IntoChat.OS.Framework.Modules.Module).IsAssignableFrom(type)))
+            foreach (var type in assembly.GetExportedTypes().Where(type => !type.IsAbstract
+                && typeof(DigitalBrain.Module).IsAssignableFrom(type)
+                && type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is not null
+                && type.GetConstructor(Type.EmptyTypes) is not null))
             {
-                Assert.True(cataloged.Contains(type) || OsCatalog.IsExcluded(type), type.FullName);
+                Assert.True(cataloged.Contains(type) || OperatingSystemModules.IsExcluded(type), type.FullName);
             }
         }
     }

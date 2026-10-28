@@ -90,10 +90,12 @@ public sealed class WindowsEndpointFacts(WindowsMachineHost shared)
     }
 }
 
-public sealed class OtherStorageModule() : Module(new ModuleId("other-storage"))
+[DigitalBrain.Module("other-storage")]
+public sealed class OtherStorageModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static ConnectorDefinition Connector => new("other-storage", "Other storage", ["api-key"], []) { Neurons = [typeof(IOtherStorage)] };
-    public override Type? Neurons => typeof(OtherStorageNeurons);
+    public static Type Neurons => typeof(OtherStorageNeurons);
 }
 
 [DigitalBrain.Contracts.NeuronAlias("other-storage"), DigitalBrain.Contracts.DefaultNeuronType("other-storage")]

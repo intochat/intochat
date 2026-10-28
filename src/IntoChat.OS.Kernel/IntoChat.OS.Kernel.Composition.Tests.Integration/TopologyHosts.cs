@@ -35,15 +35,17 @@ internal static class TopologyHosts
         builder.AddIntoChatOSServer(server =>
         {
             // Ahead of the orleans module, so its cloud implementation (the production Key Vault source) is not the one selected.
-            if (vaultless) { server.AddModule(new VaultlessCloud()); }
+            if (vaultless) { server.AddModule<VaultlessCloud>(); }
             if (orleans) { server.AddModule<OrleansModule>(); }
         });
         return builder;
     }
 
     // The cloud topology with its Key Vault source replaced by an empty one (tests only; production never passes one).
-    private sealed class VaultlessCloud() : Module(new ModuleId("vaultless-cloud")), ITopologyModule
+    [DigitalBrain.Module("vaultless-cloud")]
+    private sealed class VaultlessCloud : DigitalBrain.Module, ITopologyModule
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
         public IReadOnlyList<ITopologyProfile> TopologyProfiles { get; } =
             [new CloudProfile((configuration, _) => configuration.AddInMemoryCollection(new Dictionary<string, string?>()))];
     }

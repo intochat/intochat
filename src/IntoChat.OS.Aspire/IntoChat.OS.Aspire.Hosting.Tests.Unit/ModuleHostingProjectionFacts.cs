@@ -16,11 +16,12 @@ namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
 public sealed class ModuleHostingProjectionFacts
 {
-    private sealed class SampleModule() : Module(new ModuleId("projection-sample"))
+    [DigitalBrain.Module("projection-sample")]
+    private sealed class SampleModule : DigitalBrain.Module
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
         public static IntegrationSchema Integration { get; } = IntegrationSchema.For("projection-sample", "Projection sample")
             .RequiresSecret("ApiKey").RequiresSecret("ClientSecret").OffersSecret("Token").RequiresSetting("Region");
-
     }
 
     private sealed class SampleHosting : ModuleHosting<SampleModule>;

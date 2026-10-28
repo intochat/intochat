@@ -28,11 +28,13 @@ namespace IntoChat.Cloud.Auth.Tests;
 // The kernel composes the Auth module through the cloud module adapter in 09-09; here a test module puts it on an in-process os
 // brain directly: its neurons run on the runtime's host grains, its services are the module's own, and its routes are the module
 // HTTP surface mapped once onto the session-required root group.
-public sealed class AuthHostModule() : IntoChat.OS.Framework.Modules.Module(new ModuleId(AuthModule.Id)), IHttpModule
+[DigitalBrain.Module(AuthModule.Id)]
+public sealed class AuthHostModule : DigitalBrain.Module, IHttpModule
 {
-    public override Type? Neurons => typeof(AuthModule);
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    public static Type Neurons => typeof(AuthModule);
 
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         new AuthModule().ConfigureServices(services);
@@ -242,7 +244,9 @@ public sealed class OrganisationStandIns : DigitalBrain.Module
     public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
 }
 
-public sealed class OrganisationsHostModule() : IntoChat.OS.Framework.Modules.Module(new ModuleId("organisations"))
+[DigitalBrain.Module("organisations")]
+public sealed class OrganisationsHostModule : DigitalBrain.Module
 {
-    public override Type? Neurons => typeof(OrganisationStandIns);
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    public static Type Neurons => typeof(OrganisationStandIns);
 }

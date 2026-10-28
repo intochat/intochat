@@ -47,7 +47,7 @@ public sealed class CapabilityKitCoverageFacts
 
     // Every DigitalBrain module the kernel composes: the Framework modules' neuron modules plus the Authority's plain neurons.
     internal static List<Type> KernelModules()
-        => [.. OsCatalog.WithWindowsEdge().Select(module => module.Neurons).OfType<Type>()
+        => [.. OperatingSystemModules.WithWindowsEdge().Select(module => module.Neurons).OfType<Type>()
             .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons)).Distinct()];
 
     // The tests of a module: the assemblies built from its own tests/ folder, named "<module assembly>.Tests.*". The csproj copies

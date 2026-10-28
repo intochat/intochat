@@ -62,7 +62,7 @@ public sealed class SideBySideRuntimeFacts
         var builder = TopologyHosts.Builder(home, new Dictionary<string, string?>());
 
         var error = Assert.Throws<InvalidOperationException>(() => builder.AddIntoChatOSServer(server => server
-            .AddModule(new SandboxlessLocal()).AddModule<OrleansModule>().AddNeuronModule<SandboxProbeModule>()));
+            .AddModule<SandboxlessLocal>().AddModule<OrleansModule>().AddNeuronModule<SandboxProbeModule>()));
 
         Assert.Contains("probe-sandbox", error.Message, StringComparison.Ordinal);
         Assert.Contains("Sandbox", error.Message, StringComparison.Ordinal);
@@ -80,8 +80,10 @@ public sealed class SideBySideRuntimeFacts
     }
 
     // The local topology without a sandbox binding (test only).
-    private sealed class SandboxlessLocal() : Module(new ModuleId("sandboxless-local")), ITopologyModule
+    [DigitalBrain.Module("sandboxless-local")]
+    private sealed class SandboxlessLocal : DigitalBrain.Module, ITopologyModule
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
         public IReadOnlyList<ITopologyProfile> TopologyProfiles { get; } = [new Profile()];
 
 

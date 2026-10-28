@@ -14,21 +14,27 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Integrations;
 
-public sealed class FakeGoogleModule() : Module(new ModuleId(nameof(FakeGoogleModule)))
+[DigitalBrain.Module(nameof(FakeGoogleModule))]
+public sealed class FakeGoogleModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("google", "Google")
         .RequiresSecret("ClientId")
         .RequiresSecret("ClientSecret")
         .RequiresSetting("RedirectPath");
 }
 
-public sealed class FakeRivalGoogleModule() : Module(new ModuleId(nameof(FakeRivalGoogleModule)))
+[DigitalBrain.Module(nameof(FakeRivalGoogleModule))]
+public sealed class FakeRivalGoogleModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("google", "Rival Google");
 }
 
-public sealed class FakeAiModule() : Module(new ModuleId(nameof(FakeAiModule)))
+[DigitalBrain.Module(nameof(FakeAiModule))]
+public sealed class FakeAiModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static IntegrationSchema[] Integrations { get; } =
     [
         IntegrationSchema.For("openai", "OpenAI").RequiresSecret("ApiKey"),

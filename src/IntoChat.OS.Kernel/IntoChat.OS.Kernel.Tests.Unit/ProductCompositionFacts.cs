@@ -35,7 +35,7 @@ public sealed class ProductCompositionFacts
     public void EveryReferencedHostingAdapterBelongsToACatalogModule()
     {
         var adapters = ModuleHostingScan.Resolve(typeof(ProductCompositionFacts).Assembly);
-        var catalogIds = IntoChat.OS.Kernel.OsCatalog.Modules.Select(module => module.Id).ToHashSet();
+        var catalogIds = IntoChat.OS.Kernel.OperatingSystemModules.Modules.Select(module => module.Id).ToHashSet();
         Assert.All(adapters.Keys, id => Assert.Contains(id, catalogIds));
         Assert.Contains(new ModuleId("postgres"), adapters.Keys);
         Assert.Contains(new ModuleId("qdrant"), adapters.Keys);
@@ -66,7 +66,7 @@ public sealed class ProductCompositionFacts
             ["Parameters:Modules-intochat-os-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
         var productModules = appHost.Resources.SelectMany(resource => resource.Annotations.OfType<BrainModuleAnnotation>())
             .Select(module => module.ModuleId).ToArray();
-        var catalogModules = IntoChat.OS.Kernel.OsCatalog.Modules.Select(module => module.Id.ToString()).ToArray();
+        var catalogModules = IntoChat.OS.Kernel.OperatingSystemModules.Modules.Select(module => module.Id.ToString()).ToArray();
         Assert.All(productModules, module => Assert.Contains(module, catalogModules));
         Assert.DoesNotContain("qdrant", productModules);
         Assert.DoesNotContain("clickhouse", productModules);
@@ -82,7 +82,7 @@ public sealed class ProductCompositionFacts
             .Select(module => module.ModuleId).Order().ToArray();
         // Composition truth lives in the OS catalog; the AppHost only hosts infrastructure,
         // so its module annotations are the hosted subset of the catalog.
-        var catalogModules = IntoChat.OS.Kernel.OsCatalog.Modules
+        var catalogModules = IntoChat.OS.Kernel.OperatingSystemModules.Modules
             .Select(module => module.Id.ToString()).Order().ToArray();
         Assert.All(productModules, module => Assert.Contains(module, catalogModules));
         Assert.Contains("qdrant", productModules);

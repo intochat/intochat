@@ -58,8 +58,10 @@ public sealed class TestBrainLicenseFacts
         }
     }
 
-    public sealed class LicensedProbeModule() : Module(new ModuleId("licensed-probe"))
+    [DigitalBrain.Module("licensed-probe")]
+    public sealed class LicensedProbeModule : DigitalBrain.Module
     {
-        public override string? LicenseProduct => "probe";
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+        public static string? LicenseProduct => "probe";
     }
 }

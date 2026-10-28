@@ -4,17 +4,15 @@ namespace IntoChat.OS.Framework.Modules;
 
 public sealed class ModuleDefinition
 {
-    public ModuleDefinition(Module module, IReadOnlyDictionary<string, string?>? settings = null)
+    public ModuleDefinition(Type moduleType, ModuleId id, IReadOnlyDictionary<string, string?>? settings = null)
     {
-        ArgumentNullException.ThrowIfNull(module);
-        Module = module;
+        ArgumentNullException.ThrowIfNull(moduleType);
+        ModuleType = moduleType;
+        Id = id;
         Settings = new ReadOnlyDictionary<string, string?>(new Dictionary<string, string?>(settings ?? new Dictionary<string, string?>(), StringComparer.OrdinalIgnoreCase));
     }
 
-    public Module Module { get; }
-    public Type ModuleType => Module.GetType();
-    public ModuleId Id => Module.Id;
+    public Type ModuleType { get; }
+    public ModuleId Id { get; }
     public IReadOnlyDictionary<string, string?> Settings { get; }
-    public void ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
-        => Module.ConfigureServices(services, configuration);
 }

@@ -12,15 +12,6 @@ public static class ModuleOptionsSerialization
     // Options are ordinary configuration: every property flattens to a key under
     // IntoChatOS:Modules:{Name}:Options, so a host's own configuration (env, args, files)
     // overrides a code-declared default by standard precedence — no side channel.
-    public static ModuleDefinition Compile<TModule, TOptions>(TOptions options)
-        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        var module = new TModule();
-        Validate(options, module.Id.ToString());
-        return new ModuleDefinition(module, FlattenOptions(options, module.Id.ToString()));
-    }
-
     public static Dictionary<string, string?> FlattenOptions<TOptions>(TOptions options, string moduleName)
         where TOptions : class
         => IntoChatOSConfiguration.Flatten(options!, OptionsKey(moduleName));

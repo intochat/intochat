@@ -3,7 +3,7 @@
 #:property DisableMSBuildAssemblyCopyCheck=true
 #:property PublishAot=false
 // Generates the options/secrets table of every module README: `dotnet run scripts/module-readmes.cs [-- --check]`.
-// Reflects over OsCatalog.Modules plus the Windows edge. Writes only between the BEGIN/END GENERATED markers, and creates a
+// Reflects over OperatingSystemModules.Modules plus the Windows edge. Writes only between the BEGIN/END GENERATED markers, and creates a
 // short README (title, description, how to test, docs link) where a module has none. Secrets are listed by NAME from
 // [Secret] attributes; no configuration is loaded and no value is read. --check changes nothing and exits 1 listing stale files.
 using System.Reflection;
@@ -32,7 +32,7 @@ string? Csproj(string assembly) => projects.FirstOrDefault(path => Path.GetFileN
 var stale = new List<string>();
 var written = 0;
 var seen = 0;
-foreach (var module in OsCatalog.WithWindowsEdge().DistinctBy(m => m.Id.ToString()))
+foreach (var module in OperatingSystemModules.WithWindowsEdge().DistinctBy(m => m.Id.ToString()))
 {
     var type = module.Type;
     var assembly = type.Assembly.GetName().Name!;
@@ -166,7 +166,7 @@ static string TypeName(Type type)
 
 // A module that has left the generator has no [Secret]/[Setting] attributes. Its static Integration schema is the same declaration.
 static bool Digital(Type type)
-    => typeof(DigitalBrain.Module).IsAssignableFrom(type) && !typeof(Module).IsAssignableFrom(type);
+    => typeof(DigitalBrain.Module).IsAssignableFrom(type);
 
 static IEnumerable<(string Name, bool Optional)> AttributeSettings(Type type)
     => type.GetCustomAttributes<SettingAttribute>().Select(setting => (setting.Name ?? "", setting.Optional));

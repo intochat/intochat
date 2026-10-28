@@ -6,11 +6,6 @@ using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit;
 
-public sealed class DiscoveryModule(string id, Assembly? contracts = null) : IntoChat.OS.Framework.Modules.Module(new ModuleId(id))
-{
-    public override Assembly? Contracts => contracts ?? typeof(IDiscoveryFixture).Assembly;
-}
-
 public interface IPlainCapability
 {
     Task<string> Capability();

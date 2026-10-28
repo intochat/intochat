@@ -33,7 +33,7 @@ public sealed class ModuleDeploymentFacts
     [Fact]
     public void A_deployment_for_a_module_that_is_not_composed_fails_loudly()
     {
-        var error = Assert.Throws<InvalidOperationException>(() => ModuleDeployments.Discover([new HostModule()]));
+        var error = Assert.Throws<InvalidOperationException>(() => ModuleDeployments.Discover([OsModule.FromDigital(typeof(HostModule))]));
 
         Assert.Contains(nameof(OrphanModule), error.Message, StringComparison.Ordinal);
     }
@@ -247,12 +247,16 @@ public sealed class ModuleDeploymentFacts
             dryRun: dryRun);
     }
 
-    public sealed class OrphanModule() : Module(new ModuleId("orphan"))
+    [DigitalBrain.Module("orphan")]
+    public sealed class OrphanModule : DigitalBrain.Module
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     }
 
-    private sealed class HostModule() : Module(new ModuleId("host"))
+    [DigitalBrain.Module("host")]
+    private sealed class HostModule : DigitalBrain.Module
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     }
 
     public sealed class OrphanDeployment : ModuleDeployment<OrphanModule>

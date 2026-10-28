@@ -108,7 +108,6 @@ public sealed class InProcessTarget : ITestTarget
         {
             if (plan.LicenseCheck is { } check) { server.UseLicenseCheck(check); }
             server.AddModule<OrleansModule>();
-            foreach (var module in plan.Modules.Where(module => module.Module.GetType() != typeof(OrleansModule))) { server.AddModule(module.Module); }
             foreach (var module in plan.NeuronModules ?? [])
             {
                 // A DigitalBrain module is a catalog module: the inventory and its integrations see it.

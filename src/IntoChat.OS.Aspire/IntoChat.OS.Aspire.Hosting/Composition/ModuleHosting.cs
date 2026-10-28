@@ -29,7 +29,6 @@ internal static class HostedModuleId
     public static ModuleId Of(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        if (typeof(IntoChat.OS.Framework.Modules.Module).IsAssignableFrom(type)) { return ((IntoChat.OS.Framework.Modules.Module)Activator.CreateInstance(type)!).Id; }
         var id = type.GetCustomAttribute<DigitalBrain.ModuleAttribute>()?.Id
             ?? throw new InvalidOperationException($"{type.FullName} has no [Module(id)].");
         return new ModuleId(id);

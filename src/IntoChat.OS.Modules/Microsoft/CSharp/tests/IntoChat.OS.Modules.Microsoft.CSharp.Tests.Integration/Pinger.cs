@@ -8,10 +8,12 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
 // Composes the test's own contracts, so behaviors may call them as they call an installed module's; the pinger is a plain neuron
 // (06-08), hosted by the test's DigitalBrain module.
-public sealed class PingerModule() : Module(new ModuleId("tests-pinger"))
+[DigitalBrain.Module("tests-pinger")]
+public sealed class PingerModule : DigitalBrain.Module
 {
-    public override System.Reflection.Assembly? Contracts => typeof(IPinger).Assembly;
-    public override Type? Neurons => typeof(PingerNeurons);
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    public static System.Reflection.Assembly? Contracts => typeof(IPinger).Assembly;
+    public static Type Neurons => typeof(PingerNeurons);
 }
 
 [DigitalBrain.Module("tests-pinger")]

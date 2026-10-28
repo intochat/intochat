@@ -127,12 +127,14 @@ internal static class CircleBrainRooms
 }
 
 // A connector whose use operation echoes which brain's connection answered.
-public sealed class SharedConnectorModule() : Module(new ModuleId(CircleBrainRooms.Connector))
+[DigitalBrain.Module(CircleBrainRooms.Connector)]
+public sealed class SharedConnectorModule : DigitalBrain.Module
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
     public static ConnectorDefinition Connector => new(CircleBrainRooms.Connector, "Shared", ["api-key", "oauth"], ["shared-oauth"])
     { Neurons = [typeof(IShared)], OAuthMethods = [new("oauth", "https://shared.test/authorize", "https://shared.test/token", [], "shared-oauth")] };
     public static IntegrationSchema Integration => IntegrationSchema.For("shared-oauth", "Shared OAuth");
-    public override Type? Neurons => typeof(SharedConnectorNeurons);
+    public static Type Neurons => typeof(SharedConnectorNeurons);
 }
 
 [DigitalBrain.Contracts.NeuronAlias("shared"), DigitalBrain.Contracts.DefaultNeuronType("shared")]

@@ -18,11 +18,14 @@ namespace IntoChat.Cloud.Circle.Server.Tests;
 // The kernel composes the circle server module under Topology=cloud in 10-16; here a test module puts it on an
 // in-process os brain directly. The invite redeemer is a scripted stand-in: the real one is covered by the circles
 // module's own facts (10-03).
-public sealed class CircleServerHostModule() : OS.Framework.Modules.Module(new ModuleId(CircleServerModule.Id)), IHttpModule
+[DigitalBrain.Module(CircleServerModule.Id)]
+public sealed class CircleServerHostModule : DigitalBrain.Module, IHttpModule
 {
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    public static Type Neurons => typeof(CircleServerModule);
     private readonly CircleServerModule _server = new();
 
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         _server.ConfigureServices(services);
