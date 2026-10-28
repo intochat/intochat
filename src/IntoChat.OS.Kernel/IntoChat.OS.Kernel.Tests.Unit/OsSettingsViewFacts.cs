@@ -42,6 +42,35 @@ public sealed class OsSettingsViewFacts
         Assert.Equal(("Billing · Later", "tab:billing", false, UiStyle.Ghost), (billing.Text!, billing.Action!, billing.Enabled, billing.Style));
     }
 
+    // 09-04: the identity provider's account surface is a tab after the R2 tabs, mounted by reference; no surface, no tab.
+    [Fact]
+    public void AnAccountSurfaceAddsAnAccountTabThatMountsItsNeuron()
+    {
+        var model = Model("account") with { Account = new("view", "b1/auth/account") };
+        var root = SettingsView.Render(model, Now);
+        var tabs = Find(root, "tabs");
+        Assert.Equal([.. SettingsTabs.All.Select(tab => "tab-" + tab.Id), "tab-account", "tab-billing"], tabs.Children.Select(child => child.Key));
+        Assert.Equal("tab:account", tabs.Children.Single(child => child.Key == "tab-account").Action);
+        Assert.Equal("tab-account", tabs.Children.Single(child => child.Style == UiStyle.Primary).Key);
+        Assert.Equal([("view", "b1/auth/account")], References(Find(root, "tab-body-account")));
+    }
+
+    [Fact]
+    public void WithoutAnAccountSurfaceThereIsNoAccountTabAndTheTabOpensGeneral()
+    {
+        var root = SettingsView.Render(Model("account"), Now);
+        Assert.DoesNotContain(All(root), node => node.Key == "tab-account");
+        Assert.Contains(All(root), node => node.Key == "tab-body-general");
+    }
+
+    [Theory]
+    [InlineData("view|b1/auth/account", "view", "b1/auth/account")]
+    [InlineData("view|", null, null)]
+    [InlineData("nope", null, null)]
+    [InlineData(null, null, null)]
+    public void TheHostSettingNamesTheSurface(string? setting, string? kind, string? name)
+        => Assert.Equal(kind is null ? null : new AccountSurface(kind, name!), Settings.AccountOf(setting));
+
     [Theory]
     [InlineData("profile", "general")]
     [InlineData("appearance", "general")]

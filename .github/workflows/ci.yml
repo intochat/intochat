@@ -88,6 +88,9 @@ jobs:
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
 
+      - name: Deploy scripts and workflow facts
+        run: python3 -m unittest discover -s scripts/deploy -p 'test_*.py'
+
       - name: Module READMEs are current
         run: dotnet run scripts/module-readmes.cs -- --check
 

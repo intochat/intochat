@@ -5,7 +5,7 @@ using global::Azure;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 
-// dotnet run --project IntoChat.OS.Kernel -- install --env test --config deployment/test.json [--dry-run] [--secrets-from file]
+// dotnet run --project IntoChat.OS.Kernel -- install --env test --config deployment/test.json [--dry-run] [--print-env] [--secrets-from file]
 // Runs before any cluster exists: the specs are ensured straight against ARM, in dependency order, and the
 // deployments of the composed modules run after the foundation.
 public static class AzureInstaller
@@ -22,12 +22,12 @@ public static class AzureInstaller
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
         InstallConfig config;
-        bool dryRun;
+        bool dryRun, printEnv;
         string? secretsFrom;
         try
         {
             var options = Options.Parse(args);
-            (dryRun, secretsFrom) = (options.DryRun, options.SecretsFrom);
+            (dryRun, secretsFrom, printEnv) = (options.DryRun, options.SecretsFrom, options.PrintEnv);
             config = InstallConfig.Parse(await File.ReadAllTextAsync(options.Config, ct));
             if (!string.Equals(config.Env, options.Env, StringComparison.Ordinal))
             {
@@ -38,6 +38,22 @@ public static class AzureInstaller
         {
             await error.WriteLineAsync($"install: {ex.Message}", ct);
             return 2;
+        }
+
+        var manifests = ManifestEnvironment.ManifestsOf(modules);
+        if (printEnv)
+        {
+            // R4-03: the names the OS app will carry, rendered from the profile's foundation and the composed manifests. No Azure call.
+            try
+            {
+                foreach (var name in ManifestEnvironment.EnvironmentNames(config, manifests)) { await output.WriteLineAsync(name, ct); }
+                return 0;
+            }
+            catch (InvalidOperationException ex)
+            {
+                await error.WriteLineAsync($"install: {ex.Message}", ct);
+                return 2;
+            }
         }
 
         IReadOnlyList<ModuleDeploymentBinding> deployments;
@@ -93,6 +109,18 @@ public static class AzureInstaller
                 await deployment.Deploy(context);
                 foreach (var (name, value) in context.RuntimeVariables) { variables[name] = value; }
                 secrets.AddRange(context.RuntimeSecrets);
+            }
+            // The manifests' own settings (values the deployment input supplies) and secrets (Key Vault references).
+            var (settingVariables, manifestSecrets) = ManifestEnvironment.Render(config, manifests);
+            foreach (var (name, value) in settingVariables) { variables[name] = value; }
+            foreach (var secret in manifestSecrets)
+            {
+                // A reference to a vault secret that does not exist stops the container app from starting: fail here, before it.
+                if (!dryRun && await arm.ReadSecret(secret.Vault, secret.VaultSecret, ct) is null)
+                {
+                    throw new InvalidOperationException($"the Key Vault secret '{secret.VaultSecret}' of a composed module is not in {secret.Vault}; store it before installing.");
+                }
+                secrets.Add(secret);
             }
             var osApp = InstallPlan.OsApp(config, variables, secrets);
             await Ensure(osApp with { RegistryServer = foundation.RegistryServer }, ct);
@@ -151,12 +179,13 @@ public static class AzureInstaller
         });
     }
 
-    private sealed record Options(string Env, string Config, bool DryRun, string? SecretsFrom)
+    private sealed record Options(string Env, string Config, bool DryRun, string? SecretsFrom, bool PrintEnv)
     {
         public static Options Parse(string[] args)
         {
             string? env = null, config = null, secrets = null;
             var dryRun = false;
+            var printEnv = false;
             for (var i = 1; i < args.Length; i++)
             {
                 switch (args[i])
@@ -165,6 +194,7 @@ public static class AzureInstaller
                     case "--config": config = Value(args, ref i); break;
                     case "--secrets-from": secrets = Value(args, ref i); break;
                     case "--dry-run": dryRun = true; break;
+                    case "--print-env": printEnv = true; break;
                     default: throw new ArgumentException($"Unknown install argument '{args[i]}'.");
                 }
             }
@@ -172,7 +202,8 @@ public static class AzureInstaller
                 env ?? throw new ArgumentException("install needs --env."),
                 config ?? throw new ArgumentException("install needs --config."),
                 dryRun,
-                secrets);
+                secrets,
+                printEnv);
         }
 
         private static string Value(string[] args, ref int i) =>

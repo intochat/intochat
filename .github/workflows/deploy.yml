@@ -1,0 +1,155 @@
+name: deploy
+
+# One path for both environments: scripts/deploy/deploy.sh. Secrets live only in each environment's Key Vault; the workflow
+# holds the Azure OIDC identity and a read-only token for the private values repo, nothing else.
+#   test: a master push (after ci is green for that commit) builds the images, installs, verifies repeatability and
+#         records the image digests.
+#   prod: a published release promotes the digests test verified and installs them. There is no manual trigger: an
+#         emergency redeploy is a new `gh release` (owner rule: releases only through gh release).
+# Both jobs wait for the repository variable DEPLOY_ENABLED to be 'true'. It is unset until the owner has added every
+# secret and environment (09-DEPLOY-OPERATOR.md), so a merge before then starts no deployment.
+on:
+  push:
+    branches: [master]
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: read
+  packages: read
+  actions: read
+
+env:
+  NUGET_GITHUB_USERNAME: ${{ secrets.NUGET_GITHUB_USERNAME || github.actor }}
+  NUGET_GITHUB_TOKEN: ${{ secrets.NUGET_GITHUB_TOKEN || github.token }}
+
+jobs:
+  test:
+    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment: test
+    timeout-minutes: 90
+    concurrency:
+      group: deploy-test
+      cancel-in-progress: false
+    env:
+      DEPLOYMENT_VALUES_DIR: ${{ github.workspace }}/.deployment-values
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      # The private values repo (test.json, prod.json at its root) is read-only here and stays out of git (.deployment-values/ is ignored).
+      - uses: actions/checkout@v4
+        with:
+          repository: intochat/os-deployment
+          ref: main
+          path: .deployment-values
+          token: ${{ secrets.DEPLOYMENT_VALUES_TOKEN }}
+          persist-credentials: false
+      - name: Reserve disk space for image builds
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/share/swift
+          df -h /
+      - name: Require successful CI for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_WAIT_SECONDS: '2400'
+        run: python3 scripts/deploy/deployment_gate.py ci.yml "$GITHUB_SHA" push
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy and verify unchanged reinstall
+        run: scripts/deploy/deploy.sh --env test --verify-repeatability
+      - name: Record tested image digests
+        run: python3 scripts/deploy/release_manifest.py record "$GITHUB_SHA" "$RUNNER_TEMP/tested-images.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tested-images
+          path: ${{ runner.temp }}/tested-images.json
+          retention-days: 90
+
+  prod:
+    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 90
+    permissions:
+      id-token: write
+      contents: write
+      packages: read
+      actions: read
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      DEPLOYMENT_VALUES_DIR: ${{ github.workspace }}/.deployment-values
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Validate release reference
+        run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]'
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: intochat/os-deployment
+          ref: main
+          path: .deployment-values
+          token: ${{ secrets.DEPLOYMENT_VALUES_TOKEN }}
+          persist-credentials: false
+      - name: Reserve disk space for installer build
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/share/swift
+          df -h /
+      - name: Resolve release commit
+        run: echo "DEPLOY_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Require successful master CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/deploy/deployment_gate.py ci.yml "$DEPLOY_SHA" push
+      - name: Require successful test deployment of this commit
+        id: tested
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/deploy/deployment_gate.py deploy.yml "$DEPLOY_SHA" deployment
+      - name: Download tested image manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEST_RUN_ID: ${{ steps.tested.outputs.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/tested"
+          gh run download "$TEST_RUN_ID" --repo "$GITHUB_REPOSITORY" --name tested-images --dir "$RUNNER_TEMP/tested" || \
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern tested-images.json --dir "$RUNNER_TEMP/tested" --clobber
+          python3 scripts/deploy/release_manifest.py validate "$DEPLOY_SHA" "$RUNNER_TEMP/tested/tested-images.json"
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/tested/tested-images.json" --repo "$GITHUB_REPOSITORY" --clobber
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Ensure production registry
+        run: |
+          prefix="$(jq -r .prefix "$DEPLOYMENT_VALUES_DIR/prod.json")"
+          location="$(jq -r .location "$DEPLOYMENT_VALUES_DIR/prod.json")"
+          az group create -n "rg-$prefix-prod" -l "$location" -o none
+          az acr show -n "acr${prefix}prod" -o none >/dev/null 2>&1 || az acr create -n "acr${prefix}prod" -g "rg-$prefix-prod" --sku Basic --admin-enabled false -l "$location" -o none
+      - name: Promote all three tested image digests
+        run: python3 scripts/deploy/release_manifest.py promote "$DEPLOY_SHA" "$RUNNER_TEMP/tested/tested-images.json" "$RELEASE_TAG"
+      - name: Deploy production
+        run: scripts/deploy/deploy.sh --env prod --image-tag "$RELEASE_TAG"

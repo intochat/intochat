@@ -13,6 +13,10 @@ public static class SettingsTabs
         ("danger", "Danger zone"),
     ];
 
+    // The Account tab is not one of the eight: it follows them when the identity provider contributes a surface.
+    public const string AccountId = "account";
+    public const string AccountLabel = "Account";
+
     public static string Id(string? section)
     {
         var id = section switch
@@ -21,10 +25,10 @@ public static class SettingsTabs
             "agents" => "models",
             _ => section,
         };
-        return All.Any(tab => tab.Id == id) ? id! : "general";
+        return id == AccountId || All.Any(tab => tab.Id == id) ? id! : "general";
     }
 
-    public static string Label(string id) => All.First(tab => tab.Id == id).Label;
+    public static string Label(string id) => id == AccountId ? AccountLabel : All.First(tab => tab.Id == id).Label;
 
     public static string Description(string id) => id switch
     {
@@ -35,6 +39,7 @@ public static class SettingsTabs
         "variables" => "Values your brain's apps and agents can use. A secret is never shown again once saved.",
         "notifications" => "Choose what this brain tells you about.",
         "archived" => "Conversations you have archived.",
+        "account" => "Your sign-in, profile and two-step verification.",
         _ => "Actions that change access to your account.",
     };
 }

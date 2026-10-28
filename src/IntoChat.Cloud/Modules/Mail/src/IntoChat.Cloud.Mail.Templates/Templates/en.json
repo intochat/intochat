@@ -1,0 +1,154 @@
+{
+  "SignupCode": {
+    "Subject": "Your IntoChat sign-up code",
+    "Title": "Confirm your email",
+    "MainHeading": "Your code: {0}",
+    "Message": "Enter this code in IntoChat to finish creating your account.",
+    "ButtonText": "Open IntoChat",
+    "SecondaryMessage": "For your security:",
+    "Features": [
+      "The code works once",
+      "Never share this code with anyone"
+    ],
+    "ExpiryInfo": "The code expires in 10 minutes.",
+    "IgnoreText": "If you didn't try to create an IntoChat account, you can ignore this email."
+  },
+  "LoginCode": {
+    "Subject": "Your IntoChat login code",
+    "Title": "Log in to IntoChat",
+    "MainHeading": "Your code: {0}",
+    "Message": "Enter this code in IntoChat to finish logging in.",
+    "ButtonText": "Open IntoChat",
+    "SecondaryMessage": "For your security:",
+    "Features": [
+      "The code works once",
+      "Never share this code with anyone"
+    ],
+    "ExpiryInfo": "The code expires in 10 minutes.",
+    "IgnoreText": "If you didn't try to log in, change your password. Someone may know it."
+  },
+  "ResetCode": {
+    "Subject": "Your IntoChat password reset code",
+    "Title": "Reset your password",
+    "MainHeading": "Your code: {0}",
+    "Message": "Enter this code in IntoChat to choose a new password.",
+    "ButtonText": "Open IntoChat",
+    "SecondaryMessage": "For your security:",
+    "Features": [
+      "The code works once",
+      "Never share this code with anyone"
+    ],
+    "ExpiryInfo": "The code expires in 10 minutes.",
+    "IgnoreText": "If you didn't ask to reset your password, you can ignore this email. Your password stays the same."
+  },
+  "ChangeEmailCode": {
+    "Subject": "Confirm your new IntoChat email",
+    "Title": "Confirm your new email",
+    "MainHeading": "Your code: {0}",
+    "Message": "Enter this code in IntoChat to confirm your new email address.",
+    "ButtonText": "Open IntoChat",
+    "SecondaryMessage": "For your security:",
+    "Features": [
+      "The code works once",
+      "Never share this code with anyone"
+    ],
+    "ExpiryInfo": "The code expires in 10 minutes.",
+    "IgnoreText": "If you didn't ask to change your email, you can ignore this email."
+  },
+  "AccountAlreadyExists": {
+    "Subject": "You already have an IntoChat account",
+    "Title": "You already have an account",
+    "MainHeading": "You already have an account",
+    "Message": "Someone tried to sign up with this email address, but it already belongs to an IntoChat account.",
+    "ButtonText": "Log in",
+    "SecondaryMessage": "What you can do:",
+    "Features": [
+      "Log in with your email and password",
+      "Forgot your password? Reset it on the login screen"
+    ],
+    "ExpiryInfo": " ",
+    "IgnoreText": "If this wasn't you, you can ignore this email. Your account has not changed."
+  },
+  "TeamInvite": {
+    "Subject": "You have been invited to an IntoChat team",
+    "Title": "Join your team on IntoChat",
+    "MainHeading": "{0} invited you to join {1}",
+    "Message": "Accept the invite to work in IntoChat together with your team.",
+    "ButtonText": "Accept invite",
+    "SecondaryMessage": "Good to know:",
+    "Features": [
+      "Sign in or create an account with this email address to accept",
+      "The invite link works once"
+    ],
+    "ExpiryInfo": "The invite expires in 7 days.",
+    "IgnoreText": "If you don't know who sent this, you can ignore this email."
+  },
+  "InviteAccepted": {
+    "Subject": "A new member joined your IntoChat team",
+    "Title": "New team member",
+    "MainHeading": "{0} joined {1}",
+    "Message": "Your invite was accepted. The new member can now work in IntoChat together with your team.",
+    "ButtonText": "Open IntoChat",
+    "SecondaryMessage": "Good to know:",
+    "Features": [
+      "You can see all members of your team in IntoChat",
+      "Manage roles and invites from the team settings"
+    ],
+    "ExpiryInfo": " ",
+    "IgnoreText": "You receive this email because you invited this person to your team."
+  },
+  "Welcome": {
+    "Subject": "Welcome to IntoChat",
+    "Title": "Welcome to IntoChat",
+    "MainHeading": "Welcome to IntoChat",
+    "Message": "Your account is ready. Open IntoChat to start working with your brain.",
+    "ButtonText": "Open IntoChat",
+    "SecondaryMessage": "Good to know:",
+    "Features": [
+      "Your account email is already confirmed",
+      "You can change your name and picture on your profile page"
+    ],
+    "ExpiryInfo": " ",
+    "IgnoreText": "You receive this email once, when you create your IntoChat account."
+  },
+  "Common": {
+    "HeaderColors": {
+      "SignupCode": "#2563eb",
+      "LoginCode": "#2563eb",
+      "ResetCode": "#dc2626",
+      "ChangeEmailCode": "#2563eb",
+      "AccountAlreadyExists": "#2563eb",
+      "TeamInvite": "#2563eb",
+      "InviteAccepted": "#2563eb",
+      "Welcome": "#2563eb"
+    },
+    "ButtonColors": {
+      "SignupCode": "#2563eb",
+      "LoginCode": "#2563eb",
+      "ResetCode": "#dc2626",
+      "ChangeEmailCode": "#2563eb",
+      "AccountAlreadyExists": "#2563eb",
+      "TeamInvite": "#2563eb",
+      "InviteAccepted": "#2563eb",
+      "Welcome": "#2563eb"
+    },
+    "ButtonHoverColors": {
+      "SignupCode": "#1d4ed8",
+      "LoginCode": "#1d4ed8",
+      "ResetCode": "#b91c1c",
+      "ChangeEmailCode": "#1d4ed8",
+      "AccountAlreadyExists": "#1d4ed8",
+      "TeamInvite": "#1d4ed8",
+      "InviteAccepted": "#1d4ed8",
+      "Welcome": "#1d4ed8"
+    },
+    "Greeting": "Hello!",
+    "UrlFallbackLabel": "Button not working? Copy and paste this link:",
+    "FooterBestRegards": "Best regards,",
+    "FooterTeamName": "The IntoChat Team",
+    "FooterCopyright": "© {0} IntoChat. All rights reserved.",
+    "FooterTagline": "IntoChat helps your team work together in one place.",
+    "CompanyAddress": "IntoChat",
+    "UnsubscribeText": "Unsubscribe"
+  }
+}

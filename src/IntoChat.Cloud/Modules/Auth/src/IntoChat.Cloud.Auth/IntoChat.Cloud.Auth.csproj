@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Auth module: email codes, TOTP, Google sign-in, sessions, licence check and audit. Provides identity@1 sessions on DigitalBrain.</Description>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <!-- D-01: DigitalBrain, its identity and secrets capabilities, the module's own contracts and third-party packages only. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
+    <PackageReference Include="Otp.NET" />
+    <ProjectReference Include="../IntoChat.Cloud.Auth.Core/IntoChat.Cloud.Auth.Core.csproj" />
+    <ProjectReference Include="../../Contracts/IntoChat.Cloud.Auth.Contracts/IntoChat.Cloud.Auth.Contracts.csproj" />
+    <ProjectReference Include="../../../Mail/Contracts/IntoChat.Cloud.Mail.Contracts/IntoChat.Cloud.Mail.Contracts.csproj" />
+    <ProjectReference Include="../../../Organisations/Contracts/IntoChat.Cloud.Organisations.Contracts/IntoChat.Cloud.Organisations.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.Cloud.Auth.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.Cloud.Auth.Tests.Integration" />
+  </ItemGroup>
+</Project>

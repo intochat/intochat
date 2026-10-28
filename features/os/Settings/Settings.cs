@@ -16,7 +16,7 @@ using IntoChat.OS.Integrations;
 public sealed record SettingsViewState(string Tab = "general", int ArchivedTake = SettingsView.ArchivedPage, bool ConfirmDelete = false, string? Toast = null);
 
 // What the model reads, so the facts can stand in for the brain.
-public sealed record SettingsSources(Func<Task<ModelChoices>> Models, Func<int, int, Task<ChatIndexPage>> Archived, Func<Task<ConnectionRow[]>> Connections);
+public sealed record SettingsSources(Func<Task<ModelChoices>> Models, Func<int, int, Task<ChatIndexPage>> Archived, Func<Task<ConnectionRow[]>> Connections, Func<AccountSurface?>? Account = null);
 
 // Shared by the Settings synapses: keys, the trust rule, view state, the model and the single Show.
 public static class Settings
@@ -154,7 +154,8 @@ public static class Settings
             else if (state.Tab == "connections") { connections = await sources.Connections(); }
         }
         catch (Exception error) when (error is not OperationCanceledException) { toast = SettingsCopy.SaveFailed; }
-        return new(state.Tab, appKey, auto, models, archived, archivedTotal, connections, state.ConfirmDelete && state.Tab == "danger", toast);
+        return new(state.Tab, appKey, auto, models, archived, archivedTotal, connections, state.ConfirmDelete && state.Tab == "danger", toast,
+            sources.Account?.Invoke());
     }
 
     // The brain's connections first, then each connector this host offers that is not connected yet.
@@ -186,8 +187,14 @@ public static class Settings
         return new(
             () => brain.Get<IModelCatalog>(IModelCatalog.Key(scope)).List(),
             async (skip, take) => await (await Index(brain)).List(true, skip, take),
-            async () => Connections(await requests.ListConnections(), await requests.ListKinds(), await requests.ListOffers()));
+            async () => Connections(await requests.ListConnections(), await requests.ListKinds(), await requests.ListOffers()),
+            () => AccountOf(brain.Setting("AccountSurface")));
     }
+
+    // The host writes the identity provider's account surface neuron into the app's setting as "{kind}|{name}";
+    // anything else (no setting, malformed) means the provider contributes none and the tab is absent.
+    public static AccountSurface? AccountOf(string? setting)
+        => setting?.Split('|') is [{ Length: > 0 } kind, { Length: > 0 } name] ? new(kind, name) : null;
 
     public static async Task<IChatIndex> Index(IntoChatOSConnection brain)
         => brain.Get<IChatIndex>(ChatIndexKey(Scope(brain), await brain.Get<IApp>(IApp.Key(Scope(brain), "ino")).Read()));
@@ -287,7 +294,7 @@ public sealed class SettingsCommands(IText viewState, IText archivedPage, Func<T
         var (verb, argument) = at < 0 ? (action, "") : (action[..at], action[(at + 1)..]);
         return verb switch
         {
-            "tab" when SettingsTabs.All.Any(tab => tab.Id == argument)
+            "tab" when SettingsTabs.All.Any(tab => tab.Id == argument) || argument == SettingsTabs.AccountId
                 => () => Update(state => state with { Tab = argument, ConfirmDelete = false, Toast = null }),
             "archived-more" when at < 0 => () => Update(state => state with { ArchivedTake = state.ArchivedTake + SettingsView.ArchivedPage, Toast = null }),
             "delete" when at < 0 => () => Update(state => state with { ConfirmDelete = true, Toast = null }),
