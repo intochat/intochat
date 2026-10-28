@@ -60,8 +60,14 @@ public sealed class LocalProfile : ITopologyProfile
     /// <inheritdoc />
     public Services Services => LocalServices;
 
-    /// <inheritdoc />
-    public IReadOnlyDictionary<string, string?> Defaults { get; } = new Dictionary<string, string?>();
+    /// <summary>
+    /// Below <c>&lt;Home&gt;/settings.json</c>. A local run defaults auth posture to Open, as the AppHost does.
+    /// local+cloud shares this dictionary. The cloud profile leaves <c>IntoChatOS:Auth:Posture</c> required.
+    /// </summary>
+    public IReadOnlyDictionary<string, string?> Defaults { get; } = new Dictionary<string, string?>
+    {
+        ["IntoChatOS:Auth:Posture"] = "Open",
+    };
 
     /// <summary>The folder of one file grain store.</summary>
     public static string StoreDirectory(StateHome home, string name)

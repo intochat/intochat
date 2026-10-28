@@ -1,8 +1,10 @@
+using System.Text.Json;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -14,7 +16,8 @@ namespace IntoChat.OS.Modules.Apps;
 public interface ICreatorModel : IGrainWithIntegerKey
 {
     [ResponseTimeout("00:10:00")] Task<string> Complete(string brainId, string model, string system, string prompt);
-    [ResponseTimeout("00:10:00")] Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request);
+    // InferenceRequest and InferenceResult stay JSON (RuntimeProtocol.Json). JsonElement is the grain wire (JsonElementCodec).
+    [ResponseTimeout("00:10:00")] Task<JsonElement> Generate(string brainId, string model, JsonElement request);
 }
 
 [GrainType("apps.creator-model"), StatelessWorker, Reentrant]
@@ -27,8 +30,13 @@ internal sealed class CreatorModelWorker : Grain, ICreatorModel
     public Task<string> Complete(string brainId, string model, string system, string prompt)
         => CompleteModel(Models, brainId, model, system, prompt);
 
-    public Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request)
-        => Resolve(Models, brainId, model).Generate(request);
+    public async Task<JsonElement> Generate(string brainId, string model, JsonElement request)
+    {
+        var typed = request.Deserialize<InferenceRequest>(RuntimeProtocol.Json)
+            ?? throw new ArgumentException("The request JSON is empty.", nameof(request));
+        var result = await Resolve(Models, brainId, model).Generate(typed);
+        return JsonSerializer.SerializeToElement(result, RuntimeProtocol.Json);
+    }
 
     private static ILLM Resolve(IServiceProvider neurons, string brainId, string model)
     {

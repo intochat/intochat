@@ -12,6 +12,7 @@ if (AzureInstaller.IsInstall(args))
 }
 
 var builder = WebApplication.CreateBuilder(args);
+LocalRunDefaults.Apply(builder.Configuration);
 // A distribution of the operating system brings branding, features and configuration; the composition is the OS's.
 // Cloud modules declare LoadsUnder and stay out of a local topology.
 var topology = builder.Configuration[IntoChatOSNames.TopologyKey];

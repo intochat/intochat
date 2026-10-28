@@ -606,3 +606,63 @@ Kernel attempts, in order:
 ### Step 8 status
 
 Deleted nothing. Ported nothing. The end-state build is 0 errors, 0 warnings. The kernel does not boot: the legacy data directory blocks Production, and in Development the Apps grain `ICreatorModel` still demands Orleans serializers that the cut-over removed. `/health` is curl exit 7. Shell and Brain checks were not observed. Left for 0.8.0: the five-assembly Orleans allow-list, Identity and Apps grains, the silo-host packages, `src/IntoChat.OS/Runtime`, `compiled-apps/os`, and `ShippedApps` / `AppSource.Shipped`.
+
+## Step 8 — Live proof (retry)
+
+Three start failures from the attempt above, plus the container modules that aborted the next start.
+
+- Explicit `IntoChatOS:Home` makes `LegacyConfigurationGuard` look for the old product folder under that Home only. The default Home (Home unset) still checks `%LOCALAPPDATA%`. `%LOCALAPPDATA%\DigitalBrain` was not deleted or renamed. `IntoChatOS:Guard:IgnoreLegacyDataDirectory` still skips the check.
+- `LocalProfile.Defaults` sets `IntoChatOS:Auth:Posture=Open` at the lowest precedence. `LocalCloudProfile` shares that dictionary. `CloudProfile.Defaults` stays empty, so cloud still requires Posture.
+- `ICreatorModel.Generate` takes and returns `JsonElement` through `RuntimeProtocol.Json`. `Creator` and `ReactionWriter` serialize `InferenceRequest` / `InferenceResult` on that path. No `[GenerateSerializer]` was added to a Contracts project. The silo then reached Active with no further missing-serializer exception.
+- A local kernel (and local+cloud, and an unset topology) inserts `IntoChatOS:Modules:<id>:Enabled=false` at the lowest precedence for the modules `RunProfile.LocalDisabledModules` names: postgres, qdrant, clickhouse, supabase, artcraft, playwright, github, azure, roslyn, salesforce, gmail. An explicit `Enabled` still wins. Cloud does not apply them. Without that, `IntegrationClickHouseProvider.Materialize` threw `The ClickHouse integration is unavailable.` during `IntegrationSeeder` and the process exited 1.
+
+`compiled-apps/` was removed from disk (`Test-Path` is false). It stays gitignored. No `.cs`, `.csproj`, `.json`, or `.yml` file references it. The plan, this ledger, and `docs/cutover-assessment.md` still name it.
+
+Command (launch profile `http`: `ASPNETCORE_ENVIRONMENT=Development`, `http://localhost:5310`):
+
+```
+dotnet run --project E:\intochat\os-wt\cutover\src\IntoChat.OS.Kernel\IntoChat.OS.Kernel\IntoChat.OS.Kernel.csproj -c Release --no-build -- --IntoChatOS:Topology=local --IntoChatOS:Home=C:\Users\vhorb\AppData\Local\Temp\intochat-cutover-d1b67a0b34c34e56834307823813fe59
+```
+
+The log line was `Open posture listening on http://localhost:5310`. Port 5310.
+
+```
+curl.exe -fsS -D - http://localhost:5310/health
+```
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Date: Wed, 28 Oct 2026 20:11:55 GMT
+Server: Kestrel
+Cache-Control: no-store, no-cache
+Expires: Thu, 01 Jan 1970 00:00:00 GMT
+Pragma: no-cache
+Transfer-Encoding: chunked
+
+Healthy
+```
+
+Exit 0. Production was not re-run. The launch profile is Development. A Production kernel with no C# session-token key still fails in `SessionTokens` before it listens.
+
+Shell, with that kernel still up, from the worktree:
+
+```
+dotnet run intochat-os.cs -- --IntoChatOS:Topology=local
+```
+
+AppHost kernel `OperatingSystem-a` reached `http://localhost:59909/health` with body `Healthy` (Aspire health report `OperatingSystem-a_http_/health_200_check` Healthy). Flutter resource `FlutterShell` ran `flutter run -d windows` and opened a window titled IntoChat (process `intochat_os_flutter`, 1280×720). The widget tree was `BrainSessionGate` → `WorkspaceApp` → `Center` → `Text`.
+
+| Check | Result | Reason |
+| --- | --- | --- |
+| Workspace renders | not observed | The window text was `No app named workspace exists in this brain.` `POST /brains/owner/apps/connect` returned 409 with that detail. `OsWorkspaceRoot.Connect` requests `apps/workspace` open when desktop is not a shipped app. |
+| Desktop renders | not observed | `GET /brains/owner/apps` lists only `brain` and `files`. Desktop is not installed, so connect never takes the desktop view. |
+| Settings renders | not observed | Settings is not installed. The shell stayed on the startup error and never opened it. |
+| Files renders | not observed | The Files app is Live on that GET (title Files, version 3.0.1), but the shell did not mount it. Connect fails before any app view. |
+| Calculator renders | not observed | Calculator is not in the installed list. |
+| Brain shows neurons and synapses | not observed | The Brain app is Live (`[App("brain")]`, open operation "Show the brain.") and the shell did not open it. |
+| Calculator button produces a particle | not observed | The shell never showed Calculator, so no button was pressed. |
+
+`OsAppsOptions.Apps` is empty (`AddOperatingSystemApps()` with no configure), so `OsDefaults` installs no feature-folder apps. `FeatureReconciler` only updates apps the brain already has. Workspace, Desktop, Settings, and Calculator remain scripts under `features/os/` and were not installed into brain `owner`. FeatureBoot logged `Loaded 18 features from E:\intochat\os-wt\cutover\features`. No Dart file was edited.
+
+`dotnet build Intochat.OS.slnx -c Release`: Build succeeded. 0 Warning(s). 0 Error(s). Time Elapsed 00:00:04.69. `LegacyConfigurationGuardFacts`: 33 passed, 0 failed.

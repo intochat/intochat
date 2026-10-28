@@ -1,4 +1,5 @@
 using IntoChat.OS.Runtime;
+using DigitalBrain.Invocation;
 using DigitalBrain.Spi;
 using System.Text;
 using System.Text.Json;
@@ -199,7 +200,9 @@ internal sealed class Creator(
         for (var round = 0; round < MaxBuilderRounds; round++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await grains.GetGrain<ICreatorModel>(0L).Generate(brainId, BuilderModel, new InferenceRequest(messages, Tools: BuilderTools.Definitions));
+            var result = (await grains.GetGrain<ICreatorModel>(0L).Generate(brainId, BuilderModel,
+                JsonSerializer.SerializeToElement(new InferenceRequest(messages, Tools: BuilderTools.Definitions), RuntimeProtocol.Json)))
+                .Deserialize<InferenceResult>(RuntimeProtocol.Json)!;
             messages.AddRange(result.Messages);
             var calls = result.Messages.SelectMany(message => message.Content).OfType<AiToolCall>().ToArray();
             if (calls.Length == 0)

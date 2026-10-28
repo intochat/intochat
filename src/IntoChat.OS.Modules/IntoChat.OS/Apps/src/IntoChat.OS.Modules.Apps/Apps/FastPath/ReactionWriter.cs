@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Invocation;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -305,8 +306,9 @@ internal sealed class ReactionWriter(
         var settings = options.Value;
         var selection = new ModelSelection(Reasoning: settings.FastPathReasoning is { Length: > 0 } reasoning ? reasoning.ToLowerInvariant() : null,
             MaxOutputTokens: settings.FastPathMaxOutputTokens);
-        var result = await grains.GetGrain<ICreatorModel>(0L).Generate(brain, Model, new InferenceRequest(
-            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection)).WaitAsync(cancellationToken);
+        var result = (await grains.GetGrain<ICreatorModel>(0L).Generate(brain, Model, JsonSerializer.SerializeToElement(new InferenceRequest(
+            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection), RuntimeProtocol.Json)).WaitAsync(cancellationToken))
+            .Deserialize<InferenceResult>(RuntimeProtocol.Json)!;
         span?.SetTag("apps.fastpath.input_tokens", result.Usage?.InputTokens);
         span?.SetTag("apps.fastpath.output_tokens", result.Usage?.OutputTokens);
         var text = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
