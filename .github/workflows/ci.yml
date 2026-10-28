@@ -311,13 +311,15 @@ jobs:
   # Windows confinement, junctions, trash and uploads must execute on Windows; Linux skips are not provider verification.
   windows-storage:
     name: windows-storage
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+      - name: Hostile path corpus
+        run: dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.csproj -c Release -p:CodeGraphRefresh=false --filter "FullyQualifiedName~HostilePathFacts" --report-xunit-trx --results-directory artifacts/windows-storage-results
       - name: Windows storage unit tests
         run: dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/windows-storage-results
       - name: Windows storage runtime and writable conformance

@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities.Storage;
+using IntoChat.OS.Runtime.Storage.Confinement;
 using DigitalBrain.Testing.Conformance.Storage;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
@@ -10,7 +11,7 @@ public sealed class WindowsStorageKit : StorageConformance<IStorage>
 
     protected override async Task<StorageSubject> Connect(StorageSeed seed, CancellationToken ct)
     {
-        var root = MachineRoots.Normalize(Directory.CreateTempSubdirectory("windows-kit").FullName);
+        var root = PathConfinement.Normalize(Directory.CreateTempSubdirectory("windows-kit").FullName);
         _root = root;
         foreach (var entry in seed.Entries)
         {
@@ -28,8 +29,8 @@ public sealed class WindowsStorageKit : StorageConformance<IStorage>
 
         var operations = new InMemoryOperations();
         var storage = new WindowsStorage([root], operations: operations);
-        var outside = MachineRoots.Normalize(Path.Combine(Directory.GetParent(root)!.FullName, "escape.txt"));
-        var windows = MachineRoots.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "win.ini"));
+        var outside = PathConfinement.Normalize(Path.Combine(Directory.GetParent(root)!.FullName, "escape.txt"));
+        var windows = PathConfinement.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "win.ini"));
         return new StorageSubject(storage, operations, [WindowsStorage.IdOf(outside), WindowsStorage.IdOf(windows)]);
     }
 

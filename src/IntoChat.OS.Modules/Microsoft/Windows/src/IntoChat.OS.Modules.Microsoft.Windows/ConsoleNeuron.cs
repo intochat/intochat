@@ -1,4 +1,5 @@
 using IntoChat.OS.Framework.Machine;
+using IntoChat.OS.Runtime.Storage.Confinement;
 using System.Diagnostics;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -23,7 +24,7 @@ internal sealed class ConsoleNeuron(IMachineIdentity identity) : DigitalBrain.Ne
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
         var roots = await SiloNeurons.Get<IWindows>(Context.Services, connection).Roots();
-        var directory = MachineRoots.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
+        var directory = PathConfinement.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
         var seconds = Math.Clamp(timeoutSeconds, 1, MaxTimeoutSeconds);
 
         // cmd.exe parses its own command line, so the command goes through verbatim rather than argv-quoted.
