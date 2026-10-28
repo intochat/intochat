@@ -1,4 +1,5 @@
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Modules.Microsoft.Azure;
 using IntoChat.OS.Modules.Microsoft.Azure.Install;
@@ -12,8 +13,11 @@ if (AzureInstaller.IsInstall(args))
 
 var builder = WebApplication.CreateBuilder(args);
 // A distribution of the operating system brings branding, features and configuration; the composition is the OS's.
-builder.AddIntoChatOSServer(server => server.UseOrleansDashboard()
-    .AddOperatingSystem(OperatingSystem.IsWindows() ? OsCatalog.WithWindowsEdge() : OsCatalog.Modules));
+// Cloud modules declare LoadsUnder and stay out of a local topology.
+var topology = builder.Configuration[IntoChatOSNames.TopologyKey];
+var catalog = (OperatingSystem.IsWindows() ? OsCatalog.WithWindowsEdge() : OsCatalog.Modules)
+    .Where(module => module.LoadsUnder(topology)).ToArray();
+builder.AddIntoChatOSServer(server => server.UseOrleansDashboard().AddOperatingSystem(catalog));
 var app = builder.Build();
 app.MapIntoChatOSServer();
 app.Run();

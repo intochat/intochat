@@ -1,6 +1,4 @@
 using System.Reflection;
-
-using Module = IntoChat.OS.Framework.Modules.Module;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Modules;
@@ -8,15 +6,15 @@ namespace IntoChat.OS.Framework.Modules;
 // The modules selected for this host, available to modules without coupling hosting to their consumers.
 public sealed class ModuleInventory
 {
-    public ModuleInventory(IEnumerable<Module> modules, IReadOnlyList<ModuleStatus>? statuses = null)
+    public ModuleInventory(IEnumerable<OsModule> modules, IReadOnlyList<ModuleStatus>? statuses = null)
     {
         ArgumentNullException.ThrowIfNull(modules);
         Modules = Array.AsReadOnly(modules.ToArray());
         Statuses = statuses ?? Array.AsReadOnly(Modules.Select(module => new ModuleStatus(module.Id, ModuleState.Active, null)).ToArray());
-        Types = Array.AsReadOnly(Modules.Select(module => module.GetType()).ToArray());
+        Types = Array.AsReadOnly(Modules.Select(module => module.Type).ToArray());
     }
 
-    public IReadOnlyList<Module> Modules { get; }
+    public IReadOnlyList<OsModule> Modules { get; }
     public IReadOnlyList<Type> Types { get; }
 
     // Every module the server registered and what became of it: running, unlicensed, or disabled by configuration.
@@ -51,5 +49,5 @@ public sealed class ModuleInventory
         }
     }
 
-    public Module? Declaring(Assembly contracts) => Modules.FirstOrDefault(module => module.Contracts == contracts);
+    public OsModule? Declaring(Assembly contracts) => Modules.FirstOrDefault(module => module.Contracts == contracts);
 }

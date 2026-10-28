@@ -12,11 +12,11 @@ namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 public static class ManifestEnvironment
 {
     // The static ModuleManifest of every composed module that declares one (a public static Manifest property), with the module's id.
-    public static IReadOnlyList<DigitalBrain.ModuleManifest> ManifestsOf(IEnumerable<IntoChat.OS.Framework.Modules.Module> modules)
+    public static IReadOnlyList<DigitalBrain.ModuleManifest> ManifestsOf(IEnumerable<IntoChat.OS.Framework.Modules.OsModule> modules)
     {
         ArgumentNullException.ThrowIfNull(modules);
-        return [.. modules.GroupBy(module => module.GetType()).Select(group => group.First())
-            .Select(module => module.GetType().GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is DigitalBrain.ModuleManifest manifest
+        return [.. modules.GroupBy(module => module.Type).Select(group => group.First())
+            .Select(module => module.Type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is DigitalBrain.ModuleManifest manifest
                 ? manifest with { Id = module.Id.Value } : null)
             .OfType<DigitalBrain.ModuleManifest>()];
     }

@@ -18,7 +18,7 @@ public sealed class ModuleSelectionFacts
         var server = new IntoChatOSServerBuilder().AddModule<SampleModule>();
         var modules = server.SelectModules(new ConfigurationBuilder().Build()).Modules;
         Assert.Single(modules);
-        Assert.IsType<SampleModule>(modules[0]);
+        Assert.Equal(typeof(SampleModule), modules[0].Type);
     }
 
     [Fact]

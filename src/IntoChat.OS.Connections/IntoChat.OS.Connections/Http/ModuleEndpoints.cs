@@ -13,6 +13,7 @@ public static class ModuleEndpoints
         {
             if (module is IHttpModule http) { http.Configure(app); }
         }
+        foreach (var http in app.Services.GetServices<IHttpModule>()) { http.Configure(app); }
         return app;
     }
 }

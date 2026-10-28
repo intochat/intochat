@@ -14,7 +14,6 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
-using Module = IntoChat.OS.Framework.Modules.Module;
 using IntoChat.OS.Kernel;
 
 const string Begin = "<!-- BEGIN GENERATED options -->";
@@ -34,7 +33,7 @@ var written = 0;
 var seen = 0;
 foreach (var module in OsCatalog.WithWindowsEdge().DistinctBy(m => m.Id.ToString()))
 {
-    var type = module.GetType();
+    var type = module.Type;
     var assembly = type.Assembly.GetName().Name!;
     var csprojRelative = Csproj(assembly) ?? throw new InvalidOperationException($"{assembly} is not in Intochat.OS.slnx.");
     var csproj = Path.Combine(root, csprojRelative);
@@ -75,7 +74,7 @@ static string Replace(string text, string table)
     return text[..start] + block + text[(end + End.Length)..];
 }
 
-static string Stub(Module module, string assembly, string description, string? testProject)
+static string Stub(OsModule module, string assembly, string description, string? testProject)
 {
     var builder = new StringBuilder();
     builder.Append($"# {assembly}\n\n");
@@ -87,7 +86,7 @@ static string Stub(Module module, string assembly, string description, string? t
     return builder.ToString();
 }
 
-static string Render(Module module, Type type)
+static string Render(OsModule module, Type type)
 {
     var builder = new StringBuilder();
     var section = IntoChatOSConfiguration.ModuleOptionsSection(module.Id);

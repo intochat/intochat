@@ -13,13 +13,15 @@ namespace IntoChat.OS.Testing;
 public sealed class BrainComposition
 {
     private readonly Action<IServiceCollection>[] _localServices;
-    internal BrainComposition(IReadOnlyList<ModuleDefinition> modules, Action<IServiceCollection>[] localServices, IReadOnlyDictionary<string, string?> optionOverrides)
+    internal BrainComposition(IReadOnlyList<ModuleDefinition> modules, Action<IServiceCollection>[] localServices, IReadOnlyDictionary<string, string?> optionOverrides, IReadOnlyList<Type> digitalModules)
     {
         Modules = modules;
         OptionOverrides = optionOverrides;
         _localServices = localServices;
+        DigitalModules = digitalModules;
     }
     public IReadOnlyList<ModuleDefinition> Modules { get; }
+    public IReadOnlyList<Type> DigitalModules { get; }
     // Options for modules the host composes itself (an AppHost): configuration keys, not modules.
     public IReadOnlyDictionary<string, string?> OptionOverrides { get; }
     public bool RequiresLocalServices => _localServices.Length > 0;
@@ -33,6 +35,8 @@ public sealed class BrainCompositionBuilder
 {
     private readonly Dictionary<Type, ModuleDraft> _modules = [];
     private readonly Dictionary<Type, ModuleOptionsSlot> _projected = [];
+    private readonly List<Type> _digital = [];
+    private readonly Dictionary<string, IDigitalOptionBag> _digitalOptions = new(StringComparer.OrdinalIgnoreCase);
 
     public bool Declares<TModule>() where TModule : ModuleContract => _modules.ContainsKey(typeof(TModule));
 
@@ -66,12 +70,31 @@ public sealed class BrainCompositionBuilder
     }
 
     // Adds missing module requirements; explicitly declared modules keep their configuration.
-    public BrainCompositionBuilder RequireModules(IEnumerable<ModuleContract> modules)
+    public BrainCompositionBuilder RequireModules(IEnumerable<OsModule> modules)
     {
         ArgumentNullException.ThrowIfNull(modules);
-        foreach (var module in modules.Where(module => !_modules.ContainsKey(module.GetType())))
-        { _modules.Add(module.GetType(), new ModuleDraft(module)); }
+        foreach (var module in modules)
+        {
+            if (_modules.ContainsKey(module.Type) || _digital.Contains(module.Type)) { continue; }
+            if (module.Instance is { } instance) { _modules.Add(module.Type, new ModuleDraft(instance)); }
+            else { _digital.Add(module.Neurons ?? module.Type); }
+        }
         return this;
+    }
+
+    public void RememberDigital(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        if (!_modules.ContainsKey(type) && !_digital.Contains(type)) { _digital.Add(type); }
+    }
+
+    public void ProjectDigitalOptions<TOptions>(string moduleId, Action<TOptions> configure)
+        where TOptions : class, IModuleOptions, new()
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentNullException.ThrowIfNull(configure);
+        if (!_digitalOptions.TryGetValue(moduleId, out var bag)) { _digitalOptions[moduleId] = bag = new DigitalOptionBag<TOptions>(); }
+        bag.Edit(configure);
     }
 
     public BrainCompositionBuilder ConfigureModule<TModule>(Action<ModuleConfiguration<TModule>> configure)
@@ -99,7 +122,12 @@ public sealed class BrainCompositionBuilder
         {
             foreach (var (key, value) in ModuleOptionsProjection.Overrides(slot.Compile())) { overrides[key] = value; }
         }
-        return new(modules, _modules.Values.SelectMany(m => m.LocalServices).ToArray(), overrides);
+        foreach (var (id, bag) in _digitalOptions)
+        {
+            overrides[IntoChatOSConfiguration.ModuleSection(id) + ":ReplaceOptions"] = "true";
+            foreach (var (key, value) in bag.Flatten(id)) { if (value is not null) { overrides[key] = value; } }
+        }
+        return new(modules, _modules.Values.SelectMany(m => m.LocalServices).ToArray(), overrides, _digital.AsReadOnly());
     }
 
     private void Declare<TModule>(out ModuleDraft draft) where TModule : ModuleContract, new()
@@ -199,6 +227,33 @@ internal sealed class ModuleDraft
         copy.LocalServices.AddRange(LocalServices);
         return copy;
     }
+}
+
+internal interface IDigitalOptionBag
+{
+    void Edit(Delegate configure);
+    IReadOnlyDictionary<string, string?> Flatten(string moduleId);
+}
+
+internal sealed class DigitalOptionBag<TOptions> : IDigitalOptionBag where TOptions : class, IModuleOptions, new()
+{
+    private TOptions _options = new();
+
+    public void Edit(Delegate configure)
+    {
+        var working = RoundTrip(_options);
+        ((Action<TOptions>)configure)(working);
+        _options = RoundTrip(working);
+    }
+
+    public IReadOnlyDictionary<string, string?> Flatten(string moduleId)
+    {
+        ModuleOptionsSerialization.Validate(_options, moduleId);
+        return ModuleOptionsSerialization.FlattenOptions(_options, moduleId);
+    }
+
+    private static TOptions RoundTrip(TOptions options)
+        => JsonSerializer.Deserialize<TOptions>(JsonSerializer.Serialize(options))!;
 }
 
 internal abstract class ModuleOptionsSlot

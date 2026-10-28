@@ -8,10 +8,10 @@ namespace IntoChat.OS.Connections.Hosting;
 // The connectors a module declares (ConnectorDefinition.DeclaredBy) as compiled type entries.
 internal sealed class ConnectionTypeSource : IModuleTypeSource
 {
-    public IEnumerable<TypeEntry> TypesOf(Module module)
+    public IEnumerable<TypeEntry> TypesOf(OsModule module)
     {
         ArgumentNullException.ThrowIfNull(module);
-        return ConnectorDefinition.DeclaredBy(module.GetType()).Select(connector => Connector(connector, module.Id.ToString()));
+        return ConnectorDefinition.DeclaredBy(module.Type).Select(connector => Connector(connector, module.Id.ToString()));
     }
 
     private static TypeEntry Connector(ConnectorDefinition connector, string provider)

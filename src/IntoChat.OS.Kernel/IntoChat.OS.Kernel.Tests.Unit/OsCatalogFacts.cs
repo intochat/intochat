@@ -30,7 +30,7 @@ public sealed class OsCatalogFacts
             .Select(library => library.Name.Split('/')[0]).ToHashSet(StringComparer.Ordinal);
         foreach (var module in OsCatalog.Modules)
         {
-            Assert.Contains(module.GetType().Assembly.GetName().Name!, libraries);
+            Assert.Contains(module.Type.Assembly.GetName().Name!, libraries);
         }
         // The core vocabulary arrives as DigitalBrain (CORE-02), by project reference into framework/ since 06-00.
         Assert.Contains("DigitalBrain", libraries);
@@ -49,10 +49,10 @@ public sealed class OsCatalogFacts
         var mcp = File.ReadAllText(Path.Combine(SolutionProjects.DirectoryOf("IntoChat.OS.Mcp"), "IntoChat.OS.Mcp.csproj"));
         foreach (var module in OsCatalog.WithWindowsEdge())
         {
-            var assembly = module.GetType().Assembly.GetName().Name;
+            var assembly = module.Type.Assembly.GetName().Name;
             var contracts = assembly + ".Contracts";
             // A module that hosts its own contracts has no Contracts project: the host must reference the module itself.
-            if (IntoChat.OS.Client.Runtime.ContractsHost.Declares(module.GetType().Assembly))
+            if (IntoChat.OS.Client.Runtime.ContractsHost.Declares(module.Type.Assembly))
             {
                 Assert.True(mcp.Contains("/" + assembly + ".csproj", StringComparison.Ordinal), assembly);
                 continue;
@@ -90,7 +90,7 @@ public sealed class OsCatalogFacts
     {
         using var dependencies = System.Text.Json.JsonDocument.Parse(
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "IntoChat.OS.Kernel.deps.json")));
-        var cataloged = OsCatalog.Modules.Select(module => module.GetType()).ToHashSet();
+        var cataloged = OsCatalog.Modules.Select(module => module.Type).ToHashSet();
         var shipped = dependencies.RootElement.GetProperty("libraries").EnumerateObject()
             .Select(library => library.Name.Split('/')[0])
             .Where(name => name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal));

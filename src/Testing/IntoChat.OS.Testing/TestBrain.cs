@@ -1,3 +1,4 @@
+using System.Reflection;
 using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -25,24 +26,30 @@ public sealed class TestBrain
 
     public static TestBrain Create() => new();
 
-    public TestBrain WithModule<TModule>(Action<ModuleConfiguration<TModule>>? configure = null) where TModule : ModuleContract, new()
+    public TestBrain WithModule<TModule>() where TModule : class, new()
     {
         EnsureMutable();
-        _composition.WithModule(configure);
+        if (typeof(ModuleContract).IsAssignableFrom(typeof(TModule))) { Invoke(nameof(WithLegacyModule), [typeof(TModule)], null); }
+        else { _composition.RememberDigital(typeof(TModule)); }
         return this;
     }
 
-    public TestBrain WithModule<TModule, TOptions>(Action<TOptions>? options = null, Action<ModuleConfiguration<TModule>>? configure = null)
-        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
+    public TestBrain WithModule<TModule, TOptions>(Action<TOptions>? options = null)
+        where TModule : class, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
-        _composition.WithModule(options, configure);
+        if (typeof(Module<TOptions>).IsAssignableFrom(typeof(TModule))) { Invoke(nameof(WithLegacyModuleOptions), [typeof(TModule), typeof(TOptions)], options); }
+        else
+        {
+            _composition.RememberDigital(typeof(TModule));
+            if (options is not null) { _composition.ProjectDigitalOptions(ModuleIdOf(typeof(TModule)), options); }
+        }
         return this;
     }
 
     // A composition named as a list (the OS catalog): modules already declared keep their configuration.
     /// <summary>Adds a composition named as a list (the OS catalog); modules already declared keep their configuration.</summary>
-    public TestBrain WithModules(IEnumerable<ModuleContract> modules)
+    public TestBrain WithModules(IEnumerable<OsModule> modules)
     {
         EnsureMutable();
         _composition.RequireModules(modules);
@@ -58,12 +65,11 @@ public sealed class TestBrain
     }
 
     public TestBrain WithOptions<TModule, TOptions>(Action<TOptions> options)
-        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        where TModule : class, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
-        // A declared module carries its options; an undeclared one belongs to the target's host, which replaces its own.
-        if (_composition.Declares<TModule>()) { _composition.ConfigureModule<TModule, TOptions>(options); }
-        else { _composition.ProjectOptions<TModule, TOptions>(options); }
+        if (typeof(Module<TOptions>).IsAssignableFrom(typeof(TModule))) { Invoke(nameof(WithLegacyOptions), [typeof(TModule), typeof(TOptions)], options); }
+        else { _composition.ProjectDigitalOptions(ModuleIdOf(typeof(TModule)), options); }
         return this;
     }
 
@@ -180,10 +186,40 @@ public sealed class TestBrain
         foreach (var (key, value) in _configuration) { configuration[key] = value; }
         foreach (var (key, value) in composition.OptionOverrides) { configuration[key] = value; }
         var services = composition.RequiresLocalServices ? composition.ConfigureLocalServices + _services : _services;
-        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, LicenseCheck: _licenseCheck, NeuronModules: [.. _neuronModules]);
+        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, LicenseCheck: _licenseCheck,
+            NeuronModules: [.. _neuronModules.Concat(composition.DigitalModules).Distinct()]);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_execution.StartupTimeout);
         return await _target.StartAsync(plan, deadline.Token).ConfigureAwait(false);
+    }
+
+    private void WithLegacyModule<TModule>() where TModule : ModuleContract, new() => _composition.WithModule<TModule>();
+
+    private void WithLegacyModuleOptions<TModule, TOptions>(Action<TOptions>? options)
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        => _composition.WithModule<TModule, TOptions>(options);
+
+    private void WithLegacyOptions<TModule, TOptions>(Action<TOptions> options)
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
+    {
+        // A declared module carries its options; an undeclared one belongs to the target's host, which replaces its own.
+        if (_composition.Declares<TModule>()) { _composition.ConfigureModule<TModule, TOptions>(options); }
+        else { _composition.ProjectOptions<TModule, TOptions>(options); }
+    }
+
+    private static string ModuleIdOf(Type type)
+        => type.GetCustomAttribute<DigitalBrain.ModuleAttribute>()?.Id
+            ?? throw new InvalidOperationException($"{type.FullName} has no [Module(id)].");
+
+    private void Invoke(string name, Type[] types, object? argument)
+    {
+        var method = typeof(TestBrain).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single(candidate => candidate.Name == name && candidate.GetGenericArguments().Length == types.Length);
+        try
+        {
+            method.MakeGenericMethod(types).Invoke(this, argument is null && method.GetParameters().Length == 0 ? null : [argument]);
+        }
+        catch (TargetInvocationException ex) { throw ex.InnerException ?? ex; }
     }
 
     private void EnsureMutable()

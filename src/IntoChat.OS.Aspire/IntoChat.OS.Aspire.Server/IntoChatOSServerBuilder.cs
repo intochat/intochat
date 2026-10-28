@@ -13,13 +13,14 @@ namespace IntoChat.OS.Aspire.Server;
 
 public sealed class IntoChatOSServerBuilder
 {
-    private readonly Dictionary<string, Module> _modules = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, OsModule> _modules = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Action<IServiceCollection>> _serviceActions = [];
     private ILicenseCheck? _licenseCheck;
     internal bool Dashboard { get; private set; }
     public IntoChatOSServerBuilder AddModule<TModule>() where TModule : Module, new()
         => AddModule(new TModule());
-    public IntoChatOSServerBuilder AddModule(Module module)
+    public IntoChatOSServerBuilder AddModule(Module module) => AddModule(OsModule.From(module));
+    public IntoChatOSServerBuilder AddModule(OsModule module)
     {
         ArgumentNullException.ThrowIfNull(module);
         var id = module.Id.ToString();
@@ -84,7 +85,7 @@ public sealed class IntoChatOSServerBuilder
         }
         var disabled = sections.Where(section => section.GetValue<bool?>("Enabled") == false)
             .Select(section => section.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var modules = new List<Module>();
+        var modules = new List<OsModule>();
         var statuses = new List<ModuleStatus>();
         foreach (var (key, module) in _modules)
         {
@@ -103,7 +104,7 @@ public sealed class IntoChatOSServerBuilder
     }
 
     // The reasons are a closed set so a check cannot leak a token through them.
-    private string? Unlicensed(Module module, string product, IConfiguration configuration)
+    private string? Unlicensed(OsModule module, string product, IConfiguration configuration)
     {
         var result = _licenseCheck?.Check(module.Id, new LicenseContext(configuration, product))
             ?? new LicenseResult(false, null, null, "missing");
@@ -113,4 +114,4 @@ public sealed class IntoChatOSServerBuilder
 }
 
 /// <summary>The modules a server runs and the status of every registered module.</summary>
-public readonly record struct ModuleSelection(Module[] Modules, ModuleStatus[] Statuses);
+public readonly record struct ModuleSelection(OsModule[] Modules, ModuleStatus[] Statuses);

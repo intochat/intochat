@@ -16,7 +16,7 @@ public sealed class CSharpFacts
     private static TypeEntry Signal(string provider, string name) => new(name, provider + "." + name, TypeKind.Signal, provider, "", ["int Count"], []);
 
     private static CSharpContractDiscovery Discovery(params TypeEntry[] types) => new(new FakeKernel(types),
-        new ModuleInventory(types.Select(type => type.Provider).Distinct().Select(id => new DiscoveryModule(id))));
+        new ModuleInventory(types.Select(type => type.Provider).Distinct().Select(id => OsModule.From(new DiscoveryModule(id)))));
 
     private static TypeEntry Entry<T>(string provider = "fixture") => new(typeof(T).FullName!, "fixture", TypeKind.Neuron, provider, "Fixture", [], []);
 
@@ -196,7 +196,7 @@ public sealed class CSharpFacts
         var other = System.Reflection.Emit.AssemblyBuilder.DefineDynamicAssembly(new("DiscoveryCollision"), System.Reflection.Emit.AssemblyBuilderAccess.Run);
         other.DefineDynamicModule("Contracts").DefineType(typeof(IDiscoveryFixture).FullName!, System.Reflection.TypeAttributes.Public).CreateType();
         var discovery = new CSharpContractDiscovery(new FakeKernel([Entry<IDiscoveryFixture>()]),
-            new ModuleInventory([new DiscoveryModule("fixture"), new DiscoveryModule("fixture", other)]));
+            new ModuleInventory([OsModule.From(new DiscoveryModule("fixture")), OsModule.From(new DiscoveryModule("fixture", other))]));
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => discovery.ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Read", TestContext.Current.CancellationToken));
         Assert.Contains("2 public resolutions", error.Message, StringComparison.Ordinal);
     }

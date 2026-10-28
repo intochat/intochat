@@ -90,7 +90,7 @@ public static class ServerHostingExtensions
         // Provides, and the kernel lists and binds connections for the runtime broker.
         IntoChat.OS.Kernel.Composition.Capabilities.KernelCapabilities.AddKernelCapabilities(builder);
         TopologyHosting.UseModuleTopology(builder, neuronModules, RetiredTopologySettings,
-            [.. modules.OfType<ITopologyModule>().SelectMany(module => module.TopologyProfiles)]);
+            [.. modules.SelectMany(static module => module.TopologyProfiles)]);
         builder.UseOrleans(silo =>
         {
             // The topology first; it runs the host-bound cluster store (BrainLog) last, then the legacy store and journal of
@@ -127,8 +127,9 @@ public static class ServerHostingExtensions
             foreach (var module in modules)
             {
                 module.ConfigureServices(silo.Services, silo.Configuration);
-                silo.Services.AddSingleton(module);
+                module.Register(silo.Services);
             }
+            OsModule.HostIndependents(silo.Services, silo.Configuration, neuronModules, modules);
         });
         // Storage, clustering and reminders are the topology's; the platform composes over whatever it registered.
         builder.AddIntoChatOSPlatform();
