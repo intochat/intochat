@@ -892,45 +892,45 @@ static DigitalBrain.PrivilegedGrant.operator !=(DigitalBrain.PrivilegedGrant? le
 static DigitalBrain.PrivilegedGrant.operator ==(DigitalBrain.PrivilegedGrant? left, DigitalBrain.PrivilegedGrant? right) -> bool
 DigitalBrain.Spi.IBrainObserver
 DigitalBrain.Spi.IBrainObserver.Brains(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string![]!>!
-DigitalBrain.Spi.IBrainObserver.Deliveries(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.Spi.SignalDelivery!>!
+DigitalBrain.Spi.IBrainObserver.Deliveries(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.SignalDelivery!>!
 DigitalBrain.Spi.IBrainObserver.Instances(string? type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.BrainInstance!>!
 DigitalBrain.Spi.IBrainObserver.Instances<T>(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.BrainInstance!>!
-DigitalBrain.Spi.IBrainObserver.Synapses(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Spi.ObservedSynapse![]!>!
+DigitalBrain.Spi.IBrainObserver.Synapses(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.ObservedSynapse![]!>!
 DigitalBrain.Spi.IBrainObserver.Types(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BrainType![]!>!
-DigitalBrain.Spi.ObservedSynapse
-DigitalBrain.Spi.ObservedSynapse.<Clone>$() -> DigitalBrain.Spi.ObservedSynapse!
-DigitalBrain.Spi.ObservedSynapse.Deconstruct(out string! From, out string! To, out string! Signal) -> void
-DigitalBrain.Spi.ObservedSynapse.Equals(DigitalBrain.Spi.ObservedSynapse? other) -> bool
-DigitalBrain.Spi.ObservedSynapse.From.get -> string!
-DigitalBrain.Spi.ObservedSynapse.From.init -> void
-DigitalBrain.Spi.ObservedSynapse.ObservedSynapse(string! From, string! To, string! Signal) -> void
-DigitalBrain.Spi.ObservedSynapse.Signal.get -> string!
-DigitalBrain.Spi.ObservedSynapse.Signal.init -> void
-DigitalBrain.Spi.ObservedSynapse.To.get -> string!
-DigitalBrain.Spi.ObservedSynapse.To.init -> void
-override DigitalBrain.Spi.ObservedSynapse.Equals(object? obj) -> bool
-override DigitalBrain.Spi.ObservedSynapse.GetHashCode() -> int
-override DigitalBrain.Spi.ObservedSynapse.ToString() -> string!
-static DigitalBrain.Spi.ObservedSynapse.operator !=(DigitalBrain.Spi.ObservedSynapse? left, DigitalBrain.Spi.ObservedSynapse? right) -> bool
-static DigitalBrain.Spi.ObservedSynapse.operator ==(DigitalBrain.Spi.ObservedSynapse? left, DigitalBrain.Spi.ObservedSynapse? right) -> bool
-DigitalBrain.Spi.SignalDelivery
-DigitalBrain.Spi.SignalDelivery.<Clone>$() -> DigitalBrain.Spi.SignalDelivery!
-DigitalBrain.Spi.SignalDelivery.Deconstruct(out string! From, out string! To, out string! Signal, out long Sequence) -> void
-DigitalBrain.Spi.SignalDelivery.Equals(DigitalBrain.Spi.SignalDelivery? other) -> bool
-DigitalBrain.Spi.SignalDelivery.From.get -> string!
-DigitalBrain.Spi.SignalDelivery.From.init -> void
-DigitalBrain.Spi.SignalDelivery.Sequence.get -> long
-DigitalBrain.Spi.SignalDelivery.Sequence.init -> void
-DigitalBrain.Spi.SignalDelivery.Signal.get -> string!
-DigitalBrain.Spi.SignalDelivery.Signal.init -> void
-DigitalBrain.Spi.SignalDelivery.SignalDelivery(string! From, string! To, string! Signal, long Sequence) -> void
-DigitalBrain.Spi.SignalDelivery.To.get -> string!
-DigitalBrain.Spi.SignalDelivery.To.init -> void
-override DigitalBrain.Spi.SignalDelivery.Equals(object? obj) -> bool
-override DigitalBrain.Spi.SignalDelivery.GetHashCode() -> int
-override DigitalBrain.Spi.SignalDelivery.ToString() -> string!
-static DigitalBrain.Spi.SignalDelivery.operator !=(DigitalBrain.Spi.SignalDelivery? left, DigitalBrain.Spi.SignalDelivery? right) -> bool
-static DigitalBrain.Spi.SignalDelivery.operator ==(DigitalBrain.Spi.SignalDelivery? left, DigitalBrain.Spi.SignalDelivery? right) -> bool
+DigitalBrain.ObservedSynapse
+DigitalBrain.ObservedSynapse.<Clone>$() -> DigitalBrain.ObservedSynapse!
+DigitalBrain.ObservedSynapse.Deconstruct(out string! From, out string! To, out string! Signal) -> void
+DigitalBrain.ObservedSynapse.Equals(DigitalBrain.ObservedSynapse? other) -> bool
+DigitalBrain.ObservedSynapse.From.get -> string!
+DigitalBrain.ObservedSynapse.From.init -> void
+DigitalBrain.ObservedSynapse.ObservedSynapse(string! From, string! To, string! Signal) -> void
+DigitalBrain.ObservedSynapse.Signal.get -> string!
+DigitalBrain.ObservedSynapse.Signal.init -> void
+DigitalBrain.ObservedSynapse.To.get -> string!
+DigitalBrain.ObservedSynapse.To.init -> void
+override DigitalBrain.ObservedSynapse.Equals(object? obj) -> bool
+override DigitalBrain.ObservedSynapse.GetHashCode() -> int
+override DigitalBrain.ObservedSynapse.ToString() -> string!
+static DigitalBrain.ObservedSynapse.operator !=(DigitalBrain.ObservedSynapse? left, DigitalBrain.ObservedSynapse? right) -> bool
+static DigitalBrain.ObservedSynapse.operator ==(DigitalBrain.ObservedSynapse? left, DigitalBrain.ObservedSynapse? right) -> bool
+DigitalBrain.SignalDelivery
+DigitalBrain.SignalDelivery.<Clone>$() -> DigitalBrain.SignalDelivery!
+DigitalBrain.SignalDelivery.Deconstruct(out string! From, out string! To, out string! Signal, out long Sequence) -> void
+DigitalBrain.SignalDelivery.Equals(DigitalBrain.SignalDelivery? other) -> bool
+DigitalBrain.SignalDelivery.From.get -> string!
+DigitalBrain.SignalDelivery.From.init -> void
+DigitalBrain.SignalDelivery.Sequence.get -> long
+DigitalBrain.SignalDelivery.Sequence.init -> void
+DigitalBrain.SignalDelivery.Signal.get -> string!
+DigitalBrain.SignalDelivery.Signal.init -> void
+DigitalBrain.SignalDelivery.SignalDelivery(string! From, string! To, string! Signal, long Sequence) -> void
+DigitalBrain.SignalDelivery.To.get -> string!
+DigitalBrain.SignalDelivery.To.init -> void
+override DigitalBrain.SignalDelivery.Equals(object? obj) -> bool
+override DigitalBrain.SignalDelivery.GetHashCode() -> int
+override DigitalBrain.SignalDelivery.ToString() -> string!
+static DigitalBrain.SignalDelivery.operator !=(DigitalBrain.SignalDelivery? left, DigitalBrain.SignalDelivery? right) -> bool
+static DigitalBrain.SignalDelivery.operator ==(DigitalBrain.SignalDelivery? left, DigitalBrain.SignalDelivery? right) -> bool
 DigitalBrain.Spi.IClusterListeners
 DigitalBrain.Spi.IClusterListeners.Listen<TSignal>(string! listener, System.Func<DigitalBrain.NeuronId, TSignal!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!
 DigitalBrain.SynapseRequest
