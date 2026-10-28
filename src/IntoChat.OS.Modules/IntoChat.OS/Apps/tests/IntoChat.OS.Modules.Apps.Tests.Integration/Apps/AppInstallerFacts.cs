@@ -404,7 +404,7 @@ public sealed class AppInstallerFacts
 
         var types = await brain.Services.GetRequiredService<IntoChat.OS.Framework.IKernel>().Types(Ct);
         var echoed = Assert.Single(types, type => type.Name == "Echo.Echoed");
-        Assert.Equal((TypeKind.Signal, $"feature:{alice.BrainId}/echo"), (echoed.Kind, echoed.Provider));
+        Assert.Equal((DigitalBrain.TypeKind.Signal, $"feature:{alice.BrainId}/echo"), (echoed.Kind, echoed.Provider));
         Assert.Equal(["string Text"], echoed.Shape);
     }
 

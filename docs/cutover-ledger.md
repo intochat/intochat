@@ -32,7 +32,7 @@ Deferred: `OrleansHostWiring` still applies the cloud container overlay and regi
 
 Deleted the plain-neuron, signal, still-grain, brain-call, and authority-grain facades (11 files, 522 lines) and pointed callers at `SiloNeurons`, `SignalLog`, and `IGrainFactory`. Four call-path types moved out of `Kernel/Calls` and stayed registered. The ambiguous `NeuronId` name under `IntoChat.OS` and a catalog lookup that fired inside a silo were the compile and host-test breaks. Unit and host facts above passed. `OrleansHostWiring`'s cloud storage overlay and membership feed stay because their callers are still live.
 
-## Step 2 — one vocabulary (blocked)
+## Step 2 — one vocabulary
 
 ### cutover(2): drop Orleans serializers from Contracts projects (`c4b5460d0`)
 
@@ -58,14 +58,47 @@ Deleted `Module`, `Module<TOptions>`, and `ModuleOptionsBinding` (76 lines). Del
 
 Tests: `OsCatalogFacts` and `ProductCompositionFacts` 13 passed. Azure `ModuleDeploymentFacts` and `ModuleSecretFacts` 14 passed. Aspire module-hosting facts 20 passed. `CSharpFacts` 19 passed. `BoundaryFacts` passed inside an architecture filter that also ran `RuntimeBoundaryFacts` (44 passed, 2 failed, 2 skipped). The two failures are `GrainFactoryUseOnlyShrink` and `OrleansPackageReferencesOnlyShrink`. Their JSON baselines were not rewritten. Step 6 deletes those ratchets.
 
+### Step 2 — owner mapping
+
+Owner mapping for the old `src/IntoChat.OS` vocabulary, following DESIGN-digitalbrain.md §1 (approved 2026-10-24).
+
+1. `IIntoChatOS.Get<T>(NeuronId)` is gone with `IIntoChatOS`. Inside a neuron, `Neuron.Get<T>(NeuronId)`. Outside a neuron, `DigitalBrain.Spi.INeuronProxies.Get<T>`. A string os key uses `IntoChat.OS.Runtime.NeuronProxies.Get<T>(this INeuronProxies, string)`. The script edge keeps `IntoChatOSConnection.Get<T>(string)` and `Neuron<T>(string)`. `IIntoChatOSBrains.Get<T>(string)` and `On<T>` stay. `Open` returns `ISignalWatch`.
+2. `IIntoChatOS.On<T>` await-foreach is an `[On]` reaction plus `Context.Synapses.Ensure<T>` inside a neuron. Outside a neuron, the session synapse is `SessionSynapseNeuron`. A host observer that is neither takes `IClusterListeners` from `Spi.cs`. `ISignalWatch` is the watch surface (`On<T>` only). Its two-argument `On<T>(object, CancellationToken)` forwards to the three-argument form.
+3. `IntoChat.OS.NeuronId` is `DigitalBrain.NeuronId(Brain, Type, Key)`. `Parse` and `TryParse` were already on `framework/src/DigitalBrain/Identity/NeuronId.cs`. There is no implicit string conversion and no `NeuronIdOs.FromLegacy`. A full os key or a relative name such as `apps/assistant` goes through `PlainNeuronContracts.IdOf` or `SiloNeurons.IdOf`. The type comes from `[DefaultNeuronType]` (or the connection connector). Splitting `acc/apps/settings` so the type is `apps` addresses the wrong neuron. `TraceContext.OriginOf(brain, osKey)` addresses the cost-trace origin: `{brain}/edge` becomes type `edge`, key `request`, so `Origin.ToString()` is `{brain}/edge/request`. `IBrainOwnerDispatch.RunAsync` takes that origin as a string.
+4. `IntoChat.OS.Signal` is `DigitalBrain.Signal`, which has no fields and is abstract. `signal.Publisher` is the host journal `IntoChat.OS.Framework.JournaledSignal.Publisher` (a string, `GrainId.Key`) or the reaction delivery context. `signal.Trace` is `System.Diagnostics.Activity.Current`. The reaction context did not gain a `Publisher`. The compute-cost record `IntoChat.OS.Trace` (alias `brain.trace`) is a different type and stays in `src/IntoChat.OS/Runtime/Trace.cs` with `Origin` as `DigitalBrain.NeuronId`. `SignalWireFacts` only proved the old `Publisher`/`Trace` wire and was deleted.
+5. `IKernelView` moved to `DigitalBrain.Runtime.Orleans.IBrainObserver` (`Instances`, `Types`, `Brains`). `Running` and `InstancesIn` stay on product `IKernel`, which extends `IBrainObserver`. `AddDigitalBrainRuntime` registers `ClusterBrainObserver`. `AddIntoChatOS` replaces that registration with product `Kernel`. `SessionKernel` is the script-visible kernel: a public class, internal constructor, not typed as `IBrainObserver`. The wire name `RuntimeProtocol.KernelContract` is still `"IntoChat.OS.IKernelView"`.
+6. `RevisionConflictException`, `RollbackDetectedException`, and `JournalConflictException` are `DigitalBrain.RevisionConflictException`. The message is preserved. `JOURNAL_DIVERGED` is no longer a separate status. `ServiceUnavailableException` and `StaleActionException` moved to `src/IntoChat.OS/Runtime/` and keep the namespace `IntoChat.OS`.
+7. `Contracts/NeutralAttributes.cs` is deleted. Scheduling attributes are `framework/src/DigitalBrain/Attributes/SchedulingAttributes.cs`.
+8. `IntoChatOSNames` stays in both `IntoChat.OS.Contracts.Configuration` and `DigitalBrain.Runtime.Orleans`. `TopologyKeysMatchRuntimeFacts` pins them. A file that imports both namespaces aliases the product type. Not a blocker.
+9. Orleans package references that remain because the caller still uses the grain factory, reminders, or `RequestContext` are listed under "Orleans still reached from modules". No new package references were added.
+10. `GrainFactoryUseOnlyShrink` and `OrleansPackageReferencesOnlyShrink` are deleted, with `GrainFactoryOwners.json` and `OrleansReferenceOwners.json`. Baselines for those two were not regenerated.
+
+Addressing that is not a mapping exception: relative `Neuron<T>("apps/assistant")` is `IdOf(contract, "{brain}/apps/assistant")`. `CompiledTypes.Assemblies` carries both `typeof(DigitalBrain.Signal).Assembly` and `typeof(IBrain).Assembly`.
+
+`src/IntoChat.OS` still holds `Runtime/` (IBrain, Trace, ILogic, ISignalWatch, the string-key proxy extension, refusals), `Hosting/IntoChat.OS.Framework/`, `Contracts.Compute/`, and `Contracts.Configuration/`. The `Neurons`, `Signals`, `Synapses`, and `Kernel` folders and `NeutralAttributes.cs` are gone. The project is not empty, so it stays.
+
+### Step 2 — exceptions
+
+`DigitalBrain.Testing.TestOS` has `Instances`, `Types`, and `Brains` with the same shapes as `IBrainObserver` and does not implement the interface. `CoreHasNoOrleansFacts` forbids the `Orleans` namespace segment and an Orleans reference in that assembly. Step 3 still adds synapse listing and delivery subscription on `IBrainObserver`.
+
+### Orleans still reached from modules
+
+These call sites still take `IGrainFactory`, reminders, or Orleans `RequestContext`. Step 6 decides the allow-list. `TokenRequestContext` in `SessionRunner` is Azure identity, not Orleans.
+
+- Kernel composition: `Kernel`, `KernelInvocationSink` (`RequestContext.Set`), `KernelGrains` (`RequestContext.Remove`), `GrainNeuronResolver`, `AuthorityVaultPort`, `PlainInstanceRegistration`, `RuntimeCallerMirror` (`RequestContext.Remove`), `PlainNeuronCallFilter` (`RequestContext` get/set), `ConfirmationNeuron` (`RequestContext.Get`), `KernelTestHooks` (`IGrainFactory`, `IRemindable`).
+- AI: `BrainAwareCredentials`. Tests: `ProviderIntegrations`, `BrainKeyFacts`, `AutomaticChoiceFacts`, `CredentialFacts`.
+- Flutter: `SpaceNeuron` and `SpaceWatcher` (`RequestContext`). Test: `SpaceFacts`.
+- CSharp: `RuntimeEdge` (`IGrainFactory`), `BrainRuntimeNeuron` (`RequestContext`). Tests: `RuntimeEdgeBinderFacts`, `SourceWatchRaceFacts`.
+- Circle.Server: `EnrollmentEndpoints`, `MachineAuthenticationHandler`.
+
+### cutover(2): one vocabulary
+
+Deleted 19 files, 571 lines: `IIntoChatOS`, `IKernelView`, `NeuronId`, `Signal`, `Synapse`, `NeutralAttributes`, the other neuron/signal/kernel types, `SignalWireFacts`, and the two ratchet JSON files.
+
+`dotnet build Intochat.OS.slnx -c Release`: 0 errors, 0 warnings.
+
+Tests: `IntoChat.OS.Kernel.Tests.Unit` 464 passed. `IntoChat.OS.Client.Tests.Unit` 40 passed. `IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit` 19 passed. `IntoChat.OS.Modules.Flame.Tests.Unit` 15 passed. Architecture facts for the vocabulary ring, the Orleans ban leftovers, signal loops, the observer path, static caches, grain interfaces, and Orleans attributes passed. The rest of `IntoChat.OS.Architecture.Tests.Unit` still has failures from earlier step 2 commits (deleted Framework test projects, stripped Contract serializers, collection and contract-manifest pins). Those pins were not regenerated.
+
 ### Step 2 status
 
-Product modules are DigitalBrain modules, the Framework folder and the old module base are gone, Contracts projects do not reference Orleans, and `OsCatalog` is gone. The solution builds with 0 warnings. The old neuron, signal, synapse, and kernel vocabulary is still in `src/IntoChat.OS`, and module projects that still call Orleans still reference it. `OrleansHostWiring`'s cloud storage overlay and `IClusterMembershipFeed` stay; their callers are still live.
-
-## BLOCKED
-
-Deleting `src/IntoChat.OS/{Neurons,Signals,Synapses,Kernel}` and `Contracts/NeutralAttributes.cs` needs an owner mapping this plan does not give. `DigitalBrain.NeuronId` is `brain/type/key`. `IntoChat.OS.NeuronId` is a string name, and `IIntoChatOS.Get` takes it. `DigitalBrain.Signal` has no publisher or trace; `IntoChat.OS.Signal` stamps both. `IIntoChatOS` (74 files), `IKernelView` (29), and `RevisionConflictException` (39) have no DigitalBrain type to move onto. Moving the old types to another folder would keep the second vocabulary. `Runtime/` stays, as step 2's "delete the project if empty" rule does not apply while these types remain.
-
-`IntoChatOSNames` topology strings stay. They are the configuration spelling for Orleans-free projects (ServiceDefaults, AppHost, Mcp). `Topology` lives in `DigitalBrain.Runtime.Orleans`. Referencing that assembly from `Contracts.Configuration` would put Orleans on the zero-dependency configuration contract. `TopologyKeysMatchRuntimeFacts` already pins the strings to `Topology.ToConfigValue()`.
-
-Module projects that still call Orleans keep their `Microsoft.Orleans*` package references: AI, Flutter, CSharp, Circle.Server, and the host. Time's reminder binding already moved to `OrleansHostWiring`. The plan does not say where the remaining grain-factory, reminder, and `RequestContext` calls go, so those references stay until that destination is named.
+The old neuron, signal, synapse, and kernel vocabulary is gone. Callers use DigitalBrain neurons, `NeuronId`, `Signal`, `INeuronProxies`, `ISignalWatch`, and `IBrainObserver`. `src/IntoChat.OS` keeps `Runtime/`, the moved host, and the two contract projects. Module projects that still call Orleans still reference it. `OrleansHostWiring`'s cloud storage overlay and `IClusterMembershipFeed` stay; their callers are still live.

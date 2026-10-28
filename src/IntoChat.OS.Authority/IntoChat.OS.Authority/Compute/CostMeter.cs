@@ -138,6 +138,6 @@ internal sealed class CostMeter(
     {
         if (!CallerContextStamper.TryGet(out var caller))
         { throw new UntrustedCallerException("A cost was recorded without a trace or a stamped caller."); }
-        return TraceContext.Begin(caller.AccountId, caller.BrainId, new NeuronId($"{caller.BrainId}/edge"));
+        return TraceContext.Begin(caller.AccountId, caller.BrainId, TraceContext.OriginOf(caller.BrainId, $"{caller.BrainId}/edge"));
     }
 }

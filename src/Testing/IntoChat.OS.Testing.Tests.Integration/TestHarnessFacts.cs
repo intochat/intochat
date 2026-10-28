@@ -17,7 +17,7 @@ public sealed class TestHarnessFacts(TestingHost host)
         var source = brain.Get<ITestEmitter>("owner/behavior");
         var a = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var b = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        async Task Observe(IIntoChatOS handle, TaskCompletionSource<int> result, CancellationToken token)
+        async Task Observe(ISignalWatch handle, TaskCompletionSource<int> result, CancellationToken token)
         {
             await foreach (var number in handle.On<Number>(source, token)) { result.TrySetResult(number.Value); return; }
         }

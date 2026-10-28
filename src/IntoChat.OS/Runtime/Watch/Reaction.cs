@@ -5,7 +5,7 @@ namespace IntoChat.OS;
 // state, and one run after a burst is both correct and cheaper.
 internal static class Reaction
 {
-    public static async Task Run<T>(IIntoChatOS brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken)
+    public static async Task Run<T>(ISignalWatch brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken)
         where T : DigitalBrain.Signal
     {
         ArgumentNullException.ThrowIfNull(rebuild);

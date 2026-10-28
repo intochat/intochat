@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using DigitalBrain;
 using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -42,12 +44,12 @@ public sealed class HostDispatchAccessFacts
         await brain.DeactivateAsync(counted, ct);
         var grains = brain.Services.GetRequiredService<IGrainFactory>();
         // Remove only the projection, retaining the saved neuron to expose any query-triggered registration.
-        var contract = typeof(CompiledTypes).Assembly.GetType("IntoChat.OS.Framework.IInstanceDirectory", throwOnError: true)!;
+        var contract = typeof(IBrainObserver).Assembly.GetType("DigitalBrain.Runtime.Orleans.IInstanceDirectory", throwOnError: true)!;
         var get = typeof(IGrainFactory).GetMethods().Single(method => method.Name == nameof(IGrainFactory.GetGrain)
             && method.IsGenericMethodDefinition && method.GetParameters() is [{ ParameterType: var type }] && type == typeof(GrainId));
         var directory = get.MakeGenericMethod(contract).Invoke(grains, [GrainId.Create("kernel.instances", "owner/" + PlainCounted.Type)])!;
         await (Task)contract.GetMethod("Retire")!.Invoke(directory, ["owner/query-only"])!;
-        Assert.Empty(await (Task<Instance[]>)contract.GetMethod("List")!.Invoke(directory, [])!);
+        Assert.Empty(await (Task<BrainInstance[]>)contract.GetMethod("List")!.Invoke(directory, [])!);
 
         var key = "owner/probe.counted/query-only";
         var host = grains.GetGrain<INeuronHost>(GrainId.Create("neuron.host", key));
@@ -55,7 +57,7 @@ public sealed class HostDispatchAccessFacts
         using (brain.Owner.AsCaller()) { Assert.False(await host.IsInterleaved(call)); }
 
         Assert.Equal(1, await counted.Count());
-        Assert.Empty(await (Task<Instance[]>)contract.GetMethod("List")!.Invoke(directory, [])!);
+        Assert.Empty(await (Task<BrainInstance[]>)contract.GetMethod("List")!.Invoke(directory, [])!);
     }
 
     [Fact(Timeout = 120_000)]

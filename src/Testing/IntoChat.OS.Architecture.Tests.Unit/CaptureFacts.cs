@@ -70,17 +70,6 @@ internal static class CaptureWriter
     }
 }
 
-public sealed partial class RuntimeBoundaryFacts
-{
-    [Fact(Explicit = true)]
-    public void CaptureGrainFactoryOwners()
-        => CaptureWriter.Write("GrainFactoryOwners.json", CaptureWriter.Sorted("GrainFactoryOwners.json", CurrentGrainFactoryUse()));
-
-    [Fact(Explicit = true)]
-    public void CaptureOrleansReferenceOwners()
-        => CaptureWriter.Write("OrleansReferenceOwners.json", CaptureWriter.Sorted("OrleansReferenceOwners.json", OrleansReferences()));
-}
-
 public sealed partial class ConfigurationKeyFacts
 {
     [Fact(Explicit = true)]

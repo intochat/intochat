@@ -10,6 +10,7 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Http;
+using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using Orleans;
@@ -80,7 +81,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
                 break;
             case RuntimeProtocol.KernelInstances when invocation.Arguments.Length == 2:
                 var type = Argument(0) is { } contract ? kernel.TypeOf(Callable(contract)) : Argument(1);
-                List<Instance> listed = [];
+                List<BrainInstance> listed = [];
                 await foreach (var instance in kernel.Instances(type, cancellationToken).ConfigureAwait(false)) { listed.Add(instance); }
                 answer = listed.ToArray();
                 break;

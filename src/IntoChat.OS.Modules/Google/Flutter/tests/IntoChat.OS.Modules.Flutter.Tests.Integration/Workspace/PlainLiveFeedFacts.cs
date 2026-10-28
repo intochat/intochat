@@ -41,7 +41,7 @@ public sealed class PlainLiveFeedFacts
         }
 
         var feed = LiveSignalEndpoints.Feed<TimerTick>((_, _, listed, _) => One(id, listed));
-        await using var stream = LiveSignalEndpoints.Stream(brain, brain.Owner.BrainId, [feed], NullLogger.Instance, ct, services: brain.Services).GetAsyncEnumerator(ct);
+        await using var stream = LiveSignalEndpoints.Stream(TestBrainEdge.Of(brain), brain.Owner.BrainId, [feed], NullLogger.Instance, ct, services: brain.Services).GetAsyncEnumerator(ct);
         Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(Within, ct));
         using (var replay = JsonDocument.Parse(stream.Current))
         {

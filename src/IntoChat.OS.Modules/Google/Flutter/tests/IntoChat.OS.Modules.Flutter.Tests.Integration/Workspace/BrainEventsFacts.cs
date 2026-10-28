@@ -43,7 +43,7 @@ public sealed class BrainEventsFacts
         using var caller = person.AsCaller();
         var scope = person.BrainId;
         var grown = IApp.Key(scope, "club");
-        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        await using var stream = BrainEventsEndpoints.Snapshots(TestBrainEdge.Of(brain), scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
 
         using var first = await Next(stream, ct);
         Assert.Equal(scope, first.RootElement.GetProperty("rootId").GetString());
@@ -70,7 +70,7 @@ public sealed class BrainEventsFacts
         var appKey = IApp.Key(scope, "watcher");
         await brain.Get<IApp>(appKey).Create(new AppManifest("watcher", "", [new("open", "")], [], []), "spec");
         var publisher = IApp.Key(scope, "club");
-        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        await using var stream = BrainEventsEndpoints.Snapshots(TestBrainEdge.Of(brain), scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
 
         using var first = await Next(stream, ct);
         Assert.Empty(Synapses(first));
@@ -105,7 +105,7 @@ public sealed class BrainEventsFacts
         var publisher = IApp.Key(scope, "club");
         var runtime = brain.Get<IStubRuntime>(BrainRuntimeKeys.For(scope));
         await runtime.Fail(false);
-        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        await using var stream = BrainEventsEndpoints.Snapshots(TestBrainEdge.Of(brain), scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
         using var first = await Next(stream, ct);
         await runtime.Run(appKey + "/synapses/club.cs", $"apps.app2/{publisher}", "AppActivity");
         while (true)
@@ -140,7 +140,7 @@ public sealed class BrainEventsFacts
         var publisher = IApp.Key(scope, "club");
         var runtime = brain.Get<IStubRuntime>(BrainRuntimeKeys.For(scope));
         await runtime.Fail(false);
-        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(200)).GetAsyncEnumerator(ct);
+        await using var stream = BrainEventsEndpoints.Snapshots(TestBrainEdge.Of(brain), scope, NullLogger.Instance, ct, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(200)).GetAsyncEnumerator(ct);
         using var first = await Next(stream, ct);
         await runtime.Run(appKey + "/synapses/club.cs", $"apps.app2/{publisher}", "AppActivity");
         while (true)
@@ -182,7 +182,7 @@ public sealed class BrainEventsFacts
         var scope = person.BrainId;
         var appKey = IApp.Key(scope, "alone");
         await brain.Get<IApp>(appKey).Create(new AppManifest("alone", "", [new("open", "")], [], []), "spec");
-        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        await using var stream = BrainEventsEndpoints.Snapshots(TestBrainEdge.Of(brain), scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
 
         using var first = await Next(stream, ct);
 

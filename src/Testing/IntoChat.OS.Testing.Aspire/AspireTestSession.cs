@@ -6,6 +6,8 @@ using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Contracts.Configuration;
+using DigitalBrain.Runtime.Orleans;
+using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
@@ -35,6 +37,7 @@ public sealed class AspireTestSession : IAsyncDisposable
 
     public DistributedApplication App { get; }
     public IIntoChatOSBrains Brains => _client!.Services.GetRequiredService<IIntoChatOSBrains>();
+    public IBrainObserver Kernel => _client!.Services.GetRequiredService<IBrainObserver>();
     public HttpClient HttpClient { get; private set; } = null!;
     public Uri? BrowserEndpoint { get; private set; }
     public string? BrowserReadySelector { get; private set; }
@@ -354,7 +357,7 @@ public sealed class AspireTestSession : IAsyncDisposable
     internal static void AddClientServices(IServiceCollection services)
     {
         services.AddIntoChatOSClient();
-        services.TryAddSingleton<IKernelView>(IntoChat.OS.Kernel.Composition.Kernel.For);
+        services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.For);
     }
 
     private async ValueTask ReleaseClientAsync()

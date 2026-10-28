@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -104,7 +105,7 @@ public sealed class McpIdentityFacts
             builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "test-password";
         }
         // No silo here: the kernel answers with no brains, so neurons_context shows the stamp alone.
-        builder.Services.AddSingleton<IKernelView>(new FixedKernel());
+        builder.Services.AddSingleton<IBrainObserver>(new FixedKernel());
         builder.Services.AddIntoChatOSMcp();
         builder.Services.AddSingleton<IBrainAccess>(new Access(!deny));
         var app = builder.Build();

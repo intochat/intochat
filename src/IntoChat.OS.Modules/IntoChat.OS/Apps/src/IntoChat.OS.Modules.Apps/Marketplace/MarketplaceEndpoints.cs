@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
@@ -35,12 +37,12 @@ internal static class MarketplaceEndpoints
             return AppsEndpoints.Icon(listing.Icon, bundle.Files, $"{publisher}/{name}");
         }));
 
-        marketplace.MapPost("/{publisher}/{name}/install", (string publisher, string name, InstallBody? body, IIntoChatOS brain, [FromServices] AppInstaller installer, CancellationToken ct)
+        marketplace.MapPost("/{publisher}/{name}/install", (string publisher, string name, InstallBody? body, INeuronProxies brain, [FromServices] AppInstaller installer, CancellationToken ct)
             => Install(publisher, name, body, brain, installer, ct));
     }
 
     // The latest listing through the one install path: a missing or stale consent answers 409 with what the app asks for.
-    internal static Task<IResult> Install(string publisher, string name, InstallBody? body, IIntoChatOS brain, AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
+    internal static Task<IResult> Install(string publisher, string name, InstallBody? body, INeuronProxies brain, AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
     {
         if (!AppsEndpoints.IsPerson()) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
         var outcome = await installer.Install(new(new(publisher, name), body?.Consent ?? "", Guid.Empty, body?.Name, body?.Bindings), ct);

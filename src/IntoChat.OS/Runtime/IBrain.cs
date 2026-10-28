@@ -2,7 +2,7 @@ namespace IntoChat.OS;
 
 /// <summary>
 /// The brain's first neuron. It holds the brain's own state, publishes the brain's lifecycle
-/// signals, and is reached through <see cref="IIntoChatOS.Self"/>.
+/// signals, and is reached by <see cref="IBrain.Key(string)"/>.
 /// </summary>
 /// <remarks>
 /// A plain neuron (06-08) with the brain's singleton key <c>{brain}/main</c> (R4-19; clean break from the bare brain key).

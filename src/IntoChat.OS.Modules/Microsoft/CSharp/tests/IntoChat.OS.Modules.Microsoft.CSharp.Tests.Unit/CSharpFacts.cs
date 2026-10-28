@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -11,14 +13,14 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit;
 
 public sealed class CSharpFacts
 {
-    private static TypeEntry Neuron(string provider, string name) => new(name, provider + "." + name, TypeKind.Neuron, provider, "does " + name, ["Task Run()"], []);
+    private static BrainType Neuron(string provider, string name) => new(name, provider + "." + name, DigitalBrain.TypeKind.Neuron, provider, "does " + name, ["Task Run()"], []);
 
-    private static TypeEntry Signal(string provider, string name) => new(name, provider + "." + name, TypeKind.Signal, provider, "", ["int Count"], []);
+    private static BrainType Signal(string provider, string name) => new(name, provider + "." + name, DigitalBrain.TypeKind.Signal, provider, "", ["int Count"], []);
 
-    private static CSharpContractDiscovery Discovery(params TypeEntry[] types) => new(new FakeKernel(types),
+    private static CSharpContractDiscovery Discovery(params BrainType[] types) => new(new FakeKernel(types),
         new ModuleInventory(types.Select(type => type.Provider).Distinct().Select(id => OsModule.WithContracts(id, typeof(IDiscoveryFixture).Assembly))));
 
-    private static TypeEntry Entry<T>(string provider = "fixture") => new(typeof(T).FullName!, "fixture", TypeKind.Neuron, provider, "Fixture", [], []);
+    private static BrainType Entry<T>(string provider = "fixture") => new(typeof(T).FullName!, "fixture", DigitalBrain.TypeKind.Neuron, provider, "Fixture", [], []);
 
     [Fact]
     public async Task WithNoModulesSelectedTheCatalogListsInstalledModuleIdsInOrderAndNoContracts()
@@ -52,7 +54,7 @@ public sealed class CSharpFacts
     [Fact]
     public async Task ConnectorsAreNotListedAsContracts()
     {
-        var connector = new TypeEntry("Gmail", "gmail", TypeKind.Connector, "gmail", "", [], []);
+        var connector = new BrainType("Gmail", "gmail", DigitalBrain.TypeKind.Connector, "gmail", "", [], []);
 
         var snapshot = await Discovery(Neuron("time", "Timer"), connector).Read([], TestContext.Current.CancellationToken);
 
@@ -157,7 +159,7 @@ public sealed class CSharpFacts
     [Fact]
     public async Task CoreContractsUseTheSameProviderIdentityAsTheKernel()
     {
-        var entry = Entry<IBrain>(typeof(INeuron).Assembly.GetName().Name!);
+        var entry = Entry<IBrain>(typeof(IBrain).Assembly.GetName().Name!);
         var discovery = new CSharpContractDiscovery(new FakeKernel([entry]), new ModuleInventory([]));
         var detail = await discovery.ReadDetail(entry.Provider, entry.Name, "Read", TestContext.Current.CancellationToken);
         Assert.Contains("Read(", Assert.Single(detail.Contracts), StringComparison.Ordinal);
@@ -227,12 +229,11 @@ public sealed class CSharpFacts
         Assert.Null(CSharpFileView.Of("x", file).Logs);
     }
 
-    private sealed class FakeKernel(TypeEntry[] types) : IKernelView
+    private sealed class FakeKernel(BrainType[] types) : IBrainObserver
     {
-        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class => throw new NotSupportedException();
-        public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default) => Task.FromResult(types);
+        public IAsyncEnumerable<BrainInstance> Instances<T>(CancellationToken cancellationToken) where T : class => throw new NotSupportedException();
+        public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<BrainType[]> Types(CancellationToken cancellationToken = default) => Task.FromResult(types);
         public Task<string[]> Brains(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<Instance[]> Running(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

@@ -1,6 +1,6 @@
 [
   {
-    "File": "IntoChat.OS/Kernel/Sources.cs",
+    "File": "IntoChat.OS/Runtime/Watch/Sources.cs",
     "Kind": "client-session-api",
     "Reason": "registry change feed behind the client/session brain.On API"
   },

@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Text;
 using Microsoft.Extensions.DependencyInjection;

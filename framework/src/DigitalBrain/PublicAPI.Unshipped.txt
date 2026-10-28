@@ -281,6 +281,7 @@ DigitalBrain.ReadOnlyCallAttribute.ReadOnlyCallAttribute() -> void
 DigitalBrain.ReentrantAttribute
 DigitalBrain.ReentrantAttribute.ReentrantAttribute() -> void
 DigitalBrain.RevisionConflictException
+const DigitalBrain.RevisionConflictException.Code = "RevisionConflict" -> string!
 DigitalBrain.RevisionConflictException.CurrentRevision.get -> long
 DigitalBrain.RevisionConflictException.RevisionConflictException() -> void
 DigitalBrain.RevisionConflictException.RevisionConflictException(string! message) -> void
@@ -917,3 +918,49 @@ DigitalBrain.AppDefinition.Operations.get -> System.Collections.Generic.IReadOnl
 DigitalBrain.AppDefinition.FindOperation(string! operation) -> System.Reflection.MethodInfo?
 DigitalBrain.AppDefinition.Create(System.Func<System.Type!, object?>! services) -> DigitalBrain.App!
 DigitalBrain.AppDefinition.Invoke(DigitalBrain.App! instance, string! operation, object? argument, System.Text.Json.JsonSerializerOptions? json = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DigitalBrain.BrainInstance
+DigitalBrain.BrainInstance.<Clone>$() -> DigitalBrain.BrainInstance!
+DigitalBrain.BrainInstance.BrainInstance(string! Type, string! Key, System.DateTimeOffset Created, string? Creator) -> void
+DigitalBrain.BrainInstance.Created.get -> System.DateTimeOffset
+DigitalBrain.BrainInstance.Created.init -> void
+DigitalBrain.BrainInstance.Creator.get -> string?
+DigitalBrain.BrainInstance.Creator.init -> void
+DigitalBrain.BrainInstance.Deconstruct(out string! Type, out string! Key, out System.DateTimeOffset Created, out string? Creator) -> void
+DigitalBrain.BrainInstance.Equals(DigitalBrain.BrainInstance? other) -> bool
+DigitalBrain.BrainInstance.Key.get -> string!
+DigitalBrain.BrainInstance.Key.init -> void
+DigitalBrain.BrainInstance.Type.get -> string!
+DigitalBrain.BrainInstance.Type.init -> void
+DigitalBrain.BrainType
+DigitalBrain.BrainType.<Clone>$() -> DigitalBrain.BrainType!
+DigitalBrain.BrainType.Alias.get -> string!
+DigitalBrain.BrainType.Alias.init -> void
+DigitalBrain.BrainType.BrainType(string! Name, string! Alias, DigitalBrain.TypeKind Kind, string! Provider, string! Description, string![]! Shape, string![]! Implements) -> void
+DigitalBrain.BrainType.Deconstruct(out string! Name, out string! Alias, out DigitalBrain.TypeKind Kind, out string! Provider, out string! Description, out string![]! Shape, out string![]! Implements) -> void
+DigitalBrain.BrainType.Description.get -> string!
+DigitalBrain.BrainType.Description.init -> void
+DigitalBrain.BrainType.Equals(DigitalBrain.BrainType? other) -> bool
+DigitalBrain.BrainType.Implements.get -> string![]!
+DigitalBrain.BrainType.Implements.init -> void
+DigitalBrain.BrainType.Kind.get -> DigitalBrain.TypeKind
+DigitalBrain.BrainType.Kind.init -> void
+DigitalBrain.BrainType.Name.get -> string!
+DigitalBrain.BrainType.Name.init -> void
+DigitalBrain.BrainType.Provider.get -> string!
+DigitalBrain.BrainType.Provider.init -> void
+DigitalBrain.BrainType.Shape.get -> string![]!
+DigitalBrain.BrainType.Shape.init -> void
+DigitalBrain.TypeKind
+DigitalBrain.TypeKind.Connector = 2 -> DigitalBrain.TypeKind
+DigitalBrain.TypeKind.Neuron = 0 -> DigitalBrain.TypeKind
+DigitalBrain.TypeKind.Signal = 1 -> DigitalBrain.TypeKind
+override DigitalBrain.BrainInstance.Equals(object? obj) -> bool
+override DigitalBrain.BrainInstance.GetHashCode() -> int
+override DigitalBrain.BrainInstance.ToString() -> string!
+override DigitalBrain.BrainType.Equals(object? obj) -> bool
+override DigitalBrain.BrainType.GetHashCode() -> int
+override DigitalBrain.BrainType.ToString() -> string!
+static DigitalBrain.BrainInstance.operator !=(DigitalBrain.BrainInstance? left, DigitalBrain.BrainInstance? right) -> bool
+static DigitalBrain.BrainInstance.operator ==(DigitalBrain.BrainInstance? left, DigitalBrain.BrainInstance? right) -> bool
+static DigitalBrain.BrainType.operator !=(DigitalBrain.BrainType? left, DigitalBrain.BrainType? right) -> bool
+static DigitalBrain.BrainType.operator ==(DigitalBrain.BrainType? left, DigitalBrain.BrainType? right) -> bool

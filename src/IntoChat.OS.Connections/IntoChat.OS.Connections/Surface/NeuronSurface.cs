@@ -1,3 +1,7 @@
+using DigitalBrain;
+using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -25,11 +29,11 @@ public static class NeuronSurfaceTools
 // The caller is stamped by the host before any of these run; each neuron's own access decides. What
 // exists is the kernel's answer for the caller's brain; this process only needs a contract to call it.
 // A migrated plain contract (06-03) is called through the host's IPlainNeurons; it has no grain reference to watch.
-public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null,
+public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null,
     IServiceProvider? plain = null)
 {
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
-    private static readonly MethodInfo GetNeuron = typeof(IIntoChatOS).GetMethod(nameof(IIntoChatOS.Get))!;
+    private static readonly MethodInfo GetNeuron = typeof(INeuronProxies).GetMethod(nameof(INeuronProxies.Get))!;
 
     // The contracts one app composes: nothing outside them is listed, found or callable.
     public async Task<NeuronSurface> Restrict(IReadOnlyCollection<string> names, CancellationToken ct)
@@ -75,8 +79,7 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(type)) { return IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(type, key).ToString(); }
-        return ((IAddressable)Neuron(type, key)).GetGrainId().ToString();
+        return IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(type, key).ToString();
     }
 
     public async Task<JsonElement?> Call(string contract, string key, string method, string arguments, CancellationToken ct)
@@ -108,13 +111,11 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
     }
 
     // The neuron a contract and key name, as a reference: what a watch subscribes to.
-    public async Task<INeuron> Reference(string contract, string key, CancellationToken ct)
+    public async Task<object> Reference(string contract, string key, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))
-        { throw new NotSupportedException($"{type.Name} is a plain neuron: watch it through PlainId and the session synapse neuron."); }
-        return (INeuron)Neuron(type, key);
+        return Neuron(type, key);
     }
 
     // The runtime id of the neuron a plain contract and key name (06-07b: a plain neuron is watched through the session synapse
@@ -128,11 +129,11 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
 
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);
 
-    private async Task<Dictionary<string, TypeEntry>> Neurons(CancellationToken ct)
-        => (await kernel.Types(ct).ConfigureAwait(false)).Where(entry => entry.Kind == TypeKind.Neuron)
+    private async Task<Dictionary<string, BrainType>> Neurons(CancellationToken ct)
+        => (await kernel.Types(ct).ConfigureAwait(false)).Where(entry => entry.Kind == DigitalBrain.TypeKind.Neuron)
             .ToDictionary(entry => entry.Name, StringComparer.Ordinal);
 
-    private TypeEntry Entry(IReadOnlyDictionary<string, TypeEntry> neurons, string name)
+    private BrainType Entry(IReadOnlyDictionary<string, BrainType> neurons, string name)
         => !Allowed(name) ? throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list.")
             : neurons.TryGetValue(name, out var entry) ? entry
             : throw new ArgumentException($"{name} is not a neuron type of this brain. Pass the full type name from neurons_list.");
@@ -149,7 +150,7 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
             try { return SiloNeurons.Get(Plain(), contract, IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(contract, key)); }
             catch (ArgumentException error) { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.Message}", error); }
         }
-        try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [new NeuronId(key)])!; }
+        try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(contract, key)])!; }
         catch (TargetInvocationException error) when (error.InnerException is not null)
         { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.InnerException.Message}", error.InnerException); }
     }

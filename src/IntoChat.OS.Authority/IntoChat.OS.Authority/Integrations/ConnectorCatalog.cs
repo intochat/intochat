@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Integrations;
 
-// A connector's neurons and signals are its kernel type entry (TypeKind.Connector, named by Id), not copied here.
+// A connector's neurons and signals are its kernel type entry (DigitalBrain.TypeKind.Connector, named by Id), not copied here.
 internal sealed record ConnectorCatalogEntry(string Id, string DisplayName, string[] AuthMethods, string[] RequiredIntegrations, string[] OptionalIntegrations, string ExternalSystem);
 
 internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connectors, AuthorityNeurons neurons, ILogger<ConnectorCatalog> logger)

@@ -62,7 +62,7 @@ async Task<string> Target(string[] focus)
     {
         try
         {
-            await scratch.Create(new AppManifest("Scratch", "Synapses written from single sentences.",
+            await scratch.Create(new IntoChat.OS.Modules.Apps.AppManifest("Scratch", "Synapses written from single sentences.",
                 [new AppOperation("run", "Free-form input for the synapses written here; each reads what it needs.")], [], []),
                 "# Scratch\n\nEach synapse here was written from one sentence through the fast path. "
                 + "\"run\" carries free-form input to whichever synapse reacts to it.");

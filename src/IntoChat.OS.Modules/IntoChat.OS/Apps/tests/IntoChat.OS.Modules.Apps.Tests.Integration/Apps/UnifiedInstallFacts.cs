@@ -515,8 +515,9 @@ public sealed class UnifiedInstallFacts
 
         using (alice.AsApp(alice.Key("apps/desktop")))
         {
-            var market = await MarketplaceEndpoints.Install("intochat", "echo", new(AppConsent.Of(null), null, null), brain, Installer(brain), Ct);
-            var update = await AppsEndpoints.Update("echo", new(null), brain, Installer(brain), Ct);
+            var proxies = brain.Services.GetRequiredService<DigitalBrain.Spi.INeuronProxies>();
+            var market = await MarketplaceEndpoints.Install("intochat", "echo", new(AppConsent.Of(null), null, null), proxies, Installer(brain), Ct);
+            var update = await AppsEndpoints.Update("echo", new(null), proxies, Installer(brain), Ct);
             Assert.Equal(403, Assert.IsAssignableFrom<global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(market).StatusCode);
             Assert.Equal(403, Assert.IsAssignableFrom<global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(update).StatusCode);
         }

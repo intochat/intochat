@@ -47,10 +47,10 @@ public sealed class BrainOwnerDispatchFacts(AuthorityHost host)
         var dispatch = host.Brain.Services.GetRequiredService<IBrainOwnerDispatch>();
         var ran = false;
         Task Work() { ran = true; return Task.CompletedTask; }
-        Assert.False(await dispatch.RunAsync("missing-owner", new("missing-owner/delivery"), Work, cancellationToken: ct));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dispatch.RunAsync(person.BrainId, new("other/delivery"), Work, cancellationToken: ct));
-        var forged = TraceContext.Begin("other-account", person.BrainId, new(person.Key("delivery")));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dispatch.RunAsync(person.BrainId, new(person.Key("delivery")), Work, forged, ct));
+        Assert.False(await dispatch.RunAsync("missing-owner", "missing-owner/delivery", Work, cancellationToken: ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dispatch.RunAsync(person.BrainId, "other/delivery", Work, cancellationToken: ct));
+        var forged = TraceContext.Begin("other-account", person.BrainId, TraceContext.OriginOf(person.BrainId, person.Key("delivery")));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dispatch.RunAsync(person.BrainId, person.Key("delivery"), Work, forged, ct));
         Assert.False(ran);
     }
 }

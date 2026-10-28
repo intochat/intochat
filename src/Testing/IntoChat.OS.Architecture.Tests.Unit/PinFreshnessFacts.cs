@@ -8,8 +8,6 @@ public sealed class PinFreshnessFacts
 {
     private static readonly string[] Files =
     [
-        "GrainFactoryOwners.json",
-        "OrleansReferenceOwners.json",
         "ConfigurationKeyOwners.json",
         "TestTierBaseline.json",
         "CollectionCompatibilitySamples.json",
@@ -32,8 +30,6 @@ public sealed class PinFreshnessFacts
         {
             using (CaptureWriter.RedirectTo(fresh.FullName))
             {
-                new RuntimeBoundaryFacts().CaptureGrainFactoryOwners();
-                new RuntimeBoundaryFacts().CaptureOrleansReferenceOwners();
                 new ConfigurationKeyFacts().CaptureConfigurationKeyOwners();
                 new TestTierRules().CaptureTestTierBaseline();
                 new CollectionCompatibilityFacts().CaptureCollectionCompatibilitySamples();

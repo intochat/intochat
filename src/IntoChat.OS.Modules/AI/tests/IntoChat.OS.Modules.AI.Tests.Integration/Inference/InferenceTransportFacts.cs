@@ -29,7 +29,7 @@ public sealed class InferenceTransportFacts
         using var endpoint = new LoopbackServer();
         var builder = TestBrain.Create().WithModule<AIModule, AIOptions>(options => { Configure(options, provider); options.Ollama.Endpoint = endpoint.Url; })
             // The turn composes IApp without the Apps module: its contract is put in the host's compiled layer directly.
-            .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly])));
+            .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(IBrain).Assembly, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly])));
         await using var brain = await (provider == "Ollama" ? builder : builder.WithProvider(provider, endpoint.Url)).StartAsync(ct);
         async Task<CapturedRequest> Serve()
         {

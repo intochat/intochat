@@ -75,6 +75,6 @@ internal static class Probe
     // test assembly too, which has no module of its own to register it.
     public static Task<ITestBrain> Brain(IChatClient model, CancellationToken ct)
         => AgentFacts.Builder(model).WithNeuronModule<LoopProbeNeurons>()
-            .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(IntoChat.OS.Signal).Assembly, typeof(ILoopProbe).Assembly])))
+            .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(IntoChat.OS.IBrain).Assembly, typeof(ILoopProbe).Assembly])))
             .StartAsync(ct);
 }

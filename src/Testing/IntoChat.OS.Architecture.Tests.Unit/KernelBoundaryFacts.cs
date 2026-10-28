@@ -16,7 +16,7 @@ public sealed class KernelBoundaryFacts
         var offenders = ProductionArchitecture.Assemblies
             .Where(assembly => assembly.GetName().Name is "IntoChat.OS.Framework" or "IntoChat.OS.Authority")
             .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type != typeof(INeuron)
+            .Where(type => type.IsInterface && IntoChat.OS.Runtime.PlainNeuronContracts.Is(type)
                 && !PlatformNeurons.Contains(type.FullName))
             .Select(type => type.FullName!).Order().ToArray();
         Assert.True(offenders.Length == 0, "Kernel or platform neuron contracts:\n" + string.Join("\n", offenders));
@@ -26,7 +26,7 @@ public sealed class KernelBoundaryFacts
     public void EveryNeuronContractMethodResolvesToOneAccessPolicy()
     {
         var offenders = ProductionArchitecture.Types
-            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type))
+            .Where(type => type.IsInterface && IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))
             .SelectMany(contract => contract.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(method => (method.GetCustomAttributes<AccessAttribute>().Any()
                     ? method.GetCustomAttributes<AccessAttribute>()
@@ -41,9 +41,9 @@ public sealed class KernelBoundaryFacts
     {
         var types = new IntoChat.OS.Framework.CompiledTypes(ProductionArchitecture.Assemblies);
 
-        Assert.All(types.Entries.Where(entry => entry.Kind == TypeKind.Neuron),
+        Assert.All(types.Entries.Where(entry => entry.Kind == DigitalBrain.TypeKind.Neuron),
             // Transitional (06-03/06-07, deleted in 06-08): a migrated plain contract is a [DefaultNeuronType] interface instead.
-            entry => Assert.True(typeof(INeuron).IsAssignableFrom(types.Contract(entry.Name)) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(types.Contract(entry.Name)), entry.Name));
+            entry => Assert.True(IntoChat.OS.Runtime.PlainNeuronContracts.Is(types.Contract(entry.Name)), entry.Name));
     }
 
     // The call filter applies access policy to INeuron contracts, and PlainNeuronCallFilter to plain neuron contracts
@@ -52,7 +52,7 @@ public sealed class KernelBoundaryFacts
     public void AccessAttributesAppearOnlyOnNeuronContracts()
     {
         var offenders = ProductionArchitecture.Types
-            .Where(type => type.IsInterface && !typeof(INeuron).IsAssignableFrom(type) && !IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))
+            .Where(type => type.IsInterface && !IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))
             .SelectMany(contract => contract.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(method => method.GetCustomAttributes<AccessAttribute>().Any())
                 .Select(method => contract.FullName + "." + method.Name)

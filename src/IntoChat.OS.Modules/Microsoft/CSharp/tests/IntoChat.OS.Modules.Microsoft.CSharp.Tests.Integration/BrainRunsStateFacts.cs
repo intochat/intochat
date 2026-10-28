@@ -1,4 +1,5 @@
 using System.Text.Json;
+using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 
@@ -53,7 +54,7 @@ public sealed class BrainRunsStateFacts
     [Fact]
     public void EntriesKeepTheirOwnTraceAndLegacyCompatibleMarks()
     {
-        var first = new Trace { TraceId = "first", PayerAccountId = "account", BrainId = "brain", Origin = new("brain/edge") };
+        var first = new Trace { TraceId = "first", PayerAccountId = "account", BrainId = "brain", Origin = TraceContext.OriginOf("brain", "brain/edge") };
         var second = first with { TraceId = "second" };
         var state = new BrainRunsState().Apply([Fact(1, 10) with { Trace = first }, Fact(2, 20) with { Trace = second }]);
         var owed = new BrainRunsState { Unannounced = ["brain/apps/app/synapses/a.cs"] }.Apply([Fact(1, 10)]);

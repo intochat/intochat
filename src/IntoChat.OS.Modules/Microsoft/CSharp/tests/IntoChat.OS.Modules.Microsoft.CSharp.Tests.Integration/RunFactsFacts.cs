@@ -29,8 +29,8 @@ public sealed class RunFactsFacts
     private const string Other = "other-brain";
     private const string OtherOwner = "other-brain/apps/y";
     private const string OtherBehavior = "other-brain/apps/y/synapses/a.cs";
-    private static readonly Trace First = new() { TraceId = "4bf92f3577b34da6a3ce929d0e0e4736", PayerAccountId = "account-a", BrainId = Acc, Origin = new NeuronId("acc-brain/edge") };
-    private static readonly Trace Second = new() { TraceId = "0af7651916cd43dd8448eb211c80319c", PayerAccountId = "account-a", BrainId = Acc, Origin = new NeuronId("acc-brain/edge") };
+    private static readonly Trace First = new() { TraceId = "4bf92f3577b34da6a3ce929d0e0e4736", PayerAccountId = "account-a", BrainId = Acc, Origin = TraceContext.OriginOf(Acc, Acc + "/edge") };
+    private static readonly Trace Second = new() { TraceId = "0af7651916cd43dd8448eb211c80319c", PayerAccountId = "account-a", BrainId = Acc, Origin = TraceContext.OriginOf(Acc, Acc + "/edge") };
 
     [Trait("host", "own")]
     [Fact]

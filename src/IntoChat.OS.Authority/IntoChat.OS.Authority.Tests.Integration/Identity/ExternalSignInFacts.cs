@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Net;
 using System.Security.Cryptography;
 using IntoChat.OS.Connections.Identity.Configuration;
@@ -241,7 +243,7 @@ public sealed class ExternalSignInFacts : IDisposable
             builder.Configuration[AuthOptions.Key("TrustedIssuers:0:PublicKey")] = Spki(_key);
             builder.Configuration[AuthOptions.Key("TrustedIssuers:0:Audience")] = Audience;
         }
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<PrincipalPasswords>());

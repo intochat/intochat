@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Testing.Neurons;
@@ -19,19 +20,19 @@ public sealed class ClientCompositionFacts
             client.UseStaticClustering(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 30000));
             AspireTestSession.AddClientServices(client.Services);
         }).Build();
-        var brain = host.Services.GetRequiredService<IIntoChatOSBrains>().Open("owner");
+        var brains = host.Services.GetRequiredService<IIntoChatOSBrains>();
 
         switch (service)
         {
             case "get":
-                Assert.IsAssignableFrom<IPulse>(brain.Get<IPulse>(new NeuronId("owner/pulse")));
+                Assert.IsAssignableFrom<IPulse>(brains.Get<IPulse>("owner/pulse"));
                 break;
             case "kernel":
-                Assert.Same(host.Services.GetRequiredService<IKernelView>(), brain.Kernel);
+                Assert.NotNull(host.Services.GetRequiredService<IBrainObserver>());
                 break;
             case "signals":
-                var pulse = brain.Get<IPulse>(new NeuronId("owner/pulse"));
-                Assert.NotNull(brain.On<Pulsed>(pulse, () => Task.CompletedTask, TestContext.Current.CancellationToken));
+                var pulse = brains.Get<IPulse>("owner/pulse");
+                Assert.NotNull(brains.Open("owner").On<Pulsed>(pulse, () => Task.CompletedTask, TestContext.Current.CancellationToken));
                 break;
         }
     }

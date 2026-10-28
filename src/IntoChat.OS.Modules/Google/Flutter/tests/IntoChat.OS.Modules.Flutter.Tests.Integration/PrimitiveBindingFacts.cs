@@ -176,7 +176,7 @@ public static class UiEvents
 {
     // The signal types a control dispatches, by the full name a UiEvent carries: os Signals and plain [Signal] records.
     private static readonly Dictionary<string, Type> Dispatched = typeof(IUiBinding).Assembly.GetTypes()
-        .Where(type => typeof(Signal).IsAssignableFrom(type) || typeof(DigitalBrain.Signal).IsAssignableFrom(type))
+        .Where(type => typeof(DigitalBrain.Signal).IsAssignableFrom(type))
         .ToDictionary(type => type.FullName!, StringComparer.Ordinal);
 
     public static object[] Decoded(this IReadOnlyList<UiEvent> events)

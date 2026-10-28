@@ -2,7 +2,7 @@ using System.Threading.Channels;
 
 namespace IntoChat.OS;
 
-// The merge behind IIntoChatOS.On<T>(Sources): one pump per member, each the member's On<T>(neuron) session synapse
+// The merge behind ISignalWatch.On<T>(Sources): one pump per member, each the member's On<T>(neuron) session synapse
 // subscription, all writing to one channel. A registry change re-selects: members that left are
 // cancelled, members that joined are pumped from their current position, members that stayed
 // keep their subscription (and so their watermark). Any pump or select failure ends the stream
@@ -14,25 +14,25 @@ internal static class SourceSet
 {
     // reselected is a test seam: raised after each re-selection (not the first select) once the members that joined
     // have registered their subscriptions and the members that left are released. Nothing in the product passes it.
-    public static IAsyncEnumerable<T> Open<T>(IIntoChatOS brain, Sources sources, Func<Task>? subscribed, bool coalesce,
+    public static IAsyncEnumerable<T> Open<T>(ISignalWatch brain, Sources sources, Func<Task>? subscribed, bool coalesce,
         CancellationToken cancellationToken, Action? reselected = null) where T : DigitalBrain.Signal
         => new Stream<T>(brain, sources, static (brain, member, onSubscribed, stop) => brain.On<T>(member, onSubscribed, stop),
             subscribed, coalesce, reselected, cancellationToken);
 
     // The same merge over any member subscription: open is asked once per member.
-    public static IAsyncEnumerable<T> Open<T>(IIntoChatOS brain, Sources sources,
-        Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open, CancellationToken cancellationToken,
+    public static IAsyncEnumerable<T> Open<T>(ISignalWatch brain, Sources sources,
+        Func<ISignalWatch, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open, CancellationToken cancellationToken,
         Func<Task>? subscribed = null, bool coalesce = false)
         => new Stream<T>(brain, sources, open, subscribed, coalesce, null, cancellationToken);
 
-    private sealed class Stream<T>(IIntoChatOS brain, Sources sources, Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open,
+    private sealed class Stream<T>(ISignalWatch brain, Sources sources, Func<ISignalWatch, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open,
         Func<Task>? subscribed, bool coalesce, Action? reselected, CancellationToken streamCancellation) : IAsyncEnumerable<T>
     {
         public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
             => new Enumerator<T>(brain, sources, open, subscribed, coalesce, reselected, streamCancellation, cancellationToken);
     }
 
-    private sealed class Enumerator<T>(IIntoChatOS brain, Sources sources, Func<IIntoChatOS, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open,
+    private sealed class Enumerator<T>(ISignalWatch brain, Sources sources, Func<ISignalWatch, object, Func<Task>, CancellationToken, IAsyncEnumerable<T>> open,
         Func<Task>? subscribed, bool coalesce, Action? reselected, CancellationToken streamCancellation, CancellationToken enumeratorCancellation) : IAsyncEnumerator<T>
     {
         private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(streamCancellation, enumeratorCancellation);

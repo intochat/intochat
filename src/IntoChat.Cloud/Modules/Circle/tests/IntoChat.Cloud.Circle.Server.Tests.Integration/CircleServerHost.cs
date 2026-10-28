@@ -28,6 +28,7 @@ public sealed class CircleServerHostModule : DigitalBrain.Module, IHttpModule
     public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
         _server.ConfigureServices(services);
     }
 

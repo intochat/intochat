@@ -58,7 +58,7 @@ public sealed class RedactionFacts
         => AgentFacts.Builder(StubChatClient.StreamingOnly(Model))
             .ConfigureServices(services =>
             {
-                services.AddSingleton(new CompiledTypes([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly]));
+                services.AddSingleton(new CompiledTypes([typeof(IBrain).Assembly, typeof(ILoopProbe).Assembly]));
                 services.AddSingleton<ISecretValueSource>(new Vault());
             })
             .StartAsync(ct);

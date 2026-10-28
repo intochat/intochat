@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Collections.Concurrent;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -51,7 +53,7 @@ public sealed class SignInHandlerFacts
         var builder = WebApplication.CreateBuilder();
         IntoChat.OS.Testing.TestLogging.Apply(builder.Configuration);
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());

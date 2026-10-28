@@ -146,7 +146,7 @@ public static class AppsView
     }.OfType<string>());
 
     // An update that adds requirements shows only what it adds, under its own heading; anything else shows all it asks.
-    public static (string Heading, AppRequirements Shown) Asks(AppDetail d)
+    public static (string Heading, IntoChat.OS.Modules.Apps.AppRequirements Shown) Asks(AppDetail d)
     {
         var added = AppConsent.Added(d.Consented, d.Requires);
         if (d.Status == "update" && !AppConsent.IsEmpty(added)) { return (AppsCopy.AsksForMore, added); }

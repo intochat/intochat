@@ -27,7 +27,7 @@ public sealed class PlainSignalProbe<T> : IAsyncDisposable where T : DigitalBrai
         _pending = Channel.CreateBounded<T>(buffer);
     }
 
-    internal static async Task<PlainSignalProbe<T>> Start(IIntoChatOS brain, object source, int buffer, TestExecutionOptions execution, CancellationToken cancellationToken)
+    internal static async Task<PlainSignalProbe<T>> Start(ISignalWatch brain, object source, int buffer, TestExecutionOptions execution, CancellationToken cancellationToken)
     {
         var probe = new PlainSignalProbe<T>(buffer, execution);
         probe._worker = probe.ObserveAsync(brain.On<T>(source, () => { probe._subscribed.TrySetResult(); return Task.CompletedTask; }, probe._cancel.Token));

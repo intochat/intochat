@@ -145,7 +145,7 @@ public sealed class OsInoChatCommandsFacts
         Assert.Equal("No chats match \"a\\]\\*\".", InoLayout.NoMatchCopy("a]*"));
     }
 
-    private abstract class FakeNeuron : INeuron
+    private abstract class FakeNeuron
     {
     }
 

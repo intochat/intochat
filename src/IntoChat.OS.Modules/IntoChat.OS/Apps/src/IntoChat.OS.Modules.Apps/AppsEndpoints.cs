@@ -1,3 +1,6 @@
+using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -23,11 +26,11 @@ internal static class AppsEndpoints
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
 
-        apps.MapGet("", (IIntoChatOS brain, [FromServices] MarketplaceView marketplace, [FromServices] ShippedPrograms shipped, CancellationToken ct) => Respond(async () =>
+        apps.MapGet("", (INeuronProxies brain, IBrainObserver kernel, [FromServices] MarketplaceView marketplace, [FromServices] ShippedPrograms shipped, CancellationToken ct) => Respond(async () =>
         {
             var listings = await marketplace.List(ct);
             var items = new List<object>();
-            foreach (var (name, snapshot) in await InstalledApps.Read(brain, BrainScope.CurrentId(), ct))
+            foreach (var (name, snapshot) in await InstalledApps.Read(brain, kernel, BrainScope.CurrentId(), ct))
             {
                 items.Add(new
                 {
@@ -52,13 +55,13 @@ internal static class AppsEndpoints
             return Results.Ok(items);
         }));
 
-        apps.MapPost("", (TextRequest request, [FromServices] Creator creator, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPost("", (TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), null, request.Text, ct)));
         }));
 
-        apps.MapGet("/{name}", (string name, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
+        apps.MapGet("/{name}", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             var snapshot = await App(brain, name).Read().WaitAsync(ct);
             return snapshot.Manifest.Title.Length == 0
@@ -66,20 +69,20 @@ internal static class AppsEndpoints
                 : Results.Ok(View(snapshot));
         }));
 
-        apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), name, request.Text, ct)));
         }));
 
-        apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] Creator creator, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             var snapshot = await creator.Implement(brain, Key(name), request?.Text, ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
         }));
 
         // A request is published for a synapse to react to; nothing waits for the app to answer.
-        apps.MapPost("/{name}/request", (string name, RequestBody? request, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPost("/{name}/request", (string name, RequestBody? request, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             var id = await App(brain, name).Request(request?.Operation ?? "ask", request?.Input ?? "{}").WaitAsync(ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", new { requestId = id });
@@ -87,52 +90,52 @@ internal static class AppsEndpoints
 
         // The fast path: one sentence becomes one synapse of the app. The request is recorded and the app answers
         // at once; the synapse, or why it was rejected, lands in the app's synapses.
-        apps.MapPost("/{name}/synapse", (string name, SynapseBody? body, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
+        apps.MapPost("/{name}/synapse", (string name, SynapseBody? body, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(body?.Sentence);
             var snapshot = await App(brain, name).WriteSynapse(body.Sentence, body.Focus ?? [], body.OperationId ?? Guid.NewGuid()).WaitAsync(ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
         }));
 
-        apps.MapPut("/{name}/settings", (string name, SettingsRequest request, IIntoChatOS brain) => Respond(async ()
+        apps.MapPut("/{name}/settings", (string name, SettingsRequest request, INeuronProxies brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).Configure(request?.Settings ?? [], request?.Connections ?? [])))));
 
-        apps.MapPost("/{name}/rollback", (string name, RollbackRequest request, IIntoChatOS brain) => Respond(async () =>
+        apps.MapPost("/{name}/rollback", (string name, RollbackRequest request, INeuronProxies brain) => Respond(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(request?.Version);
             return Results.Ok(View(await App(brain, name).Rollback(request.Version)));
         }));
 
-        apps.MapPost("/{name}/publish", (string name, IIntoChatOS brain) => Respond(async ()
+        apps.MapPost("/{name}/publish", (string name, INeuronProxies brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).Publish()))));
 
         // Development only: writes an edited copy of a feature back into its owner's features folder.
-        apps.MapPost("/{name}/save-to-source", (string name, IIntoChatOS brain) => Respond(async ()
+        apps.MapPost("/{name}/save-to-source", (string name, INeuronProxies brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).SaveToSource()))));
 
         // The one install path over HTTP: a person's own session, never an app's.
         apps.MapPost("/install", (InstallRequest request, [FromServices] AppInstaller installer, CancellationToken ct) => Install(request, installer, ct));
 
-        apps.MapPost("/{name}/update", (string name, UpdateBody? body, IIntoChatOS brain, [FromServices] AppInstaller installer, CancellationToken ct)
+        apps.MapPost("/{name}/update", (string name, UpdateBody? body, INeuronProxies brain, [FromServices] AppInstaller installer, CancellationToken ct)
             => Update(name, body, brain, installer, ct));
 
-        apps.MapGet("/{name}/icon", (string name, IIntoChatOS brain, CancellationToken ct) => Respond(async () =>
+        apps.MapGet("/{name}/icon", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             var snapshot = await App(brain, name).Read().WaitAsync(ct);
             return Icon(snapshot.Manifest.Icon, snapshot.Files, name);
         }));
 
-        apps.MapGet("/{name}/export", (string name, IIntoChatOS brain, CancellationToken ct)
+        apps.MapGet("/{name}/export", (string name, INeuronProxies brain, CancellationToken ct)
             => Respond(async () => Results.Ok(await App(brain, name).Export().WaitAsync(ct))));
 
-        apps.MapPost("/import", (AppBundle bundle, IIntoChatOS brain) => Respond(async () =>
+        apps.MapPost("/import", (AppBundle bundle, INeuronProxies brain) => Respond(async () =>
         {
             ArgumentNullException.ThrowIfNull(bundle);
             ArgumentException.ThrowIfNullOrWhiteSpace(bundle.Name);
             return Results.Ok(View(await App(brain, bundle.Name).Import(bundle)));
         }));
 
-        apps.MapDelete("/{name}", (string name, IIntoChatOS brain) => Respond(async () =>
+        apps.MapDelete("/{name}", (string name, INeuronProxies brain) => Respond(async () =>
         {
             await App(brain, name).Delete();
             return Results.Ok(new { deleted = name });
@@ -153,7 +156,7 @@ internal static class AppsEndpoints
         };
     });
 
-    internal static Task<IResult> Update(string name, UpdateBody? body, IIntoChatOS brain, AppInstaller installer, CancellationToken ct) => Respond(async () =>
+    internal static Task<IResult> Update(string name, UpdateBody? body, INeuronProxies brain, AppInstaller installer, CancellationToken ct) => Respond(async () =>
     {
         if (!IsPerson()) { return Results.Json(new { error = "Only you can update apps." }, statusCode: 403); }
         var outcome = await installer.Update(new(name, body?.Consent), ct);
@@ -175,7 +178,7 @@ internal static class AppsEndpoints
 
     private static string Key(string name) => IApp.Key(BrainScope.CurrentId(), name);
 
-    private static IApp App(IIntoChatOS brain, string name) => brain.Get<IApp>(Key(name));
+    private static IApp App(INeuronProxies brain, string name) => brain.Get<IApp>(Key(name));
 
     // The wire view: the snapshot plus status as a string the shell can switch on.
     // An icon is a bundle file the manifest names; the shell renders it by its content type.

@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS;
 using Xunit;
 
@@ -8,11 +9,11 @@ public sealed class OsInoToolsFacts
     [Fact]
     public void DisabledModulesDoNotPreventAnAnswerOrExpandToolAuthority()
     {
-        TypeEntry[] available =
+        BrainType[] available =
         [
-            new("text", "text", TypeKind.Neuron, "ui", "", [], []),
-            new("other", "other", TypeKind.Neuron, "private", "", [], []),
-            new("signal", "signal", TypeKind.Signal, "ui", "", [], []),
+            new("text", "text", DigitalBrain.TypeKind.Neuron, "ui", "", [], []),
+            new("other", "other", DigitalBrain.TypeKind.Neuron, "private", "", [], []),
+            new("signal", "signal", DigitalBrain.TypeKind.Signal, "ui", "", [], []),
         ];
         Assert.Equal(["text"], InoTools.Select(["postgres", "text", "signal"], available));
         Assert.Empty(InoTools.Select(["postgres"], available));

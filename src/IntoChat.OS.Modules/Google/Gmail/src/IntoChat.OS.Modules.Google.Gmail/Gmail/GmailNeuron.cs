@@ -147,7 +147,7 @@ internal sealed partial class GmailNeuron()
         var trace = TraceContext.Current;
         if (trace is not null && (trace.BrainId != Key.Brain || trace.PayerAccountId != caller.AccountId))
         { throw new UnauthorizedAccessException("The Gmail invocation trace does not belong to the trusted caller."); }
-        return TraceContext.Enter(trace ?? TraceContext.Begin(caller.AccountId, Key.Brain, new IntoChat.OS.NeuronId(FullKey)));
+        return TraceContext.Enter(trace ?? TraceContext.Begin(caller.AccountId, Key.Brain, TraceContext.OriginOf(Key.Brain, FullKey)));
     }
 
     private GoogleCallContext NewCallContext(string? invocationId = null)

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -77,7 +78,7 @@ public sealed class SessionCookieFacts(McpHost host)
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "intochat.session";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))] = "IntoChat.v1";
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton<INeuronProxies>(brain.Services.GetRequiredService<INeuronProxies>());
         global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, brain.Services);
         if (mcp) { builder.Services.AddIntoChatOSMcp(); }
         else

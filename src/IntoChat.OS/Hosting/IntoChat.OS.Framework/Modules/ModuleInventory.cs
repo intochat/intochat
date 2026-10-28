@@ -23,7 +23,7 @@ public sealed class ModuleInventory
     // Every contract assembly this composition exposes: the words, the kernel's connection contracts,
     // and each module's declared contracts. The one answer to "which neuron contracts exist here".
     public IReadOnlyList<Assembly> ContractAssemblies()
-        => [.. new[] { typeof(INeuron).Assembly, ConnectionContracts() }
+        => [.. new[] { typeof(IBrain).Assembly, ConnectionContracts() }
             .OfType<Assembly>()
             .Concat(Modules.Select(module => module.Contracts).OfType<Assembly>())
             .Distinct()];

@@ -370,6 +370,7 @@ DigitalBrain.Testing.TestJournal.Saves.get -> int
 DigitalBrain.Testing.TestJournal.Signals(DigitalBrain.NeuronId publisher) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.JournaledSignal!>!
 DigitalBrain.Testing.TestOS
 DigitalBrain.Testing.TestOS.Activate(DigitalBrain.NeuronId id) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.TestOS.Brains(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string![]!>!
 DigitalBrain.Testing.TestOS.Capabilities.get -> DigitalBrain.Testing.CapabilityFakes!
 DigitalBrain.Testing.TestOS.Clock.get -> DigitalBrain.Testing.TestClock!
 DigitalBrain.Testing.TestOS.Cursor(DigitalBrain.NeuronId subscriber, DigitalBrain.NeuronId source) -> long?
@@ -382,6 +383,8 @@ DigitalBrain.Testing.TestOS.ForceCheckpoint(DigitalBrain.BrainId brain) -> void
 DigitalBrain.Testing.TestOS.Get<T>(DigitalBrain.NeuronId id) -> T!
 DigitalBrain.Testing.TestOS.Idle() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.TestOS.Install<TApp>() -> System.Threading.Tasks.Task<DigitalBrain.Testing.InstalledApp<TApp!>!>!
+DigitalBrain.Testing.TestOS.Instances(string? type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.BrainInstance!>!
+DigitalBrain.Testing.TestOS.Instances<T>(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.BrainInstance!>!
 DigitalBrain.Testing.TestOS.IsActive(DigitalBrain.NeuronId id) -> bool
 DigitalBrain.Testing.TestOS.Journal(DigitalBrain.BrainId brain) -> DigitalBrain.Testing.TestJournal!
 DigitalBrain.Testing.TestOS.Options.get -> DigitalBrain.Testing.TestOSOptions!
@@ -390,6 +393,7 @@ DigitalBrain.Testing.TestOS.Register<TNeuron>() -> DigitalBrain.Testing.TestOS!
 DigitalBrain.Testing.TestOS.Restart() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.TestOS.Services.get -> System.IServiceProvider!
 DigitalBrain.Testing.TestOS.SynapsesOf(DigitalBrain.NeuronId subscriber) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Synapse!>!
+DigitalBrain.Testing.TestOS.Types(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BrainType![]!>!
 DigitalBrain.Testing.TestOS.With<TCapability>(TCapability! fake) -> DigitalBrain.Testing.TestOS!
 DigitalBrain.Testing.TestOS.With<TCapability>(string! name, TCapability! fake) -> DigitalBrain.Testing.TestOS!
 DigitalBrain.Testing.TestOSOptions

@@ -36,13 +36,13 @@ internal static class LiveSignalEndpoints
     internal sealed record LiveFeed(
         string Type,
         Type Signal,
-        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> Sources)
+        Func<BrainEdge, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> Sources)
     {
         public Func<global::DigitalBrain.NeuronId, Func<Task>, CancellationToken, IAsyncEnumerable<SessionSignal>>? Live { get; init; }
     }
 
     internal static LiveFeed Feed<T>(
-        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> sources) where T : global::DigitalBrain.Signal
+        Func<BrainEdge, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> sources) where T : global::DigitalBrain.Signal
         => new(typeof(T).Name, typeof(T), sources);
 
     internal static readonly LiveFeed[] Feeds =
@@ -65,7 +65,7 @@ internal static class LiveSignalEndpoints
     // Apps already there, then each one the kernel announces: the watch is registered before the listing, so none is missed.
     // A null key marks the end of the listing. A key waiting in the buffer is not queued again, so the dedup set
     // holds at most the buffer's keys; once read, `seen` keeps the stream from yielding it twice.
-    private static async IAsyncEnumerable<global::DigitalBrain.NeuronId> Apps(IIntoChatOS brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
+    private static async IAsyncEnumerable<global::DigitalBrain.NeuronId> Apps(BrainEdge brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
     {
         var keys = Channel.CreateBounded<string?>(new BoundedChannelOptions(KeyBuffer) { FullMode = BoundedChannelFullMode.Wait });
         HashSet<string> queued = [];
@@ -78,7 +78,7 @@ internal static class LiveSignalEndpoints
         {
             try
             {
-                await foreach (var created in brain.On<InstanceCreated>(brain.Self, async () =>
+                await foreach (var created in brain.On<InstanceCreated>(brain.Self(brainId), async () =>
                 {
                     await foreach (var instance in brain.Kernel.Instances<IApp>(ct)) { await Queue(instance.Key); }
                     await keys.Writer.WriteAsync(null, ct);
@@ -100,8 +100,9 @@ internal static class LiveSignalEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
         => BrainRoutes.Group(endpoints).MapGet("/live", Live);
 
-    private static async Task Live(HttpContext http, IIntoChatOS brain, ILoggerFactory logs, CancellationToken ct)
+    private static async Task Live(HttpContext http, ILoggerFactory logs, CancellationToken ct)
     {
+        var brain = BrainEdge.Open(http.RequestServices, BrainScope.CurrentId());
         var (selected, error) = Select(http.Request.Query["type"].Where(name => !string.IsNullOrEmpty(name)).Select(name => name!));
         if (error is not null)
         {
@@ -160,7 +161,7 @@ internal static class LiveSignalEndpoints
     // The stream stays open with no sources at all: a source may appear later. A source or feed that fails is logged and dropped;
     // when every feed has failed the stream ends with an error, so the client sees a failure instead of a silent hang.
     // A reader that falls more than `capacity` envelopes behind gets Resync and the stream ends.
-    internal static async IAsyncEnumerable<string> Stream(IIntoChatOS brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct, int capacity = EnvelopeBuffer,
+    internal static async IAsyncEnumerable<string> Stream(BrainEdge brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct, int capacity = EnvelopeBuffer,
         IServiceProvider? services = null)
     {
         var outbox = new Outbox(capacity);
@@ -199,7 +200,7 @@ internal static class LiveSignalEndpoints
 
     // Completes once the retained values of the sources listed at connect time are written (or the feed failed); discovery keeps
     // running after that. Each source is watched on its own session.
-    private static Task Discover(IIntoChatOS brain, string brainId, LiveFeed feed, IServiceProvider? services, Outbox writer, ILogger log, Action failed, CancellationToken ct)
+    private static Task Discover(BrainEdge brain, string brainId, LiveFeed feed, IServiceProvider? services, Outbox writer, ILogger log, Action failed, CancellationToken ct)
     {
         var type = feed.Type;
         var replayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

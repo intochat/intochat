@@ -255,7 +255,7 @@ public sealed class OsInoModelFacts
         Assert.Equal([InoLayout.HeaderHeight, InoLayout.FirstRunHeight, 0, InoLayout.ComposerHeight], main.Extents!);
     }
 
-    private abstract class FakeNeuron : INeuron
+    private abstract class FakeNeuron
     {
     }
 

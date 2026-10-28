@@ -28,7 +28,7 @@ public static class CallerContextStamper
         RequestContext.Set(RequestContextKey, context);
         if (TraceContext.Current is null)
         {
-            var origin = new NeuronId($"{context.BrainId}/edge");
+            var origin = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(context.BrainId), "edge", "request");
             TraceContext.Enter(TraceContext.Begin(context.AccountId, context.BrainId, origin));
         }
         return context;

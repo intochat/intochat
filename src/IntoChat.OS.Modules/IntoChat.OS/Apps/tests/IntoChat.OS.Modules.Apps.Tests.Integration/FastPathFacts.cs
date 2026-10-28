@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using DigitalBrain;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
@@ -1311,19 +1312,19 @@ public sealed class FastPathFacts : IDisposable
         }
     }
 
-    // Only this fact decorates its host's IKernel; concrete Kernel and IKernelView stay registered as before.
+    // Only this fact decorates its host's IKernel; concrete Kernel and IBrainObserver stay registered as before.
     private sealed class TimedKernel(global::IntoChat.OS.Kernel.Composition.Kernel inner, Func<string?> phase, Action<long, string, string, string> record) : IKernel
     {
         private long _next;
 
-        public IAsyncEnumerable<Instance> InstancesIn(string brain, string? type, CancellationToken cancellationToken = default)
+        public IAsyncEnumerable<BrainInstance> InstancesIn(string brain, string? type, CancellationToken cancellationToken = default)
         {
             var capturedPhase = phase();
             var values = inner.InstancesIn(brain, type, cancellationToken);
             return capturedPhase is null ? values : ObserveInstances(values, capturedPhase, cancellationToken);
         }
 
-        private async IAsyncEnumerable<Instance> ObserveInstances(IAsyncEnumerable<Instance> values, string capturedPhase,
+        private async IAsyncEnumerable<BrainInstance> ObserveInstances(IAsyncEnumerable<BrainInstance> values, string capturedPhase,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var id = Interlocked.Increment(ref _next);
@@ -1337,19 +1338,19 @@ public sealed class FastPathFacts : IDisposable
             finally { record(id, "InstancesIn", capturedPhase, completed ? "completed" : "stopped"); }
         }
 
-        public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default)
+        public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
         {
             var capturedPhase = phase();
             if (capturedPhase is null) { return inner.Types(cancellationToken); }
             var id = Interlocked.Increment(ref _next);
             record(id, "Types", capturedPhase, "entered");
-            Task<TypeEntry[]> pending;
+            Task<BrainType[]> pending;
             try { pending = inner.Types(cancellationToken); }
             catch { record(id, "Types", capturedPhase, "stopped"); throw; }
             return ObserveTypes(pending, id, capturedPhase);
         }
 
-        private async Task<TypeEntry[]> ObserveTypes(Task<TypeEntry[]> pending, long id, string capturedPhase)
+        private async Task<BrainType[]> ObserveTypes(Task<BrainType[]> pending, long id, string capturedPhase)
         {
             var completed = false;
             try
@@ -1361,15 +1362,15 @@ public sealed class FastPathFacts : IDisposable
             finally { record(id, "Types", capturedPhase, completed ? "completed" : "stopped"); }
         }
 
-        public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class
+        public IAsyncEnumerable<BrainInstance> Instances<T>(CancellationToken cancellationToken = default) where T : class
             => inner.Instances<T>(cancellationToken);
-        public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => inner.Instances(type, cancellationToken);
+        public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default) => inner.Instances(type, cancellationToken);
         public Task<string[]> Brains(CancellationToken cancellationToken = default) => inner.Brains(cancellationToken);
-        public Task<Instance[]> Running(CancellationToken cancellationToken = default) => inner.Running(cancellationToken);
+        public Task<BrainInstance[]> Running(CancellationToken cancellationToken = default) => inner.Running(cancellationToken);
         public string TypeOf(Type contract) => inner.TypeOf(contract);
         public Task Retire(string type, string key, CancellationToken cancellationToken = default) => inner.Retire(type, key, cancellationToken);
         public Task<Feature[]> Features(string brain, CancellationToken cancellationToken = default) => inner.Features(brain, cancellationToken);
-        public Task LoadFeature(string brain, Feature feature, TypeEntry[] types, CancellationToken cancellationToken = default)
+        public Task LoadFeature(string brain, Feature feature, BrainType[] types, CancellationToken cancellationToken = default)
             => inner.LoadFeature(brain, feature, types, cancellationToken);
         public Task UnloadFeature(string brain, string name, CancellationToken cancellationToken = default) => inner.UnloadFeature(brain, name, cancellationToken);
     }

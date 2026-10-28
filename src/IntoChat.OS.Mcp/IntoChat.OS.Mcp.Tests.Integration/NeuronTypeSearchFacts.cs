@@ -75,7 +75,7 @@ public sealed class NeuronTypeSearchFacts(McpHost host)
         Assert.Equal(new[] { 2, 1, 1, 1 }, embedder.Batches.Select(batch => batch.Count).ToArray());
     }
 
-    private static string[] Neurons(FixedKernel kernel) => [.. kernel.Entries.Where(type => type.Kind == TypeKind.Neuron).Select(type => type.Alias)];
+    private static string[] Neurons(FixedKernel kernel) => [.. kernel.Entries.Where(type => type.Kind == DigitalBrain.TypeKind.Neuron).Select(type => type.Alias)];
 
     private static NeuronType Tool(string name)
         => new($"tool:k/{name}", "tools", $"Tool {name}", $"does {name}", [$"run {name}"], "IntoChat.OS.Modules.Tools.IToolSource", "k", name);

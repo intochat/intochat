@@ -17,7 +17,7 @@ namespace IntoChat.OS.Authority.Neurons;
 
 // The gRPC edge of the two operations every caller has: neurons_call and brain.On<T>. The brain
 // rides in the message, so each call decides access the way a /brains/{brainId} route does.
-internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, ILogger<NeuronsService> logger, IServiceProvider services)
+internal sealed class NeuronsService(NeuronSurface surface, IBrainObserver kernel, ILogger<NeuronsService> logger, IServiceProvider services)
     : Proto.Neurons.NeuronsBase
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
@@ -54,7 +54,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
         var pumps = new List<Task>();
         try
         {
-            var types = await brain.Kernel.Types(ct);
+            var types = await kernel.Types(ct);
             foreach (var source in request.Sources)
             {
                 // One session on the session synapse neuron for the source's types.

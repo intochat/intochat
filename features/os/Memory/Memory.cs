@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -560,19 +561,19 @@ internal static class Memory
                 + (state.Edited ? ", edited here" : "");
 
     // The installed types by provider: a module id, or feature:{owner}/{name}.
-    public static string RenderTypes(IReadOnlyList<TypeEntry> types)
+    public static string RenderTypes(IReadOnlyList<BrainType> types)
     {
         var builder = new StringBuilder("## Installed types\n\n").Append(types.Count).Append(" types: ")
-            .Append(types.Count(type => type.Kind == TypeKind.Neuron)).Append(" neurons, ")
-            .Append(types.Count(type => type.Kind == TypeKind.Signal)).Append(" signals, ")
-            .Append(types.Count(type => type.Kind == TypeKind.Connector)).Append(" connectors.\n\n");
+            .Append(types.Count(type => type.Kind == DigitalBrain.TypeKind.Neuron)).Append(" neurons, ")
+            .Append(types.Count(type => type.Kind == DigitalBrain.TypeKind.Signal)).Append(" signals, ")
+            .Append(types.Count(type => type.Kind == DigitalBrain.TypeKind.Connector)).Append(" connectors.\n\n");
         foreach (var provider in types.GroupBy(type => type.Provider).OrderBy(group => group.Key, StringComparer.Ordinal))
         {
-            var neurons = provider.Where(type => type.Kind == TypeKind.Neuron).Select(type => type.Name[(type.Name.LastIndexOf('.') + 1)..])
+            var neurons = provider.Where(type => type.Kind == DigitalBrain.TypeKind.Neuron).Select(type => type.Name[(type.Name.LastIndexOf('.') + 1)..])
                 .Order(StringComparer.Ordinal).ToArray();
             builder.Append("- **").Append(provider.Key).Append("**: ").Append(neurons.Length).Append(" neurons, ")
-                .Append(provider.Count(type => type.Kind == TypeKind.Signal)).Append(" signals, ")
-                .Append(provider.Count(type => type.Kind == TypeKind.Connector)).Append(" connectors");
+                .Append(provider.Count(type => type.Kind == DigitalBrain.TypeKind.Signal)).Append(" signals, ")
+                .Append(provider.Count(type => type.Kind == DigitalBrain.TypeKind.Connector)).Append(" connectors");
             if (neurons.Length > 0) { builder.Append(" — ").Append(string.Join(", ", neurons)); }
             builder.Append('\n');
         }

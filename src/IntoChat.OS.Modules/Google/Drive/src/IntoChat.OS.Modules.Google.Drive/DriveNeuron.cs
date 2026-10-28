@@ -158,7 +158,7 @@ internal sealed partial class DriveNeuron()
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
         { throw new UnauthorizedAccessException("The Drive connection belongs to another brain."); }
         return TraceContext.Current is null
-            ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, new NeuronId(FullKey))) : null;
+            ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, TraceContext.OriginOf(Key.Brain, FullKey))) : null;
     }
 
     private DriveModuleOptions Options => ServiceProvider.GetRequiredService<DriveModuleOptions>();

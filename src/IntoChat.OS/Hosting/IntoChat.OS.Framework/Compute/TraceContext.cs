@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DigitalBrain;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Contracts.Compute;
 
@@ -20,6 +21,21 @@ public static class TraceContext
         Ambient.Value = trace;
         RequestContext.Set(RequestContextKey, trace);
         return new Scope(previousAmbient, previousRequest);
+    }
+
+    // An os key used only as a cost origin. "{brain}/edge" is the trusted edge (type edge, key request).
+    // Any other "{brain}/…" key parses as brain/type/key, so Origin.ToString() stays the os key when it already has a type segment.
+    public static NeuronId OriginOf(string brainId, string osKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(osKey);
+        if (osKey == $"{brainId}/edge") { return new NeuronId(new BrainId(brainId), "edge", "request"); }
+        if (NeuronId.TryParse(osKey, out var parsed) && parsed.Brain.Value == brainId) { return parsed; }
+        var rest = osKey.StartsWith(brainId + "/", StringComparison.Ordinal) ? osKey[(brainId.Length + 1)..] : osKey;
+        var slash = rest.IndexOf('/', StringComparison.Ordinal);
+        var type = slash < 0 ? rest : rest[..slash];
+        var key = slash < 0 ? "request" : rest[(slash + 1)..];
+        return new NeuronId(new BrainId(brainId), type, key);
     }
 
     public static Trace Begin(string payerAccountId, string brainId, NeuronId origin, long? budgetMicros = null)

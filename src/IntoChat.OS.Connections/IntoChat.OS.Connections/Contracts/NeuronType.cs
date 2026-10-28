@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 
@@ -17,7 +18,7 @@ public sealed record NeuronType(
     [property: Id(7)] string? Tool = null)
 {
     // A kernel neuron type as a searchable capability: no Key, called on any instance of it.
-    public static NeuronType From(TypeEntry entry)
+    public static NeuronType From(BrainType entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
         var name = entry.Name[(entry.Name.LastIndexOf('.') + 1)..];

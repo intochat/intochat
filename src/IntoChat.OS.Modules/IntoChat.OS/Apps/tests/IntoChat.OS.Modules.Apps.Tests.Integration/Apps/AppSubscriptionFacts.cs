@@ -13,11 +13,10 @@ public sealed class AppSubscriptionFacts(AppsHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        IIntoChatOS program = brain;
         var app = brain.Get<IApp>(IApp.Key(Brain, "filtered"));
         await app.Create(new AppManifest("Filtered", "", [new("open", ""), new("Open", ""), new("add", "")], [], []), "spec");
         var subscribed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var opens = program.On(app, "open", () => { subscribed.TrySetResult(); return Task.CompletedTask; }, ct).GetAsyncEnumerator(ct);
+        await using var opens = brain.On(app, "open", () => { subscribed.TrySetResult(); return Task.CompletedTask; }, ct).GetAsyncEnumerator(ct);
         var next = opens.MoveNextAsync().AsTask();
         await subscribed.Task.WaitAsync(ct);
         await app.Request("Open", "");

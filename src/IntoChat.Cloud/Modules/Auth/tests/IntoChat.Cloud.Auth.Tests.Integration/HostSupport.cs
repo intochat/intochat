@@ -37,6 +37,7 @@ public sealed class AuthHostModule : DigitalBrain.Module, IHttpModule
     public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
         new AuthModule().ConfigureServices(services);
     }
 

@@ -1,9 +1,9 @@
 namespace IntoChat.OS.Framework;
 
-// The host-side seam behind IIntoChatOS: a silo or a client opens the brain a caller is in.
+// A silo or a cluster client opens a brain. Get addresses an os full key. Open is the session watch.
 public interface IIntoChatOSBrains
 {
-    IIntoChatOS Open(string brainId);
+    ISignalWatch Open(string brainId);
 
     // A neuron by its full key "{brain}/{key}", outside any brain: hosts and test harnesses only.
     T Get<T>(string key) where T : class => (T)Get(typeof(T), key);

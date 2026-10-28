@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Contracts;
@@ -18,9 +19,9 @@ public static class McpHosting
         services.AddIdentity();
         services.AddLocalPlatformClients();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
-        services.TryAddScoped<IIntoChatOS>(provider => provider.GetRequiredService<IIntoChatOSBrains>().Open(
+        services.TryAddScoped<ISignalWatch>(provider => provider.GetRequiredService<IIntoChatOSBrains>().Open(
             (CallerContextStamper.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp()).BrainId));
-        services.TryAddSingleton<IKernelView>(global::IntoChat.OS.Kernel.Composition.Kernel.For);
+        services.TryAddSingleton<IBrainObserver>(global::IntoChat.OS.Kernel.Composition.Kernel.For);
         services.AddHttpContextAccessor();
         services.AddSingleton<McpCaller>();
         services.AddScoped<NeuronSurface>();

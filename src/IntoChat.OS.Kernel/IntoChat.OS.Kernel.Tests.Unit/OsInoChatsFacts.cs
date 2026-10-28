@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Flutter.Chat;
@@ -80,7 +81,7 @@ public sealed class OsInoChatsFacts
         var at = DateTimeOffset.UnixEpoch;
         var older = "c-" + Guid.NewGuid().ToString("N");
         var newer = "c-" + Guid.NewGuid().ToString("N");
-        Instance[] instances =
+        BrainInstance[] instances =
         [
             new("agent", InoChats.AgentKey(data, older), at.AddMinutes(1), null),
             new("agent", InoChats.AgentKey(data, "main"), at, null),
@@ -92,7 +93,7 @@ public sealed class OsInoChatsFacts
         Assert.Equal([InoChats.AgentKey(data, newer), InoChats.AgentKey(data, older), InoChats.AgentKey(data, "main")],
             InoChats.ConversationKeys(instances, data));
         var many = Enumerable.Range(0, ChatIndex.MaxListed + 20)
-            .Select(i => new Instance("agent", InoChats.AgentKey(data, "c-" + i.ToString("x32")), at.AddSeconds(i), null)).ToArray();
+            .Select(i => new BrainInstance("agent", InoChats.AgentKey(data, "c-" + i.ToString("x32")), at.AddSeconds(i), null)).ToArray();
         var found = InoChats.ConversationKeys(many, data);
         Assert.Equal(ChatIndex.MaxListed, found.Count);
         Assert.Equal(InoChats.AgentKey(data, "c-" + (ChatIndex.MaxListed + 19).ToString("x32")), found[0]);

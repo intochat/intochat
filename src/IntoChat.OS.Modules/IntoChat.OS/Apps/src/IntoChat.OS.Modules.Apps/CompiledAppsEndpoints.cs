@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
@@ -58,7 +60,7 @@ internal static class CompiledAppsEndpoints
                 });
             }));
         packages.MapPost("/activate", (ActivateBody body, [FromServices] CompiledAppInstaller installer,
-            [FromServices] ICompiledAppAssignment assignment, IIntoChatOS brain, CancellationToken ct)
+            [FromServices] ICompiledAppAssignment assignment, INeuronProxies brain, CancellationToken ct)
             => AppsEndpoints.Respond(async () =>
         {
             var snapshot = await brain.Get<IApp>(IApp.Key(BrainScope.CurrentId(), body.Name)).Read().WaitAsync(ct);

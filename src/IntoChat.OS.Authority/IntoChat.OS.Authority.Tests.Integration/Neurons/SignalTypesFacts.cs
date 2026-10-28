@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Authority.Neurons;
 using IntoChat.OS.Testing.Neurons;
 
@@ -5,7 +6,7 @@ namespace IntoChat.OS.Authority.Tests.Integration.Neurons;
 
 public sealed class SignalTypesFacts
 {
-    private static TypeEntry Entry(Type signal) => new(signal.FullName!, signal.FullName!, TypeKind.Signal, "test", "", [], []);
+    private static BrainType Entry(Type signal) => new(signal.FullName!, signal.FullName!, DigitalBrain.TypeKind.Signal, "test", "", [], []);
 
     [Fact]
     public void ASignalIsResolvedOnlyAmongTheBrainsOwnTypesAndAMissIsNotRemembered()

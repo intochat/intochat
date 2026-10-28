@@ -48,11 +48,12 @@ public static class BrainHosting
         silo.AddPlacementDirector<BrainAffinePlacement, BrainAffinePlacementDirector>();
         silo.Services.TryAddSingleton<ISignalJournal, MemorySignalJournal>();
         silo.Services.AddOptions<MemorySignalJournalOptions>();
-        silo.Services.TryAddSingleton<IIntoChatOS, CurrentBrain>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.INeuronResolver, GrainNeuronResolver>();
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
-        silo.Services.TryAddSingleton<IKernelView>(sp => sp.GetRequiredService<Kernel>());
+        // AddDigitalBrainRuntime registers ClusterBrainObserver first. The product kernel replaces it: it sees
+        // feature types and connection contracts, which the runtime-only observer does not.
+        silo.Services.Replace(ServiceDescriptor.Singleton<DigitalBrain.Runtime.Orleans.IBrainObserver>(sp => sp.GetRequiredService<Kernel>()));
         // Ledger 38: bound each "{brain}/{type}" instance directory so a brain's core does not grow without bound.
         silo.Services.AddOptions<InstanceDirectoryOptions>().BindConfiguration(InstanceDirectoryOptions.Key)
             .Validate(options => options.Limit > 0, "The instance directory limit must be positive.").ValidateOnStart();

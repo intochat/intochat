@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DigitalBrain.Runtime.Orleans;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using IntoChat.OS.Contracts.Configuration;
@@ -14,7 +15,7 @@ using ModelContextProtocol.Server;
 namespace IntoChat.OS.Mcp;
 
 [McpServerToolType]
-internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth, IKernelView kernel)
+internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth, IBrainObserver kernel)
 {
     // The caller as stamped, plus the brains it may select with /brains/{brainId}/mcp.
     [McpServerTool(Name = NeuronSurfaceTools.ContextName), Description(NeuronSurfaceTools.ContextDescription)]

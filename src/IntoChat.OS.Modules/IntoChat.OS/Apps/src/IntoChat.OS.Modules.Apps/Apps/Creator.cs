@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Modules.AI.Inference;
@@ -37,7 +39,7 @@ internal sealed class Creator(
 
     // With no name, the Author names the app and it exists — Drafted, in the caller's brain —
     // when this returns. With a name, it reshapes that app's spec.
-    public async Task<AppSnapshot> Author(IIntoChatOS brain, string brainId, string? name, string request, CancellationToken cancellationToken)
+    public async Task<AppSnapshot> Author(INeuronProxies brain, string brainId, string? name, string request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
@@ -89,7 +91,7 @@ internal sealed class Creator(
     }
 
     // Flips the app to Building and returns; the Builder loop lands the files in the background.
-    public async Task<AppSnapshot> Implement(IIntoChatOS brain, string appKey, string? instruction, CancellationToken cancellationToken = default)
+    public async Task<AppSnapshot> Implement(INeuronProxies brain, string appKey, string? instruction, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(brain);
         policy.RequireSandbox();

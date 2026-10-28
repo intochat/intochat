@@ -12,7 +12,7 @@ namespace IntoChat.OS.Testing;
 public static class BrainTestExtensions
 {
     // Observe a neuron: source is the reference brain.Get returned, T one of its [Signal] records.
-    public static async Task<PlainSignalProbe<T>> Observe<T>(this IIntoChatOS brain, object source, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
+    public static async Task<PlainSignalProbe<T>> Observe<T>(this ISignalWatch brain, object source, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
     {
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentNullException.ThrowIfNull(source);
@@ -62,7 +62,7 @@ public static class BrainTestExtensions
         return brain.DeactivateAsync(global::IntoChat.OS.Kernel.Composition.KernelTestHooks.Host(brain.Services, target), cancellationToken);
     }
 
-    public static BehaviorRun RunBehavior(this IIntoChatOS brain, Func<IIntoChatOS, CancellationToken, Task> body, CancellationToken cancellationToken = default)
+    public static BehaviorRun RunBehavior(this ITestBrain brain, Func<ISignalWatch, CancellationToken, Task> body, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(brain);
         var run = new BehaviorRun(brain, body, cancellationToken);

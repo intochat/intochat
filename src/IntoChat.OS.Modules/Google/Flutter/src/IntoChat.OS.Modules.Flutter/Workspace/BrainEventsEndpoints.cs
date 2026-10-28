@@ -23,8 +23,9 @@ internal static class BrainEventsEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
         => BrainRoutes.Group(endpoints).MapGet("/brain/events", Events);
 
-    private static async Task Events(HttpContext http, IIntoChatOS brain, ILoggerFactory logs, CancellationToken ct)
+    private static async Task Events(HttpContext http, ILoggerFactory logs, CancellationToken ct)
     {
+        var brain = BrainEdge.Open(http.RequestServices, BrainScope.CurrentId());
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         await http.Response.Body.FlushAsync(ct);
@@ -75,7 +76,7 @@ internal static class BrainEventsEndpoints
     // happened in between is missed, and a snapshot identical to the last one is not sent. A burst of
     // changes becomes one snapshot. A faulted kernel watch ends the stream with its error, so the
     // client sees a failure, never a clean end. The runtime is optional: a brain without one has no synapses.
-    internal static async IAsyncEnumerable<string> Snapshots(IIntoChatOS brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct, TimeSpan? staleAfter = null, TimeSpan? retryEvery = null)
+    internal static async IAsyncEnumerable<string> Snapshots(BrainEdge brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct, TimeSpan? staleAfter = null, TimeSpan? retryEvery = null)
     {
         // A change flag: one pending change says everything a hundred would.
         var changes = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest });
@@ -85,8 +86,8 @@ internal static class BrainEventsEndpoints
         var waiting = 3;
         var retrying = 0;
         void Subscribed() { if (Interlocked.Decrement(ref waiting) == 0) { changes.Writer.TryWrite(true); } }
-        _ = Watch(brain.On<InstanceCreated>(brain.Self, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
-        _ = Watch(brain.On<InstanceRetired>(brain.Self, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
+        _ = Watch(brain.On<InstanceCreated>(brain.Self(brainId), () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
+        _ = Watch(brain.On<InstanceRetired>(brain.Self(brainId), () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
         _ = Watch(brain.On<BrainRuntimeChanged>(runtime, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: false);
         try
         {
@@ -129,7 +130,7 @@ internal static class BrainEventsEndpoints
         }
     }
 
-    private static async Task<(string Json, string Key)> Snapshot(IIntoChatOS brain, RuntimeView view, string brainId, CancellationToken ct)
+    private static async Task<(string Json, string Key)> Snapshot(BrainEdge brain, RuntimeView view, string brainId, CancellationToken ct)
     {
         var running = await view.Read(ct);
         var behaviors = running?.Behaviors ?? [];

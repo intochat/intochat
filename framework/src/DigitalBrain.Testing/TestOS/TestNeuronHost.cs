@@ -29,11 +29,14 @@ internal sealed class TestNeuronHost : IDisposable
         _os = os;
         Id = id;
         Class = neuronClass;
+        Created = os.Clock.GetUtcNow();
     }
 
     public NeuronId Id { get; }
 
     public Type Class { get; }
+
+    public DateTimeOffset Created { get; }
 
     public bool IsActive => _neuron is not null;
 

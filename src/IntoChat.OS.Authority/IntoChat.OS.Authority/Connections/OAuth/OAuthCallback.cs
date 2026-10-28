@@ -48,7 +48,7 @@ internal sealed class OAuthCallback : IHttpSurface
                 var flow = context.RequestServices.GetRequiredService<OAuthLoginFlow>();
                 using (CallerContextScope.Scoped(login.Owner))
                 using (TraceContext.Enter(TraceContext.Begin(login.Owner.AccountId,
-                    BrainScope.Create(login.Owner.AccountId, login.Owner.BrainId).Id, new NeuronId(login.ConnectionKey))))
+                    BrainScope.Create(login.Owner.AccountId, login.Owner.BrainId).Id, TraceContext.OriginOf(login.Owner.BrainId, login.ConnectionKey))))
                 {
                     var neurons = context.RequestServices.GetRequiredService<AuthorityNeurons>();
                     // Another connector may have taken this id while the browser was at the provider;

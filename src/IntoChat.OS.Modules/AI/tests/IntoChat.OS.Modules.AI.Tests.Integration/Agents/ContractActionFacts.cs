@@ -15,7 +15,7 @@ public sealed class ContractActionFacts
     // The brain composes no Apps module, so the turn's contract is put in the host's compiled layer directly.
     private static Task<ITestBrain> AppBrain(IChatClient client, CancellationToken ct)
         => AgentFacts.Builder(client)
-            .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(IApp).Assembly])))
+            .ConfigureServices(services => services.AddSingleton(new IntoChat.OS.Framework.CompiledTypes([typeof(IBrain).Assembly, typeof(IApp).Assembly])))
             .StartAsync(ct);
 
     [Trait("host", "own")]

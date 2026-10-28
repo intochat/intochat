@@ -9,10 +9,11 @@ namespace IntoChat.OS.Kernel.Composition;
 // "{brain}/{relative}" exactly as NeuronId.Within does, and ResolveKey uses the key as given.
 internal sealed class GrainNeuronResolver(IGrainFactory grains) : INeuronResolver
 {
-    public T Resolve<T>(BrainId brain, NeuronId relative) where T : class
+    public T Resolve<T>(BrainId brain, string relative) where T : class
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brain.Value);
-        return ResolveKey<T>(relative.Within(brain.Value).Name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(relative);
+        return ResolveKey<T>($"{brain.Value}/{relative}");
     }
 
     public T ResolveKey<T>(string fullKey) where T : class

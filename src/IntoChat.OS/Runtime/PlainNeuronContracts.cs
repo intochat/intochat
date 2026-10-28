@@ -10,7 +10,7 @@ public static class PlainNeuronContracts
     public static bool Is(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        return type.IsInterface && !typeof(INeuron).IsAssignableFrom(type)
+        return type.IsInterface
             && (type.IsDefined(typeof(DefaultNeuronTypeAttribute), inherit: false) || IsConnection(type));
     }
 

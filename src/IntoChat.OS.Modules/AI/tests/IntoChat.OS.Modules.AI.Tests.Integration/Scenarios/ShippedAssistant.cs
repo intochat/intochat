@@ -20,8 +20,8 @@ internal static class ShippedAssistant
         var deployed = new IntoChat.OS.Framework.CompiledTypes(Directory.GetFiles(AppContext.BaseDirectory, "IntoChat.OS.Modules.*.dll")
                 .Where(path => path.EndsWith(".Contracts.dll", StringComparison.Ordinal) || IntoChat.OS.Client.Runtime.ContractsHost.Declares(path))
                 .Select(path => System.Reflection.Assembly.Load(System.Reflection.AssemblyName.GetAssemblyName(path)))
-                .Append(typeof(IntoChat.OS.INeuron).Assembly).Append(typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly))
-            .Entries.Where(type => type.Kind == IntoChat.OS.TypeKind.Neuron).Select(type => type.Name).ToArray();
+                .Append(typeof(IntoChat.OS.IBrain).Assembly).Append(typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly))
+            .Entries.Where(type => type.Kind == DigitalBrain.TypeKind.Neuron).Select(type => type.Name).ToArray();
         return [.. Regex.Matches(list, @"typeof\((?<name>\w+)\)").Select(match =>
             deployed.Single(name => name.EndsWith("." + match.Groups["name"].Value, StringComparison.Ordinal)))];
     }

@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -41,7 +42,6 @@ internal static class BrainCall
             // Before ArgumentException and the default: both conflicts are the caller's to resolve, not host failures.
             case RevisionConflictException e:
                 return Refused(StatusCode.Aborted, e.Message, "REVISION_CONFLICT", (CurrentRevisionTrailer, e.CurrentRevision.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-            case JournalConflictException: return Refused(StatusCode.FailedPrecondition, "The journal diverged and is set aside; this is not retryable.", "JOURNAL_DIVERGED");
             case StaleActionException e: return Refused(StatusCode.FailedPrecondition, e.Message, "STALE_ACTION");
             case ArgumentException e: return new RpcException(new Status(StatusCode.InvalidArgument, e.Message));
             case UnauthorizedAccessException e: return new RpcException(new Status(StatusCode.PermissionDenied, e.Message));

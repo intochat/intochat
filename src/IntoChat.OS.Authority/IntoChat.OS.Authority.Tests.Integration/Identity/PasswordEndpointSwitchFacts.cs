@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Net;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -70,7 +72,7 @@ public sealed class PasswordEndpointSwitchFacts
         IntoChat.OS.Testing.TestLogging.Apply(builder.Configuration);
         builder.Configuration[AuthOptions.PostureKey] = posture;
         if (builtIn is { } value) { builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.BuiltInPasswordEndpoints))] = value.ToString(); }
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());

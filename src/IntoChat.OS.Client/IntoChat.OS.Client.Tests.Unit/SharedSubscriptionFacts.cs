@@ -275,7 +275,7 @@ public sealed class SharedSubscriptionFacts
         public Channel<JsonNode> Acknowledged { get; } = Channel.CreateUnbounded<JsonNode>();
 
         public Task<SessionConnection> OpenAsync(CancellationToken ct)
-            => SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(Signal).Assembly]), this, ct);
+            => SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(IBrain).Assembly]), this, ct);
 
         public async Task PushAsync(string events, CancellationToken ct) => await _stream.Writer.WriteAsync(Encoding.UTF8.GetBytes(events), ct);
 

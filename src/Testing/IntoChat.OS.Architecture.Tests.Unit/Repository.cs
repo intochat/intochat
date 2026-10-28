@@ -57,9 +57,21 @@ internal static class Repository
 
     // Files that belong to a solution project (app bundles, samples and the Flutter app sit
     // outside every project and have no project key).
+    // A project directory may contain another project's directory (the host sits under IntoChat.OS). A file belongs to the
+    // longest matching project, so the parent walk does not count it twice.
     internal static IEnumerable<string> ProjectFiles(string pattern, Func<string, bool>? predicate = null, Func<Project, bool>? projects = null)
         => Projects.Values.Where(project => projects is null || projects(project))
-            .SelectMany(project => SourceFiles(project.Directory, pattern, predicate));
+            .SelectMany(project => SourceFiles(project.Directory, pattern, predicate).Where(path => Owns(project, path)));
+
+    private static bool Owns(Project project, string path)
+    {
+        var full = System.IO.Path.GetFullPath(path);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var owner = Projects.Values
+            .Where(candidate => full.StartsWith(candidate.Directory + System.IO.Path.DirectorySeparatorChar, comparison))
+            .MaxBy(candidate => candidate.Directory.Length);
+        return owner?.Name == project.Name;
+    }
 
     internal static IEnumerable<string> SourceFiles(string directory, string pattern, Func<string, bool>? predicate = null)
         => Directory.EnumerateFiles(directory, pattern, SearchOption.AllDirectories)

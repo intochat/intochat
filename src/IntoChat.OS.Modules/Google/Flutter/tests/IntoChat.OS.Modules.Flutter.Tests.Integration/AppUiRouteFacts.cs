@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Text.Json;
 using IntoChat.OS.Modules.Flutter.Chart;
 using IntoChat.OS.Modules.Flutter.Table;
@@ -17,7 +19,7 @@ public sealed class AppUiRouteFacts(FlutterHost host)
     public void AppUiNodesEventsAndTablesAreServedUnderTheBrainRoute()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddSingleton(typeof(IIntoChatOS), _ => null!);
+        builder.Services.AddSingleton(typeof(INeuronProxies), _ => null!);
         IEndpointRouteBuilder app = builder.Build();
         AppUiEndpoints.Map(app);
 

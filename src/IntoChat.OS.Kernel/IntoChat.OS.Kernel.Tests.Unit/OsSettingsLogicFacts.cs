@@ -221,7 +221,7 @@ public sealed class OsSettingsLogicFacts
         Assert.Equal("b1/apps/assistant/chats", Settings.ChatIndexKey("b1", ino with { Settings = new() { ["ChatDataApp"] = "b1/apps/assistant" } }));
     }
 
-    private abstract class FakeNeuron : INeuron
+    private abstract class FakeNeuron
     {
     }
 

@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +14,7 @@ public sealed class NeuronsRouteFacts
         var builder = WebApplication.CreateBuilder();
         IntoChat.OS.Testing.TestLogging.Apply(builder.Configuration);
         builder.Services.AddSingleton(typeof(AuthorityNeurons), _ => null!);
-        builder.Services.AddSingleton(typeof(IIntoChatOS), _ => null!);
+        builder.Services.AddSingleton(typeof(INeuronProxies), _ => null!);
         builder.Services.AddGrpc();
         await using var web = builder.Build();
         IEndpointRouteBuilder app = web;

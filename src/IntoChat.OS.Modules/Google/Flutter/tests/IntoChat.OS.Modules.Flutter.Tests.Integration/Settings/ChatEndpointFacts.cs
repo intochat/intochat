@@ -5,6 +5,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Settings;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
 
@@ -110,8 +111,8 @@ public sealed class ChatEndpointFacts(FlutterHost host)
         IResult read, write;
         using (person.AsApp(person.Key("apps/notes")))
         {
-            read = await ChatEndpoints.List(host.Brain, Ct);
-            write = await ChatEndpoints.Unarchive(id, host.Brain, Ct);
+            read = await ChatEndpoints.List(host.Brain.Services.GetRequiredService<DigitalBrain.Spi.INeuronProxies>(), Ct);
+            write = await ChatEndpoints.Unarchive(id, host.Brain.Services.GetRequiredService<DigitalBrain.Spi.INeuronProxies>(), Ct);
         }
 
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsAssignableFrom<IStatusCodeHttpResult>(read).StatusCode);

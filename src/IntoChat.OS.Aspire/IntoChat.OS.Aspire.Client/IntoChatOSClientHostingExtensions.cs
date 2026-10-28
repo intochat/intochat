@@ -1,3 +1,5 @@
+using DigitalBrain.Runtime.Orleans;
+using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 using IntoChat.OS;
 using IntoChat.OS.Client;
 using IntoChat.OS.Client.Orleans;
@@ -24,7 +26,7 @@ public static class IntoChatOSClientHostingExtensions
         }
         builder.UseOrleansClient(client => client.AddIntoChatOS());
         // The kernel view reads the instance directory through the cluster (the kernel composition, 06-02).
-        builder.Services.TryAddSingleton<IKernelView>(IntoChat.OS.Kernel.Composition.Kernel.For);
+        builder.Services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.For);
         return builder;
     }
 }

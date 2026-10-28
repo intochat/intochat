@@ -1039,8 +1039,8 @@ public sealed class BrainRuntimeNeuronFacts
     [Fact]
     public void AHostThatReportsMoreAssembliesStillCoversTheSilosContracts()
     {
-        var silo = ContractsFingerprint.Of([typeof(Signal).Assembly]);
-        Assert.True(ContractsFingerprint.Covers(ContractsFingerprint.Of([typeof(Signal).Assembly, typeof(ContractsFingerprint).Assembly]), silo));
+        var silo = ContractsFingerprint.Of([typeof(IBrain).Assembly]);
+        Assert.True(ContractsFingerprint.Covers(ContractsFingerprint.Of([typeof(IBrain).Assembly, typeof(ContractsFingerprint).Assembly]), silo));
         Assert.False(ContractsFingerprint.Covers(ContractsFingerprint.Of([typeof(ContractsFingerprint).Assembly]), silo));
     }
 

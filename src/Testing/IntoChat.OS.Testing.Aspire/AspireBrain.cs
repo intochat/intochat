@@ -1,5 +1,7 @@
+using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using Orleans;
 
 namespace IntoChat.OS.Testing.Aspire;
 
@@ -45,10 +47,9 @@ public sealed class AspireBrain : ITestBrain, ITrackedBrain
 
     // Neurons through the session's client (06-08: every neuron is a DigitalBrain plain neuron).
     public T Get<T>(string id) where T : class => _session.Brains.Get<T>(id);
-    T IIntoChatOS.Get<T>(NeuronId id) => _session.Brains.Get<T>(id.Name);
-    public T Neuron<T>(NeuronId relative) where T : class => _session.Brains.Get<T>(relative.Within(BrainScope.CurrentId()).Name);
-    public IBrain Self => _session.Brains.Open(BrainScope.CurrentId()).Self;
-    public IKernelView Kernel => _session.Brains.Open(BrainScope.CurrentId()).Kernel;
+    public T Neuron<T>(string relative) where T : class => Get<T>($"{BrainScope.CurrentId()}/{relative}");
+    public IBrain Self => Get<IBrain>(IBrain.Key(BrainScope.CurrentId()));
+    public IBrainObserver Kernel => _session.Kernel;
 
     public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
         => _session.Brains.On<T>(neuron, onSubscribed, cancellationToken);

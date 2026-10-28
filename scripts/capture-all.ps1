@@ -55,8 +55,6 @@ $testArgs = @('-c', $Configuration, '-p:CodeGraphRefresh=false') + @($nightly | 
 # The pinned JSON baselines, snapshotted so a breaking capture can be rolled back.
 $pins = [ordered]@{
     'ContractManifest.json'               = Join-Path $archDir 'ContractManifest.json'
-    'GrainFactoryOwners.json'             = Join-Path $archDir 'GrainFactoryOwners.json'
-    'OrleansReferenceOwners.json'         = Join-Path $archDir 'OrleansReferenceOwners.json'
     'ConfigurationKeyOwners.json'         = Join-Path $archDir 'ConfigurationKeyOwners.json'
     'TestTierBaseline.json'               = Join-Path $archDir 'TestTierBaseline.json'
     'CollectionCompatibilitySamples.json' = Join-Path $archDir 'CollectionCompatibilitySamples.json'
@@ -96,7 +94,7 @@ function Run-Capture([string]$Project, [string]$Method) {
 
 # Only these facts run; StorageFixtureCapture, CaptureSealedSegments and CaptureUiTransportBaseline are never run.
 $timer = [Diagnostics.Stopwatch]::StartNew()
-foreach ($method in 'CaptureContractManifest', 'CaptureGrainFactoryOwners', 'CaptureOrleansReferenceOwners',
+foreach ($method in 'CaptureContractManifest',
                     'CaptureConfigurationKeyOwners', 'CaptureTestTierBaseline', 'CaptureCollectionCompatibilitySamples',
                     'CaptureSynapseWordAllowlist',
                     'CaptureFrameworkVendorBaseline', 'CaptureAppsModuleIdBaseline',

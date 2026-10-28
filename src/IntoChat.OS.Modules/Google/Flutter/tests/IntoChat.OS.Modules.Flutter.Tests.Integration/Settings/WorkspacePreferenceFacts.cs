@@ -4,6 +4,7 @@ using System.Text.Json;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Settings;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Settings;
 
@@ -75,7 +76,7 @@ public sealed class WorkspacePreferenceFacts(FlutterHost host)
         IResult result;
         using (person.AsApp(person.Key("apps/notes")))
         {
-            result = await WorkspacePreferenceEndpoints.Write(new("notes"), host.Brain, Ct);
+            result = await WorkspacePreferenceEndpoints.Write(new("notes"), host.Brain.Services.GetRequiredService<DigitalBrain.Spi.INeuronProxies>(), host.Brain.Kernel, Ct);
         }
         var after = await person.Http.GetFromJsonAsync<JsonElement>(Url(person), Ct);
 

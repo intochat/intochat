@@ -12,7 +12,7 @@ public sealed class BehaviorRun : IAsyncDisposable
     private readonly ObservedBrain _brain;
     private int _disposed;
     private readonly TestExecutionOptions _execution;
-    internal BehaviorRun(IIntoChatOS brain, Func<IIntoChatOS, CancellationToken, Task> body, CancellationToken ct)
+    internal BehaviorRun(ITestBrain brain, Func<ISignalWatch, CancellationToken, Task> body, CancellationToken ct)
     {
         _execution = (brain as ITrackedBrain)?.Execution ?? new();
         _cancel = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -47,7 +47,7 @@ public sealed class BehaviorRun : IAsyncDisposable
                 TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         }
     }
-    private sealed class ObservedBrain(IIntoChatOS inner) : IIntoChatOS
+    private sealed class ObservedBrain(ISignalWatch inner) : ISignalWatch
     {
         private readonly ConcurrentDictionary<(string, Type), TaskCompletionSource> _ready = new();
         internal static string Key(object source) => source is DigitalBrain.Invocation.NeuronProxy proxy
@@ -55,10 +55,6 @@ public sealed class BehaviorRun : IAsyncDisposable
             : throw new ArgumentException("Wait for a neuron obtained from the brain's Get.", nameof(source));
         internal TaskCompletionSource Ready(string source, Type type)
             => _ready.GetOrAdd((source, type), _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
-        public T Get<T>(NeuronId id) where T : class => inner.Get<T>(id);
-        public T Neuron<T>(NeuronId relative) where T : class => inner.Neuron<T>(relative);
-        public IBrain Self => inner.Self;
-        public IKernelView Kernel => inner.Kernel;
         public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
             => inner.On<T>(source, async () =>
             {

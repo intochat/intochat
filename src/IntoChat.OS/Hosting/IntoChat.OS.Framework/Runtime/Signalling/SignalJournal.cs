@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
@@ -21,7 +22,7 @@ public interface ISignalJournal
 public sealed record PartSignals(long Floor, long Last, JournaledSignal[] Signals);
 
 // Sequence numbers are the brain's own ordering of its journalled signals: strictly increasing, 1-based.
-public sealed record JournaledSignal(long Sequence, Signal Signal);
+public sealed record JournaledSignal(long Sequence, Signal Signal, string Publisher);
 
 public static class SignalJournal
 {

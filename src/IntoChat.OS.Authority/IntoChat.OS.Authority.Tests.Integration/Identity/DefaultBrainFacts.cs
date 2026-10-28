@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Net;
 using System.Text.Json;
 using IntoChat.OS.Authority.Identity;
@@ -67,7 +69,7 @@ public sealed class DefaultBrainFacts
         var brain = await TestBrain.Create().StartAsync(ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = posture;
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());

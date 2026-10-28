@@ -1,11 +1,17 @@
+using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using Orleans;
 
 namespace IntoChat.OS.Testing;
 
-public interface ITestBrain : IIntoChatOS, IAsyncDisposable
+public interface ITestBrain : ISignalWatch, IAsyncDisposable
 {
     T Get<T>(string id) where T : class;
+
+    IBrain Self { get; }
+
+    IBrainObserver Kernel { get; }
 
     // The brain's HTTP edge, unauthenticated.
     HttpClient HttpClient { get; }

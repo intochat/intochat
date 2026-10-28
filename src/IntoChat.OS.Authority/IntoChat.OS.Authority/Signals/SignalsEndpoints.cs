@@ -32,6 +32,6 @@ internal static class SignalsEndpoints
     {
         var read = await journal.ReadSince(brainId, since, limit);
         return new SignalsPage(read.Length == 0 ? since : read[^1].Sequence, [.. read.Select(j => new SignalView(
-            j.Sequence, j.Signal.GetType().Name, j.Signal.Publisher.ToString(), JsonSerializer.SerializeToElement(j.Signal, j.Signal.GetType())))]);
+            j.Sequence, j.Signal.GetType().Name, j.Publisher, JsonSerializer.SerializeToElement(j.Signal, j.Signal.GetType())))]);
     }
 }

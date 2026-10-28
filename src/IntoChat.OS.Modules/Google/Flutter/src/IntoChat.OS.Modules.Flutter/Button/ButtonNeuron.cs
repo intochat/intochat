@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using DigitalBrain;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -66,7 +68,7 @@ internal sealed partial class ButtonNeuron
         if (kind is not null && AppKinds.Contains(kind))
         {
             var scope = FullKey.Split('/')[0];
-            if (brainId != scope || !await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<IIntoChatOS>(), scope, "apps"))
+            if (brainId != scope || !await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<INeuronProxies>(), scope, "apps"))
             { throw new UnauthorizedAccessException("Only the Apps app sets an install, update or remove activation."); }
         }
         // Switching the account, reconnecting to a new root, or signing an existing connection in again acts on the
@@ -88,7 +90,7 @@ internal sealed partial class ButtonNeuron
         if (owners is not null)
         {
             var shipped = false;
-            var os = ServiceProvider.GetRequiredService<IIntoChatOS>();
+            var os = ServiceProvider.GetRequiredService<INeuronProxies>();
             foreach (var owner in owners) { shipped = shipped || await SettingsCaller.IsShipped(os, own, owner); }
             if (!ownBrain || !shipped) { throw new UnauthorizedAccessException("Only the app that owns this control sets a session activation."); }
         }

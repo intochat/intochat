@@ -21,9 +21,10 @@ public sealed class PlainSubscriptionFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var host = await TestBrain.Create().WithModule<TimeModule>().StartAsync(ct);
-        var brain = host.Services.GetRequiredService<IIntoChatOSBrains>().Open(host.Owner.BrainId);
+        var brains = host.Services.GetRequiredService<IIntoChatOSBrains>();
+        var brain = brains.Open(host.Owner.BrainId);
         var key = host.Owner.Key("plain-tick");
-        var timer = brain.Get<ITimer>(key);
+        var timer = brains.Get<ITimer>(key);
         var subscribed = new TaskCompletionSource();
         await using var ticks = brain.On<TimerTick>(timer, () => { subscribed.TrySetResult(); return Task.CompletedTask; }, ct).GetAsyncEnumerator(ct);
         var first = ticks.MoveNextAsync().AsTask();

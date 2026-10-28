@@ -101,7 +101,7 @@ internal sealed partial class GmailNeuron
         if (reminderName != LifecycleReminder) { return; }
         if (!IsGrantReady) { await RemoveReminderAsync(); return; }
         var trace = Snapshot.History?.Wakeup?.Trace ?? Snapshot.History?.Work?.Trace;
-        await ServiceProvider.GetRequiredService<IBrainOwnerDispatch>().RunAsync(Key.Brain, new(FullKey), async () =>
+        await ServiceProvider.GetRequiredService<IBrainOwnerDispatch>().RunAsync(Key.Brain, FullKey, async () =>
         {
             await RecoverLifecycleAsync(CancellationToken.None);
             if (Snapshot.History is { } history && (history.Wakeup is not null || history.Work is not null)

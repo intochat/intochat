@@ -119,7 +119,7 @@ public sealed class Person : IDisposable
     private CallerScope Enter(CallerContext caller)
     {
         var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        var trace = TraceContext.Enter(TraceContext.Begin(caller.AccountId, caller.BrainId, new NeuronId($"{caller.BrainId}/edge")));
+        var trace = TraceContext.Enter(TraceContext.Begin(caller.AccountId, caller.BrainId, TraceContext.OriginOf(caller.BrainId, $"{caller.BrainId}/edge")));
         CallerContextStamper.Stamp(caller);
         return new CallerScope(previous, trace);
     }

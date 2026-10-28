@@ -5,6 +5,8 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Cryptography;
 using DigitalBrain;
+using DigitalBrain.Runtime.Orleans;
+using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Client.Orleans;
@@ -227,10 +229,9 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
 
     // Neurons through the product's in-process client (06-08: every neuron is a DigitalBrain plain neuron).
     public T Get<T>(string id) where T : class => Brains.Get<T>(id);
-    T IIntoChatOS.Get<T>(NeuronId id) => Brains.Get<T>(id.Name);
-    public T Neuron<T>(NeuronId relative) where T : class => Brains.Get<T>(relative.Within(BrainScope.CurrentId()).Name);
-    public IBrain Self => Brains.Open(BrainScope.CurrentId()).Self;
-    public IKernelView Kernel => Brains.Open(BrainScope.CurrentId()).Kernel;
+    public T Neuron<T>(string relative) where T : class => Get<T>($"{BrainScope.CurrentId()}/{relative}");
+    public IBrain Self => Get<IBrain>(IBrain.Key(BrainScope.CurrentId()));
+    public IBrainObserver Kernel => Services.GetRequiredService<IBrainObserver>();
 
     public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
         => Brains.On<T>(neuron, onSubscribed, cancellationToken);

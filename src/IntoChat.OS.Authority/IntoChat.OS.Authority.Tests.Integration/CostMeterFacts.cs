@@ -51,7 +51,7 @@ public sealed class CostMeterFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await MeteredBrain(400, ct);
         using var meter = await brain.PersonAsync("meter", ct);
-        using var trace = TraceContext.Enter(TraceContext.Begin(meter.AccountId, meter.BrainId, new NeuronId(meter.Key("edge")), budgetMicros: 1_000));
+        using var trace = TraceContext.Enter(TraceContext.Begin(meter.AccountId, meter.BrainId, TraceContext.OriginOf(meter.BrainId, meter.Key("edge")), budgetMicros: 1_000));
         var costs = Meter(brain);
         var usage = await ActiveUsage(brain, meter.BrainId);
 
@@ -261,7 +261,7 @@ public sealed class CostMeterFacts
         var ct = TestContext.Current.CancellationToken;
         await using var circle = await CircleBrain(100, 25, null, ct);
         var meter = circle.Meter;
-        using var trace = TraceContext.Enter(TraceContext.Begin(meter.AccountId, meter.BrainId, new NeuronId(meter.Key("edge")), budgetMicros: 100));
+        using var trace = TraceContext.Enter(TraceContext.Begin(meter.AccountId, meter.BrainId, TraceContext.OriginOf(meter.BrainId, meter.Key("edge")), budgetMicros: 100));
 
         await Assert.ThrowsAsync<BudgetExhaustedException>(() =>
             Meter(circle.Brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle(circle.Key), "c-1", ct).AsTask());

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -66,7 +68,7 @@ public sealed class NeuronSurfaceFacts(McpHost host)
         var (context, _) = await Tool(client, "neurons_context", new { }, ct);
         var scope = JsonDocument.Parse(context).RootElement.GetProperty("brainId").GetString()!;
         Assert.Contains(scope, JsonDocument.Parse(context).RootElement.GetProperty("brains").EnumerateArray().Select(each => each.GetString()));
-        var manifest = JsonSerializer.Serialize(new object[] { new AppManifest("Echo", "echoes", [], [], []), "Echoes." }, JsonSerializerOptions.Web);
+        var manifest = JsonSerializer.Serialize(new object[] { new IntoChat.OS.Modules.Apps.AppManifest("Echo", "echoes", [], [], []), "Echoes." }, JsonSerializerOptions.Web);
         var (created, failed) = await Tool(client, "neurons_call", new { contract = typeof(IApp).FullName!, key = scope + "/apps/echo", method = "Create", arguments = manifest }, ct);
         Assert.False(failed, created);
 
@@ -176,7 +178,7 @@ public sealed class NeuronSurfaceFacts(McpHost host)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Open";
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton<INeuronProxies>(brain.Services.GetRequiredService<INeuronProxies>());
         global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, brain.Services);
         builder.Services.AddIntoChatOSMcp();
         var app = builder.Build();
@@ -220,15 +222,8 @@ public sealed class NeuronSurfaceFacts(McpHost host)
     }
 
     // Both refusals happen before a neuron is resolved, so reaching the brain is a failure.
-    private sealed class UnreachableBrain : IIntoChatOS
+    private sealed class UnreachableBrain : INeuronProxies
     {
-        public IBrain Self => throw new NotSupportedException();
-        public IKernelView Kernel => throw new NotSupportedException();
-
         public T Get<T>(NeuronId id) where T : class => throw new NotSupportedException();
-        public T Neuron<T>(NeuronId relative) where T : class => throw new NotSupportedException();
-
-        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
-            => throw new NotSupportedException();
     }
 }

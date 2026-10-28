@@ -52,5 +52,5 @@
   "IntoChat.OS.Modules.Supabase/Query/SupabaseBackingStore.cs": 1,
   "IntoChat.OS.Modules.Tools/ToolCapabilitySource.cs": 1,
   "IntoChat.OS.ServiceDefaults/TelemetryExportBarrier.cs": 1,
-  "IntoChat.OS/Kernel/SourceSet.cs": 2
+  "IntoChat.OS/Runtime/Watch/SourceSet.cs": 2
 }

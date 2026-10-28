@@ -5,6 +5,8 @@ using Orleans.Storage;
 
 namespace IntoChat.OS.Authority.Tests.Integration.Storage;
 
+file sealed record HeldSignal : DigitalBrain.Signal;
+
 // A raw grain on the cluster store, as the Authority grains that stay grains are (06-08: the Framework neuron base is gone).
 public interface IPartCounter : IGrainWithStringKey { Task<int> Increment(); Task<int> Read(); Task Clear(); }
 
@@ -104,7 +106,7 @@ public sealed class BrainGrainStorageFacts
         await counter.Increment();
         var direct = Storage(brain, IntoChatOSNames.LegacyClusterGrainStorage);
         var stale = new GrainState<PartCounterState>(new PartCounterState { Value = 9 }, "0");
-        Signal[] signals = [new Signal()];
+        DigitalBrain.Signal[] signals = [new HeldSignal()];
 
         using (SignalJournal.Attach(counter.GetGrainId(), signals))
         {

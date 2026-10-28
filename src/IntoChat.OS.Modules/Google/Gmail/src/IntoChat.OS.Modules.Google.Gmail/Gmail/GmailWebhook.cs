@@ -26,14 +26,14 @@ internal static class GmailWebhook
             var accepted = false;
             var duplicate = false;
             var retryable = false;
-            var found = await dispatch.RunAsync(brainId, new(brainId + "/gmail-push"), async () =>
+            var found = await dispatch.RunAsync(brainId, brainId + "/gmail-push", async () =>
             {
                 foreach (var key in await SiloNeurons.Get<IConnectionIndex>(plain, IConnectionIndex.Key(brainId)).List())
                 {
                     if (ConnectionKeys.Parse(key).ConnectorId != GmailModule.Gmail.Id) { continue; }
                     try
                     {
-                        await dispatch.RunAsync(brainId, new(key), async () =>
+                        await dispatch.RunAsync(brainId, key, async () =>
                         {
                             var result = await SiloNeurons.Get<IGmailInbound>(plain, key).AcceptWatchPush(push);
                             accepted |= result == GmailPushAcceptance.Accepted;

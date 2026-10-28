@@ -17,8 +17,8 @@ public sealed class AsyncCredentialFacts
             Assert.Contains(typeof(ILLM), connector.Neurons);
             Assert.Contains(typeof(InferenceCompleted), connector.Signals);
             // A connector's neurons are grain contracts or plain contracts (06-05: the model neurons), its signals either kind.
-            Assert.All(connector.Neurons, neuron => Assert.True(typeof(INeuron).IsAssignableFrom(neuron) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(neuron)));
-            Assert.All(connector.Signals, signal => Assert.True(typeof(Signal).IsAssignableFrom(signal) || typeof(DigitalBrain.Signal).IsAssignableFrom(signal)));
+            Assert.All(connector.Neurons, neuron => Assert.True(IntoChat.OS.Runtime.PlainNeuronContracts.Is(neuron)));
+            Assert.All(connector.Signals, signal => Assert.True(typeof(DigitalBrain.Signal).IsAssignableFrom(signal)));
         }
         Assert.Empty(AIModule.Connectors.Single(connector => connector.Id == "tavily").Neurons);
     }

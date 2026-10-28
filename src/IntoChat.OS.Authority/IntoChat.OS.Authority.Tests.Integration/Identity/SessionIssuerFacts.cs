@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Net;
 using System.Security.Claims;
 using IntoChat.OS.Contracts.Configuration;
@@ -112,7 +114,7 @@ public sealed class SessionIssuerFacts
         var builder = WebApplication.CreateBuilder();
         IntoChat.OS.Testing.TestLogging.Apply(builder.Configuration);
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<PrincipalPasswords>());

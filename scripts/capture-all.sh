@@ -40,7 +40,7 @@ archdir=$(dirname "$arch"); contracts="$(dirname "$flutter")/Contracts"
 nightly=$(grep -oE '<[A-Za-z0-9]*Nightly\b' Directory.Build.props | tr -d '<' | sort -u | sed 's/.*/-p:&=false/' | tr '\n' ' ')
 
 pins=(
-  "$archdir/ContractManifest.json" "$archdir/GrainFactoryOwners.json" "$archdir/OrleansReferenceOwners.json"
+  "$archdir/ContractManifest.json"
   "$archdir/ConfigurationKeyOwners.json" "$archdir/TestTierBaseline.json" "$archdir/CollectionCompatibilitySamples.json" "$archdir/SynapseWordAllowlist.json"
   "$archdir/FrameworkVendorBaseline.json" "$archdir/AppsModuleIdBaseline.json"
   "$archdir/NeuronsStillGrains.json" "$archdir/OrleansAttributeOwners.json" "$archdir/GrainInterfaceOwners.json" "$archdir/NeuronGrainTypes.json"
@@ -59,7 +59,7 @@ capture() {
   # shellcheck disable=SC2086
   dotnet test --project "$1" -c Release -p:CodeGraphRefresh=false $nightly --filter-method "*$2" --explicit only --nologo
 }
-for m in CaptureContractManifest CaptureGrainFactoryOwners CaptureOrleansReferenceOwners CaptureConfigurationKeyOwners CaptureTestTierBaseline CaptureCollectionCompatibilitySamples CaptureSynapseWordAllowlist \
+for m in CaptureContractManifest CaptureConfigurationKeyOwners CaptureTestTierBaseline CaptureCollectionCompatibilitySamples CaptureSynapseWordAllowlist \
          CaptureFrameworkVendorBaseline CaptureAppsModuleIdBaseline          CaptureNeuronsStillGrains CaptureOrleansAttributeOwners CaptureGrainInterfaceOwners CaptureNeuronGrainTypes          CaptureObserverPathOwners CaptureModulesMissingManifest; do capture "$arch" "$m"; done
 for m in CaptureFlutterWireNames CaptureUiStateGoldens; do capture "$flutter" "$m"; done
 

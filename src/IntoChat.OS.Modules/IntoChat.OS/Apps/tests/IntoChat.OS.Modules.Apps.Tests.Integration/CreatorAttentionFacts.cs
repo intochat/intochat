@@ -1,4 +1,5 @@
 using System.Reflection;
+using DigitalBrain.Spi;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Testing;
@@ -56,15 +57,15 @@ public sealed class CreatorAttentionFacts
         };
     }
 
-    // The app is a plain neuron (06-08): the Creator reaches it through the brain's Get.
-    public interface IFakeBrain : IIntoChatOS;
+    // The app is a plain neuron: the Creator reaches it through INeuronProxies.Get.
+    public interface IFakeBrain : INeuronProxies;
 
     public class FakeBrain : DispatchProxy
     {
         public IApp? App { get; set; }
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
-            => targetMethod!.Name is nameof(IIntoChatOS.Get) ? App : throw new NotSupportedException(targetMethod.Name);
+            => targetMethod!.Name is nameof(INeuronProxies.Get) ? App : throw new NotSupportedException(targetMethod.Name);
     }
 
     public sealed class CapturingLoggerProvider : ILoggerProvider

@@ -433,7 +433,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter, IRouterWo
 
     private async Task<string> Signature(RouteResult route, CancellationToken ct)
     {
-        var type = (await ServiceProvider.GetRequiredService<IKernel>().Types(ct)).SingleOrDefault(item => item.Kind == TypeKind.Neuron && item.Name == route.Contract);
+        var type = (await ServiceProvider.GetRequiredService<IKernel>().Types(ct)).SingleOrDefault(item => item.Kind == DigitalBrain.TypeKind.Neuron && item.Name == route.Contract);
         return type?.Shape.FirstOrDefault(method => MethodName(method) == route.Method) ?? route.Method;
     }
 

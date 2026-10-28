@@ -12,12 +12,7 @@ public sealed partial class OrleansBanFacts
 {
     // Phase 12 vocabulary leftovers, closed: each names why it is not a still-grain's and where it goes. A grain interface
     // here is one only through the member-less INeuron marker (itself IGrainWithStringKey until Phase 12 drops the marker).
-    private static readonly Dictionary<string, string> Leftovers = new(StringComparer.Ordinal)
-    {
-        ["IntoChat.OS.INeuron"] = "the member-less contract marker (06-08); Phase 12 removes it from the vocabulary",
-        ["IntoChat.OS.IRetainsSignals"] = "Apps state's retention side-interface; Phase 12 vocabulary leftover (06-08 item 4)",
-        ["IntoChat.OS.Framework.Tests.Integration.Runtime.Legacy.IMarkedWork"] = "NeutralMarkerFacts' sample of an Orleans-attributed contract; goes with the os Framework in Phase 12",
-    };
+    private static readonly Dictionary<string, string> Leftovers = new(StringComparer.Ordinal);
 
     [GeneratedRegex(@"^(?!\s*//).*?\[(?:[\w.]*\s*,\s*)*(?:GrainType|AlwaysInterleave|MayInterleave|ResponseTimeout|PersistentState|StatelessWorker)\b|^(?!\s*//).*\[(?:ReadOnly|OneWay)\]",
         RegexOptions.CultureInvariant | RegexOptions.Multiline)]

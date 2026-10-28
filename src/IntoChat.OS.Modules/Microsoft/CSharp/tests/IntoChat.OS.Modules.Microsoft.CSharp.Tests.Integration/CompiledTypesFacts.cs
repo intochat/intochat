@@ -53,7 +53,7 @@ public sealed class CompiledTypesFacts(CSharpHost host)
     {
         var contracts = new CompiledTypes([typeof(IntoChat.OS.Connections.Platform.Integrations.IIntegration).Assembly]);
 
-        Assert.False(typeof(IntoChat.OS.INeuron).IsAssignableFrom(typeof(IntoChat.OS.Connections.Platform.Integrations.IIntegration)));
+        Assert.False(IntoChat.OS.Runtime.PlainNeuronContracts.Is(typeof(IntoChat.OS.Connections.Platform.Integrations.IIntegration)));
         Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(IntoChat.OS.Connections.Platform.Integrations.IIntegration).FullName!));
     }
 
@@ -62,6 +62,6 @@ public sealed class CompiledTypesFacts(CSharpHost host)
     {
         var inventory = new ModuleInventory([]);
         Assert.Contains(typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly, inventory.ContractAssemblies());
-        Assert.NotEqual(typeof(IntoChat.OS.INeuron).Assembly, typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly);
+        Assert.NotEqual(typeof(IntoChat.OS.IBrain).Assembly, typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly);
     }
 }

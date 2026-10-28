@@ -34,6 +34,7 @@ public sealed class CSharpScriptCheck
         global using System.Threading.Tasks;
         global using IntoChat.OS.Client;
         global using IntoChat.OS;
+        global using DigitalBrain;
         """;
 
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);

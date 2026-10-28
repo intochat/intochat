@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Text.Json;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;

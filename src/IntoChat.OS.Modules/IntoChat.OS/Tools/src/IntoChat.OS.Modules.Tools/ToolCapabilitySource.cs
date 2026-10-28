@@ -1,6 +1,7 @@
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Contracts;
+using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Tools;
@@ -8,7 +9,7 @@ namespace IntoChat.OS.Modules.Tools;
 // A brain's tools as capabilities: every existing instance of a kernel neuron type that is a tool
 // source, asked for its live tools, each one bound to its source's key and called as Run(tool, arguments).
 // Lists are clipped so one misbehaving source cannot flood search.
-public sealed class ToolCapabilitySource(IKernelView kernel, IServiceProvider? plain = null) : IRuntimeCapabilitySource
+public sealed class ToolCapabilitySource(IBrainObserver kernel, IServiceProvider? plain = null) : IRuntimeCapabilitySource
 {
     internal const int MaxTools = 200;
     internal const int MaxDescription = 1000;
@@ -21,7 +22,7 @@ public sealed class ToolCapabilitySource(IKernelView kernel, IServiceProvider? p
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         if (BrainScope.CurrentId() != brainId) { throw new UnauthorizedAccessException($"Tools are read for the caller's own brain, not '{brainId}'."); }
         List<NeuronType> capabilities = [];
-        foreach (var source in (await kernel.Types(ct)).Where(type => type.Kind == TypeKind.Neuron))
+        foreach (var source in (await kernel.Types(ct)).Where(type => type.Kind == DigitalBrain.TypeKind.Neuron))
         {
             var contract = plain is null ? null : PlainSourceOf(source.Name);
             if (contract is null) { continue; }

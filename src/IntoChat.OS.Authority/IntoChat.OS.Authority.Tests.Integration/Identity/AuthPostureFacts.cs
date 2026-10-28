@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Net;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -74,7 +76,7 @@ public sealed class AuthPostureFacts
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "ops";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password";
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());

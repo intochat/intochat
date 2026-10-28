@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Connections;
@@ -33,7 +35,7 @@ internal static class ChatEndpoints
         return (data is { Length: > 0 } ? data : IApp.Key(brain, "ino")) + "/chats";
     }
 
-    internal static async Task<IResult> List(IIntoChatOS brain, CancellationToken ct, bool archived = true, int skip = 0, int take = ChatIndex.MaxPage)
+    internal static async Task<IResult> List(INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = ChatIndex.MaxPage)
     {
         if (Refused()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         if (skip < 0 || take is < 1 or > ChatIndex.MaxPage) { return Results.BadRequest(new { error = "Page out of range." }); }
@@ -41,7 +43,7 @@ internal static class ChatEndpoints
         return Results.Ok(new Page([.. page.Entries.Select(entry => new Chat(entry.Id, entry.Title, entry.UpdatedAt))], page.Total));
     }
 
-    internal static async Task<IResult> Unarchive(string id, IIntoChatOS brain, CancellationToken ct)
+    internal static async Task<IResult> Unarchive(string id, INeuronProxies brain, CancellationToken ct)
     {
         if (Refused()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var index = await Index(brain, ct);
@@ -54,7 +56,7 @@ internal static class ChatEndpoints
     private static bool Refused()
         => CallerContextStamper.TryGet(out var caller) && (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy);
 
-    private static async Task<IChatIndex> Index(IIntoChatOS brain, CancellationToken ct)
+    private static async Task<IChatIndex> Index(INeuronProxies brain, CancellationToken ct)
     {
         var brainId = BrainScope.CurrentId();
         var ino = await brain.Get<IApp>(IApp.Key(brainId, "ino")).Read().WaitAsync(ct);

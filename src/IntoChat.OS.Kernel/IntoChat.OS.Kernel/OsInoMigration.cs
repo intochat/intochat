@@ -17,13 +17,13 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
     public async Task<bool> Required(string brain, string name, AppSnapshot current, CancellationToken ct)
     {
         if (name != "ino" || current.Settings.GetValueOrDefault("CompletedAppMigration") == Migration) { return false; }
-        var source = await brains.Open(brain).Neuron<IApp>("apps/assistant").Read().WaitAsync(ct);
+        var source = await brains.Get<IApp>($"{brain}/apps/assistant").Read().WaitAsync(ct);
         return IsLegacy(source) && await catalog.Find("os", "ino") is { } bundle && Version.Parse(bundle.Version).Major >= 3;
     }
 
     public async Task PrepareBrain(string brain, CancellationToken ct)
     {
-        var current = await brains.Open(brain).Neuron<IApp>("apps/ino").Read().WaitAsync(ct);
+        var current = await brains.Get<IApp>($"{brain}/apps/ino").Read().WaitAsync(ct);
         if (!await Required(brain, "ino", current, ct)) { return; }
         var bundle = await catalog.Find("os", "ino") ?? throw new InvalidOperationException("The Ino migration bundle is unavailable.");
         await services.GetRequiredService<FeatureLoader>().Load(brain, "ino", bundle, new("os", new AppSource.Shipped(), "ino", bundle.Version), ct);
@@ -34,9 +34,9 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
         if (name != "ino" || Version.Parse(bundle.Version).Major < 3) { return bundle; }
         var sourceKey = IApp.Key(brain, "assistant");
         var targetKey = IApp.Key(brain, "ino");
-        var scope = brains.Open(brain);
-        var source = scope.Neuron<IApp>("apps/assistant");
-        var target = scope.Neuron<IApp>("apps/ino");
+        T Reach<T>(string relative) where T : class => brains.Get<T>($"{brain}/{relative}");
+        var source = Reach<IApp>("apps/assistant");
+        var target = Reach<IApp>("apps/ino");
         var current = await target.Read().WaitAsync(ct);
         if (current.Settings.GetValueOrDefault("CompletedAppMigration") == Migration)
         {
@@ -60,9 +60,9 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
         await destination.Pause(Migration).WaitAsync(ct);
         await destination.Adopt(Migration, sourceKey).WaitAsync(ct);
 
-        var pointer = await scope.Neuron<IText>("apps/assistant/conversation").Read().WaitAsync(ct);
-        var transcript = scope.Neuron<IChat>("apps/assistant/transcript");
-        var composerNeuron = scope.Neuron<IComposer>("apps/assistant/composer");
+        var pointer = await Reach<IText>("apps/assistant/conversation").Read().WaitAsync(ct);
+        var transcript = Reach<IChat>("apps/assistant/transcript");
+        var composerNeuron = Reach<IComposer>("apps/assistant/composer");
         var chat = await transcript.Read().WaitAsync(ct);
         var composer = await composerNeuron.Read().WaitAsync(ct);
         // A visible draft/audio capture already belongs to its composer's source. A legacy
@@ -74,17 +74,17 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
         var generation = chat.Selection?.Revision ?? Math.Max(0, Math.Max(pointer.Version, Math.Max(composer.Generation, chat.Projection?.Generation ?? 0)));
         if (chat.Selection is null && chat.Projection is { } projection && projection.Source != selected) { generation = checked(generation + 1); }
         if (chat.Selection is null)
-        { await scope.Neuron<IChatMigration>("apps/assistant/transcript").AdoptAgent(selected, generation, SelectionOperation).WaitAsync(ct); }
+        { await Reach<IChatMigration>("apps/assistant/transcript").AdoptAgent(selected, generation, SelectionOperation).WaitAsync(ct); }
         if (composer.FollowedChat != sourceKey + "/transcript")
-        { await scope.Neuron<IComposerMigration>("apps/assistant/composer").AdoptFollow(sourceKey + "/transcript").WaitAsync(ct); }
+        { await Reach<IComposerMigration>("apps/assistant/composer").AdoptFollow(sourceKey + "/transcript").WaitAsync(ct); }
 
         // The old Ino forwarding ids differ from the Assistant ids. Keep both sets so retained
         // completed forwarding requests cannot create a second conversation or recording.
         await old.Redirect(Migration, targetKey).WaitAsync(ct);
         var retained = await destination.RetainedRequests().WaitAsync(ct);
         var replayable = retained.Select(item => item.Request.RequestId).ToHashSet();
-        await MergeLedger(scope, "apps/ino/handled/new-conversation", "apps/assistant/handled/new", replayable, ct);
-        await MergeLedger(scope, "apps/ino/handled/voice", "apps/assistant/handled/voice", replayable, ct);
+        await MergeLedger(brain, "apps/ino/handled/new-conversation", "apps/assistant/handled/new", replayable, ct);
+        await MergeLedger(brain, "apps/ino/handled/voice", "apps/assistant/handled/voice", replayable, ct);
 
         var files = new Dictionary<string, string>(bundle.Files, StringComparer.Ordinal);
         var oldState = await old.Archive(Migration).WaitAsync(ct);
@@ -97,18 +97,18 @@ internal sealed class OsInoMigration(IIntoChatOSBrains brains, FeatureCatalog ca
     public async Task AfterLoad(string brain, string name, AppBundle bundle, CancellationToken ct)
     {
         if (name != "ino") { return; }
-        var app = brains.Open(brain).Neuron<IApp>("apps/ino");
+        var app = brains.Get<IApp>($"{brain}/apps/ino");
         var current = await app.Read().WaitAsync(ct);
         if (current.Settings.ContainsKey("ChatDataApp") && current.Settings.GetValueOrDefault("CompletedAppMigration") != Migration)
         { await SiloNeurons.Get<IAppMigration>(services, IApp.Key(brain, "ino")).Resume(Migration).WaitAsync(ct); }
     }
 
-    private static async Task MergeLedger(IIntoChatOS scope, NeuronId from, NeuronId to, HashSet<Guid> replayable, CancellationToken ct)
+    private async Task MergeLedger(string brain, string from, string to, HashSet<Guid> replayable, CancellationToken ct)
     {
-        var source = (await scope.Neuron<IText>(from).Read().WaitAsync(ct)).Markdown;
-        var target = scope.Neuron<IText>(to);
+        var source = (await brains.Get<IText>($"{brain}/{from}").Read().WaitAsync(ct)).Markdown;
+        var target = brains.Get<IText>($"{brain}/{to}");
         var held = (await target.Read().WaitAsync(ct)).Markdown;
-        var archive = scope.Neuron<IText>(from.Name + "/migration-ino-v3");
+        var archive = brains.Get<IText>($"{brain}/{from}/migration-ino-v3");
         if ((await archive.Read().WaitAsync(ct)).Markdown.Length == 0)
         { await archive.Set(System.Text.Json.JsonSerializer.Serialize(new { Source = source, Target = held })).WaitAsync(ct); }
         var ids = held.Split('\n', StringSplitOptions.RemoveEmptyEntries).Concat(source.Split('\n', StringSplitOptions.RemoveEmptyEntries))

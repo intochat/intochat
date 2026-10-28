@@ -1,6 +1,7 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Connections.Contracts;
@@ -9,7 +10,7 @@ namespace IntoChat.OS.Connections.Contracts;
 // each source reports, ranked by meaning when an embedding model is composed, by words otherwise.
 // Vectors are cached per entry (keyed by id + embedded text), so only new entries are embedded.
 public sealed class NeuronTypeSearch(
-    IKernelView kernel,
+    IBrainObserver kernel,
     IEnumerable<IRuntimeCapabilitySource> live,
     IEmbeddingGenerator<string, Embedding<float>>? embeddings,
     ILogger<NeuronTypeSearch>? logger = null) : IDisposable
@@ -19,14 +20,14 @@ public sealed class NeuronTypeSearch(
     private readonly Dictionary<string, float[]> _vectors = new(StringComparer.Ordinal);
 
     public static NeuronTypeSearch Create(IServiceProvider services) => new(
-        services.GetRequiredService<IKernelView>(), services.GetServices<IRuntimeCapabilitySource>(), Embeddings(services),
+        services.GetRequiredService<IBrainObserver>(), services.GetServices<IRuntimeCapabilitySource>(), Embeddings(services),
         services.GetService<ILogger<NeuronTypeSearch>>());
 
     // Live capabilities belong to a brain, so an un-stamped call reads the kernel types alone. A source
     // that throws is logged and skipped so the kernel types stay searchable.
     public async Task<IReadOnlyList<NeuronType>> Capabilities(CancellationToken ct)
     {
-        List<NeuronType> entries = [.. (await kernel.Types(ct).ConfigureAwait(false)).Where(type => type.Kind == TypeKind.Neuron).Select(NeuronType.From)];
+        List<NeuronType> entries = [.. (await kernel.Types(ct).ConfigureAwait(false)).Where(type => type.Kind == DigitalBrain.TypeKind.Neuron).Select(NeuronType.From)];
         if (!CallerContextStamper.TryGet(out _)) { return entries; }
         var brain = BrainScope.CurrentId();
         foreach (var source in live)

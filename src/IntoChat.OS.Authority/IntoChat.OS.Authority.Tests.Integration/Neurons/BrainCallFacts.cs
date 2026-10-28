@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Authority.Neurons;
 using Grpc.Core;
 
@@ -18,12 +19,12 @@ public sealed class BrainCallFacts
     }
 
     [Fact]
-    public void AJournalConflictIsAFailedPreconditionWithoutItsMessage()
+    public void AJournalConflictIsARevisionConflictWithItsMessage()
     {
-        var translated = BrainCall.Translate(new JournalConflictException("machine-7 wrote part 3"));
-        Assert.Equal(StatusCode.FailedPrecondition, translated.StatusCode);
-        Assert.Equal("JOURNAL_DIVERGED", Trailer(translated, BrainCall.ReasonTrailer));
-        Assert.DoesNotContain("machine-7", translated.Status.Detail);
+        var translated = BrainCall.Translate(new RevisionConflictException("machine-7 wrote part 3"));
+        Assert.Equal(StatusCode.Aborted, translated.StatusCode);
+        Assert.Equal("REVISION_CONFLICT", Trailer(translated, BrainCall.ReasonTrailer));
+        Assert.Contains("machine-7", translated.Status.Detail);
     }
 
     [Fact]

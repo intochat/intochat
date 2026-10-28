@@ -1,4 +1,6 @@
 using System.Reflection;
+using DigitalBrain;
+using DigitalBrain.Spi;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -108,15 +110,9 @@ public sealed class CSharpFileListingFacts(CSharpHost host)
         Assert.Empty(brain.Calls);
     }
 
-    private sealed class RecordingBrain : IIntoChatOS
+    private sealed class RecordingBrain : INeuronProxies
     {
         public List<string> Calls { get; } = [];
-
-        public IBrain Self => throw new NotSupportedException();
-        public IKernelView Kernel => throw new NotSupportedException();
-
-        // The facts address brain "scope"; a relative id records like the full key it composes.
-        public T Neuron<T>(NeuronId relative) where T : class => Get<T>(relative.Within("scope"));
 
         public T Get<T>(NeuronId id) where T : class
         {
@@ -124,9 +120,6 @@ public sealed class CSharpFileListingFacts(CSharpHost host)
             ((CallRecorder)(object)proxy).Calls = Calls;
             return proxy;
         }
-
-        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
-            => throw new NotSupportedException();
     }
 
     public class CallRecorder : DispatchProxy

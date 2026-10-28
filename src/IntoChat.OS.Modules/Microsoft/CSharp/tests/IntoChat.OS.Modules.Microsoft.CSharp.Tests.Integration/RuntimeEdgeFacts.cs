@@ -1,3 +1,4 @@
+using DigitalBrain;
 using IntoChat.OS.Modules.Google.Gmail;
 using System.Net;
 using System.Net.ServerSentEvents;
@@ -630,7 +631,7 @@ public sealed class RuntimeEdgeFacts
         var alice = await brain.PersonAsync("alice", ct);
         string Key(string name) => RuntimeEdgeFacts.Key(alice, name);
         var session = await StartAs(brain, alice, Key("kernel"), ct);
-        static Instance[] Listed(JsonElement json) => json.Deserialize<Instance[]>(RuntimeProtocol.Json)!;
+        static BrainInstance[] Listed(JsonElement json) => json.Deserialize<BrainInstance[]>(RuntimeProtocol.Json)!;
 
         var files = Listed(await Invoke<JsonElement>(brain, session, Key("kernel"),
             new("", RuntimeProtocol.KernelContract, alice.BrainId, RuntimeProtocol.KernelInstances, [Json(typeof(ICSharpFile).FullName), Json(null)]), ct));

@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Media;
@@ -76,7 +78,7 @@ public sealed class AIModule : DigitalBrain.Module, IHttpModule
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapGet("/ai/models", async (IIntoChatOS brain) => Results.Ok(await brain.Get<IModelCatalog>(
+        endpoints.MapGet("/ai/models", async (INeuronProxies brain) => Results.Ok(await brain.Get<IModelCatalog>(
             CatalogKey(CallerContextStamper.TryGet(out var caller) ? caller : null)).List()));
     }
 

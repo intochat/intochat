@@ -422,11 +422,11 @@ public sealed class RegistrationFacts
     [Fact]
     public void NoPlatformContractIsANeuronButTheConnectionsUserFace()
     {
-        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(ISecrets)));
-        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(IIntegration)));
+        Assert.False(IntoChat.OS.Runtime.PlainNeuronContracts.Is(typeof(ISecrets)));
+        Assert.False(IntoChat.OS.Runtime.PlainNeuronContracts.Is(typeof(IIntegration)));
         Assert.DoesNotContain(typeof(IntegrationSchema).Assembly.GetExportedTypes(),
-            type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal) && type != UserFaceOfAConnection);
-        Assert.DoesNotContain(typeof(IntegrationDiscovery).Assembly.GetTypes(), type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type));
+            type => type.IsInterface && IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal) && type != UserFaceOfAConnection);
+        Assert.DoesNotContain(typeof(IntegrationDiscovery).Assembly.GetTypes(), type => type.IsInterface && IntoChat.OS.Runtime.PlainNeuronContracts.Is(type));
     }
 
     [Fact]

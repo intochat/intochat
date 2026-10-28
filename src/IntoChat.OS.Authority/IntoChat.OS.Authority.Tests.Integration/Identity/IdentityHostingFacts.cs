@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -27,7 +29,7 @@ public sealed class IdentityHostingFacts
         await directory.RegisterAsync("bob", "correct-password", "Bob", ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());
@@ -135,7 +137,7 @@ public sealed class IdentityHostingFacts
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "bootstrap";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "bootstrap-password";
         builder.Configuration[KernelCors.AllowedOriginConfigurationKey] = "http://localhost:27880";
-        builder.Services.AddSingleton<IIntoChatOS>(brain);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(brain.Platform);
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         builder.Services.AddSingleton(brain.Services.GetRequiredService<IntoChat.OS.Authority.Identity.PrincipalPasswords>());

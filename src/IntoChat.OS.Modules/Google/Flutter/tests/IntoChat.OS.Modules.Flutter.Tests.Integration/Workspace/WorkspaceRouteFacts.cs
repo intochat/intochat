@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Contracts.Configuration;
@@ -16,7 +18,7 @@ public sealed class WorkspaceRouteFacts
     public void NavigationStateAndReportsAreServedOnlyUnderTheBrainRoute()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddSingleton(typeof(IIntoChatOS), _ => null!);
+        builder.Services.AddSingleton(typeof(INeuronProxies), _ => null!);
         IEndpointRouteBuilder app = builder.Build();
         WorkspaceEndpoints.Map(app);
 

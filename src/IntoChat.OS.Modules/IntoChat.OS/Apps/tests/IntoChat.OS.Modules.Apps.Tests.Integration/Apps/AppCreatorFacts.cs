@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
@@ -48,7 +50,7 @@ public sealed class AppCreatorFacts
             FakeReply.Tool("read_contract_detail", """{"moduleId":"fixture","contractName":"Fixture.IReader","methodName":"Read"}"""),
             Built(typedCall, "data"));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var client = brain.Services.GetRequiredService<IIntoChatOS>();
+        var client = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(client, Brain, null, "Read a typed request.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
@@ -70,7 +72,7 @@ public sealed class AppCreatorFacts
         model.Script(Author, Authored(Spec).Insert(1, "\"entry\":{\"kind\":\"text\",\"name\":\"answer\"},"));
         model.Script(Builder, Built("// built", "prompt").Insert(1, "\"operations\":[{\"name\":\"ask\",\"description\":\"Answer\"}],"));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         var authored = await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         Assert.Equal("Shouter", authored.Manifest.Title);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
@@ -89,7 +91,7 @@ public sealed class AppCreatorFacts
         await using var brain = await StartAsync(model, ct);
         model.Script(Author, Authored(Spec));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
 
         var created = await creator.Author(intoChatOS, Brain, null, "An app that shouts back.", ct);
 
@@ -110,7 +112,7 @@ public sealed class AppCreatorFacts
         var creator = brain.Services.GetRequiredService<Creator>();
         await using var started = await brain.Observe<InferenceStarted>(brain.Get<IGpt56Luna>(ModelAddress.Key(Brain)), ct);
 
-        await creator.Author(brain.Services.GetRequiredService<IIntoChatOS>(), Brain, null, "An app that shouts back.", ct);
+        await creator.Author(brain.Services.GetRequiredService<INeuronProxies>(), Brain, null, "An app that shouts back.", ct);
 
         Assert.Equal($"{Brain}/models", (await started.NextAsync(ct: ct)).NeuronId);
     }
@@ -124,7 +126,7 @@ public sealed class AppCreatorFacts
         await using var brain = await StartAsync(model, ct);
         model.Script(Author, Authored(Spec), Authored(Spec + "\n\n## Scenario: It whispers\nQuietly."));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
 
         var revised = await creator.Author(intoChatOS, Brain, "shouter", "Also whisper.", ct);
@@ -143,7 +145,7 @@ public sealed class AppCreatorFacts
         model.Script(Author, Authored(Spec));
         model.Script(Builder, Built("// proof v1", "Shout in capitals."));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
@@ -169,7 +171,7 @@ public sealed class AppCreatorFacts
         // An empty builder script: the model answers 500.
         model.Script(Builder);
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
@@ -194,7 +196,7 @@ public sealed class AppCreatorFacts
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t", [AppFiles.DeclarationPath] = "// not yours" },
         }));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var activity = await brain.Observe<AppActivity>(app, ct);
@@ -221,7 +223,7 @@ public sealed class AppCreatorFacts
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t" },
         }));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
@@ -248,7 +250,7 @@ public sealed class AppCreatorFacts
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t" },
         }));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
@@ -273,7 +275,7 @@ public sealed class AppCreatorFacts
             FakeReply.Tool("check_csharp", """{"files":{"shout.cs":"await using var brain = await IntoChatOSClient.ConnectAsync(args);\nawait foreach (var request in brain.On(brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting(\"App\")!), \"ask\", brain.Stopping)) { Console.WriteLine(request.Input); }"}}"""),
             Built("// proof v1", "Shout in capitals."));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
@@ -296,7 +298,7 @@ public sealed class AppCreatorFacts
             FakeReply.Tool("check_csharp", """{"files":{"shout.cs":"await using var brain = await IntoChatOSClient.ConnectAsync(args);\nvar app = brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting(\"App\")!);\nawait foreach (var a in brain.On(app, \"ask\", brain.Stopping)) { }\nawait foreach (var b in brain.On(app, \"ask\", brain.Stopping)) { }"}}"""),
             Built("// proof v1", "Shout in capitals."));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
@@ -323,7 +325,7 @@ public sealed class AppCreatorFacts
             Built("// invalid final", "data"),
             Built("// corrected final", "data"));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await app.BeginBuild(null);
@@ -354,7 +356,7 @@ public sealed class AppCreatorFacts
         model.Script(Author, Authored(Spec));
         model.Script(Builder, Enumerable.Repeat((FakeReply)Built("// invalid final", "data"), 13).ToArray());
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var changes = await brain.Observe<AppChanged>(app, ct);
@@ -382,7 +384,7 @@ public sealed class AppCreatorFacts
             FakeReply.Tool("check_csharp", """{"files":{"shout.cs":"await using var brain = await IntoChatOSClient.ConnectAsync(args);\nawait foreach (var request in brain.On(brain.Get<IntoChat.OS.Modules.Apps.IApp>(brain.Setting(\"App\")!), \"ask\", brain.Stopping)) { }"}}"""),
             Built("// stale", "Shout."));
         var creator = brain.Services.GetRequiredService<Creator>();
-        var intoChatOS = brain.Services.GetRequiredService<IIntoChatOS>();
+        var intoChatOS = brain.Services.GetRequiredService<INeuronProxies>();
         await creator.Author(intoChatOS, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
         await using var activity = await brain.Observe<AppActivity>(app, ct);

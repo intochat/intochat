@@ -10,6 +10,7 @@ using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Spi;
 using DigitalBrain.State;
 using Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -257,7 +258,7 @@ internal sealed class CircleNeuron(
         var caller = Caller();
         try
         {
-            var installed = await ServiceProvider.GetRequiredService<AppInstaller>().InstallExact(ServiceProvider.GetRequiredService<IIntoChatOS>(), publication, targetName, operationId);
+            var installed = await ServiceProvider.GetRequiredService<AppInstaller>().InstallExact(ServiceProvider.GetRequiredService<INeuronProxies>(), publication, targetName, operationId);
             await IndexInstallation(installed);
             return installed;
         }

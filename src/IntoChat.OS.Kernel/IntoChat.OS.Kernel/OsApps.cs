@@ -74,7 +74,7 @@ internal sealed class OsDefaults(
         {
             try
             {
-                if ((await brains.Open(brainId).Neuron<IApp>($"apps/{app.Name}").Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
+                if ((await brains.Get<IApp>($"{brainId}/apps/{app.Name}").Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
                 { await InstallDefault(app, cancellationToken); }
             }
             catch (Exception error) when (error is not OperationCanceledException)

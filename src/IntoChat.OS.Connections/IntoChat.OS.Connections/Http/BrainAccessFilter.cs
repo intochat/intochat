@@ -45,7 +45,7 @@ public static class BrainAccessFilter
         if (http.RequestServices.GetService<IIntoChatOSBrains>() is not { } brains) { return; }
         var scope = BrainScope.Create(accountId, brainId).Id;
         var seen = Created.GetOrCreateValue(brains);
-        var creating = seen.GetOrAdd(scope, _ => new Lazy<Task>(() => brains.Open(scope).Self.Create(new Owner(accountId))));
+        var creating = seen.GetOrAdd(scope, _ => new Lazy<Task>(() => brains.Get<IBrain>(IBrain.Key(scope)).Create(new Owner(accountId))));
         // Best effort: the request itself is already allowed, and the next one retries.
         try { await creating.Value; }
         catch (Exception error) when (error is not OperationCanceledException) { seen.TryRemove(new(scope, creating)); }

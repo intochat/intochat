@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using DigitalBrain;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client.Runtime;
@@ -368,7 +369,7 @@ public sealed class SelfImproveAvailabilityFacts
                 return FailDiscovery ? Failure("Discovery fixture failed") : Json<ConnectorKind[]>(Available ? [new("aspire", "Deployment")] : [new("other", "Other")]);
             }
             if (call.Contract == RuntimeProtocol.KernelContract && call.Method == RuntimeProtocol.KernelInstances)
-            { return Json<Instance[]>(HasCandidate ? [new("aspire.candidate", "fixture-brain/aspire/candidate/candidate-sha", DateTimeOffset.UnixEpoch, null)] : []); }
+            { return Json<BrainInstance[]>(HasCandidate ? [new("aspire.candidate", "fixture-brain/aspire/candidate/candidate-sha", DateTimeOffset.UnixEpoch, null)] : []); }
             if (call.Contract == typeof(IText).FullName)
             {
                 if (call.Method == nameof(IText.Read)) { return Json(new TextState { Name = call.Key, Markdown = _texts.GetValueOrDefault(call.Key, "") }); }
