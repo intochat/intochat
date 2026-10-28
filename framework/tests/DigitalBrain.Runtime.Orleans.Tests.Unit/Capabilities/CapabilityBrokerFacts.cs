@@ -3,6 +3,7 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities.Storage;
 using DigitalBrain.Testing.Conformance.Identity;
 using DigitalBrain.Testing.Conformance.Secrets;
 using DigitalBrain.Testing.Conformance.Storage;
@@ -30,7 +31,7 @@ public sealed class CapabilityBrokerFacts
 
         Assert.Equal(["B", "C"], all.Select(c => c.ConnectionKey));
         Assert.Equal(["Bee", "Cee"], all.Select(c => c.Label));
-        Assert.Same(connections.Bound["B"], all[0].Capability);
+        Assert.Same(connections.Bound["B"], Assert.IsType<RecordingStorage>(all[0].Capability).Inner);
         Assert.All(connections.BindCallers, caller => Assert.Equal("app.files", caller));
         Assert.Empty(connections.Requests);
     }
@@ -84,7 +85,7 @@ public sealed class CapabilityBrokerFacts
 
         var all = await Broker(connections, null, new ReplacingInterceptor(wrapped)).Storages(Brain, TestContext.Current.CancellationToken);
 
-        Assert.Same(wrapped, Assert.Single(all).Capability);
+        Assert.Same(wrapped, Assert.IsType<RecordingStorage>(Assert.Single(all).Capability).Inner);
     }
 
     [Fact]
