@@ -11,7 +11,7 @@ public sealed class TimeFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => NeuronRuntimeKinds.Both;
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(TimeNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(TimeModule)];
 
     protected override void ConfigureSilo(IServiceCollection services)
         => services.Configure<global::Orleans.Hosting.ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));

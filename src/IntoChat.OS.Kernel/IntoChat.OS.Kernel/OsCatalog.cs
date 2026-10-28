@@ -30,11 +30,16 @@ public static partial class OsCatalog
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var queue = new Queue<Assembly>([typeof(OsCatalog).Assembly]);
-        foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "IntoChat.OS.Modules.*.dll"))
+        // A project reference the Kernel csproj keeps is copied beside the host even when no type in this
+        // assembly names it, so the compiler omits it from GetReferencedAssemblies. Cloud modules are that case.
+        foreach (var pattern in new[] { "IntoChat.OS.Modules.*.dll", "IntoChat.Cloud.*.dll" })
         {
-            try { queue.Enqueue(Assembly.Load(AssemblyName.GetAssemblyName(file))); }
-            catch (BadImageFormatException) { continue; }
-            catch (FileLoadException) { continue; }
+            foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, pattern))
+            {
+                try { queue.Enqueue(Assembly.Load(AssemblyName.GetAssemblyName(file))); }
+                catch (BadImageFormatException) { continue; }
+                catch (FileLoadException) { continue; }
+            }
         }
         var legacy = new List<FrameworkModule>();
         var digital = new List<Type>();
@@ -67,6 +72,8 @@ public static partial class OsCatalog
     private static bool IsProductDigital(Type type)
     {
         if (!typeof(DigitalBrain.Module).IsAssignableFrom(type) || type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null) { return false; }
+        // Orleans is a catalog module, but it lives in the kernel composition assembly, not a module assembly.
+        if (type == typeof(IntoChat.OS.Modules.Microsoft.Orleans.OrleansModule)) { return true; }
         var name = type.Assembly.GetName().Name ?? "";
         return name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) || name.StartsWith("IntoChat.Cloud.", StringComparison.Ordinal);
     }
@@ -78,7 +85,7 @@ public static partial class OsCatalog
     // The Windows edge: the composition plus desktop automation of the Windows machine the host runs on.
     // Only a host on Windows opts in; the portable composition never carries it.
     public static IReadOnlyList<OsModule> WithWindowsEdge()
-        => [.. Modules, OsModule.From(new IntoChat.OS.Modules.Microsoft.Windows.WindowsModule())];
+        => [.. Modules, OsModule.FromDigital(typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule))];
 
     // Composes the given modules (the portable composition by default) and the OS apps.
     public static IntoChatOSServerBuilder AddOperatingSystem(this IntoChatOSServerBuilder server, IReadOnlyList<OsModule>? modules = null)

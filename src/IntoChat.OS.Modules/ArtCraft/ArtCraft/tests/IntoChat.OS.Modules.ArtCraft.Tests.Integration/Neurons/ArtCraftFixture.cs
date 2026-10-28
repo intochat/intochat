@@ -9,7 +9,7 @@ public sealed partial class ArtCraftFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => NeuronRuntimeKinds.Both;
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(ArtCraftNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(ArtCraftModule)];
 
     // The neurons' [Signal] records live in the contracts assembly.
     protected override void ConfigureSilo(IServiceCollection services)

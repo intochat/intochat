@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <IntoChatOSModule>true</IntoChatOSModule>
     <Description>Salesforce module: one org connection neuron, bounded queries and confirmed record writes.</Description>
     <RootNamespace>IntoChat.OS.Modules.Salesforce</RootNamespace>
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>

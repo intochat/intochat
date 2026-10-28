@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <IntoChatOSModule>true</IntoChatOSModule>
     <Description>Aspire AppHost integration for the IntoChat.OS Google module.</Description>
     <RootNamespace>IntoChat.OS.Modules.Google.Gmail.Aspire.Hosting</RootNamespace>
   </PropertyGroup>

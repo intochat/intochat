@@ -132,7 +132,7 @@ public sealed class KernelCapabilityConnectionsFacts
         var services = new ServiceCollection();
         services.AddSingleton<IReadOnlyList<ConnectorDefinition>>([DriveModule.Connector, new ConnectorDefinition("windows", "Windows", ["device"], []),
             new ConnectorDefinition(LegacyOnlyNeurons.Connector, "Legacy", ["api-key"], [])]);
-        services.AddSingleton(new ConnectionNeuronTypes([typeof(DriveNeurons), typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsNeurons), typeof(LegacyOnlyNeurons)]));
+        services.AddSingleton(new ConnectionNeuronTypes([typeof(DriveModule), typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule), typeof(LegacyOnlyNeurons)]));
         services.AddSingleton(DispatchGrains.Create(requests, new FakeLegacyStorage()));
         services.AddSingleton<ICapabilityConnections, KernelCapabilityConnections>();
         return services.BuildServiceProvider();

@@ -56,7 +56,7 @@ public sealed class EntryControlFacts(FlutterHost host)
     public async Task ChangedPublishesOnlyTheNeuronName()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<IntoChat.OS.Modules.Apps.AppsNeurons>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<IntoChat.OS.Modules.Apps.AppsModule>()
             .ConfigureServices(services => global::DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(services, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly)).StartAsync(ct);
         var control = brain.Get<IEntryControl>(brain.Owner.Key("settings/keys-openai"));
         await ShippedSettings.Install(brain.Get<IApp>, brain.Owner);

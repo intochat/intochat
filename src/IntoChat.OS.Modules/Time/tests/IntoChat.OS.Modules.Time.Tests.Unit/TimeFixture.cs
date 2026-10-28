@@ -7,5 +7,5 @@ public sealed class TimeFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => new(NeuronRuntimeKind.TestOS);
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(TimeNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(TimeModule)];
 }

@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <IntoChatOSModule>true</IntoChatOSModule>
     <Description>Google sign-in module: the google-oauth integration, token exchange and refresh, and the metered Google HTTP client shared by Gmail and Google Drive.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>IntoChat.OS.Modules.Google.Auth</RootNamespace>

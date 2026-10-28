@@ -17,17 +17,20 @@ using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
-public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IHttpModule
+[DigitalBrain.Module("apps")]
+public sealed class AppsModule : DigitalBrain.Module, IHttpModule
 {
-    // R4-04: what the module needs from its host: its options section (AppsNeurons carries it).
-    public static DigitalBrain.ModuleManifest Manifest => AppsNeurons.Manifest;
+    // R4-04: what the module needs from its host: its options section.
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<AppsOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("apps")))],
+        Secrets: []);
 
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Apps.IApp).Assembly;
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Modules.Apps.IApp).Assembly;
 
-    // 06-08: the module's plain neurons (apps, the feature reconciler, the studio, the store); the marketplace is still a grain.
-    public override Type? Neurons => typeof(AppsNeurons);
-
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton(TimeProvider.System);
@@ -78,16 +81,4 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         CompiledAppsEndpoints.Map(endpoints);
         CompiledAppDevelopmentEndpoints.Map(endpoints);
     }
-}
-
-// The DigitalBrain module of the Apps module's plain neurons (06-08).
-[DigitalBrain.Module("apps")]
-public sealed class AppsNeurons : DigitalBrain.Module
-{
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<AppsOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("apps")))],
-        Secrets: []);
 }

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Configuration;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
@@ -13,15 +12,13 @@ namespace IntoChat.OS.Modules.Circles;
 
 // Circles: a circle is a brain of its own (T26-1) whose members are accounts; it holds a conversation, the apps
 // shared into it and a share of its creator's compute. A member's own brain creates and lists its circles.
-public sealed partial class CirclesModule() : Module(new ModuleId("circles")), IHttpModule
+// The circle, its chat and invites, the factory and the invite code index are plain neurons.
+[DigitalBrain.Module("circles")]
+public sealed partial class CirclesModule : DigitalBrain.Module, IHttpModule
 {
-    // R4-04: what the module needs from its host (CirclesNeurons carries it).
-    public static DigitalBrain.ModuleManifest Manifest => CirclesNeurons.Manifest;
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 
-    public override System.Reflection.Assembly? Contracts => typeof(ICircle).Assembly;
-
-    // 06-08: the circle, its chat and invites, the factory and the invite code index are plain neurons.
-    public override Type? Neurons => typeof(CirclesNeurons);
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(ICircle).Assembly;
 
     public void Configure(IEndpointRouteBuilder endpoints)
     {
@@ -42,20 +39,14 @@ public sealed partial class CirclesModule() : Module(new ModuleId("circles")), I
         MapInviteCodes(endpoints);
     }
 
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton<ICircleInviteRedeemer, CircleInviteRedeemer>();
         // One birth, reached as a creation handler and by the factory (which completes a birth that failed).
         if (services.Any(descriptor => descriptor.ServiceType == typeof(CircleBirth))) { return; }
         services.AddSingleton<CircleBirth>();
         services.AddSingleton<ICreationHandler>(provider => provider.GetRequiredService<CircleBirth>());
     }
-}
-
-// The DigitalBrain module of the Circles module's plain neurons (06-08).
-[DigitalBrain.Module("circles")]
-public sealed class CirclesNeurons : DigitalBrain.Module
-{
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 }

@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Integrations;
 
-internal sealed class ModuleIntegrations<TModule>(IServiceProvider services, ModuleInventory inventory) : IModuleIntegrations<TModule> where TModule : Module
+internal sealed class ModuleIntegrations<TModule>(IServiceProvider services, ModuleInventory inventory) : IModuleIntegrations<TModule> where TModule : class
 {
     public IIntegrationHandle Get(string integrationId)
     {

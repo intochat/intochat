@@ -11,7 +11,7 @@ public sealed class CSharpFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => NeuronRuntimeKinds.Both;
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(CSharpNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(CSharpModule)];
 
     // The neurons' [Signal] records live in the contracts assembly.
     protected override void ConfigureSilo(IServiceCollection services) => services.AddJournalPayloads(typeof(ICSharpFile).Assembly);

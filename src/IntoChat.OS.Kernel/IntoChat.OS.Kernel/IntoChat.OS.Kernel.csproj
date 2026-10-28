@@ -44,5 +44,8 @@
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Azure/src/IntoChat.OS.Modules.Microsoft.Azure/IntoChat.OS.Modules.Microsoft.Azure.csproj" />
     <!-- The Windows edge (OsCatalog.WithWindowsEdge), composed only by a host running on Windows. -->
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/src/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
+    <!-- Cloud modules. Each declares LoadsUnder and the host skips them unless Topology=cloud. -->
+    <ProjectReference Include="../../IntoChat.Cloud/Modules/Auth/src/IntoChat.Cloud.Auth/IntoChat.Cloud.Auth.csproj" />
+    <ProjectReference Include="../../IntoChat.Cloud/Modules/Circle/src/IntoChat.Cloud.Circle.Server/IntoChat.Cloud.Circle.Server.csproj" />
   </ItemGroup>
 </Project>

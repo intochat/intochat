@@ -6,8 +6,6 @@
     <IntoChatOSContractsHost>true</IntoChatOSContractsHost>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Transitional: TimeModule.Configure maps the minimum reminder period onto the host's ReminderOptions until Configure leaves (06-08). -->
-    <PackageReference Include="Microsoft.Orleans.Reminders" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Time.Tests.Integration" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Time.Tests.Unit" />
     <ProjectReference Include="../../../../IntoChat.OS.Framework/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />

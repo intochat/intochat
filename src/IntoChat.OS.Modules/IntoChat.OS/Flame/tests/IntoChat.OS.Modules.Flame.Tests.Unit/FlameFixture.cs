@@ -7,5 +7,5 @@ public sealed class FlameFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => new(NeuronRuntimeKind.TestOS);
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(FlameNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(FlameModule)];
 }

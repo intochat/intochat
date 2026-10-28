@@ -38,7 +38,7 @@ public interface IIntegrationHandle
     Task<ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default);
 }
 
-public interface IModuleIntegrations<TModule> where TModule : Module
+public interface IModuleIntegrations<TModule> where TModule : class
 {
     IIntegrationHandle Get(string integrationId);
 }

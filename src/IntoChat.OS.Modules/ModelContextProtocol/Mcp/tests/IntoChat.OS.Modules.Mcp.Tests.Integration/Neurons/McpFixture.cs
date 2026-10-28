@@ -9,7 +9,7 @@ public sealed class McpFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => NeuronRuntimeKinds.Both;
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(McpNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(McpModule)];
 
     // The neuron's [Signal] records live in the contracts assembly.
     protected override void ConfigureSilo(IServiceCollection services) => services.AddJournalPayloads(typeof(IMcpServer).Assembly);

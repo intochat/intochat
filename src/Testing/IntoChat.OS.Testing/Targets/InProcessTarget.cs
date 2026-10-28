@@ -2,8 +2,11 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Security.Cryptography;
+using DigitalBrain;
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -105,8 +108,17 @@ public sealed class InProcessTarget : ITestTarget
         {
             if (plan.LicenseCheck is { } check) { server.UseLicenseCheck(check); }
             server.AddModule<OrleansModule>();
-            foreach (var module in plan.Modules.Where(module => module.Module is not OrleansModule)) { server.AddModule(module.Module); }
-            foreach (var module in plan.NeuronModules ?? []) { server.AddNeuronModule(module); }
+            foreach (var module in plan.Modules.Where(module => module.Module.GetType() != typeof(OrleansModule))) { server.AddModule(module.Module); }
+            foreach (var module in plan.NeuronModules ?? [])
+            {
+                // A DigitalBrain module is a catalog module: the inventory and its integrations see it.
+                // A neuron type with no [Module] is hosted beside the catalog.
+                if (module.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is not null)
+                {
+                    if (module != typeof(OrleansModule)) { server.AddModule(OsModule.FromDigital(module)); }
+                }
+                else { server.AddNeuronModule(module); }
+            }
         });
         if (plan.Services is { } services)
         {

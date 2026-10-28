@@ -9,7 +9,7 @@ public sealed class FlutterFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => NeuronRuntimeKinds.Both;
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(FlutterNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(FlutterModule)];
 
     // The controls' [Signal] records live in the contracts assembly, beside the module's.
     protected override void ConfigureSilo(IServiceCollection services)

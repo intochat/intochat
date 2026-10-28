@@ -163,7 +163,7 @@ public sealed class SubscriptionCallerFacts
     private static Task<ITestBrain> StartWithTablesAsync(CancellationToken ct)
         => RuntimeBrain.Create(new FakeSessionHost()).WithModule<PostgresModule>()
             // The table guard reads the owning app, a plain neuron (06-08), so the host serves apps.
-            .WithNeuronModule<IntoChat.OS.Modules.Apps.AppsNeurons>()
+            .WithNeuronModule<IntoChat.OS.Modules.Apps.AppsModule>()
             .ConfigureServices(services => global::DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(services, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly))
             .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=sample;Username=reader")
             // The store stands in for the database: the table's guards, not its rows, are under test.

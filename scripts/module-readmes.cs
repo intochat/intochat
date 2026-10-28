@@ -13,6 +13,7 @@ using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel;
 
@@ -106,7 +107,7 @@ static string Render(OsModule module, Type type)
             rows.Add($"| `{property.Name}` | `{TypeName(property.PropertyType)}` | {shown} | {(setting.Required ? "yes" : "no")} |");
         }
     }
-    foreach (var setting in type.GetCustomAttributes<SettingAttribute>().OrderBy(s => s.Name, StringComparer.Ordinal))
+    foreach (var setting in (Digital(type) ? SchemaSettings(type) : AttributeSettings(type)).OrderBy(s => s.Name, StringComparer.Ordinal))
     {
         rows.Add($"| `{setting.Name}` | integration setting | unset | {(setting.Optional ? "no" : "yes")} |");
     }
@@ -119,7 +120,7 @@ static string Render(OsModule module, Type type)
         builder.Append('\n');
     }
 
-    var secrets = type.GetCustomAttributes<SecretAttribute>().OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
+    var secrets = (Digital(type) ? SchemaSecrets(type) : AttributeSecrets(type)).OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
     builder.Append("Secrets (names only; values are sealed per brain, never configuration):\n\n");
     if (secrets.Length == 0) { builder.Append("None.\n\n"); }
     else
@@ -147,6 +148,14 @@ static Type? OptionsType(Type type)
     {
         if (current.IsGenericType && current.GetGenericTypeDefinition().Name.StartsWith("Module`", StringComparison.Ordinal)) { return current.GetGenericArguments()[0]; }
     }
+    var manifest = type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+    if (manifest?.GetType().GetProperty("Settings")?.GetValue(manifest) is System.Collections.IEnumerable settings)
+    {
+        foreach (var setting in settings)
+        {
+            if (setting?.GetType().GetProperty("OptionsType")?.GetValue(setting) is Type options) { return options; }
+        }
+    }
     return null;
 }
 
@@ -154,3 +163,44 @@ static string TypeName(Type type)
     => Nullable.GetUnderlyingType(type) is { } inner ? TypeName(inner) + "?"
         : type.IsGenericType ? type.Name[..type.Name.IndexOf('`')] + "<" + string.Join(", ", type.GetGenericArguments().Select(TypeName)) + ">"
         : type.Name;
+
+// A module that has left the generator has no [Secret]/[Setting] attributes. Its static Integration schema is the same declaration.
+static bool Digital(Type type)
+    => typeof(DigitalBrain.Module).IsAssignableFrom(type) && !typeof(Module).IsAssignableFrom(type);
+
+static IEnumerable<(string Name, bool Optional)> AttributeSettings(Type type)
+    => type.GetCustomAttributes<SettingAttribute>().Select(setting => (setting.Name ?? "", setting.Optional));
+
+static IEnumerable<(string Name, bool Optional)> AttributeSecrets(Type type)
+    => type.GetCustomAttributes<SecretAttribute>().Select(secret => (secret.Name, secret.Optional));
+
+static IEnumerable<(string Name, bool Optional)> SchemaSettings(Type type)
+{
+    foreach (var schema in Schemas(type))
+    {
+        foreach (var name in schema.SettingFields) { yield return (name, false); }
+        foreach (var name in schema.OptionalSettingFields) { yield return (name, true); }
+    }
+}
+
+static IEnumerable<(string Name, bool Optional)> SchemaSecrets(Type type)
+{
+    foreach (var schema in Schemas(type))
+    {
+        foreach (var name in schema.SecretFields) { yield return (name, false); }
+        foreach (var name in schema.OptionalSecretFields) { yield return (name, true); }
+    }
+}
+
+static IEnumerable<IntegrationSchema> Schemas(Type type)
+{
+    const BindingFlags Flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+    if (type.GetProperty("Integration", Flags)?.GetValue(null) is IntegrationSchema one) { yield return one; }
+    if (type.GetProperty("Integrations", Flags)?.GetValue(null) is System.Collections.IEnumerable items)
+    {
+        foreach (var item in items)
+        {
+            if (item is IntegrationSchema schema) { yield return schema; }
+        }
+    }
+}

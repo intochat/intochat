@@ -20,8 +20,8 @@ public sealed class AIOptionsRoundTripFacts
         options.ModelProfiles["Fast"] = new AIModelProfileOptions { Provider = "OpenAI", Model = "m1", ContextWindowTokens = 1000 };
         options.Ollama.Models["Gemma"] = new AIModelOptions { Model = "gemma:2b" };
         options.OpenRouter.Endpoint = "https://openrouter.ai/api/v1";
-        var definition = ModuleOptionsSerialization.Compile<AIModule, AIOptions>(options);
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Settings).Build();
+        ModuleOptionsSerialization.Validate(options, "ai");
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(ModuleOptionsSerialization.FlattenOptions(options, "ai")).Build();
 
         var bound = configuration.GetModuleOptions<AIOptions>("ai");
 

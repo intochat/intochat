@@ -17,7 +17,7 @@ public sealed class ModuleDeploymentFacts
     [Fact]
     public void A_deployment_in_the_assembly_of_a_composed_module_is_found_under_that_module()
     {
-        var found = ModuleDeployments.Discover([new CSharpModule()]);
+        var found = ModuleDeployments.Discover([OsModule.FromDigital(typeof(CSharpModule))]);
 
         var binding = Assert.Single(found);
         Assert.Equal("csharp", binding.ModuleId);
@@ -27,7 +27,7 @@ public sealed class ModuleDeploymentFacts
     [Fact]
     public void A_composed_module_without_a_deployment_contributes_none()
     {
-        Assert.Empty(ModuleDeployments.Discover([new AzureModule()]));
+        Assert.Empty(ModuleDeployments.Discover([OsModule.FromDigital(typeof(AzureModule))]));
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class ModuleDeploymentFacts
             var arm = new RecordingAzure();
             var output = new StringWriter();
 
-            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--dry-run"], arm, [new CSharpModule()], output, new StringWriter(), TestContext.Current.CancellationToken);
+            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--dry-run"], arm, [OsModule.FromDigital(typeof(CSharpModule))], output, new StringWriter(), TestContext.Current.CancellationToken);
 
             Assert.Equal(0, code);
             Assert.Empty(arm.Ensured);
@@ -190,7 +190,7 @@ public sealed class ModuleDeploymentFacts
             await File.WriteAllTextAsync(secrets, "{\"master-key\":\"k\"}", TestContext.Current.CancellationToken);
             var arm = new RecordingAzure();
 
-            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--secrets-from", secrets], arm, [new CSharpModule()], new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken);
+            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--secrets-from", secrets], arm, [OsModule.FromDigital(typeof(CSharpModule))], new StringWriter(), new StringWriter(), TestContext.Current.CancellationToken);
 
             Assert.Equal(0, code);
             var kinds = arm.Ensured.Select(spec => spec.Kind).ToArray();
@@ -212,7 +212,7 @@ public sealed class ModuleDeploymentFacts
             await File.WriteAllTextAsync(file, ConfigJson.Replace("sandboxImage", "unused", StringComparison.Ordinal), TestContext.Current.CancellationToken);
             var error = new StringWriter();
 
-            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--dry-run"], new RecordingAzure(), [new CSharpModule()], new StringWriter(), error, TestContext.Current.CancellationToken);
+            var code = await AzureInstaller.Run(["install", "--env", "test", "--config", file, "--dry-run"], new RecordingAzure(), [OsModule.FromDigital(typeof(CSharpModule))], new StringWriter(), error, TestContext.Current.CancellationToken);
 
             Assert.Equal(1, code);
             Assert.Contains("sandboxImage", error.ToString(), StringComparison.Ordinal);

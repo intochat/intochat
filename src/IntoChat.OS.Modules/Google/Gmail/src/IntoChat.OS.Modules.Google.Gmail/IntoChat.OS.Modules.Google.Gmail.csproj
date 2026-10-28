@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <IntoChatOSModule>true</IntoChatOSModule>
     <IntoChatOSContractsHost>true</IntoChatOSContractsHost>
     <Description>Google module: typed Gmail reads, recoverable draft creation, tools and browser sign-in.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -8,7 +8,7 @@ public sealed partial class ArtCraftFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => new(NeuronRuntimeKind.TestOS);
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(ArtCraftNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(ArtCraftModule)];
 
     protected override void ConfigureTestOS(IServiceCollection services) => ConfigureBoth(services);
 }

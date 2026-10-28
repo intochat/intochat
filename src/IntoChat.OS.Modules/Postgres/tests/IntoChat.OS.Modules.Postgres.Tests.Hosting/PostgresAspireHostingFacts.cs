@@ -23,7 +23,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreateBuilder();
         var brain = builder.AddIntoChatOS("brain", options: new());
-        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent).Settings);
+        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent));
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
         var server = Assert.Single(builder.Resources.OfType<PostgresServerResource>());
@@ -82,7 +82,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreateBuilder();
         var brain = builder.AddIntoChatOS("brain", options: new());
-        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Settings);
+        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false));
         var hosting = new PostgresModuleHosting();
         hosting.Configure(brain);
         builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
@@ -102,7 +102,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreateBuilder();
         var brain = builder.AddIntoChatOS("brain", options: new());
-        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Settings);
+        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false));
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
         Assert.Contains(IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection")), environment.Keys);
@@ -115,7 +115,7 @@ public sealed class PostgresAspireHostingFacts
         var builder = CreatePublishBuilder();
         builder.Configuration["Parameters:postgres-connection"] = "Host=azure;Database=intochat_os;Username=app;Password=test-only";
         var brain = builder.AddIntoChatOS("brain", options: new());
-        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Settings);
+        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false));
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
         Assert.Empty(builder.Resources.OfType<PostgresServerResource>());
@@ -125,10 +125,14 @@ public sealed class PostgresAspireHostingFacts
         Assert.DoesNotContain(IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection")), environment.Keys);
     }
 
-    private static ModuleDefinition Definition(bool enabled, bool persistent)
-        => ModuleOptionsSerialization.Compile<PostgresModule, PostgresModuleOptions>(new()
+    private static IReadOnlyDictionary<string, string?> Definition(bool enabled, bool persistent)
+    {
+        PostgresModuleOptions options = new()
         {
             ConnectionName = "reporting",
             Hosting = new() { Enabled = enabled, DatabaseName = "analytics", PersistentStorage = persistent },
-        });
+        };
+        ModuleOptionsSerialization.Validate(options, "postgres");
+        return ModuleOptionsSerialization.FlattenOptions(options, "postgres");
+    }
 }

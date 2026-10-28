@@ -23,7 +23,7 @@ public sealed class ModuleManifestFacts
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.FullName == "IntoChat.OS.Framework.Modules.Module") { return true; }
+            if (current.FullName is "IntoChat.OS.Framework.Modules.Module" or "DigitalBrain.Module") { return true; }
         }
         return false;
     }

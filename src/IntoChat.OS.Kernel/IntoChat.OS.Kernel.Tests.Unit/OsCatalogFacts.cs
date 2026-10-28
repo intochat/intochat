@@ -11,9 +11,13 @@ public sealed class OsCatalogFacts
     public void InProcessModulesIsModulesMinusTheContainerBackedOnes()
     {
         string[] containerBacked = ["artcraft", "clickhouse", "postgres", "qdrant", "supabase"];
+        string[] cloudOnly = ["auth", "circle-server"];
         Assert.Equal(containerBacked, OsCatalog.Modules.Where(module => module.RequiresContainer).Select(module => module.Id.Value).Order(StringComparer.Ordinal));
-        var expected = OsCatalog.Modules.Select(module => module.Id.Value).Except(containerBacked, StringComparer.OrdinalIgnoreCase);
+        var expected = OsCatalog.Modules.Select(module => module.Id.Value)
+            .Except(containerBacked, StringComparer.OrdinalIgnoreCase)
+            .Except(cloudOnly, StringComparer.OrdinalIgnoreCase);
         Assert.Equal(expected, OsCatalog.InProcessModules.Select(module => module.Id.Value));
+        Assert.All(cloudOnly, id => Assert.Contains(OsCatalog.Modules, module => module.Id.Value == id && !module.LoadsUnder("local") && module.LoadsUnder("cloud")));
         Assert.All(containerBacked, id => Assert.Contains(OsCatalog.Modules, module => module.Id.Value == id));
         Assert.DoesNotContain(OsCatalog.Modules, module => module.Id.Value == "windows");
         Assert.Equal([.. OsCatalog.Modules.Select(module => module.Id.Value), "windows"], OsCatalog.WithWindowsEdge().Select(module => module.Id.Value));

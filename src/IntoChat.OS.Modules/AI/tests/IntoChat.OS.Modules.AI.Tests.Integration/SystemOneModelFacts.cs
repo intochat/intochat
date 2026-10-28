@@ -66,8 +66,8 @@ public sealed class SystemOneModelFacts
     public void TheDefaultSystemOneSurvivesCompileAndBind()
     {
         var options = new AIOptions().WithDefaultSystemOne<ILocalJev>();
-        var definition = ModuleOptionsSerialization.Compile<AIModule, AIOptions>(options);
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Settings).Build();
+        ModuleOptionsSerialization.Validate(options, "ai");
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(ModuleOptionsSerialization.FlattenOptions(options, "ai")).Build();
 
         var bound = configuration.GetModuleOptions<AIOptions>("ai");
 
