@@ -330,6 +330,29 @@ jobs:
           name: windows-storage-results
           path: artifacts/windows-storage-results
 
+  # Blob storage@1 against Azurite. The default Integration tier skips when port 10000 is closed.
+  blob-storage:
+    name: blob-storage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+          - 10000:10000
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Blob storage conformance
+        run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/blob-storage-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: blob-storage-results
+          path: artifacts/blob-storage-results
+
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
   # tier job reports the whole run instead of only the rerun jobs (attempts/N/jobs lists only that attempt's jobs).
@@ -362,7 +385,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [format, build, test, framework-test, framework-e2e, framework-template, dx04-packages, windows-storage]
+    needs: [format, build, test, framework-test, framework-e2e, framework-template, dx04-packages, windows-storage, blob-storage]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -372,7 +395,7 @@ jobs:
         run: |
           echo "format=${{ needs.format.result }} build=${{ needs.build.result }} test=${{ needs.test.result }}"
           echo "framework-test=${{ needs.framework-test.result }} framework-e2e=${{ needs.framework-e2e.result }} framework-template=${{ needs.framework-template.result }} dx04-packages=${{ needs.dx04-packages.result }}"
-          echo "windows-storage=${{ needs.windows-storage.result }}"
+          echo "windows-storage=${{ needs.windows-storage.result }} blob-storage=${{ needs.blob-storage.result }}"
           exit 1
 
   # Prerelease packages to GitHub Packages, only after the aggregate ci job succeeded on a master push.
