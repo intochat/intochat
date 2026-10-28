@@ -114,7 +114,7 @@ public sealed class Session(SessionConnection connection, BehaviorLoader loader,
             refusal = $"The running build still had work in flight after {(drainDeadline ?? loader.DrainDeadline).TotalSeconds:0.##} seconds; it keeps running and {assignment.Hash} was not loaded.";
         }
         catch (Exception error) when (error is not OperationCanceledException)
-        { refusal = $"The new build {assignment.Hash} could not be prepared: {error.Message}"; }
+        { refusal = $"The new build {assignment.Hash} could not be prepared: {error.Message}"; logger.LogWarning(error, "Preparing {Hash} for {Behavior} failed", assignment.Hash, assignment.Behavior); }
         previous.Draining = false;
         connection.Resume(assignment.Behavior);
         if (superseded is not null) { _assigned[assignment.Behavior] = superseded; }

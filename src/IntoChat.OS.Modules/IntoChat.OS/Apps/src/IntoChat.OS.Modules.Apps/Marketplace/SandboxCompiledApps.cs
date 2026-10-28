@@ -75,7 +75,7 @@ internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plai
     {
         var descriptor = package.Descriptor;
         (string Path, string Assembly)[] assemblies = descriptor.HostMetadata.GetValueOrDefault("kind") == "program"
-            ? [.. JsonSerializer.Deserialize<SynapseEntry[]>(descriptor.HostMetadata["synapses"])!
+            ? [.. JsonSerializer.Deserialize<AssemblyEntry[]>(descriptor.HostMetadata["synapses"])!
                 .Select(synapse => (BehaviorPath(synapse.Source), synapse.Assembly))]
             : [(System.IO.Path.GetFileName(descriptor.EntryAssembly), descriptor.EntryAssembly)];
         var result = new Dictionary<string, PrebuiltBehavior>(StringComparer.Ordinal);
@@ -94,7 +94,7 @@ internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plai
         return path.EndsWith(".src", StringComparison.Ordinal) ? path[..^".src".Length] : path;
     }
 
-    private sealed record SynapseEntry(string Source, string Assembly);
+    private sealed record AssemblyEntry(string Source, string Assembly);
 }
 
 internal sealed record ActiveCompiledApp(string Digest, long Revision, Guid OperationId, CompiledAppTrustReceipt Receipt);

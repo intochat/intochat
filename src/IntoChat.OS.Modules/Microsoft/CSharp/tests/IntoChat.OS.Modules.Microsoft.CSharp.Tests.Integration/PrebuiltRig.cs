@@ -34,7 +34,7 @@ internal sealed class PrebuiltRig : IAsyncDisposable
     public string AppKey => IApp.Key(Scope, "counter");
     public IBrainPrograms Programs => RuntimeBrain.Programs(Brain, Scope);
     public IApp App => Brain.Get<IApp>(AppKey);
-        public Session? Session { get; private set; }
+    public Session? Session { get; private set; }
     public SessionConnection? Connection { get; private set; }
 
     public static async Task<PrebuiltRig> Start(CancellationToken ct, Action<SandboxOptions>? sandbox = null, string[]? operations = null, bool views = false)
