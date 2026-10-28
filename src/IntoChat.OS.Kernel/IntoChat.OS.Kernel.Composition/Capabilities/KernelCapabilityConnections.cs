@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Integrations;
@@ -35,8 +36,8 @@ public static class KernelCapabilities
         builder.ConfigureCapabilities(Configure);
         builder.Services.TryAddSingleton<ICapabilityConnections, KernelCapabilityConnections>();
         // secrets@1 and identity@1 (05-12): the runtime capabilities over ports to the Authority vault and directory.
-        builder.Services.AddSecretsCapability<AuthorityVaultPort>();
-        builder.Services.AddIdentityCapability<AuthorityDirectoryPort>();
+        builder.Services.AddSecretsCapability<VaultPort>();
+        builder.Services.AddIdentityCapability<DirectoryPort>();
         return builder;
     }
 }

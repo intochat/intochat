@@ -102,3 +102,19 @@ Tests: `IntoChat.OS.Kernel.Tests.Unit` 464 passed. `IntoChat.OS.Client.Tests.Uni
 ### Step 2 status
 
 The old neuron, signal, synapse, and kernel vocabulary is gone. Callers use DigitalBrain neurons, `NeuronId`, `Signal`, `INeuronProxies`, `ISignalWatch`, and `IBrainObserver`. `src/IntoChat.OS` keeps `Runtime/`, the moved host, and the two contract projects. Module projects that still call Orleans still reference it. `OrleansHostWiring`'s cloud storage overlay and `IClusterMembershipFeed` stay; their callers are still live.
+
+## Step 4 — one identity
+
+### cutover(4): one identity module, drop marketplace workshop and pricing
+
+Deleted 119 files, 10713 lines. `src/IntoChat.OS.Authority` and `src/IntoChat.OS.Connections` are gone. That includes Marketplace, Workshop, Compute, Enforcement, pricing, the Authority integration tests, and the Connections unit tests. `AuthorityVaultPort` and `AuthorityDirectoryPort` are gone. `KernelCapabilityConnections` stays: the broker still asks it for a brain's connections.
+
+Ported into `src/IntoChat.OS.Modules/IntoChat.OS/Identity`: identity, secrets, connections, and the script contracts (`IntoChat.OS.Modules.Identity.Contracts`, so behaviors still compile against `IntoChat.OS.Integrations`). The module provides `identity@1` and `secrets@1`. `IdentityNeuron` and `SecretsNeuron` are `[Neuron]` types. The kernel registers `VaultPort` and `DirectoryPort` once. Account, principal, brain-authority, and vault state is still on the grains those ports call. Custody (`BrainStoreCustody`, master key) is unchanged.
+
+Call sites that named the dropped types: Flutter `ComputeNeuron` returns an empty 30-day window. Circles no longer call `ICircleShares`. Apps marketplace list is empty and upsert throws `NotSupportedException` ("Marketplace returns in 0.8.0."). `AddMeteredHttpClient` adds no handler when `ICostMeter` or `IExternalCallContextAccessor` is absent. Deleted `MarketplaceClientFacts` and `MarketplaceRecordFacts` (they only proved the dropped catalog). Removed the `IWorkshop` assertion from `CompiledTypesFacts`.
+
+`dotnet build Intochat.OS.slnx -c Release`: 0 errors, 0 warnings.
+
+Tests: `IntoChat.OS.Kernel.Tests.Unit` filter `AuthorityVaultNamed|KernelCapability` 9 passed, 0 failed.
+
+Still open in this step: collapse `CallerContext`, `KitCaller`, `UiEventCaller`, `AuthCaller`, `SessionMember`, and both `SessionView`s onto `CapabilityCaller`; replace the Authority cookie issuer with `DigitalBrain.Runtime.Http.ISessionIssuer`; move directory and vault state onto `Neuron<TState>`.

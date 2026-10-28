@@ -11,8 +11,8 @@
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
     <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Authority/IntoChat.OS.Authority/IntoChat.OS.Authority.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Connections/IntoChat.OS.Connections/IntoChat.OS.Connections.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
+    
     <!-- The edge encoding (RuntimeProtocol.Json) legacy signals are journaled in. -->
     <ProjectReference Include="../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
   </ItemGroup>

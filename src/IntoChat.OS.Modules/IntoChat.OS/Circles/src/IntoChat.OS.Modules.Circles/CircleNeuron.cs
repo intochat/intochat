@@ -3,7 +3,6 @@ using IntoChat.OS.Modules.Circles.Signals;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Identity;
@@ -203,7 +202,6 @@ internal sealed class CircleNeuron(
     private async Task Delete(CircleRecord next)
     {
         foreach (var member in next.Members.Concat(next.Invited).Where(member => member != next.Owner).Distinct().ToArray()) { await Drop(next, member); }
-        await Shares.Configure(0, []);
         // The circle is cleared: an empty record, so Exists is false and a later Found could found it again.
         await Save(new CircleRecord(), [.. Drain(), new CircleChanged(next.Name, [], [], 0, Snapshot.Members)]);
     }
@@ -223,7 +221,6 @@ internal sealed class CircleNeuron(
     private async Task<CircleState> CommitCore(CircleRecord next)
     {
         next.Version++;
-        await Shares.Configure(next.ComputeSharePercent, next.Members);
         await Save(next, [.. Drain(), Changed(next) with { PreviousMembers = Snapshot.Members }]);
         return Describe(next);
     }
@@ -234,10 +231,6 @@ internal sealed class CircleNeuron(
         revoked.Clear();
         return pending;
     }
-
-    // The compute share is an Authority raw grain (allow-listed, NeuronsStillGrains.json): CircleShareGuard admits only the circle
-    // neuron its key names, read from the calling host grain, so the call is made from this neuron's turn.
-    private ICircleShares Shares => Context.Services.GetRequiredService<IGrainFactory>().GetGrain<ICircleShares>(FullKey);
 
     // R126: inviting and accepting are a person's, on the /brains/{circle} route; an app's script is refused them.
     private static void RequirePerson()
