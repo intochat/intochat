@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Auth module contracts: the security audit log and the licence view an operator sees.</Description>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <!-- DigitalBrain and the BCL only: no host runtime, web framework, os internals or vendor SDKs. -->
+  <ItemGroup>
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+  </ItemGroup>
+</Project>
