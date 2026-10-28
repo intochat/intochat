@@ -12,8 +12,13 @@ public sealed record ArchivedRow(string Title, DateTimeOffset UpdatedAt, string 
 // Connectable is false for a connector this host has not configured: it shows no Connect.
 public sealed record ConnectionRow(string Connector, string Title, string Status, bool Connected, bool Connectable = true);
 
+// The neuron a brain's identity provider contributes for the signed-in member's account (identity@1
+// IdentityProviderDescriptor.AccountSurface): Settings mounts its value tree under the Account tab by reference.
+public sealed record AccountSurface(string Kind, string Name);
+
 public sealed record SettingsModel(string Tab, string AppKey, ModelRow Auto, IReadOnlyList<ModelRow> Models,
-    IReadOnlyList<ArchivedRow> Archived, int ArchivedTotal, IReadOnlyList<ConnectionRow> Connections, bool ConfirmDelete, string? Toast);
+    IReadOnlyList<ArchivedRow> Archived, int ArchivedTotal, IReadOnlyList<ConnectionRow> Connections, bool ConfirmDelete, string? Toast,
+    AccountSurface? Account = null);
 
 // Pure composition of the Settings surface. Controls that read or write a person's data are neurons referenced by
 // name; the tree itself carries labels and opaque tokens only, never an entry name, a value or a chat id.
@@ -27,8 +32,10 @@ public static class SettingsView
 
     public static UiNode Render(SettingsModel m, DateTimeOffset? now = null)
     {
+        // The Account tab exists only when the identity provider contributes a surface; without one it opens General.
         var tab = SettingsTabs.Id(m.Tab);
-        UiNode[] children = [Tabs(tab), Body(tab, m, now ?? DateTimeOffset.UtcNow)];
+        if (tab == SettingsTabs.AccountId && m.Account is null) { tab = "general"; }
+        UiNode[] children = [Tabs(tab, m.Account is not null), Body(tab, m, now ?? DateTimeOffset.UtcNow)];
         double[] extents = [TabsHeight, 0];
         if (m.Toast is { Length: > 0 } toast)
         {
@@ -43,9 +50,10 @@ public static class SettingsView
         [.. new[] { m.Auto with { Label = SettingsCopy.AutoRow } }.Concat(m.Models)
             .Select(row => new PreferenceChoice(row.Id, row.Label, row.Available, row.Available ? null : SettingsCopy.ModelUnavailable))];
 
-    private static UiNode Tabs(string active) => Ui.Tabs("tabs",
+    private static UiNode Tabs(string active, bool account) => Ui.Tabs("tabs",
     [
         .. SettingsTabs.All.Select(tab => Ui.Tab("tab-" + tab.Id, tab.Label, "tab:" + tab.Id, tab.Id == active)),
+        .. account ? [Ui.Tab("tab-" + SettingsTabs.AccountId, SettingsTabs.AccountLabel, "tab:" + SettingsTabs.AccountId, active == SettingsTabs.AccountId)] : Array.Empty<UiNode>(),
         Ui.Button("tab-billing", SettingsCopy.Billing, "tab:billing", enabled: false, style: UiStyle.Ghost),
     ]);
 
@@ -62,6 +70,7 @@ public static class SettingsView
             "variables" => [Ui.Reference("variables-field", new(UIVocabulary.EntryControlType, m.AppKey + "/variables"))],
             "notifications" => [.. SettingsCopy.Notifications.Select(n => Preference("notify-" + n.Key, m.AppKey))],
             "archived" => Archived(m, now),
+            "account" => [Ui.Reference("account-surface", new(m.Account!.Kind, m.Account.Name))],
             _ => Danger(m),
         },
     ]);

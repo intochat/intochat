@@ -288,6 +288,11 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         await widget.onSwitchAccount?.call();
         return;
       }
+      // The lobby neuron signed the visitor in: leave the lobby and read the member session.
+      if (action['kind'] == 'lobby-ended') {
+        await client.endLobby();
+        return;
+      }
       // The layout switch: hand the app its request, then connect again and mount the new root.
       // Only the desktop's layout switch may reconnect; any other reconnect is ignored.
       if (action['kind'] == 'reconnect') {

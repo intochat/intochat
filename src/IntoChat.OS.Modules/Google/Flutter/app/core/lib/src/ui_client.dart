@@ -105,33 +105,42 @@ final class IntoChatOSUiClient {
     }
   }
 
-  /// A composed identity module may offer a browser sign-in page. Never follow
-  /// an absolute or cross-origin discovery value from this anonymous probe.
-  Future<Uri?> readSignInEntry() async {
+  /// True while the client is on a lobby session: an anonymous visitor of a deployment that serves one
+  /// (`GET /lobby/session`). The lobby brain is the default brain and its app renders on its own root, so the
+  /// shell shows no chrome around it. The flag is generic: any session may carry it.
+  bool chromeless = false;
+
+  /// Set by the shell while a lobby session is open; [endLobby] calls it.
+  Future<void> Function()? onLobbyEnded;
+
+  /// Opens the lobby session when the deployment serves one: `GET /lobby/session` answers the lobby brain id
+  /// (marked `chromeless: true`). Returns false for any other answer, so a host without a lobby
+  /// keeps its sign-in behaviour. The visitor's lobby cookie is held by the HTTP client.
+  Future<bool> readLobbySession() async {
     try {
       final response = await _http
-          .get(
-            baseUri.replace(path: '/auth/entry', query: null, fragment: null),
-          )
+          .get(baseUri.replace(path: '/lobby/session', query: null, fragment: null))
           .timeout(const Duration(seconds: 5));
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200 || response.body.isEmpty) return false;
       final body = jsonDecode(response.body);
-      final value = body is Map<String, dynamic> ? body['loginUrl'] : null;
-      if (value is! String ||
-          !value.startsWith('/') ||
-          value.startsWith('//')) {
-        return null;
-      }
-      final uri = baseUri.resolve(value);
-      if (uri.origin != baseUri.origin ||
-          uri.userInfo.isNotEmpty ||
-          uri.fragment.isNotEmpty) {
-        return null;
-      }
-      return uri;
+      final brain = body is Map<String, dynamic> ? body['brainId'] : null;
+      // Only an explicit chrome-less descriptor is a lobby: a host that answers this path with a member session
+      // (or anything else) is not offering one.
+      if (brain is! String || brain.isEmpty || (body as Map<String, dynamic>)['chromeless'] != true) return false;
+      defaultBrainId = brain;
+      chromeless = true;
+      return true;
     } on Object {
-      return null;
+      return false;
     }
+  }
+
+  /// The lobby neuron raised `LobbyEnded` (the visitor signed in and the host wrote a member session): the
+  /// shell drops the lobby connection and reads `/identity/session` again. Nothing of the lobby session is reused.
+  Future<void> endLobby() async {
+    final ended = onLobbyEnded;
+    if (!chromeless || ended == null) return;
+    await ended();
   }
 
   Future<void> signIn(
