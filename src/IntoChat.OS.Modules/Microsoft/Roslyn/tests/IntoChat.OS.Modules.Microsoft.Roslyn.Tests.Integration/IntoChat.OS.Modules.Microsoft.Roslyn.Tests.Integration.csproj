@@ -2,8 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../../../framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" /></ItemGroup>
   <ItemGroup>
     <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
     <Compile Include="../IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit/RoslynNeuronFacts.cs" Link="Neurons/RoslynNeuronFacts.cs" />

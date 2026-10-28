@@ -1,4 +1,4 @@
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Time.Tests.TimeFixture))]

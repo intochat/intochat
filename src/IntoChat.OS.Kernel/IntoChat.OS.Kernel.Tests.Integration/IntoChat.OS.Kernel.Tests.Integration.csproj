@@ -1,16 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The OS composition hosted in the test process (OsTestBrain): no containers, no AppHost. -->
   <ItemGroup>
-    <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
-    <Using Include="IntoChat.OS.Kernel.Testing" />
-    <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
-    <Compile Include="../../../features/os/Engineer/EngineerKeys.cs" Link="Features/EngineerKeys.cs" />
-    <Compile Include="../../../features/os/Settings/SettingsTabs.cs" Link="Features/SettingsTabs.cs" />
-    <Compile Include="../../../features/os/Settings/SettingsView.cs" Link="Features/SettingsView.cs" />
-    <Compile Include="../../../features/os/Settings/SettingsCopy.cs" Link="Features/SettingsCopy.cs" />
-    <Compile Include="../../../features/os/Apps/AppsNames.cs" Link="Features/AppsNames.cs" />
-    <Compile Include="../../../features/os/Apps/AppsView.cs" Link="Features/AppsView.cs" />
   </ItemGroup>
 </Project>

@@ -1,55 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <Compile Include="../../../features/os/Friends/Friends.cs" Link="Features/Friends.cs" />
-    <Compile Include="../../../features/os/Memory/Memory.cs" Link="Features/Memory.cs" />
-    <Compile Include="../../../features/os/Memory/Shape.cs" Link="Features/Shape.cs" />
-    <Compile Include="../../../features/os/Memory/Intents.cs" Link="Features/MemoryIntents.cs" />
-    <Compile Include="../../../features/os/Memory/Reviews.cs" Link="Features/MemoryReviews.cs" />
-    <Compile Include="../../../features/os/Memory/Episodes.cs" Link="Features/MemoryEpisodes.cs" />
-    <Compile Include="../../../features/os/Memory/Consolidation.cs" Link="Features/MemoryConsolidation.cs" />
-    <Compile Include="../../../features/os/Memory/RecallLadder.cs" Link="Features/MemoryRecallLadder.cs" />
-    <Compile Include="../../../features/os/BrainView/BrainView.cs" Link="Features/BrainView.cs" />
-    <Compile Include="../../../features/os/Calculator/Keypad.cs" Link="Features/Keypad.cs" />
-    <Compile Include="../../../features/os/Ino/InoView.cs" Link="Features/InoView.cs" />
-    <Compile Include="../../../features/os/Ino/InoTools.cs" Link="Features/InoTools.cs" />
-    <Compile Include="../../../features/os/Ino/Pending.cs" Link="Features/InoPending.cs" />
-    <Compile Include="../../../features/os/Desktop/Desktop.cs" Link="Features/Desktop.cs" />
-    <Compile Include="../../../features/os/Desktop/DesktopLayout.cs" Link="Features/DesktopLayout.cs" />
-    <Compile Include="../../../features/os/Desktop/WindowOps.cs" Link="Features/WindowOps.cs" />
-    <Compile Include="../../../features/os/Settings/SettingsTabs.cs" Link="Features/SettingsTabs.cs" />
-    <Compile Include="../../../features/os/Settings/SettingsView.cs" Link="Features/SettingsView.cs" />
-    <Compile Include="../../../features/os/Settings/SettingsCopy.cs" Link="Features/SettingsCopy.cs" />
-    <Compile Include="../../../features/os/Settings/Settings.cs" Link="Features/Settings.cs" />
-    <Compile Include="../../../features/os/Ino/InoKeys.cs" Link="Features/InoKeys.cs" />
-    <Compile Include="../../../features/os/Ino/InoChats.cs" Link="Features/InoChats.cs" />
-    <Compile Include="../../../features/os/Ino/InoLayout.cs" Link="Features/InoLayout.cs" />
-    <Compile Include="../../../features/os/Ino/InoViewState.cs" Link="Features/InoViewState.cs" />
-    <Compile Include="../../../features/os/Ino/InoChatCommands.cs" Link="Features/InoChatCommands.cs" />
-    <Compile Include="../../../features/os/Ino/InoRefresher.cs" Link="Features/InoRefresher.cs" />
-    <Compile Include="../../../features/os/Ino/InoModels.cs" Link="Features/InoModels.cs" />
-    <Compile Include="../../../features/os/Ino/InoCopy.cs" Link="Features/InoCopy.cs" />
-    <Compile Include="../../../features/os/Ino/InoLinks.cs" Link="Features/InoLinks.cs" />
-    <Compile Include="../../../features/os/Apps/AppsNames.cs" Link="Features/AppsNames.cs" />
-    <Compile Include="../../../features/os/Apps/AppsView.cs" Link="Features/AppsView.cs" />
-
-    <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <!-- CapabilityKitCoverageFacts reads the kit subclasses of every module providing a capability from its own tests/ (D-06).
-         Built first, copied to kits/ (not referenced: the catalog discovers IntoChat.OS.Modules.*.dll beside the tests). -->
-    <KitTestProject Include="../../IntoChat.OS.Modules/Google/Drive/tests/IntoChat.OS.Modules.Google.Drive.Tests.Integration/IntoChat.OS.Modules.Google.Drive.Tests.Integration.csproj" />
-    <KitTestProject Include="../../IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj" />
-    <KitTestProject Include="../IntoChat.OS.Kernel.Tests.Integration/IntoChat.OS.Kernel.Tests.Integration.csproj" />
-    <ProjectReference Include="@(KitTestProject)" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
-    <Using Include="IntoChat.OS.Kernel.Testing" />
     <ProjectReference Include="../../IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" IsAspireProjectResource="false" Aliases="AppHost" />
   </ItemGroup>
-  <Target Name="CopyKitTests" AfterTargets="Build">
-    <MSBuild Projects="@(KitTestProject)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
-      <Output TaskParameter="TargetOutputs" ItemName="KitTestAssembly" />
-    </MSBuild>
-    <Copy SourceFiles="@(KitTestAssembly)" DestinationFolder="$(OutDir)kits" SkipUnchangedFiles="true" />
-  </Target>
 </Project>

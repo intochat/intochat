@@ -356,6 +356,9 @@ DigitalBrain.Testing.RecordingSynapses.Ensure<TSignal>(DigitalBrain.NeuronId fro
 DigitalBrain.Testing.RecordingSynapses.RecordingSynapses(DigitalBrain.NeuronId subscriber) -> void
 DigitalBrain.Testing.RecordingSynapses.Remove(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.RecordingSynapses.Subscriber.get -> DigitalBrain.NeuronId
+DigitalBrain.Testing.ModuleOnTestOSFacts<TModule>
+DigitalBrain.Testing.ModuleOnTestOSFacts<TModule>.EveryNeuronClassRegistersAndEveryContractBindsOnTestOS() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.ModuleOnTestOSFacts<TModule>.ModuleOnTestOSFacts() -> void
 DigitalBrain.Testing.SiloHost
 DigitalBrain.Testing.TestClock
 DigitalBrain.Testing.TestClock.Advance(System.TimeSpan by) -> void

@@ -61,7 +61,7 @@
 
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
-       and project shape, and get just the Aspire target from IntoChat.OS.Testing.Aspire. -->
+       and project shape. Module tests host on DigitalBrain.Testing (TestOS, SiloHost). -->
   <PropertyGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
@@ -87,11 +87,6 @@
   <ItemGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <PackageReference Include="xunit.v3.mtp-v2" />
     <Using Include="Xunit" />
-    <Using Include="IntoChat.OS.Testing" />
-  </ItemGroup>
-  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">
-    <Using Include="IntoChat.OS.Testing.Aspire" />
-    <Using Include="IntoChat.OS.Kernel.Testing" />
   </ItemGroup>
 
   <PropertyGroup>

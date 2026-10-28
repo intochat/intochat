@@ -2,7 +2,7 @@ using DigitalBrain;
 using IntoChat.OS.Modules.Time.Reminders;
 using IntoChat.OS.Modules.Time.Reminders.Signals;
 using IntoChat.OS.Modules.Time.Timers.Signals;
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 using ITimer = IntoChat.OS.Modules.Time.Timers.ITimer;
 
 namespace IntoChat.OS.Modules.Time.Tests;

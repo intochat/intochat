@@ -6,7 +6,6 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Playwright" />
-    <ProjectReference Include="../IntoChat.OS.Kernel.Testing/IntoChat.OS.Kernel.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../../IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
