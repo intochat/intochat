@@ -104,6 +104,11 @@ internal sealed class BrainRuntimeNeuron(
     // before that change and finished compiling after it is not applied.
     private readonly Dictionary<string, long> _changed = new(StringComparer.Ordinal);
     private long _tickets;
+    // Per owner, the program a reassign replaced and what went with it, kept until the sandbox has the new build running. If the
+    // sandbox cannot drain the old run it keeps it and reports the update failed; the old program is then put back.
+    private readonly Dictionary<string, Superseded> _superseded = new(StringComparer.Ordinal);
+    // Callers of Settled, waiting for an owner's program to report.
+    private readonly List<(string Owner, TaskCompletionSource Reported)> _settling = [];
     // Assign requests in flight and the last one applied per owner, by RequestKey: a repeat joins or answers them.
     private readonly Dictionary<string, Task<ProgramView>> _assigning = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (string Request, ProgramView View)> _applied = new(StringComparer.Ordinal);
@@ -322,6 +327,15 @@ internal sealed class BrainRuntimeNeuron(
         var previous = Snapshot.Programs.FirstOrDefault(p => p.Owner == owner);
         var program = ProgramAssignment.Of(owner, hash, compiled.Settings, compiled.Caller ?? previous?.Principal, behaviors);
         var replaced = previous?.Behaviors.Except(behaviors).Select(b => b.Id(owner)).ToArray() ?? [];
+        // With a sandbox connected the old build may keep running, so what replacing it removes is kept until the new one runs.
+        if (previous is not null && replaced.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected })
+        {
+            _superseded[owner] = _superseded.TryGetValue(owner, out var open) ? open with { NewHash = hash }
+                : new(previous, [.. Snapshot.Subscriptions.Where(s => previous.Behaviors.Any(b => b.Id(owner) == s.Behavior))],
+                    new Dictionary<string, string>(Snapshot.AssignmentRevisions, StringComparer.Ordinal),
+                    new Dictionary<string, string>(Snapshot.Initialized, StringComparer.Ordinal), hash);
+        }
+        else { _superseded.Remove(owner); }
         var removed = replaced.Except(behaviors.Select(b => b.Id(owner)), StringComparer.Ordinal).ToArray();
         var revisions = new Dictionary<string, string>(Snapshot.AssignmentRevisions, StringComparer.Ordinal);
         var initialized = new Dictionary<string, string>(Snapshot.Initialized, StringComparer.Ordinal);
@@ -355,6 +369,9 @@ internal sealed class BrainRuntimeNeuron(
         }
         return View(program);
     }
+
+    private sealed record Superseded(ProgramAssignment Program, Subscription[] Subscriptions, Dictionary<string, string> Revisions,
+        Dictionary<string, string> Initialized, string NewHash);
 
     private sealed record CompiledProgram(string Owner, BehaviorAssembly[] Behaviors, Dictionary<string, string> Settings, CallerContext? Caller);
 
@@ -616,6 +633,13 @@ internal sealed class BrainRuntimeNeuron(
                 }
                 return;
             }
+            if (status.Status == "UpdateFailed" && _superseded.TryGetValue(program.Owner, out var superseded) && superseded.NewHash == program.Hash)
+            {
+                await RestoreAsync(program, superseded, status);
+                NotifySettled(program.Owner);
+                Flush();
+                return;
+            }
             if (status.Status is "Exited" or "Stopped")
             {
                 var initialized = new Dictionary<string, string>(Snapshot.Initialized, StringComparer.Ordinal);
@@ -624,8 +648,72 @@ internal sealed class BrainRuntimeNeuron(
             }
             _reported[status.Behavior] = (status.Status, status.Error);
             if (status is { Status: "Exited", ExitCode: not (null or 0) }) { Failed(program.Owner, assembly.Hash, status); }
+            // The new build is running: what its predecessor left behind is no longer needed.
+            if (status.Status == "Running" && program.Behaviors.All(b => _reported.GetValueOrDefault(b.Id(program.Owner)).Status == "Running")) { _superseded.Remove(program.Owner); }
+            NotifySettled(program.Owner);
         }
         Flush();
+    }
+
+    // The sandbox kept the old run: the program that run belongs to is the assigned one again, with its subscriptions (so the signals
+    // it is owed are read from the sources' logs again), and the sandbox is told so every behavior returns to it. The failure stays
+    // reported for the behavior that could not be updated.
+    private async Task RestoreAsync(ProgramAssignment current, Superseded old, BehaviorStatusReport failure)
+    {
+        _superseded.Remove(current.Owner);
+        var owner = current.Owner;
+        var oldIds = old.Program.Behaviors.Select(b => b.Id(owner)).ToHashSet(StringComparer.Ordinal);
+        var newOnly = current.Behaviors.Select(b => b.Id(owner)).Where(id => !oldIds.Contains(id)).ToArray();
+        var revisions = new Dictionary<string, string>(Snapshot.AssignmentRevisions, StringComparer.Ordinal);
+        var initialized = new Dictionary<string, string>(Snapshot.Initialized, StringComparer.Ordinal);
+        foreach (var id in newOnly) { revisions.Remove(id); initialized.Remove(id); }
+        foreach (var id in oldIds)
+        {
+            if (old.Revisions.TryGetValue(id, out var revision)) { revisions[id] = revision; } else { revisions.Remove(id); }
+            if (old.Initialized.TryGetValue(id, out var ready)) { initialized[id] = ready; } else { initialized.Remove(id); }
+        }
+        var kept = Snapshot.Subscriptions.Where(s => !oldIds.Contains(s.Behavior) && !newOnly.Contains(s.Behavior, StringComparer.Ordinal)).ToArray();
+        await Save(Snapshot with
+        {
+            Programs = [.. Snapshot.Programs.Where(p => p.Owner != owner), old.Program],
+            Subscriptions = [.. kept, .. old.Subscriptions],
+            AssignmentRevisions = revisions,
+            Initialized = initialized,
+        }, Changed());
+        foreach (var id in newOnly.Concat(oldIds)) { _reported.Remove(id); }
+        _reported[failure.Behavior] = (failure.Status, failure.Error);
+        logger.LogWarning("The sandbox could not replace {Behavior}; the previous program {Hash} of {Owner} stays assigned: {Error}", failure.Behavior, old.Program.Hash, owner, failure.Error);
+        await WatchSourcesAsync();
+        if (Snapshot.Session is { } session)
+        {
+            foreach (var id in newOnly) { streams.TryPush(session.Id, RetireEvent.Kind, new RetireEvent(id)); }
+            foreach (var behavior in old.Program.Behaviors) { streams.TryPush(session.Id, AssignmentEvent.Kind, await AssignmentFor(old.Program, behavior)); }
+        }
+        _ = Self<IBrainRuntimeArrivals>(arrivals => arrivals.CatchUp());
+    }
+
+    // Interleaved: waits for each behavior of the owner's current program to report (running, failed to update, or exited), or the
+    // timeout; answers the program as it then stands. The assigner of a program reads from it whether the program it asked for runs.
+    public async Task<ProgramView?> Settled(string owner, TimeSpan timeout)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        using var limit = new CancellationTokenSource(timeout, time);
+        while (!limit.IsCancellationRequested)
+        {
+            if (Snapshot.Programs.FirstOrDefault(p => p.Owner == owner) is not { } program) { return null; }
+            if (program.Behaviors.All(b => _reported.TryGetValue(b.Id(owner), out var last) && last.Status != "Starting")) { return View(program); }
+            var reported = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _settling.Add((owner, reported));
+            try { await reported.Task.WaitAsync(limit.Token); }
+            catch (OperationCanceledException) { break; }
+            finally { _settling.RemoveAll(waiter => waiter.Reported == reported); }
+        }
+        return Snapshot.Programs.FirstOrDefault(p => p.Owner == owner) is { } current ? View(current) : null;
+    }
+
+    private void NotifySettled(string owner)
+    {
+        foreach (var waiter in _settling.Where(waiter => waiter.Owner == owner).ToArray()) { waiter.Reported.TrySetResult(); }
     }
 
     // A behavior that exited while batches were in flight failed those runs. They are no longer started, so

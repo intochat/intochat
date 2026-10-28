@@ -37,6 +37,12 @@ public sealed class BehaviorRun : IAsyncDisposable
 
     public string Tail(int lines) => _log.Tail(lines);
 
+    // A line of the host's own for this run's log (an update that did not happen, say), next to what the behavior wrote.
+    public void Note(string line) => _log.Append(line);
+
+    // Set while a reassign waits for this run's in-flight work; cleared if the reassign is given up.
+    public bool Draining { get; internal set; }
+
     public static BehaviorRun Start(SessionConnection session, AssignmentEvent assignment, AssemblyLoadContext context, Assembly assembly, int logLines, ILogger logger)
     {
         var run = new BehaviorRun(assignment, context, logLines)

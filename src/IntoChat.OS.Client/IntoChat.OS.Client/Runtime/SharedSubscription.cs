@@ -23,13 +23,23 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
     // The batches, by watermark, some reader handled and the brain has not been told about. A report covers the
     // batches at or below its watermark; it is a skip when no reader handled any of them.
     private readonly HashSet<long> _handled = [];
+    // While paused (a reassign is draining this behavior) arriving batches are kept back, not handed to readers; resumed, they are
+    // handed over in order. _delivered is the highest watermark handed to a reader, so idle means every reader acknowledged it.
+    private readonly List<SignalBatchEvent> _held = [];
+    private bool _paused;
+    private long _delivered;
+    private TaskCompletionSource _idle = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public Reader Join()
     {
         lock (_gate)
         {
             var reader = new Reader(this, _reported);
-            foreach (var batch in _unacknowledged) { reader.Queue.Writer.TryWrite(batch); }
+            foreach (var batch in _unacknowledged.Where(batch => !_held.Contains(batch)))
+            {
+                reader.Queue.Writer.TryWrite(batch);
+                _delivered = Math.Max(_delivered, batch.Watermark);
+            }
             _readers.Add(reader);
             return reader;
         }
@@ -45,8 +55,46 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
             _queued = batch.Watermark;
             var arrived = batch with { Signals = fresh };
             _unacknowledged.Add(arrived);
-            foreach (var reader in _readers) { reader.Queue.Writer.TryWrite(arrived); }
+            if (_paused) { _held.Add(arrived); return; }
+            Deliver(arrived);
         }
+    }
+
+    // Under the gate.
+    private void Deliver(SignalBatchEvent batch)
+    {
+        foreach (var reader in _readers) { reader.Queue.Writer.TryWrite(batch); }
+        _delivered = Math.Max(_delivered, batch.Watermark);
+    }
+
+    // Stops handing batches to readers. The task completes once every batch already handed over is acknowledged.
+    public Task Pause()
+    {
+        lock (_gate)
+        {
+            _paused = true;
+            _idle = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            SettleIdle();
+            return _idle.Task;
+        }
+    }
+
+    // The drain was abandoned: what was kept back goes to the readers now, in order.
+    public void Resume()
+    {
+        lock (_gate)
+        {
+            _paused = false;
+            var held = _held.ToArray();
+            _held.Clear();
+            foreach (var batch in held) { Deliver(batch); }
+        }
+    }
+
+    // Under the gate.
+    private void SettleIdle()
+    {
+        if (_paused && (_readers.Count == 0 || _readers.Min(reader => reader.Acknowledged) >= _delivered)) { _idle.TrySetResult(); }
     }
 
     public void Complete()
@@ -66,6 +114,7 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
             _wallMicroseconds += wallMicroseconds;
             if (!skipped && watermark > _reported) { _handled.Add(watermark); }
             report = Advance();
+            SettleIdle();
         }
         return report is { } advanced ? SendAsync(advanced, cancellationToken) : Task.CompletedTask;
     }
@@ -85,10 +134,13 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
             {
                 _unacknowledged.Clear();
                 _handled.Clear();
+                _held.Clear();
                 _queued = _reported = _confirmed;
+                SettleIdle();
                 return;
             }
             report = Advance();
+            SettleIdle();
         }
         if (report is { } advanced) { _ = SendQuietlyAsync(advanced); }
     }

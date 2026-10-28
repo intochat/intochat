@@ -17,6 +17,10 @@ public interface IBrainPrograms
     // assembly bytes, the same name the sandbox verifies on download. Nothing is compiled; storing and assigning are as Assign.
     [DigitalBrain.Interleaves] Task<ProgramView> AssignPrebuilt(string owner, Dictionary<string, PrebuiltBehavior> behaviors, Dictionary<string, string> settings);
     Task Retire(string owner);
+    // Waits until each synapse of the owner's program has reported, running, failed to update (the sandbox could not stop the
+    // previous build and kept it: the previous program is assigned again) or exited, or the timeout; answers the program as it
+    // then stands, null when none is assigned. A synapse still Starting at the timeout did not come up.
+    [DigitalBrain.Interleaves] Task<ProgramView?> Settled(string owner, TimeSpan timeout);
     // A pure read: it never waits for a turn in progress.
     [DigitalBrain.Interleaves] Task<ProgramView?> Describe(string owner);
 }

@@ -13,6 +13,17 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 // hash to their name, and runs it in its own collectible load context.
 public sealed class BehaviorLoader(HttpClient downloads, IOptions<SandboxOptions> options)
 {
+    public TimeSpan DrainDeadline => options.Value.DrainDeadline;
+
+    // Fetches and verifies an assignment's assembly into the cache without running it, so a reassign knows the new build is good
+    // before it stops the old one.
+    public async Task PrepareAsync(AssignmentEvent assignment, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(assignment);
+        await CachedAsync(assignment.Hash, assignment.Assembly, verify: true, cancellationToken).ConfigureAwait(false);
+        await CachedAsync(assignment.Hash + ".pdb", assignment.Symbols, verify: false, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<BehaviorRun> LoadAsync(SessionConnection session, AssignmentEvent assignment, ILogger logger, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(assignment);

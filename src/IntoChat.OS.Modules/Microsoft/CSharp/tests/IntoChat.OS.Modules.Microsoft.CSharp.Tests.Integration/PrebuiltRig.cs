@@ -46,22 +46,29 @@ internal sealed class PrebuiltRig : IAsyncDisposable
         sandbox?.Invoke(options);
         var rig = new PrebuiltRig(brain, store, options);
         using (brain.Owner.AsCaller())
-        { await rig.App.Create(new("Counter", "", [new("add", ""), new("pong", "")], [], []), "spec"); }
+        { await rig.App.Create(new("Counter", "", [new("add", ""), new("pong", ""), new("started", "")], [], []), "spec"); }
         return rig;
     }
 
     // An "add" request: the behavior answers with a "pong" request carrying the input plus an offset only this build knows.
-    public CompiledBehavior Build(int offset, string extra = "")
+    // Gated: a request is held in flight, after announcing it with a "started" request, until the fact creates GatePath.
+    public CompiledBehavior Build(int offset, bool gated = false)
     {
+        var hold = gated
+            ? """
+                await app.Request("started", request.Input);
+                while (!File.Exists(brain.Setting("Gate")!)) { await Task.Delay(5, brain.Stopping); }
+                """
+            : "";
         var compilation = Brain.Services.GetRequiredService<CSharpScriptCheck>().Compile(new Dictionary<string, string>
         {
             ["add.cs"] = $$"""
                 using IntoChat.OS.Modules.Apps;
                 await using var brain = await IntoChatOSClient.ConnectAsync(args);
                 var app = brain.Get<IApp>(brain.Setting("App")!);
-                {{extra}}
                 await foreach (var request in brain.On(app, "add", brain.Stopping))
                 {
+                    {{hold}}
                     await app.Request("pong", (int.Parse(request.Input) + {{offset}}).ToString());
                 }
                 """,
@@ -70,7 +77,11 @@ internal sealed class PrebuiltRig : IAsyncDisposable
         return compilation.Assemblies["add.cs"];
     }
 
-    public Dictionary<string, string> Settings => new(StringComparer.Ordinal) { ["App"] = AppKey };
+    public string GatePath { get; } = Path.Combine(Path.GetTempPath(), "prebuilt-gate-" + Guid.NewGuid().ToString("N"));
+
+    public void OpenGate() => File.WriteAllText(GatePath, "open");
+
+    public Dictionary<string, string> Settings => new(StringComparer.Ordinal) { ["App"] = AppKey, ["Gate"] = GatePath };
 
     public static Dictionary<string, PrebuiltBehavior> One(CompiledBehavior built)
         => new(StringComparer.Ordinal) { ["add.cs"] = new(built.Assembly, built.Symbols, built.Hash) };
@@ -78,19 +89,20 @@ internal sealed class PrebuiltRig : IAsyncDisposable
     public Task<ProgramView> Assign(CompiledBehavior built) => Programs.AssignPrebuilt(AppKey, One(built), Settings);
 
     // Opens the real sandbox Session once the first assignment made the brain start one.
-    public async Task Attach(CancellationToken ct, ILogger? logger = null)
+    public async Task Attach(CancellationToken ct, TimeProvider? time = null, TimeSpan? drainDeadline = null)
     {
         var id = (await RuntimeBrain.Runtime(Brain, Scope).Inspect(ct)).SessionId!;
         var token = Brain.Services.GetRequiredService<SessionTokens>().Issue(Scope, id);
         Connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/" + Scope), token, RuntimeBrain.Fingerprint(Brain), new Forward(Brain.HttpClient), ct);
         var loader = new BehaviorLoader(new HttpClient(new Memory(Store)), global::Microsoft.Extensions.Options.Options.Create(Options));
-        Session = new Session(Connection, loader, logger ?? NullLogger.Instance);
+        Session = new Session(Connection, loader, NullLogger.Instance, time: time, drainDeadline: drainDeadline);
         var session = Session;
         _control = Task.Run(() => session.RunAsync(_stop.Token), ct);
     }
 
     public async ValueTask DisposeAsync()
     {
+        OpenGate();
         _stop.Cancel();
         try { if (_control is not null) { await _control; } } catch (OperationCanceledException) { }
         if (Session is not null) { await Session.DisposeAsync(); }

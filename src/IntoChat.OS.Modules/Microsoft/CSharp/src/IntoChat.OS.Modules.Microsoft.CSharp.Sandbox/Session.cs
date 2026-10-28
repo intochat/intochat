@@ -11,7 +11,7 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 // its ring buffer. Every load and every exit is reported. A behavior the brain did not retire is the
 // host's to keep alive: an exit is reported and the behavior is loaded again after a growing backoff,
 // until the brain retires it or assigns it a different hash.
-public sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger, TimeSpan? reloadBase = null, TimeProvider? time = null) : IAsyncDisposable
+public sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger, TimeSpan? reloadBase = null, TimeProvider? time = null, TimeSpan? drainDeadline = null) : IAsyncDisposable
 {
     private static readonly TimeSpan ReloadCap = TimeSpan.FromSeconds(60);
 
@@ -67,11 +67,19 @@ public sealed class Session(SessionConnection connection, BehaviorLoader loader,
     // supersedes the reload an earlier one has pending.
     private async Task LoadAsync(AssignmentEvent assignment, CancellationToken cancellationToken)
     {
+        var superseded = _assigned.TryGetValue(assignment.Behavior, out var earlier) ? earlier : null;
         _assigned[assignment.Behavior] = assignment;
         // A different hash is a different program, so the backoff an earlier one earned does not hold it back.
         if (_failures.TryGetValue(assignment.Behavior, out var failed) && failed.Assignment.Hash != assignment.Hash) { _failures.TryRemove(assignment.Behavior, out _); }
         // A swap unloads only this behavior; the others keep running.
-        if (_behaviors.TryRemove(assignment.Behavior, out var previous)) { await previous.DisposeAsync().ConfigureAwait(false); }
+        if (_behaviors.TryGetValue(assignment.Behavior, out var previous))
+        {
+            if (await DrainAsync(previous, assignment, superseded, cancellationToken).ConfigureAwait(false) is { } refusal)
+            {
+                await ReportAsync(new(assignment.Behavior, assignment.Hash, "UpdateFailed", null, refusal, assignment.Revision), cancellationToken).ConfigureAwait(false);
+                return;
+            }
+        }
         BehaviorRun run;
         try { run = await loader.LoadAsync(connection, assignment, logger, cancellationToken).ConfigureAwait(false); }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -83,6 +91,36 @@ public sealed class Session(SessionConnection connection, BehaviorLoader loader,
         logger.LogInformation("Loaded behavior {Behavior} {Hash}", assignment.Behavior, assignment.Hash);
         await ReportAsync(new(run.Id, run.Hash, "Running", null, null, run.Assignment.Revision), cancellationToken).ConfigureAwait(false);
         _ = ReportExitAsync(run);
+    }
+
+    // A reassign: fetch and check the new build, stop the old run taking new work and wait for its in-flight work, then unload it. Any
+    // refusal (the build cannot be fetched or does not match its hash, the work does not finish in the deadline) leaves the old
+    // run exactly as it was, still assigned and still receiving its signals, and says why.
+    private async Task<string?> DrainAsync(BehaviorRun previous, AssignmentEvent assignment, AssignmentEvent? superseded, CancellationToken cancellationToken)
+    {
+        string? refusal = null;
+        try
+        {
+            await loader.PrepareAsync(assignment, cancellationToken).ConfigureAwait(false);
+            previous.Draining = true;
+            if (await connection.PauseAsync(assignment.Behavior, drainDeadline ?? loader.DrainDeadline, time, cancellationToken).ConfigureAwait(false))
+            {
+                // The old run may have exited by itself meanwhile; then there is nothing left to stop.
+                if (_behaviors.TryRemove(new(assignment.Behavior, previous))) { await previous.DisposeAsync().ConfigureAwait(false); }
+                connection.Release(assignment.Behavior);
+                logger.LogInformation("Drained and unloaded behavior {Behavior} {Hash}", previous.Id, previous.Hash);
+                return null;
+            }
+            refusal = $"The running build still had work in flight after {(drainDeadline ?? loader.DrainDeadline).TotalSeconds:0.##} seconds; it keeps running and {assignment.Hash} was not loaded.";
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        { refusal = $"The new build {assignment.Hash} could not be prepared: {error.Message}"; }
+        previous.Draining = false;
+        connection.Resume(assignment.Behavior);
+        if (superseded is not null) { _assigned[assignment.Behavior] = superseded; }
+        previous.Note(refusal);
+        logger.LogWarning("Update of behavior {Behavior} to {Hash} failed: {Refusal}", assignment.Behavior, assignment.Hash, refusal);
+        return refusal;
     }
 
     private static bool Same(AssignmentEvent running, AssignmentEvent assigned)

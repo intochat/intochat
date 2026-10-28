@@ -23,6 +23,10 @@ public sealed class SessionConnection : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Channel<(string Kind, string Data)> _control = Channel.CreateUnbounded<(string, string)>(new() { SingleReader = true });
     private readonly ConcurrentDictionary<string, SharedSubscription> _subscriptions = new(StringComparer.Ordinal);
+    // The behavior each subscription was made for, and the behaviors whose subscriptions are paused (draining before a reassign).
+    private readonly ConcurrentDictionary<string, string> _behaviorOf = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _paused = new(StringComparer.Ordinal);
+    private readonly Lock _pauses = new();
     private volatile string _token;
     private Task _pump = Task.CompletedTask;
     private Task _heartbeat = Task.CompletedTask;
@@ -95,7 +99,44 @@ public sealed class SessionConnection : IAsyncDisposable
         using var response = await SendAsync(HttpMethod.Post, RuntimeProtocol.Report, new RuntimeReport(Subscribe: subscribe), HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
         await EnsureSuccessAsync(response, "subscribe to " + subscribe.Signal, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(RuntimeProtocol.Json, cancellationToken).ConfigureAwait(false);
-        return body.GetProperty("subscription").GetString() ?? throw new InvalidOperationException("The brain answered a subscribe without a subscription id.");
+        var id = body.GetProperty("subscription").GetString() ?? throw new InvalidOperationException("The brain answered a subscribe without a subscription id.");
+        _behaviorOf[id] = subscribe.Behavior;
+        bool paused;
+        lock (_pauses) { paused = _paused.Contains(subscribe.Behavior); }
+        if (paused) { _ = Subscription(id).Pause(); }
+        return id;
+    }
+
+    // Stops handing a behavior's signals to its readers and waits until the batches already handed over are acknowledged: its
+    // in-flight work is done. False when that takes longer than the deadline; the pause stands until Resume or Release.
+    public async Task<bool> PauseAsync(string behavior, TimeSpan deadline, TimeProvider? time, CancellationToken cancellationToken)
+    {
+        lock (_pauses) { _paused.Add(behavior); }
+        var idle = Task.WhenAll(_behaviorOf.Where(pair => pair.Value == behavior).Select(pair => Subscription(pair.Key).Pause()).ToArray());
+        try
+        {
+            await idle.WaitAsync(deadline, time ?? TimeProvider.System, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (TimeoutException) { return false; }
+    }
+
+    // The drain was abandoned: the behavior's run goes on and what was held back reaches it now.
+    public void Resume(string behavior)
+    {
+        lock (_pauses) { _paused.Remove(behavior); }
+        foreach (var pair in _behaviorOf.Where(pair => pair.Value == behavior)) { Subscription(pair.Key).Resume(); }
+    }
+
+    // The behavior's run was replaced: its old subscriptions go, and the next run's start unpaused.
+    public void Release(string behavior)
+    {
+        lock (_pauses) { _paused.Remove(behavior); }
+        foreach (var pair in _behaviorOf.Where(pair => pair.Value == behavior).ToArray())
+        {
+            _behaviorOf.TryRemove(pair.Key, out _);
+            if (_subscriptions.TryRemove(pair.Key, out var gone)) { gone.Complete(); }
+        }
     }
 
     public async Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken, long cpuMicroseconds = 0, long wallMicroseconds = 0, int batches = 1, bool skipped = false)
