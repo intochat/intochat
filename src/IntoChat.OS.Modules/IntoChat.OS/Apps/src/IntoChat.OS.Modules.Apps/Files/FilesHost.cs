@@ -44,6 +44,8 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
     {
         try
         {
+            if (await HostCaller.ForBrain(services, brain) is not { } caller || caller.BrainId != brain) { return; }
+            CallerContextStamper.Stamp(caller);
             var key = IApp.Key(brain, "files");
             var app = SiloNeurons.Get<IApp>(services, key);
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");

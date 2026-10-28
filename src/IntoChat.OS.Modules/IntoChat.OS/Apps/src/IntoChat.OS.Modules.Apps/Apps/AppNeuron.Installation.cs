@@ -3,6 +3,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -30,6 +31,9 @@ internal sealed partial class AppNeuron
         var brain = BrainId();
         var directory = await broker.Identity();
         if (await directory.OwnerOfBrain(brain) is not { } account) { return; }
+        // Host install runs with the caller removed. Membership changes require the brain owner.
+        // AppId stays empty: the directory accepts the owner, and a platform sentinel is not the owner.
+        using var owner = RuntimeCallerContext.Stamp(new CapabilityCaller(account.OwnerPrincipalId, account.AccountId, brain));
         await directory.EnsureMember(new Member
         {
             PrincipalId = AppPrincipal.Id(Key),
@@ -47,7 +51,9 @@ internal sealed partial class AppNeuron
         var brain = BrainId();
         var principal = AppPrincipal.Id(Key);
         var directory = await broker.Identity();
-        if (await directory.Membership(brain, principal) is { Role: MemberRole.App })
-        { await directory.RemovePrincipalMember(brain, principal); }
+        if (await directory.OwnerOfBrain(brain) is not { } account) { return; }
+        if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
+        using var owner = RuntimeCallerContext.Stamp(new CapabilityCaller(account.OwnerPrincipalId, account.AccountId, brain));
+        await directory.RemovePrincipalMember(brain, principal);
     }
 }

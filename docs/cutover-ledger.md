@@ -722,3 +722,39 @@ Not dock icons, and why:
 - Calculator, Circle, Data Visualizer, Engineer, FilmCraft, Friends, Memory, PhotoCraft, and BrainView are installed the same way and were not open.
 
 08-09 still owes porting Workspace, Desktop, and Settings to compiled `[App]` types. This pass leaves them as scripts under `features/os`. No Dart file was edited.
+
+## Step 8 — Live proof (final)
+
+### cutover(9): shell checklist
+
+An installed app's membership is stamped with the brain owner (`new CapabilityCaller` of `OwnerOfBrain`) before `EnsureMember` and `RemovePrincipalMember`. A cluster listener captures the publishing call's caller and stamps it on the pump, because that pump is not the publishing turn. When the pump still has no caller, `BrainSceneHost` and `FilesHost` stamp the brain owner the same way before they read the graph or open Files. The scene places a directory row (`brain/key`) and the neuron id a synapse stores (`brain/type/key`) as the same sphere. A session neuron is not in the instance directory; the scene still draws it when a synapse names it, so a script subscription has an end.
+
+`dotnet build Intochat.OS.slnx -c Release`: 0 errors, 0 warnings. `IntoChat.OS.Modules.Apps.Tests.Unit` 34 passed. `DigitalBrain.Runtime.Orleans.Tests.Unit` 226 passed.
+
+Production listen, before this shell. Home `C:\Users\vhorb\AppData\Local\Temp\intochat-cutover-prod-9b`, `ASPNETCORE_ENVIRONMENT=Production`, `Topology=local`, `Auth:Posture=Open`, `IntoChatOS:Platform:Storage:ConfiguredCustodyAcknowledged=true`. `GET http://127.0.0.1:5099/health` returned `Healthy`. `<Home>/secrets/session-token.key` is 262 bytes. The same binary without the custody acknowledgement (home `intochat-cutover-prod-9a`) wrote the key and then exited 1 in `BrainStoreCustody` before listen. A direct Production kernel does not see `features/os` (that walk is Development-only), so the shell proof is the AppHost.
+
+Shell, fresh home `C:\Users\vhorb\AppData\Local\Temp\intochat-cutover-shell-9g`:
+
+```
+dotnet run intochat-os.cs -c Release -- --IntoChatOS:Topology=local --IntoChatOS:Home=C:\Users\vhorb\AppData\Local\Temp\intochat-cutover-shell-9g
+```
+
+The AppHost still starts the kernel from `artifacts/bin/IntoChat.OS.Kernel/debug` (`dotnet run --no-build --configuration Debug`). That Debug kernel was built after the scene change (DLL 23:36:55, process start 23:38:08, pid 76360). `GET http://127.0.0.1:23182/health` returned `Healthy`. Flutter process `intochat_os_flutter` (pid 66424) had window title `IntoChat`. `GET /brains/owner/apps` listed 20 Live apps. `POST /brains/owner/apps/connect` returned 200, root `owner/apps/desktop/view`, `activationApp` `workspace`.
+
+| Check | Result | What was read |
+| --- | --- | --- |
+| Workspace | observed | Connect names it as the activation app. Workspace revision 5, navigation-error markdown empty. Windows: Ino, Files, Calculator, Brain, Settings. Workspace stays out of the window list (`Desktop.Hidden`). |
+| Desktop | observed | View `owner/apps/desktop/view` generation 1 version 5. Texts include Ino, Files, Calculator, and the dock chrome (New tab, Apps). |
+| Settings | observed | View `owner/apps/settings/view` generation 1 version 1. Tabs: General, AI models, API keys, Connections, Variables and secrets, Notifications, Archived chats, Danger zone. |
+| Files | observed | Empty until the Files app was asked to `open`. `POST /brains/owner/apps/files/request` `{"operation":"open","input":""}` then view `owner/apps/files/full` generation 1 version 1, text "Storages" and "No storage is connected. Add one in Settings." |
+| Calculator | observed | View generation 1 version 1, 16 keys. Presses `key-0` action `7` and `key-1` action `8` returned 200 `delivered: true`. Display markdown `78`. |
+| Brain neurons and synapses | observed | Empty (revision 0) until `POST /brains/owner/apps/brain/request` open. Then revision 1, 194 spheres, 120 paths. A later workspace `activate` of brain moved the revision from 6 to 17. |
+| Calculator particle | observed | While the scene was open, the `8` press was polled. The scene body contained `"type":"particles"` at revision 2. Display was `78`. |
+
+Opening a window (`desktop` request, or workspace `activate`) places the window. Files content and the brain graph are published when that app receives `open`. The first `activate` calls in this process did not fill them: a cluster listener does not replay a signal from before it handled one, and those calls returned before the hosts had opened the apps. The same `open` after the shell was up did. All 20 apps were already Live, so this was not a missing install. No Dart file was edited.
+
+## Operator
+
+- Production file custody still requires TPM or `IntoChatOS:Platform:Storage:ConfiguredCustodyAcknowledged=true`. `LocalProfile` does not default that flag. Without it a Production kernel writes `secrets/session-token.key` and exits before listen.
+- `Topology=cloud` still requires csharp `RunTokenKey`. This pass did not start a cloud host.
+- Do not merge pull request 335. Do not push a tag and do not run a release workflow.

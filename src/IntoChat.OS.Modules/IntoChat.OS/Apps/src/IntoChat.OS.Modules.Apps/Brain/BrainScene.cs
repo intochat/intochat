@@ -72,14 +72,29 @@ public sealed class BrainScene : DigitalBrain.App
             .OrderBy(neuron => neuron.Type, StringComparer.Ordinal)
             .ThenBy(neuron => neuron.Key, StringComparer.Ordinal)
             .Take(MaxNeurons)
-            .ToArray();
+            .ToList();
+        // A session synapse names its session neuron. That neuron is not in the instance directory, so the path had no end.
+        var known = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var neuron in placed)
+        {
+            known.Add(neuron.Key);
+            known.Add(PlaceId(neuron));
+        }
+        foreach (var end in synapses.SelectMany(row => new[] { row.From, row.To }).Distinct(StringComparer.Ordinal))
+        {
+            if (placed.Count >= MaxNeurons || known.Contains(end) || !NeuronId.TryParse(end, out var id)) { continue; }
+            placed.Add(new BrainInstance(id.Type, id.ToString(), DateTimeOffset.UnixEpoch, null));
+            known.Add(id.ToString());
+        }
         var at = new Dictionary<string, (double X, double Y)>(StringComparer.Ordinal);
-        var nodes = new List<SceneNode>(placed.Length + synapses.Count);
-        for (var index = 0; index < placed.Length; index++)
+        var nodes = new List<SceneNode>(placed.Count + synapses.Count);
+        for (var index = 0; index < placed.Count; index++)
         {
             var neuron = placed[index];
-            var (x, y) = OnCircle(index, placed.Length);
+            var (x, y) = OnCircle(index, placed.Count);
+            // The directory key is brain/key. A synapse names the same neuron as brain/type/key.
             at[neuron.Key] = (x, y);
+            at[PlaceId(neuron)] = (x, y);
             var label = neuron.Type + " " + neuron.Key;
             nodes.Add(new SceneNode(
                 "n" + index.ToString(CultureInfo.InvariantCulture),
@@ -135,6 +150,16 @@ public sealed class BrainScene : DigitalBrain.App
             edge++;
         }
         return new SceneDefinition(nodes.ToArray(), new SceneCamera(Zoom: zoom <= 0 ? 1 : zoom));
+    }
+
+    // A directory row is brain/key. A synapse end is the neuron id brain/type/key. Either string places the same neuron.
+    private static string PlaceId(BrainInstance neuron)
+    {
+        if (NeuronId.TryParse(neuron.Key, out var parsed) && parsed.Type == neuron.Type) { return parsed.ToString(); }
+        var slash = neuron.Key.IndexOf('/');
+        if (slash > 0 && BrainId.IsValid(neuron.Key[..slash]))
+        { return new NeuronId(new BrainId(neuron.Key[..slash]), neuron.Type, neuron.Key[(slash + 1)..]).ToString(); }
+        return neuron.Key;
     }
 
     private static (double X, double Y) OnCircle(int index, int count)

@@ -31,8 +31,7 @@ internal sealed class BrainSceneHost(
         _ = await listeners.Listen<AppRequested>(nameof(BrainSceneHost), (publisher, signal, token) =>
         {
             if (publisher.Key != "apps/brain" || signal.Operation != "open") { return Task.CompletedTask; }
-            if (!CallerContextStamper.TryGet(out var caller) || caller.BrainId != publisher.Brain.Value) { return Task.CompletedTask; }
-            _ = OpenAsync(publisher.Brain.Value, caller, token);
+            _ = OpenAsync(publisher.Brain.Value, token);
             return Task.CompletedTask;
         });
         try
@@ -64,10 +63,11 @@ internal sealed class BrainSceneHost(
         { logger.LogWarning(error, "The brain app was not installed in {Brain}.", brain); }
     }
 
-    private async Task OpenAsync(string brain, CapabilityCaller caller, CancellationToken cancellationToken)
+    private async Task OpenAsync(string brain, CancellationToken cancellationToken)
     {
         try
         {
+            if (await HostCaller.ForBrain(services, brain) is not { } caller || caller.BrainId != brain) { return; }
             CallerContextStamper.Stamp(caller);
             var observer = services.GetRequiredService<IBrainObserver>();
             var neurons = new List<BrainInstance>();

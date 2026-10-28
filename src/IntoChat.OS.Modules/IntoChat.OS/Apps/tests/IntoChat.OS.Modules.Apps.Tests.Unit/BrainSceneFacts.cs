@@ -51,6 +51,37 @@ public sealed class BrainSceneFacts
     }
 
     [Fact]
+    public void ADirectoryKeyMatchesTheNeuronIdASynapseStores()
+    {
+        var calculator = new BrainInstance("apps.app2", "owner/apps/calculator", DateTimeOffset.UnixEpoch, null);
+        var button = new BrainInstance("flutter.button", "owner/apps/calculator/view/key-0", DateTimeOffset.UnixEpoch, null);
+        var synapse = new ObservedSynapse("owner/apps.app2/apps/calculator", "owner/flutter.button/apps/calculator/view/key-0", "ui.clicked");
+        var scene = BrainScene.Compose(
+            [calculator, button],
+            [synapse],
+            new SignalDelivery(synapse.From, synapse.To, synapse.Signal, 3),
+            1);
+        var path = Assert.Single(scene.Nodes, node => node.Type == "path");
+        var spark = Assert.Single(path.Children);
+        Assert.Equal("particles", spark.Type);
+    }
+
+    [Fact]
+    public void ASessionNeuronMissingFromTheDirectoryStillCarriesTheParticle()
+    {
+        var view = new BrainInstance("view", "owner/apps/calculator/view", DateTimeOffset.UnixEpoch, null);
+        var synapse = new ObservedSynapse("owner/view/apps/calculator/view", "owner/runtime.session/calc", "ui.view-action");
+        var scene = BrainScene.Compose(
+            [view],
+            [synapse],
+            new SignalDelivery(synapse.From, synapse.To, synapse.Signal, 4),
+            1);
+        Assert.Equal(2, scene.Nodes.Count(node => node.Type == "sphere"));
+        var path = Assert.Single(scene.Nodes, node => node.Type == "path");
+        Assert.Equal("particles", Assert.Single(path.Children).Type);
+    }
+
+    [Fact]
     public void ATapZoomsUntilTheCap()
     {
         Assert.Equal(1.5, BrainScene.NextZoom(1));
