@@ -769,11 +769,7 @@ internal sealed partial class AppNeuron(
         else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
         try
         {
-            // Durable assignments contain compiled hashes. Reassign the source on activation so a new
-            // host's contracts replace old binary calls, even when the app's version did not change.
-            // This ordinary grain turn serializes source capture and reassignment with program edits.
-            // A shipped built-in is assigned again as its prebuilt package, which the new host carries rebuilt.
-            if (await AssignShipped(configuration)) { return; }
+            // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
             RequireShape(sources);
             await runtime.Deploy(Key, sources, configuration, CancellationToken.None);
         }
@@ -800,18 +796,11 @@ internal sealed partial class AppNeuron(
         if (Snapshot.MigrationPaused) { return; }
         await RecordFeature();
         if (Runtime is not { } runtime) { return; }
-        // A host-shipped built-in the person has not edited runs as its prebuilt package; the sources it carries are for editing.
-        if (await AssignShipped()) { return; }
         var sources = Sources(Snapshot);
         if (sources.Count == 0) { await runtime.Retire(Key, CancellationToken.None); return; }
         RequireShape(sources);
         await runtime.Deploy(Key, sources, Configuration(Snapshot), CancellationToken.None);
     }
-
-    private async Task<bool> AssignShipped(Dictionary<string, string>? configuration = null)
-        => Snapshot.Origin is { PackageDigest: not null } && !Snapshot.Edited
-            && ServiceProvider.GetService<ShippedPrograms>() is { } shipped
-            && await shipped.Assign(Key, Snapshot.Origin, Snapshot.Edited, configuration ?? Configuration(Snapshot), CancellationToken.None);
 
     // The shape gate in front of the runtime's compile gate: every synapse is one reaction.
     private static void RequireShape(IReadOnlyDictionary<string, string> sources)

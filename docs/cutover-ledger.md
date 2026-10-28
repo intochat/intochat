@@ -118,3 +118,17 @@ Added `ObservedSynapse` and `SignalDelivery`. `Synapses` scans the per-brain jou
 Outside this worker's area, required for the move: `using DigitalBrain.Spi` on Aspire client hosting, Authority `NeuronsService`, Orleans `BrainClient` and `OrleansBrain`, Connections `NeuronTypeSearch`, MCP caller/hosting/identity facts/`FixedKernel`, Tools `ToolCapabilitySource`, `IKernel`, `TypeAdded`, and the harness files `VocabularyRingFacts`, `ClientCompositionFacts`, `AspireBrain`, `AspireTestSession`, `ITestBrain`, `InProcessTarget`. `HostDispatchAccessFacts` is the one-line assembly lookup. `Kernel.cs` and `BrainHosting.cs` gained the implementation and the registration. `FastPathFacts.TimedKernel` forwards the two new methods. `CSharpFacts.FakeKernel` throws `NotSupportedException` for them.
 
 Tests: `DigitalBrain.Testing.Tests.Unit` filter `ObserverFacts|ReactionDeliveryFacts` 10 passed, 0 failed. `DigitalBrain.Runtime.Orleans.Tests.Unit` filter `SynapseObservationFacts` 1 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings.
+
+### cutover(3): drop the compiled-app catalogs
+
+Deleted the built-in packer, the prebuilt package catalog, and the uploaded compiled-package installer. A feature loads from its sources. `compiled-apps/` is gitignored; the local tree was removed. `PackageDigest` stays on `AppOrigin` so stored rows still read. Nothing assigns a package from it.
+
+The hard-coded install lists in `OsAppsHosting` and `OsWorkspaceRoot.Connect` are gone. `OsAppsOptions` still exists and starts empty; a deployment can add apps. `OsInoMigration` is gone. `OsBootFacts` and `OsShippedAppFacts` only pinned those lists and were deleted. `TestTierBaseline.json` still names `OsInoMigrationFacts.cs`. That file is in the harness; step 6 owns the ratchet. The fact fails until that line is removed.
+
+`FeatureDirectory.IsCompiledSource` stays until Files leaves `features/os`. The script compiler would otherwise compile `compiled/` and `hosting/`.
+
+Contract records `CompiledAppReview` and `CompiledAppDevelopmentLease` stay so `ContractManifest.json` (step 6) still matches. Nothing calls them.
+
+`AppSource.Shipped` stays. Folder scripts in the marketplace still use that source. `ShippedApps.Is` stays until Workspace, Desktop, and Settings are in-process apps.
+
+Tests: `IntoChat.OS.Modules.Apps.Tests.Unit` 35 passed, 0 failed. `FeatureCompileFacts` 3 passed, 0 failed. `dotnet build Intochat.OS.slnx -c Release` 0 errors, 0 warnings. `FeatureReconcilerFacts` still fails to boot a silo with `CodecNotFoundException` for `PriceQuote`. That failure is from step 2 stripping Contract serializers. It was not rerun as a pass.

@@ -63,7 +63,7 @@ public sealed class FeatureDirectory(string path, bool writable = false)
         => Relative(folder, file) is var relative
             && (relative.StartsWith("bin/", StringComparison.Ordinal) || relative.StartsWith("obj/", StringComparison.Ordinal) || IsCompiledSource(relative));
 
-    // Built-in projects, host adapters and tests are built by MSBuild, never sent to the script runtime or overwritten by it.
+    // Files still keeps its compiled project and host adapter beside the script until that app moves into the module.
     private static bool IsCompiledSource(string relative)
         => relative.StartsWith("compiled/", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("hosting/", StringComparison.OrdinalIgnoreCase)
             || relative.StartsWith("tests/", StringComparison.OrdinalIgnoreCase);

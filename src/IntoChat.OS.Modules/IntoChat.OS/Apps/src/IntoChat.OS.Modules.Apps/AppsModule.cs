@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
@@ -33,6 +32,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IIncomingGrainCallFilter, MarketplaceWriteGuard>();
         services.TryAddSingleton(FeatureCatalog.From);
@@ -40,27 +40,6 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
-        services.TryAddSingleton<ShippedPrograms>();
-        services.TryAddSingleton<CompiledAppReviewStore>();
-        services.TryAddSingleton<CompiledAppInstaller>();
-        services.TryAddSingleton<CompiledAppDevelopment>();
-        services.TryAddSingleton(configured => new ActiveCompiledApps(
-            Path.Combine(DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).Apps, "packages", "active")));
-        services.TryAddSingleton<ICompiledAppAssignment, SandboxCompiledApps>();
-        // The OS publish output carries the prebuilt built-ins under compiled-apps/{publisher}; Features:CompiledFeatures overrides the folder.
-        services.TryAddSingleton(provider => new CompiledBuiltinCatalog(
-            Path.GetFullPath(provider.GetRequiredService<IOptions<AppsOptions>>().Value.CompiledFeatures is { Length: > 0 } given ? given : "compiled-apps", AppContext.BaseDirectory),
-            provider.GetRequiredService<CompiledAppPackages>()));
-        services.TryAddSingleton(_ => new CompiledAppPackages(
-            Path.Combine(DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).Apps, "packages"),
-            new[]
-            {
-                typeof(DigitalBrain.App).Assembly,
-                typeof(DigitalBrain.UI.IPresenter).Assembly,
-                typeof(DigitalBrain.Capabilities.Storage.IStorage).Assembly,
-                typeof(DigitalBrain.Capabilities.Secrets.ISecrets).Assembly,
-                typeof(DigitalBrain.Capabilities.Identity.IIdentity).Assembly,
-            }.Select(assembly => assembly.GetName()).ToDictionary(name => name.Name!, name => name.Version!.ToString(), StringComparer.Ordinal)));
         services.TryAddSingleton<AppWorkQueue>();
         services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
@@ -78,7 +57,5 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
             Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
-        CompiledAppsEndpoints.Map(endpoints);
-        CompiledAppDevelopmentEndpoints.Map(endpoints);
     }
 }

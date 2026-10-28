@@ -24,9 +24,6 @@ public sealed class AppsOptions : IModuleOptions
     // Marketplace; a relative path resolves against the host's base directory. Unset: no features.
     public string? Features { get; set; }
 
-    // Host-shipped source-free packages: {publisher}/*.intochat-app. This folder is distinct from uploaded artifacts.
-    public string? CompiledFeatures { get; set; }
-
     public void Validate()
     {
         if (BuildFreshForSeconds < 0) { throw new InvalidOperationException("BuildFreshForSeconds cannot be negative."); }

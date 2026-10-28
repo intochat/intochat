@@ -1,6 +1,7 @@
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -38,14 +39,6 @@ public static class OsAppsHosting
         services.AddSingleton<OsAppsRegistered>();
         services.TryAddSingleton<IntoChat.OS.Modules.Flutter.IUiRootProvider, OsWorkspaceRoot>();
         services.TryAddSingleton<IntoChat.OS.Modules.Flutter.Chat.IChatAgentSource, AgentChatSource>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IFeatureMigration, OsInoMigration>());
-        services.Configure<OsAppsOptions>(os =>
-        {
-            // Idempotent so a host that both composes the OS and wires the apps explicitly
-            // does not install a default twice.
-            foreach (var app in new[] { new OsApp("os", "settings"), new OsApp("os", "apps"), new OsApp("os", "router"), new OsApp("os", "calculator"), new OsApp("os", "filmcraft"), new OsApp("os", "photocraft"), new OsApp("os", "datavisualizer"), new OsApp("os", "selfimprove"), new OsApp("os", "memory"), new OsApp("os", "ino"), new OsApp("os", "brainview"), new OsApp("os", "friends"), new OsApp("os", "circle"), new OsApp("os", "workspace"), new OsApp("os", "desktop"), new OsApp("os", "usage") })
-            { if (!os.Apps.Contains(app)) { os.Apps.Add(app); } }
-        });
         return services.AddOperatingSystemBoot(configure);
     }
 
@@ -53,6 +46,7 @@ public static class OsAppsHosting
     {
         ArgumentNullException.ThrowIfNull(services);
         if (configure is not null) { services.Configure(configure); }
+        services.AddOptions<OsAppsOptions>();
         services.TryAddSingleton<OsDefaults>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICreationHandler, OsDefaults>(provider => provider.GetRequiredService<OsDefaults>()));
         return services;

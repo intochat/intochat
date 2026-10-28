@@ -27,21 +27,6 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "An app migration is incomplete in {Brain}; its saved state is retained.", scope); }
         }
-        foreach (var required in new OsApp[] { new("os", "usage"), new("os", "apps"), new("os", "circle"), new("os", "workspace"), new("os", "desktop"), new("os", "filmcraft"), new("os", "photocraft") })
-        {
-            var app = Neuron<IApp>($"apps/{required.Name}");
-            if ((await app.Read()).Manifest.Title.Length != 0) { continue; }
-            // The OS's required apps ship asking for nothing, so they install with the consent of no requirements;
-            // one that came to ask for more is refused here rather than installed without the person.
-            try
-            {
-                var outcome = await installer.Install(new(new(required.Publisher, required.Name), AppConsent.Of(null), Guid.Empty), cancellationToken);
-                if (outcome.Status != InstallStatus.Ok)
-                { throw new InvalidOperationException($"Required app {required.Name} did not install: {outcome.Message}"); }
-            }
-            catch (InvalidOperationException)
-            { if ((await app.Read()).Manifest.Title.Length == 0) { throw; } }
-        }
         // Explicitly preserve personal programs. The common updater preserves settings and connections.
         await foreach (var instance in kernel.Instances<IApp>(cancellationToken))
         {

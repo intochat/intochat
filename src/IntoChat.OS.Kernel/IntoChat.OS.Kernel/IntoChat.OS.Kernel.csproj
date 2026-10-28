@@ -8,12 +8,6 @@
     <Description>The operating system: the named module composition, the OS apps, and the host that runs them.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Ship OS apps with the composition package as runtime sources, never host Compile items.
-         NuGet preserves features/os/... in a consumer's build and publish output. -->
-    <None Include="../../../features/os/**/*" Exclude="../../../features/os/**/bin/**;../../../features/os/**/obj/**"
-          LinkBase="features/os" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest"
-          Pack="true" PackagePath="contentFiles/any/$(TargetFramework)/features/os/%(RecursiveDir)%(Filename)%(Extension)"
-          PackageCopyToOutput="true" PackageFlatten="false" />
     <!-- Other repository publishers belong to this host, not to the reusable OS package. -->
     <None Include="../../../features/**/*" Exclude="../../../features/os/**;../../../features/**/bin/**;../../../features/**/obj/**"
           LinkBase="features" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" Pack="false" />

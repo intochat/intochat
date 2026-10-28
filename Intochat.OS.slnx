@@ -7,10 +7,6 @@
     <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
     <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
   </Folder>
-  <Folder Name="/BuiltinApps/">
-    <Project Path="src/IntoChat.OS.BuiltinApps/IntoChat.OS.BuiltinApps.Tests.Unit/IntoChat.OS.BuiltinApps.Tests.Unit.csproj" />
-    <Project Path="src/IntoChat.OS.BuiltinApps/IntoChat.OS.BuiltinApps/IntoChat.OS.BuiltinApps.csproj" />
-  </Folder>
   <Folder Name="/Cli/">
     <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli.Tests.Integration/IntoChat.OS.Cli.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli.Tests.Unit/IntoChat.OS.Cli.Tests.Unit.csproj" />
