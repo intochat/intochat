@@ -474,10 +474,13 @@ internal sealed partial class AppNeuron(
             && Snapshot.Status == AppStatus.Live)
         {
             if (origin is null || (origin with { Version = bundle.Version } == Snapshot.Origin && !Snapshot.Edited)) { return Describe(Snapshot); }
+            // The same program under a different shipped package is a different running program: it is assigned.
+            var repackaged = origin.PackageDigest != Snapshot.Origin?.PackageDigest || (Snapshot.Edited && origin.PackageDigest is not null);
             var attached = Snapshot.Clone();
             Adopt(attached, origin);
             await Persist(attached);
             await RecordFeature();
+            if (repackaged) { await Deploy(); }
             return Describe(Snapshot);
         }
         var next = Snapshot.Clone();
@@ -768,6 +771,8 @@ internal sealed partial class AppNeuron(
             // Durable assignments contain compiled hashes. Reassign the source on activation so a new
             // host's contracts replace old binary calls, even when the app's version did not change.
             // This ordinary grain turn serializes source capture and reassignment with program edits.
+            // A shipped built-in is assigned again as its prebuilt package, which the new host carries rebuilt.
+            if (await AssignShipped(configuration)) { return; }
             RequireShape(sources);
             await runtime.Deploy(Key, sources, configuration, CancellationToken.None);
         }
@@ -794,11 +799,18 @@ internal sealed partial class AppNeuron(
         if (Snapshot.MigrationPaused) { return; }
         await RecordFeature();
         if (Runtime is not { } runtime) { return; }
+        // A host-shipped built-in the person has not edited runs as its prebuilt package; the sources it carries are for editing.
+        if (await AssignShipped()) { return; }
         var sources = Sources(Snapshot);
         if (sources.Count == 0) { await runtime.Retire(Key, CancellationToken.None); return; }
         RequireShape(sources);
         await runtime.Deploy(Key, sources, Configuration(Snapshot), CancellationToken.None);
     }
+
+    private async Task<bool> AssignShipped(Dictionary<string, string>? configuration = null)
+        => Snapshot.Origin is { PackageDigest: not null } && !Snapshot.Edited
+            && ServiceProvider.GetService<ShippedPrograms>() is { } shipped
+            && await shipped.Assign(Key, Snapshot.Origin, Snapshot.Edited, configuration ?? Configuration(Snapshot), CancellationToken.None);
 
     // The shape gate in front of the runtime's compile gate: every synapse is one reaction.
     private static void RequireShape(IReadOnlyDictionary<string, string> sources)

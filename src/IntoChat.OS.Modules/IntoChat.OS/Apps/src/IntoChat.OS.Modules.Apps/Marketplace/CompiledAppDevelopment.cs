@@ -35,7 +35,7 @@ internal sealed class CompiledAppDevelopment(IntoChat.OS.Runtime.IPlainNeurons p
         if (entry.Lease.Name != name || request.ExpectedRevision != revision || request.OperationId == Guid.Empty)
         { throw new InvalidOperationException("The installed app changed or the reload destination is invalid."); }
         var package = await packages.Read(request.Digest, ct);
-        var manifest = CompiledPackageMetadata.Manifest(package.Descriptor);
+        var manifest = CompiledPackageMetadata.Manifest(package);
         if (!entry.Allows(package.Descriptor.Id, manifest.Requires, [.. package.Descriptor.RequiredHostAdapters]))
         { throw new UnauthorizedAccessException("Requirements or host adapters changed; review this package and renew project trust."); }
         var review = await installer.PrepareForOwner(request.Digest, name, revision, true, connections, ct);

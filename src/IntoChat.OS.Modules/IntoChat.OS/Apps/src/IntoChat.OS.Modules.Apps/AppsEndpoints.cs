@@ -23,7 +23,7 @@ internal static class AppsEndpoints
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
 
-        apps.MapGet("", (IIntoChatOS brain, [FromServices] MarketplaceView marketplace, CancellationToken ct) => Respond(async () =>
+        apps.MapGet("", (IIntoChatOS brain, [FromServices] MarketplaceView marketplace, [FromServices] ShippedPrograms shipped, CancellationToken ct) => Respond(async () =>
         {
             var listings = await marketplace.List(ct);
             var items = new List<object>();
@@ -44,6 +44,9 @@ internal static class AppsEndpoints
                         : null,
                     edited = snapshot.Edited,
                     updateAvailable = InstalledApps.UpdateAvailable(snapshot, listings),
+                    // An edited copy is never overwritten; the host's newer prebuilt package is offered instead.
+                    shippedUpdate = snapshot.Edited && snapshot.Origin is { Source: AppSource.Shipped } shippedOrigin
+                        && await shipped.DigestOf(shippedOrigin.Publisher, shippedOrigin.Name, ct) is { } shippedDigest && shippedDigest != shippedOrigin.PackageDigest,
                 });
             }
             return Results.Ok(items);

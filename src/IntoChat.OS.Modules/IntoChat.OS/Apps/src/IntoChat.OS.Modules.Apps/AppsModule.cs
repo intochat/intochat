@@ -37,6 +37,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
+        services.TryAddSingleton<ShippedPrograms>();
         services.TryAddSingleton<CompiledAppReviewStore>();
         services.TryAddSingleton<CompiledAppInstaller>();
         services.TryAddSingleton<CompiledAppDevelopment>();

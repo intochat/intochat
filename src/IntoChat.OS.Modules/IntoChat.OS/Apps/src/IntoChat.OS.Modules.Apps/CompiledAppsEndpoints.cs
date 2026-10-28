@@ -26,7 +26,7 @@ internal static class CompiledAppsEndpoints
             if (http.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
             { limit.MaxRequestBodySize = 128L * 1024 * 1024; }
             var package = await cache.Stage(http.Request.Body, ct);
-            var manifest = CompiledPackageMetadata.Manifest(package.Descriptor);
+            var manifest = CompiledPackageMetadata.Manifest(package);
             return Results.Ok(new
             {
                 package.Digest,

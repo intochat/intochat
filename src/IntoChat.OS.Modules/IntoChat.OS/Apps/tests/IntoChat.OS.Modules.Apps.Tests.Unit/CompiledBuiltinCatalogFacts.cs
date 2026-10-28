@@ -124,6 +124,71 @@ public sealed class CompiledBuiltinCatalogFacts : IDisposable
         Assert.Equal(original.Package.Digest, (await packages.Read(original.Package.Digest, TestContext.Current.CancellationToken)).Digest);
     }
 
+    [Fact]
+    public async Task ProgramPackagesListFromTheirDeclarationAndCarryEditableSources()
+    {
+        var path = await WriteProgram("os", "counter", "2.0.0");
+        var catalog = new CompiledBuiltinCatalog(Inventory, packages);
+        var found = Assert.Single(await catalog.All(TestContext.Current.CancellationToken));
+        Assert.Equal("counter", found.Bundle.Name);
+        Assert.Equal("2.0.0", found.Bundle.Version);
+        Assert.Equal("Counter", found.Bundle.Manifest.Title);
+        Assert.Equal("Counts things.", found.Bundle.Spec.Trim());
+        Assert.Equal("// open\n", found.Bundle.Files["open.cs"]);
+        Assert.Equal("<svg />", found.Bundle.Files["icon.svg"]);
+        Assert.DoesNotContain(found.Bundle.Files.Keys, name => name.EndsWith(".src", StringComparison.Ordinal) || name == "app.cs");
+        Assert.Equal(found.Package.Digest, (await catalog.Find("os", "counter", TestContext.Current.CancellationToken))!.Package.Digest);
+        Assert.True(File.Exists(path));
+        Assert.Empty(await catalog.Failures(TestContext.Current.CancellationToken));
+    }
+
+    private async Task<string> WriteProgram(string publisher, string name, string version)
+    {
+        var build = Directory.CreateDirectory(Path.Combine(home.Path, "build", Guid.NewGuid().ToString("N"))).FullName;
+        Directory.CreateDirectory(Path.Combine(build, "files"));
+        Directory.CreateDirectory(Path.Combine(build, "assemblies"));
+        File.Copy(typeof(CompiledBuiltinCatalogFacts).Assembly.Location, Path.Combine(build, "assemblies", "open.dll"));
+        await File.WriteAllTextAsync(Path.Combine(build, "files", "icon.svg"), "<svg />", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(build, "files", "open.cs.src"), "// open\n", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(build, "files", "app.cs.src"), $$"""
+            /*
+            Counts things.
+            */
+
+            using IntoChat.OS.Modules.Apps;
+
+            static class App
+            {
+                public const string Name = "{{name}}";
+                public const string Version = "{{version}}";
+
+                public static readonly AppManifest Manifest = new(
+                    Title: "Counter",
+                    Description: "Counts",
+                    Operations: [new("open", "Open")],
+                    Settings: [],
+                    Slots: [],
+                    Icon: "icon.svg");
+            }
+            """, TestContext.Current.CancellationToken);
+        var descriptor = new CompiledAppDescriptor
+        {
+            Id = publisher + "/" + name,
+            Name = "Counter",
+            Version = version,
+            EntryAssembly = "assemblies/open.dll",
+            EntryType = "Program",
+            Presentation = ImmutableSortedDictionary<string, string>.Empty.Add("icon", "files/icon.svg"),
+            HostMetadata = ImmutableSortedDictionary<string, string>.Empty.Add("kind", "program")
+                .Add("synapses", JsonSerializer.Serialize(new[] { new { source = "files/open.cs.src", assembly = "assemblies/open.dll" } })),
+        };
+        var folder = Directory.CreateDirectory(Path.Combine(Inventory, publisher)).FullName;
+        var path = Path.Combine(folder, name + ".intochat-app");
+        await using var archive = File.Create(path);
+        await new AppPackageWriter().Write(descriptor, build, archive, TestContext.Current.CancellationToken);
+        return path;
+    }
+
     private async Task<string> Write(string publisher, string name, string version)
     {
         var build = Directory.CreateDirectory(Path.Combine(home.Path, "build", Guid.NewGuid().ToString("N"))).FullName;

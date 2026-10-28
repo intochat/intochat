@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.Apps;
 // A plain neuron (06-08), reading the brain's plain apps.
 [DigitalBrain.Neuron("apps.reconciler")]
 internal sealed class FeatureReconciler(
-    IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
+    IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ShippedPrograms shipped, ILogger<FeatureReconciler> logger,
     IEnumerable<IFeatureMigration> migrations)
     : DigitalBrain.Neuron, IFeatureReconciler
 {
@@ -44,6 +44,7 @@ internal sealed class FeatureReconciler(
             }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Could not check migration of {Brain}/{App}.", brainId, name); continue; }
+            // An edited copy is the person's: it is never overwritten, and Apps offers the shipped update (ShippedPrograms.DigestOf).
             if (snapshot.Edited && !migrating) { continue; }
             AppBundle? bundle;
             try { bundle = await catalog.Find(origin.Publisher, origin.Name); }
@@ -51,7 +52,9 @@ internal sealed class FeatureReconciler(
             { logger.LogWarning(error, "The features folder could not serve {Owner}/{Name}.", origin.Publisher, origin.Name); continue; }
             if (bundle is null)
             { logger.LogWarning("{Brain}/{App} came from {Owner}/{Name}, which the features folder does not carry; it stays at {Version}.", brainId, name, origin.Publisher, origin.Name, origin.Version); continue; }
-            if (!migrating && AppVersions.Compare(bundle.Version, origin.Version) <= 0 && !AppInstaller.Unconfirmed(snapshot.Status)) { continue; }
+            // A built-in the host ships as a prebuilt package moves when its digest differs from the one the copy runs, even at the same version.
+            var repackaged = await shipped.DigestOf(origin.Publisher, origin.Name, ct) is { } digest && digest != origin.PackageDigest;
+            if (!migrating && !repackaged && AppVersions.Compare(bundle.Version, origin.Version) <= 0 && !AppInstaller.Unconfirmed(snapshot.Status)) { continue; }
             // Activation never widens: a release asking for more than the copy's consent waits for the person in Apps.
             if (!AppConsent.IsEmpty(AppConsent.Added(origin.Consented ?? snapshot.Manifest.Requires, bundle.Manifest.Requires)))
             {

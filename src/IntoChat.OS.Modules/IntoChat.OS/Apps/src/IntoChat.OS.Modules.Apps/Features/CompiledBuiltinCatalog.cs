@@ -18,11 +18,11 @@ internal sealed class CompiledBuiltinCatalog(string directory, CompiledAppPackag
     }
 
     internal async Task<CompiledBuiltin?> Find(string publisher, string name, CancellationToken ct = default)
-        => (await Snapshot(ct)).Entries.Values.SingleOrDefault(entry => entry.Publisher == publisher && entry.Package.Descriptor.Id == name)?.Export();
+        => (await Snapshot(ct)).Entries.Values.SingleOrDefault(entry => entry.Publisher == publisher && entry.Bundle.Name == name)?.Export();
 
     internal async Task<IReadOnlyList<CompiledBuiltin>> All(CancellationToken ct = default)
         => [.. (await Snapshot(ct)).Entries.Values.OrderBy(entry => entry.Publisher, StringComparer.Ordinal)
-            .ThenBy(entry => entry.Package.Descriptor.Id, StringComparer.Ordinal).Select(entry => entry.Export())];
+            .ThenBy(entry => entry.Bundle.Name, StringComparer.Ordinal).Select(entry => entry.Export())];
 
     internal async Task<IReadOnlyList<FeatureFailure>> Failures(CancellationToken ct = default)
         => (await Snapshot(ct)).Failures;
@@ -54,16 +54,7 @@ internal sealed class CompiledBuiltinCatalog(string directory, CompiledAppPackag
                     RequireNotLink(file.FullName);
                     await using var stream = file.OpenRead();
                     var package = await packages.Stage(stream, ct);
-                    var manifest = CompiledPackageMetadata.Manifest(package.Descriptor);
-                    var files = ImmutableDictionary<string, string>.Empty;
-                    if (manifest.Icon is { Length: > 0 } icon)
-                    {
-                        var payload = package.Descriptor.Payload.SingleOrDefault(entry => entry.Path == icon)
-                            ?? throw new InvalidDataException($"The compiled feature does not carry its icon '{icon}'.");
-                        if (payload.Length > 1024 * 1024) { throw new InvalidDataException("The compiled feature icon exceeds one MiB."); }
-                        files = files.Add(icon, await File.ReadAllTextAsync(Path.Combine(package.DirectoryPath, icon), ct));
-                    }
-                    entries[file.FullName] = new(publisher.Name, package, files);
+                    entries[file.FullName] = new(publisher.Name, package, await BundleOf(package, ct));
                 }
                 catch (InvalidDataException error) { Refuse(error); }
                 catch (IOException error) { Refuse(error); }
@@ -74,21 +65,37 @@ internal sealed class CompiledBuiltinCatalog(string directory, CompiledAppPackag
                 void Refuse(Exception error)
                 {
                     if (previous is not null) { entries[file.FullName] = previous; }
-                    failures.Add(new(publisher.Name, previous?.Package.Descriptor.Id ?? Path.GetFileNameWithoutExtension(file.Name),
-                        previous?.Package.Descriptor.Version ?? "", error.Message));
+                    failures.Add(new(publisher.Name, previous?.Bundle.Name ?? Path.GetFileNameWithoutExtension(file.Name),
+                        previous?.Bundle.Version ?? "", error.Message));
                 }
             }
         }
-        foreach (var duplicate in entries.GroupBy(item => (item.Value.Publisher, item.Value.Package.Descriptor.Id)).Where(group => group.Count() > 1).ToArray())
+        foreach (var duplicate in entries.GroupBy(item => (item.Value.Publisher, item.Value.Bundle.Name)).Where(group => group.Count() > 1).ToArray())
         {
             foreach (var item in duplicate)
             {
                 entries.Remove(item.Key);
-                failures.Add(new(item.Value.Publisher, item.Value.Package.Descriptor.Id, item.Value.Package.Descriptor.Version,
-                    $"{item.Value.Publisher}/{item.Value.Package.Descriptor.Id} ships more than once in the compiled inventory."));
+                failures.Add(new(item.Value.Publisher, item.Value.Bundle.Name, item.Value.Bundle.Version,
+                    $"{item.Value.Publisher}/{item.Value.Bundle.Name} ships more than once in the compiled inventory."));
             }
         }
         return new(entries, [.. failures]);
+    }
+
+    // A program package is a feature again (its declaration and sources); any other package lists by its inert presentation and carries only its icon.
+    private static async Task<AppBundle> BundleOf(ValidatedAppPackage package, CancellationToken ct)
+    {
+        if (CompiledPackageMetadata.IsProgram(package.Descriptor)) { return CompiledPackageMetadata.ProgramBundle(package); }
+        var manifest = CompiledPackageMetadata.Manifest(package.Descriptor);
+        var files = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (manifest.Icon is { Length: > 0 } icon)
+        {
+            var payload = package.Descriptor.Payload.SingleOrDefault(entry => entry.Path == icon)
+                ?? throw new InvalidDataException($"The compiled feature does not carry its icon '{icon}'.");
+            if (payload.Length > 1024 * 1024) { throw new InvalidDataException("The compiled feature icon exceeds one MiB."); }
+            files[icon] = await File.ReadAllTextAsync(Path.Combine(package.DirectoryPath, icon), ct);
+        }
+        return new(package.Descriptor.Id, package.Descriptor.Version, manifest, package.Descriptor.Presentation.GetValueOrDefault("spec", ""), files);
     }
 
     private static void RequireNotLink(string path)
@@ -98,10 +105,10 @@ internal sealed class CompiledBuiltinCatalog(string directory, CompiledAppPackag
     }
 
     private sealed record Loaded(IReadOnlyDictionary<string, Entry> Entries, ImmutableArray<FeatureFailure> Failures);
-    private sealed record Entry(string Publisher, ValidatedAppPackage Package, ImmutableDictionary<string, string> Files)
+    private sealed record Entry(string Publisher, ValidatedAppPackage Package, AppBundle Bundle)
     {
-        internal CompiledBuiltin Export() => new(Publisher, Package, new(Package.Descriptor.Id, Package.Descriptor.Version,
-            CompiledPackageMetadata.Manifest(Package.Descriptor), Package.Descriptor.Presentation.GetValueOrDefault("spec", ""), new(Files, StringComparer.Ordinal)));
+        // A caller owns what it gets: the manifest is derived again and the files copied, so a mutation never reaches the next review.
+        internal CompiledBuiltin Export() => new(Publisher, Package, Bundle with { Manifest = CompiledPackageMetadata.Manifest(Package), Files = new(Bundle.Files, StringComparer.Ordinal) });
     }
 
     public void Dispose() => gate.Dispose();

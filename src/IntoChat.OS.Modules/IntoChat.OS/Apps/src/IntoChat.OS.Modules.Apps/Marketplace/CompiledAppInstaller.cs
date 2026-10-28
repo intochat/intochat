@@ -17,7 +17,7 @@ internal sealed class CompiledAppInstaller(IntoChat.OS.Runtime.IPlainNeurons pla
         var caller = await RequireOwner(ct);
         var brain = caller.BrainId;
         var package = await packages.Read(digest, ct);
-        var manifest = CompiledPackageMetadata.Manifest(package.Descriptor);
+        var manifest = CompiledPackageMetadata.Manifest(package);
         await policy.CheckCapabilities(brain, manifest, ct);
         var snapshot = await plain.Get<IApp>(IApp.Key(brain, name)).Read().WaitAsync(ct);
         if (snapshot.MigrationTarget is not null) { throw new InvalidOperationException("Choose the app's current destination before installing a package."); }
@@ -32,7 +32,7 @@ internal sealed class CompiledAppInstaller(IntoChat.OS.Runtime.IPlainNeurons pla
         Name(name);
         var caller = await RequireOwner(ct);
         var package = await packages.Read(digest, ct);
-        var manifest = CompiledPackageMetadata.Manifest(package.Descriptor);
+        var manifest = CompiledPackageMetadata.Manifest(package);
         await policy.CheckCapabilities(caller.BrainId, manifest, ct);
         await CheckBindings(caller.BrainId, manifest, connections, ct);
         return reviews.Create(caller.BrainId, name, package.Digest, revision, replacesExisting,
@@ -48,7 +48,7 @@ internal sealed class CompiledAppInstaller(IntoChat.OS.Runtime.IPlainNeurons pla
         var caller = await RequireOwner(ct);
         var review = reviews.Authorize(approval, caller.BrainId, name, revision, caller);
         var package = await packages.Read(review.Digest, ct);
-        var manifest = CompiledPackageMetadata.Manifest(package.Descriptor);
+        var manifest = CompiledPackageMetadata.Manifest(package);
         await policy.CheckCapabilities(caller.BrainId, manifest, ct);
         await CheckBindings(caller.BrainId, manifest, connections, ct);
         return new(package, manifest, new(review.Digest, review.Brain, review.Name, review.ExpectedRevision, approval.OperationId,

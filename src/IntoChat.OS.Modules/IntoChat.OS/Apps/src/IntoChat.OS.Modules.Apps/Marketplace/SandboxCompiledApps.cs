@@ -13,10 +13,6 @@ namespace IntoChat.OS.Modules.Apps;
 internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plain, CompiledAppInstaller installer,
     ActiveCompiledApps active) : ICompiledAppAssignment
 {
-    // How long an assignment waits for the sandbox to say whether the program came up.
-    private const int StageChunk = 512 * 1024;
-    internal static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(60);
-
     public async Task<CompiledAppInstallation?> Current(string brain, string name, AppSnapshot snapshot, CancellationToken ct)
     {
         var record = active.Read(brain, name);
@@ -46,23 +42,7 @@ internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plai
             ["ProgramRevision"] = snapshot.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Digest"] = app.Package.Digest,
         };
-        var programs = Programs(receipt.Brain);
-        // Assemblies travel in chunks (a call is bounded); the assignment then names them by hash.
-        foreach (var behavior in behaviors.Values)
-        {
-            for (var offset = 0; ; offset += StageChunk)
-            {
-                var length = Math.Min(StageChunk, behavior.Assembly.Length - offset);
-                var final = offset + length >= behavior.Assembly.Length;
-                await programs.Stage(behavior.Hash, offset, behavior.Assembly.AsSpan(offset, length).ToArray(), final).WaitAsync(ct);
-                if (final) { break; }
-            }
-        }
-        await programs.AssignPrebuilt(key, behaviors.ToDictionary(pair => pair.Key, pair => pair.Value with { Assembly = [] }, StringComparer.Ordinal), settings).WaitAsync(ct);
-        // The outcome is the assigner's to see: a sandbox that kept the previous build, or a build that did not start, is a failed install.
-        var settled = await programs.Settled(key, SettleTimeout).WaitAsync(ct);
-        if (settled?.Behaviors.FirstOrDefault(behavior => behavior.Status is "UpdateFailed" or "Exited") is { } failed)
-        { throw new InvalidOperationException($"The package {app.Package.Digest} was not activated: {failed.Id} {failed.Status}. {failed.Error}"); }
+        await PrebuiltPrograms.Assign(Programs(receipt.Brain), key, behaviors, settings, app.Package.Digest, ct);
         active.Write(receipt.Brain, receipt.Name, new(app.Package.Digest, snapshot.ProgramRevision, receipt.OperationId, receipt));
         return await target.Read().WaitAsync(ct);
     }
@@ -71,11 +51,11 @@ internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plai
 
     // Every assembly of the package that is a behavior. A built-in program package lists its synapses; any other package is its one entry assembly.
     // Nothing is loaded or reflected here: the bytes are read and hashed, and the sandbox is what runs them.
-    internal async Task<Dictionary<string, PrebuiltBehavior>> Behaviors(ValidatedAppPackage package, CancellationToken ct)
+    internal static async Task<Dictionary<string, PrebuiltBehavior>> Behaviors(ValidatedAppPackage package, CancellationToken ct)
     {
         var descriptor = package.Descriptor;
         (string Path, string Assembly)[] assemblies = descriptor.HostMetadata.GetValueOrDefault("kind") == "program"
-            ? [.. JsonSerializer.Deserialize<AssemblyEntry[]>(descriptor.HostMetadata["synapses"])!
+            ? [.. JsonSerializer.Deserialize<AssemblyEntry[]>(descriptor.HostMetadata["synapses"], SynapseJson)!
                 .Select(synapse => (BehaviorPath(synapse.Source), synapse.Assembly))]
             : [(System.IO.Path.GetFileName(descriptor.EntryAssembly), descriptor.EntryAssembly)];
         var result = new Dictionary<string, PrebuiltBehavior>(StringComparer.Ordinal);
@@ -93,6 +73,9 @@ internal sealed class SandboxCompiledApps(IntoChat.OS.Runtime.IPlainNeurons plai
         var path = source.StartsWith("files/", StringComparison.Ordinal) ? source["files/".Length..] : source;
         return path.EndsWith(".src", StringComparison.Ordinal) ? path[..^".src".Length] : path;
     }
+
+    // The packer writes camelCase names.
+    private static readonly JsonSerializerOptions SynapseJson = new(JsonSerializerDefaults.Web);
 
     private sealed record AssemblyEntry(string Source, string Assembly);
 }
