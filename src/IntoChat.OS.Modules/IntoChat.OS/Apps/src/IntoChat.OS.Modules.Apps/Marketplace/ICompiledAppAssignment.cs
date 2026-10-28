@@ -12,14 +12,3 @@ internal interface ICompiledAppAssignment
     Task<CompiledAppInstallation?> Current(string brain, string name, AppSnapshot snapshot, CancellationToken ct);
     Task<AppSnapshot> Assign(AuthorizedCompiledApp app, CancellationToken ct);
 }
-
-internal sealed class UnassignedCompiledApps : ICompiledAppAssignment
-{
-    // TODO Phase 8 Task 3: assign to Sandbox.
-    public Task<CompiledAppInstallation?> Current(string brain, string name, AppSnapshot snapshot, CancellationToken ct)
-        => throw new NotSupportedException("Phase 8 Task 3: assign to Sandbox");
-
-    // TODO Phase 8 Task 3: assign to Sandbox (BrainRuntimeNeuron.Assign -> AssignmentEvent -> Sandbox BehaviorLoader).
-    public Task<AppSnapshot> Assign(AuthorizedCompiledApp app, CancellationToken ct)
-        => throw new NotSupportedException("Phase 8 Task 3: assign to Sandbox");
-}

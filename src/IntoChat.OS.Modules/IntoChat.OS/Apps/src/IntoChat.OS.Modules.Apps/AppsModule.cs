@@ -39,8 +39,9 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         services.TryAddSingleton<CompiledAppReviewStore>();
         services.TryAddSingleton<CompiledAppInstaller>();
         services.TryAddSingleton<CompiledAppDevelopment>();
-        // TODO Phase 8 Task 3: replace with the Sandbox assignment.
-        services.TryAddSingleton<ICompiledAppAssignment, UnassignedCompiledApps>();
+        services.TryAddSingleton(configured => new ActiveCompiledApps(
+            Path.Combine(DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).Apps, "packages", "active")));
+        services.TryAddSingleton<ICompiledAppAssignment, SandboxCompiledApps>();
         var compiledFeatures = configuration[IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("apps")) + ":CompiledFeatures"];
         if (!string.IsNullOrWhiteSpace(compiledFeatures))
         {

@@ -116,22 +116,24 @@ public sealed class CompiledAppInstallFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Installer.Prepare(package.Digest, "counter", Ct));
     }
 
-    private static CompiledAppApproval Approve(CompiledAppReview review)
+    internal static CompiledAppApproval Approve(CompiledAppReview review)
         => new(review.Token, review.Digest, Guid.NewGuid(), true, AppConsent.Of(review.Requires), true);
 
-    private sealed class Fixture(ITestBrain brain, Person person, TestHome home, CompiledAppPackages packages, IIdentityClient identity) : IAsyncDisposable
+    internal sealed class Fixture(ITestBrain brain, Person person, TestHome home, CompiledAppPackages packages, IIdentityClient identity) : IAsyncDisposable
     {
         internal ITestBrain Brain { get; } = brain;
         internal Person Person { get; } = person;
         internal OwnershipView Ownership => (OwnershipView)identity;
         internal IApp App => Brain.Get<IApp>(IApp.Key(Person.BrainId, "counter"));
         internal string Archive(string digest) => Path.Combine(home.Path, "packages", "archives", digest + ".intochat-app");
+        internal string Home => home.Path;
+        internal SandboxCompiledApps Assignment => new(Brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), Installer, new(Path.Combine(home.Path, "packages", "active")));
         internal CompiledAppInstaller Installer { get; } = new(brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(),
             ActivatorUtilities.CreateInstance<AppInstaller>(brain.Services, identity), packages, new(TimeProvider.System), TimeProvider.System);
 
         internal static async Task<Fixture> Start()
         {
-            var brain = await TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(Ct);
+            var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<IntoChat.OS.Modules.Microsoft.CSharp.CSharpModule>().WithFakeAppRuntime(new()).StartAsync(Ct);
             var person = await brain.PersonAsync("compiled-owner", Ct);
             var home = TestHome.Create();
             var identity = DispatchProxy.Create<IIdentityClient, OwnershipView>();

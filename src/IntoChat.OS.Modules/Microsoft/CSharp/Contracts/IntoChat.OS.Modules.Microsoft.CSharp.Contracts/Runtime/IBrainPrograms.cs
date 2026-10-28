@@ -16,6 +16,9 @@ public interface IBrainPrograms
     // A program built ahead of time (MSBuild). One verified assembly per path; the hash must be the SHA-256 of the
     // assembly bytes, the same name the sandbox verifies on download. Nothing is compiled; storing and assigning are as Assign.
     [DigitalBrain.Interleaves] Task<ProgramView> AssignPrebuilt(string owner, Dictionary<string, PrebuiltBehavior> behaviors, Dictionary<string, string> settings);
+    // A call carries at most a megabyte, so a large assembly is staged in chunks under its hash first: AssignPrebuilt then names it with
+    // an empty Assembly. The last chunk checks the whole against the hash and stores it; a mismatch discards it.
+    [DigitalBrain.Interleaves] Task Stage(string hash, int offset, byte[] chunk, bool last);
     Task Retire(string owner);
     // Waits until each synapse of the owner's program has reported, running, failed to update (the sandbox could not stop the
     // previous build and kept it: the previous program is assigned again) or exited, or the timeout; answers the program as it

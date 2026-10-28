@@ -40,8 +40,9 @@ public sealed class BehaviorLoader(HttpClient downloads, IOptions<SandboxOptions
         try
         {
             using var image = new MemoryStream(assembly);
+            // A package built for release carries no symbols.
             using var pdb = new MemoryStream(symbols);
-            var loaded = context.LoadFromStream(image, pdb);
+            var loaded = symbols.Length == 0 ? context.LoadFromStream(image) : context.LoadFromStream(image, pdb);
             return BehaviorRun.Start(session, assignment, context, loaded, options.Value.LogLines, logger);
         }
         catch { context.Unload(); throw; }

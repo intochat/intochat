@@ -234,7 +234,25 @@ internal sealed class BrainRuntimeNeuron(
         { throw new ArgumentException("A prebuilt behavior carries its assembly, its symbols and its hash.", nameof(behaviors)); }
         var named = behaviors.ToDictionary(pair => pair.Key, pair => "prebuilt:" + pair.Value.Hash, StringComparer.Ordinal);
         return Assigned(owner, RequestKey(owner, named, settings, CallerContextStamper.TryGet(out var caller) ? caller : null), settings,
-            () => Task.FromResult(Verified(behaviors)));
+            () => Verified(behaviors));
+    }
+
+    private readonly Dictionary<string, MemoryStream> _staging = new(StringComparer.Ordinal);
+
+    public async Task Stage(string hash, int offset, byte[] chunk, bool last)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(hash);
+        ArgumentNullException.ThrowIfNull(chunk);
+        if (offset == 0) { _staging[hash] = new(); }
+        if (!_staging.TryGetValue(hash, out var staged) || staged.Length != offset)
+        { _staging.Remove(hash); throw new InvalidOperationException($"The chunk at {offset} does not continue the assembly staged for {hash}; stage it again from the start."); }
+        staged.Write(chunk);
+        if (!last) { return; }
+        _staging.Remove(hash);
+        var bytes = staged.ToArray();
+        if (!string.Equals(Convert.ToHexStringLower(SHA256.HashData(bytes)), hash, StringComparison.Ordinal))
+        { throw new InvalidDataException($"The staged assembly does not hash to {hash}; discarded."); }
+        if (!await assemblies.Exists(hash, CancellationToken.None)) { await assemblies.Put(new(bytes, [], hash), CancellationToken.None); }
     }
 
     private Task<ProgramView> Assigned(string owner, string request, Dictionary<string, string> settings, Func<Task<IReadOnlyDictionary<string, CompiledBehavior>>> produce)
@@ -284,10 +302,17 @@ internal sealed class BrainRuntimeNeuron(
         return compiled.Assemblies;
     }
 
-    private static IReadOnlyDictionary<string, CompiledBehavior> Verified(Dictionary<string, PrebuiltBehavior> behaviors)
+    private async Task<IReadOnlyDictionary<string, CompiledBehavior>> Verified(Dictionary<string, PrebuiltBehavior> behaviors)
     {
         foreach (var (path, behavior) in behaviors)
         {
+            // Staged earlier: the bytes were checked against this very hash when the last chunk arrived.
+            if (behavior.Assembly.Length == 0)
+            {
+                if (!await assemblies.Exists(behavior.Hash, CancellationToken.None))
+                { throw new InvalidOperationException($"The assembly for {path} ({behavior.Hash}) was not staged; stage it before assigning."); }
+                continue;
+            }
             if (!string.Equals(Convert.ToHexStringLower(SHA256.HashData(behavior.Assembly)), behavior.Hash, StringComparison.Ordinal))
             { throw new InvalidDataException($"The prebuilt assembly for {path} does not hash to {behavior.Hash}; refusing to assign it."); }
         }
@@ -697,6 +722,8 @@ internal sealed class BrainRuntimeNeuron(
     public async Task<ProgramView?> Settled(string owner, TimeSpan timeout)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        // With no sandbox connected nothing can report; the program starts when one connects.
+        if (Snapshot.Session is not { Status: SessionStatus.Connected }) { return Snapshot.Programs.FirstOrDefault(p => p.Owner == owner) is { } waiting ? View(waiting) : null; }
         using var limit = new CancellationTokenSource(timeout, time);
         while (!limit.IsCancellationRequested)
         {
