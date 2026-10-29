@@ -21,12 +21,10 @@ namespace IntoChat.OS.Kernel.Composition.Capabilities;
 // order, binds the ones it picks and raises a connection request when none satisfies.
 public static class KernelCapabilities
 {
-    // The os bindings the runtime registry accepts: a storage@1 module whose neuron implements only the 0.6 ILegacyStorage
-    // contract passes module validation and is bound through LegacyStorageAdapter (D-03, until Phase 7).
+    // storage@1 binds only a neuron that implements IStorage. The 0.6 read-only adapter is gone (07-09).
     public static void Configure(CapabilityRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(registry);
-        registry.AcceptBinding(Capability.Storage.V1, typeof(ILegacyStorage));
     }
 
     // Call before the silo is configured: ConfigureTopologySilo validates every composed module's Provides with this registry.
@@ -87,8 +85,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
     private IConnectionRequests Requests(BrainId brain) => SiloNeurons.Get<IConnectionRequests>(plain, IConnectionRequests.Key(brain.Value));
 
-    // A neuron implementing storage@1 itself is reached through its own contract (ConnectionStorage keeps streams host-local);
-    // one implementing only the 0.6 contract through LegacyStorageAdapter (D-03).
+    // A neuron implementing storage@1 is reached through its own contract (ConnectionStorage keeps streams host-local).
     private StorageV1 BindStorage(string key, string connector)
     {
         var neuron = services.GetService<ConnectionNeuronTypes>()?.NeuronOf(connector);
@@ -98,7 +95,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
             var uploads = typeof(IStorageUpload).IsAssignableFrom(neuron) ? (IStorageUpload)SiloNeurons.Get(plain, typeof(IStorageUpload), id) : null;
             return new ConnectionStorage((StorageV1)SiloNeurons.Get(plain, typeof(StorageV1), id), key, uploads, services.GetService<IStorageWriteAuthorizer>());
         }
-        return new LegacyStorageAdapter(plain.GetNeuron<ILegacyStorage>(services, key), connector, connector);
+        throw new InvalidOperationException($"Connection '{connector}' does not implement storage.");
     }
 
     private static BrainConnection ToConnection(ConnectionSummary summary)
