@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Apps.Contracts` (`IAppRuntime`, `IAppStorageHook`, `IAppStore`, `IAppStudio`, `IApp`, `IFeatureReconciler`, `IFilesWorkspace`, `IMarketplace`, `IScriptSandbox`).
+Contracts: assembly `IntoChat.OS.Modules.Apps.Contracts` (`IAppRuntime`, `IAppStorageHook`, `IAppStore`, `IAppStudio`, `IApp`, `IFeatureReconciler`, `IFilesWorkspace`, `IMarketplace`, `IProfile`, `IScriptSandbox`, `IUserSettings`).
 Hosting: runs in process.
 <!-- END GENERATED -->

@@ -27,7 +27,7 @@ var disk = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.csproj", Searc
     .Concat(Directory.EnumerateFiles(Path.Combine(root, "features"), "*.csproj", SearchOption.AllDirectories)
         .Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/'))
         .Where(path => !path.Split('/').Any(part => part is "bin" or "obj")))
-    .Concat(Directory.EnumerateFiles(Path.Combine(root, "framework"), "*.csproj", SearchOption.AllDirectories)
+    .Concat((Directory.Exists(Path.Combine(root, "framework")) ? Directory.EnumerateFiles(Path.Combine(root, "framework"), "*.csproj", SearchOption.AllDirectories) : [])
         .Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/'))
         .Where(path => !path.Split('/').Any(part => part is "bin" or "obj" or "content")))
     .Order(StringComparer.Ordinal)

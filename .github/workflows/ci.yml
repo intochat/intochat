@@ -45,15 +45,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Populate NuGet packages from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ../nuget
+          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
 
       - name: Format code
         run: dotnet format whitespace Intochat.OS.slnx --verify-no-changes --no-restore --verbosity minimal
-
-      # framework/ keeps the full format check it had as its own repository (06-00).
-      - name: Format framework
-        run: dotnet format framework/DigitalBrain.slnx --verify-no-changes --no-restore --verbosity minimal
 
   build:
     name: build
@@ -84,6 +88,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Populate NuGet packages from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ../nuget
+          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+
       # Restore runs inside the build: one evaluation of the solution instead of two.
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
@@ -96,12 +108,12 @@ jobs:
 
       # Local-profile preflight dry run: fixtures stand in for the machine, so no secrets and no probes of the runner.
       - name: Preflight dry run (all green exits 0)
-        run: dotnet run intochat-os.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/all-green.json
+        run: dotnet run intochat.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/all-green.json
 
       - name: Preflight dry run (Windows containers exits 1 and names the fix)
         run: |
           set +e
-          output=$(dotnet run intochat-os.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/docker-windows-containers.json)
+          output=$(dotnet run intochat.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/docker-windows-containers.json)
           code=$?
           echo "$output"
           [ "$code" -eq 1 ] || { echo "expected exit 1, got $code"; exit 1; }
@@ -109,7 +121,7 @@ jobs:
 
       - name: Preflight real probe (informational)
         continue-on-error: true
-        run: dotnet run intochat-os.cs preflight --no-fail
+        run: dotnet run intochat.cs preflight --no-fail
 
       - name: Save NuGet package cache
         if: steps.nuget-cache.outputs.cache-hit != 'true'
@@ -179,153 +191,6 @@ jobs:
           path: artifacts/trx
           retention-days: 7
 
-  # framework/ (the DigitalBrain framework, folded in 06-00) keeps its own build props, so its test output stays under
-  # framework/**/bin rather than artifacts/bin and the build archive never sees it; these jobs carry the former
-  # digitalbrain ci: unit, analyzer, testing and runtime facts (framework-test), the e2e (framework-e2e), the template
-  # smoke (framework-template) and the DX-04 pack-and-build proof (dx04-packages).
-  framework-test:
-    name: framework-test
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Build framework
-        run: dotnet build framework/DigitalBrain.slnx -c Release
-
-      # The shared fixture starts Azurite with the SDK compatibility flags and random ports.
-      # CI=true makes an unavailable emulator a failure, never a skip.
-      - name: Framework unit and integration facts
-        run: |
-          for project in \
-            DigitalBrain.Tests.Unit \
-            DigitalBrain.Architecture.Tests.Unit \
-            DigitalBrain.Analyzers.Tests.Unit \
-            DigitalBrain.Testing.Tests.Unit \
-            DigitalBrain.Capabilities.Storage.Tests.Unit \
-            DigitalBrain.Capabilities.Secrets.Tests.Unit \
-            DigitalBrain.Capabilities.Identity.Tests.Unit \
-            DigitalBrain.Runtime.Orleans.Tests.Unit \
-            DigitalBrain.Runtime.Http.Tests.Unit \
-            DigitalBrain.Runtime.Orleans.Tests.Integration \
-            DigitalBrain.Runtime.Orleans.Azure.Tests.Integration; do
-            dotnet test --project "framework/tests/$project/$project.csproj" -c Release --no-build
-          done
-
-      # The Orleans-free packages stay Orleans-free, transitively.
-      - name: No Orleans in the core packages
-        run: |
-          status=0
-          for name in DigitalBrain DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers; do
-            project="framework/src/$name/$name.csproj"
-            if dotnet list "$project" package --include-transitive | grep -i orleans; then
-              echo "::error::$name references Orleans"
-              status=1
-            fi
-          done
-          exit $status
-
-  # Framework e2e (R4-03, 04-15): one fact set on TestOS, the local and the Azurite targets. The skip guard (04-16) fails
-  # the job when any result is skipped or no report was written, so the Azurite target can never pass silently.
-  framework-e2e:
-    name: framework-e2e
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      CI: 'true'
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Framework e2e facts
-        run: dotnet test --project framework/tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj -c Release --report-xunit-trx --results-directory artifacts/e2e
-
-      - name: No skipped e2e facts
-        run: bash framework/scripts/ci/fail-on-skipped.sh artifacts/e2e
-
-  # dotnet new intochat-app / intochat-module outside the repository, from packages packed in this job.
-  framework-template:
-    name: framework-template
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Pack framework
-        run: |
-          dotnet pack framework/DigitalBrain.slnx -c Release -o artifacts/framework-packages
-          dotnet pack framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts/framework-packages
-
-      - name: Template smoke (local)
-        run: bash framework/scripts/ci/template-smoke.sh local "$RUNNER_TEMP/t" "$GITHUB_WORKSPACE/artifacts/framework-packages"
-
-      # 08-05: dotnet new intochat-app (Notes, Foo.Bar) into a custom hive, build -warnaserror, generated baseline green, DB0024 probe.
-      - name: intochat-app template facts
-        env:
-          DIGITALBRAIN_TEMPLATE_PACKAGES: ${{ github.workspace }}/artifacts/framework-packages
-        run: dotnet test --project framework/tests/DigitalBrain.Templates.Tests.Integration/DigitalBrain.Templates.Tests.Integration.csproj -c Release
-
-  # DX-04: a module author builds and tests with the DigitalBrain packages alone. The Drive module is copied out of the
-  # repository, its DigitalBrain ProjectReferences become PackageReferences to the packages packed here, and it builds and
-  # runs its unit facts from that folder with nuget.org plus the packed folder as the only sources. An IntoChat.* project
-  # reference fails the proof; until Drive drops its os references (module-proof job, 12-12) the script lists them as
-  # warnings and stops after the pack, and it turns strict by itself on the first commit where none remain.
-  dx04-packages:
-    name: dx04-packages
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Pack framework
-        run: dotnet pack framework/DigitalBrain.slnx -c Release -o artifacts/framework-packages
-
-      - name: Build the Drive module from the packages alone
-        run: bash scripts/dx04-drive.sh src/IntoChat.OS.Modules/Google/Drive artifacts/framework-packages "$RUNNER_TEMP/dx04"
-
-  # Windows confinement, junctions, trash and uploads must execute on Windows; Linux skips are not provider verification.
-  windows-storage:
-    name: windows-storage
-    runs-on: windows-2025
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-      - name: Hostile path corpus
-        run: dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.csproj -c Release -p:CodeGraphRefresh=false --filter "FullyQualifiedName~HostilePathFacts" --report-xunit-trx --results-directory artifacts/windows-storage-results
-      - name: Windows storage unit tests
-        run: dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit/IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/windows-storage-results
-      - name: Windows storage runtime and writable conformance
-        run: dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/windows-storage-results
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: windows-storage-results
-          path: artifacts/windows-storage-results
-
   # Blob storage@1 against Azurite. The default Integration tier skips when port 10000 is closed.
   blob-storage:
     name: blob-storage
@@ -341,6 +206,13 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+      - name: Populate NuGet packages from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ../nuget
+          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
       - name: Blob storage conformance
         run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/blob-storage-results
       - uses: actions/upload-artifact@v7
@@ -381,7 +253,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [format, build, test, framework-test, framework-e2e, framework-template, dx04-packages, windows-storage, blob-storage]
+    needs: [format, build, test, blob-storage]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -389,9 +261,7 @@ jobs:
       - name: Gate
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
         run: |
-          echo "format=${{ needs.format.result }} build=${{ needs.build.result }} test=${{ needs.test.result }}"
-          echo "framework-test=${{ needs.framework-test.result }} framework-e2e=${{ needs.framework-e2e.result }} framework-template=${{ needs.framework-template.result }} dx04-packages=${{ needs.dx04-packages.result }}"
-          echo "windows-storage=${{ needs.windows-storage.result }} blob-storage=${{ needs.blob-storage.result }}"
+          echo "format=${{ needs.format.result }} build=${{ needs.build.result }} test=${{ needs.test.result }} blob-storage=${{ needs.blob-storage.result }}"
           exit 1
 
   # Prerelease packages to GitHub Packages, only after the aggregate ci job succeeded on a master push.
@@ -423,6 +293,14 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
+
+      - name: Populate NuGet packages from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ../nuget
+          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx

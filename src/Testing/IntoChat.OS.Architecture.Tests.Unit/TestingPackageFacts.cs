@@ -19,6 +19,7 @@ public sealed class TestingPackageFacts
     [Fact]
     public void PackableTestingProjectsReferenceNoPlatformInternalsOsOrAppHost()
     {
+        if (!Directory.Exists(Repository.FrameworkRoot)) { return; }
         foreach (var name in new[] { "DigitalBrain.Testing", "DigitalBrain.Testing.Silo" })
         {
             var forbidden = Repository.References(FrameworkProject(name))

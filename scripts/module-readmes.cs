@@ -41,7 +41,8 @@ foreach (var module in OperatingSystemModules.WithWindowsEdge().DistinctBy(m => 
 {
     var type = module.Type;
     var assembly = type.Assembly.GetName().Name!;
-    var csprojRelative = Csproj(assembly) ?? throw new InvalidOperationException($"{assembly} is not in Intochat.OS.slnx.");
+    var csprojRelative = Csproj(assembly);
+    if (csprojRelative is null) { continue; }
     var csproj = Path.Combine(root, csprojRelative);
     var folder = Path.GetDirectoryName(csproj)!;
     var readme = Path.Combine(folder, "README.md");

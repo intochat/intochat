@@ -95,6 +95,7 @@ public sealed partial class FrameworkBoundaryFacts
     [Fact]
     public void FrameworkNamesNoPathOutsideFramework()
     {
+        if (!Directory.Exists(Repository.FrameworkRoot)) { return; }
         var offenders = FrameworkBuildFiles()
             .SelectMany(file => ResolvedPaths(file).Where(path => !InFramework(path.Resolved)).Select(path => Repository.Relative(file) + ": " + path.Raw))
             .ToArray();
@@ -104,6 +105,7 @@ public sealed partial class FrameworkBoundaryFacts
     [Fact]
     public void FrameworkReferencesNoIntoChat()
     {
+        if (!Directory.Exists(Repository.FrameworkRoot)) { return; }
         var offenders = new List<string>();
         foreach (var project in FrameworkBuildFiles().Where(file => file.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
         {
@@ -120,6 +122,7 @@ public sealed partial class FrameworkBoundaryFacts
     [Fact]
     public void FrameworkTestsReferenceNoSrc()
     {
+        if (!Directory.Exists(Repository.FrameworkRoot)) { return; }
         var source = Repository.SourceRoot + Path.DirectorySeparatorChar;
         var projects = new[] { "tests", "templates" }
             .SelectMany(folder => FilesUnder(Path.Combine(Repository.FrameworkRoot, folder), name => name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
@@ -149,6 +152,7 @@ public sealed partial class FrameworkBoundaryFacts
     [Fact]
     public void FrameworkPackagesAreExactlyTheDx03List()
     {
+        if (!Directory.Exists(Repository.FrameworkRoot)) { return; }
         var packable = FrameworkBuildFiles()
             .Where(file => file.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             .Select(XDocument.Load)

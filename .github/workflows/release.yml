@@ -59,6 +59,14 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
           df -h /
 
+      - name: Populate NuGet packages from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ../nuget
+          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx
 
