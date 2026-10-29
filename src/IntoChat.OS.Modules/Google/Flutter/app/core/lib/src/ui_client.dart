@@ -134,8 +134,9 @@ final class IntoChatOSUiClient {
       // (or anything else) is not offering one.
       if (brain is! String ||
           brain.isEmpty ||
-          (body as Map<String, dynamic>)['chromeless'] != true)
+          (body as Map<String, dynamic>)['chromeless'] != true) {
         return false;
+      }
       defaultBrainId = brain;
       chromeless = true;
       return true;
