@@ -14,6 +14,10 @@
     <Project Path="src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
     <Project Path="src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
   </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/Calculator/Calculator.csproj" />
+    <Project Path="examples/Calculator.Tests.Unit/Calculator.Tests.Unit.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
     <Project Path="tests/DigitalBrain.Apps.Packaging.Tests.Unit/DigitalBrain.Apps.Packaging.Tests.Unit.csproj" />

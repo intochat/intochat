@@ -1005,3 +1005,114 @@ static DigitalBrain.BrainInstance.operator !=(DigitalBrain.BrainInstance? left, 
 static DigitalBrain.BrainInstance.operator ==(DigitalBrain.BrainInstance? left, DigitalBrain.BrainInstance? right) -> bool
 static DigitalBrain.BrainType.operator !=(DigitalBrain.BrainType? left, DigitalBrain.BrainType? right) -> bool
 static DigitalBrain.BrainType.operator ==(DigitalBrain.BrainType? left, DigitalBrain.BrainType? right) -> bool
+DigitalBrain.App<TState>
+DigitalBrain.App<TState>.App() -> void
+DigitalBrain.App<TState>.Set(TState next) -> TState
+DigitalBrain.App<TState>.State.get -> TState
+DigitalBrain.BddNeuron
+DigitalBrain.BddNeuron.BddNeuron() -> void
+DigitalBrain.BddNeuron.Read(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BddReport?>!
+DigitalBrain.BddNeuron.Record(DigitalBrain.BddReport! report, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BddReport!>!
+DigitalBrain.BddReport
+DigitalBrain.BddReport.<Clone>$() -> DigitalBrain.BddReport!
+DigitalBrain.BddReport.AppId.get -> string!
+DigitalBrain.BddReport.AppId.init -> void
+DigitalBrain.BddReport.BaselineError.get -> string?
+DigitalBrain.BddReport.BaselineError.init -> void
+DigitalBrain.BddReport.BaselinePassed.get -> bool
+DigitalBrain.BddReport.BaselinePassed.init -> void
+DigitalBrain.BddReport.BddReport(string! AppId, System.Collections.Generic.IReadOnlyList<DigitalBrain.ScenarioVerdict!>! Scenarios, bool BaselinePassed, string? BaselineError, System.TimeSpan Elapsed) -> void
+DigitalBrain.BddReport.Deconstruct(out string! AppId, out System.Collections.Generic.IReadOnlyList<DigitalBrain.ScenarioVerdict!>! Scenarios, out bool BaselinePassed, out string? BaselineError, out System.TimeSpan Elapsed) -> void
+DigitalBrain.BddReport.Elapsed.get -> System.TimeSpan
+DigitalBrain.BddReport.Elapsed.init -> void
+DigitalBrain.BddReport.Equals(DigitalBrain.BddReport? other) -> bool
+DigitalBrain.BddReport.Passed.get -> bool
+DigitalBrain.BddReport.Scenarios.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.ScenarioVerdict!>!
+DigitalBrain.BddReport.Scenarios.init -> void
+DigitalBrain.BddState
+DigitalBrain.BddState.<Clone>$() -> DigitalBrain.BddState!
+DigitalBrain.BddState.BddState() -> void
+DigitalBrain.BddState.Equals(DigitalBrain.BddState? other) -> bool
+DigitalBrain.BddState.LastReport.get -> DigitalBrain.BddReport?
+DigitalBrain.BddState.LastReport.init -> void
+DigitalBrain.BddVerified
+DigitalBrain.BddVerified.AppId.get -> string!
+DigitalBrain.BddVerified.AppId.init -> void
+DigitalBrain.BddVerified.BddVerified(string! AppId, bool Passed, DigitalBrain.BddReport! Report) -> void
+DigitalBrain.BddVerified.Deconstruct(out string! AppId, out bool Passed, out DigitalBrain.BddReport! Report) -> void
+DigitalBrain.BddVerified.Equals(DigitalBrain.BddVerified? other) -> bool
+DigitalBrain.BddVerified.Passed.get -> bool
+DigitalBrain.BddVerified.Passed.init -> void
+DigitalBrain.BddVerified.Report.get -> DigitalBrain.BddReport!
+DigitalBrain.BddVerified.Report.init -> void
+DigitalBrain.ConnectorManifest
+DigitalBrain.ConnectorManifest.<Clone>$() -> DigitalBrain.ConnectorManifest!
+DigitalBrain.ConnectorManifest.Auth.get -> string!
+DigitalBrain.ConnectorManifest.Auth.init -> void
+DigitalBrain.ConnectorManifest.ConnectorManifest(string! Auth, System.Collections.Generic.IReadOnlyList<string!>! Scopes) -> void
+DigitalBrain.ConnectorManifest.Deconstruct(out string! Auth, out System.Collections.Generic.IReadOnlyList<string!>! Scopes) -> void
+DigitalBrain.ConnectorManifest.Equals(DigitalBrain.ConnectorManifest? other) -> bool
+DigitalBrain.ConnectorManifest.Scopes.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.ConnectorManifest.Scopes.init -> void
+DigitalBrain.IBdd
+DigitalBrain.IBdd.Read(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BddReport?>!
+DigitalBrain.IBdd.Record(DigitalBrain.BddReport! report, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BddReport!>!
+DigitalBrain.ModuleManifest.Connector.get -> DigitalBrain.ConnectorManifest?
+DigitalBrain.ModuleManifest.Connector.init -> void
+DigitalBrain.Need.BaseAddressSetting.get -> string?
+DigitalBrain.Need.BaseAddressSetting.init -> void
+DigitalBrain.Need.Image.get -> string?
+DigitalBrain.Need.Image.init -> void
+DigitalBrain.Need.RequestsPerMinute.get -> int?
+DigitalBrain.Need.RequestsPerMinute.init -> void
+DigitalBrain.Need.TargetNeuronType.get -> string?
+DigitalBrain.Need.TargetNeuronType.init -> void
+DigitalBrain.NeedKind.Container = 9 -> DigitalBrain.NeedKind
+DigitalBrain.NeedKind.HttpClient = 7 -> DigitalBrain.NeedKind
+DigitalBrain.NeedKind.Webhook = 8 -> DigitalBrain.NeedKind
+DigitalBrain.ScenarioAttribute
+DigitalBrain.ScenarioAttribute.ScenarioAttribute(string! title) -> void
+DigitalBrain.ScenarioAttribute.Title.get -> string!
+DigitalBrain.ScenarioVerdict
+DigitalBrain.ScenarioVerdict.<Clone>$() -> DigitalBrain.ScenarioVerdict!
+DigitalBrain.ScenarioVerdict.Deconstruct(out string! Title, out bool Passed, out string? Error, out System.TimeSpan Elapsed) -> void
+DigitalBrain.ScenarioVerdict.Elapsed.get -> System.TimeSpan
+DigitalBrain.ScenarioVerdict.Elapsed.init -> void
+DigitalBrain.ScenarioVerdict.Equals(DigitalBrain.ScenarioVerdict? other) -> bool
+DigitalBrain.ScenarioVerdict.Error.get -> string?
+DigitalBrain.ScenarioVerdict.Error.init -> void
+DigitalBrain.ScenarioVerdict.Passed.get -> bool
+DigitalBrain.ScenarioVerdict.Passed.init -> void
+DigitalBrain.ScenarioVerdict.ScenarioVerdict(string! Title, bool Passed, string? Error, System.TimeSpan Elapsed) -> void
+DigitalBrain.ScenarioVerdict.Title.get -> string!
+DigitalBrain.ScenarioVerdict.Title.init -> void
+override DigitalBrain.BddReport.Equals(object? obj) -> bool
+override DigitalBrain.BddReport.GetHashCode() -> int
+override DigitalBrain.BddReport.ToString() -> string!
+override DigitalBrain.BddState.Equals(object? obj) -> bool
+override DigitalBrain.BddState.GetHashCode() -> int
+override DigitalBrain.BddState.ToString() -> string!
+override DigitalBrain.BddVerified.<Clone>$() -> DigitalBrain.BddVerified!
+override DigitalBrain.BddVerified.Equals(object? obj) -> bool
+override DigitalBrain.BddVerified.GetHashCode() -> int
+override DigitalBrain.BddVerified.ToString() -> string!
+override DigitalBrain.ConnectorManifest.Equals(object? obj) -> bool
+override DigitalBrain.ConnectorManifest.GetHashCode() -> int
+override DigitalBrain.ConnectorManifest.ToString() -> string!
+override DigitalBrain.ScenarioVerdict.Equals(object? obj) -> bool
+override DigitalBrain.ScenarioVerdict.GetHashCode() -> int
+override DigitalBrain.ScenarioVerdict.ToString() -> string!
+override sealed DigitalBrain.BddVerified.Equals(DigitalBrain.Signal? other) -> bool
+static DigitalBrain.BddReport.operator !=(DigitalBrain.BddReport? left, DigitalBrain.BddReport? right) -> bool
+static DigitalBrain.BddReport.operator ==(DigitalBrain.BddReport? left, DigitalBrain.BddReport? right) -> bool
+static DigitalBrain.BddState.operator !=(DigitalBrain.BddState? left, DigitalBrain.BddState? right) -> bool
+static DigitalBrain.BddState.operator ==(DigitalBrain.BddState? left, DigitalBrain.BddState? right) -> bool
+static DigitalBrain.BddVerified.operator !=(DigitalBrain.BddVerified? left, DigitalBrain.BddVerified? right) -> bool
+static DigitalBrain.BddVerified.operator ==(DigitalBrain.BddVerified? left, DigitalBrain.BddVerified? right) -> bool
+static DigitalBrain.ConnectorManifest.operator !=(DigitalBrain.ConnectorManifest? left, DigitalBrain.ConnectorManifest? right) -> bool
+static DigitalBrain.ConnectorManifest.operator ==(DigitalBrain.ConnectorManifest? left, DigitalBrain.ConnectorManifest? right) -> bool
+static DigitalBrain.Need.Container(string! name, string! image) -> DigitalBrain.Need!
+static DigitalBrain.Need.HttpClient(string! name, string? baseAddressSetting = null, int requestsPerMinute = 120) -> DigitalBrain.Need!
+static DigitalBrain.Need.Webhook(string! path, string! targetNeuronType) -> DigitalBrain.Need!
+static DigitalBrain.ScenarioVerdict.operator !=(DigitalBrain.ScenarioVerdict? left, DigitalBrain.ScenarioVerdict? right) -> bool
+static DigitalBrain.ScenarioVerdict.operator ==(DigitalBrain.ScenarioVerdict? left, DigitalBrain.ScenarioVerdict? right) -> bool

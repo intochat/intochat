@@ -3,6 +3,11 @@ using DigitalBrain.Capabilities;
 
 namespace DigitalBrain;
 
+/// <summary>Declares the OAuth / auth scheme and scopes required by a connector module.</summary>
+/// <param name="Auth">The auth scheme id (e.g. <c>google</c>, <c>github</c>).</param>
+/// <param name="Scopes">The scopes the connector requests.</param>
+public sealed record ConnectorManifest(string Auth, IReadOnlyList<string> Scopes);
+
 /// <summary>What a module provides, requires and needs from its host.</summary>
 /// <param name="Provides">The capabilities the module implements.</param>
 /// <param name="Requires">The capabilities the module calls.</param>
@@ -24,6 +29,9 @@ public sealed record ModuleManifest(
     /// list a member here is refused it (fail closed). Empty by default.
     /// </summary>
     public IReadOnlyList<PrivilegedGrant> Privileged { get; init; } = [];
+
+    /// <summary>Optional OAuth / auth connector metadata when the module connects to an external account service.</summary>
+    public ConnectorManifest? Connector { get; init; }
 
     /// <summary>Reads the <c>[Module]</c> id and the public static <c>Manifest</c> property of a module class.</summary>
     /// <exception cref="InvalidDataException">Provides or Requires lists a capability twice.</exception>

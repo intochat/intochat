@@ -130,16 +130,35 @@ public sealed partial class InstalledApp<TApp>
 
     private object? Service(Type type) => type == typeof(IPresenter) ? new Presenter(this) : _os.Services.GetService(type);
 
-    // Reads the app's Side and Main properties, if it declares them, after each turn.
+    // Reads the app's Side/RenderSide and Main/Render views, if it declares them, after each turn.
     private void Refresh()
     {
-        var side = Read("Side");
-        var main = Read("Main");
+        var side = Read("Side") ?? InvokeRender("RenderSide");
+        var main = Read("Main") ?? InvokeRender("Render");
         if (side is null && main is null) { return; }
         lock (_presentationGate)
         {
             if (side is { } s) { _side = s.View ?? _side; }
             if (main is { } m) { _main = m.View ?? _main; }
+        }
+    }
+
+    private (View? View, bool)? InvokeRender(string methodName)
+    {
+        var method = typeof(TApp).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public, Type.EmptyTypes);
+        if (method is null || _app is null || !(typeof(View).IsAssignableFrom(method.ReturnType) || typeof(Node).IsAssignableFrom(method.ReturnType)))
+        {
+            return null;
+        }
+        try
+        {
+            var value = method.Invoke(_app, null);
+            return (value as View ?? (value is Node node ? new View(methodName == "RenderSide" ? "Side" : "Main", node) : null), true);
+        }
+        catch (TargetInvocationException error) when (error.InnerException is not null)
+        {
+            lock (_presentationGate) { _presentationError = error.InnerException; }
+            return null;
         }
     }
 

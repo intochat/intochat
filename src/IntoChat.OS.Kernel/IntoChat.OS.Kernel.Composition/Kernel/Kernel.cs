@@ -54,21 +54,10 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
     }
 
     public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default)
-        => services?.GetService(typeof(BrainLogs)) is BrainLogs logs
-            ? SynapseObservation.List(logs, BrainScope.CurrentId(), cancellationToken)
-            : Task.FromResult<ObservedSynapse[]>([]);
+        => SynapseObservation.List(services, BrainScope.CurrentId(), cancellationToken);
 
     public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default)
-        => services?.GetService(typeof(DeliveryHub)) is DeliveryHub hub
-            ? hub.Listen(BrainScope.CurrentId(), cancellationToken)
-            : EmptyDeliveries(cancellationToken);
-
-    private static async IAsyncEnumerable<SignalDelivery> EmptyDeliveries([EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        await Task.CompletedTask;
-        yield break;
-    }
+        => SynapseObservation.Deliveries(services, BrainScope.CurrentId(), cancellationToken);
 
     public async Task<BrainInstance[]> Running(CancellationToken cancellationToken = default)
     {

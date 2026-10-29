@@ -799,3 +799,20 @@ static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.ToSignal(DigitalBrain.R
 DigitalBrain.Runtime.Orleans.Signalling.SignalLog
 DigitalBrain.Runtime.Orleans.Hosting.NeuronProxyHosting
 static DigitalBrain.Runtime.Orleans.Hosting.NeuronProxyHosting.AddNeuronProxies(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+DigitalBrain.Runtime.Orleans.ICompiledTypeTable
+DigitalBrain.Runtime.Orleans.ICompiledTypeTable.HostType(string! type) -> System.Threading.Tasks.Task<string?>!
+DigitalBrain.Runtime.Orleans.ICompiledTypeTable.List() -> System.Threading.Tasks.Task<DigitalBrain.BrainType![]!>!
+DigitalBrain.Runtime.Orleans.IInstanceDirectory
+DigitalBrain.Runtime.Orleans.IInstanceDirectory.List() -> System.Threading.Tasks.Task<DigitalBrain.BrainInstance![]!>!
+DigitalBrain.Runtime.Orleans.IInstanceDirectory.Register(string! key, string? creator) -> System.Threading.Tasks.Task!
+DigitalBrain.Runtime.Orleans.IInstanceDirectory.Retire(string! key) -> System.Threading.Tasks.Task!
+DigitalBrain.Runtime.Orleans.IInstanceTypes
+DigitalBrain.Runtime.Orleans.IInstanceTypes.Add(string! type) -> System.Threading.Tasks.Task!
+DigitalBrain.Runtime.Orleans.IInstanceTypes.List() -> System.Threading.Tasks.Task<string![]!>!
+const DigitalBrain.Runtime.Orleans.TypeTableKey.NoBrain = "/" -> string!
+DigitalBrain.Runtime.Orleans.InstanceDirectoryKey
+DigitalBrain.Runtime.Orleans.SynapseObservation
+DigitalBrain.Runtime.Orleans.TypeTableKey
+static DigitalBrain.Runtime.Orleans.InstanceDirectoryKey.Of(string! brain, string! type) -> string!
+static DigitalBrain.Runtime.Orleans.SynapseObservation.Deliveries(System.IServiceProvider? services, string! brain, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.SignalDelivery!>!
+static DigitalBrain.Runtime.Orleans.SynapseObservation.List(System.IServiceProvider? services, string! brain, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.ObservedSynapse![]!>!

@@ -87,34 +87,52 @@ internal sealed class ClusterBrainObserver(IGrainFactory grains, IServiceProvide
     }
 }
 
+/// <summary>The instance directory grain contract for a brain and neuron type.</summary>
 [Alias("kernel.instance-directory")]
-internal interface IInstanceDirectory : IGrainWithStringKey
+public interface IInstanceDirectory : IGrainWithStringKey
 {
+    /// <summary>Registers an instance key.</summary>
     Task Register(string key, string? creator);
+
+    /// <summary>Retires an instance key.</summary>
     Task Retire(string key);
+
+    /// <summary>Lists registered instances.</summary>
     Task<BrainInstance[]> List();
 }
 
+/// <summary>The instance types grain contract for a brain.</summary>
 [Alias("kernel.instance-types")]
-internal interface IInstanceTypes : IGrainWithStringKey
+public interface IInstanceTypes : IGrainWithStringKey
 {
+    /// <summary>Records a neuron type in the brain.</summary>
     Task Add(string type);
+
+    /// <summary>Lists neuron types in the brain.</summary>
     Task<string[]> List();
 }
 
-internal static class InstanceDirectoryKey
+/// <summary>Key formatting for <see cref="IInstanceDirectory"/>.</summary>
+public static class InstanceDirectoryKey
 {
+    /// <summary>Returns the instance directory key for <paramref name="brain"/> and <paramref name="type"/>.</summary>
     public static string Of(string brain, string type) => brain + "/" + type;
 }
 
-internal static class TypeTableKey
+/// <summary>Constants for <see cref="ICompiledTypeTable"/>.</summary>
+public static class TypeTableKey
 {
+    /// <summary>The cluster-wide compiled type table key.</summary>
     public const string NoBrain = "/";
 }
 
+/// <summary>The compiled type table grain contract.</summary>
 [Alias("kernel.compiled-type-table")]
-internal interface ICompiledTypeTable : IGrainWithStringKey
+public interface ICompiledTypeTable : IGrainWithStringKey
 {
+    /// <summary>Lists compiled types.</summary>
     Task<BrainType[]> List();
+
+    /// <summary>Returns the host grain type for a neuron type, or null.</summary>
     Task<string?> HostType(string type);
 }

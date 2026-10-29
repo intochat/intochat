@@ -28,6 +28,11 @@ public sealed class ReactionShapeAnalyzer : DiagnosticAnalyzer
 
     private static bool IsWellFormed(IMethodSymbol method)
     {
+        if (Apps.AppRules.IsApp(method.ContainingType))
+        {
+            return IsWellFormedAppOperation(method);
+        }
+
         var returns = Rules.FullName(method.ReturnType as INamedTypeSymbol);
         if (returns != "System.Threading.Tasks.Task" && returns != "System.Threading.Tasks.ValueTask") { return false; }
 
@@ -35,5 +40,26 @@ public sealed class ReactionShapeAnalyzer : DiagnosticAnalyzer
         if (parameters.Length is < 1 or > 2) { return false; }
         if (!Rules.IsOrDerivesFrom(parameters[0].Type, Rules.SignalType)) { return false; }
         return parameters.Length == 1 || Rules.FullName(parameters[1].Type as INamedTypeSymbol) == "System.Threading.CancellationToken";
+    }
+
+    private static bool IsWellFormedAppOperation(IMethodSymbol method)
+    {
+        if (method.IsStatic || method.IsGenericMethod) { return false; }
+        var returns = Rules.FullName(method.ReturnType as INamedTypeSymbol);
+        if (method.ReturnType.SpecialType != SpecialType.System_Void
+            && returns != "System.Threading.Tasks.Task"
+            && returns != "System.Threading.Tasks.ValueTask")
+        {
+            return false;
+        }
+
+        var parameters = method.Parameters;
+        if (parameters.Length > 2) { return false; }
+        if (parameters.Length == 2)
+        {
+            return Rules.FullName(parameters[1].Type as INamedTypeSymbol) == "System.Threading.CancellationToken"
+                && Rules.FullName(parameters[0].Type as INamedTypeSymbol) != "System.Threading.CancellationToken";
+        }
+        return true;
     }
 }

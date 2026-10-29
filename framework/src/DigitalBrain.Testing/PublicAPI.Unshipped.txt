@@ -620,3 +620,6 @@ DigitalBrain.Testing.TestOS.ClusterListeners.get -> DigitalBrain.Spi.IClusterLis
 DigitalBrain.Testing.TestOS.Caller.get -> DigitalBrain.Capabilities.CapabilityCaller?
 DigitalBrain.Testing.TestOS.Caller.set -> void
 DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.RenameOverwriteReplacesExactlyOneDestination() -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.BddRunner
+static DigitalBrain.Testing.BddRunner.VerifyTypeAsync(System.Type! appType, System.Action<DigitalBrain.Testing.TestOS!>? fakes = null, DigitalBrain.Testing.TestOS? targetOs = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BddReport!>!
+static DigitalBrain.Testing.BddRunner.VerifyAsync<TApp>(System.Action<DigitalBrain.Testing.TestOS!>? fakes = null, DigitalBrain.Testing.TestOS? targetOs = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BddReport!>!

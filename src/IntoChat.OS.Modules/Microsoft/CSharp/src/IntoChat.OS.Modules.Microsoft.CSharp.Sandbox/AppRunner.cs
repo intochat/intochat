@@ -34,20 +34,20 @@ internal static class AppRunner
         var snapshot = await app.Read().ConfigureAwait(false);
         var turns = new SemaphoreSlim(1, 1);
         var loops = snapshot.Manifest.Operations.Where(operation => definition.FindOperation(operation.Name) is not null)
-            .Select(operation => Serve(brain, app, definition, instance, operation.Name, turns, stopping)).ToArray();
+            .Select(operation => Serve(brain, app, definition, instance, presenter, operation.Name, turns, stopping)).ToArray();
         try { await Task.WhenAll(loops).ConfigureAwait(false); }
         finally { await presenter.DrainAsync().ConfigureAwait(false); }
         return 0;
     }
 
-    private static async Task Serve(IntoChatOSConnection brain, IApp app, AppDefinition definition, App instance, string operation, SemaphoreSlim turns, CancellationToken stopping)
+    private static async Task Serve(IntoChatOSConnection brain, IApp app, AppDefinition definition, App instance, IPresenter presenter, string operation, SemaphoreSlim turns, CancellationToken stopping)
     {
         try
         {
             await foreach (var request in brain.On(app, operation, stopping).ConfigureAwait(false))
             {
                 await turns.WaitAsync(stopping).ConfigureAwait(false);
-                try { await Turn(definition, instance, operation, request, stopping).ConfigureAwait(false); }
+                try { await Turn(definition, instance, presenter, operation, request, stopping).ConfigureAwait(false); }
                 finally { turns.Release(); }
             }
         }
@@ -55,11 +55,48 @@ internal static class AppRunner
     }
 
     // An operation that throws has failed its request, not the app: the failure goes to the run log, and the next request is served.
-    private static async Task Turn(AppDefinition definition, App instance, string operation, AppRequested request, CancellationToken stopping)
+    private static async Task Turn(AppDefinition definition, App instance, IPresenter presenter, string operation, AppRequested request, CancellationToken stopping)
     {
-        try { await definition.Invoke(instance, operation, Argument(definition.FindOperation(operation)!, request.Input), Json, stopping).ConfigureAwait(false); }
+        try
+        {
+            await definition.Invoke(instance, operation, Argument(definition.FindOperation(operation)!, request.Input), Json, stopping).ConfigureAwait(false);
+            RefreshViews(instance, presenter);
+        }
         catch (Exception error) when (error is not OperationCanceledException)
         { AppLog.Log($"{definition.Manifest.Id}.{operation} failed for request {request.RequestId}: {error}"); }
+    }
+
+    private static void RefreshViews(App instance, IPresenter presenter)
+    {
+        var type = instance.GetType();
+        var side = ReadProperty(type, instance, "Side") ?? InvokeRenderMethod(type, instance, "RenderSide", "Side");
+        var main = ReadProperty(type, instance, "Main") ?? InvokeRenderMethod(type, instance, "Render", "Main");
+        if (side is not null || main is not null)
+        {
+            presenter.Present(side, main);
+        }
+    }
+
+    private static View? ReadProperty(Type type, App instance, string name)
+    {
+        var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
+        if (property is null || !(typeof(View).IsAssignableFrom(property.PropertyType) || typeof(Node).IsAssignableFrom(property.PropertyType)))
+        {
+            return null;
+        }
+        var value = property.GetValue(instance);
+        return value as View ?? (value is Node node ? new View(name, node) : null);
+    }
+
+    private static View? InvokeRenderMethod(Type type, App instance, string methodName, string fallbackTitle)
+    {
+        var method = type.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public, Type.EmptyTypes);
+        if (method is null || !(typeof(View).IsAssignableFrom(method.ReturnType) || typeof(Node).IsAssignableFrom(method.ReturnType)))
+        {
+            return null;
+        }
+        var value = method.Invoke(instance, null);
+        return value as View ?? (value is Node node ? new View(fallbackTitle, node) : null);
     }
 
     // A request's input is text. An operation that takes a string gets it as is; one that takes a signal or a value gets it read as JSON,

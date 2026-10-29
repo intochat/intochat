@@ -17,6 +17,9 @@ public sealed class APP_CLASSFacts
     [Fact]
     public async Task Opening_shows_the_start_view()
     {
+        var report = await BddRunner.VerifyAsync<APP_CLASS>();
+        Assert.True(report.Passed);
+
         await using var os = TestOS.Local();
         var app = await os.Install<APP_CLASS>();
 
