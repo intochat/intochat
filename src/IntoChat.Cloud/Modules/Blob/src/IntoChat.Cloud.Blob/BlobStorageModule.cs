@@ -9,7 +9,7 @@ public sealed class BlobStorageOptions
 [DigitalBrain.Module(ManifestName)]
 public sealed class BlobStorageModule : DigitalBrain.Module
 {
-    internal const string ManifestName = "intochat.cloud.blob";
+    internal const string ManifestName = "blob";
     internal const string ConnectionSecret = "connection-string";
 
     public static bool LoadsUnder(string? topology)
