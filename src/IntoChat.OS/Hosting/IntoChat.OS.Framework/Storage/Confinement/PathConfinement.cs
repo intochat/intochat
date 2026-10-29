@@ -238,18 +238,7 @@ public static class PathConfinement
         var drive = char.ToUpperInvariant(combined[0]) + ":\\";
         var rest = combined.Length > 3 ? combined[3..] : "";
         var parts = new List<string>();
-        foreach (var part in rest.Split('\\', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var trimmed = part.TrimEnd(' ', '.');
-            if (trimmed.Length == 0 || trimmed == ".") { continue; }
-            if (trimmed == "..")
-            {
-                if (parts.Count == 0) { throw new ConfinementDenied(ConfinementReason.Outside); }
-                parts.RemoveAt(parts.Count - 1);
-                continue;
-            }
-            parts.Add(trimmed);
-        }
+        foreach (var part in rest.Split('\\', StringSplitOptions.RemoveEmptyEntries)) { Push(parts, part); }
 
         return parts.Count == 0 ? drive : drive + string.Join('\\', parts);
     }
@@ -259,18 +248,7 @@ public static class PathConfinement
         var bits = combined.TrimStart('\\').Split('\\', StringSplitOptions.RemoveEmptyEntries);
         if (bits.Length < 2) { throw new ConfinementDenied(ConfinementReason.Unc); }
         var parts = new List<string>();
-        for (var i = 2; i < bits.Length; i++)
-        {
-            var trimmed = bits[i].TrimEnd(' ', '.');
-            if (trimmed.Length == 0 || trimmed == ".") { continue; }
-            if (trimmed == "..")
-            {
-                if (parts.Count == 0) { throw new ConfinementDenied(ConfinementReason.Outside); }
-                parts.RemoveAt(parts.Count - 1);
-                continue;
-            }
-            parts.Add(trimmed);
-        }
+        for (var i = 2; i < bits.Length; i++) { Push(parts, bits[i]); }
 
         var prefix = @"\\" + bits[0] + @"\" + bits[1];
         return parts.Count == 0 ? prefix : prefix + @"\" + string.Join('\\', parts);
@@ -292,6 +270,26 @@ public static class PathConfinement
         }
 
         return "/" + string.Join('/', parts);
+    }
+
+    /// <summary>
+    /// Parent and current segments are decided before trailing dots are stripped.
+    /// <c>"..".TrimEnd(' ', '.')</c> is empty, so stripping first drops the parent instead of walking it.
+    /// </summary>
+    private static void Push(List<string> parts, string part)
+    {
+        var spaced = part.TrimEnd(' ');
+        if (spaced == ".") { return; }
+        if (spaced == "..")
+        {
+            if (parts.Count == 0) { throw new ConfinementDenied(ConfinementReason.Outside); }
+            parts.RemoveAt(parts.Count - 1);
+            return;
+        }
+
+        var name = spaced.TrimEnd('.');
+        if (name.Length == 0 || name == ".") { return; }
+        parts.Add(name);
     }
 
     private static bool IsWindowsRooted(string text)
