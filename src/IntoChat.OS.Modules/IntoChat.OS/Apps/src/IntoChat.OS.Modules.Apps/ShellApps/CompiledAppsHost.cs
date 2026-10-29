@@ -7,7 +7,9 @@ using DigitalBrain.UI;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Chart;
 using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Flutter.Table;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -292,16 +294,43 @@ internal sealed class CompiledAppsHost(
             if (runtime.Instance is InoApp ino)
             {
                 await SyncInoChatAndComposerAsync(runtime, ino.State);
-                var headerExtent = ino.State.ActiveCards.Length > 0 ? 156d : 64d;
-                mainTree = Ui.Column(
-                    "view",
-                    [
-                        MapNode("root", mainView.Root),
-                        Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
-                        Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
-                    ],
-                    gap: 8,
-                    extents: [headerExtent, 0, 96]);
+                var hasChart = ino.State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
+                var hasTable = ino.State.ActiveCards.Any(c => c.Kind == "table" && c.Rows is { Length: > 0 });
+                var headerExtent = ino.State.ActiveCards.Length > 0 ? 140d : 64d;
+                if (hasChart || hasTable)
+                {
+                    var vizChildren = new List<UiNode>();
+                    if (hasChart)
+                    {
+                        vizChildren.Add(Ui.Reference("chart", new(UIVocabulary.ChartType, runtime.AppKey + "/chart")));
+                    }
+                    if (hasTable)
+                    {
+                        vizChildren.Add(Ui.Reference("table", new(UIVocabulary.TableType, runtime.AppKey + "/table")));
+                    }
+                    mainTree = Ui.Column(
+                        "view",
+                        [
+                            MapNode("root", mainView.Root),
+                            Ui.Row("visualizations", [.. vizChildren], gap: 12),
+                            Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
+                            Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
+                        ],
+                        gap: 8,
+                        extents: [headerExtent, 240, 0, 96]);
+                }
+                else
+                {
+                    mainTree = Ui.Column(
+                        "view",
+                        [
+                            MapNode("root", mainView.Root),
+                            Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
+                            Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
+                        ],
+                        gap: 8,
+                        extents: [headerExtent, 0, 96]);
+                }
             }
             else
             {
@@ -354,6 +383,25 @@ internal sealed class CompiledAppsHost(
             await composer.Configure(runtime.AppKey, 1L, "Message Ino (local model, SQL, or apps)...");
         }
 
+        var dvKey = IApp.Key(runtime.Brain, "datavisualizer");
+        if (state.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Columns is { Length: > 0 } && c.Rows is { Length: > 0 }) is { } tableCard)
+        {
+            var tableCols = tableCard.Columns!.Select((col, idx) => new TableColumn($"col_{idx + 1}", col)).ToArray();
+            var tableRows = tableCard.Rows!.Select(row => (IReadOnlyList<string>)row).ToArray();
+            await SiloNeurons.Get<ITable>(services, runtime.AppKey + "/table").Replace(tableCard.Title, tableCols, tableRows);
+            await SiloNeurons.Get<ITable>(services, dvKey + "/views/main/table").Replace(tableCard.Title, tableCols, tableRows);
+            await SiloNeurons.Get<IText>(services, dvKey + "/last-view").Set("main");
+        }
+
+        if (state.ActiveCards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 }) is { } chartCard)
+        {
+            var chartKind = string.IsNullOrWhiteSpace(chartCard.ChartKind) ? "bar" : chartCard.ChartKind;
+            var points = chartCard.ChartPoints!.Select(p => new ChartPoint(p.Id, p.Label, p.Value)).ToArray();
+            await SiloNeurons.Get<IChart>(services, runtime.AppKey + "/chart").Render(chartCard.Title, chartKind, points);
+            await SiloNeurons.Get<IChart>(services, dvKey + "/views/main/chart").Render(chartCard.Title, chartKind, points);
+            await SiloNeurons.Get<IText>(services, dvKey + "/last-view").Set("main");
+        }
+
         var chat = SiloNeurons.Get<IChat>(services, runtime.AppKey + "/transcript");
         var currentChat = await chat.Read();
         var chatGen = currentChat.Projection?.Generation is > 0 and var g ? g : 1L;
@@ -364,7 +412,7 @@ internal sealed class CompiledAppsHost(
             entries.Add(new ChatEntry(
                 "welcome",
                 ChatRole.Assistant,
-                $"Hello! I am **Ino**, your personal AI assistant in IntoChat OS ({state.Status}).\n\nAsk me anything to chat with your local model (`qwen3.5:4b`), paste a PostgreSQL connection string (`Host=...;Database=...`) to query data, or ask me to create an app.")
+                $"Hello! I am **Ino**, your personal AI assistant in IntoChat OS ({state.Status}).\n\nAsk me anything to chat with your local model (`qwen3.5:4b`), visualize your database as a live **UI Table** and **Chart**, or ask questions about the chart on screen (e.g., *\"What are top 3 on the chart I see?\"*).")
             {
                 Model = "qwen3.5:4b",
             });
@@ -400,9 +448,20 @@ internal sealed class CompiledAppsHost(
             }
             activities.Add(new ChatActivity(
                 $"sql-{turnNumber}",
-                $"PostgreSQL Query ({state.ConnectedDatabase ?? "main"})",
+                $"PostgreSQL & Data Visualizer ({state.ConnectedDatabase ?? "supabase"})",
                 turn.UserMessage,
                 turn.Reply));
+            appCard = new ChatAppCard("datavisualizer", "Data Visualizer", "bar-chart", true);
+        }
+        else if (turn.RouteHint == "chart:qa")
+        {
+            var chartCard = state.ActiveCards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
+            activities.Add(new ChatActivity(
+                $"chart-qa-{turnNumber}",
+                $"Chart Q&A ({chartCard?.Title ?? "Active Chart"})",
+                turn.UserMessage,
+                turn.Reply));
+            appCard = new ChatAppCard("datavisualizer", "Data Visualizer", "bar-chart", true);
         }
         else if (turn.RouteHint.StartsWith("postgres:", StringComparison.Ordinal))
         {

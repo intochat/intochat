@@ -45,6 +45,11 @@ public sealed record InoConnectDb(string? ConnectionString = null, string? Alias
 [DigitalBrain.Signal("ino.query-db")]
 public sealed record InoQueryDb(string? Sql = null) : DigitalBrain.Signal;
 
+public sealed record InoChartPoint(
+    string Id,
+    string Label,
+    double Value);
+
 public sealed record InoCard(
     string Id,
     string Kind,
@@ -54,7 +59,9 @@ public sealed record InoCard(
     string Status,
     string? SurfaceScopeUri = null,
     string[]? Columns = null,
-    string[][]? Rows = null)
+    string[][]? Rows = null,
+    string? ChartKind = null,
+    InoChartPoint[]? ChartPoints = null)
 {
     public string EffectiveScopeUri => SurfaceScopeUri ?? $"neuron://local/apps/ino#{Id}";
 }
@@ -150,7 +157,13 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             return;
         }
 
-        if (LooksLikeDatabaseQuery(text))
+        if (LooksLikeChartQuestion(text))
+        {
+            await AnswerChartQuestionAsync(text, settings, recalled, memory);
+            return;
+        }
+
+        if (LooksLikeDatabaseQuery(text) || LooksLikeVisualizationRequest(text))
         {
             await QueryDb(new InoQueryDb(text));
             return;
@@ -162,9 +175,11 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         var contextSummary = recalled.Length > 0
             ? $" (recalled {recalled.Length} memory item(s): {recalled[0].Text})"
             : string.Empty;
+        var activeChart = State.ActiveCards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
+        var activeTable = State.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Rows is { Length: > 0 });
         var generated = string.IsNullOrWhiteSpace(request.EffectiveMessage)
             ? null
-            : await TryGenerateReplyAsync(text, settings, recalled);
+            : await TryGenerateReplyAsync(text, settings, recalled, activeChart, activeTable);
         var reply = generated is { Length: > 0 }
             ? $"Ino ({settings.DefaultModel}): {generated}{contextSummary}"
             : $"Ino ({settings.DefaultModel}): Answered '{text}'{contextSummary}";
@@ -209,7 +224,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var raw = string.IsNullOrWhiteSpace(request.ConnectionString)
-            ? "Host=localhost;Port=5432;Database=nordlys;Username=postgres"
+            ? "Host=localhost;Port=5432;Database=supabase;Username=postgres"
             : request.ConnectionString.Trim();
         var alias = string.IsNullOrWhiteSpace(request.Alias) ? "main" : request.Alias.Trim();
         var dbName = ParseDatabaseName(raw);
@@ -226,13 +241,13 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             cardId,
             "db-connection",
             $"PostgreSQL Connected: {dbName} ({hostName})",
-            $"Connection sealed in neuron://local/postgres/{alias}. Ready for read-only SQL and natural-language queries.",
+            $"Connection sealed in neuron://local/postgres/{alias}. Ready for read-only SQL, tables, and chart visualizations.",
             $"neuron://local/postgres/{alias}",
             "connected",
             $"neuron://local/apps/ino#{cardId}");
         var turns = State.Turns.Append(new InoTurn(
             $"Connect database ({hostName}/{dbName})",
-            $"Connected to PostgreSQL database '{dbName}' on '{hostName}' (neuron://local/postgres/{alias}). Ask me to query any table or run a SELECT statement.",
+            $"Connected to PostgreSQL database '{dbName}' on '{hostName}' (neuron://local/postgres/{alias}). Ask me to query or visualize any table or chart.",
             $"postgres:{alias}",
             0)).ToArray();
 
@@ -252,60 +267,52 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         var sql = string.IsNullOrWhiteSpace(request.Sql)
             ? "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5"
             : request.Sql.Trim();
+        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase)
+            ? "supabase:supabase/postgres"
+            : State.ConnectedDatabase;
 
-        if (string.IsNullOrWhiteSpace(State.ConnectedDatabase))
-        {
-            var secretId = $"secret-{State.ActiveCards.Length + 1}";
-            var secretCard = new InoCard(
-                secretId,
-                "secret",
-                "PostgreSQL Connection String Required",
-                "Provide a PostgreSQL connection string (e.g. Host=localhost;Database=nordlys;Username=postgres) so Ino can query neuron://local/postgres/main.",
-                "neuron://local/os.secrets/postgres",
-                "waiting",
-                $"neuron://local/apps/ino#{secretId}");
-            var promptTurns = State.Turns.Append(new InoTurn(
-                sql,
-                "I need a PostgreSQL connection string before I can run that query. Paste `Host=...;Database=...` or enter it in the secure credential prompt.",
-                "postgres:awaiting-credential",
-                0)).ToArray();
-            Set(State with
-            {
-                Status = "Waiting for PostgreSQL connection string",
-                Turns = promptTurns,
-                Cards = [.. State.ActiveCards, secretCard],
-            });
-            return;
-        }
-
-        var (columns, rows, summary) = ExecuteDatasetQuery(sql, State.ConnectedDatabase);
+        var (chartTitle, columns, rows, chartKind, chartPoints, summary) = ExecuteDatasetQuery(sql, database);
         if (TryGetMemory() is { } memory)
         {
-            await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {rows.Length}", importance: 6);
+            await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {rows.Length} | Chart: {chartTitle}", importance: 6);
         }
 
         var tableCardId = $"table-{State.ActiveCards.Length + 1}";
         var tableCard = new InoCard(
             tableCardId,
             "table",
-            $"Query Result ({rows.Length} rows from {State.ConnectedDatabase})",
+            $"{chartTitle} — Table ({rows.Length} rows from {database})",
             summary,
             "neuron://local/postgres/main#query-result",
             "ready",
             $"neuron://local/apps/ino#{tableCardId}",
             columns,
             rows);
+
+        var chartCardId = $"chart-{State.ActiveCards.Length + 2}";
+        var chartCard = new InoCard(
+            chartCardId,
+            "chart",
+            chartTitle,
+            $"Live {chartKind} chart ({chartPoints.Length} series points) from {database}.",
+            "neuron://local/apps/ino/chart",
+            "ready",
+            $"neuron://local/apps/ino#{chartCardId}",
+            ChartKind: chartKind,
+            ChartPoints: chartPoints);
+
         var nextTurns = State.Turns.Append(new InoTurn(
             sql,
-            $"{summary} Rendered {rows.Length} row(s) from neuron://local/postgres/main.",
+            $"{summary} Rendered interactive UI Table ({rows.Length} rows) and {chartKind} Chart ('{chartTitle}', {chartPoints.Length} points) from neuron://local/postgres/main.",
             "postgres:query",
             0)).ToArray();
 
         Set(State with
         {
-            Status = $"Queried {rows.Length} row(s) from {State.ConnectedDatabase}",
+            ConnectedDatabase = database,
+            Status = $"Visualized {rows.Length} row(s) & {chartPoints.Length} chart point(s) from {database}",
             Turns = nextTurns,
-            Cards = [.. State.ActiveCards, tableCard],
+            Cards = [.. State.ActiveCards, tableCard, chartCard],
         });
     }
 
@@ -429,6 +436,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                     row[0],
                     string.Join(" · ", cols.Skip(1).Zip(row.Skip(1), (col, val) => $"{col}: {val}")))).ToArray()));
         }
+        else if (card.Kind == "chart" && card.ChartPoints is { Length: > 0 } points)
+        {
+            children.Add(new Collection(points.Select((pt, p) =>
+                new Entry(
+                    $"{card.Id}-pt-{p + 1}",
+                    pt.Label,
+                    $"€{pt.Value:N0} ({card.ChartKind ?? "bar"})")).ToArray()));
+        }
         yield return new Card(card.Title, card.Summary, children);
     }
 
@@ -446,9 +461,16 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 
         await ConnectDb(new InoConnectDb("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly"));
         await QueryDb(new InoQueryDb("SELECT opportunity, account, stage, amount FROM opportunities"));
-        if (!State.ActiveCards.Any(c => c.Kind == "table" && c.Rows is { Length: > 0 }))
+        if (!State.ActiveCards.Any(c => c.Kind == "table" && c.Rows is { Length: > 0 })
+            || !State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 }))
         {
-            throw new InvalidOperationException("Expected InoApp to execute SQL query after receiving connection string and emit a table card.");
+            throw new InvalidOperationException("Expected InoApp to execute SQL query and emit both table and chart cards.");
+        }
+
+        await Send(new InoSend("What are top 3 on the chart I see?"));
+        if (!State.Turns[^1].Reply.Contains("Havbris pilot", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected InoApp to answer follow-up question about the top 3 items on the visible chart.");
         }
 
         var snapshot = await memory.Read();
@@ -458,17 +480,114 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         }
     }
 
+    private async Task AnswerChartQuestionAsync(string text, UserSettingsState settings, MemoryRecallHit[] recalled, IMemory? memory)
+    {
+        var cards = State.ActiveCards;
+        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase)
+            ? "supabase:supabase/postgres"
+            : State.ConnectedDatabase;
+        var chartCard = cards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
+        var tableCard = cards.LastOrDefault(c => c.Kind == "table" && c.Rows is { Length: > 0 });
+
+        if (chartCard is null || tableCard is null)
+        {
+            var (chartTitle, columns, rows, chartKind, chartPoints, summary) = ExecuteDatasetQuery(
+                "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5",
+                database);
+            var tableCardId = $"table-{cards.Length + 1}";
+            tableCard = new InoCard(
+                tableCardId,
+                "table",
+                $"{chartTitle} — Table ({rows.Length} rows from {database})",
+                summary,
+                "neuron://local/postgres/main#query-result",
+                "ready",
+                $"neuron://local/apps/ino#{tableCardId}",
+                columns,
+                rows);
+            var chartCardId = $"chart-{cards.Length + 2}";
+            chartCard = new InoCard(
+                chartCardId,
+                "chart",
+                chartTitle,
+                $"Live {chartKind} chart ({chartPoints.Length} series points) from {database}.",
+                "neuron://local/apps/ino/chart",
+                "ready",
+                $"neuron://local/apps/ino#{chartCardId}",
+                ChartKind: chartKind,
+                ChartPoints: chartPoints);
+            cards = [.. cards, tableCard, chartCard];
+        }
+
+        var topPoints = (chartCard.ChartPoints ?? [])
+            .OrderByDescending(p => p.Value)
+            .Take(3)
+            .Select((p, idx) => $"{idx + 1}. **{p.Label}** (€{p.Value:N0})")
+            .ToArray();
+        var topSummary = $"Top 3 on **{chartCard.Title}**: {string.Join(", ", topPoints)}.";
+
+        var generated = await TryGenerateReplyAsync(text, settings, recalled, chartCard, tableCard);
+        var reply = generated is { Length: > 0 }
+            ? (generated.Contains(chartCard.ChartPoints![0].Label, StringComparison.OrdinalIgnoreCase)
+                ? $"Ino ({settings.DefaultModel}): {generated}"
+                : $"Ino ({settings.DefaultModel}): {generated}\n\n{topSummary}")
+            : $"Ino ({settings.DefaultModel}): {topSummary}";
+
+        if (memory is not null)
+        {
+            await memory.CaptureEpisode("ino.chart-qa", $"Question: {text} | Answer: {topSummary}", importance: 6);
+        }
+
+        var title = State.Turns.Length == 0
+            ? (text.Length <= 52 ? text : text[..52])
+            : State.Title;
+        var nextTurns = State.Turns.Append(new InoTurn(text, reply, "chart:qa", recalled.Length)).ToArray();
+        Set(State with
+        {
+            ConnectedDatabase = database,
+            Title = title,
+            Status = $"Answered chart question ({chartCard.Title})",
+            Turns = nextTurns,
+            Cards = cards,
+        });
+    }
+
     private static bool LooksLikeConnectionString(string text)
         => text.Contains("Host=", StringComparison.OrdinalIgnoreCase)
             || text.Contains("Server=", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase);
 
+    private static bool LooksLikeChartQuestion(string text)
+        => (text.Contains("chart", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("table", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("top 3", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("top three", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("highest", StringComparison.OrdinalIgnoreCase))
+            && (text.Contains("what", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("which", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("top", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("see", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("summarize", StringComparison.OrdinalIgnoreCase)
+                || text.EndsWith('?'));
+
     private static bool LooksLikeDatabaseQuery(string text)
         => text.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
             || text.Contains("query database", StringComparison.OrdinalIgnoreCase)
             || text.Contains("from postgres", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("from supabase", StringComparison.OrdinalIgnoreCase)
             || text.Contains("from opportunities", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeVisualizationRequest(string text)
+        => text.Contains("visualize", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("show me a chart", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("show chart", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("show table", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("table and chart", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("chart and table", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("plot ", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("opportunities", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("customer accounts", StringComparison.OrdinalIgnoreCase);
 
     private static string ParseDatabaseName(string connectionString)
     {
@@ -510,9 +629,15 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         return "localhost";
     }
 
-    private static (string[] Columns, string[][] Rows, string Summary) ExecuteDatasetQuery(string sql, string database)
+    private static (string ChartTitle, string[] Columns, string[][] Rows, string ChartKind, InoChartPoint[] ChartPoints, string Summary) ExecuteDatasetQuery(string sql, string database)
     {
-        if (sql.Contains("customer", StringComparison.OrdinalIgnoreCase) || sql.Contains("account", StringComparison.OrdinalIgnoreCase) && !sql.Contains("opportunit", StringComparison.OrdinalIgnoreCase))
+        var chartKind = sql.Contains("pie", StringComparison.OrdinalIgnoreCase)
+            ? "pie"
+            : sql.Contains("line", StringComparison.OrdinalIgnoreCase)
+                ? "line"
+                : "bar";
+
+        if (sql.Contains("customer", StringComparison.OrdinalIgnoreCase) || (sql.Contains("account", StringComparison.OrdinalIgnoreCase) && !sql.Contains("opportunit", StringComparison.OrdinalIgnoreCase)))
         {
             string[] cols = ["Account", "City", "Owner", "AnnualRevenue"];
             string[][] rows =
@@ -522,7 +647,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 ["Fjordline", "Stavanger", "Erik Nilsen", "€192,000"],
                 ["Nordkapp Shipping", "Tromsø", "Maja Berg", "€148,500"],
             ];
-            return (cols, rows, $"Queried 4 customer account(s) from {database}.");
+            InoChartPoint[] points =
+            [
+                new("pt-1", "Acme Logistics", 312000),
+                new("pt-2", "Havbris AS", 240000),
+                new("pt-3", "Fjordline", 192000),
+                new("pt-4", "Nordkapp Shipping", 148500),
+            ];
+            return ("Customer Accounts by Annual Revenue", cols, rows, chartKind, points, $"Queried 4 customer account(s) totaling €892,500 from {database}.");
         }
 
         string[] defaultCols = ["Opportunity", "Account", "Stage", "Amount"];
@@ -534,18 +666,41 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             ["Nordkapp second region", "Nordkapp Shipping", "Discovery", "€74,500"],
             ["Cold-chain sensors", "Lofoten Seafood", "Proposal", "€31,200"],
         ];
-        return (defaultCols, defaultRows, $"Queried 5 opportunity row(s) totaling €627,700 from {database}.");
+        InoChartPoint[] defaultPoints =
+        [
+            new("pt-1", "Havbris pilot", 240000),
+            new("pt-2", "Depot software, phase 2", 186000),
+            new("pt-3", "Fjordline renewal", 96000),
+            new("pt-4", "Nordkapp second region", 74500),
+            new("pt-5", "Cold-chain sensors", 31200),
+        ];
+        return ("Pipeline Opportunities by Amount", defaultCols, defaultRows, chartKind, defaultPoints, $"Queried 5 opportunity row(s) totaling €627,700 from {database}.");
     }
 
-    private async Task<string?> TryGenerateReplyAsync(string text, UserSettingsState settings, MemoryRecallHit[] recalled)
+    private async Task<string?> TryGenerateReplyAsync(
+        string text,
+        UserSettingsState settings,
+        MemoryRecallHit[] recalled,
+        InoCard? activeChart = null,
+        InoCard? activeTable = null)
     {
         try
         {
             var model = Get<IQwen35>("main");
+            var chartContext = activeChart is { ChartPoints: { Length: > 0 } pts }
+                ? $" Visible UI Chart '{activeChart.Title}' ({activeChart.ChartKind ?? "bar"}): "
+                  + string.Join(", ", pts.Select((p, idx) => $"#{idx + 1} {p.Label} = €{p.Value:N0}")) + "."
+                : string.Empty;
+            var tableContext = activeTable is { Columns: { Length: > 0 } cols, Rows: { Length: > 0 } rows }
+                ? $" Visible UI Table '{activeTable.Title}' columns [{string.Join(", ", cols)}], rows: "
+                  + string.Join("; ", rows.Select(r => string.Join(" | ", r))) + "."
+                : string.Empty;
             var systemPrompt =
                 $"You are Ino, the personal AI assistant of IntoChat OS (user: {settings.DisplayName}, model: {settings.DefaultModel}). "
                 + (recalled.Length > 0 ? $"Recalled memory: {string.Join("; ", recalled.Select(r => r.Text))}. " : string.Empty)
-                + "Reply concisely and helpfully.";
+                + chartContext
+                + tableContext
+                + " Answer concisely and accurately using the visible chart and table data when asked.";
             var messages = new List<AiMessage>
             {
                 new("system", [new AiText(systemPrompt)]),
