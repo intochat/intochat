@@ -187,7 +187,8 @@ public sealed class NuGetConfigFacts
 // CORE-02: the retired nouns do not come back.
 public sealed partial class VocabularyWordFacts
 {
-    [GeneratedRegex(@"\b(ITopologyProfile|LocalProfile|LocalCloudProfile|CloudProfile|Provides)\b")]
+    // Connector stays: it is the third type kind beside neuron and signal.
+    [GeneratedRegex(@"\b(ITopologyProfile|LocalProfile|LocalCloudProfile|CloudProfile|Provides|Connectors?)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Allowed();
 
     [GeneratedRegex(@"\b(connectors?|providers?|presets?|profiles?)\b", RegexOptions.IgnoreCase)]

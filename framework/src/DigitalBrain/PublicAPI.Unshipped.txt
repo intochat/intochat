@@ -976,8 +976,8 @@ DigitalBrain.BrainType
 DigitalBrain.BrainType.<Clone>$() -> DigitalBrain.BrainType!
 DigitalBrain.BrainType.Alias.get -> string!
 DigitalBrain.BrainType.Alias.init -> void
-DigitalBrain.BrainType.BrainType(string! Name, string! Alias, DigitalBrain.TypeKind Kind, string! Provider, string! Description, string![]! Shape, string![]! Implements) -> void
-DigitalBrain.BrainType.Deconstruct(out string! Name, out string! Alias, out DigitalBrain.TypeKind Kind, out string! Provider, out string! Description, out string![]! Shape, out string![]! Implements) -> void
+DigitalBrain.BrainType.BrainType(string! Name, string! Alias, DigitalBrain.TypeKind Kind, string! Origin, string! Description, string![]! Shape, string![]! Implements) -> void
+DigitalBrain.BrainType.Deconstruct(out string! Name, out string! Alias, out DigitalBrain.TypeKind Kind, out string! Origin, out string! Description, out string![]! Shape, out string![]! Implements) -> void
 DigitalBrain.BrainType.Description.get -> string!
 DigitalBrain.BrainType.Description.init -> void
 DigitalBrain.BrainType.Equals(DigitalBrain.BrainType? other) -> bool
@@ -987,8 +987,8 @@ DigitalBrain.BrainType.Kind.get -> DigitalBrain.TypeKind
 DigitalBrain.BrainType.Kind.init -> void
 DigitalBrain.BrainType.Name.get -> string!
 DigitalBrain.BrainType.Name.init -> void
-DigitalBrain.BrainType.Provider.get -> string!
-DigitalBrain.BrainType.Provider.init -> void
+DigitalBrain.BrainType.Origin.get -> string!
+DigitalBrain.BrainType.Origin.init -> void
 DigitalBrain.BrainType.Shape.get -> string![]!
 DigitalBrain.BrainType.Shape.init -> void
 DigitalBrain.TypeKind

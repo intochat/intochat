@@ -22,7 +22,7 @@ public sealed record NeuronType(
     {
         ArgumentNullException.ThrowIfNull(entry);
         var name = entry.Name[(entry.Name.LastIndexOf('.') + 1)..];
-        return new(entry.Alias, entry.Provider, name.StartsWith('I') ? name[1..] : name, entry.Description, entry.Shape, entry.Name);
+        return new(entry.Alias, entry.Origin, name.StartsWith('I') ? name[1..] : name, entry.Description, entry.Shape, entry.Name);
     }
 }
 

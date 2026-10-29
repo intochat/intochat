@@ -41,7 +41,7 @@ internal struct BrainTypeSurrogate
     [Id(0)] public string Name;
     [Id(1)] public string Alias;
     [Id(2)] public TypeKindSurrogate Kind;
-    [Id(3)] public string Provider;
+    [Id(3)] public string Origin;
     [Id(4)] public string Description;
     [Id(5)] public string[] Shape;
     [Id(6)] public string[] Implements;
@@ -51,7 +51,7 @@ internal struct BrainTypeSurrogate
 internal sealed class BrainTypeSurrogateConverter : IConverter<BrainType, BrainTypeSurrogate>
 {
     public BrainType ConvertFromSurrogate(in BrainTypeSurrogate surrogate)
-        => new(surrogate.Name, surrogate.Alias, (TypeKind)(int)surrogate.Kind, surrogate.Provider, surrogate.Description, surrogate.Shape, surrogate.Implements);
+        => new(surrogate.Name, surrogate.Alias, (TypeKind)(int)surrogate.Kind, surrogate.Origin, surrogate.Description, surrogate.Shape, surrogate.Implements);
 
     public BrainTypeSurrogate ConvertToSurrogate(in BrainType value)
         => new()
@@ -59,7 +59,7 @@ internal sealed class BrainTypeSurrogateConverter : IConverter<BrainType, BrainT
             Name = value.Name,
             Alias = value.Alias,
             Kind = (TypeKindSurrogate)(int)value.Kind,
-            Provider = value.Provider,
+            Origin = value.Origin,
             Description = value.Description,
             Shape = value.Shape,
             Implements = value.Implements,

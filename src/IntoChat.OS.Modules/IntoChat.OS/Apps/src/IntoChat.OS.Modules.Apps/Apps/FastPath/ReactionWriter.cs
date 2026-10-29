@@ -476,10 +476,10 @@ internal sealed class ReactionWriter(
         if (sandbox is null) { throw new InvalidOperationException(NoContract + AppAuthoringPolicy.SandboxMissing); }
         var result = new List<string>();
         var selected = entries.Concat(types.Where(type => type.Kind == DigitalBrain.TypeKind.Signal
-            && entries.Any(entry => string.Equals(entry.Provider, type.Provider, StringComparison.OrdinalIgnoreCase))));
-        foreach (var entry in selected.DistinctBy(entry => (entry.Provider, entry.Name)))
+            && entries.Any(entry => string.Equals(entry.Origin, type.Origin, StringComparison.OrdinalIgnoreCase))));
+        foreach (var entry in selected.DistinctBy(entry => (entry.Origin, entry.Name)))
         {
-            var detail = await sandbox.ReadContractDetail(entry.Provider, entry.Name, null, cancellationToken);
+            var detail = await sandbox.ReadContractDetail(entry.Origin, entry.Name, null, cancellationToken);
             if (detail.Truncated) { throw new InvalidOperationException(NoContract + $"complete detail is unavailable for {entry.Name}; narrow the request."); }
             result.AddRange(detail.Contracts);
         }

@@ -7,6 +7,6 @@ namespace IntoChat.OS.Framework;
 [GenerateSerializer, Alias("kernel.feature")]
 public sealed record Feature([property: Id(0)] string Name, [property: Id(1)] string Version, [property: Id(2)] string Owner)
 {
-    // How the types a feature brings name it in BrainType.Provider.
+    // How the types a feature brings name it in BrainType.Origin.
     public string Provider => $"feature:{Owner}/{Name}";
 }

@@ -567,7 +567,7 @@ internal static class Memory
             .Append(types.Count(type => type.Kind == DigitalBrain.TypeKind.Neuron)).Append(" neurons, ")
             .Append(types.Count(type => type.Kind == DigitalBrain.TypeKind.Signal)).Append(" signals, ")
             .Append(types.Count(type => type.Kind == DigitalBrain.TypeKind.Connector)).Append(" connectors.\n\n");
-        foreach (var provider in types.GroupBy(type => type.Provider).OrderBy(group => group.Key, StringComparer.Ordinal))
+        foreach (var provider in types.GroupBy(type => type.Origin).OrderBy(group => group.Key, StringComparer.Ordinal))
         {
             var neurons = provider.Where(type => type.Kind == DigitalBrain.TypeKind.Neuron).Select(type => type.Name[(type.Name.LastIndexOf('.') + 1)..])
                 .Order(StringComparer.Ordinal).ToArray();

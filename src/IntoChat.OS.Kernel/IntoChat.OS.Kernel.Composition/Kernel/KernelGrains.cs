@@ -120,7 +120,7 @@ internal sealed class TypeTableGrain(
     CompiledTypes compiled,
     [PersistentState("features", IntoChatOSNames.ClusterGrainStorage)] IPersistentState<TypeTableGrain.State> store) : Grain, ITypeTable
 {
-    // The loaded features, and the types each brought (a BrainType's Provider names its feature).
+    // The loaded features, and the types each brought (a BrainType's Origin names its feature).
     [GenerateSerializer, Alias("kernel.typetable.state")]
     [ExportableState]
     public sealed class State
@@ -139,14 +139,14 @@ internal sealed class TypeTableGrain(
     {
         var provider = feature.Provider;
         var known = store.State.Features.Select(entry => entry.Name).ToHashSet(StringComparer.Ordinal);
-        var stamped = types.Select(type => type with { Provider = provider }).ToArray();
+        var stamped = types.Select(type => type with { Origin = provider }).ToArray();
         var loaded = store.State.Loaded.FirstOrDefault(each => each.Name == feature.Name);
         var same = loaded == feature
-            && store.State.Features.Where(entry => entry.Provider == provider).Select(entry => entry.Name)
+            && store.State.Features.Where(entry => entry.Origin == provider).Select(entry => entry.Name)
                 .SequenceEqual(stamped.Select(entry => entry.Name), StringComparer.Ordinal);
         if (same) { return; }
         store.State.Loaded = [.. store.State.Loaded.Where(each => each.Name != feature.Name), feature];
-        store.State.Features = [.. store.State.Features.Where(entry => entry.Provider != provider), .. stamped];
+        store.State.Features = [.. store.State.Features.Where(entry => entry.Origin != provider), .. stamped];
         await store.WriteStateAsync();
         if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain)
         {
@@ -161,7 +161,7 @@ internal sealed class TypeTableGrain(
     {
         if (store.State.Loaded.FirstOrDefault(each => each.Name == name) is not { } feature) { return; }
         store.State.Loaded = [.. store.State.Loaded.Where(each => each.Name != name)];
-        store.State.Features = [.. store.State.Features.Where(entry => entry.Provider != feature.Provider)];
+        store.State.Features = [.. store.State.Features.Where(entry => entry.Origin != feature.Provider)];
         await store.WriteStateAsync();
     }
 }

@@ -14,7 +14,7 @@ public enum TypeKind { Neuron, Signal, Connector }
 /// <param name="Name">The full type name (a connector's id).</param>
 /// <param name="Alias">The neuron's grain type as instances record it; a signal's or connector's stable alias.</param>
 /// <param name="Kind">Which of the words this type is.</param>
-/// <param name="Provider">The module id (or feature) that brought the type.</param>
+/// <param name="Origin">The module id (or feature) that brought the type.</param>
 /// <param name="Description">What the type is for.</param>
 /// <param name="Shape">A neuron's method signatures, a signal's properties, a connector's neuron and signal names.</param>
 /// <param name="Implements">The neuron contracts a neuron contract extends, by full name.</param>
@@ -22,7 +22,7 @@ public sealed record BrainType(
     string Name,
     string Alias,
     TypeKind Kind,
-    string Provider,
+    string Origin,
     string Description,
     string[] Shape,
     string[] Implements);
