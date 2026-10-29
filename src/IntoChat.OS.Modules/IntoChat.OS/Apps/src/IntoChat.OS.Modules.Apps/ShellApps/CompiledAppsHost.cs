@@ -321,7 +321,27 @@ internal sealed class CompiledAppsHost(
             Side: sideView is not null ? new UiChildRef(UIVocabulary.ViewType, runtime.AppKey + "/side") : null,
             Main: new UiChildRef(UIVocabulary.ViewType, runtime.AppKey + "/view"),
             Views: [new PresentationView("full", new UiChildRef(UIVocabulary.ViewType, runtime.AppKey + "/view"))]);
-        await app.Present(snapshot.ProgramRevision, presentation);
+        var previousCaller = CallerContextStamper.TryGet(out var existingCaller) ? existingCaller : null;
+        var appCaller = (previousCaller ?? new DigitalBrain.Capabilities.CapabilityCaller(runtime.Brain, runtime.Brain, runtime.Brain)) with
+        {
+            AppId = runtime.AppKey,
+        };
+        CallerContextStamper.Stamp(appCaller);
+        try
+        {
+            await app.Present(snapshot.ProgramRevision, presentation);
+        }
+        finally
+        {
+            if (previousCaller is not null)
+            {
+                CallerContextStamper.Stamp(previousCaller);
+            }
+            else
+            {
+                RequestContext.Remove(CallerContextStamper.RequestContextKey);
+            }
+        }
         runtime.Presented = true;
     }
 
@@ -411,16 +431,9 @@ internal sealed class CompiledAppsHost(
         }
 
         var trimmed = input.Trim();
-        if (trimmed.StartsWith('{'))
+        if (trimmed.StartsWith('{') && trimmed.EndsWith('}'))
         {
-            try
-            {
-                return JsonSerializer.Deserialize(trimmed, targetType, Json);
-            }
-            catch (JsonException)
-            {
-                // Fall back to plain string mapping below.
-            }
+            return JsonSerializer.Deserialize(trimmed, targetType, Json);
         }
 
         var unquoted = trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"'

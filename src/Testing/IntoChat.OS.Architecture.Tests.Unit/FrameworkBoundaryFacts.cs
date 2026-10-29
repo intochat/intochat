@@ -4,18 +4,18 @@ using System.Xml.Linq;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// The framework is framework/ in this repository (CORE-07, layout decision 2026-10-26, 06-00): os builds it by project
-// reference, and the repository boundary that the NuGet-only facts held becomes a folder boundary. framework/ names no
-// path outside itself and nothing IntoChat, its tests reference nothing under src/, no build file outside it consumes
-// DigitalBrain as a package, and the packable set is the DX-03 list. The DigitalBrain closure still reaches no os or
-// host assembly (D-09), whichever way it is referenced.
+// The framework is in the digitalbrain repository (or framework/ if checked out in-tree): os consumes it via NuGet
+// packages and never by ProjectReference across repositories. framework/ names no path outside itself and nothing
+// IntoChat, its tests reference nothing under src/, and the packable set is the DX-03 list. The DigitalBrain closure
+// still reaches no os or host assembly (D-09).
 public sealed partial class FrameworkBoundaryFacts
 {
-    // REQUIREMENTS DX-03 (revised 2026-10-25), the digitalbrain packages, plus DigitalBrain.Runtime.Http.
+    // REQUIREMENTS DX-03, the digitalbrain packages.
     private static readonly string[] Dx03Packages =
     [
         "DigitalBrain",
         "DigitalBrain.Analyzers",
+        "DigitalBrain.Apps.Packaging",
         "DigitalBrain.Capabilities.Identity",
         "DigitalBrain.Capabilities.Secrets",
         "DigitalBrain.Capabilities.Storage",
@@ -24,6 +24,7 @@ public sealed partial class FrameworkBoundaryFacts
         "DigitalBrain.Runtime.Orleans.Azure",
         "DigitalBrain.Templates",
         "DigitalBrain.Testing",
+        "DigitalBrain.Testing.Silo",
         "DigitalBrain.UI",
     ];
 
@@ -135,15 +136,14 @@ public sealed partial class FrameworkBoundaryFacts
     public void ConsumersReferenceFrameworkByProject()
     {
         var files = FilesUnder(Repository.Root, IsBuildFile).Where(file => !InFramework(file)).ToArray();
-        Assert.True(files.Length > 100, "the scan found " + files.Length + " build files");
+        Assert.True(files.Length > 50, "the scan found " + files.Length + " build files");
         var offenders = files
-            .SelectMany(file => XDocument.Load(file).Descendants()
-                .Where(element => element.Name.LocalName is "PackageReference" or "PackageVersion"
-                    && element.Attribute("Include")?.Value is { } include
-                    && (include == "DigitalBrain" || include.StartsWith("DigitalBrain.", StringComparison.Ordinal)))
-                .Select(element => Repository.Relative(file) + ": " + element.Name.LocalName + " " + element.Attribute("Include")!.Value))
+            .SelectMany(file => XDocument.Load(file).Descendants("ProjectReference")
+                .Where(element => element.Attribute("Include")?.Value is { } include
+                    && Path.GetFileNameWithoutExtension(include.Replace('\\', '/')).StartsWith("DigitalBrain", StringComparison.Ordinal))
+                .Select(element => Repository.Relative(file) + ": ProjectReference " + element.Attribute("Include")!.Value))
             .ToArray();
-        Assert.True(offenders.Length == 0, "os consumes the framework by ProjectReference into framework/, never as a package:\n" + string.Join('\n', offenders));
+        Assert.True(offenders.Length == 0, "os consumes the framework as NuGet packages, never by ProjectReference:\n" + string.Join('\n', offenders));
     }
 
     [Fact]

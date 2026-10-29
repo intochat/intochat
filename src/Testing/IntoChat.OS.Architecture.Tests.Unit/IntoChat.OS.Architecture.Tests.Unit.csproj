@@ -6,11 +6,34 @@
     <ArchitectureProject Include="../../IntoChat.OS/**/*.csproj;../../IntoChat.OS.AppHost/**/*.csproj;../../IntoChat.OS.Client/**/*.csproj;../../IntoChat.OS.Connections/**/*.csproj;../../IntoChat.OS.Mcp/**/*.csproj;../../IntoChat.OS.Kernel/**/*.csproj;../../IntoChat.OS.Authority/**/*.csproj;../../IntoChat.OS.Trust/**/*.csproj;../../IntoChat.OS.Modules/**/*.csproj"
                          Exclude="../../**/tests/**;../../**/*.Generators.csproj;../../**/*.Generators.Tests.*/**;../../**/*.Tests.csproj;../../**/*.Tests.*.csproj;../../**/*.Testing/**;../../**/*.Aspire.Hosting/**;../../**/*.Deployment/**;../../**/*.Sandbox/**" />
     <ProjectReference Include="@(ArchitectureProject)" />
+    <PackageReference Include="IntoChat.OS.Modules.AI" />
+    <PackageReference Include="IntoChat.OS.Modules.ArtCraft" />
+    <PackageReference Include="IntoChat.OS.Modules.ClickHouse" />
+    <PackageReference Include="IntoChat.OS.Modules.Flutter" />
+    <PackageReference Include="IntoChat.OS.Modules.Google.Auth" />
+    <PackageReference Include="IntoChat.OS.Modules.Google.Drive" />
+    <PackageReference Include="IntoChat.OS.Modules.Google.Gmail" />
+    <PackageReference Include="IntoChat.OS.Modules.LocalDisk" />
+    <PackageReference Include="IntoChat.OS.Modules.Mcp" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Aspire" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Azure" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.CSharp" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.GitHub" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Orleans.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Playwright" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Roslyn" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Windows" />
+    <PackageReference Include="IntoChat.OS.Modules.Postgres" />
+    <PackageReference Include="IntoChat.OS.Modules.Qdrant" />
+    <PackageReference Include="IntoChat.OS.Modules.Salesforce" />
+    <PackageReference Include="IntoChat.OS.Modules.Supabase" />
+    <PackageReference Include="IntoChat.OS.Modules.Time" />
+    <PackageReference Include="IntoChat.OS.Modules.Tools" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
   <!-- DigitalBrain (the core package, CORE-02) is the lowest kernel layer, so the production graph loads it with the projects. -->
   <Target Name="WriteArchitectureAssemblies" AfterTargets="Build">
     <WriteLinesToFile File="$(OutDir)ArchitectureAssemblies.txt"
-                      Lines="@(ArchitectureProject->'%(Filename)');DigitalBrain" Overwrite="true" />
+                      Lines="@(ArchitectureProject->'%(Filename)');DigitalBrain;IntoChat.OS.Modules.AI;IntoChat.OS.Modules.AI.Contracts;IntoChat.OS.Modules.ArtCraft;IntoChat.OS.Modules.ClickHouse;IntoChat.OS.Modules.ClickHouse.Contracts;IntoChat.OS.Modules.Flutter;IntoChat.OS.Modules.Flutter.Contracts;IntoChat.OS.Modules.Google.Auth;IntoChat.OS.Modules.Google.Drive;IntoChat.OS.Modules.Google.Gmail;IntoChat.OS.Modules.LocalDisk;IntoChat.OS.Modules.Mcp;IntoChat.OS.Modules.Mcp.Contracts;IntoChat.OS.Modules.Microsoft.Aspire;IntoChat.OS.Modules.Microsoft.Aspire.Contracts;IntoChat.OS.Modules.Microsoft.Azure;IntoChat.OS.Modules.Microsoft.Azure.Contracts;IntoChat.OS.Modules.Microsoft.CSharp;IntoChat.OS.Modules.Microsoft.CSharp.Contracts;IntoChat.OS.Modules.Microsoft.GitHub;IntoChat.OS.Modules.Microsoft.GitHub.Contracts;IntoChat.OS.Modules.Microsoft.Orleans.Contracts;IntoChat.OS.Modules.Microsoft.Playwright;IntoChat.OS.Modules.Microsoft.Playwright.Contracts;IntoChat.OS.Modules.Microsoft.Roslyn;IntoChat.OS.Modules.Microsoft.Roslyn.Contracts;IntoChat.OS.Modules.Microsoft.Windows;IntoChat.OS.Modules.Postgres;IntoChat.OS.Modules.Postgres.Contracts;IntoChat.OS.Modules.Qdrant;IntoChat.OS.Modules.Salesforce;IntoChat.OS.Modules.Salesforce.Contracts;IntoChat.OS.Modules.Supabase;IntoChat.OS.Modules.Time;IntoChat.OS.Modules.Tools;IntoChat.OS.Modules.Tools.Contracts" Overwrite="true" />
   </Target>
 </Project>

@@ -8,7 +8,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Server" />
     <!-- Topology selection, validation and the local profiles (Phase 3 R4-04); the os Framework stays the transitional runtime. -->
-    <ProjectReference Include="../../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.csproj" />

@@ -364,6 +364,8 @@ public static class ShellHostingExtensions
             [
                 Path.Combine("src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "core"),
                 Path.Combine("src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "shell"),
+                Path.Combine("..", "modules", "src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "core"),
+                Path.Combine("..", "modules", "src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "shell"),
             ];
             for (var directory = new DirectoryInfo(Path.GetFullPath(appHostDirectory)); directory is not null; directory = directory.Parent)
             {

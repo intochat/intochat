@@ -6,10 +6,10 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.UI" />
+    <PackageReference Include="DigitalBrain.Capabilities.Identity" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
     <ProjectReference Include="../../../Localization/src/IntoChat.Cloud.Localization/IntoChat.Cloud.Localization.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -9,6 +9,6 @@
     <!-- Neuron interfaces and signals use the IntoChat.OS wire vocabulary; module runtime uses Framework. -->
     <ProjectReference Include="../../../../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../../Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
-    <ProjectReference Include="../../../../Google/Flutter/Contracts/IntoChat.OS.Modules.Flutter.Contracts/IntoChat.OS.Modules.Flutter.Contracts.csproj" />
+    <PackageReference Include="IntoChat.OS.Modules.Flutter.Contracts" />
   </ItemGroup>
 </Project>

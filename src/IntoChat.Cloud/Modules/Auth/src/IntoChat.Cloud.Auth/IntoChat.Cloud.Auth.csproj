@@ -7,14 +7,14 @@
   <!-- D-01: DigitalBrain, its identity and secrets capabilities, the module's own contracts and third-party packages only. -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Identity" />
+    <PackageReference Include="DigitalBrain.Capabilities.Secrets" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
     <PackageReference Include="Otp.NET" />
     <PackageReference Include="QRCoder" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <PackageReference Include="DigitalBrain.UI" />
     <ProjectReference Include="../../../Localization/src/IntoChat.Cloud.Localization/IntoChat.Cloud.Localization.csproj" />
     <ProjectReference Include="../IntoChat.Cloud.Auth.Core/IntoChat.Cloud.Auth.Core.csproj" />
     <ProjectReference Include="../../Contracts/IntoChat.Cloud.Auth.Contracts/IntoChat.Cloud.Auth.Contracts.csproj" />

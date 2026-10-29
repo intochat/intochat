@@ -38,8 +38,8 @@ internal static class LoadedContracts
                 if (fileName.StartsWith("IntoChat.OS", StringComparison.Ordinal) || fileName.StartsWith("DigitalBrain", StringComparison.Ordinal))
                 {
                     try { pending.Enqueue(AssemblyName.GetAssemblyName(file)); }
-                    catch (BadImageFormatException) { }
-                    catch (FileLoadException) { }
+                    catch (BadImageFormatException) { continue; }
+                    catch (FileLoadException) { continue; }
                 }
             }
         }

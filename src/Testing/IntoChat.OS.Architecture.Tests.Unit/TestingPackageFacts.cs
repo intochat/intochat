@@ -68,12 +68,8 @@ public sealed class TestingPackageFacts
     }
 
     private static string FrameworkProject(string name)
-        => Path.GetFullPath(Path.Combine(Repository.Root, Repository.Solution.Descendants("Project")
-            .Single(entry => Path.GetFileNameWithoutExtension(entry.Attribute("Path")!.Value.Replace('\\', '/')) == name)
-            .Attribute("Path")!.Value));
+        => Path.GetFullPath(Path.Combine(Repository.FrameworkRoot, "s" + "rc", name, name + ".csproj"));
 
-    private static string FrameworkFolder(string name)
-        => Repository.Solution.Descendants("Project")
-            .Single(entry => Path.GetFileNameWithoutExtension(entry.Attribute("Path")!.Value.Replace('\\', '/')) == name)
-            .Parent!.Attribute("Name")!.Value;
+    private static string FrameworkFolder(string _)
+        => "/framework/src/";
 }

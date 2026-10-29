@@ -72,7 +72,7 @@ public sealed class RepositoryLayoutFacts
     public void EveryFrameworkProjectHasOneSolutionEntryInItsFrameworkGroup()
     {
         var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        var entries = Repository.Solution.Descendants("Project").Where(Repository.IsFrameworkEntry).ToArray();
+        var entries = Repository.Solution.Descendants("Project").Where(Repository.IsFrameworkEntry).ToArray(); if (!Directory.Exists(Path.Combine(Repository.Root, Repository.FrameworkDirectory))) { Assert.Empty(entries); return; }
         var paths = entries.Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/')).Order().ToArray();
         var disk = Repository.SourceFiles(Repository.FrameworkRoot, "*.csproj", path => !path.Split(Path.DirectorySeparatorChar).Contains("content"))
             .Select(Repository.Relative).Order().ToArray();

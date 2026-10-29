@@ -17,9 +17,22 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     public override void Configure(IntoChatOSBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
-        // The image builds from the repository; a host composed without one (the session-pool path) has no container.
+        // The image builds from the repository (or its sibling modules repository); a host composed without one has no container.
         if (RepositoryRoot.Find() is not { } repository) { return; }
-        var sandbox = brain.ApplicationBuilder.AddDockerfile(ResourceName, repository, dockerfilePath: Dockerfile)
+        var contextPath = repository;
+        if (!File.Exists(Path.Combine(contextPath, Dockerfile)))
+        {
+            var modulesRepo = Path.GetFullPath(Path.Combine(repository, "..", "modules"));
+            if (File.Exists(Path.Combine(modulesRepo, Dockerfile)))
+            {
+                contextPath = modulesRepo;
+            }
+            else
+            {
+                return;
+            }
+        }
+        var sandbox = brain.ApplicationBuilder.AddDockerfile(ResourceName, contextPath, dockerfilePath: Dockerfile)
             .WithHttpEndpoint(targetPort: 8080, name: "http")
             .WithHttpHealthCheck("/health")
             .WithOtlpExporter()

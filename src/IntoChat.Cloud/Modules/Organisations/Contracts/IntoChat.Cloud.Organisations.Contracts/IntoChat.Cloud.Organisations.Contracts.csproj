@@ -6,7 +6,7 @@
   </PropertyGroup>
   <!-- DigitalBrain and the Mail contracts (the system shard helper) only. -->
   <ItemGroup>
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <PackageReference Include="DigitalBrain" />
     <ProjectReference Include="../../../Mail/Contracts/IntoChat.Cloud.Mail.Contracts/IntoChat.Cloud.Mail.Contracts.csproj" />
   </ItemGroup>
 </Project>

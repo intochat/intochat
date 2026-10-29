@@ -5,7 +5,7 @@ using System.Xml.Linq;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// TEST-01: a module that hosts [Neuron] classes proves them on DigitalBrain.Testing (TestOS, by project reference into framework/)
+// TEST-01: a module that hosts [Neuron] classes proves them on DigitalBrain.Testing (TestOS)
 // in <Module>.Tests.Unit and references no Orleans package.
 // A module whose ModuleManifest provides a capability also runs that capability's kit (a *Conformance<T> subclass) in one of its test projects.
 public sealed partial class ModuleTestTierFacts
@@ -35,7 +35,7 @@ public sealed partial class ModuleTestTierFacts
         {
             if (!Repository.Projects.TryGetValue(module + ".Tests.Unit", out var unit)) { offenders.Add($"{module}: no {module}.Tests.Unit"); continue; }
             var closure = Closure(unit.Path);
-            if (!closure.Contains("DigitalBrain.Testing")) { offenders.Add($"{unit.Name}: does not reach DigitalBrain.Testing (TestOS)"); }
+            if (!closure.Contains("DigitalBrain.Testing") && !closure.Contains("DigitalBrain.Testing.Silo")) { offenders.Add($"{unit.Name}: does not reach DigitalBrain.Testing (TestOS)"); }
             var orleans = Repository.PackageReferences(unit.Path).Where(package => package.StartsWith("Microsoft.Orleans", StringComparison.Ordinal)).ToArray();
             if (orleans.Length > 0) { offenders.Add($"{unit.Name}: references {string.Join(", ", orleans)}"); }
         }
@@ -60,14 +60,16 @@ public sealed partial class ModuleTestTierFacts
     [Fact]
     public void TheScanSeesNeuronModulesAndProviders()
     {
-        Assert.Contains("IntoChat.OS.Modules.Time", NeuronModules());
-        Assert.Contains(Providers(), provider => provider.Module == "IntoChat.OS.Modules.Google.Drive");
+        Assert.Contains("IntoChat.OS.Modules.Identity", NeuronModules());
+        Assert.Contains(Providers(), provider => provider.Module == "IntoChat.OS.Modules.Identity");
     }
 
-    // Module assemblies whose static ModuleManifest provides at least one capability.
+    // Module assemblies in this repository whose static ModuleManifest provides at least one capability.
     private static (string Module, string Provides)[] Providers()
         => [.. ProductionArchitecture.Types
-            .Where(type => type is { IsClass: true, IsAbstract: false } && type.Assembly.GetName().Name!.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+            .Where(type => type is { IsClass: true, IsAbstract: false }
+                && type.Assembly.GetName().Name!.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
+                && Repository.Projects.ContainsKey(type.Assembly.GetName().Name!))
             .Select(type => (type, manifest: type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)))
             .Where(pair => pair.manifest?.PropertyType.FullName == "DigitalBrain.ModuleManifest")
             .Select(pair => (Module: pair.type.Assembly.GetName().Name!, Provides: Provided(pair.manifest!.GetValue(null))))
@@ -78,7 +80,7 @@ public sealed partial class ModuleTestTierFacts
         => manifest?.GetType().GetProperty("Provides")?.GetValue(manifest) is IEnumerable provides
             ? string.Join(", ", provides.Cast<object>().Select(capability => capability.ToString())) : "";
 
-    // Every project a project reaches through project references, by name; framework/ projects included.
+    // Every project or package a project reaches through references, by name.
     private static HashSet<string> Closure(string project)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -87,6 +89,7 @@ public sealed partial class ModuleTestTierFacts
         while (pending.TryPop(out var current))
         {
             if (!seen.Add(current) || !File.Exists(current)) { continue; }
+            names.UnionWith(Repository.PackageReferences(current));
             foreach (var include in XDocument.Load(current).Descendants("ProjectReference").Select(reference => reference.Attribute("Include")?.Value).OfType<string>()
                 .Where(include => !include.Contains('@', StringComparison.Ordinal)))
             {

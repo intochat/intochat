@@ -6,8 +6,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.Cloud.Blob.Tests.Integration" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
     <PackageReference Include="Azure.Storage.Blobs" />
   </ItemGroup>
 </Project>

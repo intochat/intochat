@@ -37,7 +37,7 @@ public sealed partial class PackagingFacts
             Assert.Contains(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name == project.Name && ContractRing.IsHost(assembly));
         });
         Assert.Equal(hosts.Select(project => project.Name).Order(StringComparer.Ordinal),
-            ProductionArchitecture.Assemblies.Where(ContractRing.IsHost).Select(assembly => assembly.GetName().Name!).Order(StringComparer.Ordinal));
+            ProductionArchitecture.Assemblies.Where(assembly => Repository.Projects.ContainsKey(assembly.GetName().Name!) && ContractRing.IsHost(assembly)).Select(assembly => assembly.GetName().Name!).Order(StringComparer.Ordinal));
     }
 
     [Fact]

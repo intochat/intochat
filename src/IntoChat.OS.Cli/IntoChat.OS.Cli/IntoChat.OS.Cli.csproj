@@ -7,6 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Cli.Tests.Unit" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.Apps.Packaging/DigitalBrain.Apps.Packaging.csproj" />
+    <PackageReference Include="DigitalBrain.Apps.Packaging" />
   </ItemGroup>
 </Project>

@@ -25,7 +25,9 @@ internal static class Repository
     internal static bool IsFrameworkEntry(XElement entry)
         => entry.Attribute("Path")!.Value.Replace('\\', '/').StartsWith(FrameworkDirectory + "/", StringComparison.Ordinal);
 
-    internal static readonly string FrameworkRoot = System.IO.Path.Combine(Root, FrameworkDirectory);
+    internal static readonly string FrameworkRoot = System.IO.Directory.Exists(System.IO.Path.Combine(Root, FrameworkDirectory))
+        ? System.IO.Path.Combine(Root, FrameworkDirectory)
+        : System.IO.Path.GetFullPath(System.IO.Path.Combine(Root, "..", "digitalbrain"));
 
     // Compiled first-party apps keep their source under features/, with their own framework-only boundary.
     internal static readonly string FeatureRoot = System.IO.Path.Combine(Root, "features");

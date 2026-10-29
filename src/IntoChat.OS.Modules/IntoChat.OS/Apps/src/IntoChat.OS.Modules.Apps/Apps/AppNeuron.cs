@@ -91,7 +91,7 @@ internal sealed partial class AppNeuron(
         var next = Snapshot.Clone();
         next.Manifest = manifest.Validated();
         next.BrainScopeId = BrainId();
-        next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : null;
+        next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
         next.Spec = spec ?? "";
         next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Version = "0.1.0";
@@ -450,7 +450,7 @@ internal sealed partial class AppNeuron(
         { throw new InvalidOperationException($"You already have an app named {Name()}."); }
         var next = Snapshot.Clone();
         next.BrainScopeId = BrainId();
-        next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : null;
+        next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
         next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
         next.Files = bundle.Files;
@@ -507,6 +507,7 @@ internal sealed partial class AppNeuron(
     // only the runtime's answer makes it Live. Landing again is cheap: Assign is idempotent per program.
     private async Task<AppSnapshot> Land(AppState next)
     {
+        next.Principal ??= CallerContextStamper.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
         next.Status = AppStatus.Deploying;
         AdvanceProgram(next);
         Record(next);
@@ -765,7 +766,8 @@ internal sealed partial class AppNeuron(
         if (sources.Count == 0) { return; }
         var configuration = Configuration(Snapshot);
         var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
-        if (Snapshot.Principal is { } principal) { CallerContextStamper.Stamp(principal); }
+        var principal = Snapshot.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
+        if (principal is not null) { CallerContextStamper.Stamp(principal); }
         else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
         try
         {
@@ -799,7 +801,18 @@ internal sealed partial class AppNeuron(
         var sources = Sources(Snapshot);
         if (sources.Count == 0) { await runtime.Retire(Key, CancellationToken.None); return; }
         RequireShape(sources);
-        await runtime.Deploy(Key, sources, Configuration(Snapshot), CancellationToken.None);
+        var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
+        var principal = Snapshot.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
+        if (principal is not null) { CallerContextStamper.Stamp(principal); }
+        try
+        {
+            await runtime.Deploy(Key, sources, Configuration(Snapshot), CancellationToken.None);
+        }
+        finally
+        {
+            if (inherited is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+            else { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+        }
     }
 
     // The shape gate in front of the runtime's compile gate: every synapse is one reaction.

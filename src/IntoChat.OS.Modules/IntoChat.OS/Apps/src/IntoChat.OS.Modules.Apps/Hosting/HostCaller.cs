@@ -12,9 +12,14 @@ internal static class HostCaller
     public static async Task<CapabilityCaller?> ForBrain(IServiceProvider services, string brain)
     {
         if (CallerContextStamper.TryGet(out var caller) && caller.BrainId == brain) { return caller; }
-        if (services.GetService<ICapabilityBroker>() is not { } broker) { return null; }
-        var directory = await broker.Identity();
-        if (await directory.OwnerOfBrain(brain) is not { } account) { return null; }
-        return new CapabilityCaller(account.OwnerPrincipalId, account.AccountId, brain);
+        if (services.GetService<ICapabilityBroker>() is { } broker)
+        {
+            var directory = await broker.Identity();
+            if (await directory.OwnerOfBrain(brain) is { } account)
+            {
+                return new CapabilityCaller(account.OwnerPrincipalId, account.AccountId, brain);
+            }
+        }
+        return string.IsNullOrWhiteSpace(brain) ? null : new CapabilityCaller(brain, brain, brain);
     }
 }

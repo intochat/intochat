@@ -1,2 +1,0 @@
-# framework/ keeps the code style it had as its own repository (06-00): no rules inherit from the os .editorconfig.
-root = true

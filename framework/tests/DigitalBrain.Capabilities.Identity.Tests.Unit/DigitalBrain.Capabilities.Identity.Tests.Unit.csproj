@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
-  </ItemGroup>
-</Project>

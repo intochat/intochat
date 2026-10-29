@@ -8,7 +8,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 public sealed partial class PackageRootAllowlistFacts
 {
     // The packable count after consolidating the 14 module Aspire.Hosting projects into IntoChat.OS.Aspire.Hosting; a drop below it means the scan stopped seeing projects.
-    private const int KnownPackable = 56;
+    private const int KnownPackable = 33;
 
     [GeneratedRegex(@"^IntoChat\.OS(\.|$)|^IntoChat\.Cloud\.", RegexOptions.CultureInvariant)]
     private static partial Regex AllowedRoot();

@@ -28,8 +28,8 @@ public sealed class ModuleInventory
             .Concat(Modules.Select(module => module.Contracts).OfType<Assembly>())
             .Distinct()];
 
-    // Framework does not reference Authority (D-07): the connection contracts are found by name when the host ships them.
-    private const string ConnectionContractsName = "IntoChat.OS.Authority.Contracts";
+    // Framework does not reference Identity (D-07): the connection contracts are found by name when the host ships them.
+    private const string ConnectionContractsName = "IntoChat.OS.Modules.Identity.Contracts";
 
     private static Assembly? ConnectionContracts()
     {

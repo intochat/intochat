@@ -5,8 +5,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" />
-    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <PackageReference Include="DigitalBrain.Testing" />
+    <PackageReference Include="DigitalBrain.Testing.Silo" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
   </ItemGroup>
 </Project>

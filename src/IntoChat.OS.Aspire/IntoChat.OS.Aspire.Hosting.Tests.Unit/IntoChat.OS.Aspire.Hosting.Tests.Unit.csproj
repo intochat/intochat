@@ -5,6 +5,6 @@
     <ProjectReference Include="../IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
     <ProjectReference Include="../IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
     <ProjectReference Include="../IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <PackageReference Include="IntoChat.OS.Modules.Time" />
   </ItemGroup>
 </Project>

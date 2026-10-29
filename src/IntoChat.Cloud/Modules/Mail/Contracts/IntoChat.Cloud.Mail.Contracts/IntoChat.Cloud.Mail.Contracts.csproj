@@ -6,7 +6,7 @@
   </PropertyGroup>
   <!-- DigitalBrain, the module's own template project and the BCL only. -->
   <ItemGroup>
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <PackageReference Include="DigitalBrain" />
     <ProjectReference Include="../../src/IntoChat.Cloud.Mail.Templates/IntoChat.Cloud.Mail.Templates.csproj" />
   </ItemGroup>
 </Project>

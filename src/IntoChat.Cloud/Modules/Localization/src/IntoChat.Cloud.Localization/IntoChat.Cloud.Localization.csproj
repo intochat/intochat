@@ -5,7 +5,7 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <PackageReference Include="DigitalBrain" />
     <EmbeddedResource Include="Tables\*.json" />
   </ItemGroup>
   <ItemGroup>

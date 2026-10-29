@@ -53,7 +53,15 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
             {
                 await workspace.Open(cancellationToken);
                 var snapshot = await app.Read();
-                await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
+                CallerContextStamper.Stamp(caller with { AppId = key });
+                try
+                {
+                    await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
+                }
+                finally
+                {
+                    CallerContextStamper.Stamp(caller);
+                }
             }
             if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
             { await app.Progress("failed", failure); }

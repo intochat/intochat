@@ -44,8 +44,6 @@ public sealed partial class RepositoryPathLiteralFacts
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/HostEnvironmentFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
         "IntoChat.OS.Aspire.Hosting.Tests.Unit/LegacyConfigurationGuardFacts.cs",
-        "IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/InstallPlanTopologyFacts.cs",
-        "IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit/ManifestEnvironmentFacts.cs"
     ];
 
     [Fact]
@@ -82,7 +80,11 @@ public sealed partial class RepositoryPathLiteralFacts
                 // Build output under a checked-in directory is not on disk until a build runs.
                 var segments = match.Value.Split('/').TakeWhile(segment => segment is not ("bin" or "obj" or "build")).ToArray();
                 var path = Path.Combine([Repository.Root, .. segments]);
-                if (!File.Exists(path) && !Directory.Exists(path)) { missing.Add(Path.GetFileName(workflow) + ": " + match.Value); }
+                var modulesPath = Path.Combine([Repository.Root, "..", "modules", .. segments]);
+                if (!File.Exists(path) && !Directory.Exists(path) && !File.Exists(modulesPath) && !Directory.Exists(modulesPath))
+                {
+                    missing.Add(Path.GetFileName(workflow) + ": " + match.Value);
+                }
             }
         }
         Assert.True(missing.Count == 0, "Workflow paths that no longer exist:\n" + string.Join('\n', missing.Distinct().Order()));

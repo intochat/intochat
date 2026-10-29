@@ -47,7 +47,7 @@ public sealed partial class TestTierRules
         {
             var facts = Repository.SourceFiles(project.Directory, "*.cs").Any(file => File.ReadAllText(file).Contains("[Fact", StringComparison.Ordinal));
             if (!facts) { continue; }
-            if (!Repository.References(project.Path).Contains("DigitalBrain.Testing.Silo", StringComparer.Ordinal)) { found.Add(project.Name); }
+            if (!Repository.References(project.Path).Concat(Repository.PackageReferences(project.Path)).Contains("DigitalBrain.Testing.Silo", StringComparer.Ordinal)) { found.Add(project.Name); }
         }
         return found;
     }

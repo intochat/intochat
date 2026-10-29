@@ -6,8 +6,8 @@
   <!-- D-01: DigitalBrain, the two circle contract assemblies and third-party packages only. -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <ProjectReference Include="../../../../../IntoChat.OS.Modules/IntoChat.OS/Circles/Contracts/IntoChat.OS.Modules.Circles.Contracts/IntoChat.OS.Modules.Circles.Contracts.csproj" />
     <ProjectReference Include="../../Contracts/IntoChat.Cloud.Circle.Contracts/IntoChat.Cloud.Circle.Contracts.csproj" />

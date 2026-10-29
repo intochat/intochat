@@ -1,4 +1,0 @@
-<Project>
-  <!-- Stops MSBuild walking up into the os root Directory.Build.targets: framework/ stays self-contained (own props, CPM and
-       targets) so it builds and packs alone and can be split out again (06-00). -->
-</Project>

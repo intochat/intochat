@@ -9,12 +9,12 @@
     <!-- Every module Contracts project, by convention: the host reads a neuron contract from its own loaded assemblies. -->
     <ProjectReference Include="../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Contracts.csproj" Exclude="../../IntoChat.OS.Modules/**/tests/**" />
     <!-- A module that hosts its own contracts (IntoChatOSContractsHost) has no Contracts project for the glob above: reference it itself. -->
-    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/src/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/src/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/src/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <PackageReference Include="IntoChat.OS.Modules.ArtCraft" />
+    <PackageReference Include="IntoChat.OS.Modules.Google.Gmail" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Windows" />
+    <PackageReference Include="IntoChat.OS.Modules.Time" />
     <!-- Tool sources are searched from here too: the registry is read through the cluster client. -->
-    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Tools/src/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
+    <PackageReference Include="IntoChat.OS.Modules.Tools" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
   </ItemGroup>

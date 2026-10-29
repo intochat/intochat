@@ -6,7 +6,7 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../../Google/Flutter/Contracts/IntoChat.OS.Modules.Flutter.Contracts/IntoChat.OS.Modules.Flutter.Contracts.csproj" />
+    <PackageReference Include="IntoChat.OS.Modules.Flutter.Contracts" />
     <ProjectReference Include="../../../../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../../Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
   </ItemGroup>
