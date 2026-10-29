@@ -18,6 +18,8 @@ public sealed class ShellAppFacts
     public static IEnumerable<TheoryDataRow<AppOperationCase>> CreatorOperations
         => AppBaseline.Cases(typeof(CreatorApp), os => os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>());
 
+    public static IEnumerable<TheoryDataRow<AppOperationCase>> GalleryOperations => AppBaseline.Cases(typeof(GalleryApp));
+
     [Theory, MemberData(nameof(WorkspaceOperations))]
     public Task WorkspaceBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
@@ -35,6 +37,9 @@ public sealed class ShellAppFacts
 
     [Theory, MemberData(nameof(CreatorOperations))]
     public Task CreatorBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+
+    [Theory, MemberData(nameof(GalleryOperations))]
+    public Task GalleryBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Fact]
     public void SettingsCarriesTheFlutterTreesAndTheAppsLibrary()
@@ -77,9 +82,17 @@ public sealed class ShellAppFacts
     public async Task SettingsInoAndPostBddScenariosAndSystemNeuronsPass()
     {
         var ct = TestContext.Current.CancellationToken;
+        var desktopReport = await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct);
+        Assert.True(desktopReport.Passed);
+        Assert.Single(desktopReport.Scenarios);
+
         var settingsReport = await BddRunner.VerifyAsync<SettingsApp>(cancellationToken: ct);
         Assert.True(settingsReport.Passed);
         Assert.Single(settingsReport.Scenarios);
+
+        var galleryReport = await BddRunner.VerifyAsync<GalleryApp>(cancellationToken: ct);
+        Assert.True(galleryReport.Passed);
+        Assert.Single(galleryReport.Scenarios);
 
         var inoReport = await BddRunner.VerifyAsync<InoApp>(fakes: os => os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>(), cancellationToken: ct);
         Assert.True(inoReport.Passed);
@@ -121,8 +134,14 @@ public sealed class ShellAppFacts
 
         await inoInstalled.Request("send", new InoSend("Draft confirmation card"));
         Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/os.confirmations/inbox", StringComparison.Ordinal));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("scope:neuron://local/apps/ino#card-1", StringComparison.Ordinal));
         await inoInstalled.Request("approve-card", new InoApproveCard("card-1", true));
         Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("approved", StringComparison.Ordinal));
+
+        await inoInstalled.Request("send", new InoSend("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly"));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/postgres/main", StringComparison.Ordinal));
+        await inoInstalled.Request("send", new InoSend("SELECT account, city, owner FROM customers"));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/postgres/main#query-result", StringComparison.Ordinal));
 
         os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
         var creatorInstalled = await os.Install<CreatorApp>();
