@@ -9,7 +9,7 @@ public sealed class DriveModule : Module
     public static ModuleManifest Manifest { get; } = new(
         [new CapabilityId("storage", 1)],   // capabilities it offers
         [],                                 // capabilities it requires
-        [Need.GrainStore("drive"), Need.Secrets],
+        [Need.State("drive"), Need.Secrets],
         [],                                 // settings
         []);                                // secrets
 }
@@ -19,7 +19,7 @@ public sealed class DriveModule : Module
 
 A `Need` names a kind of infrastructure, never a concrete service:
 
-- `Need.GrainStore(name)`: a named grain store.
+- `Need.State(name)`: a named grain store.
 - `Need.Streams`, `Need.Reminders`, `Need.Secrets`, `Need.Http`, `Need.Sandbox`, `Need.Model`.
 
 ## Privileged members and declared secrets

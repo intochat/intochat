@@ -1,3 +1,6 @@
+using DigitalBrain;
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Globalization;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Apps;
@@ -9,7 +12,7 @@ using IntoChat.OS.Modules.Flutter.Layout;
 using IntoChat.OS.Modules.Flutter.Person;
 using IntoChat.OS.Modules.Flutter.Text;
 
-public static class Friends
+public static partial class Friends
 {
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string Scope(IntoChatOSConnection brain) => brain.Setting("Brain")!;
@@ -34,26 +37,33 @@ public static class Friends
     public static Task Post(IntoChatOSConnection brain, Guid requestId, string text)
         => Post(brain, Scope(brain), requestId, text);
 
-    public static async Task Post(IIntoChatOS brain, string scope, Guid requestId, string text)
+    public static Task Post(IntoChatOSConnection brain, string scope, Guid requestId, string text)
+        => Post(scope, requestId, text, brain.Get<ICard>, brain.Get<ICollectionView>, brain.Get<ICircleFactory>, brain.Get<ICircleChat>);
+
+    // The replay test holds an in-process brain, not a script connection. Both resolve neurons by os key.
+    public static Task Post(INeuronProxies brain, string scope, Guid requestId, string text)
+        => Post(scope, requestId, text, brain.Get<ICard>, brain.Get<ICollectionView>, brain.Get<ICircleFactory>, brain.Get<ICircleChat>);
+
+    private static async Task Post(string scope, Guid requestId, string text, Func<string, ICard> cards, Func<string, ICollectionView> views, Func<string, ICircleFactory> circles, Func<string, ICircleChat> chats)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         var key = scope + "/posts/" + requestId.ToString("N");
         var title = text[..Math.Min(60, text.Length)];
-        var card = brain.Get<ICard>(key);
+        var card = cards(key);
         var existing = await card.Read();
-        var index = brain.Get<ICollectionView>(scope + "/posts");
+        var index = views(scope + "/posts");
         var previous = await index.Read();
-        var audience = brain.Get<ICollectionView>(IApp.Key(scope, "friends") + "/audiences/" + requestId.ToString("N"));
+        var audience = views(IApp.Key(scope, "friends") + "/audiences/" + requestId.ToString("N"));
         var destinations = await audience.Read();
         if (destinations.Revision == 0)
         {
             // Freeze the audience before any post state or publication. Old posts without a snapshot
             // fail closed: today's circles cannot tell us whom the original author meant to address.
-            var circles = existing.Version != 0 || previous.Definition.Items.Any(item => item.Id == key)
-                ? [] : await brain.Get<ICircleFactory>(ICircleFactory.Key(scope)).Circles();
+            var members = existing.Version != 0 || previous.Definition.Items.Any(item => item.Id == key)
+                ? [] : await circles(ICircleFactory.Key(scope)).Circles();
             try
             {
-                await audience.Set(new(circles.Select(circle => new CollectionItem(circle.BrainId, circle.Name, "circle")).ToArray(),
+                await audience.Set(new(members.Select(circle => new CollectionItem(circle.BrainId, circle.Name, "circle")).ToArray(),
                     FileMode: false, SelectionEnabled: false), 0);
             }
             catch (RevisionConflictException) { } // Another handling attempt already fixed this request's audience.
@@ -65,11 +75,11 @@ public static class Friends
             await index.Set(new([new(key, title, "post"), .. previous.Definition.Items],
                 FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet"), previous.Revision);
         }
-        var factory = brain.Get<ICircleFactory>(ICircleFactory.Key(scope));
+        var factory = circles(ICircleFactory.Key(scope));
         var current = (await factory.Circles()).Select(circle => circle.BrainId).ToHashSet(StringComparer.Ordinal);
         foreach (var circle in destinations.Definition.Items.Where(circle => current.Contains(circle.Id)))
         {
-            try { await brain.Get<ICircleChat>(ICircleChat.Key(circle.Id)).PublishPost(key, requestId.ToString()); }
+            try { await chats(ICircleChat.Key(circle.Id)).PublishPost(key, requestId.ToString()); }
             catch (UnauthorizedAccessException)
             {
                 // Removal can race the membership snapshot. Keep the publication guard authoritative;

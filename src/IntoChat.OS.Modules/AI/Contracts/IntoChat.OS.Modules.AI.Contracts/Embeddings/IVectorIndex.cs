@@ -31,20 +31,17 @@ public interface IVectorIndex
     static string Key(string brainId, string name) => $"{brainId}/memory/{name}";
 }
 
-[GenerateSerializer, Alias("ai.vector-entry")]
 public sealed record VectorEntry(
-    [property: Id(0)] string Id,
-    [property: Id(1)] float[] Vector,
-    [property: Id(2)] Dictionary<string, string> Payload);
+    string Id,
+    float[] Vector,
+    Dictionary<string, string> Payload);
 
-[GenerateSerializer, Alias("ai.vector-match")]
 public sealed record VectorMatch(
-    [property: Id(0)] string Id,
-    [property: Id(1)] double Score,
-    [property: Id(2)] Dictionary<string, string> Payload);
+    string Id,
+    double Score,
+    Dictionary<string, string> Payload);
 
-[GenerateSerializer, Alias("ai.vector-index-snapshot")]
 public sealed record VectorIndexSnapshot(
-    [property: Id(0)] int Count,
-    [property: Id(1)] int Dimensions,
-    [property: Id(2)] long Revision);
+    int Count,
+    int Dimensions,
+    long Revision);

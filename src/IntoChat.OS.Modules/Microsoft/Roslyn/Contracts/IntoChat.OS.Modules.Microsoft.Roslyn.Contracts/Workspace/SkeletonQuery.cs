@@ -1,5 +1,3 @@
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[GenerateSerializer]
-[Alias("coding.skeleton-query")]
-public sealed record SkeletonQuery([property: Id(0)] string Path);
+public sealed record SkeletonQuery(string Path);

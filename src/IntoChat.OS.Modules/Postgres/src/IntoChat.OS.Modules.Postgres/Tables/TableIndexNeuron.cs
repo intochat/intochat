@@ -1,5 +1,6 @@
 using DigitalBrain.State;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
@@ -53,9 +54,8 @@ internal sealed class TableIndexNeuron : DigitalBrain.Neuron, ITableIndex
         // Registration must still answer while a table is finishing its in-flight Define.
         // The write gate is released before calls back to tables, so closed scopes refuse promptly.
         // Each call leaves as this neuron, so TableLifecycleGuard sees the index as the caller.
-        var neurons = Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
         foreach (var table in state.Tables)
-        { await Context.Get<ITableLifetime>(neurons.IdOf(typeof(ITableLifetime), table)).Retire(OwnerKey); }
+        { await Context.Get<ITableLifetime>(SiloNeurons.IdOf(typeof(ITableLifetime), table)).Retire(OwnerKey); }
     }
 
     // A fresh install of the same app: its old tables were dropped by Retire, so it starts empty.

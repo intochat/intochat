@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -31,7 +32,7 @@ internal sealed record ReactionRanking(ReactionExample[] Examples, ReactionExamp
 // features folder. Ranking is by meaning when an embedding model is composed (the same unkeyed generator
 // NeuronTypeSearch uses), by words otherwise, then nudged by each synapse's run history in this brain.
 internal sealed class ReactionExamples(
-    IntoChat.OS.Runtime.IPlainNeurons plain,
+    IServiceProvider plain,
     IKernel kernel,
     FeatureCatalog catalog,
     IEmbeddingGenerator<string, Embedding<float>>? embeddings,
@@ -58,7 +59,7 @@ internal sealed class ReactionExamples(
     private readonly Dictionary<string, float[]> _vectors = new(StringComparer.Ordinal);
 
     public static ReactionExamples Create(IServiceProvider services) => new(
-        services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(), services.GetRequiredService<IKernel>(), services.GetRequiredService<FeatureCatalog>(),
+        services, services.GetRequiredService<IKernel>(), services.GetRequiredService<FeatureCatalog>(),
         Embeddings(services), services.GetRequiredService<ILogger<ReactionExamples>>());
 
     // The sentence embedded once, for every ranking of it; null ranks by words (no model, or the model failed).
@@ -160,7 +161,7 @@ internal sealed class ReactionExamples(
         {
             if (IApp.NameOf(brain, instance.Key) is not null) { keys.Add(instance.Key); }
         }
-        var apps = await Task.WhenAll(keys.Select(key => plain.Get<IApp>(key).Read().WaitAsync(cancellationToken)));
+        var apps = await Task.WhenAll(keys.Select(key => SiloNeurons.Get<IApp>(plain, key).Read().WaitAsync(cancellationToken)));
         for (var i = 0; i < keys.Count; i++)
         {
             var key = keys[i];
@@ -319,7 +320,7 @@ internal sealed class ReactionExamples(
     {
         try
         {
-            var runtime = await plain.Get<IBrainRuntime>(BrainRuntimeKeys.For(brain)).Inspect(cancellationToken).WaitAsync(cancellationToken);
+            var runtime = await SiloNeurons.Get<IBrainRuntime>(plain, BrainRuntimeKeys.For(brain)).Inspect(cancellationToken).WaitAsync(cancellationToken);
             return runtime.Behaviors.GroupBy(behavior => behavior.Id, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
         }
         catch (Exception error) when (error is not OperationCanceledException)

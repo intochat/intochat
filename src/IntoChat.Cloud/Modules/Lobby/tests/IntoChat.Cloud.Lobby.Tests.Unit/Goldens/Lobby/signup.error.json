@@ -1,0 +1,74 @@
+{
+  "title": "signup",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Create your IntoChat account"
+      },
+      {
+        "kind": "text",
+        "value": "Start with your work email."
+      },
+      {
+        "kind": "textField",
+        "name": "first",
+        "value": null,
+        "placeholder": "First name"
+      },
+      {
+        "kind": "textField",
+        "name": "last",
+        "value": null,
+        "placeholder": "Last name"
+      },
+      {
+        "kind": "textField",
+        "name": "email",
+        "value": null,
+        "placeholder": "Work email"
+      },
+      {
+        "kind": "textField",
+        "name": "password",
+        "value": null,
+        "placeholder": "Password"
+      },
+      {
+        "kind": "text",
+        "value": "Use 12 to 256 characters. Choose a password you do not use elsewhere."
+      },
+      {
+        "kind": "text",
+        "value": "I agree to the Terms of Service and the Privacy Policy, and I consent to IntoChat storing my account data."
+      },
+      {
+        "kind": "button",
+        "label": "You need to agree to continue.",
+        "action": {
+          "neuron": "lobby",
+          "operation": "consent",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "neutral"
+      },
+      {
+        "kind": "button",
+        "label": "Create account",
+        "action": {
+          "neuron": "lobby",
+          "operation": "submit",
+          "arguments": []
+        },
+        "enabled": false,
+        "tone": "accent"
+      },
+      {
+        "kind": "text",
+        "value": "Check your details and try again."
+      }
+    ]
+  }
+}

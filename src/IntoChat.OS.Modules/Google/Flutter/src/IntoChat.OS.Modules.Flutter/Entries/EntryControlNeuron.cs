@@ -1,3 +1,4 @@
+using DigitalBrain.Spi;
 using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter.Entries.Signals;
@@ -16,7 +17,7 @@ internal sealed class EntryControlNeuron
 {
     public async Task Configure(EntryControlSpec spec)
     {
-        if (!await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<IIntoChatOS>(), NeuronAddress.ScopeOf(FullKey)))
+        if (!await SettingsCaller.IsShipped(ServiceProvider.GetRequiredService<INeuronProxies>(), NeuronAddress.ScopeOf(FullKey)))
         { throw new UnauthorizedAccessException("Only the Settings app configures an entry control."); }
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.Label);

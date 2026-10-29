@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Secrets;
 using Xunit;
@@ -35,10 +36,10 @@ public abstract class SecretsConformance<TSecrets> where TSecrets : ISecrets
     protected abstract Task<SecretsSubject> Connect(CancellationToken ct);
 
     /// <summary>The caller that owns the secrets in each fact. Override when the implementation needs a provisioned brain.</summary>
-    protected virtual KitCaller Owner { get; } = new("kit-ada", "kit-ada-account", "kit-ada-brain");
+    protected virtual CapabilityCaller Owner { get; } = new("kit-ada", "kit-ada-account", "kit-ada-brain");
 
     /// <summary>A caller in another brain; it must be denied the owner's secrets.</summary>
-    protected virtual KitCaller Stranger { get; } = new("kit-bob", "kit-bob-account", "kit-bob-brain");
+    protected virtual CapabilityCaller Stranger { get; } = new("kit-bob", "kit-bob-account", "kit-bob-brain");
 
     /// <summary>Set then Resolve returns the value.</summary>
     [Fact(Timeout = Timeout)]

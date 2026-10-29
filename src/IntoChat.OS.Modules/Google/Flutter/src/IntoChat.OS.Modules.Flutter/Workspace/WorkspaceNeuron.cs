@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using DigitalBrain;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -74,7 +76,7 @@ internal sealed partial class WorkspaceNeuron
     {
         if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
         if (names.FirstOrDefault(name => app == IApp.Key(Brain, name)) is not { } named) { return false; }
-        return ShippedApps.Is(await ServiceProvider.GetRequiredService<IIntoChatOS>().Get<IApp>(app).Read(), named);
+        return ShippedApps.Is(await ServiceProvider.GetRequiredService<INeuronProxies>().Get<IApp>(app).Read(), named);
     }
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]

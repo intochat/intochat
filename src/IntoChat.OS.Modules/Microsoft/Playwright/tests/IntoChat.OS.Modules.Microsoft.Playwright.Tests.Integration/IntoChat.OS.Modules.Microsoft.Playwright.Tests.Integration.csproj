@@ -1,9 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
-    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Fakes/IntoChat.OS.Testing.Fakes.csproj" />
+    <ProjectReference Include="..\..\..\..\..\..\framework\src\DigitalBrain.Testing.Silo\DigitalBrain.Testing.Silo.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Tools/src/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
 </Project>

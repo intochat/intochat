@@ -4,7 +4,6 @@ using System.Text.Json;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;

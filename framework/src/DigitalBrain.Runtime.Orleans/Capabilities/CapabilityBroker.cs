@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Runtime.Orleans.Capabilities.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Runtime.Orleans.Capabilities;
@@ -119,6 +120,11 @@ public sealed class CapabilityBroker : ICapabilityBroker
         {
             var implementation = await _connections.Bind<TCapability>(brain, connection.Key, CallerApp, ct).ConfigureAwait(false);
             foreach (var interceptor in _interceptors) { implementation = interceptor.Wrap(brain, connection, CallerApp, implementation); }
+            if (implementation is IStorage storage)
+            {
+                var log = _services.GetService<StorageAccessLog>() ?? new StorageAccessLog();
+                implementation = (TCapability)(object)new RecordingStorage(storage, log, CallerApp, brain.Value, connection.Key, connection.Key);
+            }
             bound.Add(new CapabilityConnection<TCapability>(connection.Key, connection.Label, implementation));
         }
         return bound;

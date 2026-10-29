@@ -16,9 +16,10 @@ internal sealed class CandidateNeuron(ICandidateHost host, ICandidateVerifier ve
     private string Key => $"{Id.Brain.Value}/{Id.Key}";
     private string Sha => Key[(Key.LastIndexOf('/') + 1)..];
     private string BrainId => BrainKey.BrainOf(Key);
-    private IIntoChatOS Brain => ServiceProvider.GetRequiredService<IIntoChatOSBrains>().Open(BrainId);
-    private ICandidates Index => Brain.Neuron<ICandidates>(ICandidates.Relative);
-    private IDeployment LiveCluster => Brain.Neuron<IDeployment>(IDeployment.Relative);
+    private T Peer<T>(string relative) where T : class
+        => Get<T>(IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(typeof(T), $"{Id.Brain.Value}/{relative}"));
+    private ICandidates Index => Peer<ICandidates>(ICandidates.Relative);
+    private IDeployment LiveCluster => Peer<IDeployment>(IDeployment.Relative);
 
     public Task<CandidateSnapshot> Read() => Task.FromResult(Describe());
 

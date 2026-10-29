@@ -1,3 +1,6 @@
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
+using IntoChat.OS.Runtime;
 using System.ComponentModel;
 using System.Reflection;
 using IntoChat.OS;
@@ -13,7 +16,7 @@ using ModelContextProtocol.Server;
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 
 [McpServerToolType]
-public sealed class ScopedCSharpTools(IIntoChatOS brain, IKernelView kernel, CSharpContractDiscovery? contracts, string scope, bool canRun)
+public sealed class ScopedCSharpTools(INeuronProxies brain, IBrainObserver kernel, CSharpContractDiscovery? contracts, string scope, bool canRun)
 {
     private const int LogTail = 150;
 

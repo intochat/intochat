@@ -1,0 +1,74 @@
+{
+  "title": "devices",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Profile"
+      },
+      {
+        "kind": "text",
+        "value": "Your name, photo and how you sign in."
+      },
+      {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "text",
+            "value": "Devices"
+          },
+          {
+            "kind": "text",
+            "value": "Sign out everywhere except this device."
+          },
+          {
+            "kind": "text",
+            "value": "This device"
+          },
+          {
+            "kind": "text",
+            "value": "Chrome"
+          },
+          {
+            "kind": "button",
+            "label": "Log out",
+            "action": {
+              "neuron": "account",
+              "operation": "logout:other",
+              "arguments": []
+            },
+            "enabled": true,
+            "tone": "neutral"
+          },
+          {
+            "kind": "button",
+            "label": "Log out of all other devices",
+            "action": {
+              "neuron": "account",
+              "operation": "others",
+              "arguments": []
+            },
+            "enabled": true,
+            "tone": "neutral"
+          },
+          {
+            "kind": "button",
+            "label": "Log out of this device",
+            "action": {
+              "neuron": "account",
+              "operation": "this",
+              "arguments": []
+            },
+            "enabled": true,
+            "tone": "neutral"
+          },
+          {
+            "kind": "text",
+            "value": "Every other device was signed out."
+          }
+        ]
+      }
+    ]
+  }
+}

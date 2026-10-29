@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Runtime.Orleans.Operations;
@@ -20,8 +21,9 @@ public sealed class ConfirmingOperationGate(IServiceProvider services) : IOperat
         var confirmations = services.GetService<IConfirmationContexts>()?.For(request.Brain, request.Origin)
             ?? services.GetService<IConfirmations>();
         if (confirmations is null) { return OperationGateDecision.Deny("The host has no confirmation service."); }
-        var runner = new RuntimeOperations(services, request.Brain, request.Origin).Runner();
-        var refused = await StorageConfirmationGate.Check(runner, confirmations, write, ct).ConfigureAwait(false);
-        return refused is null ? OperationGateDecision.Allow : OperationGateDecision.Deny(refused);
+        var broker = services.GetService<CapabilityBroker>()?.ForApp(request.Origin);
+        if (broker is null) { return OperationGateDecision.Deny("The host has no storage broker."); }
+        var refusal = await new StorageOperationGate(broker, confirmations, request.Brain).Ask(write, ct).ConfigureAwait(false);
+        return refusal is null ? OperationGateDecision.Allow : OperationGateDecision.Deny(refusal.Value.Reason);
     }
 }

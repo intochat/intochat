@@ -24,16 +24,14 @@ public interface IChatIndex
     [DigitalBrain.ReadOnlyCall] Task<ChatIndexEntry?> Get(string id);
 }
 
-[GenerateSerializer, Alias("ui.chat-index-entry")]
 public sealed record ChatIndexEntry(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string Title,
-    [property: Id(2)] DateTimeOffset UpdatedAt,
-    [property: Id(3)] bool Archived,
-    [property: Id(4)] string? ModelChoice = null);
+    string Id,
+    string Title,
+    DateTimeOffset UpdatedAt,
+    bool Archived,
+    string? ModelChoice = null);
 
-[GenerateSerializer, Alias("ui.chat-index-page")]
-public sealed record ChatIndexPage([property: Id(0)] ChatIndexEntry[] Entries, [property: Id(1)] int Total);
+public sealed record ChatIndexPage(ChatIndexEntry[] Entries, int Total);
 
 [Signal("ui.chat-index-changed")]
 public sealed record ChatIndexChanged(string Name, long Revision) : DigitalBrain.Signal;

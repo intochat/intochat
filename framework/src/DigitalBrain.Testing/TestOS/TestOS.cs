@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
+using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
+using DigitalBrain.Spi;
 
 namespace DigitalBrain.Testing;
 
@@ -36,7 +39,7 @@ public sealed class TestOSOptions
 /// scheduling attributes say otherwise; reactions ordered per source and deduped by cursor; timers and reminders as turns.
 /// There is no background checkpoint: <see cref="ForceCheckpoint(BrainId)"/> moves the history floor.
 /// </summary>
-public sealed partial class TestOS : IAsyncDisposable
+public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
 {
     private readonly ConcurrentDictionary<string, Type> _types = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<NeuronId, TestNeuronHost> _hosts = new();
@@ -135,6 +138,63 @@ public sealed partial class TestOS : IAsyncDisposable
 
     /// <summary>True when <paramref name="id"/> has a live activation.</summary>
     public bool IsActive(NeuronId id) => _hosts.TryGetValue(id, out var host) && host.IsActive;
+
+    /// <summary>In-process neurons whose class is <typeparamref name="T"/> or whose type name <typeparamref name="T"/> declares.</summary>
+    public async IAsyncEnumerable<BrainInstance> Instances<T>([EnumeratorCancellation] CancellationToken cancellationToken) where T : class
+    {
+        var named = typeof(T).GetCustomAttribute<NeuronAttribute>(false)?.Type
+            ?? typeof(T).GetCustomAttribute<DefaultNeuronTypeAttribute>(false)?.Type;
+        foreach (var host in _hosts.Values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (typeof(T) == typeof(object) || typeof(T).IsAssignableFrom(host.Class) || named is not null && host.Id.Type == named)
+            { yield return InstanceOf(host); }
+        }
+        await Task.CompletedTask;
+    }
+
+    /// <summary>In-process neurons, or those of one neuron type when <paramref name="type"/> is set.</summary>
+    public async IAsyncEnumerable<BrainInstance> Instances(string? type, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        foreach (var host in _hosts.Values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (type is null || host.Id.Type == type) { yield return InstanceOf(host); }
+        }
+        await Task.CompletedTask;
+    }
+
+    /// <summary>The neuron classes registered on this TestOS.</summary>
+    public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_types.Select(pair => new BrainType(
+            pair.Value.FullName ?? pair.Key, pair.Key, TypeKind.Neuron, "test", "", [], [])).ToArray());
+    }
+
+    /// <summary>Brains that have an in-process neuron.</summary>
+    public Task<string[]> Brains(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_hosts.Keys.Select(id => id.Brain.Value!).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
+    }
+
+    /// <summary>Every synapse this TestOS holds. A TestOS has no stamped caller, so the list is not limited to one brain.</summary>
+    Task<ObservedSynapse[]> IBrainObserver.Synapses(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Synapses.All());
+    }
+
+    /// <summary>Deliveries from now on, across every brain of this TestOS.</summary>
+    public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default) => _deliveries.Listen(cancellationToken);
+
+    private readonly DeliveryFanout _deliveries = new();
+
+    internal void NoteDelivery(SignalDelivery delivery) => _deliveries.Publish(delivery);
+
+    private static BrainInstance InstanceOf(TestNeuronHost host)
+        => new(host.Id.Type, host.Id.ToString(), host.Created, null);
 
     /// <summary>Completes once no turn, delivery, tick or deferred work is queued or running.</summary>
     public async Task Idle()

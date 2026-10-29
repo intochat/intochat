@@ -25,41 +25,37 @@ public interface IComposer
     [DigitalBrain.ReadOnlyCall] Task<ComposerState> Read();
 }
 
-[GenerateSerializer, Alias("ui.composer-submission")]
 public sealed record ComposerSubmission(
-    [property: Id(0)] Guid Id,
-    [property: Id(1)] string Context,
-    [property: Id(2)] string Text,
-    [property: Id(3)] long DraftVersion,
-    [property: Id(4)] string Status = "pending",
-    [property: Id(5)] string? Error = null,
-    [property: Id(6)] long Generation = -1);
+    Guid Id,
+    string Context,
+    string Text,
+    long DraftVersion,
+    string Status = "pending",
+    string? Error = null,
+    long Generation = -1);
 
-[GenerateSerializer, Alias("ui.composer-voice")]
 public sealed record ComposerVoice(
-    [property: Id(0)] Guid Id,
-    [property: Id(1)] string Context,
-    [property: Id(2)] long DraftVersion,
-    [property: Id(3)] string Status,
-    [property: Id(4)] string? Error = null);
+    Guid Id,
+    string Context,
+    long DraftVersion,
+    string Status,
+    string? Error = null);
 
-[GenerateSerializer, Alias("ui.composer-audio")]
-public sealed record ComposerAudio([property: Id(0)] byte[] Bytes, [property: Id(1)] string MimeType);
+public sealed record ComposerAudio(byte[] Bytes, string MimeType);
 
-[GenerateSerializer, Alias("ui.composer-state")]
 public sealed record ComposerState
 {
-    [Id(0)] public string Name { get; init; } = "";
-    [Id(1)] public long Revision { get; init; }
-    [Id(2)] public string Context { get; init; } = "";
-    [Id(3)] public long Generation { get; init; } = -1;
-    [Id(4)] public string Label { get; init; } = "Message";
-    [Id(5)] public string Draft { get; init; } = "";
-    [Id(6)] public long DraftVersion { get; init; }
-    [Id(7)] public ComposerSubmission[] Submissions { get; init; } = [];
-    [Id(8)] public string? Error { get; init; }
-    [Id(9)] public ComposerVoice? Voice { get; init; }
-    [Id(10)] public string? FollowedChat { get; init; }
+    public string Name { get; init; } = "";
+    public long Revision { get; init; }
+    public string Context { get; init; } = "";
+    public long Generation { get; init; } = -1;
+    public string Label { get; init; } = "Message";
+    public string Draft { get; init; } = "";
+    public long DraftVersion { get; init; }
+    public ComposerSubmission[] Submissions { get; init; } = [];
+    public string? Error { get; init; }
+    public ComposerVoice? Voice { get; init; }
+    public string? FollowedChat { get; init; }
 }
 
 [Signal("ui.composer-changed")]

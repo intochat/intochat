@@ -1,3 +1,5 @@
+using System.Text.Json;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
@@ -10,8 +12,8 @@ public sealed class LiveSignalEndpointsFacts
     public async Task TheEnvelopeShapeIsUnchanged()
     {
         var publisher = DigitalBrain.NeuronId.Parse("brain/chats.chat/chat");
-        var entry = new IntoChat.OS.Runtime.PlainSignalEntry(publisher.ToString(), 42, "test.live-envelope-chat-changed",
-            """{"name":"brain/chat","revision":7}""", DateTimeOffset.UnixEpoch);
+        using var payload = JsonDocument.Parse("""{"name":"brain/chat","revision":7}""");
+        var entry = new SessionSignal(publisher.ToString(), 42, "test.live-envelope-chat-changed", payload.RootElement.Clone(), DateTimeOffset.UnixEpoch);
         var golden = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Contracts", "live-envelope.golden.json"), TestContext.Current.CancellationToken);
 
         Assert.Equal(golden, LiveSignalEndpoints.PlainEnvelope(typeof(ChatChanged), publisher, entry, replay: true));

@@ -1,0 +1,42 @@
+{
+  "title": "email",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Profile"
+      },
+      {
+        "kind": "text",
+        "value": "Your name, photo and how you sign in."
+      },
+      {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "text",
+            "value": "Email"
+          },
+          {
+            "kind": "textField",
+            "name": "email",
+            "value": "ada@example.com",
+            "placeholder": "Email"
+          },
+          {
+            "kind": "button",
+            "label": "Send code",
+            "action": {
+              "neuron": "account",
+              "operation": "send",
+              "arguments": []
+            },
+            "enabled": true,
+            "tone": "accent"
+          }
+        ]
+      }
+    ]
+  }
+}

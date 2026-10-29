@@ -19,11 +19,6 @@ public sealed class LegacyPureTypeFacts
     [InlineData("DigitalBrain.State.StoredRecord")]
     [InlineData("DigitalBrain.State.WriteResult")]
     [InlineData("DigitalBrain.State.IStateCodec")]
-    [InlineData("DigitalBrain.Spi.IRuntimeEndpoint")]
-    [InlineData("DigitalBrain.Spi.IDeactivatingNeuron")]
-    [InlineData("DigitalBrain.Spi.IRemindedNeuron")]
-    [InlineData("DigitalBrain.Spi.INeuronTimers")]
-    [InlineData("DigitalBrain.Spi.ICallerContextCarrier")]
     public void Copied_type_exists(string fullName)
     {
         var type = typeof(Signal).Assembly.GetType(fullName);

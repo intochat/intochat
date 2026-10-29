@@ -65,8 +65,8 @@ public sealed partial class DartVocabularyFacts
                 continue;
             }
             var type = assemblies.Select(assembly => assembly.GetType(contract)).SingleOrDefault(found => found is not null);
-            if (type is null || !type.IsInterface || !(typeof(INeuron).IsAssignableFrom(type) || IntoChat.OS.Runtime.PlainNeuronContracts.Is(type))) { offenders.Add($"{kind}: {contract} is not a neuron contract"); continue; }
-            if (!type.Assembly.GetExportedTypes().Any(signal => (typeof(Signal).IsAssignableFrom(signal) || typeof(DigitalBrain.Signal).IsAssignableFrom(signal)) && signal.Name == changed && signal.Namespace!.StartsWith(type.Namespace!, StringComparison.Ordinal)))
+            if (type is null || !type.IsInterface || !IntoChat.OS.Runtime.PlainNeuronContracts.Is(type)) { offenders.Add($"{kind}: {contract} is not a neuron contract"); continue; }
+            if (!type.Assembly.GetExportedTypes().Any(signal => typeof(DigitalBrain.Signal).IsAssignableFrom(signal) && signal.Name == changed && signal.Namespace!.StartsWith(type.Namespace!, StringComparison.Ordinal)))
             { offenders.Add($"{kind}: no signal {changed} beside {contract}"); }
         }
         Assert.True(offenders.Count == 0, "node_contracts.dart drifted from the C# contracts:\n" + string.Join('\n', offenders));

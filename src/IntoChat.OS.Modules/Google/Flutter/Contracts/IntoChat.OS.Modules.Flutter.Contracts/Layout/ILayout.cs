@@ -12,18 +12,16 @@ public interface ILayout
     [DigitalBrain.ReadOnlyCall] Task<LayoutState> Read();
 }
 
-[GenerateSerializer, Alias("ui.layout-definition")]
-public sealed record LayoutDefinition([property: Id(0)] string Mode, [property: Id(1)] UiChildRef[] Children, [property: Id(2)] double Gap = 12, [property: Id(3)] double[]? Extents = null,
-    [property: Id(4)] bool FollowEnd = false,
-    [property: Id(5)] string? Surface = null, [property: Id(6)] double Padding = 0);
+public sealed record LayoutDefinition(string Mode, UiChildRef[] Children, double Gap = 12, double[]? Extents = null,
+    bool FollowEnd = false,
+    string? Surface = null, double Padding = 0);
 
-[GenerateSerializer, Alias("ui.layout-state")]
 [ExportableState]
 public sealed class LayoutState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public long Revision { get; set; }
-    [Id(2)] public LayoutDefinition Definition { get; set; } = new("column", []);
+    public string Name { get; set; } = "";
+    public long Revision { get; set; }
+    public LayoutDefinition Definition { get; set; } = new("column", []);
 }
 
 [Signal("ui.layout-changed")]

@@ -6,7 +6,7 @@ using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Text.Signals;
 using IntoChat.OS.Modules.Flutter.TextField;
 using IntoChat.OS.Modules.Flutter.TextField.Signals;
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Flutter.Tests;
 

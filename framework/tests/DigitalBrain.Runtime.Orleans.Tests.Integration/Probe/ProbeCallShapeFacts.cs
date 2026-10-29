@@ -14,12 +14,13 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
 
     private IProbe Probe(string id) => silo.Get<IProbe>(id);
 
-    private string HostType(string id, string method)
+    private async Task<string> HostType(string id, string method)
     {
         var neuron = NeuronId.Parse(id);
         var call = new RuntimeInvocation("", NeuronProxy.ContractName(typeof(IProbe)), id, method, []);
-        return new OrleansInvocationSink(silo.Services.GetRequiredService<global::Orleans.IGrainFactory>(), silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
-            .Host(neuron, call).GetGrainId().Type.ToString();
+        var host = await new OrleansInvocationSink(silo.Services.GetRequiredService<global::Orleans.IGrainFactory>(), silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
+            .Host(neuron, call, CancellationToken.None);
+        return host.Host.GetGrainId().Type.ToString();
     }
 
     /// <summary>Holds a turn on <paramref name="id"/>, runs <paramref name="other"/> and reports whether it finished while the turn was held.</summary>
@@ -113,14 +114,14 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     [Fact]
     public async Task Reentrant_is_hosted_by_neuron_host_reentrant_and_interleaves_plain_methods()
     {
-        Assert.Equal("neuron.host.reentrant", HostType("b1/probe.shapes.reentrant/r", "Plain"));
+        Assert.Equal("neuron.host.reentrant", await HostType("b1/probe.shapes.reentrant/r", "Plain"));
         Assert.True(await RunsDuringHold("b1/probe.shapes.reentrant/r", probe => probe.Plain()));
     }
 
     [Fact]
     public async Task StatelessNeuron_is_hosted_by_neuron_host_stateless_and_answers()
     {
-        Assert.Equal("neuron.host.stateless", HostType("b1/probe.shapes.stateless/s", "Add"));
+        Assert.Equal("neuron.host.stateless", await HostType("b1/probe.shapes.stateless/s", "Add"));
         var probe = Probe("b1/probe.shapes.stateless/s");
         Assert.Equal(7, await probe.Add(3, 4));
         Assert.NotEqual(0, await probe.Instance());
@@ -134,8 +135,8 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     }
 
     [Fact]
-    public void Exclusive_neuron_is_hosted_by_neuron_host_keyed_brain_type_key()
-        => Assert.Equal("neuron.host", HostType("b1/probe.shapes/keyed", "Add"));
+    public async Task Exclusive_neuron_is_hosted_by_neuron_host_keyed_brain_type_key()
+        => Assert.Equal("neuron.host", await HostType("b1/probe.shapes/keyed", "Add"));
 
     [Fact]
     public async Task Save_persists_state_and_signals_and_both_survive_deactivation_and_reactivation()

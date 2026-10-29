@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Runtime.Serialization;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
@@ -12,12 +13,12 @@ internal sealed record ProgramAssignment(
     [property: Id(0)] string Owner,
     [property: Id(1)] string Hash,
     [property: Id(2), LegacyShape] Dictionary<string, string>? LegacySettings,
-    [property: Id(3)] CallerContext? Principal,
+    [property: Id(3)] CapabilityCaller? Principal,
     [property: Id(4)] BehaviorAssembly[] Behaviors,
     [property: Id(5)] StringEntry[] SettingEntries)
 {
     // A factory, not a second constructor: the runtime's state is JSON (06-08), which binds one constructor.
-    public static ProgramAssignment Of(string owner, string hash, IEnumerable<KeyValuePair<string, string>> settings, CallerContext? principal, BehaviorAssembly[] behaviors)
+    public static ProgramAssignment Of(string owner, string hash, IEnumerable<KeyValuePair<string, string>> settings, CapabilityCaller? principal, BehaviorAssembly[] behaviors)
         => new(owner, hash, null, principal, behaviors, StringEntry.From(settings));
 
     [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]

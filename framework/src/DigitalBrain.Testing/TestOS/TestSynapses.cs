@@ -76,6 +76,18 @@ internal sealed class SynapseRegistry(TestOS os)
         }
     }
 
+    public ObservedSynapse[] All()
+    {
+        lock (_gate)
+        {
+            return [.. _bySubscriber.SelectMany(pair => pair.Value.Values.SelectMany(entry => entry.Signals.Select(signal =>
+                new ObservedSynapse(entry.Source.ToString(), pair.Key.ToString(), AliasOf(signal)))))
+                .OrderBy(row => row.From, StringComparer.Ordinal).ThenBy(row => row.To, StringComparer.Ordinal).ThenBy(row => row.Signal, StringComparer.Ordinal)];
+        }
+    }
+
+    private static string AliasOf(Type signal) => signal.GetCustomAttribute<SignalAttribute>(false)?.Alias ?? signal.Name;
+
     public IReadOnlyList<Synapse> Of(NeuronId subscriber)
     {
         lock (_gate)
@@ -206,8 +218,12 @@ internal sealed class SynapseRegistry(TestOS os)
     }
 
     // A reaction is a turn: the most specific [On] method whose parameter accepts the signal; none means the signal is ignored.
-    private static Task React(TestNeuronHost subscriber, Signal signal, Entry entry, long cursor)
+    private Task React(TestNeuronHost subscriber, Signal signal, Entry entry, long cursor)
     {
+        if (signal is not Gap)
+        {
+            os.NoteDelivery(new SignalDelivery(entry.Source.ToString(), subscriber.Id.ToString(), AliasOf(signal.GetType()), cursor));
+        }
         if (Find(subscriber.Class, signal.GetType()) is not { } method) { return Task.CompletedTask; }
         return subscriber.Turn(interleave: false, async neuron =>
         {

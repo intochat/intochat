@@ -1,30 +1,27 @@
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
-[GenerateSerializer, Alias("ui.chat-role")]
 public enum ChatRole { User, Assistant }
 
-[GenerateSerializer, Alias("ui.chat-entry")]
-public sealed record ChatEntry([property: Id(0)] string Id, [property: Id(1)] ChatRole Role, [property: Id(2)] string Text)
+public sealed record ChatEntry(string Id, ChatRole Role, string Text)
 {
-    [Id(3)] public string Status { get; init; } = "completed";
-    [Id(4)] public string? Error { get; init; }
-    [Id(5)] public ChatActivity[] Activities { get; init; } = [];
+    public string Status { get; init; } = "completed";
+    public string? Error { get; init; }
+    public ChatActivity[] Activities { get; init; } = [];
     // The label of the model that answered, for the toolbar's "answered by" line.
-    [Id(6)] public string? Model { get; init; }
+    public string? Model { get; init; }
     // An app this entry opened or a pasted workspace link names; the card's Open dispatches the workspace action.
-    [Id(7)] public ChatAppCard? App { get; init; }
+    public ChatAppCard? App { get; init; }
 }
 
 // Input is app-owned and opaque: it is passed back to the app unchanged and never interpreted here.
-[GenerateSerializer, Alias("ui.chat-app-card")]
 public sealed record ChatAppCard(
-    [property: Id(0)] string App,
-    [property: Id(1)] string Title,
-    [property: Id(2)] string Icon,
-    [property: Id(3)] bool Installed,
-    [property: Id(4)] string Input = "",
-    [property: Id(5)] string? Publisher = null,
-    [property: Id(6)] string? Release = null)
+    string App,
+    string Title,
+    string Icon,
+    bool Installed,
+    string Input = "",
+    string? Publisher = null,
+    string? Release = null)
 {
     public const int MaxInput = 2048;
     private const string LinkPrefix = "link-";
@@ -80,10 +77,9 @@ public sealed record ChatAppCard(
     }
 }
 
-[GenerateSerializer, Alias("ui.chat-activity")]
 public sealed record ChatActivity(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string Title,
-    [property: Id(2)] string Input,
-    [property: Id(3)] string? Result = null,
-    [property: Id(4)] string? Error = null);
+    string Id,
+    string Title,
+    string Input,
+    string? Result = null,
+    string? Error = null);

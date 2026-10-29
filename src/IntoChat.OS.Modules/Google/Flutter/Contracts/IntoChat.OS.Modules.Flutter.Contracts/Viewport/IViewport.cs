@@ -11,9 +11,8 @@ public interface IViewport
     [DigitalBrain.ReadOnlyCall] Task<ViewportState> Read();
 }
 
-[GenerateSerializer, Alias("ui.viewport-state")]
-public sealed record ViewportState([property: Id(0)] string Name, [property: Id(1)] long Revision,
-    [property: Id(2)] WorkspaceViewRef? Target);
+public sealed record ViewportState(string Name, long Revision,
+    WorkspaceViewRef? Target);
 
 [Signal("ui.viewport-changed")]
 public sealed record ViewportChanged(string Name, long Revision) : DigitalBrain.Signal;

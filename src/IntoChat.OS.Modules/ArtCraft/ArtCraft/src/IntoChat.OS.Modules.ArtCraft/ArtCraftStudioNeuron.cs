@@ -18,7 +18,7 @@ internal sealed class ArtCraftStudioNeuron(IOptions<ArtCraftModuleOptions> optio
         var (title, mcp, web) = options.Value.For(app);
         if (mcp is null) { throw new InvalidOperationException($"{title} has no MCP server in this deployment."); }
         var key = $"{Brain}/mcp/{app}";
-        var server = Context.Services.GetRequiredService<IIntoChatOSBrains>().Open(Brain).Neuron<IMcpServer>($"mcp/{app}");
+        var server = Get<IMcpServer>(IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(typeof(IMcpServer), key));
         // Opening again is cheap: an already connected server on the same URL keeps its tool list.
         if (await server.Read() is not { Connected: true } state || state.Url != mcp)
         { await server.Connect(new McpServerSpec(title, mcp), ct); }

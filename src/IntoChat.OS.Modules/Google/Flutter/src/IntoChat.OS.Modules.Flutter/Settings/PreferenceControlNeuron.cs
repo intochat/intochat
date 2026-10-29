@@ -1,3 +1,5 @@
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
 using DigitalBrain;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Flutter.Preferences.Signals;
@@ -18,7 +20,8 @@ internal sealed class PreferenceControlNeuron
 {
     private const int MaxChoices = 64;
 
-    private IIntoChatOS Brain => ServiceProvider.GetRequiredService<IIntoChatOS>();
+    private INeuronProxies Brain => ServiceProvider.GetRequiredService<INeuronProxies>();
+    private IBrainObserver Kernel => ServiceProvider.GetRequiredService<IBrainObserver>();
 
     private string Scope => NeuronAddress.ScopeOf(FullKey)
         ?? throw new InvalidOperationException("A preference control lives inside a brain.");
@@ -59,7 +62,7 @@ internal sealed class PreferenceControlNeuron
         }
         else if (spec.Store == PreferenceStore.NewTabApp)
         {
-            var choices = await BrainPreferenceStore.NewTabChoices(Brain, Scope, CancellationToken.None);
+            var choices = await BrainPreferenceStore.NewTabChoices(Brain, Kernel, Scope, CancellationToken.None);
             state.Spec = spec with { Choices = [.. choices.Select(choice => new PreferenceChoice(choice.Name, choice.Title))] };
             state.Value = await BrainPreferenceStore.ReadNewTab(Brain, Scope, choices, CancellationToken.None);
         }
@@ -78,7 +81,7 @@ internal sealed class PreferenceControlNeuron
         }
         else if (spec.Store == PreferenceStore.NewTabApp)
         {
-            if (!await BrainPreferenceStore.WriteNewTab(Brain, Scope, value, CancellationToken.None))
+            if (!await BrainPreferenceStore.WriteNewTab(Brain, Kernel, Scope, value, CancellationToken.None))
             { throw new ArgumentException("Choose an installed app.", nameof(value)); }
         }
         await Publish(new PreferenceChanged(spec.Store));

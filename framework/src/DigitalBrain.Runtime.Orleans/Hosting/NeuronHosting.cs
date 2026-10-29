@@ -23,7 +23,8 @@ internal static class NeuronHosting
 
     /// <summary>A typed proxy, from outside any neuron, to the neuron <paramref name="id"/> hosted in the silo of <paramref name="services"/>.</summary>
     internal static T Get<T>(IServiceProvider services, NeuronId id) where T : class
-        => NeuronProxy.Create<T>(id, new OrleansInvocationSink(services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<NeuronTypeRegistry>(), null));
+        => NeuronProxy.Create<T>(id, new OrleansInvocationSink(services.GetRequiredService<IGrainFactory>(), services.GetService<NeuronTypeRegistry>(), null,
+            services.GetService<NeuronStreamAuthorizer>() is { } gate ? (target, call) => gate.Authorize(services, target, call) : null));
 
     internal sealed record HostedAssembly(Assembly Assembly);
 }

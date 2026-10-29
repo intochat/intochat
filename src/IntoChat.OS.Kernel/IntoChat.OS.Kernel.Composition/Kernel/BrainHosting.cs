@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Modules;
@@ -7,6 +8,7 @@ using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
 using IntoChat.OS.Contracts.Configuration;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Kernel.Composition;
 
@@ -15,13 +17,13 @@ public static class BrainHosting
     public static ISiloBuilder AddIntoChatOS(this ISiloBuilder silo)
         => silo.AddIntoChatOS([]);
 
-    public static ISiloBuilder AddIntoChatOS(this ISiloBuilder silo, IEnumerable<Module> modules)
+    public static ISiloBuilder AddIntoChatOS(this ISiloBuilder silo, IEnumerable<OsModule> modules)
     {
         ArgumentNullException.ThrowIfNull(silo);
         var selected = modules.ToArray();
         // The host registers what became of every module it was given; a bare silo reports its modules Active.
         silo.Services.AddSingleton(provider => new ModuleInventory(selected, provider.GetService<IReadOnlyList<ModuleStatus>>()));
-        foreach (var module in selected) { ModuleOptionsBinding.Add(silo.Services, module); }
+        foreach (var module in selected) { module.BindOptions(silo.Services); }
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.AddOptions<Confirmations.ConfirmationOptions>().BindConfiguration(Confirmations.ConfirmationOptions.Section);
@@ -32,6 +34,14 @@ public static class BrainHosting
         // Stored pre-alias bytes still name pre-0.7.0 namespaces.
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<Orleans.Serialization.ITypeConverter, LegacyTypeNames>());
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
+        SiloNeurons.AuthorizeStreams(silo.Services, static (services, id, call) =>
+        {
+            if (services.GetService<ICallFilter>() is not { } filter || !CallerContextStamper.TryGet(out var caller))
+            { return Task.CompletedTask; }
+            var logger = services.GetService<Microsoft.Extensions.Logging.ILogger<PlainNeuronCallFilter>>()
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<PlainNeuronCallFilter>.Instance;
+            return PlainNeuronCallFilter.Authorize(filter, logger, caller, id, call);
+        });
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainNeuronCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainInstanceRegistration>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
@@ -39,15 +49,12 @@ public static class BrainHosting
         silo.AddPlacementDirector<BrainAffinePlacement, BrainAffinePlacementDirector>();
         silo.Services.TryAddSingleton<ISignalJournal, MemorySignalJournal>();
         silo.Services.AddOptions<MemorySignalJournalOptions>();
-        silo.Services.TryAddSingleton<IIntoChatOS, CurrentBrain>();
         silo.Services.TryAddSingleton<IntoChat.OS.Runtime.INeuronResolver, GrainNeuronResolver>();
-        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainNeurons, PlainNeurons>();
-        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IBrainCalls, BrainCalls>();
-        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.IPlainSignals, PlainSignals>();
-        silo.Services.AddAuthorityGrains();
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
-        silo.Services.TryAddSingleton<IKernelView>(sp => sp.GetRequiredService<Kernel>());
+        // AddDigitalBrainRuntime registers ClusterBrainObserver first. The product kernel replaces it: it sees
+        // feature types and connection contracts, which the runtime-only observer does not.
+        silo.Services.Replace(ServiceDescriptor.Singleton<DigitalBrain.Spi.IBrainObserver>(sp => sp.GetRequiredService<Kernel>()));
         // Ledger 38: bound each "{brain}/{type}" instance directory so a brain's core does not grow without bound.
         silo.Services.AddOptions<InstanceDirectoryOptions>().BindConfiguration(InstanceDirectoryOptions.Key)
             .Validate(options => options.Limit > 0, "The instance directory limit must be positive.").ValidateOnStart();

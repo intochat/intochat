@@ -12,11 +12,10 @@ public interface IColor
     [DigitalBrain.ReadOnlyCall] Task<ColorState> Read();
 }
 
-[GenerateSerializer, Alias("ui.color-state")]
 [ExportableState]
 public sealed class ColorState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Hex { get; set; } = "#000000";
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Hex { get; set; } = "#000000";
 }

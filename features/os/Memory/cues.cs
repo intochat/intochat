@@ -155,8 +155,8 @@ async Task WatchSignal(Guid id, Cue cue, CancellationToken ct)
     var type = signalTypes.Resolve(cue.SignalAlias) ?? throw new InvalidOperationException("no loaded signal has the alias " + cue.SignalAlias);
     var contract = await ContractOf(cue.PublisherKey, ct) ?? throw new InvalidOperationException("the key " + cue.PublisherKey + " is not a known neuron");
     var get = typeof(IntoChatOSConnection).GetMethods().First(method => method.Name == "Get" && method.IsGenericMethodDefinition
-        && method.GetParameters() is [{ ParameterType.Name: "NeuronId" }]);
-    var publisher = get.MakeGenericMethod(contract).Invoke(brain, [(NeuronId)cue.PublisherKey])!;
+        && method.GetParameters() is [{ ParameterType: var parameter }] && parameter == typeof(string));
+    var publisher = get.MakeGenericMethod(contract).Invoke(brain, [cue.PublisherKey])!;
     var on = typeof(IntoChatOSConnection).GetMethods().First(method => method.Name == "On" && method.IsGenericMethodDefinition
         && method.GetParameters() is [{ ParameterType.Name: "Object" }, { ParameterType.Name: "CancellationToken" }]);
     var stream = (IAsyncEnumerable<DigitalBrain.Signal>)on.MakeGenericMethod(type).Invoke(brain, [publisher, ct])!;

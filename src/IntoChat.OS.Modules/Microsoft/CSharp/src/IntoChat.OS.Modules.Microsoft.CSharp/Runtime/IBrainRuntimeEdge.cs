@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Client.Runtime.V1;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -7,21 +8,11 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
 internal sealed record SessionAuthorization(bool Active, string Brain);
 
-internal sealed record BehaviorIdentity(CallerContext? Principal, string Owner)
+internal sealed record BehaviorIdentity(CapabilityCaller? Principal, string Owner)
 {
-    // What a behavior's calls and its subscriptions' watches carry: the app's own principal behind the app proxy,
-    // acting on behalf of the person who assigned the program. A program assigned without a caller (tests, the
-    // platform) stamps none.
-    public CallerContext? Caller => Principal is { } principal
-        ? principal with
-        {
-            PrincipalId = AppPrincipal.Id(Owner),
-            OnBehalfOf = principal.PersonId,
-            Kind = CallerKind.App,
-            StampedBy = TrustedEdge.AppProxy,
-            AppId = Owner,
-        }
-        : null;
+    // What a behavior's calls carry: the person who assigned the program, with the app named on the call.
+    // A program assigned without a caller (tests, the platform) stamps none.
+    public CapabilityCaller? Caller => Principal is { } principal ? principal with { AppId = Owner } : null;
 }
 
 // What the behavior neurons and the runtime edge call. Not a neuron contract: no edge resolves it, so

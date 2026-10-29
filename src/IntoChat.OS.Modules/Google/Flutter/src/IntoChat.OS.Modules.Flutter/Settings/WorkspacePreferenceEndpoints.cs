@@ -1,3 +1,6 @@
+using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
@@ -21,23 +24,23 @@ internal static class WorkspacePreferenceEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = BrainRoutes.Group(endpoints, "/preferences/workspace");
-        group.MapGet("", async (IIntoChatOS brain, CancellationToken ct) => Results.Ok(await Read(brain, BrainScope.CurrentId(), ct)));
+        group.MapGet("", async (INeuronProxies brain, IBrainObserver kernel, CancellationToken ct) => Results.Ok(await Read(brain, kernel, BrainScope.CurrentId(), ct)));
         group.MapPut("", Write);
     }
 
     // Installed apps (App callers or calls through the app proxy) cannot change a person's preferences.
-    internal static async Task<IResult> Write(Input? input, IIntoChatOS brain, CancellationToken ct)
+    internal static async Task<IResult> Write(Input? input, INeuronProxies brain, IBrainObserver kernel, CancellationToken ct)
     {
         if (BrainPreferenceStore.IsAppCaller()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var scope = BrainScope.CurrentId();
-        if (!await BrainPreferenceStore.WriteNewTab(brain, scope, input?.NewTabApp, ct))
+        if (!await BrainPreferenceStore.WriteNewTab(brain, kernel, scope, input?.NewTabApp, ct))
         { return Results.BadRequest(new { error = "Choose an installed app." }); }
-        return Results.Ok(await Read(brain, scope, ct));
+        return Results.Ok(await Read(brain, kernel, scope, ct));
     }
 
-    private static async Task<Preferences> Read(IIntoChatOS brain, string scope, CancellationToken ct)
+    private static async Task<Preferences> Read(INeuronProxies brain, IBrainObserver kernel, string scope, CancellationToken ct)
     {
-        var choices = await BrainPreferenceStore.NewTabChoices(brain, scope, ct);
+        var choices = await BrainPreferenceStore.NewTabChoices(brain, kernel, scope, ct);
         return new(await BrainPreferenceStore.ReadNewTab(brain, scope, choices, ct), choices);
     }
 }

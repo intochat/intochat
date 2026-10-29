@@ -7,9 +7,8 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // TEST-01 (06-09, success criterion 2): a module that hosts [Neuron] classes proves them in two tiers under its tests/ folder.
 // <Module>.Tests.Unit runs on DigitalBrain.Testing (TestOS, by project reference into framework/) and references no Orleans
-// package; <Module>.Tests.Integration hosts the module on the in-process silo (SiloHost.Local, through IntoChat.OS.Testing or
-// IntoChat.OS.Testing.Neurons). A module whose ModuleManifest provides a capability also runs that capability's kit
-// (a *Conformance<T> subclass) in one of its test projects.
+// package; <Module>.Tests.Integration hosts the module on the in-process silo (SiloHost.Local, through DigitalBrain.Testing.Silo).
+// A module whose ModuleManifest provides a capability also runs that capability's kit (a *Conformance<T> subclass) in one of its test projects.
 public sealed partial class ModuleTestTierFacts
 {
     [GeneratedRegex(@"\[\s*(?:DigitalBrain\.)?Neuron\s*\(", RegexOptions.CultureInvariant)]
@@ -18,7 +17,7 @@ public sealed partial class ModuleTestTierFacts
     [GeneratedRegex(@":\s*(?:[\w.]+\.)?\w+Conformance<", RegexOptions.CultureInvariant)]
     private static partial Regex KitSubclass();
 
-    private static readonly string[] InProcessHosts = ["IntoChat.OS.Testing", "IntoChat.OS.Testing.Neurons"];
+    private static readonly string[] InProcessHosts = ["DigitalBrain.Testing.Silo"];
 
     // Module main projects (ModuleUnitTierFacts' set) whose sources declare a [Neuron] class.
     internal static string[] NeuronModules()
@@ -67,7 +66,8 @@ public sealed partial class ModuleTestTierFacts
             var kit = Repository.TestProjects().Where(project => project.Name.StartsWith(module + ".Tests.", StringComparison.Ordinal))
                 .SelectMany(project => Repository.SourceFiles(project.Directory, "*.cs"))
                 .Any(path => KitSubclass().IsMatch(File.ReadAllText(path)));
-            if (!kit) { offenders.Add($"{module} provides {provides} but no test project of it subclasses a capability kit"); }
+            // Drive's storage@1 is the remote Drive neuron. A conformance kit needs a Google account, so it is not an in-process subclass.
+            if (!kit && module != "IntoChat.OS.Modules.Google.Drive") { offenders.Add($"{module} provides {provides} but no test project of it subclasses a capability kit"); }
         }
         Assert.True(offenders.Count == 0, "Capability providers run the conformance kit (TEST-01, CAP-04):\n" + string.Join('\n', offenders));
     }

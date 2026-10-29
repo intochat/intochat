@@ -29,11 +29,14 @@ internal sealed class TestNeuronHost : IDisposable
         _os = os;
         Id = id;
         Class = neuronClass;
+        Created = os.Clock.GetUtcNow();
     }
 
     public NeuronId Id { get; }
 
     public Type Class { get; }
+
+    public DateTimeOffset Created { get; }
 
     public bool IsActive => _neuron is not null;
 
@@ -164,13 +167,13 @@ internal sealed class TestNeuronHost : IDisposable
     }
 
     // A timer tick needs the activation it lives with; a reminder reactivates the neuron. Both run as turns and reach
-    // IRemindedNeuron.OnReminder(name), the SPI's tick callback.
+    // Neuron.OnReminder(name).
     private void Tick(string name, bool reminder)
     {
         if (!reminder && !IsActive) { return; }
         _ = _os.Track(Observe(Turn(interleave: false, async neuron =>
         {
-            if (neuron is IRemindedNeuron reminded) { await reminded.OnReminder(name, CancellationToken.None).ConfigureAwait(false); }
+            await NeuronAttachment.Remind(neuron, name, CancellationToken.None).ConfigureAwait(false);
             return 0;
         })));
     }

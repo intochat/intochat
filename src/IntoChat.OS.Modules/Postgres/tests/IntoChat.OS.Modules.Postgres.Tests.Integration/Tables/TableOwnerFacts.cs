@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -29,18 +30,10 @@ public sealed class TableOwnerFacts
     [Fact]
     public void TheCurrentOwnerComesFromTheStampedCallerAndRequiresAnApp()
     {
-        var caller = new CallerContext
-        {
-            PrincipalId = "alice",
-            AccountId = "alice",
-            BrainId = "brain-1",
-            Kind = CallerKind.App,
-            AppId = "brain-1/apps/notes",
-            StampedBy = TrustedEdge.AppProxy,
-        };
+        var caller = CapabilityCallers.Of("alice", "alice", "brain-1", CallerKind.App, "brain-1/apps/notes");
         // Grain keys carry the brain scope id, never the caller's raw brain name.
         Assert.Equal(new TableOwner(BrainScope.Create("alice", "brain-1").Id, "brain-1/apps/notes"), TableOwner.Current(caller));
         Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(caller with { AppId = "" }));
-        Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(caller with { StampedBy = TrustedEdge.Platform }));
+        Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(new CapabilityCaller("", "alice", "brain-1", "brain-1/apps/notes")));
     }
 }

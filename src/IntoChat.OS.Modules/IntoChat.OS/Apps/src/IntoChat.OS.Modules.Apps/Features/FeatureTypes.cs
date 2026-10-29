@@ -1,3 +1,4 @@
+using DigitalBrain;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -10,12 +11,12 @@ internal static class FeatureTypes
 {
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
 
-    public static TypeEntry[] Of(IReadOnlyDictionary<string, string> files, string provider)
+    public static BrainType[] Of(IReadOnlyDictionary<string, string> files, string provider)
         => [.. files.Where(file => AppFiles.IsProgram(file.Key) && file.Key != AppFiles.DeclarationPath)
             .SelectMany(file => CSharpSyntaxTree.ParseText(file.Value, Parse).GetRoot().DescendantNodes().OfType<TypeDeclarationSyntax>())
             .Where(type => type.Modifiers.Any(SyntaxKind.PublicKeyword)
                 && type.BaseList?.Types.Any(baseType => baseType.Type.ToString() is "Signal" or "IntoChat.OS.Signal") == true)
-            .Select(type => new TypeEntry(FullName(type), type.Identifier.Text, TypeKind.Signal, provider, "",
+            .Select(type => new BrainType(FullName(type), type.Identifier.Text, DigitalBrain.TypeKind.Signal, provider, "",
                 [.. Properties(type)], []))
             .DistinctBy(entry => entry.Name)];
 

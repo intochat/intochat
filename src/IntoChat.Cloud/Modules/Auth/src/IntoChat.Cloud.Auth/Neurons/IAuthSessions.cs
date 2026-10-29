@@ -21,7 +21,7 @@ public interface IAuthSessions
 
     // The member of the live row for the hash; null when it is unknown, revoked or expired.
     [Internal]
-    Task<SessionMember?> Find(string sidHash);
+    Task<DigitalBrain.Capabilities.Identity.Member?> Find(string sidHash);
 
     // Names the device a row was opened from (the issuer port knows no HTTP request).
     [Internal]
@@ -57,6 +57,4 @@ public sealed record SessionView(
     DateTimeOffset LastSeenAt,
     bool Current);
 
-public sealed record SessionMember(string PrincipalId, string AccountId, string BrainId, string Role, string DisplayName);
-
-public sealed record SessionOpen(string SidHash, string Handle, string Label, TimeSpan Lifetime, SessionMember Member);
+public sealed record SessionOpen(string SidHash, string Handle, string Label, TimeSpan Lifetime, DigitalBrain.Capabilities.Identity.Member Member);

@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Microsoft.Azure.Install;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
@@ -22,7 +23,7 @@ public sealed class ModuleSecretFacts
             var error = new StringWriter();
 
             var code = await AzureInstaller.Run(["install", "--env", "test", "--config", config, "--secrets-from", secrets], azure,
-                [new ModuleDeploymentFacts.OrphanModule()], output, error, TestContext.Current.CancellationToken);
+                [OsModule.FromDigital(typeof(ModuleDeploymentFacts.OrphanModule))], output, error, TestContext.Current.CancellationToken);
 
             Assert.Equal(0, code);
             Assert.Equal("private-test-value", azure.Vault["module-secret"]);
@@ -32,7 +33,7 @@ public sealed class ModuleSecretFacts
             azure = new RecordingAzure();
             error = new StringWriter();
             code = await AzureInstaller.Run(["install", "--env", "test", "--config", config, "--secrets-from", secrets], azure,
-                [new ModuleDeploymentFacts.OrphanModule()], output, error, TestContext.Current.CancellationToken);
+                [OsModule.FromDigital(typeof(ModuleDeploymentFacts.OrphanModule))], output, error, TestContext.Current.CancellationToken);
             Assert.Equal(1, code);
             Assert.Contains("GoogleAuth:ClientSecret", error.ToString(), StringComparison.Ordinal);
             Assert.DoesNotContain("private-test-value", error.ToString(), StringComparison.Ordinal);
@@ -41,13 +42,13 @@ public sealed class ModuleSecretFacts
             await File.WriteAllTextAsync(secrets, """{"master-key":"test-master","GoogleAuth:ClientSecret":null}""", TestContext.Current.CancellationToken);
             error = new StringWriter();
             code = await AzureInstaller.Run(["install", "--env", "test", "--config", config, "--secrets-from", secrets], new RecordingAzure(),
-                [new ModuleDeploymentFacts.OrphanModule()], output, error, TestContext.Current.CancellationToken);
+                [OsModule.FromDigital(typeof(ModuleDeploymentFacts.OrphanModule))], output, error, TestContext.Current.CancellationToken);
             Assert.Equal(1, code);
             Assert.Contains("GoogleAuth:ClientSecret", error.ToString(), StringComparison.Ordinal);
 
             azure = new RecordingAzure();
             Assert.Equal(0, await AzureInstaller.Run(["install", "--env", "test", "--config", config, "--dry-run"], azure,
-                [new ModuleDeploymentFacts.OrphanModule()], output, error, TestContext.Current.CancellationToken));
+                [OsModule.FromDigital(typeof(ModuleDeploymentFacts.OrphanModule))], output, error, TestContext.Current.CancellationToken));
             Assert.Empty(azure.Ensured);
         }
         finally { directory.Delete(true); }

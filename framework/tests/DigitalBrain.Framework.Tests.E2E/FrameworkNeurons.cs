@@ -113,7 +113,7 @@ public interface ITurns
 
 /// <summary>Busy calls are turns; Meet interleaves; a timer tick is a turn and counts toward the same overlap measure.</summary>
 [Neuron("e2e.turns")]
-public sealed class TurnNeuron : Neuron, ITurns, IRemindedNeuron
+public sealed class TurnNeuron : Neuron, ITurns
 {
     public Task Busy() => Turns.Inside(Id.ToString(), TimeSpan.FromMilliseconds(400));
 
@@ -125,7 +125,7 @@ public sealed class TurnNeuron : Neuron, ITurns, IRemindedNeuron
         return Task.CompletedTask;
     }
 
-    public async Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         await Turns.Inside(Id.ToString(), TimeSpan.FromMilliseconds(100));
         Turns.Tick(Id.ToString());

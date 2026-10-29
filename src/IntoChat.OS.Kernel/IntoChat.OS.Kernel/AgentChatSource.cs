@@ -8,6 +8,7 @@ using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Kernel;
 
@@ -22,14 +23,13 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
             IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.All);
     }
 
-    private IntoChat.OS.Runtime.IPlainNeurons Plain => services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {
-        var state = await Plain.Get<IAgent>(key).Read();
+        var state = await SiloNeurons.Get<IAgent>(services, key).Read();
         // A pasted link's app and input live in the links store beside the conversations, never in the run.
         var links = state.Runs.Any(run => ChatAppCard.TryReadLinkPost(run.RunId, out _)) && ChatAppCard.LinksKey(key) is { } store
-            ? (await Plain.Get<IText>(store).Read()).Markdown : null;
+            ? (await SiloNeurons.Get<IText>(services, store).Read()).Markdown : null;
         var runs = state.Runs.ToList();
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
         var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(run => Entries(run, links))]))
@@ -61,7 +61,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
             if (entries[i].App is not { } card) { continue; }
             if (!manifests.TryGetValue(card.App, out var manifest))
             {
-                try { manifest = (await services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IApp>(IApp.Key(scope, card.App)).Read()).Manifest; }
+                try { manifest = (await SiloNeurons.Get<IApp>(services, IApp.Key(scope, card.App)).Read()).Manifest; }
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }

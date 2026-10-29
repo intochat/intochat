@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime.Storage.Confinement;
+
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
 public sealed class MachineFacts : IDisposable
@@ -14,7 +16,7 @@ public sealed class MachineFacts : IDisposable
         var first = Path.Combine(_root, "one");
         var second = Path.Combine(_root, "two");
 
-        Assert.Equal(Path.Combine(first, "sub", "file.txt"), MachineRoots.Resolve([first, second], Path.Combine("sub", "file.txt")));
+        Assert.Equal(Path.Combine(first, "sub", "file.txt"), PathConfinement.Resolve([first, second], Path.Combine("sub", "file.txt")));
     }
 
     [Fact]
@@ -24,8 +26,8 @@ public sealed class MachineFacts : IDisposable
         var second = Path.Combine(_root, "two");
         var inside = Path.Combine(second, "a", "b.txt");
 
-        Assert.Equal(inside, MachineRoots.Resolve([first, second], inside));
-        Assert.Equal(second, MachineRoots.Resolve([first, second], second + Path.DirectorySeparatorChar));
+        Assert.Equal(inside, PathConfinement.Resolve([first, second], inside));
+        Assert.Equal(second, PathConfinement.Resolve([first, second], second + Path.DirectorySeparatorChar));
     }
 
     [Fact]
@@ -33,23 +35,23 @@ public sealed class MachineFacts : IDisposable
     {
         var root = Path.Combine(_root, "root");
 
-        Assert.Throws<UnauthorizedAccessException>(() => MachineRoots.Resolve([root], root + "2"));
-        Assert.Throws<UnauthorizedAccessException>(() => MachineRoots.Resolve([root], Path.Combine("..", "elsewhere")));
+        Assert.Throws<ConfinementDenied>(() => PathConfinement.Resolve([root], root + "2"));
+        Assert.Throws<ConfinementDenied>(() => PathConfinement.Resolve([root], Path.Combine("..", "elsewhere")));
     }
 
     [Fact]
     public void NoRootsMeansNothingIsAllowedAndABlankPathIsRefused()
     {
-        Assert.Throws<UnauthorizedAccessException>(() => MachineRoots.Resolve([], "x"));
-        Assert.ThrowsAny<ArgumentException>(() => MachineRoots.Resolve([_root], " "));
+        Assert.Throws<ConfinementDenied>(() => PathConfinement.Resolve([], "x"));
+        Assert.Throws<ConfinementDenied>(() => PathConfinement.Resolve([_root], " "));
     }
 
     [Fact]
     public void NormalizeDropsATrailingSeparatorButKeepsADriveRoot()
     {
-        Assert.Equal(Path.Combine(_root, "dir"), MachineRoots.Normalize(Path.Combine(_root, "dir") + Path.DirectorySeparatorChar));
+        Assert.Equal(Path.Combine(_root, "dir"), PathConfinement.Normalize(Path.Combine(_root, "dir") + Path.DirectorySeparatorChar));
         var filesystemRoot = Path.GetPathRoot(_root)!;
-        Assert.Equal(filesystemRoot, MachineRoots.Normalize(filesystemRoot));
+        Assert.Equal(filesystemRoot, PathConfinement.Normalize(filesystemRoot));
     }
 
     [Fact]

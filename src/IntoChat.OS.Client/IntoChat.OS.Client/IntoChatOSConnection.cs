@@ -6,7 +6,7 @@ namespace IntoChat.OS.Client;
 
 // One behavior's view of its session: its settings, its stop signal, and neuron calls and signal
 // subscriptions made in its name. Disposing it ends nothing shared; the host owns the session.
-public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncDisposable, IInitialSignalWait
+public sealed class IntoChatOSConnection : ISignalWatch, ISelectiveWatch, IAsyncDisposable, IInitialSignalWait
 {
     private readonly SessionConnection _session;
     private readonly string _behavior;
@@ -34,20 +34,19 @@ public sealed class IntoChatOSConnection : IIntoChatOS, ISelectiveWatch, IAsyncD
     public string? Setting(string name) => _settings.TryGetValue(name, out var value) ? value : null;
 
     // Scripts hold this class: Get and Neuron resolve any neuron contract over the session edge.
-    public T Get<T>(NeuronId id) where T : class => (T)NeuronProxy.Create(typeof(T), _session, _behavior, id.Name, _trace);
+    // osFullKey is the os key "{brain}/{key}", not a DigitalBrain neuron id.
+    public T Get<T>(string osFullKey) where T : class => (T)NeuronProxy.Create(typeof(T), _session, _behavior, osFullKey, _trace);
 
-    // The edge resolves the wire key raw, so the relative id leaves the sandbox as "{brain}/{relative}".
-    public T Neuron<T>(NeuronId relative) where T : class => Get<T>(Relative(relative));
-
-    private NeuronId Relative(NeuronId relative) => _session.Brain is { Length: > 0 } brain
-        ? relative.Within(brain)
+    // The edge resolves the wire key raw, so a relative name leaves the sandbox as "{brain}/{relative}".
+    public T Neuron<T>(string relative) where T : class => _session.Brain is { Length: > 0 } brain
+        ? Get<T>($"{brain}/{relative}")
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IBrain Self => _session.Brain is { Length: > 0 } brain
         ? (IBrain)NeuronProxy.Create(typeof(IBrain), _session, _behavior, IBrain.Key(brain), _trace)
         : throw new InvalidOperationException("This session was not told its brain.");
 
-    public IKernelView Kernel => new SessionKernel(_session, _behavior, _trace);
+    public SessionKernel Kernel => new SessionKernel(_session, _behavior, _trace);
 
     // A neuron's [Signal] records reach the behavior through the runtime's session synapse.
     public IAsyncEnumerable<T> On<T>(object neuron, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal

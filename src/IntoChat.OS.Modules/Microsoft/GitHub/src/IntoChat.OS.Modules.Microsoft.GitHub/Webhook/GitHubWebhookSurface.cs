@@ -3,6 +3,8 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
@@ -93,9 +95,10 @@ internal sealed class GitHubWebhookSurface(GitHubWebhookIngress ingress) : IHttp
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
         }
-        catch (Exception)
+        catch (Exception error)
         {
             // Payloads, credentials and provider exceptions must never become an HTTP response.
+            context.RequestServices.GetRequiredService<ILogger<GitHubWebhookSurface>>().LogDebug(error, "GitHub webhook accept failed.");
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
         }
     }

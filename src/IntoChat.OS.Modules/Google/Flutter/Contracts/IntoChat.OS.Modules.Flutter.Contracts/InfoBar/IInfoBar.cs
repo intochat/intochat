@@ -13,14 +13,13 @@ public interface IInfoBar
     [DigitalBrain.ReadOnlyCall] Task<InfoBarState> Read();
 }
 
-[GenerateSerializer, Alias("ui.infobar-state")]
 [ExportableState]
 public sealed class InfoBarState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Severity { get; set; } = "info";
-    [Id(3)] public string Title { get; set; } = "";
-    [Id(4)] public string Body { get; set; } = "";
-    [Id(5)] public bool Visible { get; set; }
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Severity { get; set; } = "info";
+    public string Title { get; set; } = "";
+    public string Body { get; set; } = "";
+    public bool Visible { get; set; }
 }

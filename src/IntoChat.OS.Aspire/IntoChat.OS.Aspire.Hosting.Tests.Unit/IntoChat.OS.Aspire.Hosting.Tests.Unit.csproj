@@ -2,11 +2,9 @@
   <PropertyGroup><RootNamespace>IntoChat.OS.Aspire.Hosting.Tests.Unit</RootNamespace></PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" />
-    <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
     <ProjectReference Include="../IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
     <ProjectReference Include="../IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
-    <ProjectReference Include="../../Testing/IntoChat.OS.Aspire.Testing/IntoChat.OS.Aspire.Testing.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/src/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/src/IntoChat.OS.Modules.Postgres.Aspire.Hosting/IntoChat.OS.Modules.Postgres.Aspire.Hosting.csproj" />

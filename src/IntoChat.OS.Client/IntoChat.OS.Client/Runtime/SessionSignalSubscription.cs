@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using IntoChat.OS;
@@ -24,7 +25,10 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
 
     public static async Task<SessionSignalSubscription<T>> OpenAsync(SessionConnection session, string behavior, NeuronProxy source, BehaviorTrace trace, CancellationToken cancellationToken, string? selector = null)
     {
-        var signal = typeof(DigitalBrain.Signal).IsAssignableFrom(typeof(T)) ? IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(T)) : typeof(T).Name;
+        var signal = typeof(DigitalBrain.Signal).IsAssignableFrom(typeof(T))
+            ? typeof(T).GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias
+                ?? throw new ArgumentException($"{typeof(T).Name} is not a [Signal] record.")
+            : typeof(T).Name;
         var id = await session.SubscribeAsync(new SubscribeReport(behavior, source.Contract.FullName!, source.Key, signal, selector), cancellationToken).ConfigureAwait(false);
         return new SessionSignalSubscription<T>(session.Join(id), trace);
     }

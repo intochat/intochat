@@ -67,7 +67,7 @@ public static class InoChats
     public static readonly TimeSpan BackfillAllTimeout = TimeSpan.FromSeconds(20);
 
     // The conversation agents directly under {dataKey}/conversations/ with a chat id, newest first, at most MaxListed.
-    public static IReadOnlyList<string> ConversationKeys(IEnumerable<Instance> instances, string dataKey)
+    public static IReadOnlyList<string> ConversationKeys(IEnumerable<DigitalBrain.BrainInstance> instances, string dataKey)
     {
         ArgumentNullException.ThrowIfNull(instances);
         var prefix = dataKey + Conversations;
@@ -89,7 +89,7 @@ public static class InoChats
         ArgumentNullException.ThrowIfNull(brain);
         return TryBackfillAll(Ino.DataKey(brain), async token =>
         {
-            var instances = new List<Instance>();
+            var instances = new List<DigitalBrain.BrainInstance>();
             await foreach (var instance in brain.Kernel.Instances<IAgent>(token)) { instances.Add(instance); }
             return ConversationKeys(instances, Ino.DataKey(brain));
         }, Index(brain), agent => brain.Get<IAgent>(agent).Transcript(), cancellationToken);

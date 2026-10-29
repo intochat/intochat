@@ -1,0 +1,39 @@
+{
+  "title": "reset-new",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Choose a new password"
+      },
+      {
+        "kind": "text",
+        "value": "Use 12 to 256 characters. Choose a password you do not use elsewhere."
+      },
+      {
+        "kind": "textField",
+        "name": "password",
+        "value": null,
+        "placeholder": "Password"
+      },
+      {
+        "kind": "textField",
+        "name": "confirm",
+        "value": null,
+        "placeholder": "Save password"
+      },
+      {
+        "kind": "button",
+        "label": "Save password",
+        "action": {
+          "neuron": "lobby",
+          "operation": "save",
+          "arguments": []
+        },
+        "enabled": false,
+        "tone": "accent"
+      }
+    ]
+  }
+}

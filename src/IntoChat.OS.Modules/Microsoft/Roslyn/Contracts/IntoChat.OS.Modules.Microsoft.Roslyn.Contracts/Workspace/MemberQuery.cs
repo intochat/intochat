@@ -1,5 +1,3 @@
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[GenerateSerializer]
-[Alias("coding.member-query")]
-public sealed record MemberQuery([property: Id(0)] string SymbolId);
+public sealed record MemberQuery(string SymbolId);

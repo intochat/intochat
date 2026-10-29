@@ -18,7 +18,7 @@ internal sealed class KernelConfirmations(IServiceProvider services, IOptions<Co
     {
         public ConfirmationPolicy Policy => options.Value.For(brain.Value);
 
-        private IConfirmationEntity Entity => SiloNeurons.Get<IConfirmationEntity>(services, new(brain, "runtime.confirmations", "confirmations"));
+        private IConfirmationEntity Entity => SiloNeurons.Get<IConfirmationEntity>(services, new global::DigitalBrain.NeuronId(brain, "runtime.confirmations", "confirmations"));
 
         public async Task<ConfirmationResult> Confirm(ConfirmationPlan plan, CancellationToken ct = default)
         {

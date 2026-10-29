@@ -1,7 +1,6 @@
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Connections.Platform.Connections;
@@ -11,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
-internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
+internal sealed partial class GmailNeuron
 {
     internal const string LifecycleReminder = "gmail-lifecycle";
     private static readonly TimeSpan LifecyclePeriod = TimeSpan.FromMinutes(1);
@@ -96,12 +95,12 @@ internal sealed partial class GmailNeuron : DigitalBrain.Spi.IRemindedNeuron
     }
 
     // The lifecycle reminder is the runtime host's durable reminder (06-08: a plain neuron's Context.Reminders).
-    public async Task OnReminder(string reminderName, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string reminderName, CancellationToken cancellationToken)
     {
         if (reminderName != LifecycleReminder) { return; }
         if (!IsGrantReady) { await RemoveReminderAsync(); return; }
         var trace = Snapshot.History?.Wakeup?.Trace ?? Snapshot.History?.Work?.Trace;
-        await ServiceProvider.GetRequiredService<IBrainOwnerDispatch>().RunAsync(Key.Brain, new(FullKey), async () =>
+        await ServiceProvider.GetRequiredService<IBrainOwnerDispatch>().RunAsync(Key.Brain, FullKey, async () =>
         {
             await RecoverLifecycleAsync(CancellationToken.None);
             if (Snapshot.History is { } history && (history.Wakeup is not null || history.Work is not null)

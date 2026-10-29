@@ -4,6 +4,7 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Contracts;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities.Storage;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Operations;
 using DigitalBrain.Runtime.Orleans.Testing;
@@ -36,7 +37,11 @@ public sealed class OperationConnections : ICapabilityConnections
 
     /// <summary>The result of a write an in-memory connection started (its own operations).</summary>
     public static Task<OperationResult> Result(IStorage storage, OperationId id, CancellationToken ct)
-        => (storage is SlowStorage slow ? slow.Inner : (InMemoryStorage)storage).Operations.WaitFor(id, ct);
+    {
+        while (storage is RecordingStorage recording) { storage = recording.Inner; }
+        if (storage is SlowStorage slow) { storage = slow.Inner; }
+        return ((InMemoryStorage)storage).Operations.WaitFor(id, ct);
+    }
 }
 
 /// <summary>An in-memory connection whose streaming writes wait <see cref="Delay"/> first.</summary>

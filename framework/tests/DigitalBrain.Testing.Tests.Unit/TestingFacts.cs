@@ -24,7 +24,7 @@ public sealed class Greeter : IGreeter
 }
 
 [Neuron("sample")]
-public sealed class SampleNeuron : Neuron<Counter>, IRemindedNeuron
+public sealed class SampleNeuron : Neuron<Counter>
 {
     public List<string> Reminded { get; } = [];
 
@@ -42,7 +42,7 @@ public sealed class SampleNeuron : Neuron<Counter>, IRemindedNeuron
         return Task.CompletedTask;
     }
 
-    public Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override Task OnReminder(string name, CancellationToken cancellationToken)
     {
         Reminded.Add(name);
         return Task.CompletedTask;
@@ -107,9 +107,9 @@ public sealed class TestingFacts
     }
 
     [Fact]
-    public async Task Reminders_without_a_reminded_target_throw()
+    public async Task Reminders_without_a_neuron_throw()
     {
-        var reminders = new ManualReminders { Target = new object() };
+        var reminders = new ManualReminders();
         await Assert.ThrowsAsync<InvalidOperationException>(() => reminders.Fire("x", TestContext.Current.CancellationToken));
     }
 

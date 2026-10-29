@@ -38,3 +38,11 @@ public sealed record RoleChanged(
     string PrincipalId,
     OrganisationRole Role,
     OrganisationRole PreviousRole) : DigitalBrain.Signal;
+
+[Signal("organisations.invite-declined")]
+public sealed record InviteDeclined(string OrgId, string InviteId) : DigitalBrain.Signal;
+
+// Rename, dissolve, revive, membership and invite-token writes have no product signal. Neuron<TState>
+// refuses a save with an empty signal list, so those writes publish this bookkeeping signal.
+[Signal("organisations.bookkeeping")]
+public sealed record OrganisationBookkeeping(string OrgId, string Action) : DigitalBrain.Signal;

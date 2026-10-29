@@ -12,16 +12,14 @@ public interface ISurface
     [DigitalBrain.ReadOnlyCall] Task<SurfaceState> Read();
 }
 
-[GenerateSerializer, Alias("ui.surface-definition")]
-public sealed record SurfaceDefinition([property: Id(0)] string Title, [property: Id(1)] UiChildRef[] Children);
+public sealed record SurfaceDefinition(string Title, UiChildRef[] Children);
 
-[GenerateSerializer, Alias("ui.surface-state")]
 [ExportableState]
 public sealed class SurfaceState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public long Revision { get; set; }
-    [Id(2)] public SurfaceDefinition Definition { get; set; } = new("", []);
+    public string Name { get; set; } = "";
+    public long Revision { get; set; }
+    public SurfaceDefinition Definition { get; set; } = new("", []);
 }
 
 [Signal("ui.surface-changed")]

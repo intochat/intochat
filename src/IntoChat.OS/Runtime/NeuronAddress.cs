@@ -31,8 +31,8 @@ public readonly record struct NeuronAddress(string NeuronType, string Key)
 // Implemented by each runtime: the only place an id becomes a reference.
 public interface INeuronResolver
 {
-    // Composes "{brain}/{relative}". T is an INeuron or IRuntimeEndpoint contract.
-    T Resolve<T>(BrainId brain, NeuronId relative) where T : class;
+    // Composes "{brain}/{relative}". relative is the os key under the brain, not a DigitalBrain neuron id.
+    T Resolve<T>(BrainId brain, string relative) where T : class;
 
     // Brain-less neurons and the transitional raw-key path; Framework and Authority only.
     T ResolveKey<T>(string fullKey) where T : class;

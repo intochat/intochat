@@ -14,26 +14,16 @@ namespace IntoChat.OS.Modules.AI.Agents;
 [System.Text.Json.Serialization.JsonDerivedType(typeof(Completed), "completed")]
 [System.Text.Json.Serialization.JsonDerivedType(typeof(Finished), "finished")]
 [System.Text.Json.Serialization.JsonDerivedType(typeof(Failed), "failed")]
-[GenerateSerializer, Alias("ai.turn-event")]
 public abstract record AgentTurnEvent
 {
-    [GenerateSerializer, Alias("ai.turn-event.Started")]
-    public sealed record Started([property: Id(0)] string RunId) : AgentTurnEvent;
-    [GenerateSerializer, Alias("ai.turn-event.ModelSelected")]
-    public sealed record ModelSelected([property: Id(0)] ResolvedModel Model, [property: Id(1)] ModelDescriptor Descriptor) : AgentTurnEvent;
-    [GenerateSerializer, Alias("ai.turn-event.Text")]
-    public sealed record Text([property: Id(0)] string Content) : AgentTurnEvent;
-    [GenerateSerializer, Alias("ai.turn-event.ToolStarted")]
-    public sealed record ToolStarted([property: Id(0)] string CallId, [property: Id(1)] string Name, [property: Id(2)] string Arguments) : AgentTurnEvent;
-    [GenerateSerializer, Alias("ai.turn-event.ToolCompleted")]
-    public sealed record ToolCompleted([property: Id(0)] string CallId, [property: Id(1)] string Name, [property: Id(2)] string Result) : AgentTurnEvent;
-    [GenerateSerializer, Alias("ai.turn-event.ToolFailed")]
-    public sealed record ToolFailed([property: Id(0)] string CallId, [property: Id(1)] string Name,
-        [property: Id(2)] string Code = "tool_failed", [property: Id(3)] string Message = "The tool call failed.") : AgentTurnEvent;
-    [GenerateSerializer, Alias("ai.turn-event.Completed")]
-    public sealed record Completed([property: Id(0)] IReadOnlyList<AiMessage> Messages, [property: Id(1)] AgentUsage? Usage) : AgentTurnEvent;
-    [GenerateSerializer, Alias("ai.turn-event.Finished")]
+    public sealed record Started(string RunId) : AgentTurnEvent;
+    public sealed record ModelSelected(ResolvedModel Model, ModelDescriptor Descriptor) : AgentTurnEvent;
+    public sealed record Text(string Content) : AgentTurnEvent;
+    public sealed record ToolStarted(string CallId, string Name, string Arguments) : AgentTurnEvent;
+    public sealed record ToolCompleted(string CallId, string Name, string Result) : AgentTurnEvent;
+    public sealed record ToolFailed(string CallId, string Name,
+        string Code = "tool_failed", string Message = "The tool call failed.") : AgentTurnEvent;
+    public sealed record Completed(IReadOnlyList<AiMessage> Messages, AgentUsage? Usage) : AgentTurnEvent;
     public sealed record Finished : AgentTurnEvent;
-    [GenerateSerializer, Alias("ai.turn-event.Failed")]
-    public sealed record Failed([property: Id(0)] string Message, [property: Id(1)] bool Cancelled = false) : AgentTurnEvent;
+    public sealed record Failed(string Message, bool Cancelled = false) : AgentTurnEvent;
 }

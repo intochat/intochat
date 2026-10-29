@@ -19,11 +19,6 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" IsAspireProjectResource="false" />
   </ItemGroup>
 
-  <!-- Modules opt in to the transitional Framework module generator with <IntoChatOSModule>true</IntoChatOSModule>. -->
-  <ItemGroup Condition="'$(IntoChatOSModule)' == 'true'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)src/IntoChat.OS.Framework/IntoChat.OS.Framework.Generators/IntoChat.OS.Framework.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" IsAspireProjectResource="false" />
-  </ItemGroup>
-
   <!-- Pinned to CodeGraph 1.6.0 in Directory.Build.props until the Windows fix ships:
        https://github.com/colbymchenry/codegraph/issues/2094 -->
   <Target Name="RefreshCodeGraph"

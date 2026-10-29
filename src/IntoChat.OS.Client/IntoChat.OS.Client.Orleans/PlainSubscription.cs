@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
-using IntoChat.OS.Runtime;
+using System.Text.Json;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Signalling;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Client.Orleans;
@@ -11,16 +13,16 @@ namespace IntoChat.OS.Client.Orleans;
 // after the runtime's SessionTtl).
 internal static class PlainSubscription
 {
-    public static IAsyncEnumerable<T> Open<T>(IPlainSignals signals, object source, ILogger logger, Func<Task> onSubscribed, CancellationToken cancellationToken)
+    public static IAsyncEnumerable<T> Open<T>(IServiceProvider services, object source, ILogger logger, Func<Task> onSubscribed, CancellationToken cancellationToken)
         where T : DigitalBrain.Signal
     {
         var target = source is DigitalBrain.Invocation.NeuronProxy proxy
             ? proxy.Target
             : throw new ArgumentException("Subscribe to a plain neuron obtained from this brain's Get.", nameof(source));
-        var alias = PlainSignalTypes.AliasOf(typeof(T));
+        var alias = SignalLog.Alias(typeof(T));
         return new WatchStream<T>(async ct =>
         {
-            var session = signals.Session(target.Brain.Value, "client/" + Guid.NewGuid().ToString("N"));
+            var session = SiloNeurons.Get<ISessionSynapses>(services, SessionSynapses.For(target.Brain, "client/" + Guid.NewGuid().ToString("N")));
             try { await session.Subscribe(target, [alias]).WaitAsync(ct).ConfigureAwait(false); }
             catch { await EndAsync(session, logger, target).ConfigureAwait(false); throw; }
             logger.LogInformation("SubscriptionReady {Source} {SignalType}", target, typeof(T).Name);
@@ -28,7 +30,7 @@ internal static class PlainSubscription
         }, cancellationToken, default, onSubscribed);
     }
 
-    private static async IAsyncEnumerable<T> Read<T>(IPlainSession session, DigitalBrain.NeuronId target, string alias, ILogger logger,
+    private static async IAsyncEnumerable<T> Read<T>(ISessionSynapses session, DigitalBrain.NeuronId target, string alias, ILogger logger,
         [EnumeratorCancellation] CancellationToken cancellationToken) where T : DigitalBrain.Signal
     {
         long acked = 0;
@@ -38,21 +40,21 @@ internal static class PlainSubscription
             if (batch is null) { continue; }
             foreach (var entry in batch.Signals)
             {
-                if (entry.IsGap) { logger.LogWarning("SubscriptionMissedSignals {Source} {SignalType} {Gap}", target, typeof(T).Name, entry.Json); continue; }
-                if (entry.Alias == alias) { yield return PlainSignalTypes.Decode<T>(entry.Json); }
+                if (SignalLog.IsGap(entry)) { logger.LogWarning("SubscriptionMissedSignals {Source} {SignalType} {Gap}", target, typeof(T).Name, entry.Payload.GetRawText()); continue; }
+                if (entry.Alias == alias) { yield return JsonSerializer.Deserialize<T>(entry.Payload, JsonSerializerOptions.Web)!; }
             }
             // Resuming here means the consumer asked for more: every signal of the batch was taken.
             acked = batch.Number;
         }
     }
 
-    private static async Task EndAsync(IPlainSession session, ILogger logger, DigitalBrain.NeuronId target)
+    private static async Task EndAsync(ISessionSynapses session, ILogger logger, DigitalBrain.NeuronId target)
     {
         try { await session.End().ConfigureAwait(false); }
         catch (Exception error) { logger.LogWarning(error, "Subscription cleanup failed for {Source}; the session expires after its SessionTtl.", target); }
     }
 
-    private sealed class Ending(IPlainSession session, ILogger logger, DigitalBrain.NeuronId target) : IAsyncDisposable
+    private sealed class Ending(ISessionSynapses session, ILogger logger, DigitalBrain.NeuronId target) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync() => await EndAsync(session, logger, target).ConfigureAwait(false);
     }

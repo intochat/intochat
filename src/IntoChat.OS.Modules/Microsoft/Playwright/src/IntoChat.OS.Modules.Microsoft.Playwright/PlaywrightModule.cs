@@ -1,30 +1,30 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using global::Microsoft.Extensions.DependencyInjection.Extensions;
-using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
-public sealed class PlaywrightModule() : Module<PlaywrightModuleOptions>(new ModuleId("playwright"))
+[DigitalBrain.Module(ManifestName)]
+public sealed class PlaywrightModule : DigitalBrain.Module
 {
     internal const string ManifestName = "playwright";
 
-    // R4-04: what the module needs from its host (PlaywrightNeurons); its silo services stay in Configure until the Framework
-    // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest => PlaywrightNeurons.Manifest;
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<PlaywrightModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(ManifestName))],
+        Secrets: []);
 
-    // The browser and page tools are plain neurons (06-06d) on the runtime's host grains.
-    public override Type? Neurons => typeof(PlaywrightNeurons);
+    public static System.Reflection.Assembly? Contracts => typeof(IPlaywright).Assembly;
 
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.Playwright.IPlaywright).Assembly;
-
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => services.AddPlaywright();
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        services.AddPlaywright();
+    }
 }
+
 public static class PlaywrightHosting
 {
     public static IServiceCollection AddPlaywright(this IServiceCollection services)
@@ -33,16 +33,4 @@ public static class PlaywrightHosting
         services.TryAddSingleton<IBrowserSessionProvider, PlaywrightSessionProvider>();
         return services;
     }
-}
-
-// The DigitalBrain module of Playwright (06-06d): its assembly's [Neuron] classes run on the runtime's host grains.
-[DigitalBrain.Module(PlaywrightModule.ManifestName)]
-public sealed class PlaywrightNeurons : DigitalBrain.Module
-{
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<PlaywrightModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(PlaywrightModule.ManifestName))],
-        Secrets: []);
 }

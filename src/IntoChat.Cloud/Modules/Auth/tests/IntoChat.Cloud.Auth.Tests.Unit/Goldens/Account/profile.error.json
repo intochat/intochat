@@ -1,0 +1,46 @@
+{
+  "title": "profile",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Profile"
+      },
+      {
+        "kind": "text",
+        "value": "Your name, photo and how you sign in."
+      },
+      {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "textField",
+            "name": "name",
+            "value": "Ada",
+            "placeholder": "Your name"
+          },
+          {
+            "kind": "button",
+            "label": "Save changes",
+            "action": {
+              "neuron": "account",
+              "operation": "save",
+              "arguments": []
+            },
+            "enabled": false,
+            "tone": "accent"
+          },
+          {
+            "kind": "text",
+            "value": "Profile changed elsewhere."
+          },
+          {
+            "kind": "text",
+            "value": "Use a JPG or PNG up to 5 MB."
+          }
+        ]
+      }
+    ]
+  }
+}

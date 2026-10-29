@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -25,7 +26,7 @@ public readonly record struct TableOwner(string BrainId, string AppId)
 
     // The owner a stamped caller may act as. Only trusted callers reach table neurons, and a
     // caller is an owner only when the kernel stamped its app id.
-    public static TableOwner Current(CallerContext caller)
+    public static TableOwner Current(CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
         if (!CallerContextStamper.IsTrusted(caller) || string.IsNullOrWhiteSpace(caller.AppId))

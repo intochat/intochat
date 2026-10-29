@@ -12,21 +12,19 @@ public interface IMap
     [DigitalBrain.ReadOnlyCall] Task<MapState> Read();
 }
 
-[GenerateSerializer, Alias("ui.map-marker")]
 public sealed record MapMarker(
-    [property: Id(0)] string Id,
-    [property: Id(1)] double Lat,
-    [property: Id(2)] double Lng,
-    [property: Id(3)] string Label);
+    string Id,
+    double Lat,
+    double Lng,
+    string Label);
 
-[GenerateSerializer, Alias("ui.map-state")]
 [ExportableState]
 public sealed class MapState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public double Lat { get; set; }
-    [Id(3)] public double Lng { get; set; }
-    [Id(4)] public double Zoom { get; set; } = 1;
-    [Id(5)] public List<MapMarker> Markers { get; set; } = [];
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public double Lat { get; set; }
+    public double Lng { get; set; }
+    public double Zoom { get; set; } = 1;
+    public List<MapMarker> Markers { get; set; } = [];
 }

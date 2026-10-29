@@ -13,14 +13,13 @@ public interface ISlider
     [DigitalBrain.ReadOnlyCall] Task<SliderState> Read();
 }
 
-[GenerateSerializer, Alias("ui.slider-state")]
 [ExportableState]
 public sealed class SliderState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public double Min { get; set; }
-    [Id(3)] public double Max { get; set; } = 1;
-    [Id(4)] public double Step { get; set; } = 1;
-    [Id(5)] public double Value { get; set; }
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public double Min { get; set; }
+    public double Max { get; set; } = 1;
+    public double Step { get; set; } = 1;
+    public double Value { get; set; }
 }

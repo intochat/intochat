@@ -28,7 +28,6 @@ internal sealed class ContractDeclarationWriter(ModuleInventory inventory)
     }
 
     public static MethodInfo[] Methods(Type contract) => [.. contract.GetInterfaces().Append(contract)
-        .Where(type => !type.IsAssignableFrom(typeof(INeuron)))
         .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         .Where(method => !method.IsSpecialName).DistinctBy(method => method.ToString())
         .OrderBy(method => method.Name, StringComparer.Ordinal).ThenBy(method => method.ToString(), StringComparer.Ordinal)];

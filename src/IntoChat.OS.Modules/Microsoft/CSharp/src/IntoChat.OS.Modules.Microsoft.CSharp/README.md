@@ -21,7 +21,9 @@ Options:
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `RunTokenKey` | yes |
 
 Contracts: assembly `IntoChat.OS.Modules.Microsoft.CSharp.Contracts` (`IBrainPrograms`, `IBrainRuns`, `IBrainRuntime`, `ICSharpFile`).
 Hosting: runs in process.

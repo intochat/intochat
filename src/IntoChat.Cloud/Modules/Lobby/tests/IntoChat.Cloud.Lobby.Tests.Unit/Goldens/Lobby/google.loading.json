@@ -1,0 +1,27 @@
+{
+  "title": "google",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Logging in"
+      },
+      {
+        "kind": "text",
+        "value": "You will return here in a moment."
+      },
+      {
+        "kind": "button",
+        "label": "Log in",
+        "action": {
+          "neuron": "lobby",
+          "operation": "cancel",
+          "arguments": []
+        },
+        "enabled": false,
+        "tone": "neutral"
+      }
+    ]
+  }
+}

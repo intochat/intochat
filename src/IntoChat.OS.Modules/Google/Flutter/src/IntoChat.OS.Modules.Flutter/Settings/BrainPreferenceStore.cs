@@ -1,3 +1,6 @@
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
+using IntoChat.OS.Runtime;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.TextField;
 using IntoChat.OS.Contracts.Configuration;
@@ -36,31 +39,31 @@ internal static class BrainPreferenceStore
 
     private static string NewTabField(string scope) => scope + "/settings/workspace/new-tab-app";
 
-    public static async Task<bool> ReadNotification(IIntoChatOS brain, string scope, string key, CancellationToken ct)
+    public static async Task<bool> ReadNotification(INeuronProxies brain, string scope, string key, CancellationToken ct)
     {
         var fallback = NotificationKeys.First(known => known.Key == key).Default;
         var state = await brain.Get<ITextField>(NotificationField(scope, key)).Read().WaitAsync(ct);
         return state.Value switch { "on" => true, "off" => false, _ => fallback };
     }
 
-    public static async Task<Dictionary<string, bool>> ReadNotifications(IIntoChatOS brain, string scope, CancellationToken ct)
+    public static async Task<Dictionary<string, bool>> ReadNotifications(INeuronProxies brain, string scope, CancellationToken ct)
     {
         var result = new Dictionary<string, bool>();
         foreach (var (key, _) in NotificationKeys) { result[key] = await ReadNotification(brain, scope, key, ct); }
         return result;
     }
 
-    public static Task WriteNotification(IIntoChatOS brain, string scope, string key, bool on, CancellationToken ct)
+    public static Task WriteNotification(INeuronProxies brain, string scope, string key, bool on, CancellationToken ct)
     {
         if (!IsNotificationKey(key)) { throw new ArgumentException("Unknown notification preference.", nameof(key)); }
         return brain.Get<ITextField>(NotificationField(scope, key)).SetValue(on ? "on" : "off").WaitAsync(ct);
     }
 
     // The apps a new tab may open: every titled, live app of the caller's brain except the hidden ones, Ino first.
-    public static async Task<Choice[]> NewTabChoices(IIntoChatOS brain, string scope, CancellationToken ct)
+    public static async Task<Choice[]> NewTabChoices(INeuronProxies brain, IBrainObserver kernel, string scope, CancellationToken ct)
     {
         var found = new List<Choice>();
-        await foreach (var instance in brain.Kernel.Instances<IApp>(ct))
+        await foreach (var instance in kernel.Instances<IApp>(ct))
         {
             if (IApp.NameOf(scope, instance.Key) is not { } name || Hidden.Contains(name)) { continue; }
             var app = await brain.Get<IApp>(instance.Key).Read().WaitAsync(ct);
@@ -69,16 +72,16 @@ internal static class BrainPreferenceStore
         return [.. found.OrderBy(choice => choice.Name == NewTabDefault ? 0 : 1).ThenBy(choice => choice.Title, StringComparer.OrdinalIgnoreCase)];
     }
 
-    public static async Task<string> ReadNewTab(IIntoChatOS brain, string scope, Choice[] choices, CancellationToken ct)
+    public static async Task<string> ReadNewTab(INeuronProxies brain, string scope, Choice[] choices, CancellationToken ct)
     {
         var stored = (await brain.Get<ITextField>(NewTabField(scope)).Read().WaitAsync(ct)).Value;
         return choices.Any(choice => choice.Name == stored) ? stored! : NewTabDefault;
     }
 
     // False when the name is not one of the choices; nothing is written then.
-    public static async Task<bool> WriteNewTab(IIntoChatOS brain, string scope, string? name, CancellationToken ct)
+    public static async Task<bool> WriteNewTab(INeuronProxies brain, IBrainObserver kernel, string scope, string? name, CancellationToken ct)
     {
-        var choices = await NewTabChoices(brain, scope, ct);
+        var choices = await NewTabChoices(brain, kernel, scope, ct);
         if (name is null || !choices.Any(choice => choice.Name == name)) { return false; }
         await brain.Get<ITextField>(NewTabField(scope)).SetValue(name).WaitAsync(ct);
         return true;

@@ -1,4 +1,6 @@
+using DigitalBrain.Capabilities;
 using System.ComponentModel;
+using DigitalBrain.Runtime.Orleans;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using IntoChat.OS.Contracts.Configuration;
@@ -10,11 +12,12 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
+using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Mcp;
 
 [McpServerToolType]
-internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth, IKernelView kernel)
+internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth, IBrainObserver kernel)
 {
     // The caller as stamped, plus the brains it may select with /brains/{brainId}/mcp.
     [McpServerTool(Name = NeuronSurfaceTools.ContextName), Description(NeuronSurfaceTools.ContextDescription)]
@@ -27,7 +30,7 @@ internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions>
 
     // MCP dispatch can run in a separate execution context. Stamp from the current HTTP
     // request at the tool boundary, rather than inheriting a previous MCP session's caller.
-    internal CallerContext Stamp()
+    internal CapabilityCaller Stamp()
     {
         var context = http.HttpContext ?? throw new UnauthorizedAccessException("MCP requires an HTTP caller.");
         var caller = AccountSession.ResolveCaller(context, auth.Value)

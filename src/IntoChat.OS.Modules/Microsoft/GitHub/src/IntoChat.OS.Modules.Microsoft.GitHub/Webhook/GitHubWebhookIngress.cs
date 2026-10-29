@@ -3,10 +3,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Connections.Platform.Connections;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 
-internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, IntoChat.OS.Runtime.IPlainNeurons plain)
+internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, IServiceProvider plain)
 {
     public async Task<GitHubWebhookAcceptance> HandleAsync(ReadOnlyMemory<byte> body,
         IReadOnlyDictionary<string, string[]> headers, CancellationToken cancellationToken)
@@ -50,12 +51,12 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
             var hash = Convert.ToHexStringLower(SHA256.HashData(body.Span));
             var results = new List<GitHubWebhookAcceptance>();
             // Every connection of every brain on this installation; one target's failure never stops the rest.
-            foreach (var key in await plain.Get<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(installation.Value)).Read())
+            foreach (var key in await SiloNeurons.Get<IGitHubRepositoryIndex>(plain, IGitHubRepositoryIndex.Key(installation.Value)).Read())
             {
                 using var activity = GitHubTelemetry.Source.StartActivity("github.webhook.accept", ActivityKind.Producer);
                 try
                 {
-                    var target = plain.Get<IGitHubInbound>(key);
+                    var target = SiloNeurons.Get<IGitHubInbound>(plain, key);
                     if (await target.Coordinates().ConfigureAwait(false) is not { } coordinates
                         || repository is not null && coordinates.RepositoryId != repository)
                     {

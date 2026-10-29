@@ -14,21 +14,18 @@ public interface ICollectionView
     [DigitalBrain.ReadOnlyCall] Task<CollectionState> Read();
 }
 
-[GenerateSerializer, Alias("ui.collection-definition")]
-public sealed record CollectionDefinition([property: Id(0)] CollectionItem[] Items, [property: Id(1)] string? Selection = null, [property: Id(2)] string? Cursor = null, [property: Id(3)] string? Error = null,
-    [property: Id(4)] bool FileMode = true, [property: Id(5)] bool SelectionEnabled = true,
-    [property: Id(6)] string? EmptyLabel = null, [property: Id(7)] CollectionBreadcrumb[]? Breadcrumbs = null);
+public sealed record CollectionDefinition(CollectionItem[] Items, string? Selection = null, string? Cursor = null, string? Error = null,
+    bool FileMode = true, bool SelectionEnabled = true,
+    string? EmptyLabel = null, CollectionBreadcrumb[]? Breadcrumbs = null);
 
-[GenerateSerializer, Alias("ui.collection-breadcrumb")]
-public sealed record CollectionBreadcrumb([property: Id(0)] string Id, [property: Id(1)] string Label);
+public sealed record CollectionBreadcrumb(string Id, string Label);
 
-[GenerateSerializer, Alias("ui.collection-state")]
 [ExportableState]
 public sealed class CollectionState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public long Revision { get; set; }
-    [Id(2)] public CollectionDefinition Definition { get; set; } = new([]);
+    public string Name { get; set; } = "";
+    public long Revision { get; set; }
+    public CollectionDefinition Definition { get; set; } = new([]);
 }
 
 [Signal("ui.collection-changed")]

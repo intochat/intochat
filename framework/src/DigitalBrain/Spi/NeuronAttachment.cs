@@ -26,6 +26,14 @@ public static class NeuronAttachment
         return neuron.Deactivate(cause, cancellationToken);
     }
 
+    /// <summary>Delivers a timer or reminder tick. Module code does not call this.</summary>
+    public static Task Remind(Neuron neuron, string name, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(neuron);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return neuron.Remind(name, cancellationToken);
+    }
+
     /// <summary>
     /// The single entry point a runtime calls before it creates a synapse: asks <paramref name="source"/> whether
     /// <paramref name="subscriber"/> may receive <paramref name="signals"/> from it.

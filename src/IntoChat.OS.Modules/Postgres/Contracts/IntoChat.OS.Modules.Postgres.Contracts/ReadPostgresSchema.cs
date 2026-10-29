@@ -1,5 +1,3 @@
 namespace IntoChat.OS.Modules.Postgres;
 
-[GenerateSerializer]
-[Alias("db.postgres.read-schema")]
-public sealed record ReadPostgresSchema([property: Id(0)] string? Table = null);
+public sealed record ReadPostgresSchema(string? Table = null);

@@ -2,30 +2,26 @@ using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
-[GenerateSerializer, Alias("aspire.candidate.stage")]
 public enum CandidateStage { Proposed, Queued, Building, Starting, Healthy, Verifying, Verified, Promoting, Promoted, Discarded, Failed }
 
-[GenerateSerializer, Alias("aspire.candidate.endpoints")]
-public sealed record CandidateEndpoints([property: Id(0)] string Mcp, [property: Id(1)] string Ui);
+public sealed record CandidateEndpoints(string Mcp, string Ui);
 
-[GenerateSerializer, Alias("aspire.candidate.snapshot")]
 public sealed record CandidateSnapshot(
-    [property: Id(0)] string Sha,
-    [property: Id(1)] string Branch,
-    [property: Id(2)] string Summary,
-    [property: Id(3)] CandidateStage Stage,
-    [property: Id(4)] CandidateEndpoints? Endpoints,
-    [property: Id(5)] VerificationPlan? Plan,
-    [property: Id(6)] VerificationReport? Report,
-    [property: Id(7)] string? Failure,
-    [property: Id(8)] CandidateStage[] History);
+    string Sha,
+    string Branch,
+    string Summary,
+    CandidateStage Stage,
+    CandidateEndpoints? Endpoints,
+    VerificationPlan? Plan,
+    VerificationReport? Report,
+    string? Failure,
+    CandidateStage[] History);
 
-[GenerateSerializer, Alias("aspire.candidate.proposal")]
 public sealed record CandidateProposal(
-    [property: Id(0)] string Branch,
-    [property: Id(1)] string Summary,
-    [property: Id(2)] Dictionary<string, string> Files,
-    [property: Id(3)] VerificationPlan Plan);
+    string Branch,
+    string Summary,
+    Dictionary<string, string> Files,
+    VerificationPlan Plan);
 
 // A plain contract since 06-06d.
 [NeuronAlias("aspire.candidate"), DefaultNeuronType("aspire.candidate")]

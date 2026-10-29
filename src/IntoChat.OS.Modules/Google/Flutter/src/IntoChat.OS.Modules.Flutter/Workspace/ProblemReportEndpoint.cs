@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Http;
@@ -6,7 +8,7 @@ namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 internal static class ProblemReportEndpoint
 {
-    public static async Task<IResult> File(ProblemReportInput input, IIntoChatOS brain, CancellationToken ct)
+    public static async Task<IResult> File(ProblemReportInput input, INeuronProxies brain, CancellationToken ct)
     {
         if (!BrainScope.IsValidId(input.IntentId) || string.IsNullOrWhiteSpace(input.Message))
         { return Results.BadRequest(new { error = "A report needs the intent id it came from and a message." }); }

@@ -16,12 +16,11 @@ public interface IVoiceInput
     [DigitalBrain.ReadOnlyCall] Task<VoiceInputState> Read();
 }
 
-[GenerateSerializer, Alias("ui.voiceinput-state")]
 [ExportableState]
 public sealed class VoiceInputState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public long Revision { get; set; }
-    [Id(2)] public string Label { get; set; } = "";
-    [Id(3)] public int Captures { get; set; }
+    public string Name { get; set; } = "";
+    public long Revision { get; set; }
+    public string Label { get; set; } = "";
+    public int Captures { get; set; }
 }

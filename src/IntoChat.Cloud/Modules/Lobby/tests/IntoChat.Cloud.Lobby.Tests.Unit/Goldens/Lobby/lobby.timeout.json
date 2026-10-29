@@ -1,0 +1,12 @@
+{
+  "title": "timeout",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Your session timed out. Reload to continue."
+      }
+    ]
+  }
+}

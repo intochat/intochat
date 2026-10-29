@@ -51,7 +51,7 @@ internal sealed class OwnerSessionClient(HttpClient http)
         if (response.StatusCode == HttpStatusCode.NoContent) { return default!; }
         return await response.Content.ReadFromJsonAsync<T>(Json, ct) ?? throw new InvalidDataException("Missing server response.");
     }
-    internal sealed record Session(string PrincipalId, string AccountId, string BrainId, string Role);
+    internal sealed record Session(string PrincipalId, string AccountId, string BrainId, string? Role = null);
     private sealed record BrainView(string Id, string Kind);
     internal sealed record Requirements(string[]? SemanticTypes = null, string[]? Connectors = null, string[]? Secrets = null, string[]? Capabilities = null)
     {

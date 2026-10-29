@@ -59,48 +59,53 @@ void main() {
     },
   );
 
-  testWidgets('no member session and a lobby: the shell opens the lobby chrome-less', (
+  testWidgets(
+    'no member session and a lobby: the shell opens the lobby chrome-less',
+    (tester) async {
+      final shells = <IntoChatOSUiClient>[];
+      await tester.pumpWidget(gate(shells));
+      await tester.pumpAndSettle();
+      expect(shells, hasLength(1));
+      expect(shells.single.defaultBrainId, 'lobby-brain');
+      expect(shells.single.chromeless, isTrue);
+      expect(shells.single.principalId, isNull);
+      expect(requested, contains('/lobby/session'));
+    },
+  );
+
+  testWidgets(
+    'no lobby on the host: the login screen stays and no entry page is requested',
+    (tester) async {
+      lobbyStatus = 404;
+      final shells = <IntoChatOSUiClient>[];
+      await tester.pumpWidget(gate(shells));
+      await tester.pumpAndSettle();
+      expect(shells, isEmpty);
+      expect(find.byKey(const Key('login-username')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'LobbyEnded closes the lobby and opens the member default brain',
+    (tester) async {
+      final shells = <IntoChatOSUiClient>[];
+      await tester.pumpWidget(gate(shells));
+      await tester.pumpAndSettle();
+      final lobby = shells.single;
+      expect(lobby.defaultBrainId, 'lobby-brain');
+      signedIn = true;
+      await lobby.endLobby();
+      await tester.pumpAndSettle();
+      expect(shells, hasLength(2));
+      expect(shells.last.defaultBrainId, 'member-brain');
+      expect(shells.last.chromeless, isFalse);
+      expect(identical(shells.last, lobby), isFalse);
+    },
+  );
+
+  testWidgets('a session that is not a lobby ignores LobbyEnded', (
     tester,
   ) async {
-    final shells = <IntoChatOSUiClient>[];
-    await tester.pumpWidget(gate(shells));
-    await tester.pumpAndSettle();
-    expect(shells, hasLength(1));
-    expect(shells.single.defaultBrainId, 'lobby-brain');
-    expect(shells.single.chromeless, isTrue);
-    expect(shells.single.principalId, isNull);
-    expect(requested, contains('/lobby/session'));
-  });
-
-  testWidgets('no lobby on the host: the login screen stays and no entry page is requested', (
-    tester,
-  ) async {
-    lobbyStatus = 404;
-    final shells = <IntoChatOSUiClient>[];
-    await tester.pumpWidget(gate(shells));
-    await tester.pumpAndSettle();
-    expect(shells, isEmpty);
-    expect(find.byKey(const Key('login-username')), findsOneWidget);
-  });
-
-  testWidgets('LobbyEnded closes the lobby and opens the member default brain', (
-    tester,
-  ) async {
-    final shells = <IntoChatOSUiClient>[];
-    await tester.pumpWidget(gate(shells));
-    await tester.pumpAndSettle();
-    final lobby = shells.single;
-    expect(lobby.defaultBrainId, 'lobby-brain');
-    signedIn = true;
-    await lobby.endLobby();
-    await tester.pumpAndSettle();
-    expect(shells, hasLength(2));
-    expect(shells.last.defaultBrainId, 'member-brain');
-    expect(shells.last.chromeless, isFalse);
-    expect(identical(shells.last, lobby), isFalse);
-  });
-
-  testWidgets('a session that is not a lobby ignores LobbyEnded', (tester) async {
     signedIn = true;
     final shells = <IntoChatOSUiClient>[];
     await tester.pumpWidget(gate(shells));

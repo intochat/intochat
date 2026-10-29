@@ -16,6 +16,6 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
+    <ProjectReference Include="../../IntoChat.OS/Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
   </ItemGroup>
 </Project>

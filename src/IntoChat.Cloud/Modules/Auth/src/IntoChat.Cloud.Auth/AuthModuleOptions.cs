@@ -29,7 +29,8 @@ public sealed class AuthModuleOptions
     public int ExpiryWarningDays { get; set; } = 14;
 
     // Open (anyone reaching the install is the local owner) or Secured. A licensed Auth refuses to start unless Secured.
-    public DigitalBrain.Capabilities.Identity.IdentityPosture Posture { get; set; } = DigitalBrain.Capabilities.Identity.IdentityPosture.Open;
+    // Unset stays Open (the enum default). A licensed cloud host must set Secured; the startup guard refuses anything else.
+    public DigitalBrain.Capabilities.Identity.IdentityPosture Posture { get; set; }
 
     public void Validate()
     {

@@ -1,15 +1,13 @@
 using DigitalBrain;
-using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Time.Reminders.Signals;
 using IntoChat.OS.Modules.Time.Timers;
 
 namespace IntoChat.OS.Modules.Time.Reminders;
 
 // A plain neuron (06-03): one durable reminder named "tick" on the runtime host, which reactivates the neuron; each tick is a
-// turn (IRemindedNeuron.OnReminder) that publishes ReminderTick. Reminders the Framework neuron registered before the
-// migration are moved onto this neuron's host by the kernel composition's RetiredReminderGrain when they next fire.
+// turn (Neuron.OnReminder) that publishes ReminderTick. A reminder registered on the retired grain type is not migrated.
 [Neuron("reminder")]
-internal sealed class ReminderNeuron : DigitalBrain.Neuron, IReminder, IRemindedNeuron
+internal sealed class ReminderNeuron : DigitalBrain.Neuron, IReminder
 {
     private const string Name = "tick";
     // Left by the removed automation job runner; retired when it fires.
@@ -27,7 +25,7 @@ internal sealed class ReminderNeuron : DigitalBrain.Neuron, IReminder, IReminded
 
     public Task Stop() => Context.Reminders.Stop(Name);
 
-    public async Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         // The id is the os key "{brain}/{key}" callers address, as the grain neuron's was; feature scripts match ticks by it.
         if (name == Name) { await Publish(new ReminderTick($"{Id.Brain.Value}/{Id.Key}", Context.Time.GetUtcNow())); }

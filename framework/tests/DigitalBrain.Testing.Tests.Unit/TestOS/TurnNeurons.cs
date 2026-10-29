@@ -76,7 +76,7 @@ public interface ITurnProbe
     Task DeferEcho(string tag);
 }
 
-public abstract class ProbeNeuron(Probe probe) : Neuron<Tally>, ITurnProbe, IRemindedNeuron
+public abstract class ProbeNeuron(Probe probe) : Neuron<Tally>, ITurnProbe
 {
     protected Probe Probe { get; } = probe;
 
@@ -140,7 +140,7 @@ public abstract class ProbeNeuron(Probe probe) : Neuron<Tally>, ITurnProbe, IRem
         return Task.CompletedTask;
     }
 
-    public Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override Task OnReminder(string name, CancellationToken cancellationToken)
     {
         Probe.Write($"fired:{name}");
         return Task.CompletedTask;

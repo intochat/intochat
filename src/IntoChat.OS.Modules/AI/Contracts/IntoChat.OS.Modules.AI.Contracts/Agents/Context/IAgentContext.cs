@@ -15,8 +15,6 @@ public interface IAgentContext
 }
 
 // Text is what the model should know; Contracts are full type names of neuron contracts it may need for it.
-[GenerateSerializer, Alias("agent-context.entry")]
-public sealed record ContextEntry([property: Id(0)] string Name, [property: Id(1)] string Text, [property: Id(2)] string[] Contracts);
+public sealed record ContextEntry(string Name, string Text, string[] Contracts);
 
-[GenerateSerializer, Alias("agent-context.snapshot")]
-public sealed record ContextSnapshot([property: Id(0)] long Revision, [property: Id(1)] ContextEntry[] Entries);
+public sealed record ContextSnapshot(long Revision, ContextEntry[] Entries);

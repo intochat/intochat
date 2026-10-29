@@ -45,19 +45,17 @@ public interface IRoslyn
     Task<EditCommit> CommitEdits(IReadOnlyList<EditRequest> edits, CancellationToken cancellationToken = default);
 }
 
-[GenerateSerializer, Alias("microsoft.roslyn.edit-check")]
 public sealed record EditCheck(
-    [property: Id(0)] IReadOnlyList<DiagnosticHit> Diagnostics,
-    [property: Id(1)] string Diff,
-    [property: Id(2)] int? FailingEdit,
-    [property: Id(3)] string? Detail,
-    [property: Id(4)] bool HasErrors);
+    IReadOnlyList<DiagnosticHit> Diagnostics,
+    string Diff,
+    int? FailingEdit,
+    string? Detail,
+    bool HasErrors);
 
-[GenerateSerializer, Alias("microsoft.roslyn.edit-commit")]
 public sealed record EditCommit(
-    [property: Id(0)] IReadOnlyList<DiagnosticHit> Diagnostics,
-    [property: Id(1)] string Diff,
-    [property: Id(2)] IReadOnlyList<string> WrittenPaths,
-    [property: Id(3)] long SnapshotVersion,
-    [property: Id(4)] string? Detail,
-    [property: Id(5)] bool HasErrors);
+    IReadOnlyList<DiagnosticHit> Diagnostics,
+    string Diff,
+    IReadOnlyList<string> WrittenPaths,
+    long SnapshotVersion,
+    string? Detail,
+    bool HasErrors);

@@ -1,11 +1,12 @@
 using System.Text.Json;
+using DigitalBrain.Capabilities;
 
 namespace IntoChat.OS.Modules.Flutter;
 
 // A UI event as the bound handler receives it (06-07b, R4-17): the control's signal as its CLR type name and JSON, and the
 // caller the dispatch ran for. It crosses the runtime's JSON envelope (06-08: every handler is a plain neuron). The caller is a
 // cross-check only: a handler authorizes on the stamped caller of the call it runs in, never on this field alone.
-public sealed record UiEvent(string Type, string Json, UiEventCaller? Caller)
+public sealed record UiEvent(string Type, string Json, CapabilityCaller? Caller)
 {
     private static readonly JsonSerializerOptions Options = JsonSerializerOptions.Web;
 
@@ -21,9 +22,6 @@ public sealed record UiEvent(string Type, string Json, UiEventCaller? Caller)
     // The signal when it is a T, else null.
     public T? As<T>() where T : class => Is<T>() ? JsonSerializer.Deserialize<T>(Json, Options) : null;
 }
-
-// The stamped caller of a dispatch: who acted on the control.
-public sealed record UiEventCaller(string PrincipalId, string AccountId, string BrainId, string Kind, string StampedBy, string? AppId, string? OnBehalfOf);
 
 // A plain contract (06-08) several neuron classes implement (the circle, the circle factory): a binding addresses its handler
 // by the handler's runtime id, so the contract names no neuron type.

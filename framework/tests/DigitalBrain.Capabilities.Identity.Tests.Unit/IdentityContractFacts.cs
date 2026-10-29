@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Identity;
@@ -37,7 +38,7 @@ public sealed class IdentityCapabilityFacts
         Assert.Equal(["Authorize", "GrantAsOwner", "ListGrants", "RevokeAsOwner"], typeof(IGrants).GetMethods().Select(method => method.Name).Order(StringComparer.Ordinal));
     }
 
-    // D-15: no CallerContext (runtime caller) and no HttpContext (ISessionIssuer stays in os).
+    // D-15: no CapabilityCaller (runtime caller) and no HttpContext (ISessionIssuer stays in os).
     [Fact]
     public void No_member_takes_a_caller_or_http_context()
     {

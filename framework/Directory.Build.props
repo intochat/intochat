@@ -36,6 +36,9 @@
   <PropertyGroup Condition="$(MSBuildProjectName.Contains('.Tests.'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
+    <!-- The os CI tier jobs pass IntoChatOSOnlyTier. Framework tests stay on the framework-* jobs. -->
+    <IsTestProject Condition="'$(IntoChatOSOnlyTier)' != ''">false</IsTestProject>
+    <IsTestingPlatformApplication Condition="'$(IntoChatOSOnlyTier)' != ''">false</IsTestingPlatformApplication>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>

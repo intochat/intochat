@@ -7,13 +7,10 @@
 Commands to run before pushing:
 
 - `dotnet run scripts/sync-solution.cs` after adding or moving a project (`-- --check` verifies).
-- `scripts/capture-all.sh` (or `scripts/capture-all.ps1`) after changing a captured surface.
 - `dotnet run scripts/module-readmes.cs` after changing a module's options or secrets (`-- --check` verifies; CI runs it).
+- When a grain, contract, state, or signal identity changes, rewrite `src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json` from `ContractManifest.Capture()` and commit it with the change. `ContractManifestFacts` fails when that file drifts.
 
-### Regenerating ratchets and pins
+### Ratchets
 
-- One command regenerates every ratchet and pinned-list JSON (including those under `src/Testing/IntoChat.OS.Architecture.Tests.Unit/`) and the other captured surfaces: `scripts/capture-all.sh` (or `scripts/capture-all.ps1`).
-- It is additive-only by default; pass `--allow-breaking` to accept removals or changes. Other flags: `--skip-sync` (skip the solution sync), `--out DIR` (write captures to DIR), `--help`.
-- It runs the capture facts with `dotnet test --explicit only`; `INTOCHAT_CAPTURE_OUT` selects the output directory.
-- `PinFreshnessFacts` fails CI when a pin is stale, so rerun the command and commit the result.
+- The architecture project keeps boundary facts (framework inwardness, the Orleans reach ban, test tiers, repository layout, namespace scheme, swallow). There is no capture-all script and no pin JSON besides `ContractManifest.json`.
 - Quarantined facts: timing-dependent facts are `[Fact(Explicit = true)]` with a comment linking their GitHub issue (label `flaky`). They stay out of the PR gate; run them with `dotnet test --project <proj> -c Release -- --explicit only`. Never use `Skip` or retry attributes (`NoRetryFacts`).

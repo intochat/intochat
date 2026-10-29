@@ -1,3 +1,6 @@
+using DigitalBrain;
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
 using IntoChat.OS.Framework;
 using System.Runtime.CompilerServices;
 using IntoChat.OS.Framework.Modules;
@@ -5,7 +8,7 @@ using IntoChat.OS.Framework.Modules;
 namespace IntoChat.OS.Kernel.Composition;
 
 // Reads the directory of the stamped caller's brain; works on a silo and on a cluster client alike.
-public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = null) : IKernel
+public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = null, IServiceProvider? services = null) : IKernel
 {
     // The kernel over the grain factory of services (a silo, or a cluster client host such as the MCP), with its brain
     // membership when the host registers one.
@@ -13,16 +16,17 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
     {
         ArgumentNullException.ThrowIfNull(services);
         return new(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(services),
-            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<IBrainMembership>(services));
+            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<IBrainMembership>(services),
+            services);
     }
 
-    public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : class
+    public IAsyncEnumerable<BrainInstance> Instances<T>(CancellationToken cancellationToken = default) where T : class
         => Instances(TypeOf(typeof(T)), cancellationToken);
 
-    public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default)
+    public IAsyncEnumerable<BrainInstance> Instances(string? type, CancellationToken cancellationToken = default)
         => InstancesIn(BrainScope.CurrentId(), type, cancellationToken);
 
-    public async IAsyncEnumerable<Instance> InstancesIn(string brain, string? type, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<BrainInstance> InstancesIn(string brain, string? type, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         string[] types = type is null ? await grains.GetGrain<IInstanceTypes>(brain).List().WaitAsync(cancellationToken) : [type];
@@ -34,7 +38,7 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
     }
 
     // A call with no caller is in no brain, so it sees the compiled layer alone.
-    public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default)
+    public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
         => (CallerContextStamper.TryGet(out _)
             ? grains.GetGrain<ITypeTable>(BrainScope.CurrentId()).List()
             : grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).List()).WaitAsync(cancellationToken);
@@ -49,11 +53,28 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
         return members.Contains(current, StringComparer.Ordinal) ? members : [current, .. members];
     }
 
-    public async Task<Instance[]> Running(CancellationToken cancellationToken = default)
+    public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default)
+        => services?.GetService(typeof(BrainLogs)) is BrainLogs logs
+            ? SynapseObservation.List(logs, BrainScope.CurrentId(), cancellationToken)
+            : Task.FromResult<ObservedSynapse[]>([]);
+
+    public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default)
+        => services?.GetService(typeof(DeliveryHub)) is DeliveryHub hub
+            ? hub.Listen(BrainScope.CurrentId(), cancellationToken)
+            : EmptyDeliveries(cancellationToken);
+
+    private static async IAsyncEnumerable<SignalDelivery> EmptyDeliveries([EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.CompletedTask;
+        yield break;
+    }
+
+    public async Task<BrainInstance[]> Running(CancellationToken cancellationToken = default)
     {
         var brain = BrainScope.CurrentId();
         var management = grains.GetGrain<IManagementGrain>(0);
-        List<Instance> running = [];
+        List<BrainInstance> running = [];
         foreach (var type in await grains.GetGrain<IInstanceTypes>(brain).List().WaitAsync(cancellationToken))
         {
             var active = (await management.GetActiveGrains(GrainType.Create(type), cancellationToken).AsTask().WaitAsync(cancellationToken))
@@ -77,7 +98,7 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
     public Task<Feature[]> Features(string brain, CancellationToken cancellationToken = default)
         => TypeTable(brain).Features().WaitAsync(cancellationToken);
 
-    public Task LoadFeature(string brain, Feature feature, TypeEntry[] types, CancellationToken cancellationToken = default)
+    public Task LoadFeature(string brain, Feature feature, BrainType[] types, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(feature);
         ArgumentNullException.ThrowIfNull(types);

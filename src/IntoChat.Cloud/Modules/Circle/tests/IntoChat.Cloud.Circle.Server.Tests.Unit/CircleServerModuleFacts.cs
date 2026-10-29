@@ -30,7 +30,7 @@ public sealed class CircleServerModuleFacts
         Assert.Equal("circle-server", manifest.Id);
         Assert.Equal([CapabilityId.Parse("identity@1")], manifest.Requires);
         Assert.Contains(Need.Http, manifest.Needs);
-        Assert.Contains(Need.GrainStore("cluster"), manifest.Needs);
+        Assert.Contains(Need.State("cluster"), manifest.Needs);
         Assert.Equal(typeof(CircleServerOptions), Assert.Single(manifest.Settings).OptionsType);
     }
 

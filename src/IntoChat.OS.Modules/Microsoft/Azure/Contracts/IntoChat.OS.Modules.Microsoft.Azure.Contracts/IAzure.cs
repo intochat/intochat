@@ -19,13 +19,12 @@ public interface IAzure
     Task<ResourceRef[]> Inventory(string tagValue);
 }
 
-[GenerateSerializer, Alias("azure.ref")]
 public sealed record ResourceRef(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string Kind,
-    [property: Id(2)] string Name,
-    [property: Id(3)] string ResourceGroup)
+    string Id,
+    string Kind,
+    string Name,
+    string ResourceGroup)
 {
     // The address a client uses: a registry's login server, a Postgres server's host name.
-    [Id(4)] public string Endpoint { get; init; } = "";
+    public string Endpoint { get; init; } = "";
 }

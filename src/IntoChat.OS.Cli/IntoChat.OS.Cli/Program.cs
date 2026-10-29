@@ -10,14 +10,18 @@ internal static class Program
         Console.CancelKeyPress += Handler;
         try
         {
+            if (args.Any(argument => argument is "--token"))
+            { Console.Error.WriteLine("--token is not accepted. The dev token is read from the local OS."); return 2; }
             if (args is ["__extract-app-metadata", var assembly, var destination])
             { await BuildMetadata.Extract(assembly, destination, cancellation.Token).ConfigureAwait(false); return 0; }
             var command = AppCommand.Parse(args);
             switch (command.Kind)
             {
                 case AppCommandKind.Help:
-                    Console.WriteLine("intochat pack <project.csproj> -o <app.intochat-app>\nintochat run <project> [--endpoint <url>] [--brain <id>]\nintochat install <package> [--endpoint <url>] [--brain <id>]");
+                    Console.WriteLine("intochat pack <project.csproj> -o <app.intochat-app>\nintochat run <project-or-folder> [--endpoint <url>] [--brain <id>]\nintochat install <package> [--endpoint <url>] [--brain <id>]");
                     return 0;
+                case AppCommandKind.Run when Directory.Exists(command.Target):
+                    return await FolderRun.Execute(command, Console.Error, Console.Out, (push, token) => FolderRun.Post(command.Endpoint ?? FolderRun.DefaultEndpoint, FolderRun.AppName(push.Files.First(file => file.Path == "app.cs").Content) ?? Path.GetFileName(command.Target!)!, File.ReadAllText(FolderRun.DevTokenPath()).Trim(), push, token), cancellation.Token);
                 case AppCommandKind.Pack:
                     var package = await new AppBuild().Pack(command.Target!, command.Output!, cancellation.Token).ConfigureAwait(false);
                     Console.WriteLine($"Packed {package.Descriptor.Id} {package.Descriptor.Version} -> {Path.GetFullPath(command.Output!)}");

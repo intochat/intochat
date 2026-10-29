@@ -1,8 +1,0 @@
-[
-  "IntoChat.OS.Modules.Apps.AppSynapse",
-  "IntoChat.OS.Modules.Apps.AppsEndpoints.SynapseBody",
-  "IntoChat.OS.Modules.Apps.Signals.SynapseRejected",
-  "IntoChat.OS.Modules.Apps.Signals.SynapseWritten",
-  "IntoChat.OS.Modules.Apps.SynapseStatus",
-  "IntoChat.OS.Synapse"
-]

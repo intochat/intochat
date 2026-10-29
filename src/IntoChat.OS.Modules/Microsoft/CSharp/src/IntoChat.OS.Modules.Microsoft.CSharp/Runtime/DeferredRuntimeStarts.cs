@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 
@@ -10,7 +11,7 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 // Retry those runtimes once listening starts, through the plain seam (06-08: the runtime is a plain neuron, named by its brain)
 // rather than retaining an activation or waiting for its recovery reminder.
 internal sealed class DeferredRuntimeStarts(
-    IntoChat.OS.Runtime.IPlainNeurons neurons,
+    IServiceProvider neurons,
     [FromKeyedServices(typeof(CSharpModule))] IHostApplicationLifetime lifetime,
     ILogger<DeferredRuntimeStarts> logger) : BackgroundService
 {
@@ -34,7 +35,7 @@ internal sealed class DeferredRuntimeStarts(
             await listening.Task.WaitAsync(stoppingToken);
             await foreach (var runtime in _queue.Reader.ReadAllAsync(stoppingToken))
             {
-                try { await neurons.Get<IBrainRuntime>(BrainRuntimeKeys.For(runtime)).Touch(stoppingToken).WaitAsync(stoppingToken); }
+                try { await SiloNeurons.Get<IBrainRuntime>(neurons, BrainRuntimeKeys.For(runtime)).Touch(stoppingToken).WaitAsync(stoppingToken); }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
                 catch (Exception error)
                 { logger.LogWarning(error, "Could not start deferred runtime {Runtime}; its reminder retries.", runtime); }

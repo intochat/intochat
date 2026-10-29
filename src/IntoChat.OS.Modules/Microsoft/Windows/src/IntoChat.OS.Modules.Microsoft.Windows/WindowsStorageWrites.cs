@@ -4,6 +4,7 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
 using DigitalBrain.Spi;
 using IntoChat.OS.Framework.Diagnostics;
+using IntoChat.OS.Runtime.Storage.Confinement;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -94,7 +95,7 @@ internal sealed partial class WindowsStorage
             return;
         }
         var anchor = prepared.Destination ?? prepared.Source!;
-        var root = MachineRoots.Containing(AllowedRoots, anchor);
+        var root = PathConfinement.Containing(AllowedRoots, anchor);
         var gate = _coordinator.Gates.GetOrAdd(root, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -170,7 +171,7 @@ internal sealed partial class WindowsStorage
     private async Task<ItemId> Commit(WritePlan plan, string stage, CancellationToken ct)
     {
         var destination = Prepare(plan).Destination!;
-        var root = MachineRoots.Containing(AllowedRoots, destination);
+        var root = PathConfinement.Containing(AllowedRoots, destination);
         var gate = _coordinator.Gates.GetOrAdd(root, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -246,7 +247,7 @@ internal sealed partial class WindowsStorage
     private void Publish(string stage, string destination, ConflictPolicy conflict)
     {
         _ = Resolve(IdOf(destination));
-        MachineRoots.RequireNoLinks(stage);
+        PathConfinement.RequireNoLinks(stage);
         if (!Exists(destination)) { MovePath(stage, destination); return; }
         if (conflict != ConflictPolicy.Overwrite) { throw new Conflict(IdOf(destination)); }
         if (Directory.Exists(stage) != Directory.Exists(destination)) { throw new Conflict(IdOf(destination)); }
@@ -267,14 +268,14 @@ internal sealed partial class WindowsStorage
     {
         source = Resolve(IdOf(source));
         if (IsRoot(source)) { throw new Denied(IdOf(source)); }
-        var root = MachineRoots.Containing(AllowedRoots, source);
+        var root = PathConfinement.Containing(AllowedRoots, source);
         var receipt = Path.Combine(PrivateFolder(root), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(receipt);
         try
         {
             File.WriteAllText(Path.Combine(receipt, "receipt.json"), JsonSerializer.Serialize(new TrashReceipt(source, Path.GetFileName(source))));
             _ = Resolve(IdOf(source));
-            MachineRoots.RequireNoLinks(receipt);
+            PathConfinement.RequireNoLinks(receipt);
             MovePath(source, Path.Combine(receipt, Path.GetFileName(source)));
         }
         catch
@@ -286,9 +287,9 @@ internal sealed partial class WindowsStorage
 
     private string StagePath(string destinationFolder)
     {
-        var root = MachineRoots.Containing(AllowedRoots, Resolve(IdOf(destinationFolder)));
+        var root = PathConfinement.Containing(AllowedRoots, Resolve(IdOf(destinationFolder)));
         var directory = Path.Combine(PrivateFolder(root), ".staging");
-        MachineRoots.RequireNoLinks(directory);
+        PathConfinement.RequireNoLinks(directory);
         Directory.CreateDirectory(directory);
         return Path.Combine(directory, Guid.NewGuid().ToString("N"));
     }
@@ -297,7 +298,7 @@ internal sealed partial class WindowsStorage
     {
         _ = Resolve(IdOf(root));
         var folder = Path.Combine(root, TrashFolderName);
-        MachineRoots.RequireNoLinks(folder);
+        PathConfinement.RequireNoLinks(folder);
         if (!Directory.Exists(folder))
         {
             var temporary = Path.Combine(root, ".intochat-working-" + Guid.NewGuid().ToString("N"));
@@ -314,7 +315,7 @@ internal sealed partial class WindowsStorage
             finally { Cleanup(temporary); _coordinator.WorkingFolders.TryRemove(temporary, out _); }
         }
         var marker = Path.Combine(folder, ".owner");
-        MachineRoots.RequireNoLinks(marker);
+        PathConfinement.RequireNoLinks(marker);
         if (!File.Exists(marker) || File.ReadAllText(marker) != Marker) { throw new Conflict(IdOf(folder)); }
         return folder;
     }
@@ -331,7 +332,7 @@ internal sealed partial class WindowsStorage
     {
         ct.ThrowIfCancellationRequested();
         source = Resolve(IdOf(source));
-        MachineRoots.RequireNoLinks(target);
+        PathConfinement.RequireNoLinks(target);
         if (Directory.Exists(source))
         {
             Directory.CreateDirectory(target);
@@ -350,7 +351,7 @@ internal sealed partial class WindowsStorage
         if (!CryptographicOperations.FixedTimeEquals(original, copy)) { throw new Unavailable(IdOf(source)); }
     }
 
-    private bool IsRoot(string path) => AllowedRoots.Any(root => PathComparer.Equals(MachineRoots.Normalize(root), MachineRoots.Normalize(path)));
+    private bool IsRoot(string path) => AllowedRoots.Any(root => PathComparer.Equals(PathConfinement.Normalize(root), PathConfinement.Normalize(path)));
 
     private static bool IsInside(string folder, string path)
         => path.StartsWith(Path.TrimEndingDirectorySeparator(folder) + Path.DirectorySeparatorChar,
@@ -367,7 +368,7 @@ internal sealed partial class WindowsStorage
 
     private void Cleanup(string path)
     {
-        try { MachineRoots.RequireNoLinks(path); DeletePath(path); }
+        try { PathConfinement.RequireNoLinks(path); DeletePath(path); }
         catch (IOException error) { _coordinator.Logger.LogSwallowed(error, "Storage staging cleanup could not finish."); }
         catch (UnauthorizedAccessException error) { _coordinator.Logger.LogSwallowed(error, "Storage staging cleanup access was denied."); }
     }

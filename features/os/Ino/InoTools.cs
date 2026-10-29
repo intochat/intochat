@@ -4,10 +4,10 @@ using IntoChat.OS;
 // neuron contracts this host actually exposes; never add other discovered tools.
 public static class InoTools
 {
-    public static string[] Select(string[] allowed, TypeEntry[] available)
+    public static string[] Select(string[] allowed, DigitalBrain.BrainType[] available)
     {
         ArgumentNullException.ThrowIfNull(available);
-        var neurons = available.Where(type => type.Kind == TypeKind.Neuron)
+        var neurons = available.Where(type => type.Kind == DigitalBrain.TypeKind.Neuron)
             .Select(type => type.Name).ToHashSet(StringComparer.Ordinal);
         return [.. allowed.Where(neurons.Contains)];
     }

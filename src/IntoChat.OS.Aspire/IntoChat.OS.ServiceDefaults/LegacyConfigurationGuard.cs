@@ -112,11 +112,17 @@ public static class LegacyConfigurationGuard
         }
         // The directory is machine state, not configuration: automated test hosts on a developer machine that
         // still has the old directory set this key (Testing module initializer); operators never should.
-        if (localApplicationData is { Length: > 0 }
+        // An explicit IntoChatOS:Home is a clean break: the old folder under LocalApplicationData is irrelevant,
+        // and the same check runs under that Home only. The default Home still looks at LocalApplicationData.
+        var home = configuration[IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey];
+        var explicitHome = !string.IsNullOrWhiteSpace(home);
+        var root = explicitHome ? home : localApplicationData;
+        var label = explicitHome ? home! : "%LOCALAPPDATA%";
+        if (root is { Length: > 0 }
             && !configuration.GetValue(IgnoreLegacyDataDirectoryKey, false)
-            && Directory.Exists(Path.Combine(localApplicationData, Pascal))
-            && !Directory.Exists(Path.Combine(localApplicationData, "IntoChatOS")))
-        { found.Add((Path.Combine("%LOCALAPPDATA%", Pascal), Path.Combine("%LOCALAPPDATA%", "IntoChatOS"))); }
+            && Directory.Exists(Path.Combine(root, Pascal))
+            && !Directory.Exists(Path.Combine(root, "IntoChatOS")))
+        { found.Add((Path.Combine(label, Pascal), Path.Combine(label, "IntoChatOS"))); }
         return found.DistinctBy(offender => offender.Name, StringComparer.Ordinal).ToArray();
     }
 

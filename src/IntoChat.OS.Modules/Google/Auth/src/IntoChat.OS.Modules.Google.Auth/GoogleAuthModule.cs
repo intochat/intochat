@@ -1,6 +1,9 @@
-using IntoChat.OS.Framework;
+using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules.Metering;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -8,31 +11,32 @@ namespace IntoChat.OS.Modules.Google.Auth;
 
 // Google sign-in shared by Gmail and Drive: the one google-oauth integration, its client secrets,
 // the token exchange and refresh operations and the metered Google HTTP client.
-[Module(ModuleName)]
-[Integration(GoogleAuth.Integration, "Google OAuth")]
-[Secret("ClientId", Integration = GoogleAuth.Integration)]
-[Secret("ClientSecret", Integration = GoogleAuth.Integration)]
-[ModulePriceList(typeof(GooglePriceList))]
-[ExternalOperation(GoogleAuthOperations.CodeExchange, GoogleAuth.Integration, "request")]
-[ExternalOperation(GoogleAuthOperations.Refresh, GoogleAuth.Integration, "request")]
-public sealed partial class GoogleAuthModule : Module<GoogleAuthModuleOptions>
+[DigitalBrain.Module(ModuleName)]
+public sealed class GoogleAuthModule : DigitalBrain.Module
 {
-    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
-    // leaves (06-08).
+    public const string ModuleName = "google-auth";
+
     public static DigitalBrain.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<GoogleAuthModuleOptions>()],
+        Settings: [DigitalBrain.Setting.Of<GoogleAuthModuleOptions>(IntoChatOSConfiguration.ModuleOptionsSection(ModuleName))],
         Secrets: []);
 
-    public const string ModuleName = "google-auth";
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For(GoogleAuth.Integration, "Google OAuth")
+        .RequiresSecret("ClientId")
+        .RequiresSecret("ClientSecret");
 
-    partial void OnConfigure(IModuleServices services)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        var collection = services.Services;
-        collection.TryAddSingleton<GoogleAuthRegistration>();
-        collection.AddMeteredHttpClient(GoogleHttp.ClientName).ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan);
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ModulePriceLists.AddModulePriceList<GooglePriceList>(services, ModuleName, [
+            new ExternalOperationDescriptor(GoogleAuthOperations.CodeExchange, GoogleAuth.Integration, "request"),
+            new ExternalOperationDescriptor(GoogleAuthOperations.Refresh, GoogleAuth.Integration, "request"),
+        ]);
+        services.TryAddSingleton<GoogleAuthRegistration>();
+        services.AddMeteredHttpClient(GoogleHttp.ClientName).ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan);
     }
 }
 

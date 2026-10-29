@@ -13,13 +13,12 @@ public interface IExpander
     [DigitalBrain.ReadOnlyCall] Task<ExpanderState> Read();
 }
 
-[GenerateSerializer, Alias("ui.expander-state")]
 [ExportableState]
 public sealed class ExpanderState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Header { get; set; } = "";
-    [Id(3)] public bool Expanded { get; set; }
-    [Id(4)] public List<UiChildRef> Children { get; set; } = [];
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Header { get; set; } = "";
+    public bool Expanded { get; set; }
+    public List<UiChildRef> Children { get; set; } = [];
 }

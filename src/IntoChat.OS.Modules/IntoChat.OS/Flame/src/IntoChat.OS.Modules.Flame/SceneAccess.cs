@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -30,5 +31,5 @@ internal static class SceneAccess
         if (!admitted) { throw new UnauthorizedAccessException($"A {caller.Kind} caller of brain {caller.BrainId} may not touch scene {key}."); }
     }
 
-    private static bool SameBrain(CallerContext caller, string key) => string.Equals(caller.BrainId, BrainOf(key), StringComparison.Ordinal);
+    private static bool SameBrain(CapabilityCaller caller, string key) => string.Equals(caller.BrainId, BrainOf(key), StringComparison.Ordinal);
 }

@@ -5,12 +5,11 @@ using IntoChat.OS.Modules.AI.Inference;
 namespace IntoChat.OS.Modules.AI.Agents;
 
 // One finished turn as a caller sees it: the reply text and the messages it produced.
-[GenerateSerializer, Alias("ai.agent-reply")]
 public sealed record AgentReply(
-    [property: Id(0)] string RunId,
-    [property: Id(1)] string Text,
-    [property: Id(2)] AiMessage[] Messages,
-    [property: Id(3)] AgentUsage? Usage);
+    string RunId,
+    string Text,
+    AiMessage[] Messages,
+    AgentUsage? Usage);
 
 // The request/response shapes callers had before Run streamed; each is a view over Run.
 public static class AgentExtensions
