@@ -21,6 +21,18 @@
   <Folder Name="/Desktop/">
     <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
   </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Localization/">
+    <Project Path="src/IntoChat.Cloud/Modules/Localization/tests/IntoChat.Cloud.Localization.Tests.Unit/IntoChat.Cloud.Localization.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Localization/src/">
+    <Project Path="src/IntoChat.Cloud/Modules/Localization/src/IntoChat.Cloud.Localization/IntoChat.Cloud.Localization.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Organisations/">
+    <Project Path="src/IntoChat.Cloud/Modules/Organisations/tests/IntoChat.Cloud.Organisations.Tests.Unit/IntoChat.Cloud.Organisations.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Organisations/src/">
+    <Project Path="src/IntoChat.Cloud/Modules/Organisations/src/IntoChat.Cloud.Organisations/IntoChat.Cloud.Organisations.csproj" />
+  </Folder>
   <Folder Name="/IntoChat.OS/">
     <Project Path="src/IntoChat.OS/Contracts.Compute/IntoChat.OS.Contracts.Compute.csproj" />
     <Project Path="src/IntoChat.OS/Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
@@ -61,12 +73,14 @@
   </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Mail/">
     <Project Path="src/IntoChat.Cloud/Modules/Mail/tests/IntoChat.Cloud.Mail.Templates.Tests.Unit/IntoChat.Cloud.Mail.Templates.Tests.Unit.csproj" />
+    <Project Path="src/IntoChat.Cloud/Modules/Mail/tests/IntoChat.Cloud.Mail.Tests.Unit/IntoChat.Cloud.Mail.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Mail/Contracts/">
     <Project Path="src/IntoChat.Cloud/Modules/Mail/Contracts/IntoChat.Cloud.Mail.Contracts/IntoChat.Cloud.Mail.Contracts.csproj" />
   </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Mail/src/">
     <Project Path="src/IntoChat.Cloud/Modules/Mail/src/IntoChat.Cloud.Mail.Templates/IntoChat.Cloud.Mail.Templates.csproj" />
+    <Project Path="src/IntoChat.Cloud/Modules/Mail/src/IntoChat.Cloud.Mail/IntoChat.Cloud.Mail.csproj" />
   </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Organisations/Contracts/">
     <Project Path="src/IntoChat.Cloud/Modules/Organisations/Contracts/IntoChat.Cloud.Organisations.Contracts/IntoChat.Cloud.Organisations.Contracts.csproj" />
@@ -375,8 +389,8 @@
     <Project Path="framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <Project Path="framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
     <Project Path="framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
-    <Project Path="framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <Project Path="framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" />
+    <Project Path="framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <Project Path="framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <Project Path="framework/src/DigitalBrain/DigitalBrain.csproj" />
   </Folder>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Localization module: embedded string tables for lobby and account screens. Loaded only when Topology=cloud. No source generator.</Description>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <EmbeddedResource Include="Tables\*.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.Cloud.Localization.Tests.Unit" />
+  </ItemGroup>
+</Project>

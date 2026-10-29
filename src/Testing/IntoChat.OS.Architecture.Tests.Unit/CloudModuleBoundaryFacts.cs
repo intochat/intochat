@@ -45,7 +45,7 @@ public sealed class CloudModuleBoundaryFacts
         => name is "DigitalBrain" || name.StartsWith("DigitalBrain.", StringComparison.Ordinal)
             || (name.StartsWith("IntoChat.OS.", StringComparison.Ordinal) && name.EndsWith(".Contracts", StringComparison.Ordinal))
             || (name.StartsWith("IntoChat.Cloud.", StringComparison.Ordinal) && name.EndsWith(".Contracts", StringComparison.Ordinal))
-            || name is "IntoChat.Cloud.Localization" or "IntoChat.Cloud.Localization.Generator"
+            || name is "IntoChat.Cloud.Localization" or "IntoChat.Cloud.Localization.Generator" or "IntoChat.Cloud.Mail.Templates"
             || moduleProjects.Contains(name);
 
     private static IEnumerable<(string Name, string Path, string Module)> CloudProjects()
