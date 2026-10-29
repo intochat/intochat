@@ -13,11 +13,16 @@ Configuration section: `IntoChatOS:Modules:aspire:Options` (environment prefix `
 
 Options:
 
-None.
+| Option | Type | Default | Required |
+| --- | --- | --- | --- |
+| `Fronts` | integration setting | unset | no |
+| `Workdir` | integration setting | unset | yes |
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `CandidateModel` | no |
 
 Contracts: assembly `IntoChat.OS.Modules.Microsoft.Aspire.Contracts` (`ICandidate`, `ICandidates`, `IDeployment`).
 Hosting: runs in process.

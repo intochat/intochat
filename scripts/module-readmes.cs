@@ -32,7 +32,12 @@ string? Csproj(string assembly) => projects.FirstOrDefault(path => Path.GetFileN
 var stale = new List<string>();
 var written = 0;
 var seen = 0;
-foreach (var module in OperatingSystemModules.WithWindowsEdge().DistinctBy(m => m.Id.ToString()))
+var readmes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+// One README per project. A neuron bundle sharing the project (authority beside identity) does not overwrite it.
+// The capability module, the type whose name ends with Module, owns the file.
+foreach (var module in OperatingSystemModules.WithWindowsEdge().DistinctBy(m => m.Id.ToString())
+    .OrderBy(m => m.Type.Name.EndsWith("Module", StringComparison.Ordinal) ? 0 : 1)
+    .ThenBy(m => m.Id.Value, StringComparer.Ordinal))
 {
     var type = module.Type;
     var assembly = type.Assembly.GetName().Name!;
@@ -40,6 +45,7 @@ foreach (var module in OperatingSystemModules.WithWindowsEdge().DistinctBy(m => 
     var csproj = Path.Combine(root, csprojRelative);
     var folder = Path.GetDirectoryName(csproj)!;
     var readme = Path.Combine(folder, "README.md");
+    if (!readmes.Add(readme)) { continue; }
     var description = XDocument.Load(csproj).Descendants("Description").FirstOrDefault()?.Value.Trim() ?? "";
     var moduleRoot = (Path.GetDirectoryName(csprojRelative) ?? "").Replace('\\', '/') + "/";
     var testProject = projects

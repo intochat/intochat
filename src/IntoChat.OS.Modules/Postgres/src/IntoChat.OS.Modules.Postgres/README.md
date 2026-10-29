@@ -17,7 +17,10 @@ None.
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `AdminConnection` | no |
+| `ConnectionString` | yes |
 
 Contracts: assembly `IntoChat.OS.Modules.Postgres.Contracts` (`IPostgresServer`, `ITable`).
 Hosting: needs a container.
