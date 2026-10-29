@@ -72,7 +72,8 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
             _app.AttachNeuronResolver((contractType, key) =>
             {
                 var typeName = contractType.GetCustomAttribute<DigitalBrain.Contracts.DefaultNeuronTypeAttribute>(false)?.Type
-                    ?? throw new InvalidOperationException($"Contract {contractType.FullName} has no [DefaultNeuronType] attribute.");
+                    ?? contractType.GetCustomAttribute<DigitalBrain.Contracts.NeuronAliasAttribute>(false)?.Alias
+                    ?? throw new InvalidOperationException($"Contract {contractType.FullName} has no [DefaultNeuronType] or [NeuronAlias] attribute.");
                 var id = new NeuronId(new BrainId("local"), typeName, key);
                 try
                 {
@@ -84,6 +85,13 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
                     throw;
                 }
             });
+            foreach (var sub in _definition.SignalSubscriptions)
+            {
+                var register = typeof(InstalledApp<TApp>)
+                    .GetMethod(nameof(RegisterSignalSubscription), BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .MakeGenericMethod(sub.SignalType);
+                await ((Task)register.Invoke(this, [sub])!).ConfigureAwait(false);
+            }
         }
         try
         {
@@ -97,4 +105,12 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
             Refresh();
         }
     }
+
+    private Task<IAsyncDisposable> RegisterSignalSubscription<TSignal>(AppSignalSubscription sub) where TSignal : Signal
+        => _os.ClusterListeners.Listen<TSignal>(
+            $"app:{Manifest.Id}:{sub.OperationName}",
+            (publisher, signal, _) => string.Equals(publisher.Key, sub.SourceKey, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(publisher.Type, sub.SourceKey, StringComparison.OrdinalIgnoreCase)
+                ? Turn(sub.Method, signal)
+                : Task.CompletedTask);
 }

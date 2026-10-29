@@ -29,19 +29,73 @@ internal static class AppRunner
         var definition = new AppDefinition(appType);
         var presenter = new ViewPresenter(brain, appKey, long.Parse(brain.Setting("ProgramRevision") ?? "1", System.Globalization.CultureInfo.InvariantCulture));
         var instance = definition.Create(service => service == typeof(IPresenter) ? presenter : null);
-        instance.AttachNeuronResolver((contractType, key) =>
-            typeof(IntoChatOSConnection).GetMethod(nameof(IntoChatOSConnection.Get), [typeof(string)])!
-                .MakeGenericMethod(contractType)
-                .Invoke(brain, [key])!);
+        instance.AttachNeuronResolver((contractType, key) => ResolveNeuron(brain, contractType, key));
         var app = brain.Get<IApp>(appKey);
-        // The operations the app is requested by are the manifest's; each one that is an [On] method is served.
+        // The operations the app is requested by are the manifest's; each one that is an [On] method is served,
+        // alongside any background neuron [Signal] subscriptions declared via [On("sourceKey")].
         var snapshot = await app.Read().ConfigureAwait(false);
         var turns = new SemaphoreSlim(1, 1);
-        var loops = snapshot.Manifest.Operations.Where(operation => definition.FindOperation(operation.Name) is not null)
-            .Select(operation => Serve(brain, app, definition, instance, presenter, operation.Name, turns, stopping)).ToArray();
+        var operationLoops = snapshot.Manifest.Operations.Where(operation => definition.FindOperation(operation.Name) is not null)
+            .Select(operation => Serve(brain, app, definition, instance, presenter, operation.Name, turns, stopping));
+        var signalLoops = definition.SignalSubscriptions
+            .Select(sub => ServeSignalSubscription(brain, definition, instance, presenter, sub, turns, stopping));
+        var loops = operationLoops.Concat(signalLoops).ToArray();
         try { await Task.WhenAll(loops).ConfigureAwait(false); }
         finally { await presenter.DrainAsync().ConfigureAwait(false); }
         return 0;
+    }
+
+    private static object ResolveNeuron(IntoChatOSConnection brain, Type contractType, string key)
+        => typeof(IntoChatOSConnection)
+            .GetMethod(key.Contains('/') ? nameof(IntoChatOSConnection.Get) : nameof(IntoChatOSConnection.Neuron), [typeof(string)])!
+            .MakeGenericMethod(contractType)
+            .Invoke(brain, [key])!;
+
+    private static Task ServeSignalSubscription(
+        IntoChatOSConnection brain,
+        AppDefinition definition,
+        App instance,
+        IPresenter presenter,
+        AppSignalSubscription sub,
+        SemaphoreSlim turns,
+        CancellationToken stopping)
+        => (Task)typeof(AppRunner)
+            .GetMethod(nameof(ServeSignalGeneric), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sub.SignalType)
+            .Invoke(null, [brain, definition, instance, presenter, sub, turns, stopping])!;
+
+    private static async Task ServeSignalGeneric<TSignal>(
+        IntoChatOSConnection brain,
+        AppDefinition definition,
+        App instance,
+        IPresenter presenter,
+        AppSignalSubscription sub,
+        SemaphoreSlim turns,
+        CancellationToken stopping) where TSignal : Signal
+    {
+        try
+        {
+            var contractType = sub.ContractType ?? typeof(IntoChat.OS.IBrain);
+            var sourceNeuron = ResolveNeuron(brain, contractType, sub.SourceKey);
+            await foreach (var signal in brain.On<TSignal>(sourceNeuron, stopping).ConfigureAwait(false))
+            {
+                await turns.WaitAsync(stopping).ConfigureAwait(false);
+                try
+                {
+                    await definition.Invoke(instance, sub.OperationName, signal, Json, stopping).ConfigureAwait(false);
+                    RefreshViews(instance, presenter);
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    AppLog.Log($"{definition.Manifest.Id}.{sub.OperationName} failed for signal {typeof(TSignal).Name}: {error}");
+                }
+                finally
+                {
+                    turns.Release();
+                }
+            }
+        }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
     }
 
     private static async Task Serve(IntoChatOSConnection brain, IApp app, AppDefinition definition, App instance, IPresenter presenter, string operation, SemaphoreSlim turns, CancellationToken stopping)

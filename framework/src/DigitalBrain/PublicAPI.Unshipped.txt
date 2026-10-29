@@ -1115,3 +1115,30 @@ static DigitalBrain.Need.HttpClient(string! name, string? baseAddressSetting = n
 static DigitalBrain.Need.Webhook(string! path, string! targetNeuronType) -> DigitalBrain.Need!
 static DigitalBrain.ScenarioVerdict.operator !=(DigitalBrain.ScenarioVerdict? left, DigitalBrain.ScenarioVerdict? right) -> bool
 static DigitalBrain.ScenarioVerdict.operator ==(DigitalBrain.ScenarioVerdict? left, DigitalBrain.ScenarioVerdict? right) -> bool
+
+DigitalBrain.AppDefinition.SignalSubscriptions.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.AppSignalSubscription!>!
+DigitalBrain.AppSignalSubscription
+DigitalBrain.AppSignalSubscription.<Clone>$() -> DigitalBrain.AppSignalSubscription!
+DigitalBrain.AppSignalSubscription.AppSignalSubscription(string! OperationName, System.Reflection.MethodInfo! Method, System.Type! SignalType, string! SourceKey, System.Type? ContractType = null) -> void
+DigitalBrain.AppSignalSubscription.ContractType.get -> System.Type?
+DigitalBrain.AppSignalSubscription.ContractType.init -> void
+DigitalBrain.AppSignalSubscription.Deconstruct(out string! OperationName, out System.Reflection.MethodInfo! Method, out System.Type! SignalType, out string! SourceKey, out System.Type? ContractType) -> void
+DigitalBrain.AppSignalSubscription.Equals(DigitalBrain.AppSignalSubscription? other) -> bool
+DigitalBrain.AppSignalSubscription.Method.get -> System.Reflection.MethodInfo!
+DigitalBrain.AppSignalSubscription.Method.init -> void
+DigitalBrain.AppSignalSubscription.OperationName.get -> string!
+DigitalBrain.AppSignalSubscription.OperationName.init -> void
+DigitalBrain.AppSignalSubscription.SignalType.get -> System.Type!
+DigitalBrain.AppSignalSubscription.SignalType.init -> void
+DigitalBrain.AppSignalSubscription.SourceKey.get -> string!
+DigitalBrain.AppSignalSubscription.SourceKey.init -> void
+DigitalBrain.OnAttribute.Contract.get -> System.Type?
+DigitalBrain.OnAttribute.Contract.init -> void
+DigitalBrain.OnAttribute.OnAttribute(string! source) -> void
+DigitalBrain.OnAttribute.Source.get -> string?
+DigitalBrain.OnAttribute.Source.init -> void
+override DigitalBrain.AppSignalSubscription.Equals(object? obj) -> bool
+override DigitalBrain.AppSignalSubscription.GetHashCode() -> int
+override DigitalBrain.AppSignalSubscription.ToString() -> string!
+static DigitalBrain.AppSignalSubscription.operator !=(DigitalBrain.AppSignalSubscription? left, DigitalBrain.AppSignalSubscription? right) -> bool
+static DigitalBrain.AppSignalSubscription.operator ==(DigitalBrain.AppSignalSubscription? left, DigitalBrain.AppSignalSubscription? right) -> bool

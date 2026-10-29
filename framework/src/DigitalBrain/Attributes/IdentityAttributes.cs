@@ -21,7 +21,20 @@ public sealed class SignalAttribute(string alias) : Attribute
 
 /// <summary>Marks a reaction: a method that runs when a signal arrives through a synapse. Signals arrive deduped and ordered per source.</summary>
 [AttributeUsage(AttributeTargets.Method, Inherited = false)]
-public sealed class OnAttribute : Attribute;
+public sealed class OnAttribute : Attribute
+{
+    /// <summary>Marks a reaction or app operation.</summary>
+    public OnAttribute() { }
+
+    /// <summary>Marks an app reaction that subscribes to signals emitted by a background neuron with key <paramref name="source"/>.</summary>
+    public OnAttribute(string source) => Source = source;
+
+    /// <summary>Optional source neuron key when an App method subscribes to a background neuron signal.</summary>
+    public string? Source { get; init; }
+
+    /// <summary>Optional neuron contract interface type for resolving the source neuron in the sandbox.</summary>
+    public Type? Contract { get; init; }
+}
 
 /// <summary>Marks an app class.</summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]

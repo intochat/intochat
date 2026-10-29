@@ -109,5 +109,10 @@ public sealed class ShellAppFacts
         Assert.Equal("vlad", pinned.Handle);
         Assert.Equal("AI OS Architect", pinned.Bio);
         Assert.Contains("creator", pinned.PinnedApps);
+
+        var inoInstalled = await os.Install<InoApp>();
+        await settings.SetProfile("ElonWatcher", "dark", "qwen3.5:4b");
+        await os.Idle();
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Synced settings: ElonWatcher (qwen3.5:4b)", StringComparison.Ordinal));
     }
 }

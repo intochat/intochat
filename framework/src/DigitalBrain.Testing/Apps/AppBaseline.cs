@@ -57,7 +57,7 @@ public static class AppBaseline
         }
         var manifest = TestOS.ManifestOf(appType);
         var operations = appType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            .Where(method => method.IsDefined(typeof(OnAttribute), inherit: false))
+            .Where(method => method.GetCustomAttribute<OnAttribute>(inherit: false) is { Source: null or "" })
             .Select(method => method.Name)
             .ToList();
         var install = typeof(TestOS).GetMethod(nameof(TestOS.Install))!.MakeGenericMethod(appType);

@@ -43,9 +43,12 @@ public sealed class SpecManifestAnalyzer : DiagnosticAnalyzer
         var handled = new HashSet<string>();
         foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
         {
-            if (!Rules.Has(method, Rules.OnAttribute)) { continue; }
+            var onAttr = method.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == Rules.OnAttribute);
+            if (onAttr is null) { continue; }
+            var isBackgroundSubscription = (onAttr.ConstructorArguments.Length > 0 && onAttr.ConstructorArguments[0].Value is string { Length: > 0 })
+                || onAttr.NamedArguments.Any(arg => arg.Key == "Source" && arg.Value.Value is string { Length: > 0 });
             handled.Add(SpecComment.NormalizeOperation(method.Name));
-            if (!spec.Describes(method.Name))
+            if (!isBackgroundSubscription && !spec.Describes(method.Name))
             {
                 context.ReportDiagnostic(Diagnostic.Create(AppRules.SpecMismatch, method.Locations[0], type.Name,
                     "operation '" + method.Name + "' has an [On] method but is not described in the spec comment"));

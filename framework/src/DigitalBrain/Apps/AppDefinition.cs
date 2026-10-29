@@ -20,9 +20,10 @@ public sealed partial class AppDefinition
             ?? throw new InvalidOperationException($"{appType.FullName} has no [App(id)] attribute.");
         AppType = appType;
         var operations = new Dictionary<string, MethodInfo>(StringComparer.Ordinal);
+        var subscriptions = new List<AppSignalSubscription>();
         foreach (var method in appType.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic).OrderBy(m => m.Name, StringComparer.Ordinal).ThenBy(m => m.ToString(), StringComparer.Ordinal))
         {
-            if (!method.IsDefined(typeof(OnAttribute), false)) { continue; }
+            if (method.GetCustomAttribute<OnAttribute>(false) is not { } onAttr) { continue; }
             var parameters = method.GetParameters();
             var tokens = parameters.Count(p => p.ParameterType == typeof(CancellationToken));
             if (method.IsStatic || method.IsGenericMethodDefinition || parameters.Any(p => p.ParameterType.IsByRef || p.ParameterType.IsPointer || p.ParameterType.IsByRefLike)
@@ -35,8 +36,15 @@ public sealed partial class AppDefinition
             {
                 throw new InvalidOperationException($"{appType.FullName} has duplicate operation alias '{method.Name}'.");
             }
+            if (!string.IsNullOrWhiteSpace(onAttr.Source)
+                && parameters.FirstOrDefault(p => p.ParameterType != typeof(CancellationToken)) is { } signalParam
+                && typeof(Signal).IsAssignableFrom(signalParam.ParameterType))
+            {
+                subscriptions.Add(new AppSignalSubscription(method.Name, method, signalParam.ParameterType, onAttr.Source, onAttr.Contract));
+            }
         }
         Operations = new ReadOnlyDictionary<string, MethodInfo>(operations);
+        SignalSubscriptions = subscriptions.AsReadOnly();
         Manifest = appType.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is AppManifest declared
             ? declared : DeriveManifest(appType, attribute);
         if (!string.Equals(Manifest.Id, attribute.Id, StringComparison.Ordinal))
@@ -51,6 +59,8 @@ public sealed partial class AppDefinition
     public AppManifest Manifest { get; }
     /// <summary>Operations keyed by lowercase method name with dashes removed. MethodInfo exposes dispatch parameter metadata.</summary>
     public IReadOnlyDictionary<string, MethodInfo> Operations { get; }
+    /// <summary>Background neuron signal subscriptions declared via <c>[On("sourceKey")]</c>.</summary>
+    public IReadOnlyList<AppSignalSubscription> SignalSubscriptions { get; }
     /// <summary>Finds an operation ignoring case and dashes; returns null when absent.</summary>
     public MethodInfo? FindOperation(string operation)
     {
@@ -82,3 +92,11 @@ public sealed partial class AppDefinition
 
     private static Type? ContractElement(Type type) => type.IsInterface && type.IsDefined(typeof(CapabilityAttribute), false) ? type : null;
 }
+
+/// <summary>Describes a background neuron signal subscription declared on an <see cref="App"/> reaction method.</summary>
+public sealed record AppSignalSubscription(
+    string OperationName,
+    MethodInfo Method,
+    Type SignalType,
+    string SourceKey,
+    Type? ContractType = null);

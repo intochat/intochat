@@ -160,11 +160,30 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         ArgumentNullException.ThrowIfNull(request);
         var sentence = string.IsNullOrWhiteSpace(request.Sentence) ? "Update focused app" : request.Sentence.Trim();
         var target = request.Focus is { Length: > 0 } ? request.Focus[0] : "scratch";
+        if (TryGetStudio() is { } studio)
+        {
+            try
+            {
+                var built = await studio.Build(sentence);
+                target = built.Name;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "AppStudio build requires a live model and sandbox; falling back to local capture.");
+            }
+        }
         if (TryGetMemory() is { } memory)
         {
             await memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6);
         }
         Set(State with { Status = $"Applied '{sentence}' to {target}" });
+    }
+
+    [DigitalBrain.On("settings", Contract = typeof(IUserSettings))]
+    public void OnSettingsChanged(UserSettingsChanged? changed)
+    {
+        if (changed is null) { return; }
+        Set(State with { Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
     }
 
     public View RenderSide() => new(
@@ -208,6 +227,19 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         catch (InvalidOperationException error)
         {
             Swallow(error, "MemoryNeuron is optional when running without AIModule registered.");
+            return null;
+        }
+    }
+
+    private IAppStudio? TryGetStudio()
+    {
+        try
+        {
+            return Get<IAppStudio>("main");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "AppStudioNeuron is optional when running in unit tests without Creator registered.");
             return null;
         }
     }

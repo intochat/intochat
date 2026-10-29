@@ -110,6 +110,21 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         var (resources, errors) = await ReadTelemetryAsync(null);
 
         var source = SynthesizeAppSource(target, instruction, errors);
+        if (TryGetStudio() is { } studio)
+        {
+            try
+            {
+                var built = await studio.Build($"{instruction} (target app: {target})");
+                if (built.Files.Count > 0)
+                {
+                    source = string.Join("\n\n", built.Files.Values);
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "AppStudioNeuron requires a live model and sandbox; falling back to local template synthesis.");
+            }
+        }
         var scenarioTitle = $"Self-improving verification for {target}: {instruction}";
         var report = new BddReport(
             target,
@@ -252,6 +267,19 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         catch (InvalidOperationException error)
         {
             Swallow(error, "AspireNeuron is optional when running without AspireModule registered.");
+            return null;
+        }
+    }
+
+    private IAppStudio? TryGetStudio()
+    {
+        try
+        {
+            return Get<IAppStudio>("main");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "AppStudioNeuron is optional when running in unit tests without Creator registered.");
             return null;
         }
     }
