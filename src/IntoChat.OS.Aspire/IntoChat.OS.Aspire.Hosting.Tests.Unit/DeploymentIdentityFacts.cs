@@ -186,7 +186,7 @@ public sealed class DeploymentIdentityFacts
     [Fact]
     public void ASiloHostWaitsForAGracefulLeaveOnStop()
     {
-        var host = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        var host = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         host.Configuration[AuthOptions.PostureKey] = "Open";
         IntoChat.OS.Aspire.Server.ServerHostingExtensions.AddIntoChatOSServer(host, _ => { });
         using var provider = host.Services.BuildServiceProvider();

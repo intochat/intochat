@@ -117,8 +117,8 @@ public sealed class ChildProcessHost : IAsyncDisposable
         yield return new(IntoChatOSNames.MasterKeyConfigurationKey, _masterKey);
         yield return new(IntegrationSchema.Key("csharp", "RunTokenKey"), _runTokenKey);
         yield return new(AuthOptions.PostureKey, "Open");
-        yield return new(global::DigitalBrain.Runtime.Orleans.TopologyContext.SiloPortKey, SiloPort.ToString(CultureInfo.InvariantCulture));
-        yield return new(global::DigitalBrain.Runtime.Orleans.TopologyContext.GatewayPortKey, GatewayPort.ToString(CultureInfo.InvariantCulture));
+        yield return new(DigitalBrain.Runtime.Orleans.TopologyContext.SiloPortKey, SiloPort.ToString(CultureInfo.InvariantCulture));
+        yield return new(DigitalBrain.Runtime.Orleans.TopologyContext.GatewayPortKey, GatewayPort.ToString(CultureInfo.InvariantCulture));
         foreach (var setting in _settings) { yield return setting; }
     }
 }

@@ -14,5 +14,5 @@ public sealed class TimeFixture : BothRuntimesFixture
     protected override IReadOnlyList<Type> Modules { get; } = [typeof(TimeNeurons)];
 
     protected override void ConfigureSilo(IServiceCollection services)
-        => services.Configure<global::Orleans.Hosting.ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
+        => services.Configure<Orleans.Hosting.ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
 }

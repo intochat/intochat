@@ -33,27 +33,27 @@ internal static class LiveSignalEndpoints
     internal sealed record LiveFeed(
         string Type,
         Type Signal,
-        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> Sources)
+        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<DigitalBrain.NeuronId>> Sources)
     {
-        public Func<global::DigitalBrain.NeuronId, Func<Task>, CancellationToken, IAsyncEnumerable<IntoChat.OS.Runtime.PlainSignalEntry>>? Live { get; init; }
+        public Func<DigitalBrain.NeuronId, Func<Task>, CancellationToken, IAsyncEnumerable<IntoChat.OS.Runtime.PlainSignalEntry>>? Live { get; init; }
     }
 
     internal static LiveFeed Feed<T>(
-        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<global::DigitalBrain.NeuronId>> sources) where T : global::DigitalBrain.Signal
+        Func<IIntoChatOS, string, Action, CancellationToken, IAsyncEnumerable<DigitalBrain.NeuronId>> sources) where T : DigitalBrain.Signal
         => new(typeof(T).Name, typeof(T), sources);
 
     internal static readonly LiveFeed[] Feeds =
     [
         // The deployment is a plain neuron (06-08).
-        Feed<DeploymentChanged>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), "aspire.deployment", IDeployment.Relative))),
+        Feed<DeploymentChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "aspire.deployment", IDeployment.Relative))),
         // Apps are plain neurons (06-08): their activity is watched on the session synapse neuron.
         Feed<AppActivity>(Apps),
         // R126: asked of a circle brain's own /live; the shell watches each circle the person is in. Circles are plain (06-08).
-        Feed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.CircleGrainType.Name, "circle"))),
-        Feed<CircleSpoke>(static (_, brainId, _, _) => SingleId(new(new global::DigitalBrain.BrainId(brainId), "circles.chat", "chat"))),
+        Feed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.CircleGrainType.Name, "circle"))),
+        Feed<CircleSpoke>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "circles.chat", "chat"))),
     ];
 
-    private static async IAsyncEnumerable<global::DigitalBrain.NeuronId> SingleId(global::DigitalBrain.NeuronId id) { await Task.CompletedTask; yield return id; }
+    private static async IAsyncEnumerable<DigitalBrain.NeuronId> SingleId(DigitalBrain.NeuronId id) { await Task.CompletedTask; yield return id; }
 
     // App keys waiting for the stream. A dropped key would leave an app out of the watch for good, so a full
     // buffer holds the kernel enumeration back instead of dropping.
@@ -62,7 +62,7 @@ internal static class LiveSignalEndpoints
     // Apps already there, then each one the kernel announces: the watch is registered before the listing, so none is missed.
     // A null key marks the end of the listing. A key waiting in the buffer is not queued again, so the dedup set
     // holds at most the buffer's keys; once read, `seen` keeps the stream from yielding it twice.
-    private static async IAsyncEnumerable<global::DigitalBrain.NeuronId> Apps(IIntoChatOS brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
+    private static async IAsyncEnumerable<DigitalBrain.NeuronId> Apps(IIntoChatOS brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
     {
         var keys = Channel.CreateBounded<string?>(new BoundedChannelOptions(KeyBuffer) { FullMode = BoundedChannelFullMode.Wait });
         HashSet<string> queued = [];
@@ -90,7 +90,7 @@ internal static class LiveSignalEndpoints
             if (key is not null) { lock (queued) { queued.Remove(key); } }
             if (key is null) { listed(); }
             else if (IApp.NameOf(brainId, key) is not null && seen.Add(key))
-            { yield return new(new global::DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.AppGrainType.Name, key[(brainId.Length + 1)..]); }
+            { yield return new(new DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.AppGrainType.Name, key[(brainId.Length + 1)..]); }
         }
     }
 
@@ -235,7 +235,7 @@ internal static class LiveSignalEndpoints
         return replayed.Task;
     }
 
-    private static async Task Pump(IntoChat.OS.Runtime.IPlainSignals? plain, LiveFeed feed, string alias, global::DigitalBrain.NeuronId source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
+    private static async Task Pump(IntoChat.OS.Runtime.IPlainSignals? plain, LiveFeed feed, string alias, DigitalBrain.NeuronId source, Outbox writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
     {
         var signal = feed.Signal;
         try
@@ -260,7 +260,7 @@ internal static class LiveSignalEndpoints
         finally { replayed.TrySetResult(); }
     }
 
-    internal static string PlainEnvelope(Type signal, global::DigitalBrain.NeuronId source, IntoChat.OS.Runtime.PlainSignalEntry entry, bool replay = false) => JsonSerializer.Serialize(
+    internal static string PlainEnvelope(Type signal, DigitalBrain.NeuronId source, IntoChat.OS.Runtime.PlainSignalEntry entry, bool replay = false) => JsonSerializer.Serialize(
         new
         {
             type = signal.Name,

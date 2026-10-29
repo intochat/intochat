@@ -5,6 +5,8 @@ using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using Orleans.Runtime;
 
+using MicrosoftSdk = Microsoft;
+using OrleansSdk = Orleans;
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // One repository connection, keyed {brain}/connection/github/{id}. The user's OAuth token proves
@@ -34,7 +36,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
 
     // The installation index is a plain neuron in the system brain (06-06d); this connection is still a grain.
     private IGitHubRepositoryIndex Index(long installationId)
-        => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(ServiceProvider).Get<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(installationId));
+        => MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(ServiceProvider).Get<IGitHubRepositoryIndex>(IGitHubRepositoryIndex.Key(installationId));
 
     protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
@@ -90,7 +92,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         await RevokeAsync(reason);
     }
 
-    [Orleans.Concurrency.ReadOnly]
+    [OrleansSdk.Concurrency.ReadOnly]
     public Task<GitHubRepository?> Coordinates()
     {
         RequireOwnBrainOrUnstamped();

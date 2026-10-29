@@ -52,7 +52,7 @@ public static class BrainBrowser
                 if (_browser is null)
                 {
                     stage = "browser-launch";
-                    var playwright = await AcquireAsync(global::Microsoft.Playwright.Playwright.CreateAsync(),
+                    var playwright = await AcquireAsync(Microsoft.Playwright.Playwright.CreateAsync(),
                         value => { value.Dispose(); return Task.CompletedTask; }, deadline.Token).ConfigureAwait(false);
                     session.Lifetime.Own("playwright", new AsyncAction(() => { playwright.Dispose(); return ValueTask.CompletedTask; }));
                     using var cancelLaunch = deadline.Token.Register(playwright.Dispose);

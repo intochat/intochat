@@ -96,13 +96,13 @@ internal sealed class SpaceWatcher(ILogger<SpaceWatcher> logger, CircleMembers f
     // and a friend's change must not reach another brain's space as the friend: the call goes out unstamped, as the hub pump's did.
     private static async Task Unstamped(Func<Task> call)
     {
-        global::Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         await call();
     }
 
     private static async Task<T> Unstamped<T>(Func<Task<T>> call)
     {
-        global::Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         return await call();
     }
     private static string? BrainOf(string key)

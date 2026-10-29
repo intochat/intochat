@@ -16,7 +16,7 @@ internal sealed class PlainNeurons(IGrainFactory grains, ICallFilter? access = n
     private static readonly ConcurrentDictionary<Type, MethodInfo> Factories = new();
 
     // The policy PlainNeuronCallFilter applies to a call, applied before a stream starts; a call without a stamped caller passes.
-    private Task StreamAccess(global::DigitalBrain.NeuronId target, RuntimeInvocation call)
+    private Task StreamAccess(DigitalBrain.NeuronId target, RuntimeInvocation call)
         => access is not null && IntoChat.OS.Framework.CallerContextStamper.TryGet(out var caller)
             ? PlainNeuronCallFilter.Authorize(access, logger ?? (Microsoft.Extensions.Logging.ILogger)Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, caller, target, call)
             : Task.CompletedTask;
@@ -32,7 +32,7 @@ internal sealed class PlainNeurons(IGrainFactory grains, ICallFilter? access = n
         return Get(contract, id);
     }
 
-    public object Get(Type contract, global::DigitalBrain.NeuronId id)
+    public object Get(Type contract, DigitalBrain.NeuronId id)
     {
         ArgumentNullException.ThrowIfNull(contract);
         KernelInvocationSink.Register(contract);

@@ -97,13 +97,13 @@ internal sealed class TestAuthHostSeam : IAuthHostSeam
 
     public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
-        var previous = global::Orleans.Runtime.RequestContext.Get(IntoChat.OS.Framework.CallerContextStamper.ModuleCallKey);
-        global::Orleans.Runtime.RequestContext.Set(IntoChat.OS.Framework.CallerContextStamper.ModuleCallKey, true);
+        var previous = Orleans.Runtime.RequestContext.Get(IntoChat.OS.Framework.CallerContextStamper.ModuleCallKey);
+        Orleans.Runtime.RequestContext.Set(IntoChat.OS.Framework.CallerContextStamper.ModuleCallKey, true);
         try { return await call(); }
         finally
         {
-            if (previous is null) { global::Orleans.Runtime.RequestContext.Remove(IntoChat.OS.Framework.CallerContextStamper.ModuleCallKey); }
-            else { global::Orleans.Runtime.RequestContext.Set(IntoChat.OS.Framework.CallerContextStamper.ModuleCallKey, previous); }
+            if (previous is null) { Orleans.Runtime.RequestContext.Remove(IntoChat.OS.Framework.CallerContextStamper.ModuleCallKey); }
+            else { Orleans.Runtime.RequestContext.Set(IntoChat.OS.Framework.CallerContextStamper.ModuleCallKey, previous); }
         }
     }
 }

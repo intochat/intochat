@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 internal static class SolutionQueries
@@ -229,7 +230,7 @@ internal static class SolutionQueries
             throw new InvalidOperationException($"'{query.SymbolId}' is not a type. Derived types are asked of a class or an interface id.");
         }
 
-        IEnumerable<ISymbol> derived = type.TypeKind == global::Microsoft.CodeAnalysis.TypeKind.Interface
+        IEnumerable<ISymbol> derived = type.TypeKind == MicrosoftSdk.CodeAnalysis.TypeKind.Interface
             ? (await SymbolFinder.FindImplementationsAsync(type, solution, projects: null, cancellationToken).ConfigureAwait(false))
                 .Concat(await SymbolFinder.FindDerivedInterfacesAsync(type, solution, transitive: true, projects: null, cancellationToken).ConfigureAwait(false))
             : await SymbolFinder.FindDerivedClassesAsync(type, solution, transitive: true, projects: null, cancellationToken).ConfigureAwait(false);

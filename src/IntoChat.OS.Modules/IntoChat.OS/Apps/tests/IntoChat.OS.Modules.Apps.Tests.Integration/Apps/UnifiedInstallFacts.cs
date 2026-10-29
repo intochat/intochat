@@ -10,6 +10,7 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Runtimes;
 using IntoChat.OS.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 
@@ -517,8 +518,8 @@ public sealed class UnifiedInstallFacts
         {
             var market = await MarketplaceEndpoints.Install("intochat", "echo", new(AppConsent.Of(null), null, null), brain, Installer(brain), Ct);
             var update = await AppsEndpoints.Update("echo", new(null), brain, Installer(brain), Ct);
-            Assert.Equal(403, Assert.IsAssignableFrom<global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(market).StatusCode);
-            Assert.Equal(403, Assert.IsAssignableFrom<global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult>(update).StatusCode);
+            Assert.Equal(403, Assert.IsAssignableFrom<MicrosoftSdk.AspNetCore.Http.IStatusCodeHttpResult>(market).StatusCode);
+            Assert.Equal(403, Assert.IsAssignableFrom<MicrosoftSdk.AspNetCore.Http.IStatusCodeHttpResult>(update).StatusCode);
         }
         Assert.Equal("", (await Copy(brain, alice).Read()).Manifest.Title);
     }

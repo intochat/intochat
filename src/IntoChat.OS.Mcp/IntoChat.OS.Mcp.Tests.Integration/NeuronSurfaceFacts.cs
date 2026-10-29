@@ -177,7 +177,7 @@ public sealed class NeuronSurfaceFacts(McpHost host)
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Open";
         builder.Services.AddSingleton<IIntoChatOS>(brain);
-        global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, brain.Services);
+        IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(builder.Services, brain.Services);
         builder.Services.AddIntoChatOSMcp();
         var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
@@ -228,7 +228,7 @@ public sealed class NeuronSurfaceFacts(McpHost host)
         public T Get<T>(NeuronId id) where T : class => throw new NotSupportedException();
         public T Neuron<T>(NeuronId relative) where T : class => throw new NotSupportedException();
 
-        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
+        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
             => throw new NotSupportedException();
     }
 }

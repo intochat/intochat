@@ -58,7 +58,7 @@ internal sealed class TableLifecycleGuard : IIncomingGrainCallFilter
 
     // The owner a host grain key (the neuron id "brain/postgres.tables/tables/{app}") names; anything else is refused.
     private static TableOwner OwnerOf(string hostKey)
-        => global::DigitalBrain.NeuronId.TryParse(hostKey, out var id) && id.Type == TableIndexNeuron.GrainType
+        => DigitalBrain.NeuronId.TryParse(hostKey, out var id) && id.Type == TableIndexNeuron.GrainType
             ? TableOwner.Parse($"{id.Brain.Value}/{id.Key}")
             : throw new UnauthorizedAccessException("This storage key does not name a brain and an app.");
 
@@ -71,7 +71,7 @@ internal sealed class TableLifecycleGuard : IIncomingGrainCallFilter
         var key = id.Key.ToString()!;
         if (type.StartsWith("neuron.host", StringComparison.Ordinal))
         {
-            return global::DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
+            return DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
         }
         return (type, key);
     }

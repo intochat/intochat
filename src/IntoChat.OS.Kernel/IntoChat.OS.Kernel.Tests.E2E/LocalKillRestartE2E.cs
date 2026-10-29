@@ -58,11 +58,11 @@ public sealed class LocalKillRestartE2E
             Note($"brains before kill: {string.Join(", ", brainsBefore)}");
             Assert.True(brainsBefore.Count >= 2);
 
-            var id = new global::DigitalBrain.NeuronId(new global::DigitalBrain.BrainId(brainsBefore.Order(StringComparer.Ordinal).First()), "reminder", ReminderKey);
+            var id = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brainsBefore.Order(StringComparer.Ordinal).First()), "reminder", ReminderKey);
             var hostGrain = GrainId.Create("neuron.host", id.ToString());
             await using (var client = await ConnectAsync(host.GatewayPort, ct))
             {
-                await NeuronProxy.Create<IReminder>(id, global::IntoChat.OS.Kernel.Composition.KernelTestHooks.HostSink(client.Services)).Start(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+                await NeuronProxy.Create<IReminder>(id, IntoChat.OS.Kernel.Composition.KernelTestHooks.HostSink(client.Services)).Start(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
                 await ActiveAsync(client.Services, hostGrain, ct);
             }
             Note($"reminder started on {hostGrain}");
@@ -85,7 +85,7 @@ public sealed class LocalKillRestartE2E
                 // No call here: only the registration persisted in the file reminder table can activate the host grain.
                 await ActiveAsync(client.Services, hostGrain, ct);
                 Note($"reminder fired after restart on {hostGrain}");
-                await NeuronProxy.Create<IReminder>(id, global::IntoChat.OS.Kernel.Composition.KernelTestHooks.HostSink(client.Services)).Stop();
+                await NeuronProxy.Create<IReminder>(id, IntoChat.OS.Kernel.Composition.KernelTestHooks.HostSink(client.Services)).Stop();
             }
         }
         finally
@@ -115,7 +115,7 @@ public sealed class LocalKillRestartE2E
     {
         using var bound = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bound.CancelAfter(TickBound);
-        while (!await global::IntoChat.OS.Kernel.Composition.KernelTestHooks.IsActive(client, grain, bound.Token)) { await Task.Delay(250, bound.Token); }
+        while (!await IntoChat.OS.Kernel.Composition.KernelTestHooks.IsActive(client, grain, bound.Token)) { await Task.Delay(250, bound.Token); }
     }
 
     private static async Task<ClientHost> ConnectAsync(int gatewayPort, CancellationToken ct)

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Orleans.Hosting;
 using Orleans.Storage;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans;
 
 /// <summary>
@@ -57,7 +58,7 @@ public static class BrainStorageHosting
         services.TryAddSingleton<IBrainOwnershipCounters, BrainLogOwnershipCounters>();
         services.TryAddSingleton<BrainStorageKeys>();
         services.TryAddSingleton(sp => new BrainLogs(sp.GetRequiredService<BrainStorageKeys>(),
-            sp.GetRequiredService<global::Orleans.Serialization.Serializer>(), sp.GetRequiredService<JournalPayloads>(),
+            sp.GetRequiredService<OrleansSdk.Serialization.Serializer>(), sp.GetRequiredService<JournalPayloads>(),
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IRetentionPolicy>(),
             sp.GetRequiredService<IOptions<BrainStoreOptions>>(), sp.GetRequiredService<IBrainLogOwnership>()));
         // The adapters' write path shares the per-brain BrainLog (and its writer claim) with the cluster store: one writer per brain.

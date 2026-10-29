@@ -8,5 +8,5 @@ internal interface IDeploymentDriver
 {
     [DigitalBrain.OneWayCall] Task Step();
     [DigitalBrain.Interleaves]
-    Task MembershipChanged(Guid activation, global::IntoChat.OS.Modules.Microsoft.Orleans.ClusterSnapshot? snapshot);
+    Task MembershipChanged(Guid activation, IntoChat.OS.Modules.Microsoft.Orleans.ClusterSnapshot? snapshot);
 }

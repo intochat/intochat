@@ -6,13 +6,13 @@ namespace Fixture;
 
 partial class MinimalModule
 {
-    public MinimalModule() : base(new global::IntoChat.OS.Framework.Modules.ModuleId("minimal")) { }
+    public MinimalModule() : base(new IntoChat.OS.Framework.Modules.ModuleId("minimal")) { }
 
-    public override void ConfigureServices(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
+    public override void ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
-        global::System.ArgumentNullException.ThrowIfNull(services);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(services, configuration, Id));
+        System.ArgumentNullException.ThrowIfNull(services);
+        OnConfigure(new IntoChat.OS.Framework.Modules.ModuleServices(services, configuration, Id));
     }
 
-    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);
+    partial void OnConfigure(IntoChat.OS.Framework.Modules.IModuleServices services);
 }

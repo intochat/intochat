@@ -44,7 +44,7 @@ public sealed class AppBaseFix : CodeFixProvider
     private static async Task<Document> Fix(Document document, ClassDeclarationSyntax type, CancellationToken cancellation)
     {
         var model = await document.GetSemanticModelAsync(cancellation).ConfigureAwait(false);
-        var app = SimpleBaseType(ParseTypeName("global::DigitalBrain.App").WithAdditionalAnnotations(Simplifier.Annotation));
+        var app = SimpleBaseType(ParseTypeName("DigitalBrain.App").WithAdditionalAnnotations(Simplifier.Annotation));
         ClassDeclarationSyntax next;
         if (type.BaseList is { Types.Count: > 0 } list)
         {

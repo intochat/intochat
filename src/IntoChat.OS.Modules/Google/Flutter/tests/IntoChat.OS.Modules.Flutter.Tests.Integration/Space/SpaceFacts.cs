@@ -203,7 +203,7 @@ public sealed class SpaceFacts
                 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation { Behavior.Length: > 0 })
             {
                 Interlocked.Increment(ref SuppressedCompositions);
-                context.Response = global::Orleans.Serialization.Invocation.Response.Completed;
+                context.Response = Orleans.Serialization.Invocation.Response.Completed;
                 return Task.CompletedTask;
             }
             if (Armed && Calls.Is(context.InterfaceMethod, context.Request, "apps.app2", nameof(IApp.Read)))
@@ -478,7 +478,7 @@ public sealed class SpaceFacts
         // at once and leaves its work to that worker, which finishes last, so zero means nothing is queued or running.
         public int PendingSpaceRequests => Volatile.Read(ref _sent) - Volatile.Read(ref _finished);
 
-        private static bool IsRequest(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request)
+        private static bool IsRequest(System.Reflection.MethodInfo? method, Orleans.Serialization.Invocation.IInvokable request)
             => Calls.Of(method, request) is (ISpace.Type, nameof(ISpace.Rebuild) or nameof(ISpace.RefreshApp) or nameof(ISpace.Recompose));
 
         public async Task Invoke(IIncomingGrainCallContext context)
@@ -613,14 +613,14 @@ public sealed class SpaceFacts
 // must not count as a read, invalidation or completed composition worker.
 internal static class Calls
 {
-    public static (string? Contract, string? Method) Of(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request)
+    public static (string? Contract, string? Method) Of(System.Reflection.MethodInfo? method, Orleans.Serialization.Invocation.IInvokable request)
     {
         if (method?.DeclaringType == typeof(INeuronHost) && method.Name == nameof(INeuronHost.IsInterleaved)) { return (null, null); }
-        if (request.GetArgumentCount() > 0 && request.GetArgument(0) is global::DigitalBrain.Invocation.RuntimeInvocation call) { return (call.Contract, call.Method); }
-        var alias = method?.DeclaringType?.GetCustomAttributes(typeof(global::Orleans.AliasAttribute), false).OfType<global::Orleans.AliasAttribute>().FirstOrDefault()?.Alias;
+        if (request.GetArgumentCount() > 0 && request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call) { return (call.Contract, call.Method); }
+        var alias = method?.DeclaringType?.GetCustomAttributes(typeof(Orleans.AliasAttribute), false).OfType<Orleans.AliasAttribute>().FirstOrDefault()?.Alias;
         return (alias, method?.Name);
     }
 
-    public static bool Is(System.Reflection.MethodInfo? method, global::Orleans.Serialization.Invocation.IInvokable request, string contract, string name)
+    public static bool Is(System.Reflection.MethodInfo? method, Orleans.Serialization.Invocation.IInvokable request, string contract, string name)
         => Of(method, request) is var (called, invoked) && called == contract && invoked == name;
 }

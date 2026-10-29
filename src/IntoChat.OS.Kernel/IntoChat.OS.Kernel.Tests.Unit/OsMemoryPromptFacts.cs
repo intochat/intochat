@@ -21,7 +21,7 @@ public sealed class OsMemoryPromptFacts
     [Fact]
     public void TheSampleBatchIsReviewedDroppedAndPublished()
     {
-        var items = global::Consolidation.ParseVerdict("""
+        var items = Consolidation.ParseVerdict("""
             {"items":[
               {"disposition":"publish","episodeIds":["a#1"],"kind":"fact","text":"Takes medication for high blood pressure","subject":"user","confidence":0.95,"importance":7,"reason":"","contradicts":null},
               {"disposition":"review","episodeIds":["a#2"],"kind":"fact","text":"Uses the Stripe key sk-live-51HxYzAbCdEf0123","subject":"user","confidence":0.9,"importance":5,"reason":"","contradicts":null},
@@ -29,17 +29,17 @@ public sealed class OsMemoryPromptFacts
             ]}
             """);
         Assert.NotNull(items);
-        var decisions = items.Select(item => global::Consolidation.Classify(item, 0.75, global::Consolidation.SensitiveClasses)).ToArray();
-        Assert.Equal(global::Consolidation.Disposition.Review, decisions[0].Disposition);
-        Assert.Equal(new global::Consolidation.Decision(global::Consolidation.Disposition.Discard, "secret"), decisions[1]);
-        Assert.Equal(global::Consolidation.Disposition.Publish, decisions[2].Disposition);
+        var decisions = items.Select(item => Consolidation.Classify(item, 0.75, Consolidation.SensitiveClasses)).ToArray();
+        Assert.Equal(Consolidation.Disposition.Review, decisions[0].Disposition);
+        Assert.Equal(new Consolidation.Decision(Consolidation.Disposition.Discard, "secret"), decisions[1]);
+        Assert.Equal(Consolidation.Disposition.Publish, decisions[2].Disposition);
     }
 
     [Fact]
     public void ThePromptVersionIsAShortHash()
     {
-        var version = global::Consolidation.PromptVersion(Prompt());
+        var version = Consolidation.PromptVersion(Prompt());
         Assert.Matches("^[0-9a-f]{12}$", version);
-        Assert.NotEqual(version, global::Consolidation.PromptVersion(Prompt() + " "));
+        Assert.NotEqual(version, Consolidation.PromptVersion(Prompt() + " "));
     }
 }

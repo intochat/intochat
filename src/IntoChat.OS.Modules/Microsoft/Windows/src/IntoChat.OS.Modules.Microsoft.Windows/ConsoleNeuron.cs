@@ -4,6 +4,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A plain neuron (06-08) keyed {connectionKey}/console.
@@ -21,7 +22,7 @@ internal sealed class ConsoleNeuron(IMachineIdentity identity) : DigitalBrain.Ne
         var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        var roots = await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(Context.Services).Get<IWindows>(connection).Roots();
+        var roots = await MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(Context.Services).Get<IWindows>(connection).Roots();
         var directory = MachineRoots.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
         var seconds = Math.Clamp(timeoutSeconds, 1, MaxTimeoutSeconds);
 

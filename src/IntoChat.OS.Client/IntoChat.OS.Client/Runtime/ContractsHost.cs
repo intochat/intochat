@@ -51,7 +51,7 @@ public static class ContractsHost
         ArgumentNullException.ThrowIfNull(assembly);
         var exported = assembly.GetExportedTypes().Where(type => type.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true).ToHashSet();
         var seen = new HashSet<Type>(exported.Where(type => (type.IsInterface && typeof(INeuron).IsAssignableFrom(type)) || typeof(Signal).IsAssignableFrom(type)
-            || IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) || (typeof(global::DigitalBrain.Signal).IsAssignableFrom(type) && type.IsDefined(typeof(global::DigitalBrain.SignalAttribute), inherit: false))));
+            || IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) || (typeof(DigitalBrain.Signal).IsAssignableFrom(type) && type.IsDefined(typeof(DigitalBrain.SignalAttribute), inherit: false))));
         var queue = new Queue<Type>(seen);
         while (queue.TryDequeue(out var type))
         {

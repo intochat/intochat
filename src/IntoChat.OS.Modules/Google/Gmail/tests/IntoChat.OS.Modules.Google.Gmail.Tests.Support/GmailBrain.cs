@@ -54,7 +54,7 @@ public static class GmailBrain
 
     // Fires the Gmail lifecycle reminder as the reminder service would.
     public static Task RemindGmail(this ITestBrain brain, string connectionKey, CancellationToken cancellationToken = default)
-        => global::IntoChat.OS.Kernel.Composition.KernelTestHooks.Remind(brain.Services, GmailHost(connectionKey), GmailNeuron.LifecycleReminder, cancellationToken);
+        => IntoChat.OS.Kernel.Composition.KernelTestHooks.Remind(brain.Services, GmailHost(connectionKey), GmailNeuron.LifecycleReminder, cancellationToken);
     public static IntoChat.OS.Runtime.IPlainNeurons Plain(this ITestBrain brain) => brain.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>();
 
     // The Platform's browser login: start it, then return through its callback with a code.

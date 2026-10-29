@@ -5,6 +5,7 @@ using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flame;
 
@@ -17,9 +18,9 @@ internal static class FlameEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var ui = BrainRoutes.Group(endpoints, "/ui");
-        ui.MapGet("/scenes/{name}", async (string name, [global::Microsoft.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
+        ui.MapGet("/scenes/{name}", async (string name, [MicrosoftSdk.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
             Results.Ok(await Scene(plain, name).Read().WaitAsync(ct)));
-        ui.MapPost("/scenes/{name}/report", async (string name, ReportBody body, [global::Microsoft.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
+        ui.MapPost("/scenes/{name}/report", async (string name, ReportBody body, [MicrosoftSdk.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
         {
             await Scene(plain, name).Report(body.NodeId, body.Kind, body.X, body.Y, body.Payload).WaitAsync(ct);
             return Results.Ok();

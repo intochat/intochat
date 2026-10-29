@@ -6,23 +6,23 @@ namespace IntoChat.OS.Framework.Generators.SampleModule;
 
 partial class SampleModule
 {
-    public SampleModule() : base(new global::IntoChat.OS.Framework.Modules.ModuleId("sample")) { }
+    public SampleModule() : base(new IntoChat.OS.Framework.Modules.ModuleId("sample")) { }
 
-    public static global::IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema Integration { get; } = global::IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema.For("sample-api", "Sample API").RequiresSecret("ApiKey");
+    public static IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema Integration { get; } = IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema.For("sample-api", "Sample API").RequiresSecret("ApiKey");
 
-    public static global::IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema[] Integrations { get; } = [
-        global::IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema.For("sample-events", "Sample events").RequiresSetting("Audience"),
+    public static IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema[] Integrations { get; } = [
+        IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema.For("sample-events", "Sample events").RequiresSetting("Audience"),
     ];
 
-    public override void ConfigureServices(global::Microsoft.Extensions.DependencyInjection.IServiceCollection services, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
+    public override void ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
-        global::System.ArgumentNullException.ThrowIfNull(services);
-        global::IntoChat.OS.Framework.Modules.Metering.ModulePriceLists.AddModulePriceList<global::IntoChat.OS.Framework.Generators.SampleModule.SamplePriceList>(services, "sample", [
-            new global::IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor("sample.read", "sample-api", "request"),
-            new global::IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor("sample.refresh", "sample-api", "request"),
+        System.ArgumentNullException.ThrowIfNull(services);
+        IntoChat.OS.Framework.Modules.Metering.ModulePriceLists.AddModulePriceList<SamplePriceList>(services, "sample", [
+            new IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor("sample.read", "sample-api", "request"),
+            new IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor("sample.refresh", "sample-api", "request"),
         ]);
-        OnConfigure(new global::IntoChat.OS.Framework.Modules.ModuleServices(services, configuration, Id));
+        OnConfigure(new IntoChat.OS.Framework.Modules.ModuleServices(services, configuration, Id));
     }
 
-    partial void OnConfigure(global::IntoChat.OS.Framework.Modules.IModuleServices services);
+    partial void OnConfigure(IntoChat.OS.Framework.Modules.IModuleServices services);
 }

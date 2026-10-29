@@ -165,7 +165,7 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
     [Fact]
     public void TheHostNeverLogsACallbacksQueryWhateverItsLevel()
     {
-        var filters = _brain.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<LoggerFilterOptions>>().Value;
+        var filters = _brain.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<LoggerFilterOptions>>().Value;
         var rule = Assert.Single(filters.Rules, rule => rule.CategoryName == "Microsoft.AspNetCore.Hosting.Diagnostics" && rule.ProviderName is null);
         Assert.Equal(LogLevel.Warning, rule.LogLevel);
     }

@@ -105,7 +105,7 @@ public sealed class PackedCompositionFacts
             ("IntoChat.OS.Modules.AI.Contracts", "_ = typeof(IntoChat.OS.Modules.AI.Models.ILLM);"),
             ("IntoChat.OS.Client", "_ = typeof(IntoChat.OS.Client.IntoChatOSClient);"),
             ("IntoChat.OS.Testing", "await using var brain = await IntoChat.OS.Testing.TestBrain.Create().StartAsync();"),
-            ("IntoChat.OS.Aspire.Server", "var builder = global::Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); IntoChat.OS.Aspire.Server.ServerHostingExtensions.AddIntoChatOSServer(builder, _ => { });"),
+            ("IntoChat.OS.Aspire.Server", "var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); IntoChat.OS.Aspire.Server.ServerHostingExtensions.AddIntoChatOSServer(builder, _ => { });"),
         })
         {
             var profile = Path.Combine(scratch, id);

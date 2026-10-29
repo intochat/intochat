@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using IntoChat.OS.Framework.Modules;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 // These are authoring declarations, not generated source. Each group is self-contained so consumers
@@ -135,7 +136,7 @@ internal sealed class ContractDeclarationWriter(ModuleInventory inventory)
         : parameter.DefaultValue == DBNull.Value || parameter.DefaultValue == Missing.Value ? "default"
         : parameter.DefaultValue switch
         {
-            char value => global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(value, quote: true),
+            char value => MicrosoftSdk.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(value, quote: true),
             float value when float.IsNaN(value) => "float.NaN",
             float value when float.IsPositiveInfinity(value) => "float.PositiveInfinity",
             float value when float.IsNegativeInfinity(value) => "float.NegativeInfinity",

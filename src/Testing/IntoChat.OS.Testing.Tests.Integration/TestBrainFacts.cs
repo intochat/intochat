@@ -20,7 +20,7 @@ public sealed class TestBrainFacts(TestingHost host)
         await using var pulsed = await brain.Observe<Pulsed>(pulse, ct);
         await pulse.Pulse(7);
         Assert.Equal(7, (await pulsed.NextAsync(ct: ct)).Value);
-        Assert.Equal(global::DigitalBrain.Runtime.Orleans.Topology.Local, brain.Services.GetRequiredService<global::DigitalBrain.Runtime.Orleans.TopologySettings>().Topology);
+        Assert.Equal(DigitalBrain.Runtime.Orleans.Topology.Local, brain.Services.GetRequiredService<DigitalBrain.Runtime.Orleans.TopologySettings>().Topology);
     }
 
     [Trait("host", "own")]

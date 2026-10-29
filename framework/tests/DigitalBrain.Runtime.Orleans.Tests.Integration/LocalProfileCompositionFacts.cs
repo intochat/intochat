@@ -6,6 +6,7 @@ using Orleans;
 using Orleans.Runtime;
 using Orleans.Storage;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration;
 
 public sealed class LocalProfileCompositionFacts
@@ -27,7 +28,7 @@ public sealed class LocalProfileCompositionFacts
             Assert.Equal(Path.Combine(home.Path, "state", "files", name), store.RootDirectory);
         }
         Assert.IsType<FileReminderTable>(host.Services.GetRequiredService<IReminderTable>());
-        Assert.NotNull(host.Services.GetRequiredKeyedService<global::Orleans.Streams.IStreamProvider>(IntoChatOSNames.SignalStreams));
+        Assert.NotNull(host.Services.GetRequiredKeyedService<OrleansSdk.Streams.IStreamProvider>(IntoChatOSNames.SignalStreams));
         Assert.False(string.IsNullOrEmpty(host.Services.GetRequiredService<IConfiguration>()[IntoChatOSNames.MasterKeyKey]));
     }
 

@@ -59,10 +59,10 @@ public sealed partial class SelfCallFacts
         var methods = Targets(site);
         Assert.True(methods.Length > 0, $"{site.File}: {site.Interface} has no method {site.Method}.");
         var reentrant = ProductionArchitecture.Types.Any(type => type.Name == site.Class
-            && (type.IsDefined(typeof(ReentrantAttribute), false) || type.IsDefined(typeof(global::DigitalBrain.ReentrantAttribute), false)));
+            && (type.IsDefined(typeof(ReentrantAttribute), false) || type.IsDefined(typeof(DigitalBrain.ReentrantAttribute), false)));
         return reentrant || methods.All(method => method.IsDefined(typeof(OneWayAttribute), false)
             || method.IsDefined(typeof(AlwaysInterleaveAttribute), false) || method.IsDefined(typeof(IntoChat.OS.OneWayCallAttribute), false)
-            || method.IsDefined(typeof(global::DigitalBrain.OneWayCallAttribute), false) || method.IsDefined(typeof(global::DigitalBrain.InterleavesAttribute), false));
+            || method.IsDefined(typeof(DigitalBrain.OneWayCallAttribute), false) || method.IsDefined(typeof(DigitalBrain.InterleavesAttribute), false));
     }
 
     private static Owner[] Owners() => JsonSerializer.Deserialize<Owner[]>(

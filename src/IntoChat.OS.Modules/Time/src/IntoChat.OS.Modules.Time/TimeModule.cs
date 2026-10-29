@@ -27,7 +27,7 @@ public sealed class TimeModule() : Module<TimeModuleOptions>(new ModuleId(Module
     // Transitional until Configure leaves with the Framework (06-08): test and local development may accelerate reminders;
     // production keeps the host default. The runtime's host grains register reminders under these options.
     public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
-        => services.AddOptions<global::Orleans.Hosting.ReminderOptions>().Configure<IOptions<TimeModuleOptions>>((options, module) =>
+        => services.AddOptions<Orleans.Hosting.ReminderOptions>().Configure<IOptions<TimeModuleOptions>>((options, module) =>
         {
             if (module.Value.MinimumReminderPeriod is { } period && period > TimeSpan.Zero) { options.MinimumReminderPeriod = period; }
         });

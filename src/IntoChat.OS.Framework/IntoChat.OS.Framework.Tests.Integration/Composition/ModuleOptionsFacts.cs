@@ -82,7 +82,7 @@ public sealed class ModuleOptionsFacts
         await using var brain = await TestBrain.Create()
             .WithModule<FakeModule, FakeOptions>(options => { options.Flag = true; options.Endpoint = new("https://x.example/"); })
             .StartAsync(TestContext.Current.CancellationToken);
-        var options = brain.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<FakeOptions>>().Value;
+        var options = brain.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<FakeOptions>>().Value;
         Assert.True(options.Flag);
         Assert.Equal(new Uri("https://x.example/"), options.Endpoint);
     }

@@ -5,6 +5,7 @@ using System.Text;
 using DigitalBrain.Runtime.Orleans.Tests.Integration.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration.Probe;
 
 // 04-14, 06 D-15: host-grain dispatch versus a typed grain call, measured with the Phase 1 spike's interleaved method.
@@ -31,7 +32,7 @@ public sealed class HostCostFacts
         await silo.InitializeAsync();
         try
         {
-            var typed = silo.Services.GetRequiredService<global::Orleans.IGrainFactory>().GetGrain<ITypedProbe>("cost");
+            var typed = silo.Services.GetRequiredService<OrleansSdk.IGrainFactory>().GetGrain<ITypedProbe>("cost");
             var host = silo.Get<IProbe>("b1/probe.shapes/cost");
             string Text(int bytes) => new('x', bytes);
             var b16 = Text(16);
@@ -47,7 +48,7 @@ public sealed class HostCostFacts
 
             var report = new StringBuilder();
             report.AppendLine(CultureInfo.InvariantCulture, $"machine: {Environment.MachineName}, {Environment.ProcessorCount} logical cores, {RuntimeInformation.OSDescription}, {RuntimeInformation.ProcessArchitecture}");
-            report.AppendLine(CultureInfo.InvariantCulture, $"runtime: {RuntimeInformation.FrameworkDescription}, Orleans {typeof(global::Orleans.Grain).Assembly.GetName().Version}, server GC {System.Runtime.GCSettings.IsServerGC}");
+            report.AppendLine(CultureInfo.InvariantCulture, $"runtime: {RuntimeInformation.FrameworkDescription}, Orleans {typeof(OrleansSdk.Grain).Assembly.GetName().Version}, server GC {System.Runtime.GCSettings.IsServerGC}");
             report.AppendLine(CultureInfo.InvariantCulture, $"warmup {Warmup}, measured {Measured} per path and payload, interleaved rounds of {Round}");
             report.AppendLine("| payload | path | p50 us | p99 us | B/call | p50 ratio | extra B/call |");
             report.AppendLine("|---|---|---|---|---|---|---|");

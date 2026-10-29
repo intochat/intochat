@@ -125,7 +125,7 @@ public sealed class CSharpFileListingFacts(CSharpHost host)
             return proxy;
         }
 
-        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
+        public IAsyncEnumerable<T> On<T>(object source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
             => throw new NotSupportedException();
     }
 

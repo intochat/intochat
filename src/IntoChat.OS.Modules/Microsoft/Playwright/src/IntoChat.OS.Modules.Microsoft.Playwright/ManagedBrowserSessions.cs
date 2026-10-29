@@ -1,4 +1,4 @@
-using PlaywrightSdk = global::Microsoft.Playwright;
+using PlaywrightSdk = Microsoft.Playwright;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 

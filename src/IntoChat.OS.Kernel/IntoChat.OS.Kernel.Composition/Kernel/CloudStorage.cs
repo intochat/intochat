@@ -1,7 +1,7 @@
 using Azure.Storage.Blobs;
 using DigitalBrain.Runtime.Orleans.Azure;
 using IntoChat.OS.Contracts.Configuration;
-using global::Orleans.Configuration;
+using Orleans.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Options;

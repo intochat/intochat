@@ -16,11 +16,11 @@ internal sealed class PlainSignals(IGrainFactory grains, IServiceProvider servic
         ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(session);
         KernelInvocationSink.Register(typeof(ISessionSynapses));
-        return new SessionChannel(NeuronProxy.Create<ISessionSynapses>(SessionSynapses.For(new global::DigitalBrain.BrainId(brain), session),
+        return new SessionChannel(NeuronProxy.Create<ISessionSynapses>(SessionSynapses.For(new DigitalBrain.BrainId(brain), session),
             new KernelInvocationSink(grains, string.Empty)));
     }
 
-    public async Task<PlainSignalPage> Read(global::DigitalBrain.NeuronId publisher, long since, int limit, CancellationToken cancellationToken)
+    public async Task<PlainSignalPage> Read(DigitalBrain.NeuronId publisher, long since, int limit, CancellationToken cancellationToken)
     {
         // Resolved on use: a host without the runtime's BrainLog (the memory journal of light test hosts) has no plain publishers.
         var journal = services.GetService(typeof(IBrainJournalWriter)) as IBrainJournalWriter
@@ -32,9 +32,9 @@ internal sealed class PlainSignals(IGrainFactory grains, IServiceProvider servic
 
     private sealed class SessionChannel(ISessionSynapses session) : IPlainSession
     {
-        public Task Subscribe(global::DigitalBrain.NeuronId source, string[] aliases) => session.Subscribe(source, aliases);
+        public Task Subscribe(DigitalBrain.NeuronId source, string[] aliases) => session.Subscribe(source, aliases);
 
-        public Task Unsubscribe(global::DigitalBrain.NeuronId source) => session.Unsubscribe(source);
+        public Task Unsubscribe(DigitalBrain.NeuronId source) => session.Unsubscribe(source);
 
         // A poll whose answer timed out reads as an empty one: the caller polls again with the same ack and the session sends the
         // batch it cut into the lost answer again, so a slow silo delays signals instead of ending the subscription.

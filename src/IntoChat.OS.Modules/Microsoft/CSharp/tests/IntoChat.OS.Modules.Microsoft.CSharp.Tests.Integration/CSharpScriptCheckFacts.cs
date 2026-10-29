@@ -1,6 +1,7 @@
 using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using Xunit;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
 public sealed class CSharpScriptCheckFacts
@@ -28,7 +29,7 @@ public sealed class CSharpScriptCheckFacts
     [Theory]
     [InlineData("IntoChat.OS.Framework.BrainScope.CurrentId();")]
     [InlineData("Console.WriteLine(typeof(Microsoft.CodeAnalysis.SyntaxTree));")]
-    [InlineData("Console.WriteLine(typeof(global::Microsoft.AspNetCore.Http.HttpContext));")]
+    [InlineData("Console.WriteLine(typeof(MicrosoftSdk.AspNetCore.Http.HttpContext));")]
     public void ABehaviorCompilesOnlyAgainstWhatTheSandboxCarries(string line)
     {
         var result = _check.Compile(new Dictionary<string, string> { ["synapses/reach.cs"] = line + "\nawait Task.CompletedTask;\n" });

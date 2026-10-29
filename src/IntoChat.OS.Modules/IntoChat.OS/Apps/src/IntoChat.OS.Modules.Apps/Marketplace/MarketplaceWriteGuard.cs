@@ -12,12 +12,12 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog, IMarketplace
     public async Task Invoke(IIncomingGrainCallContext context)
     {
         // The marketplace is a plain neuron (06-08): its calls arrive on the runtime's host grain as one RuntimeInvocation.
-        if (context.Grain is global::DigitalBrain.Runtime.Orleans.Hosting.INeuronHost
-            && context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is global::DigitalBrain.Invocation.RuntimeInvocation call
-            && global::DigitalBrain.NeuronId.TryParse(call.Key, out var target) && target.Type == MarketplaceType
+        if (context.Grain is DigitalBrain.Runtime.Orleans.Hosting.INeuronHost
+            && context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
+            && DigitalBrain.NeuronId.TryParse(call.Key, out var target) && target.Type == MarketplaceType
             && call.Method is nameof(IMarketplace.Upsert) or nameof(IMarketplace.Remove))
         {
-            var json = global::DigitalBrain.Invocation.RuntimeProtocol.Json;
+            var json = DigitalBrain.Invocation.RuntimeProtocol.Json;
             if (call.Method == nameof(IMarketplace.Upsert))
             {
                 var listed = call.Arguments.Length > 0 ? call.Arguments[0].Deserialize<MarketplaceListing>(json) : null;
@@ -51,7 +51,7 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog, IMarketplace
         var key = id.Key.ToString()!;
         if (type.StartsWith("neuron.host", StringComparison.Ordinal))
         {
-            return global::DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
+            return DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
         }
         return (type, key);
     }

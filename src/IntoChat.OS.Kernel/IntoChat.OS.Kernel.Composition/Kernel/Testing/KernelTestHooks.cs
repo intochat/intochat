@@ -17,18 +17,18 @@ public static class KernelTestHooks
 
     // The host grain id of neuron: by the runtime's policy for its loaded [Neuron] class, else the brain-affine host (a cluster
     // client that does not load the module's classes, as the Kernel E2E's client is).
-    public static GrainId HostOf(global::DigitalBrain.NeuronId neuron, string? hostType = null)
+    public static GrainId HostOf(DigitalBrain.NeuronId neuron, string? hostType = null)
         => GrainId.Create(hostType ?? KernelInvocationSink.HostTypeOfLoaded(neuron.Type) ?? BrainAffineHost, neuron.ToString());
 
     // The host activation of neuron, for ITestBrain.DeactivateAsync.
-    public static IAddressable Host(IServiceProvider services, global::DigitalBrain.NeuronId neuron)
+    public static IAddressable Host(IServiceProvider services, DigitalBrain.NeuronId neuron)
         => Grains(services).GetGrain(HostOf(neuron));
 
     // Delivers a reminder tick to a host grain exactly as the reminder service would (a queued or replayed delivery included).
     public static Task Remind(IServiceProvider services, GrainId host, string reminder, CancellationToken cancellationToken = default)
         => Grains(services).GetGrain<IRemindable>(host).ReceiveReminder(reminder, default, cancellationToken);
 
-    public static Task Remind(IServiceProvider services, global::DigitalBrain.NeuronId neuron, string reminder, CancellationToken cancellationToken = default)
+    public static Task Remind(IServiceProvider services, DigitalBrain.NeuronId neuron, string reminder, CancellationToken cancellationToken = default)
         => Remind(services, HostOf(neuron), reminder, cancellationToken);
 
     // Collects every idle activation in the cluster now.
@@ -59,23 +59,23 @@ public static class KernelTestHooks
 
     private sealed class CallerlessSink(IGrainFactory grains, string hostType) : IInvocationSink
     {
-        private INeuronHost Host(global::DigitalBrain.NeuronId target) => grains.GetGrain<INeuronHost>(GrainId.Create(hostType, target.ToString()));
+        private INeuronHost Host(DigitalBrain.NeuronId target) => grains.GetGrain<INeuronHost>(GrainId.Create(hostType, target.ToString()));
 
-        public async Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
+        public async Task<JsonElement?> Invoke(DigitalBrain.NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
         {
             var host = Host(target);
             var interleaved = await host.IsInterleaved(call).WaitAsync(cancellationToken).ConfigureAwait(true);
             return await (interleaved ? host.InvokeInterleaved(call, cancellationToken) : host.Invoke(call, cancellationToken)).ConfigureAwait(false);
         }
 
-        public async Task Post(global::DigitalBrain.NeuronId target, RuntimeInvocation call)
+        public async Task Post(DigitalBrain.NeuronId target, RuntimeInvocation call)
         {
             var host = Host(target);
             if (await host.IsInterleaved(call).ConfigureAwait(true)) { await host.PostInterleaved(call).ConfigureAwait(false); }
             else { await host.Post(call).ConfigureAwait(false); }
         }
 
-        public async IAsyncEnumerable<JsonElement> Stream(global::DigitalBrain.NeuronId target, RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<JsonElement> Stream(DigitalBrain.NeuronId target, RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             await foreach (var item in Host(target).Stream(call, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(true)) { yield return item; }
         }

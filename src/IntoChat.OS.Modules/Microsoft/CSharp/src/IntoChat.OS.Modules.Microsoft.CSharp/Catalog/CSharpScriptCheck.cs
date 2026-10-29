@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 public sealed record ScriptDiagnostic(string File, string Id, int Line, string Message);
@@ -68,7 +69,7 @@ public sealed class CSharpScriptCheck
     public long Emits => Interlocked.Read(ref _emits);
 
     public static bool IsShared(string source)
-        => !CSharpSyntaxTree.ParseText(source ?? "", Parse).GetCompilationUnitRoot().Members.OfType<global::Microsoft.CodeAnalysis.CSharp.Syntax.GlobalStatementSyntax>().Any();
+        => !CSharpSyntaxTree.ParseText(source ?? "", Parse).GetCompilationUnitRoot().Members.OfType<MicrosoftSdk.CodeAnalysis.CSharp.Syntax.GlobalStatementSyntax>().Any();
 
     public ScriptCompilation Compile(IReadOnlyDictionary<string, string> files)
     {

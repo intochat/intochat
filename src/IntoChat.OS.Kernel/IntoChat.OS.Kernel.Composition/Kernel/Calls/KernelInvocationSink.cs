@@ -14,7 +14,7 @@ namespace IntoChat.OS.Kernel.Composition;
 // The os side's calls into DigitalBrain plain neurons (06-08): every call goes to the runtime host grain of the [Neuron] class of
 // the target's type, carrying the caller's neuron id in the runtime's provenance slot (RequestContext "db.caller", which host
 // grains read as Context.Caller). The kernel composition owns it (IPlainNeurons, IPlainSignals).
-public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Func<global::DigitalBrain.NeuronId, global::DigitalBrain.Invocation.RuntimeInvocation, Task>? streamAccess = null) : IInvocationSink
+public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Func<DigitalBrain.NeuronId, DigitalBrain.Invocation.RuntimeInvocation, Task>? streamAccess = null) : IInvocationSink
 {
     // The runtime's provenance key (DigitalBrain.Runtime.Orleans HostNeuronContext.CallerKey), read by every host grain.
     public const string CallerKey = "db.caller";
@@ -31,7 +31,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
 
     internal static void Register(Type contract) => Contracts.TryAdd(NeuronProxy.ContractName(contract), contract);
 
-    public async Task<JsonElement?> Invoke(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call, CancellationToken cancellationToken)
+    public async Task<JsonElement?> Invoke(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(call);
         // Preserve the grain scheduler until dispatch: source-origin guards use Orleans' physical caller identity.
@@ -42,7 +42,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         return await (interleaved ? host.InvokeInterleaved(stamped, cancellationToken) : host.Invoke(stamped, cancellationToken)).ConfigureAwait(false);
     }
 
-    public async Task Post(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call)
+    public async Task Post(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(call);
         var host = await Host(target, CancellationToken.None).ConfigureAwait(true);
@@ -52,7 +52,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         else { await host.Post(stamped).ConfigureAwait(false); }
     }
 
-    public async IAsyncEnumerable<JsonElement> Stream(global::DigitalBrain.NeuronId target, global::DigitalBrain.Invocation.RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<JsonElement> Stream(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(call);
         Stamp();
@@ -72,14 +72,14 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         var found = assemblies.Select(assembly => assembly.GetType(name, throwOnError: false)).FirstOrDefault(type => type is { IsInterface: true })
             ?? assemblies.Where(References)
                 .SelectMany(Loadable).FirstOrDefault(type => type.IsInterface
-                    && type.GetCustomAttribute<global::DigitalBrain.Contracts.NeuronAliasAttribute>(inherit: false)?.Alias == name);
+                    && type.GetCustomAttribute<DigitalBrain.Contracts.NeuronAliasAttribute>(inherit: false)?.Alias == name);
         if (found is not null) { Contracts.TryAdd(name, found); }
         return found;
     }
 
     // Only assemblies that can declare a contract (they reference DigitalBrain) are scanned for aliases.
     private static bool References(Assembly assembly)
-        => assembly.GetReferencedAssemblies().Any(reference => reference.Name == typeof(global::DigitalBrain.Contracts.NeuronAliasAttribute).Assembly.GetName().Name);
+        => assembly.GetReferencedAssemblies().Any(reference => reference.Name == typeof(DigitalBrain.Contracts.NeuronAliasAttribute).Assembly.GetName().Name);
 
     private static IEnumerable<Type> Loadable(Assembly assembly)
     {
@@ -87,7 +87,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>(); }
     }
 
-    private async Task<INeuronHost> Host(global::DigitalBrain.NeuronId target, CancellationToken cancellationToken)
+    private async Task<INeuronHost> Host(DigitalBrain.NeuronId target, CancellationToken cancellationToken)
     {
         // Cluster clients carry contracts without implementation classes. Only the serving kernel can answer their host
         // policy; a guessed affine host would address reentrant and stateless neurons incorrectly.
@@ -110,7 +110,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
             catch (ReflectionTypeLoadException error) { types = [.. error.Types.OfType<Type>()]; }
             foreach (var candidate in types)
             {
-                if (candidate.IsAbstract || !typeof(global::DigitalBrain.Neuron).IsAssignableFrom(candidate)) { continue; }
+                if (candidate.IsAbstract || !typeof(DigitalBrain.Neuron).IsAssignableFrom(candidate)) { continue; }
                 if (candidate.GetCustomAttribute<NeuronAttribute>(inherit: false)?.Type != name) { continue; }
                 if (candidate.IsDefined(typeof(StatelessNeuronAttribute), inherit: false)) { return "neuron.host.stateless"; }
                 return candidate.IsDefined(typeof(ReentrantAttribute), inherit: true) ? "neuron.host.reentrant" : "neuron.host";
@@ -119,7 +119,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
         return null;
     });
 
-    private global::DigitalBrain.Invocation.RuntimeInvocation Stamped(global::DigitalBrain.Invocation.RuntimeInvocation call) => string.Equals(call.Behavior, caller, StringComparison.Ordinal) ? call : call with { Behavior = caller };
+    private DigitalBrain.Invocation.RuntimeInvocation Stamped(DigitalBrain.Invocation.RuntimeInvocation call) => string.Equals(call.Behavior, caller, StringComparison.Ordinal) ? call : call with { Behavior = caller };
 
     // Called inside the async call methods, so the RequestContext change stays inside the call (as the runtime's sink does).
     private void Stamp() => RequestContext.Set(CallerKey, caller);

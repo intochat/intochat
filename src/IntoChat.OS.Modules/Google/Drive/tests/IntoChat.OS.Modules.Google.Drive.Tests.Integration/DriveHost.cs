@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Confirmation;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using Microsoft.Extensions.Options;
+using MicrosoftSdk = Microsoft;
 [assembly: AssemblyFixture(typeof(IntoChat.OS.Modules.Google.Drive.Tests.Integration.DriveHost))]
 
 namespace IntoChat.OS.Modules.Google.Drive.Tests.Integration;
@@ -46,7 +47,7 @@ public sealed class DriveHost : BrainHostFixture
         using (person.AsCaller())
         {
             await brain.Plain().GetConnectionInbound(key).AcceptGrant(new("google-oauth", "drive-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), scopes ?? DriveScopes.Read, null, "{}"));
-            var broker = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Runtime.Orleans.Capabilities.CapabilityBroker>(brain.Services);
+            var broker = MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Runtime.Orleans.Capabilities.CapabilityBroker>(brain.Services);
             var connection = Assert.Single(await broker.Storages(new DigitalBrain.BrainId(person.BrainId), ct), item => item.ConnectionKey == key);
             return new AsOwner(connection.Capability, person);
         }

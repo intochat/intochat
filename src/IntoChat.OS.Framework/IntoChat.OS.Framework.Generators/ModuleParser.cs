@@ -50,7 +50,7 @@ internal static class ModuleParser
                 case "IntoChat.OS.Framework.Modules.ModuleContractsAttribute":
                     if (Arg(attribute, 0) is ITypeSymbol type)
                     {
-                        anchor = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                        anchor = type.ToDisplayString(QualifiedName);
                     }
                     break;
                 case "IntoChat.OS.Framework.Modules.RequiresLicenseAttribute":
@@ -145,7 +145,7 @@ internal static class ModuleParser
             {
                 diagnostics.Add(Diagnostic("IOS0005", "The price list must be an accessible, concrete, closed class implementing IPriceList.", declaration));
             }
-            else { priceList = priceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat); }
+            else { priceList = priceType.ToDisplayString(QualifiedName); }
         }
 
         var operations = new List<ExternalOperationModel>();
@@ -198,7 +198,7 @@ internal static class ModuleParser
         var module = "";
         if (Arg(context.Attributes[0], 0) is INamedTypeSymbol type && DerivesFromModule(type))
         {
-            module = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            module = type.ToDisplayString(QualifiedName);
         }
         else
         {
@@ -207,6 +207,14 @@ internal static class ModuleParser
 
         return new HostingModel(Namespace(symbol), symbol.Name, module, new EquatableArray<DiagnosticModel>([.. diagnostics]));
     }
+
+    // Fully qualified display. Qualification.For shortens a name the target namespace would capture.
+    internal static readonly SymbolDisplayFormat QualifiedName = new(
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters | SymbolDisplayGenericsOptions.IncludeVariance,
+        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
+            | SymbolDisplayMiscellaneousOptions.UseSpecialTypes
+            | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
     private static object? Arg(AttributeData attribute, int index)
         => attribute.ConstructorArguments.Length > index ? attribute.ConstructorArguments[index].Value : null;

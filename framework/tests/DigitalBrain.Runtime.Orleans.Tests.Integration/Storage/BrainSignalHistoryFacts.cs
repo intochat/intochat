@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Storage;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration.Storage;
 
 public sealed class BrainSignalHistoryFacts
@@ -112,7 +113,7 @@ public sealed class BrainSignalHistoryFacts
 
     private sealed class WithRetention(IClusterStoreRegistration inner) : IClusterStoreRegistration
     {
-        public void Register(global::Orleans.Hosting.ISiloBuilder silo)
+        public void Register(OrleansSdk.Hosting.ISiloBuilder silo)
         {
             inner.Register(silo);
             silo.AddSynapseRetention();

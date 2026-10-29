@@ -58,7 +58,7 @@ internal static class ReminderTestControls
     // The runtime's host grains register reminders through IReminderRegistry, so the decorator sees the plain neuron's calls.
     public static void UseReminderControl(this IServiceCollection services, ReminderControl reminders)
     {
-        services.Configure<global::Orleans.Hosting.ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
+        services.Configure<Orleans.Hosting.ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
         Decorate<IReminderRegistry>(services, inner => new FaultingReminders(inner, reminders));
         services.AddSingleton<IIncomingGrainCallFilter>(services =>
         {

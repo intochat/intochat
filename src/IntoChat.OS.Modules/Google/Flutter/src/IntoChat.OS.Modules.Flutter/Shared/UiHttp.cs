@@ -3,6 +3,7 @@ using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter;
 
@@ -19,7 +20,7 @@ internal static class UiHttp
     {
         // The value neurons read here are plain controls (06-04), reached through the host's plain-contract seam.
         BrainRoutes.Group(endpoints, "/ui").MapGet($"/{collection}/{{name}}",
-            async Task<IResult> (string name, [global::Microsoft.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken cancellationToken) =>
+            async Task<IResult> (string name, [MicrosoftSdk.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken cancellationToken) =>
                 Results.Ok(await read(plain.Get<TNeuron>(UiScope.Key(BrainScope.CurrentId(), name))).WaitAsync(cancellationToken)));
     }
 

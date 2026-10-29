@@ -7,6 +7,7 @@ using DigitalBrain.Runtime.Orleans.Synapses;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.Options;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Signalling;
 
 /// <summary>
@@ -18,7 +19,7 @@ namespace DigitalBrain.Runtime.Orleans.Signalling;
 /// <remarks>Queue changes happen only between awaits on the activation's scheduler; the long-poll completes through <see cref="_wake"/>.</remarks>
 [Neuron(SessionSynapses.NeuronType)]
 internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> options, RuntimeClock clock, JournalPayloads payloads,
-    IOptions<global::Orleans.Configuration.SiloMessagingOptions> messaging)
+    IOptions<OrleansSdk.Configuration.SiloMessagingOptions> messaging)
     : Neuron, ISessionSynapses, ISignalSink, IRemindedNeuron
 {
     internal const string SweepTimer = "session.ttl";

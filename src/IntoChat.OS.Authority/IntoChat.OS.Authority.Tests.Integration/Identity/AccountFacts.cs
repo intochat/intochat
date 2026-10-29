@@ -18,15 +18,15 @@ public sealed class AccountFacts(AuthorityHost host)
         var bobId = AuthorityHost.Unique("bob");
         var directory = brain.Platform.Directory();
         var owner = await directory.RegisterAsync(aliceId, "correct-password", "Alice", ct);
-        var http = new global::Microsoft.AspNetCore.Http.DefaultHttpContext();
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
         var anonymous = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
-        Assert.Equal(401, ((global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult)anonymous).StatusCode);
+        Assert.Equal(401, ((Microsoft.AspNetCore.Http.IStatusCodeHttpResult)anonymous).StatusCode);
         http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([
             new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, owner.PrincipalId),
             new System.Security.Claims.Claim(new IdentityHostOptions().AccountClaim, owner.AccountId),
         ], "test"));
         var result = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
-        var workspace = Assert.IsType<Member>(((global::Microsoft.AspNetCore.Http.IValueHttpResult)result).Value);
+        var workspace = Assert.IsType<Member>(((Microsoft.AspNetCore.Http.IValueHttpResult)result).Value);
         Assert.Equal(owner.AccountId, workspace.AccountId);
         Assert.NotEqual(owner.BrainId, workspace.BrainId);
         Assert.True(await directory.CanAccessAsync(aliceId, workspace.AccountId, workspace.BrainId, ct));
@@ -36,7 +36,7 @@ public sealed class AccountFacts(AuthorityHost host)
             new System.Security.Claims.Claim(new IdentityHostOptions().AccountClaim, owner.AccountId),
         ], "test"));
         var outsider = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
-        Assert.Equal(403, ((global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult)outsider).StatusCode);
+        Assert.Equal(403, ((Microsoft.AspNetCore.Http.IStatusCodeHttpResult)outsider).StatusCode);
     }
 
     // Quarantined (timing): https://github.com/intochat/os/issues/313
@@ -62,7 +62,7 @@ public sealed class AccountFacts(AuthorityHost host)
 
     private static async Task<string[]> BrainsAs(ITestBrain brain, Person person)
     {
-        using (person.AsCaller()) { return await global::IntoChat.OS.Kernel.Composition.Kernel.For(brain.Services).Brains(TestContext.Current.CancellationToken); }
+        using (person.AsCaller()) { return await IntoChat.OS.Kernel.Composition.Kernel.For(brain.Services).Brains(TestContext.Current.CancellationToken); }
     }
 
     [Fact]

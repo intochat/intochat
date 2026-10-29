@@ -1,16 +1,17 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
-using PlaywrightSdk = global::Microsoft.Playwright;
+using PlaywrightSdk = Microsoft.Playwright;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Connects to a page owned by the desktop. It never creates or closes native pages.
-public sealed partial class PlaywrightSessionProvider(global::Microsoft.Extensions.Options.IOptions<PlaywrightModuleOptions> options) : IBrowserSessionProvider, IAsyncDisposable
+public sealed partial class PlaywrightSessionProvider(MicrosoftSdk.Extensions.Options.IOptions<PlaywrightModuleOptions> options) : IBrowserSessionProvider, IAsyncDisposable
 {
     public bool IsAppPage(string url) => options.Value.IsAppPage(url);
 
-    public PlaywrightSessionProvider() : this(global::Microsoft.Extensions.Options.Options.Create(new PlaywrightModuleOptions())) { }
+    public PlaywrightSessionProvider() : this(MicrosoftSdk.Extensions.Options.Options.Create(new PlaywrightModuleOptions())) { }
 
     private readonly ConcurrentDictionary<(int Port, string SessionId), string> _targets = new();
 

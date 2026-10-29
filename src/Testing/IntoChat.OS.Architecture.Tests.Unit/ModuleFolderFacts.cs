@@ -78,7 +78,7 @@ public sealed partial class ModuleFolderFacts
             => Repository.ProjectKey(path).Split('/')[0] is var name && (name.Contains(".Tests.", StringComparison.Ordinal) || name.EndsWith(".Tests", StringComparison.Ordinal));
     }
 
-    [GeneratedRegex(@"class\s+\w+\s*(?:\([^)]*\))?\s*:\s*(?:global::)?DigitalBrain\.Module\b")]
+    [GeneratedRegex(@"class\s+\w+\s*(?:\([^)]*\))?\s*:\s*DigitalBrain\.Module\b")]
     private static partial Regex ModuleClass();
 
     [GeneratedRegex(@":\s*(Storage|Secrets|Identity)Conformance<")]

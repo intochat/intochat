@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Extensions.Logging.Abstractions;
+using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Workspace;
 
@@ -73,8 +74,8 @@ public sealed class LiveSignalFacts
         .WithModule<CirclesModule>()
         .ConfigureServices(services =>
         {
-            global::Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.RemoveAll<IntoChat.OS.Modules.Apps.IAppRuntime>(services);
-            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<IntoChat.OS.Modules.Apps.IAppRuntime, NoRuntime>(services);
+            MicrosoftSdk.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.RemoveAll<IntoChat.OS.Modules.Apps.IAppRuntime>(services);
+            MicrosoftSdk.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<IntoChat.OS.Modules.Apps.IAppRuntime, NoRuntime>(services);
         })
         .StartAsync(ct);
 

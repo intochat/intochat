@@ -32,7 +32,7 @@ public sealed class OsShippedAppFacts
     [Fact]
     public void TheOperatingSystemCompositionWiresItsAppsIntoTheHost()
     {
-        var builder = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         IntoChat.OS.Aspire.Server.ServerHostingExtensions.AddIntoChatOSServer(builder, server => server.AddOperatingSystem());
         using var provider = builder.Services.BuildServiceProvider();
         Assert.Contains(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps, app => app.Publisher == "os" && app.Name == "settings");

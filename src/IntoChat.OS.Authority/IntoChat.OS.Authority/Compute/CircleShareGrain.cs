@@ -143,7 +143,7 @@ internal sealed class CircleShareGuard : IIncomingGrainCallFilter
         var key = id.Key.ToString()!;
         if (type.StartsWith("neuron.host", StringComparison.Ordinal))
         {
-            return global::DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
+            return DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
         }
         return (type, key);
     }

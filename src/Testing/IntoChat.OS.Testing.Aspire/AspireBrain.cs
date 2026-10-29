@@ -50,7 +50,7 @@ public sealed class AspireBrain : ITestBrain, ITrackedBrain
     public IBrain Self => _session.Brains.Open(BrainScope.CurrentId()).Self;
     public IKernelView Kernel => _session.Brains.Open(BrainScope.CurrentId()).Kernel;
 
-    public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
+    public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => _session.Brains.On<T>(neuron, onSubscribed, cancellationToken);
 
     public Task DeactivateAsync(IAddressable neuron, CancellationToken cancellationToken = default)

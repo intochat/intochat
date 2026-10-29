@@ -5,6 +5,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Modules.Microsoft.Windows.Signals;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A plain neuron (06-08) keyed {connectionKey}/files.
@@ -31,6 +32,6 @@ internal sealed class FileSystemNeuron(IMachineIdentity identity) : DigitalBrain
         var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        return MachineRoots.Resolve(await global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(Context.Services).Get<IWindows>(connection).Roots(), path);
+        return MachineRoots.Resolve(await MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(Context.Services).Get<IWindows>(connection).Roots(), path);
     }
 }

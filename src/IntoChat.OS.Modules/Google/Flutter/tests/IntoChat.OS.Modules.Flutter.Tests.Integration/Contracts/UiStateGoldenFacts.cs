@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;
 
@@ -18,7 +19,7 @@ public sealed class UiStateGoldenFacts(FlutterHost host)
     // for the /event body, the running host's HTTP JSON options, so a settings change fails the pin.
     private JsonSerializerOptions Wire(Type type) => type == typeof(UiView) || type == typeof(UiNode)
         ? AppUiEndpoints.ViewJson
-        : host.Brain.Services.GetRequiredService<IOptions<global::Microsoft.AspNetCore.Http.Json.JsonOptions>>().Value.SerializerOptions;
+        : host.Brain.Services.GetRequiredService<IOptions<MicrosoftSdk.AspNetCore.Http.Json.JsonOptions>>().Value.SerializerOptions;
 
     internal static Type[] Records()
     {

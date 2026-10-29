@@ -1,4 +1,4 @@
-using global::Orleans.Runtime;
+using Orleans.Runtime;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Cluster;

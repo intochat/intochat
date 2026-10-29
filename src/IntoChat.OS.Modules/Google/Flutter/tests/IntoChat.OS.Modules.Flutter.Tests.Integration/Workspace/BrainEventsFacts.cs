@@ -23,7 +23,7 @@ public sealed class BrainEventsFacts
     // registered for the journal here.
     private static Task<ITestBrain> Start(CancellationToken ct)
         => TestBrain.Create().WithModule<AppsModule>().WithNeuronModule<StubRuntimeModule>()
-            .ConfigureServices(services => global::DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(
+            .ConfigureServices(services => DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(
                 services, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly, typeof(BrainRuntimeChanged).Assembly))
             .StartAsync(ct);
 

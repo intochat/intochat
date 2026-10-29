@@ -27,21 +27,21 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
         // 06-08) is plumbing no edge can name, as a grain's own non-INeuron interface was: the module authorizes before it calls.
         if (IsPlumbing(call)) { await context.Invoke(); return; }
 
-        var id = global::DigitalBrain.NeuronId.Parse(context.TargetId.Key.ToString()!);
+        var id = DigitalBrain.NeuronId.Parse(context.TargetId.Key.ToString()!);
         // As for grains (NeuronCallFilter): a module service calling through an injected client after leaving a turn, or any call
         // from inside the cluster, keeps its provenance, so an unclassified ([Internal]) operation passes for it (06-08: the
         // fast-path writer completes a plain app's synapse after the person's request returned).
         var (scope, isPublic) = Classify(caller, id, call);
-        var internalCall = global::Orleans.Runtime.RequestContext.Get(CallerContextStamper.ModuleCallKey) is true
+        var internalCall = Orleans.Runtime.RequestContext.Get(CallerContextStamper.ModuleCallKey) is true
             || context.SourceId is { } source && !source.Type.ToString()!.StartsWith("sys.client", StringComparison.Ordinal);
         if (scope is null && !isPublic && internalCall) { await context.Invoke(); return; }
         await Authorize(filter, logger, caller, id, call);
-        global::Orleans.Runtime.RequestContext.Set(CallerContextStamper.ModuleCallKey, true);
+        Orleans.Runtime.RequestContext.Set(CallerContextStamper.ModuleCallKey, true);
         await context.Invoke();
     }
 
     // The target scope and publicity the os access policy gives one call of caller into the plain neuron id.
-    private static (string? Scope, bool IsPublic) Classify(CallerContext caller, global::DigitalBrain.NeuronId id, RuntimeInvocation call) => Policy(call) switch
+    private static (string? Scope, bool IsPublic) Classify(CallerContext caller, DigitalBrain.NeuronId id, RuntimeInvocation call) => Policy(call) switch
     {
         PublicAttribute => (null, true),
         InternalAttribute => (null, false),
@@ -53,7 +53,7 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
     // The os access policy for one call of caller into the plain neuron id. Orleans hands a streaming call to the host grain through
     // its async-enumerable extension, which no incoming filter sees, so the sink that starts a stream asks here first (06-06d).
     /// <exception cref="UnauthorizedAccessException">The policy refuses the call.</exception>
-    internal static async Task Authorize(ICallFilter filter, ILogger logger, CallerContext caller, global::DigitalBrain.NeuronId id, RuntimeInvocation call)
+    internal static async Task Authorize(ICallFilter filter, ILogger logger, CallerContext caller, DigitalBrain.NeuronId id, RuntimeInvocation call)
     {
         if (IsPlumbing(call)) { return; }
         var (scope, isPublic) = Classify(caller, id, call);

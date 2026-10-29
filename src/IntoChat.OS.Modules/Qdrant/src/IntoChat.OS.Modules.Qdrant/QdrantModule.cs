@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
+using QdrantSdk = Qdrant;
 namespace IntoChat.OS.Modules.Qdrant;
 
 public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("qdrant"))
@@ -37,6 +38,6 @@ public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("q
         services.TryAddSingleton(_ => QdrantConnection.CreateClient(
             configuration.GetConnectionString(ConnectionName)!));
         services.TryAddSingleton<IVectorStore>(provider => IsConnected(configuration)
-            ? new QdrantStore(provider.GetRequiredService<global::Qdrant.Client.QdrantClient>()) : new InMemoryQdrant());
+            ? new QdrantStore(provider.GetRequiredService<QdrantSdk.Client.QdrantClient>()) : new InMemoryQdrant());
     }
 }

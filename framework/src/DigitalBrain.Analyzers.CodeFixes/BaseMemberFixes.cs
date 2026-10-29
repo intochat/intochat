@@ -115,7 +115,7 @@ public sealed class KeyCompositionFix : CodeFixProvider
         {
             result = InvocationExpression(
                     MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                        ParseTypeName("global::" + FixSafety.AppKeyType).WithAdditionalAnnotations(Simplifier.Annotation), IdentifierName("Parse")))
+                        ParseTypeName(FixSafety.AppKeyType).WithAdditionalAnnotations(Simplifier.Annotation), IdentifierName("Parse")))
                 .WithArgumentList(ArgumentList(SingletonSeparatedList(Argument(key.WithoutTrivia()))));
         }
         else
@@ -319,7 +319,7 @@ internal static class RecordErrorAction
         }
         var declaration = clause.Declaration is { } existing
             ? existing.WithIdentifier(Identifier(name!)).WithCloseParenToken(existing.CloseParenToken)
-            : CatchDeclaration(ParseTypeName("global::System.Exception").WithAdditionalAnnotations(Simplifier.Annotation), Identifier(name!));
+            : CatchDeclaration(ParseTypeName("System.Exception").WithAdditionalAnnotations(Simplifier.Annotation), Identifier(name!));
         var record = ExpressionStatement(InvocationExpression(IdentifierName("RecordError"))
             .WithArgumentList(ArgumentList(SingletonSeparatedList(Argument(IdentifierName(name!))))));
         var block = clause.Block.WithStatements(clause.Block.Statements.Insert(0, record)).WithAdditionalAnnotations(Formatter.Annotation);

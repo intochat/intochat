@@ -6,6 +6,7 @@ using Orleans.Providers.Streams.Common;
 using Orleans.Storage;
 using Orleans.Streams;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Unit;
 
 // RT-06, 04 D-09: Phase 3 ships the stream and PubSubStore bindings; these facts pin them and the durability rule.
@@ -18,7 +19,7 @@ public sealed class TopologyPubSubStoreFacts
         return services.BuildServiceProvider();
     }
 
-    private static MemoryGrainStorage Memory() => new(IntoChatOSNames.PubSubStore, new global::Orleans.Configuration.MemoryGrainStorageOptions(),
+    private static MemoryGrainStorage Memory() => new(IntoChatOSNames.PubSubStore, new OrleansSdk.Configuration.MemoryGrainStorageOptions(),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<MemoryGrainStorage>.Instance,
         null!, null!, null!);
 

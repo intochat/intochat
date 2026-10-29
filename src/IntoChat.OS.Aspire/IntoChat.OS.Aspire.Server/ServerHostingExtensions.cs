@@ -93,8 +93,8 @@ public static class ServerHostingExtensions
             silo.AddLegacyStorage();
             // os grain state keeps the Orleans binary format it had in memory and on blob storage (persisted-format rule):
             // the topology's file and blob stores use the silo serializer, so it is this one, not the JSON default.
-            silo.Services.AddSingleton<global::Orleans.Storage.IGrainStorageSerializer>(static services =>
-                new global::Orleans.Storage.OrleansGrainStorageSerializer(services.GetRequiredService<global::Orleans.Serialization.Serializer>()));
+            silo.Services.AddSingleton<Orleans.Storage.IGrainStorageSerializer>(static services =>
+                new Orleans.Storage.OrleansGrainStorageSerializer(services.GetRequiredService<Orleans.Serialization.Serializer>()));
             // Development silos restart constantly (rolls, aspire restarts): rows of silos that are gone are swept
             // within minutes, not the default week. Startup connectivity validation stays on; machine silos beat often enough that their own stale rows are skipped (R105).
             if (builder.Environment.IsDevelopment())
@@ -109,7 +109,7 @@ public static class ServerHostingExtensions
             // Orleans hosting already registers one activity-propagation filter pair. An explicit
             // `silo.AddActivityPropagation()` here registered a second pair and doubled every grain
             // call to 4 spans (measured); it was removed so exactly one registration remains.
-            if (definition.Dashboard) { global::Orleans.Dashboard.ServiceCollectionExtensions.AddDashboard(silo); }
+            if (definition.Dashboard) { Orleans.Dashboard.ServiceCollectionExtensions.AddDashboard(silo); }
             silo.AddIntoChatOS(modules);
             // Identity-backed brain membership, connector types, secret redaction and connection bindings (D-18).
             silo.AddIntoChatOSConnections();

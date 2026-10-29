@@ -3,6 +3,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Tests.Integration.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration.Probe;
 
 // 04-14 (RT-01, 06 D-11..D-13): every call shape of one plain neuron through Get<T>(NeuronId) on a LocalProfile silo.
@@ -18,7 +19,7 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     {
         var neuron = NeuronId.Parse(id);
         var call = new RuntimeInvocation("", NeuronProxy.ContractName(typeof(IProbe)), id, method, []);
-        return new OrleansInvocationSink(silo.Services.GetRequiredService<global::Orleans.IGrainFactory>(), silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
+        return new OrleansInvocationSink(silo.Services.GetRequiredService<OrleansSdk.IGrainFactory>(), silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
             .Host(neuron, call).GetGrainId().Type.ToString();
     }
 

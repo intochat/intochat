@@ -121,8 +121,8 @@ public sealed class AzuriteOrleansTarget(AzuriteFixture azurite) : OrleansFramew
             builder.UseOrleans(silo =>
             {
                 silo.ConfigureTopologySilo();
-                silo.Configure<global::Orleans.Configuration.ClusterOptions>(o => { o.ClusterId = _clusterId; o.ServiceId = _clusterId; });
-                silo.Configure<global::Orleans.Configuration.EndpointOptions>(o => o.AdvertisedIPAddress = IPAddress.Loopback);
+                silo.Configure<Orleans.Configuration.ClusterOptions>(o => { o.ClusterId = _clusterId; o.ServiceId = _clusterId; });
+                silo.Configure<Orleans.Configuration.EndpointOptions>(o => o.AdvertisedIPAddress = IPAddress.Loopback);
                 configureServices?.Invoke(silo.Services);
             });
             return builder.Build();

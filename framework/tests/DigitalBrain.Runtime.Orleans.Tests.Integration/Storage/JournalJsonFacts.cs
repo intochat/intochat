@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration.Storage;
 
 public sealed class JournalJsonFacts
@@ -150,10 +151,10 @@ public sealed class JournalJsonFacts
 
     private sealed class FakeStorage : IGrainStorage
     {
-        public Task ReadStateAsync<T>(string stateName, global::Orleans.Runtime.GrainId grainId, IGrainState<T> grainState) => Task.CompletedTask;
+        public Task ReadStateAsync<T>(string stateName, OrleansSdk.Runtime.GrainId grainId, IGrainState<T> grainState) => Task.CompletedTask;
 
-        public Task WriteStateAsync<T>(string stateName, global::Orleans.Runtime.GrainId grainId, IGrainState<T> grainState) => Task.CompletedTask;
+        public Task WriteStateAsync<T>(string stateName, OrleansSdk.Runtime.GrainId grainId, IGrainState<T> grainState) => Task.CompletedTask;
 
-        public Task ClearStateAsync<T>(string stateName, global::Orleans.Runtime.GrainId grainId, IGrainState<T> grainState) => Task.CompletedTask;
+        public Task ClearStateAsync<T>(string stateName, OrleansSdk.Runtime.GrainId grainId, IGrainState<T> grainState) => Task.CompletedTask;
     }
 }

@@ -2,6 +2,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using Orleans;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Synapses;
 
 /// <summary>
@@ -13,11 +14,11 @@ internal interface ISynapseHost : IGrainWithStringKey
 {
     /// <summary>Runs the source's <c>AdmitSynapse</c> for <paramref name="subscriber"/>; the caller identity must be the subscriber.</summary>
     /// <exception cref="UnauthorizedAccessException">The source refuses, or the caller is not the subscriber.</exception>
-    [global::Orleans.Concurrency.AlwaysInterleave, Alias("admit")]
+    [OrleansSdk.Concurrency.AlwaysInterleave, Alias("admit")]
     Task Admit(NeuronId subscriber, string[] signalAliases);
 
     /// <summary>Catches up every source of this subscriber from its cursor.</summary>
-    [global::Orleans.Concurrency.OneWay, Alias("catch-up")]
+    [OrleansSdk.Concurrency.OneWay, Alias("catch-up")]
     Task CatchUp();
 }
 

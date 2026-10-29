@@ -37,8 +37,8 @@ public sealed class DefaultBrainFacts
         await using var brainHandle = brain;
         using var client = Client(app);
         using var body = JsonDocument.Parse(await client.GetStringAsync("/identity/session", ct));
-        var http = new global::Microsoft.AspNetCore.Http.DefaultHttpContext();
-        var stamped = AccountSession.ResolveCaller(http, app.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<AuthOptions>>().Value);
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        var stamped = AccountSession.ResolveCaller(http, app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AuthOptions>>().Value);
         Assert.NotNull(stamped);
         Assert.Equal(stamped.BrainId, body.RootElement.GetProperty("brainId").GetString());
     }

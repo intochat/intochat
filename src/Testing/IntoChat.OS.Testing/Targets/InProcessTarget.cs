@@ -69,7 +69,7 @@ public sealed class InProcessTarget : ITestTarget
     private static bool AddressInUse(Exception? error) => error switch
     {
         null => false,
-        global::Microsoft.AspNetCore.Connections.AddressInUseException => true,
+        Microsoft.AspNetCore.Connections.AddressInUseException => true,
         // Windows reports a port another socket holds exclusively (or a reserved range) as access denied.
         SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse or SocketError.AccessDenied } => true,
         AggregateException aggregate => aggregate.InnerExceptions.Any(AddressInUse),
@@ -82,7 +82,7 @@ public sealed class InProcessTarget : ITestTarget
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         if (plan.Execution.Http) { builder.WebHost.UseUrls($"http://127.0.0.1:{httpPort}"); }
         // Without UseUrls Kestrel would still listen on its default port; slim hosts replace it with a server that never binds.
-        else { builder.Services.AddSingleton<global::Microsoft.AspNetCore.Hosting.Server.IServer, NoHttpServer>(); }
+        else { builder.Services.AddSingleton<Microsoft.AspNetCore.Hosting.Server.IServer, NoHttpServer>(); }
         builder.Configuration.AddInMemoryCollection(TestLogging.QuietDefaults);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -91,8 +91,8 @@ public sealed class InProcessTarget : ITestTarget
             [IntoChatOSNames.HomeKey] = session.Home.Path,
             [IntegrationSchema.Key("csharp", "RunTokenKey")] = session.RunTokenKey,
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
-            [global::DigitalBrain.Runtime.Orleans.TopologyContext.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
-            [global::DigitalBrain.Runtime.Orleans.TopologyContext.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
+            [DigitalBrain.Runtime.Orleans.TopologyContext.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
+            [DigitalBrain.Runtime.Orleans.TopologyContext.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
             // The AppHost's Orleans resource turns grain-call tracing on for every silo; the test host does when the fact collects diagnostics.
             ["Orleans:EnableDistributedTracing"] = plan.Execution.Diagnostics is null ? "false" : "true",
         });
@@ -220,7 +220,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain, ISignalDeliver
     public IBrain Self => Brains.Open(BrainScope.CurrentId()).Self;
     public IKernelView Kernel => Brains.Open(BrainScope.CurrentId()).Kernel;
 
-    public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : global::DigitalBrain.Signal
+    public IAsyncEnumerable<T> On<T>(object neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => Brains.On<T>(neuron, onSubscribed, cancellationToken);
 
     // Saved signals are delivered by the runtime's synapses; there is no local hub left to flush (06-08).

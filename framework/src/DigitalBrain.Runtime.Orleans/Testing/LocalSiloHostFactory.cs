@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Testing;
 
 /// <summary>
@@ -80,7 +81,7 @@ public sealed class LocalSiloHostFactory : IInProcessHostFactory
     private sealed class Unregistered : IClusterStoreRegistration
     {
         // LocalProfile already registered UnregisteredClusterStorage; nothing replaces it.
-        public void Register(global::Orleans.Hosting.ISiloBuilder silo) { }
+        public void Register(OrleansSdk.Hosting.ISiloBuilder silo) { }
     }
 }
 

@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 internal sealed class DeploymentNeuron(
     IClusterHost host,
     ICandidateHost candidates,
-    global::IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
+    IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
     IOptions<AspireOptions> options,
     ILogger<DeploymentNeuron> log)
     : DigitalBrain.Neuron, IDeployment, IDeploymentDriver, DigitalBrain.Spi.IRemindedNeuron
@@ -330,7 +330,7 @@ internal sealed class DeploymentNeuron(
 
     // Membership enters on the grain scheduler only when Orleans reports a change.
     // An old callback queued during deactivation cannot overwrite the next activation.
-    public async Task MembershipChanged(Guid expectedActivation, global::IntoChat.OS.Modules.Microsoft.Orleans.ClusterSnapshot? membershipSnapshot)
+    public async Task MembershipChanged(Guid expectedActivation, IntoChat.OS.Modules.Microsoft.Orleans.ClusterSnapshot? membershipSnapshot)
     {
         if (expectedActivation != activation) { return; }
         if (membershipSnapshot is not null && membershipSnapshot.Version < membershipVersion) { return; }

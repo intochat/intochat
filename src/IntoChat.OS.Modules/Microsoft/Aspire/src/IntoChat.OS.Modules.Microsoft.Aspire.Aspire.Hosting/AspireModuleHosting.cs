@@ -7,11 +7,12 @@ using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.ServiceDefaults;
-using global::Aspire.Hosting;
-using global::Aspire.Hosting.ApplicationModel;
-using global::Aspire.Hosting.Yarp;
-using global::Aspire.Hosting.Yarp.Transforms;
+using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Yarp;
+using Aspire.Hosting.Yarp.Transforms;
 
+using AspireSdk = Aspire;
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 // Candidates work in {repository}/.intochat-os (gitignored): worktrees, builds and the candidate Dockerfile.
@@ -146,12 +147,12 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
 
     private const string HealthyOnly = "HealthyAndUnknown";
 
-    private static global::Aspire.Hosting.Yarp.YarpCluster Probed(global::Aspire.Hosting.Yarp.YarpCluster cluster, string? available = null)
-        => cluster.WithHealthCheckConfig(new global::Yarp.ReverseProxy.Configuration.HealthCheckConfig
+    private static AspireSdk.Hosting.Yarp.YarpCluster Probed(AspireSdk.Hosting.Yarp.YarpCluster cluster, string? available = null)
+        => cluster.WithHealthCheckConfig(new Yarp.ReverseProxy.Configuration.HealthCheckConfig
         {
             AvailableDestinationsPolicy = available,
-            Active = new global::Yarp.ReverseProxy.Configuration.ActiveHealthCheckConfig { Enabled = true, Path = HealthPath },
-            Passive = new global::Yarp.ReverseProxy.Configuration.PassiveHealthCheckConfig { Enabled = true },
+            Active = new Yarp.ReverseProxy.Configuration.ActiveHealthCheckConfig { Enabled = true, Path = HealthPath },
+            Passive = new Yarp.ReverseProxy.Configuration.PassiveHealthCheckConfig { Enabled = true },
         });
 
     public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(1);
@@ -164,7 +165,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     public static readonly TimeSpan DrainDelay = (ProbeInterval + ProbeTimeout) * ConsecutiveFailures;
     public static string DrainDelayVariable => IntoChatOSConfiguration.EnvironmentName(HealthProbes.DrainDelayKey);
 
-    public const string OtlpHttpEndpoint = global::IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
+    public const string OtlpHttpEndpoint = IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
     public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";
     public const string DotnetContentRoot = "DOTNET_CONTENTROOT";
     public const string FeaturesFolder = "features";

@@ -4,6 +4,7 @@ using DigitalBrain.Runtime.Orleans.Synapses;
 using DigitalBrain.Runtime.Orleans.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration.Hosting;
 
 public sealed class RoutingLifecycleFacts
@@ -19,7 +20,7 @@ public sealed class RoutingLifecycleFacts
         var entered = new TaskCompletionSource<IGrainContext>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = await new LocalSiloHostFactory(new HostedSilo.Hosted(), services =>
         {
-            services.Configure<global::Orleans.Configuration.SiloMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromSeconds(3));
+            services.Configure<OrleansSdk.Configuration.SiloMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromSeconds(3));
             services.AddSingleton<IIncomingGrainCallFilter>(new Admitted(entered));
         }).Start(new InProcessHostOptions(), ct);
         var id = NeuronId.Parse("b1/probe.lifecycle/" + Guid.NewGuid().ToString("N"));

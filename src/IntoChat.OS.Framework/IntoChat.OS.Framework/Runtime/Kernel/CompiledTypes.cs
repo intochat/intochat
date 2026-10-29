@@ -28,7 +28,7 @@ public sealed class CompiledTypes
         // The host's confirmation inbox exists in every composition. Its framework signals are part of that public surface,
         // without exposing unrelated runtime contracts or every type loaded in the host.
         var visible = assemblies.Distinct().SelectMany(assembly => assembly.GetExportedTypes())
-            .Concat([typeof(global::DigitalBrain.Confirmation.ConfirmationRequested), typeof(global::DigitalBrain.Confirmation.ConfirmationResolved)])
+            .Concat([typeof(DigitalBrain.Confirmation.ConfirmationRequested), typeof(DigitalBrain.Confirmation.ConfirmationResolved)])
             .Distinct().ToArray();
         _neurons = visible.Where(IsNeuron).ToDictionary(type => type.FullName!, StringComparer.Ordinal);
         var aliases = new Dictionary<string, Type>(StringComparer.Ordinal);
@@ -82,7 +82,7 @@ public sealed class CompiledTypes
     // An os signal, or a DigitalBrain [Signal] record a migrated neuron publishes (06-03).
     private static bool IsSignal(Type type)
         => !type.IsAbstract && ((typeof(Signal).IsAssignableFrom(type) && type != typeof(Signal))
-            || (typeof(global::DigitalBrain.Signal).IsAssignableFrom(type) && type.IsDefined(typeof(global::DigitalBrain.SignalAttribute), inherit: false)));
+            || (typeof(DigitalBrain.Signal).IsAssignableFrom(type) && type.IsDefined(typeof(DigitalBrain.SignalAttribute), inherit: false)));
 
     private static TypeEntry Neuron(Type contract, string alias, string provider)
     {
@@ -99,7 +99,7 @@ public sealed class CompiledTypes
     }
 
     private static TypeEntry Signal(Type signal, string provider)
-        => new(signal.FullName!, NeuronAliases.Of(signal) ?? signal.GetCustomAttribute<global::DigitalBrain.SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!, TypeKind.Signal, provider,
+        => new(signal.FullName!, NeuronAliases.Of(signal) ?? signal.GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!, TypeKind.Signal, provider,
             signal.GetCustomAttribute<DescriptionAttribute>()?.Description ?? signal.Name,
             [.. signal.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.DeclaringType != typeof(Signal))

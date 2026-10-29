@@ -6,6 +6,7 @@ using DigitalBrain.Runtime.Orleans.Tests.Integration.Synapses;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration.Signalling;
 
 /// <summary>A synapse silo whose sessions and listeners check SessionTtl every 200 ms.</summary>
@@ -230,7 +231,7 @@ public sealed class SessionTtlFacts(SessionTtlSilo silo) : IClassFixture<Session
 public sealed class ShortResponseSilo : SessionSilo
 {
     protected override Action<IServiceCollection>? ConfigureServices
-        => services => services.Configure<global::Orleans.Configuration.SiloMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromSeconds(3));
+        => services => services.Configure<OrleansSdk.Configuration.SiloMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromSeconds(3));
 }
 
 // An idle long-poll answers before its caller's response timeout, so its answer is never dropped as expired and a batch cut into

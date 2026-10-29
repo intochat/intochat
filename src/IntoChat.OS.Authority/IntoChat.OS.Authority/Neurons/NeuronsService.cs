@@ -82,12 +82,12 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
 
     // The retained last signal of each type first, then live ones. Only [Signal] records are
     // published by a plain neuron; a gap is sent as nothing, because a change signal only tells the view to read again.
-    private async Task PlainPump(global::DigitalBrain.NeuronId id, string key, Type[] wanted, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)
+    private async Task PlainPump(DigitalBrain.NeuronId id, string key, Type[] wanted, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)
     {
         try
         {
             var signals = plain ?? throw new NotSupportedException("This host cannot watch plain neurons: it registers no IPlainSignals (the silo's kernel composition does).");
-            var types = wanted.Where(type => typeof(global::DigitalBrain.Signal).IsAssignableFrom(type))
+            var types = wanted.Where(type => typeof(DigitalBrain.Signal).IsAssignableFrom(type))
                 .ToDictionary(IntoChat.OS.Runtime.PlainSignalTypes.AliasOf, StringComparer.Ordinal);
             if (types.Count != wanted.Length) { throw new RpcException(new Status(StatusCode.InvalidArgument, $"{key} is a plain neuron: watch its [Signal] types.")); }
             async Task Replay()
@@ -111,7 +111,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IIntoChatOS brain, I
     }
 
     // The payload re-encoded with this edge's options, so a plain signal reads as its grain predecessor did.
-    private static SignalEnvelope PlainEnvelope(string key, global::DigitalBrain.NeuronId id, Type type, IntoChat.OS.Runtime.PlainSignalEntry entry) => new()
+    private static SignalEnvelope PlainEnvelope(string key, DigitalBrain.NeuronId id, Type type, IntoChat.OS.Runtime.PlainSignalEntry entry) => new()
     {
         Source = key,
         Type = type.Name,

@@ -1,3 +1,5 @@
+using MicrosoftSdk = Microsoft;
+
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 public sealed class FlutterHostOptions
@@ -7,7 +9,7 @@ public sealed class FlutterHostOptions
     public static readonly string WebContainerKey = SectionName + ":WebContainer";
 
     // Overlays the module options (IntoChatOS:Modules:flutter:Options:Hosting) onto host options.
-    public static FlutterHostOptions Overlay(FlutterHostOptions options, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
+    public static FlutterHostOptions Overlay(FlutterHostOptions options, MicrosoftSdk.Extensions.Configuration.IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(configuration);

@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using OrleansSdk = Orleans;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
@@ -875,9 +876,9 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.Create(new FakeSessionHost()).ConfigureServices(services =>
         {
             services.AddSingleton<IntoChat.OS.Modules.Microsoft.CSharp.Assemblies.IBehaviorAssemblies>(assemblies);
-            services.AddSingleton<global::Orleans.IIncomingGrainCallFilter>(duplicate);
+            services.AddSingleton<OrleansSdk.IIncomingGrainCallFilter>(duplicate);
         }).StartAsync(ct);
-        Assert.Same(duplicate, brain.Services.GetServices<global::Orleans.IIncomingGrainCallFilter>().Last());
+        Assert.Same(duplicate, brain.Services.GetServices<OrleansSdk.IIncomingGrainCallFilter>().Last());
         var previous = await Programs(brain).Assign(Owner, Synapse(), []);
         var hold = assemblies.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
         var stuck = Programs(brain).Assign(Owner, Synapse(RuntimeBrain.Idle + "// stuck\n"), []);
@@ -905,14 +906,14 @@ public sealed class BrainRuntimeNeuronFacts
         }
     }
 
-    private sealed class DuplicateAssign(string source) : global::Orleans.IIncomingGrainCallFilter
+    private sealed class DuplicateAssign(string source) : OrleansSdk.IIncomingGrainCallFilter
     {
         private int _assignments;
         public TaskCompletionSource Arrived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Dispatched { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async Task Invoke(global::Orleans.IIncomingGrainCallContext context)
+        public async Task Invoke(OrleansSdk.IIncomingGrainCallContext context)
         {
             if (context.InterfaceMethod.DeclaringType == typeof(INeuronHost)
                 && context.InterfaceMethod.Name == nameof(INeuronHost.InvokeInterleaved)
@@ -923,7 +924,7 @@ public sealed class BrainRuntimeNeuronFacts
                 && call.Arguments[1].EnumerateObject().Any(file => file.Value.GetString() == source)
                 && ++_assignments == 2)
             {
-                Assert.False(context.Grain is global::Orleans.IIncomingGrainCallFilter);
+                Assert.False(context.Grain is OrleansSdk.IIncomingGrainCallFilter);
                 Arrived.TrySetResult();
                 await Release.Task;
                 // This is the last filter. Dispatch synchronously enters Assign's request-joining prefix before awaiting it.

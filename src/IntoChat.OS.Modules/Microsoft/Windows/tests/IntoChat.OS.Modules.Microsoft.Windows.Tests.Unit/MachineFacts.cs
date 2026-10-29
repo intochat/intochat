@@ -1,3 +1,4 @@
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
 public sealed class MachineFacts : IDisposable
@@ -56,7 +57,7 @@ public sealed class MachineFacts : IDisposable
     public void TheMachineIdIsCreatedOnceThenReadBack()
     {
         var file = Path.Combine(_root, "state", "machine-id");
-        var options = global::Microsoft.Extensions.Options.Options.Create(new WindowsOptions { MachineIdFile = file });
+        var options = MicrosoftSdk.Extensions.Options.Options.Create(new WindowsOptions { MachineIdFile = file });
 
         var created = new MachineIdentity(options).Id;
 
@@ -70,7 +71,7 @@ public sealed class MachineFacts : IDisposable
     {
         var file = Path.Combine(_root, "machine-id");
         File.WriteAllText(file, "not-a-guid");
-        var options = global::Microsoft.Extensions.Options.Options.Create(new WindowsOptions { MachineIdFile = file });
+        var options = MicrosoftSdk.Extensions.Options.Options.Create(new WindowsOptions { MachineIdFile = file });
 
         Assert.Throws<InvalidDataException>(() => new MachineIdentity(options).Id);
         Assert.Equal("not-a-guid", File.ReadAllText(file));

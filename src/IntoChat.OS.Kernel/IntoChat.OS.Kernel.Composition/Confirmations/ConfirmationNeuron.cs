@@ -76,7 +76,7 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
     {
         var caller = RequireOwnCaller(required: true)!;
         // A human stamp inherited through a neuron's Get is a relayed click, not a direct edge answer.
-        var direct = string.IsNullOrEmpty(global::Orleans.Runtime.RequestContext.Get(KernelInvocationSink.CallerKey) as string);
+        var direct = string.IsNullOrEmpty(Orleans.Runtime.RequestContext.Get(KernelInvocationSink.CallerKey) as string);
         var human = direct && caller.Kind == CallerKind.User && caller.StampedBy == TrustedEdge.AuthenticatedHttp
             && caller.AppId is null && caller.OnBehalfOf is null && !AppPrincipal.IsApp(caller.PrincipalId)
             && !CallerContextStamper.IsModelOriginated(caller);

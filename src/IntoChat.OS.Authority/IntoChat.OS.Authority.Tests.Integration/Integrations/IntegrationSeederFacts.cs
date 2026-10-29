@@ -161,10 +161,10 @@ public sealed class IntegrationSeederFacts
         }
     }
 
-    private sealed class FailingRegistrationStorage(IGrainStorageSerializer serializer, int failures) : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
+    private sealed class FailingRegistrationStorage(IGrainStorageSerializer serializer, int failures) : IGrainStorage, Orleans.ILifecycleParticipant<Orleans.Runtime.ISiloLifecycle>
     {
         // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
-        public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+        public void Participate(Orleans.Runtime.ISiloLifecycle lifecycle) { }
 
         private readonly ConcurrentDictionary<(string, GrainId), BinaryData> data = new();
         public ConcurrentQueue<long> Attempts { get; } = new();

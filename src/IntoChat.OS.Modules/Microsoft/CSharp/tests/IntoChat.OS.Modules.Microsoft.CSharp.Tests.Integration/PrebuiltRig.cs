@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
 
 // A real brain, its real HTTP runtime edge and the real sandbox Session joined in process: assignments reach the session over its
@@ -96,7 +97,7 @@ internal sealed class PrebuiltRig : IAsyncDisposable
         var id = (await RuntimeBrain.Runtime(Brain, Scope).Inspect(ct)).SessionId!;
         var token = Brain.Services.GetRequiredService<SessionTokens>().Issue(Scope, id);
         Connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/" + Scope), token, RuntimeBrain.Fingerprint(Brain), new Forward(Brain.HttpClient), ct);
-        var loader = new BehaviorLoader(new HttpClient(new Memory(Store)), global::Microsoft.Extensions.Options.Options.Create(Options));
+        var loader = new BehaviorLoader(new HttpClient(new Memory(Store)), MicrosoftSdk.Extensions.Options.Options.Create(Options));
         Session = new Session(Connection, loader, NullLogger.Instance, time: time, drainDeadline: drainDeadline);
         var session = Session;
         _control = Task.Run(() => session.RunAsync(_stop.Token), ct);

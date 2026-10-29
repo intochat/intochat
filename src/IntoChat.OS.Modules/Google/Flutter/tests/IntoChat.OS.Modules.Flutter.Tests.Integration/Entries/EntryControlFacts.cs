@@ -57,7 +57,7 @@ public sealed class EntryControlFacts(FlutterHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithNeuronModule<IntoChat.OS.Modules.Apps.AppsNeurons>()
-            .ConfigureServices(services => global::DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(services, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly)).StartAsync(ct);
+            .ConfigureServices(services => DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(services, typeof(IntoChat.OS.Modules.Apps.IApp).Assembly)).StartAsync(ct);
         var control = brain.Get<IEntryControl>(brain.Owner.Key("settings/keys-openai"));
         await ShippedSettings.Install(brain.Get<IApp>, brain.Owner);
         using (ShippedSettings.Caller(brain.Owner)) { await control.Configure(new(EntryControlMode.Key, "OpenAI", "provider:openai")); }

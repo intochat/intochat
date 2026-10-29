@@ -7,6 +7,7 @@ using Orleans.Hosting;
 using Orleans.Runtime;
 using Orleans.Storage;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Azure.Tests.Integration;
 
 public interface ICloudProbeGrain : IGrainWithStringKey
@@ -90,8 +91,8 @@ internal static class CloudHosts
         builder.UseOrleans(silo =>
         {
             silo.ConfigureTopologySilo();
-            silo.Configure<global::Orleans.Configuration.ClusterOptions>(o => { o.ClusterId = clusterId; o.ServiceId = clusterId; });
-            silo.Configure<global::Orleans.Configuration.EndpointOptions>(o => o.AdvertisedIPAddress = System.Net.IPAddress.Loopback);
+            silo.Configure<OrleansSdk.Configuration.ClusterOptions>(o => { o.ClusterId = clusterId; o.ServiceId = clusterId; });
+            silo.Configure<OrleansSdk.Configuration.EndpointOptions>(o => o.AdvertisedIPAddress = System.Net.IPAddress.Loopback);
         });
         return builder.Build();
     }

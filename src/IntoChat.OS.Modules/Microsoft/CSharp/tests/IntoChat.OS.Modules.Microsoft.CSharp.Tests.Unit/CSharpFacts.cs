@@ -7,6 +7,7 @@ using IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using IntoChat.OS.Modules.Microsoft.CSharp.Files;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit;
 
 public sealed class CSharpFacts
@@ -143,11 +144,11 @@ public sealed class CSharpFacts
             var detail = await Discovery(Entry<IDiscoveryFixture>()).ReadDetail("fixture", typeof(IDiscoveryFixture).FullName!, "Defaults", TestContext.Current.CancellationToken);
             var schema = Assert.Single(detail.Contracts);
             var source = "public interface Defaults" + schema[schema.IndexOf(" {", StringComparison.Ordinal)..];
-            var compilation = global::Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("Defaults",
-                [global::Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken)],
-                [global::Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
-                new(global::Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary));
-            Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == global::Microsoft.CodeAnalysis.DiagnosticSeverity.Error));
+            var compilation = MicrosoftSdk.CodeAnalysis.CSharp.CSharpCompilation.Create("Defaults",
+                [MicrosoftSdk.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken)],
+                [MicrosoftSdk.CodeAnalysis.MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
+                new(MicrosoftSdk.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary));
+            Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == MicrosoftSdk.CodeAnalysis.DiagnosticSeverity.Error));
             Assert.Contains("float fraction = 0.5f", schema, StringComparison.Ordinal);
             Assert.Contains("decimal amount = 0.5m", schema, StringComparison.Ordinal);
         }

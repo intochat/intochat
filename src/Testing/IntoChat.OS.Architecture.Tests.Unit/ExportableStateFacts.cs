@@ -51,7 +51,7 @@ public sealed class ExportableStateFacts
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(global::DigitalBrain.Neuron<>)) { return current.GetGenericArguments()[0]; }
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(DigitalBrain.Neuron<>)) { return current.GetGenericArguments()[0]; }
         }
         return null;
     }

@@ -22,7 +22,7 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         var passwords = brain.Services.GetRequiredService<PrincipalPasswords>();
         var principal = interruptedHostingId;
         const string password = "long-test-password";
-        var hash = new global::Microsoft.AspNetCore.Identity.PasswordHasher<string>().HashPassword(principal, password);
+        var hash = new Microsoft.AspNetCore.Identity.PasswordHasher<string>().HashPassword(principal, password);
         Assert.True(await brain.Platform.Credential(principal).TryCreate(hash));
         var provision = await identity.RegisterPrincipal(principal, "Interrupted hosting");
         Assert.True(provision.NewBrain);
@@ -60,10 +60,10 @@ public sealed class ScopedAuthorityFacts(AuthorityHost host)
         Assert.NotNull(await brain.Platform.BrainAuthority(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
     }
 
-    private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
+    private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage, Orleans.ILifecycleParticipant<Orleans.Runtime.ISiloLifecycle>
     {
         // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
-        public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+        public void Participate(Orleans.Runtime.ISiloLifecycle lifecycle) { }
 
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, GrainId), BinaryData> _data = new();
         private int _armed;

@@ -13,6 +13,7 @@ using DigitalBrain.Testing.Conformance.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
 
+using OrleansSdk = Orleans;
 namespace DigitalBrain.Runtime.Orleans.Tests.Integration.Operations;
 
 /// <summary>Two in-memory storage connections, <c>a</c> and <c>b</c>, for every brain; <c>b</c> can be slowed down.</summary>
@@ -340,8 +341,8 @@ public sealed class OperationRestartFacts(OperationSilo silo) : IClassFixture<Op
             Assert.Equal(OperationSilo.DriverLifetime, before.DriverLifetime);
 
             await restarting.Restart(ct);
-            var address = restarting.Services.GetRequiredService<global::Orleans.Runtime.ILocalSiloDetails>().SiloAddress;
-            Assert.True(global::Orleans.Runtime.SiloAddress.TryParse(before.Driver!, out var previousAddress));
+            var address = restarting.Services.GetRequiredService<OrleansSdk.Runtime.ILocalSiloDetails>().SiloAddress;
+            Assert.True(OrleansSdk.Runtime.SiloAddress.TryParse(before.Driver!, out var previousAddress));
             Assert.NotEqual(previousAddress.Endpoint, address.Endpoint);
             // The host adapter supplies this proof; membership alone cannot recognize the changed endpoint.
             restarting.DriverEnded = true;

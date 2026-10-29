@@ -43,7 +43,7 @@ internal sealed class PlainInstanceRegistration(IServiceProvider services, IGrai
 
     private async Task RegisterAsync(IIncomingGrainCallContext context, RuntimeInvocation call)
     {
-        if (IsReadOnly(call) || !global::DigitalBrain.NeuronId.TryParse(context.TargetId.Key.ToString()!, out var id)) { return; }
+        if (IsReadOnly(call) || !DigitalBrain.NeuronId.TryParse(context.TargetId.Key.ToString()!, out var id)) { return; }
         if (StateNameOf(id.Type) is not { } stateName) { return; }
         var fullKey = $"{id.Brain.Value}/{id.Key}";
         if (BrainKey.ScopeOf(fullKey) is not { } brain) { return; }
@@ -68,9 +68,9 @@ internal sealed class PlainInstanceRegistration(IServiceProvider services, IGrai
             catch (ReflectionTypeLoadException error) { candidates = [.. error.Types.OfType<Type>()]; }
             foreach (var candidate in candidates)
             {
-                if (!candidate.IsClass || candidate.GetCustomAttribute<global::DigitalBrain.NeuronAttribute>(inherit: false) is not { } neuron
+                if (!candidate.IsClass || candidate.GetCustomAttribute<DigitalBrain.NeuronAttribute>(inherit: false) is not { } neuron
                     || !string.Equals(neuron.Type, name, StringComparison.Ordinal)) { continue; }
-                return candidate.IsDefined(typeof(global::DigitalBrain.StatelessNeuronAttribute), inherit: false) ? null : neuron.State ?? "state";
+                return candidate.IsDefined(typeof(DigitalBrain.StatelessNeuronAttribute), inherit: false) ? null : neuron.State ?? "state";
             }
         }
         return null;
@@ -82,7 +82,7 @@ internal sealed class PlainInstanceRegistration(IServiceProvider services, IGrai
         var method = new[] { contract }.Concat(contract.GetInterfaces()).SelectMany(face => face.GetMethods())
             .FirstOrDefault(candidate => candidate.Name == key.Method
                 && candidate.GetParameters().Count(parameter => parameter.ParameterType != typeof(CancellationToken)) == key.Arity);
-        return method?.IsDefined(typeof(global::DigitalBrain.ReadOnlyCallAttribute), inherit: false) == true;
+        return method?.IsDefined(typeof(DigitalBrain.ReadOnlyCallAttribute), inherit: false) == true;
     });
 
     private sealed class Known

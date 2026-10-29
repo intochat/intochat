@@ -14,8 +14,8 @@ public sealed class McpRuntimeFacts(McpHost host)
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
         var services = new ServiceCollection();
-        global::IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(services, brain.Services);
-        global::IntoChat.OS.Kernel.Composition.AuthorityGrainsHosting.AddAuthorityGrains(services);
+        IntoChat.OS.Kernel.Composition.KernelTestHooks.ShareGrains(services, brain.Services);
+        IntoChat.OS.Kernel.Composition.AuthorityGrainsHosting.AddAuthorityGrains(services);
         services.AddLocalPlatformClients();
         await using var client = services.BuildServiceProvider();
         var membership = await client.GetRequiredService<IIdentityClient>().Membership("owner", "owner");

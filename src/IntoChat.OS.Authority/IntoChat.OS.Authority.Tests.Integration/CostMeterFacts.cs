@@ -306,10 +306,10 @@ public sealed class CostMeterFacts
 
     // Platform grain storage that counts the usage grain's writes once asked to and holds the first of them out.
     // A write stores the state as it was when the write started, as a blob upload does.
-    private sealed class HeldUsageWrites : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
+    private sealed class HeldUsageWrites : IGrainStorage, Orleans.ILifecycleParticipant<Orleans.Runtime.ISiloLifecycle>
     {
         // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
-        public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+        public void Participate(Orleans.Runtime.ISiloLifecycle lifecycle) { }
 
         private const string UsageState = "usage";
         private readonly ConcurrentDictionary<(string, GrainId), byte[]> _records = new();

@@ -69,11 +69,11 @@ public sealed class AuthHost : BrainHostFixture
             services.AddSingleton<IMailSender>(Sender);
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
-            services.PostConfigure<global::Microsoft.AspNetCore.Authentication.Google.GoogleOptions>("Google", options =>
+            services.PostConfigure<Microsoft.AspNetCore.Authentication.Google.GoogleOptions>("Google", options =>
             {
                 options.BackchannelHttpHandler = Google;
                 options.Backchannel = new HttpClient(Google);
-                options.CorrelationCookie.SecurePolicy = global::Microsoft.AspNetCore.Http.CookieSecurePolicy.None;
+                options.CorrelationCookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.None;
             });
             services.AddLogging(logging =>
             {
@@ -204,8 +204,8 @@ public sealed class AuthHost : BrainHostFixture
     // The member stamped as an authenticated HTTP caller, for direct [Public] neuron calls.
     public static IDisposable AsCaller(AuthUser user)
     {
-        var previous = global::Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        global::Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, new CallerContext
+        var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
+        Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, new CallerContext
         {
             PrincipalId = user.PrincipalId,
             AccountId = user.AccountId,
@@ -222,11 +222,11 @@ public sealed class AuthHost : BrainHostFixture
         {
             if (previous is null)
             {
-                global::Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+                Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
             }
             else
             {
-                global::Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, previous);
+                Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, previous);
             }
         }
     }

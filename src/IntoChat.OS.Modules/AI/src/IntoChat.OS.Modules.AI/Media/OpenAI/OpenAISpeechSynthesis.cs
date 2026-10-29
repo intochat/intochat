@@ -1,7 +1,7 @@
 using System.ClientModel;
 using IntoChat.OS.Modules.AI.Models;
-using global::OpenAI;
-using global::OpenAI.Audio;
+using OpenAI;
+using OpenAI.Audio;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.AI.Media.OpenAI;

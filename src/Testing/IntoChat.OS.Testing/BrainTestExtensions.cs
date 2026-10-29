@@ -57,7 +57,7 @@ public static class BrainTestExtensions
         ArgumentNullException.ThrowIfNull(brain);
         var target = neuron is DigitalBrain.Invocation.NeuronProxy proxy ? proxy.Target
             : throw new ArgumentException("Deactivate a plain neuron obtained from this brain's Get.", nameof(neuron));
-        return brain.DeactivateAsync(global::IntoChat.OS.Kernel.Composition.KernelTestHooks.Host(brain.Services, target), cancellationToken);
+        return brain.DeactivateAsync(IntoChat.OS.Kernel.Composition.KernelTestHooks.Host(brain.Services, target), cancellationToken);
     }
 
     public static BehaviorRun RunBehavior(this IIntoChatOS brain, Func<IIntoChatOS, CancellationToken, Task> body, CancellationToken cancellationToken = default)

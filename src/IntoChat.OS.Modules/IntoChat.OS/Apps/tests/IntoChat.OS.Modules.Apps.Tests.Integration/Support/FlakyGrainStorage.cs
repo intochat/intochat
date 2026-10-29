@@ -5,10 +5,10 @@ using Orleans.Storage;
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
 // Grain storage that fails the next write matching FailNextWrite, to prove commands survive a lost save.
-internal sealed class FlakyGrainStorage : IGrainStorage, global::Orleans.ILifecycleParticipant<global::Orleans.Runtime.ISiloLifecycle>
+internal sealed class FlakyGrainStorage : IGrainStorage, Orleans.ILifecycleParticipant<Orleans.Runtime.ISiloLifecycle>
 {
     // It replaces a topology grain store, whose Orleans registration takes it as a silo lifecycle participant.
-    public void Participate(global::Orleans.Runtime.ISiloLifecycle lifecycle) { }
+    public void Participate(Orleans.Runtime.ISiloLifecycle lifecycle) { }
 
     private readonly ConcurrentDictionary<(string StateName, GrainId GrainId), object?> _states = new();
 

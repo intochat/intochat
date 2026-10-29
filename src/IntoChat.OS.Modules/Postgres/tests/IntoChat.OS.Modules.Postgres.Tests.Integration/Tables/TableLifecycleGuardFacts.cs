@@ -19,7 +19,7 @@ public sealed class TableLifecycleGuardFacts
         using (brain.Owner.AsCaller())
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new TableOwner("other-brain", "install").Key).ReadTables);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new global::DigitalBrain.NeuronId(new(brain.Owner.BrainId), TableIndexNeuron.GrainType, "not-a-key")).ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(neurons.Get<ITableIndex>(new DigitalBrain.NeuronId(new(brain.Owner.BrainId), TableIndexNeuron.GrainType, "not-a-key")).ReadTables);
         }
         using (brain.Owner.AsApp("install"))
         {

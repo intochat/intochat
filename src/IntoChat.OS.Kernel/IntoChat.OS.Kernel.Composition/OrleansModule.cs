@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
-using global::Orleans.Hosting;
+using Orleans.Hosting;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;

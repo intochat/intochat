@@ -118,7 +118,7 @@ public sealed class NeuronSurface(IIntoChatOS brain, IKernelView kernel, NeuronT
 
     // The runtime id of the neuron a plain contract and key name (06-07b: a plain neuron is watched through the session synapse
     // neuron, not a reference), or null when the contract is still a grain contract.
-    public async Task<global::DigitalBrain.NeuronId?> PlainId(string contract, string key, CancellationToken ct)
+    public async Task<DigitalBrain.NeuronId?> PlainId(string contract, string key, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);

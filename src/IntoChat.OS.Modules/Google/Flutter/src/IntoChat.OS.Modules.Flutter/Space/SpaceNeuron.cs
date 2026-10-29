@@ -8,6 +8,7 @@ using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
+using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
@@ -132,8 +133,8 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         var types = compiled.Entries;
         if (!types.Any(type => type.Name == typeof(IApp).FullName) || !types.Any(type => type.Name == typeof(IScene).FullName)) { return; }
         // This is the module's derived write, even when an app's Show caused the invalidation.
-        var inherited = global::Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        global::Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        var inherited = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
             // A presentation change rewrites one app. Workspace, circle and profile changes
@@ -188,7 +189,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         }
         finally
         {
-            if (inherited is not null) { global::Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+            if (inherited is not null) { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
         }
     }
 
@@ -234,7 +235,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
     // then the space composes once.
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        var watcher = Context.Services.GetService(typeof(IEnumerable<global::Microsoft.Extensions.Hosting.IHostedService>)) is IEnumerable<global::Microsoft.Extensions.Hosting.IHostedService> hosted
+        var watcher = Context.Services.GetService(typeof(IEnumerable<MicrosoftSdk.Extensions.Hosting.IHostedService>)) is IEnumerable<MicrosoftSdk.Extensions.Hosting.IHostedService> hosted
             ? hosted.OfType<SpaceWatcher>().FirstOrDefault() : null;
         if (watcher is not null) { await watcher.Follow(Id.Brain.Value); }
         await Rebuild();

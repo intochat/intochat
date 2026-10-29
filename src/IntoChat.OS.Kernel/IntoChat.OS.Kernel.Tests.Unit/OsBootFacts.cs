@@ -97,7 +97,7 @@ public sealed class OsBootFacts
         await brain.Services.GetRequiredService<IntoChat.OS.Modules.Flutter.IUiRootProvider>().Connect(ct);
 
         Assert.Empty((await brain.Get<IApp>(IApp.Key(person.BrainId, "not-installed-app")).Read()).Manifest.Title);
-        Assert.Equal(["os", "intochat"], brain.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<OsAppsOptions>>().Value.TrustedPublishers);
+        Assert.Equal(["os", "intochat"], brain.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<OsAppsOptions>>().Value.TrustedPublishers);
         Assert.Equal(["os"], new OsAppsOptions().TrustedPublishers);
     }
 

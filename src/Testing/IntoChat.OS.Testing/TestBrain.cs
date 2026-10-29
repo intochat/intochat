@@ -50,7 +50,7 @@ public sealed class TestBrain
     }
 
     // A DigitalBrain module (06-02): its plain [Neuron] classes run on the runtime host grains beside the Framework modules.
-    public TestBrain WithNeuronModule<TModule>() where TModule : global::DigitalBrain.Module
+    public TestBrain WithNeuronModule<TModule>() where TModule : DigitalBrain.Module
     {
         EnsureMutable();
         if (!_neuronModules.Contains(typeof(TModule))) { _neuronModules.Add(typeof(TModule)); }

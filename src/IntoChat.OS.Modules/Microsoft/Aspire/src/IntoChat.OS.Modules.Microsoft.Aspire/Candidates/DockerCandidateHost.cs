@@ -340,7 +340,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         return environment;
     }
 
-    internal const string OtlpHttpEndpoint = global::IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
+    internal const string OtlpHttpEndpoint = IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
     internal static readonly string[] ExportCadence = ["OTEL_BSP_SCHEDULE_DELAY", "OTEL_BLRP_SCHEDULE_DELAY", "OTEL_METRIC_EXPORT_INTERVAL"];
 
     private static string FromContainer(string url)

@@ -18,7 +18,7 @@ public static class OrleansDashboard
         ArgumentNullException.ThrowIfNull(app);
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard)
         {
-            global::Orleans.Dashboard.ServiceCollectionExtensions.MapOrleansDashboard(app, routePrefix: Path)
+            Orleans.Dashboard.ServiceCollectionExtensions.MapOrleansDashboard(app, routePrefix: Path)
                 .AddEndpointFilter(static async (context, next) =>
                     CallerContextStamper.TryGet(out _) ? await next(context) : Results.Unauthorized());
         }

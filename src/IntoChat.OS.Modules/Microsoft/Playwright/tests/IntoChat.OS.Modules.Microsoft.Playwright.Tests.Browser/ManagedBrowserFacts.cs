@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 
+using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser;
 
 public sealed class ManagedBrowserFacts
@@ -89,7 +90,7 @@ public sealed class ManagedBrowserFacts
         var workers = (System.Collections.IDictionary)typeof(PlaywrightSessionProvider)
             .GetField("_workers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(provider)!;
         var worker = workers["account-a"]!;
-        var browser = (global::Microsoft.Playwright.IBrowser)worker.GetType().GetProperty("Browser")!.GetValue(worker)!;
+        var browser = (MicrosoftSdk.Playwright.IBrowser)worker.GetType().GetProperty("Browser")!.GetValue(worker)!;
         await browser.CloseAsync();
         Assert.False(first.Connected);
         Assert.False(sibling.Connected);

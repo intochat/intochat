@@ -3,32 +3,33 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.ClientModel.Primitives;
-using global::Azure;
-using global::Azure.Core;
-using global::Azure.Core.Pipeline;
-using global::Azure.Identity;
-using global::Azure.Security.KeyVault.Secrets;
-using global::Azure.ResourceManager;
-using global::Azure.ResourceManager.AppContainers;
-using global::Azure.ResourceManager.AppContainers.Models;
-using global::Azure.ResourceManager.Authorization;
-using global::Azure.ResourceManager.Authorization.Models;
-using global::Azure.ResourceManager.ContainerRegistry;
-using global::Azure.ResourceManager.ContainerRegistry.Models;
-using global::Azure.ResourceManager.KeyVault;
-using global::Azure.ResourceManager.KeyVault.Models;
-using global::Azure.ResourceManager.ManagedServiceIdentities;
-using global::Azure.ResourceManager.Network;
-using global::Azure.ResourceManager.Network.Models;
-using global::Azure.ResourceManager.Models;
-using global::Azure.ResourceManager.OperationalInsights;
-using global::Azure.ResourceManager.OperationalInsights.Models;
-using global::Azure.ResourceManager.PostgreSql.FlexibleServers;
-using global::Azure.ResourceManager.PostgreSql.FlexibleServers.Models;
-using global::Azure.ResourceManager.Resources;
-using global::Azure.ResourceManager.Storage;
-using global::Azure.ResourceManager.Storage.Models;
+using Azure;
+using Azure.Core;
+using Azure.Core.Pipeline;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
+using Azure.ResourceManager;
+using Azure.ResourceManager.AppContainers;
+using Azure.ResourceManager.AppContainers.Models;
+using Azure.ResourceManager.Authorization;
+using Azure.ResourceManager.Authorization.Models;
+using Azure.ResourceManager.ContainerRegistry;
+using Azure.ResourceManager.ContainerRegistry.Models;
+using Azure.ResourceManager.KeyVault;
+using Azure.ResourceManager.KeyVault.Models;
+using Azure.ResourceManager.ManagedServiceIdentities;
+using Azure.ResourceManager.Network;
+using Azure.ResourceManager.Network.Models;
+using Azure.ResourceManager.Models;
+using Azure.ResourceManager.OperationalInsights;
+using Azure.ResourceManager.OperationalInsights.Models;
+using Azure.ResourceManager.PostgreSql.FlexibleServers;
+using Azure.ResourceManager.PostgreSql.FlexibleServers.Models;
+using Azure.ResourceManager.Resources;
+using Azure.ResourceManager.Storage;
+using Azure.ResourceManager.Storage.Models;
 
+using AzureSdk = Azure;
 namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 // The real calls: one idempotent CreateOrUpdate (a PUT) per kind, under DefaultAzureCredential.
@@ -183,7 +184,7 @@ public sealed class ArmAzure : IAzureArm
         var tenant = Guid.TryParse(spec.TenantId, out var given)
             ? given
             : (await sub.GetAsync(ct)).Value.Data.TenantId ?? throw new InvalidOperationException("The subscription has no tenant id.");
-        var properties = new global::Azure.ResourceManager.KeyVault.Models.KeyVaultProperties(tenant, new KeyVaultSku(KeyVaultSkuFamily.A, KeyVaultSkuName.Standard)) { EnableRbacAuthorization = true };
+        var properties = new AzureSdk.ResourceManager.KeyVault.Models.KeyVaultProperties(tenant, new KeyVaultSku(KeyVaultSkuFamily.A, KeyVaultSkuName.Standard)) { EnableRbacAuthorization = true };
         var content = new KeyVaultCreateOrUpdateContent(location, properties);
         Apply(spec, content.Tags);
         var made = await rg.GetKeyVaults().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, content, ct);

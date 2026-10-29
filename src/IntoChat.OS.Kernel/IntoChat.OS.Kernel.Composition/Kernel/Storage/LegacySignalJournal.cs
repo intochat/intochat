@@ -11,7 +11,7 @@ namespace IntoChat.OS.Kernel.Composition;
 // number a legacy Save reports through SignalJournal.Appended. Entries the os cannot decode (plain neurons' records) are skipped.
 internal sealed partial class LegacySignalJournal(IBrainJournalWriter journal, Serializer serializer, ILogger<LegacySignalJournal> logger) : ISignalJournal
 {
-    private const int Page = global::DigitalBrain.SignalPage.MaxLimit;
+    private const int Page = DigitalBrain.SignalPage.MaxLimit;
 
     public async Task<long> Append(GrainId publisher, Signal[] signals)
     {

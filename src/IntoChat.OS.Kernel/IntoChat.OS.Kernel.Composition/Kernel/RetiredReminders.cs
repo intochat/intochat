@@ -33,7 +33,7 @@ internal sealed class RetiredReminderGrain(IReminderRegistry reminders) : Grain,
     internal static GrainId? Target(string legacyKey)
     {
         if (NeuronAddress.ScopeOf(legacyKey) is not { } brain) { return null; }
-        var id = new global::DigitalBrain.NeuronId(new global::DigitalBrain.BrainId(brain), LegacyType, legacyKey[(brain.Length + 1)..]);
+        var id = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), LegacyType, legacyKey[(brain.Length + 1)..]);
         return GrainId.Create(HostType, id.ToString());
     }
 }

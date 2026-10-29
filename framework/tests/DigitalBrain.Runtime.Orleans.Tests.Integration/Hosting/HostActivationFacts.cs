@@ -67,7 +67,7 @@ public sealed class HostActivationFacts
         Assert.Equal(HostPolicy.Stateless, registry.Require("probe.stateless").Policy);
         Assert.Equal(HostPolicy.Affine, registry.Require("probe").Policy);
         Assert.DoesNotContain(registry.Require("probe").Contracts, face => face.Assembly == typeof(Neuron).Assembly);
-        Assert.Contains("emitted.missing", Assert.Throws<global::DigitalBrain.Invocation.BindingException>(() => registry.Require("emitted.missing")).Message);
+        Assert.Contains("emitted.missing", Assert.Throws<DigitalBrain.Invocation.BindingException>(() => registry.Require("emitted.missing")).Message);
 
         var clash = Emit(("Emitted.Clash", typeof(Neuron), "probe"));
         var error = Assert.Throws<InvalidOperationException>(() => new NeuronTypeRegistry([typeof(ProbeNeuron).Assembly, clash]));
