@@ -13,7 +13,6 @@ using IntoChat.OS.Framework.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using Orleans;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -21,7 +20,6 @@ namespace IntoChat.OS.Modules.Apps;
 // shapes the spec; the Builder loop runs on the work queue, streaming progress into the
 // neuron — never inside a request, never inside a grain turn.
 internal sealed class Creator(
-    IGrainFactory grains,
     IServiceProvider plain,
     NeuronTypeSearch search,
     IOptions<AppsOptions> options,
@@ -179,7 +177,7 @@ internal sealed class Creator(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return Parse<AuthoredApp>(await grains.GetGrain<ICreatorModel>(0L).Complete(brainId, AuthorModel, AgentPrompts.Author, prompt));
+                return Parse<AuthoredApp>(await CreatorModel.Complete(plain, brainId, AuthorModel, AgentPrompts.Author, prompt, cancellationToken));
             }
             catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException && retry < MaxAuthorRetries)
             {
@@ -200,9 +198,8 @@ internal sealed class Creator(
         for (var round = 0; round < MaxBuilderRounds; round++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = (await grains.GetGrain<ICreatorModel>(0L).Generate(brainId, BuilderModel,
-                JsonSerializer.SerializeToElement(new InferenceRequest(messages, Tools: BuilderTools.Definitions), RuntimeProtocol.Json)))
-                .Deserialize<InferenceResult>(RuntimeProtocol.Json)!;
+            var result = await CreatorModel.Generate(plain, brainId, BuilderModel,
+                new InferenceRequest(messages, Tools: BuilderTools.Definitions), cancellationToken);
             messages.AddRange(result.Messages);
             var calls = result.Messages.SelectMany(message => message.Content).OfType<AiToolCall>().ToArray();
             if (calls.Length == 0)

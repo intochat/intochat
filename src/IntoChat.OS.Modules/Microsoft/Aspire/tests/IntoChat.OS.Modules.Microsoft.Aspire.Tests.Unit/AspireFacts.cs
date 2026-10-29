@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit;
@@ -40,5 +42,26 @@ public sealed class AspireFacts
         Assert.Equal(["c1", "c2"], queued.Queue);
         Assert.Equal("c1", promoted.Live);
         Assert.Equal(["c2"], promoted.Queue);
+    }
+
+    [Fact]
+    public async Task AspireNeuronRecordsAndQueriesLogsAndTracesOnTestOS()
+    {
+        await using var os = TestOS.Local();
+        os.Register<AspireNeuron>();
+        var aspire = os.Get<IAspire>(new NeuronId(new BrainId("local"), "aspire", "aspire"));
+
+        var resources = await aspire.GetResourcesAsync();
+        Assert.Contains(resources, r => r.Name == "OperatingSystem");
+
+        await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "OperatingSystem", "Error", "NullReferenceException in CalculatorApp", "System.NullReferenceException"));
+        await aspire.RecordTraceAsync(new AspireTraceSpan("trace-1", "span-1", "OperatingSystem", "calculator.add", "Error", 1250, "DivideByZeroException"));
+
+        var errorLogs = await aspire.GetStructuredLogsAsync("OperatingSystem", "Error");
+        Assert.Single(errorLogs);
+        var consoleLines = await aspire.GetConsoleLogsAsync("OperatingSystem", 10);
+        Assert.Single(consoleLines);
+        var errorTraces = await aspire.GetTracesAsync("OperatingSystem", errorsOnly: true);
+        Assert.Single(errorTraces);
     }
 }

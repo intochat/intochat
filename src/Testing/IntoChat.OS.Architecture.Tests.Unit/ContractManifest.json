@@ -8,8 +8,7 @@
     "IntoChat.OS.Kernel.Composition.CompiledTypeTableGrain": "kernel.compiledtypes",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "kernel.instances",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "kernel.types",
-    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable",
-    "IntoChat.OS.Modules.Apps.CreatorModelWorker": "apps.creator-model"
+    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable"
   },
   "GrainInterfaces": {
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain",
@@ -17,8 +16,7 @@
     "IntoChat.OS.Connections.Platform.Entries.IBrainEntries": "brain.entries",
     "IntoChat.OS.Connections.Platform.Integrations.IIntegration": "integration.registration",
     "IntoChat.OS.Framework.ITypeTable": "kernel.type-table",
-    "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory",
-    "IntoChat.OS.Modules.Apps.ICreatorModel": "apps.creator-model"
+    "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory"
   },
   "Contracts": {
     "IntoChat.OS.Authority.Entries.BrainEntriesState": "brain.entries-state; Entries=0, Version=1",
@@ -89,7 +87,6 @@
     "IntoChat.OS.Modules.Apps.AppReleaseRecord": "apps.release-record; Publication=0, Bundle=1",
     "IntoChat.OS.Modules.Apps.AppState": "apps.state2; Manifest=0, Spec=1, LegacyFiles=2, LegacySettings=3, LegacyConnections=4, Version=5, Status=6, Activity=7, History=8, BuildAttempt=9, BuildStartedAt=10, BrainScopeId=11, Principal=12, Receipts=17, PublishedVersion=18, Origin=19, Edited=20, Published=21, Publisher=22, RequestRetention=23, RequestSequence=24, LastActivity=25, ActivitySequence=26, Synapses=27, Releases=28, Installation=29, ProgramRevision=30, Presentation=31, Migration=32, MigrationPaused=33, MigrationArchive=34, MigrationSource=35, MigrationTarget=36, MigrationRequests=37, FileEntries=38, SettingEntries=39, ConnectionEntries=40",
     "IntoChat.OS.Modules.Apps.AppVersionRecord": "apps.version-record; Version=0, SavedAt=1, Manifest=2, Spec=3, LegacyFiles=4, FileEntries=5",
-    "IntoChat.OS.Modules.Apps.ICreatorModel": "apps.creator-model (not generated); ",
     "IntoChat.OS.Modules.Apps.OperationReceipt": "apps.operation-receipt; OperationId=0, RequestHash=1, Result=2",
     "IntoChat.OS.Modules.Apps.RetainedRequest": "apps.retained-request; Sequence=0, Request=1",
     "IntoChat.OS.Modules.Apps.StagedProgram": "apps.staged-program; Sources=0, Configuration=1, Principal=2",
@@ -346,6 +343,7 @@
     "IntoChat.OS.Modules.LocalDisk.LocalDiskRootsChanged": "LocalDiskRootsChanged",
     "IntoChat.OS.Modules.Mcp.McpServerChanged": "McpServerChanged",
     "IntoChat.OS.Modules.Mcp.McpToolRan": "McpToolRan",
+    "IntoChat.OS.Modules.Microsoft.Aspire.AspireTelemetryChanged": "AspireTelemetryChanged",
     "IntoChat.OS.Modules.Microsoft.Aspire.CandidateChanged": "CandidateChanged",
     "IntoChat.OS.Modules.Microsoft.Aspire.CandidateFailed": "CandidateFailed",
     "IntoChat.OS.Modules.Microsoft.Aspire.CandidateHealthy": "CandidateHealthy",

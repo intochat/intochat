@@ -12,7 +12,6 @@ using IntoChat.OS.Connections.Contracts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using Orleans;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -23,7 +22,6 @@ namespace IntoChat.OS.Modules.Apps;
 // the compiler gate it, with at most one repair; WriteBehavior makes it live and CompleteSynapse records
 // the outcome. The app neuron holds everything durable; the job completes its request on every path.
 internal sealed class ReactionWriter(
-    IGrainFactory grains,
     IServiceProvider plain,
     IKernel kernel,
     ReactionExamples examples,
@@ -306,9 +304,8 @@ internal sealed class ReactionWriter(
         var settings = options.Value;
         var selection = new ModelSelection(Reasoning: settings.FastPathReasoning is { Length: > 0 } reasoning ? reasoning.ToLowerInvariant() : null,
             MaxOutputTokens: settings.FastPathMaxOutputTokens);
-        var result = (await grains.GetGrain<ICreatorModel>(0L).Generate(brain, Model, JsonSerializer.SerializeToElement(new InferenceRequest(
-            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection), RuntimeProtocol.Json)).WaitAsync(cancellationToken))
-            .Deserialize<InferenceResult>(RuntimeProtocol.Json)!;
+        var result = await CreatorModel.Generate(plain, brain, Model, new InferenceRequest(
+            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection), cancellationToken).WaitAsync(cancellationToken);
         span?.SetTag("apps.fastpath.input_tokens", result.Usage?.InputTokens);
         span?.SetTag("apps.fastpath.output_tokens", result.Usage?.OutputTokens);
         var text = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();

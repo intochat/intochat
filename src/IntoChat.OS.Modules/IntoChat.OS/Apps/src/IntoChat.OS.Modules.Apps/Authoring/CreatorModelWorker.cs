@@ -1,41 +1,25 @@
-using System.Text.Json;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using Orleans.Concurrency;
-using Orleans.Runtime;
-using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The Creator services run outside any grain, so their model calls hop through this worker:
-// grain-to-grain calls carry the kernel's trusted stamp, and no service ever mints one. The call
-// lands on the model neuron of the brain the work is for.
-[Alias("apps.creator-model"), Orleans.Metadata.DefaultGrainType("apps.creator-model")]
-public interface ICreatorModel : IGrainWithIntegerKey
+internal static class CreatorModel
 {
-    [ResponseTimeout("00:10:00")] Task<string> Complete(string brainId, string model, string system, string prompt);
-    // InferenceRequest and InferenceResult stay JSON (RuntimeProtocol.Json). JsonElement is the grain wire (JsonElementCodec).
-    [ResponseTimeout("00:10:00")] Task<JsonElement> Generate(string brainId, string model, JsonElement request);
-}
-
-[GrainType("apps.creator-model"), StatelessWorker, Reentrant]
-internal sealed class CreatorModelWorker : Grain, ICreatorModel
-{
-    // The model neurons are plain neurons (06-05); this worker stays a raw grain (allow-listed until Phase 12) and reaches them
-    // through the kernel's plain-neuron seam, still from inside a grain call, so the trusted stamp flows on.
-    private IServiceProvider Models => ServiceProvider;
-
-    public Task<string> Complete(string brainId, string model, string system, string prompt)
-        => CompleteModel(Models, brainId, model, system, prompt);
-
-    public async Task<JsonElement> Generate(string brainId, string model, JsonElement request)
+    public static async Task<string> Complete(IServiceProvider neurons, string brainId, string model, string system, string prompt, CancellationToken cancellationToken = default)
     {
-        var typed = request.Deserialize<InferenceRequest>(RuntimeProtocol.Json)
-            ?? throw new ArgumentException("The request JSON is empty.", nameof(request));
-        var result = await Resolve(Models, brainId, model).Generate(typed);
-        return JsonSerializer.SerializeToElement(result, RuntimeProtocol.Json);
+        var result = await Resolve(neurons, brainId, model).Generate(new InferenceRequest(
+        [
+            new AiMessage("system", [new AiText(system)]),
+            new AiMessage("user", [new AiText(prompt)]),
+        ]), cancellationToken);
+        return string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
+    }
+
+    public static Task<InferenceResult> Generate(IServiceProvider neurons, string brainId, string model, InferenceRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Resolve(neurons, brainId, model).Generate(request, cancellationToken);
     }
 
     private static ILLM Resolve(IServiceProvider neurons, string brainId, string model)
@@ -44,15 +28,5 @@ internal sealed class CreatorModelWorker : Grain, ICreatorModel
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
         var marker = LLMModel.FindByMarkerName(model)?.Marker ?? throw new ArgumentException($"Unknown model '{model}'.", nameof(model));
         return (ILLM)SiloNeurons.Get(neurons, marker, ModelAddress.Key(brainId));
-    }
-
-    private static async Task<string> CompleteModel(IServiceProvider neurons, string brainId, string model, string system, string user, CancellationToken cancellationToken = default)
-    {
-        var result = await Resolve(neurons, brainId, model).Generate(new InferenceRequest(
-        [
-            new AiMessage("system", [new AiText(system)]),
-            new AiMessage("user", [new AiText(user)]),
-        ]), cancellationToken);
-        return string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
     }
 }

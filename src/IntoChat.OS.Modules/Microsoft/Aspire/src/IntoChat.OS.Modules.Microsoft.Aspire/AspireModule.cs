@@ -34,8 +34,8 @@ public sealed class AspireModule : DigitalBrain.Module
     // Discovery refuses a connector without an authentication method; the deployment's Workdir is its only credential.
     public static ConnectorDefinition Connector => new("aspire", "Aspire", ["deployment"], ["aspire"])
     {
-        Neurons = [typeof(ICandidate), typeof(IDeployment)],
-        Signals = [typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
+        Neurons = [typeof(IAspire), typeof(ICandidate), typeof(IDeployment)],
+        Signals = [typeof(AspireTelemetryChanged), typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
     };
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
