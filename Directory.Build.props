@@ -65,6 +65,10 @@
   <PropertyGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
+    <!-- The MTP package sets this when its targets import. The tier jobs test from the archived
+         binaries and have no project.assets.json, so the flag has to be true here or the SDK
+         reports the project as VSTest. -->
+    <IsTestingPlatformApplication>true</IsTestingPlatformApplication>
     <!-- The tier comes from the suffix. CI selects one tier with the Tier trait filter. -->
     <IntoChatOSTestTier>Legacy</IntoChatOSTestTier>
     <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">Unit</IntoChatOSTestTier>
