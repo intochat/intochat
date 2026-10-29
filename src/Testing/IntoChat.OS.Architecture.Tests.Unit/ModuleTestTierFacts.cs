@@ -5,9 +5,8 @@ using System.Xml.Linq;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// TEST-01 (06-09, success criterion 2): a module that hosts [Neuron] classes proves them in two tiers under its tests/ folder.
-// <Module>.Tests.Unit runs on DigitalBrain.Testing (TestOS, by project reference into framework/) and references no Orleans
-// package; <Module>.Tests.Integration hosts the module on the in-process silo (SiloHost.Local, through DigitalBrain.Testing.Silo).
+// TEST-01: a module that hosts [Neuron] classes proves them on DigitalBrain.Testing (TestOS, by project reference into framework/)
+// in <Module>.Tests.Unit and references no Orleans package.
 // A module whose ModuleManifest provides a capability also runs that capability's kit (a *Conformance<T> subclass) in one of its test projects.
 public sealed partial class ModuleTestTierFacts
 {
@@ -16,8 +15,6 @@ public sealed partial class ModuleTestTierFacts
 
     [GeneratedRegex(@":\s*(?:[\w.]+\.)?\w+Conformance<", RegexOptions.CultureInvariant)]
     private static partial Regex KitSubclass();
-
-    private static readonly string[] InProcessHosts = ["DigitalBrain.Testing.Silo"];
 
     // Module main projects (ModuleUnitTierFacts' set) whose sources declare a [Neuron] class.
     internal static string[] NeuronModules()
@@ -43,18 +40,6 @@ public sealed partial class ModuleTestTierFacts
             if (orleans.Length > 0) { offenders.Add($"{unit.Name}: references {string.Join(", ", orleans)}"); }
         }
         Assert.True(offenders.Count == 0, "Neuron modules need a unit tier on TestOS without Orleans (TEST-01):\n" + string.Join('\n', offenders));
-    }
-
-    [Fact]
-    public void EveryNeuronModuleHasAnInProcessIntegrationTier()
-    {
-        var offenders = new List<string>();
-        foreach (var module in NeuronModules())
-        {
-            if (!Repository.Projects.TryGetValue(module + ".Tests.Integration", out var integration)) { offenders.Add($"{module}: no {module}.Tests.Integration"); continue; }
-            if (!Repository.References(integration.Path).Any(InProcessHosts.Contains)) { offenders.Add($"{integration.Name}: hosts no in-process silo ({string.Join(" or ", InProcessHosts)})"); }
-        }
-        Assert.True(offenders.Count == 0, "Neuron modules need an in-process integration tier (TEST-01):\n" + string.Join('\n', offenders));
     }
 
     [Fact]

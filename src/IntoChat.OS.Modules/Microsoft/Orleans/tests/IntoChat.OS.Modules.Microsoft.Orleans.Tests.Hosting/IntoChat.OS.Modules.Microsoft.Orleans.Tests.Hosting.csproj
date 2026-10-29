@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../../src/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting/IntoChat.OS.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../../../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
-  </ItemGroup>
-</Project>

@@ -36,11 +36,14 @@ public abstract class ModuleOnTestOSFacts<TModule> where TModule : DigitalBrain.
         }
     }
 
-    // An os contract: a public interface of an IntoChat assembly whose members all return tasks (side-interfaces such as
-    // IAsyncDisposable and the runtime's own SPI are not called through a proxy).
+    // A neuron contract: a public interface carrying [NeuronAlias] or outside System/Microsoft/DigitalBrain.Spi whose members all return tasks.
     private static bool Contract(Type type)
         => type is { IsInterface: true, IsPublic: true, IsGenericTypeDefinition: false }
-            && type.Assembly.GetName().Name!.StartsWith("IntoChat.", StringComparison.Ordinal)
+            && (type.IsDefined(typeof(DigitalBrain.Contracts.NeuronAliasAttribute), inherit: false)
+                || (type.Namespace is { } ns
+                    && !ns.StartsWith("System", StringComparison.Ordinal)
+                    && !ns.StartsWith("Microsoft", StringComparison.Ordinal)
+                    && !ns.StartsWith("DigitalBrain.Spi", StringComparison.Ordinal)))
             && type.GetMethods().Length > 0
             && type.GetMethods().All(method => typeof(Task).IsAssignableFrom(method.ReturnType) || method.ReturnType.Name.StartsWith("IAsyncEnumerable", StringComparison.Ordinal));
 }

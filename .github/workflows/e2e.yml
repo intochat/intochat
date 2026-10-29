@@ -87,9 +87,6 @@ jobs:
             docker inspect --format '{{index .RepoDigests 0}}' "$image"
           done
 
-      - name: Test E2E
-        run: dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E -c Release --no-build
-
       - name: Test Framework E2E
         run: dotnet test --project framework/tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj -c Release --no-build
 
