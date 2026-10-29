@@ -28,5 +28,6 @@
     <InternalsVisibleTo Include="DigitalBrain.Framework.Tests.E2E" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Composition" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Composition.Tests.Integration" />
   </ItemGroup>
 </Project>
