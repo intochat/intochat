@@ -317,7 +317,7 @@ internal sealed class CompiledAppsHost(
                             Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
                         ],
                         gap: 8,
-                        extents: [headerExtent, 240, 0, 96]);
+                        extents: [headerExtent, 268, 0, 96]);
                 }
                 else
                 {

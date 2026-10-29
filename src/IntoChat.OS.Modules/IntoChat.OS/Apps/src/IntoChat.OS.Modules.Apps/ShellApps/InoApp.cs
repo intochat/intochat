@@ -157,6 +157,12 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             return;
         }
 
+        if (LooksLikeChartMutationOrFilter(text))
+        {
+            await ApplyChartMutationOrFilterAsync(text, settings, memory);
+            return;
+        }
+
         if (LooksLikeChartQuestion(text))
         {
             await AnswerChartQuestionAsync(text, settings, recalled, memory);
@@ -473,12 +479,153 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             throw new InvalidOperationException("Expected InoApp to answer follow-up question about the top 3 items on the visible chart.");
         }
 
+        await Send(new InoSend("Switch the chart I see to a pie chart"));
+        if (!State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartKind == "pie"))
+        {
+            throw new InvalidOperationException("Expected InoApp to switch the active chart kind to pie.");
+        }
+
         var snapshot = await memory.Read();
         if (snapshot.Episodes.Length == 0)
         {
             throw new InvalidOperationException("Expected InoApp to capture the conversation episode in MemoryNeuron.");
         }
     }
+
+    private async Task ApplyChartMutationOrFilterAsync(string text, UserSettingsState settings, IMemory? memory)
+    {
+        var cards = State.ActiveCards;
+        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase)
+            ? "supabase:supabase/postgres"
+            : State.ConnectedDatabase;
+        var chartCard = cards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
+        var tableCard = cards.LastOrDefault(c => c.Kind == "table" && c.Rows is { Length: > 0 });
+
+        if (chartCard is null || tableCard is null)
+        {
+            var (chartTitle, columns, rows, defaultKind, chartPoints, summary) = ExecuteDatasetQuery(
+                "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5",
+                database);
+            tableCard = new InoCard(
+                $"table-{cards.Length + 1}",
+                "table",
+                $"{chartTitle} — Table ({rows.Length} rows from {database})",
+                summary,
+                "neuron://local/postgres/main#query-result",
+                "ready",
+                $"neuron://local/apps/ino#table-{cards.Length + 1}",
+                columns,
+                rows);
+            chartCard = new InoCard(
+                $"chart-{cards.Length + 2}",
+                "chart",
+                chartTitle,
+                $"Live {defaultKind} chart ({chartPoints.Length} series points) from {database}.",
+                "neuron://local/apps/ino/chart",
+                "ready",
+                $"neuron://local/apps/ino#chart-{cards.Length + 2}",
+                ChartKind: defaultKind,
+                ChartPoints: chartPoints);
+            cards = [.. cards, tableCard, chartCard];
+        }
+
+        string reply;
+        if (text.Contains("filter", StringComparison.OrdinalIgnoreCase))
+        {
+            var (baseTitle, baseCols, baseRows, _, basePoints, _) = ExecuteDatasetQuery("SELECT * FROM opportunities", database);
+            var filterTerm = ExtractFilterTerm(text);
+            if (string.IsNullOrWhiteSpace(filterTerm) || text.Contains("clear", StringComparison.OrdinalIgnoreCase) || text.Contains("all", StringComparison.OrdinalIgnoreCase))
+            {
+                tableCard = tableCard with { Title = $"{baseTitle} — Table ({baseRows.Length} rows)", Rows = baseRows };
+                chartCard = chartCard with { ChartPoints = basePoints };
+                reply = $"Ino ({settings.DefaultModel}): Cleared filters on **{baseTitle}** — showing all {baseRows.Length} rows and chart points.";
+            }
+            else
+            {
+                var matchingIndices = baseRows
+                    .Select((r, idx) => (Row: r, Index: idx))
+                    .Where(item => item.Row.Any(cell => cell.Contains(filterTerm, StringComparison.OrdinalIgnoreCase)))
+                    .ToArray();
+                var filteredRows = matchingIndices.Length > 0 ? matchingIndices.Select(x => x.Row).ToArray() : baseRows;
+                var filteredPoints = matchingIndices.Length > 0 ? matchingIndices.Select(x => basePoints[x.Index]).ToArray() : basePoints;
+                tableCard = tableCard with
+                {
+                    Title = $"{baseTitle} — Filtered by '{filterTerm}' ({filteredRows.Length} rows)",
+                    Columns = baseCols,
+                    Rows = filteredRows,
+                };
+                chartCard = chartCard with
+                {
+                    Title = $"{baseTitle} ({filterTerm})",
+                    ChartPoints = filteredPoints,
+                };
+                reply = $"Ino ({settings.DefaultModel}): Filtered table and chart to **{filterTerm}** ({filteredRows.Length} matching row(s): {string.Join(", ", filteredPoints.Select(p => $"{p.Label} (€{p.Value:N0})"))})";
+            }
+        }
+        else
+        {
+            var nextKind = text.Contains("pie", StringComparison.OrdinalIgnoreCase)
+                ? "pie"
+                : text.Contains("line", StringComparison.OrdinalIgnoreCase)
+                    ? "line"
+                    : "bar";
+            chartCard = chartCard with
+            {
+                ChartKind = nextKind,
+                Summary = $"Live {nextKind} chart ({chartCard.ChartPoints?.Length ?? 0} series points) from {database}.",
+            };
+            reply = $"Ino ({settings.DefaultModel}): Switched **{chartCard.Title}** to a **{nextKind}** chart with {chartCard.ChartPoints?.Length ?? 0} data points.";
+        }
+
+        var updatedCards = cards
+            .Select(c => c.Id == tableCard.Id ? tableCard : c.Id == chartCard.Id ? chartCard : c)
+            .ToArray();
+        if (memory is not null)
+        {
+            await memory.CaptureEpisode("ino.chart-mutate", $"User: {text} | Reply: {reply}", importance: 6);
+        }
+
+        var nextTurns = State.Turns.Append(new InoTurn(text, reply, "chart:qa", 0)).ToArray();
+        Set(State with
+        {
+            ConnectedDatabase = database,
+            Status = $"Updated visualization ({chartCard.Title} · {chartCard.ChartKind})",
+            Turns = nextTurns,
+            Cards = updatedCards,
+        });
+    }
+
+    private static string ExtractFilterTerm(string text)
+    {
+        foreach (var candidate in new[] { "Proposal", "Negotiation", "Contract", "Discovery", "Havbris", "Acme", "Fjordline", "Nordkapp", "Lofoten", "Oslo", "Bergen", "Stavanger" })
+        {
+            if (text.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+        var idx = text.LastIndexOf("to ", StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0 && idx + 3 < text.Length)
+        {
+            return text[(idx + 3)..].Trim(' ', '.', '?', '!', '"', '\'');
+        }
+        return string.Empty;
+    }
+
+    private static bool LooksLikeChartMutationOrFilter(string text)
+        => ((text.Contains("switch", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("change", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("convert", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("make it", StringComparison.OrdinalIgnoreCase))
+            && (text.Contains("pie", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("line", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("bar", StringComparison.OrdinalIgnoreCase))
+            && text.Contains("chart", StringComparison.OrdinalIgnoreCase))
+        || (text.Contains("filter", StringComparison.OrdinalIgnoreCase)
+            && (text.Contains("table", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("chart", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("Proposal", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("Negotiation", StringComparison.OrdinalIgnoreCase)));
 
     private async Task AnswerChartQuestionAsync(string text, UserSettingsState settings, MemoryRecallHit[] recalled, IMemory? memory)
     {
