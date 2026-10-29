@@ -285,7 +285,7 @@ internal sealed class CompiledAppsHost(
             var currentSide = await sideNeuron.Read();
             var sideGen = currentSide is { Generation: > 0 } ? Math.Max(generation, currentSide.Generation) : generation;
             var nextSideVersion = (currentSide?.Generation == sideGen ? currentSide.Version : 0L) + 1L;
-            await sideNeuron.Publish(new UiView(sideGen, nextSideVersion, MapView(sideView)));
+            await sideNeuron.Publish(new UiView(sideGen, nextSideVersion, MapView(sideView, runtime.Brain)));
         }
 
         if (mainView is not null)
@@ -311,7 +311,7 @@ internal sealed class CompiledAppsHost(
                     mainTree = Ui.Column(
                         "view",
                         [
-                            MapNode("root", mainView.Root),
+                            MapNode("root", mainView.Root, runtime.Brain),
                             Ui.Row("visualizations", [.. vizChildren], gap: 12),
                             Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
                             Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
@@ -324,7 +324,7 @@ internal sealed class CompiledAppsHost(
                     mainTree = Ui.Column(
                         "view",
                         [
-                            MapNode("root", mainView.Root),
+                            MapNode("root", mainView.Root, runtime.Brain),
                             Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
                             Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
                         ],
@@ -334,7 +334,7 @@ internal sealed class CompiledAppsHost(
             }
             else
             {
-                mainTree = MapView(mainView);
+                mainTree = MapView(mainView, runtime.Brain);
             }
 
             var mainNeuron = SiloNeurons.Get<IView>(services, runtime.AppKey + "/view");
@@ -511,25 +511,11 @@ internal sealed class CompiledAppsHost(
         return value as View ?? (value is Node node ? new View(fallbackTitle, node) : null);
     }
 
-    private static UiNode MapView(View view)
-        => Ui.Column("view", [Ui.Text("title", view.Title), MapNode("root", view.Root)]);
+    private static UiNode MapView(View view, string? brainId = null)
+        => AppNeuron.MapView(view, brainId);
 
-    private static UiNode MapNode(string key, Node node) => node switch
-    {
-        Column column => Ui.Column(key, [.. column.Children.Select((child, index) => MapNode($"{key}.{index}", child))]),
-        Collection collection => Ui.List(key, [.. collection.Entries.Select((entry, index) => Ui.Card($"{key}.entry.{index}.{entry.Id}", entry.Title, entry.Subtitle))]),
-        Text text => Ui.Text(key, text.Value),
-        TextField field => Ui.Text(key, field.Value ?? field.Placeholder ?? field.Name),
-        DigitalBrain.UI.Toast toast => Ui.Toast(key, toast.Message),
-        Card card => Ui.Card(key, card.Title, card.Body, [.. card.Children.Select((child, index) => MapNode($"{key}.{index}", child))]),
-        Button button => Ui.Button(
-            key,
-            button.Label,
-            button.Action.Operation + (button.Action.Arguments.Count > 0 ? ":" + string.Join(':', button.Action.Arguments.Select(Uri.EscapeDataString)) : string.Empty),
-            button.Enabled,
-            button.Tone == ButtonTone.Accent ? UiStyle.Primary : UiStyle.Secondary),
-        _ => throw new InvalidOperationException($"Unsupported view node {node.GetType().Name}."),
-    };
+    private static UiNode MapNode(string key, Node node, string? brainId = null)
+        => AppNeuron.MapNode(key, node, brainId);
 
     private static object? ParseArgument(MethodInfo method, string input)
     {

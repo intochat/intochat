@@ -5,8 +5,13 @@
     "children": [
       {
         "kind": "text",
-        "value": "Signing you in"
+        "value": "Signing you in",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

@@ -5,15 +5,24 @@
     "children": [
       {
         "kind": "text",
-        "value": "Check your email"
+        "value": "Check your email",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Enter the code we sent to your email."
+        "value": "Enter the code we sent to your email.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "a***@example.com"
+        "value": "a***@example.com",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "textField",
@@ -30,7 +39,9 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "accent"
+        "tone": "accent",
+        "style": "secondary",
+        "small": false
       },
       {
         "kind": "button",
@@ -41,8 +52,12 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "neutral"
+        "tone": "neutral",
+        "style": "secondary",
+        "small": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

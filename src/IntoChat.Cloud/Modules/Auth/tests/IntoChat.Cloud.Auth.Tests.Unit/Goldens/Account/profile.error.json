@@ -5,11 +5,17 @@
     "children": [
       {
         "kind": "text",
-        "value": "Profile"
+        "value": "Profile",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Your name, photo and how you sign in."
+        "value": "Your name, photo and how you sign in.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "column",
@@ -29,18 +35,30 @@
               "arguments": []
             },
             "enabled": false,
-            "tone": "accent"
+            "tone": "accent",
+            "style": "secondary",
+            "small": false
           },
           {
             "kind": "text",
-            "value": "Profile changed elsewhere."
+            "value": "Profile changed elsewhere.",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           },
           {
             "kind": "text",
-            "value": "Use a JPG or PNG up to 5 MB."
+            "value": "Use a JPG or PNG up to 5 MB.",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           }
-        ]
+        ],
+        "gap": 12,
+        "padding": 0
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

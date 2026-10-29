@@ -5,11 +5,17 @@
     "children": [
       {
         "kind": "text",
-        "value": "Log in to IntoChat"
+        "value": "Log in to IntoChat",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Use your work account to continue."
+        "value": "Use your work account to continue.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "button",
@@ -20,11 +26,16 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "neutral"
+        "tone": "neutral",
+        "style": "secondary",
+        "small": false
       },
       {
         "kind": "text",
-        "value": "or"
+        "value": "or",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "textField",
@@ -47,7 +58,9 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "neutral"
+        "tone": "neutral",
+        "style": "secondary",
+        "small": false
       },
       {
         "kind": "button",
@@ -58,7 +71,9 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "accent"
+        "tone": "accent",
+        "style": "secondary",
+        "small": false
       },
       {
         "kind": "button",
@@ -69,12 +84,19 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "neutral"
+        "tone": "neutral",
+        "style": "secondary",
+        "small": false
       },
       {
         "kind": "text",
-        "value": "That email and password do not match."
+        "value": "That email and password do not match.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

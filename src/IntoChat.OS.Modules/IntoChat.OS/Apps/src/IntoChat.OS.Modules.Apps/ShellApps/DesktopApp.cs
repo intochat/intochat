@@ -87,10 +87,48 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         "Desktop",
         new Column(
         [
-            new Text("Desktop"),
-            new Text($"{State.Status} · {State.StylePreset} · {State.BarLayout} · 3D BrainScene ({State.ActiveNeurons} neurons)"),
-            new Text("Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox"),
-        ]));
+            new Surface(
+                [
+                    new Row(
+                    [
+                        new TagPill(State.StylePreset, "accent", "palette"),
+                        new TagPill(State.BarLayout, "neutral", "layout"),
+                        new TagPill($"{State.ActiveNeurons} active neurons", "ok", "cpu"),
+                    ]) { Gap = 8 },
+                    new Text("Desktop"),
+                    new Text($"{State.Status} · {State.StylePreset} · {State.BarLayout} · 3D BrainScene ({State.ActiveNeurons} neurons)") { Tabular = true },
+                    new Text("Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox"),
+                ],
+                Kind: SurfaceKind.Acrylic,
+                Title: "Ino · DigitalBrain OS"),
+            new BrainSceneNode(
+                [
+                    new BrainGraphNode("os", "OperatingSystem", "neuron://local/os", "core", 0, 0, 0, "working"),
+                    new BrainGraphNode("ino", "Ino Assistant", "neuron://local/apps/ino", "agent", 110, 35, -20, "working"),
+                    new BrainGraphNode("files", "Files", "neuron://local/apps/files", "storage", -115, 25, 15, "idle"),
+                    new BrainGraphNode("gallery", "UI Gallery", "neuron://local/apps/gallery", "ui", 85, -60, 25, "idle"),
+                    new BrainGraphNode("creator", "Creator 3D Loop", "neuron://local/apps/creator", "studio", -90, -55, -25, "working"),
+                ],
+                [
+                    new BrainGraphSynapse("os", "ino", "InoSend", true),
+                    new BrainGraphSynapse("ino", "files", "FilesSearch", false),
+                    new BrainGraphSynapse("os", "creator", "CreatorInspect", true),
+                ],
+                SelectedId: "os"),
+            new ApprovalCardNode(
+                "smart-desktop-signal-1",
+                "Live Smart App Signal",
+                "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox",
+                [
+                    new ApprovalRowNode("Signal", "Pending", "Opportunity Stage -> Closed Won", "$420,000"),
+                    new ApprovalRowNode("Inbox", "local", "neuron://local/os.confirmations/inbox"),
+                ],
+                SystemName: "Ino",
+                Status: "pending",
+                OnApprove: new ButtonAction("apps/ino", "approve-card", ["card-1", "true"]),
+                OnReject: new ButtonAction("apps/ino", "approve-card", ["card-1", "false"]),
+                SourceNeuronUri: "neuron://local/os.confirmations/inbox"),
+        ]) { Gap = 14 });
 
     [DigitalBrain.Scenario("Smart Desktop renders 3D BrainScene, UI identity preset, and launcher apps")]
     public async Task VerifySmartDesktopScenario()

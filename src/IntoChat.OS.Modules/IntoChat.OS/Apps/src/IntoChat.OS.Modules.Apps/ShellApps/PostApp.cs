@@ -110,15 +110,36 @@ public sealed class PostApp(IPresenter? presenter = null) : DigitalBrain.App<Pos
     {
         var items = new List<Node>
         {
-            new Text($"@{State.Handle} — {State.Bio}"),
-            new Text(State.Status),
+            new Surface(
+                [
+                    new Heading($"@{State.Handle}", Level: 2, Subtitle: State.Bio),
+                    new Row(
+                    [
+                        new TagPill($"@{State.Handle}", "accent", "user"),
+                        new TagPill($"{State.Posts.Length} post(s)", "neutral"),
+                        .. State.PinnedApps.Select(app => (Node)new TagPill(app, "ok", "pin")),
+                    ]) { Gap = 6 },
+                    new Text($"@{State.Handle} — {State.Bio}"),
+                    new Text(State.Status) { Tone = "muted" },
+                ],
+                Kind: SurfaceKind.Acrylic,
+                Title: "DigitalBrain Profile & Circle Feed"),
         };
         foreach (var post in State.Posts)
         {
             items.Add(new Text($"[{post.Circle}] {post.Id}: {post.Content}"));
+            items.Add(new RecordCardNode(
+                $"Circle · {post.Circle}",
+                post.Id,
+                [
+                    new RecordFieldNode("Author", $"@{State.Handle}"),
+                    new RecordFieldNode("Circle", post.Circle),
+                    new RecordFieldNode("Content", post.Content),
+                ],
+                Subtitle: post.Content));
         }
 
-        return new View("Post", new Column(items.ToArray()));
+        return new View("Post", new Column(items.ToArray()) { Gap = 12 });
     }
 
     private void Update(PostAppState next)

@@ -410,47 +410,107 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 
     public View RenderSide() => new(
         "Chats",
-        new Collection([new Entry(State.ConversationId, State.Title, $"{State.Turns.Length} turn(s)")]));
+        new Column(
+        [
+            new Surface(
+                [
+                    new Row(
+                    [
+                        new TagPill("Ino · DigitalBrain OS", "accent", "sparkles"),
+                        new TagPill($"{State.Turns.Length} turn(s)", "neutral"),
+                    ]) { Gap = 6 },
+                    new Text(State.Status) { Tone = "muted", Tabular = true },
+                ],
+                Kind: SurfaceKind.Acrylic,
+                Title: State.Title),
+            new Collection([new Entry(State.ConversationId, State.Title, $"{State.Turns.Length} turn(s)")]),
+        ]) { Gap = 10 });
 
     public View Render() => new(
         "Ino",
         new Column(
         [
-            new Text(State.Status),
+            new Surface(
+                [
+                    new Row(
+                    [
+                        new TagPill("Ino Assistant", "accent", "bot"),
+                        new TagPill(State.VoiceStatus == "recording" ? "Listening" : "Ready", State.VoiceStatus == "recording" ? "working" : "ok"),
+                        .. State.ConnectedDatabase is { Length: > 0 } db ? new Node[] { new TagPill(db, "info", "database") } : [],
+                    ]) { Gap = 8 },
+                    new Text(State.Status) { Tabular = true },
+                ],
+                Kind: SurfaceKind.Acrylic,
+                Title: State.Title),
+            .. State.Turns.Select((turn, i) => (Node)new Surface(
+                [
+                    new Row(
+                    [
+                        new TagPill($"Turn {i + 1}", "neutral"),
+                        new TagPill(turn.RouteHint, "accent"),
+                        .. turn.RecalledCount > 0 ? new Node[] { new TagPill($"{turn.RecalledCount} memory hit(s)", "ok", "brain") } : [],
+                    ]) { Gap = 6 },
+                    new Heading(turn.UserMessage, Level: 3),
+                    new Text(turn.Reply),
+                ],
+                Kind: SurfaceKind.Elevated,
+                Title: turn.UserMessage,
+                Subtitle: turn.RouteHint)),
             .. State.ActiveCards.SelectMany(RenderCardNodes),
-            new Collection(State.Turns.Select((turn, i) =>
-                new Entry($"turn-{i + 1}", turn.UserMessage, turn.Reply)).ToArray()),
-        ]));
+        ]) { Gap = 12 });
 
     private static IEnumerable<Node> RenderCardNodes(InoCard card)
     {
-        yield return new Text($"[{card.Kind}:{card.Status}] {card.Title} ({card.SourceNeuronUri} | scope:{card.EffectiveScopeUri})");
-        var children = new List<Node>();
-        if (card.Kind == "approval" && card.Status == "pending")
+        yield return new Text($"[{card.Kind}:{card.Status}] {card.Title} ({card.SourceNeuronUri} | scope:{card.EffectiveScopeUri})") { Tone = "muted", Mono = true, Tabular = true };
+        if (card.Kind == "approval")
         {
-            children.Add(new Button(
-                "Approve",
-                new ButtonAction("apps/ino", "approve-card", [card.Id]),
-                Enabled: true,
-                Tone: ButtonTone.Accent));
+            yield return new ApprovalCardNode(
+                card.Id,
+                card.Title,
+                $"{card.Summary} (scope:{card.EffectiveScopeUri})",
+                [
+                    new ApprovalRowNode("Status", "pending", card.Status),
+                    new ApprovalRowNode("Source Neuron", "local", card.SourceNeuronUri),
+                    new ApprovalRowNode("Scope URI", "ino", card.EffectiveScopeUri),
+                ],
+                SystemName: "Ino",
+                Status: card.Status,
+                OnApprove: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]) : null,
+                OnReject: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]) : null,
+                SourceNeuronUri: card.SourceNeuronUri);
         }
         else if (card.Kind == "table" && card.Columns is { Length: > 0 } cols && card.Rows is { Length: > 0 } rows)
         {
-            children.Add(new Collection(rows.Select((row, r) =>
-                new Entry(
-                    $"{card.Id}-row-{r + 1}",
-                    row[0],
-                    string.Join(" · ", cols.Skip(1).Zip(row.Skip(1), (col, val) => $"{col}: {val}")))).ToArray()));
+            yield return new DataTable(
+                card.Title,
+                cols,
+                rows.Select(r => (IReadOnlyList<string>)r).ToArray(),
+                SourceNeuronUri: card.SourceNeuronUri,
+                From: "Postgres");
         }
         else if (card.Kind == "chart" && card.ChartPoints is { Length: > 0 } points)
         {
-            children.Add(new Collection(points.Select((pt, p) =>
-                new Entry(
-                    $"{card.Id}-pt-{p + 1}",
-                    pt.Label,
-                    $"€{pt.Value:N0} ({card.ChartKind ?? "bar"})")).ToArray()));
+            yield return new Chart(
+                card.ChartKind ?? "bar",
+                card.Title,
+                points.Select(pt => new ChartPointNode(pt.Label, pt.Value)).ToArray(),
+                SeriesName: "Current",
+                SourceNeuronUri: card.SourceNeuronUri,
+                From: "Postgres",
+                Prefix: "€");
         }
-        yield return new Card(card.Title, card.Summary, children);
+        else
+        {
+            yield return new RecordCardNode(
+                card.Kind,
+                card.Title,
+                [
+                    new RecordFieldNode("Status", card.Status),
+                    new RecordFieldNode("Neuron URI", card.SourceNeuronUri),
+                    new RecordFieldNode("Scope", card.EffectiveScopeUri),
+                ],
+                Subtitle: card.Summary);
+        }
     }
 
     [DigitalBrain.Scenario("Sending a message recalls memory, captures an episode, and updates transcript")]

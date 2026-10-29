@@ -5,7 +5,10 @@
     "children": [
       {
         "kind": "text",
-        "value": "Password changed. Log in with your new password to continue."
+        "value": "Password changed. Log in with your new password to continue.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "button",
@@ -16,8 +19,12 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "accent"
+        "tone": "accent",
+        "style": "secondary",
+        "small": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

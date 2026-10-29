@@ -154,21 +154,94 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         "3D Brain & Telemetry",
         new Column(
         [
-            new Text($"3D Scene Nodes: {State.SceneNodeCount}"),
+            new Surface(
+                [
+                    new Row(
+                    [
+                        new TagPill($"3D Scene Nodes: {State.SceneNodeCount}", "accent", "cpu"),
+                        new TagPill($"{State.ActiveResources.Length} resource(s)", "ok", "activity"),
+                    ]) { Gap = 6 },
+                    new Text($"3D Scene Nodes: {State.SceneNodeCount}") { Tabular = true },
+                ],
+                Kind: SurfaceKind.Acrylic,
+                Title: "Aspire Telemetry"),
             new Collection(State.ActiveResources.Select((res, i) =>
                 new Entry($"res-{i + 1}", res, "Active")).ToArray()),
             new Collection(State.DiagnosedErrors.Select((err, i) =>
                 new Entry($"err-{i + 1}", "Telemetry Diagnostic", err)).ToArray()),
-        ]));
+        ]) { Gap = 10 });
 
-    public View Render() => new(
-        "Creator",
-        new Column(
-        [
-            new Text(State.Status),
-            new Text($"Target App: {State.TargetApp} · Promoted: {State.Promoted} · 3D BrainScene: {State.SceneNodeCount} nodes"),
-            new Text(string.IsNullOrWhiteSpace(State.GeneratedSource) ? "// Prompt Creator to synthesize an App<TState>." : State.GeneratedSource),
-        ]));
+    public View Render()
+    {
+        var sceneNodes = new List<BrainGraphNode>
+        {
+            new("creator", "Creator Loop", "neuron://local/creator", "core", 0, 0, 0, "working", "Self-Improving Studio", new ButtonAction("creator", "inspect", ["OperatingSystem"])),
+            new("bdd", "BDD Scenario Gate", "neuron://local/bdd", "verifier", -90, 45, -20, State.Promoted ? "done" : "idle", "DigitalBrain.Bdd"),
+            new("aspire", "Aspire Telemetry", "neuron://local/aspire", "telemetry", 95, 40, -15, State.DiagnosedErrors.Length > 0 ? "error" : "working", "Microsoft.Aspire"),
+            new("memory", "MemoryNeuron", "neuron://local/memory", "memory", -70, -55, 25, "idle", "IntoChat.OS.AI.Memory"),
+        };
+        var synapses = new List<BrainGraphSynapse>
+        {
+            new("creator", "bdd", "bdd.verified", Active: true),
+            new("creator", "aspire", "aspire.telemetry.changed", Active: true),
+            new("creator", "memory", "memory.recall", Active: false),
+        };
+        if (!string.IsNullOrWhiteSpace(State.TargetApp))
+        {
+            var appKey = $"app.{State.TargetApp}";
+            sceneNodes.Add(new(appKey, $"App: {State.TargetApp}", $"neuron://local/apps/{State.TargetApp}", "app", 75, -50, 30, State.Promoted ? "done" : "working", "C# Sandbox App"));
+            synapses.Add(new("creator", appKey, "app.promoted", Active: State.Promoted));
+        }
+
+        var verdicts = State.LastBddReport?.Scenarios
+            .Select(v => (Node)new InfoBar(
+                v.Title,
+                v.Passed ? $"Passed in {v.Elapsed.TotalMilliseconds:F0} ms" : (v.Error ?? "Failed"),
+                v.Passed ? "ok" : "error"))
+            .ToArray() ?? [];
+
+        return new(
+            "Creator",
+            new Column(
+            [
+                new Surface(
+                    [
+                        new Row(
+                        [
+                            new TagPill($"Target: {State.TargetApp}", "accent", "code"),
+                            new TagPill(State.Promoted ? "Promoted · BDD Verified" : "Draft", State.Promoted ? "ok" : "working", "check"),
+                            new TagPill($"{State.SceneNodeCount} 3D Nodes", "neutral", "network"),
+                        ]) { Gap = 8 },
+                        new Text(State.Status),
+                        new Text($"Target App: {State.TargetApp} · Promoted: {State.Promoted} · 3D BrainScene: {State.SceneNodeCount} nodes") { Tone = "muted", Tabular = true },
+                    ],
+                    Kind: SurfaceKind.Acrylic,
+                    Title: "Creator Studio · 3D Brain & BDD Loop"),
+                new SplitPane(
+                    Leading: new Surface(
+                        [
+                            new BrainSceneNode(sceneNodes, synapses, SelectedId: "creator"),
+                            .. State.DiagnosedErrors.Select(err => (Node)new InfoBar("Aspire Diagnostic", err, "error")),
+                        ],
+                        Kind: SurfaceKind.Elevated,
+                        Title: "3D BrainScene Orbital Graph",
+                        Subtitle: "neuron://local/creator/brain-scene"),
+                    Trailing: new Surface(
+                        [
+                            .. verdicts,
+                            new Text(string.IsNullOrWhiteSpace(State.GeneratedSource)
+                                ? "// Prompt Creator to synthesize an App<TState>."
+                                : State.GeneratedSource)
+                            {
+                                Mono = true,
+                            },
+                        ],
+                        Kind: SurfaceKind.Recessed,
+                        Title: $"Synthesized C# App<{State.TargetApp}> & [Scenario] Verdicts"),
+                    LeadingExtent: 420,
+                    Gap: 16),
+            ]) { Gap = 14 });
+    }
 
     [DigitalBrain.Scenario("Self-improving loop diagnoses error, verifies BDD scenario, and promotes app")]
     public async Task VerifySelfImprovingLoopScenario()

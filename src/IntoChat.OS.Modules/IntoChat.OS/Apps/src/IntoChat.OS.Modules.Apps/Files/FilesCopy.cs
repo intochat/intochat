@@ -40,6 +40,8 @@ public static class FilesCopy
     public const string Rename = "Rename";
     public const string Move = "Move";
     public const string Copy = "Copy";
+    public const string CopyNeuronId = "Copy Neuron ID";
+    public const string CopyDisplayPath = "Copy Display Path";
     public const string Download = "Download";
     public const string Delete = "Delete";
 

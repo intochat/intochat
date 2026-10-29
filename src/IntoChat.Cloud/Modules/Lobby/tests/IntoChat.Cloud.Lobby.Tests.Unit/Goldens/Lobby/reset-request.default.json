@@ -5,11 +5,17 @@
     "children": [
       {
         "kind": "text",
-        "value": "Reset your password"
+        "value": "Reset your password",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Enter your work email to request a reset code."
+        "value": "Enter your work email to request a reset code.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "textField",
@@ -26,8 +32,12 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "accent"
+        "tone": "accent",
+        "style": "secondary",
+        "small": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

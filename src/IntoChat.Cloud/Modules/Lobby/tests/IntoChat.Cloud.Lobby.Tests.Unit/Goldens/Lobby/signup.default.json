@@ -5,11 +5,17 @@
     "children": [
       {
         "kind": "text",
-        "value": "Create your IntoChat account"
+        "value": "Create your IntoChat account",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Start with your work email."
+        "value": "Start with your work email.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "textField",
@@ -37,11 +43,17 @@
       },
       {
         "kind": "text",
-        "value": "Use 12 to 256 characters. Choose a password you do not use elsewhere."
+        "value": "Use 12 to 256 characters. Choose a password you do not use elsewhere.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "I agree to the Terms of Service and the Privacy Policy, and I consent to IntoChat storing my account data."
+        "value": "I agree to the Terms of Service and the Privacy Policy, and I consent to IntoChat storing my account data.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "button",
@@ -52,7 +64,9 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "neutral"
+        "tone": "neutral",
+        "style": "secondary",
+        "small": false
       },
       {
         "kind": "button",
@@ -63,8 +77,12 @@
           "arguments": []
         },
         "enabled": false,
-        "tone": "accent"
+        "tone": "accent",
+        "style": "secondary",
+        "small": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

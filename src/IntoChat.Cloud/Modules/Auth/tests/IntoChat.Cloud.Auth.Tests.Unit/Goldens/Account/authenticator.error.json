@@ -5,26 +5,41 @@
     "children": [
       {
         "kind": "text",
-        "value": "Profile"
+        "value": "Profile",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Your name, photo and how you sign in."
+        "value": "Your name, photo and how you sign in.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "column",
         "children": [
           {
             "kind": "text",
-            "value": "Authenticator"
+            "value": "Authenticator",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           },
           {
             "kind": "text",
-            "value": "QR code for your authenticator app"
+            "value": "QR code for your authenticator app",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           },
           {
             "kind": "text",
-            "value": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANQAAADUAQAAAADMpTC1AAACBUlEQVR4nO2YUW7DMAxDeQPd/5a8gYZHuxk2YH/lgAHrR7LmFZgkU7Qc7Y8f65/9hbpImrE85j6aHR7V2OyO7dnVWGs5j3pMMzteWxpb9nlUZdaI9BPE1Jm0ZK3xipJXGZg4ZpbEE8/2WLT09fNVZ29m6YvRDktMWN/66N3MktCSEpVtfnpzrzBimCXdCU\u002B39BgdSasoj450E1CJGRlZ6GiQlBdl9RidgRFgeLpPvD1G0mRP5vIxvNSgxJDtXmOlEiuDakxLdRf94jlJ3EUWd6PKLDJXhFRkRq5HSCiKJSawGsuVNY1ihaPzvcZIO9sx1SYeYnl89/3smB3dEVNnJ05z9hgmRzgYnsz3V60bLA73OB1/pkd7DBOnZYglN2LqsWxRG89LzenUpy4Nxg6M95B4Jg6sdmsMAV1opJS8i\u002ByaDiJCwGQ/j9cV2JlHKQHOw1IT09QYN1Y0afvWusjYfzGdzBw8jgFtjWVCPN4Tb80g0GXkTI\u002BcrYq03WRiO2TCuQ6e0bTGcpo5x9CsKa732qsaLHNUptGzI1/zqTGCiKQmh\u002B7Mpnhfi53s\u002BcE5UaAmzKDFzrsEhm5OabTo517VYBw86Q/\u002BPwElpiky9t4zcaBdFvrIqcly5E3b6OUKTXYO97wQOoP4qsiy7TObPo2aN0MtlhM2Yw2XdCkl77HGO8B/tr9Tlw9Aj9/IJZOwgQAAAABJRU5ErkJggg=="
+            "value": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANQAAADUAQAAAADMpTC1AAACBUlEQVR4nO2YUW7DMAxDeQPd/5a8gYZHuxk2YH/lgAHrR7LmFZgkU7Qc7Y8f65/9hbpImrE85j6aHR7V2OyO7dnVWGs5j3pMMzteWxpb9nlUZdaI9BPE1Jm0ZK3xipJXGZg4ZpbEE8/2WLT09fNVZ29m6YvRDktMWN/66N3MktCSEpVtfnpzrzBimCXdCU\u002B39BgdSasoj450E1CJGRlZ6GiQlBdl9RidgRFgeLpPvD1G0mRP5vIxvNSgxJDtXmOlEiuDakxLdRf94jlJ3EUWd6PKLDJXhFRkRq5HSCiKJSawGsuVNY1ihaPzvcZIO9sx1SYeYnl89/3smB3dEVNnJ05z9hgmRzgYnsz3V60bLA73OB1/pkd7DBOnZYglN2LqsWxRG89LzenUpy4Nxg6M95B4Jg6sdmsMAV1opJS8i\u002ByaDiJCwGQ/j9cV2JlHKQHOw1IT09QYN1Y0afvWusjYfzGdzBw8jgFtjWVCPN4Tb80g0GXkTI\u002BcrYq03WRiO2TCuQ6e0bTGcpo5x9CsKa732qsaLHNUptGzI1/zqTGCiKQmh\u002B7Mpnhfi53s\u002BcE5UaAmzKDFzrsEhm5OabTo517VYBw86Q/\u002BPwElpiky9t4zcaBdFvrIqcly5E3b6OUKTXYO97wQOoP4qsiy7TObPo2aN0MtlhM2Yw2XdCkl77HGO8B/tr9Tlw9Aj9/IJZOwgQAAAABJRU5ErkJggg==",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           },
           {
             "kind": "button",
@@ -35,7 +50,9 @@
               "arguments": []
             },
             "enabled": true,
-            "tone": "neutral"
+            "tone": "neutral",
+            "style": "secondary",
+            "small": false
           },
           {
             "kind": "textField",
@@ -52,7 +69,9 @@
               "arguments": []
             },
             "enabled": true,
-            "tone": "accent"
+            "tone": "accent",
+            "style": "secondary",
+            "small": false
           },
           {
             "kind": "button",
@@ -63,14 +82,23 @@
               "arguments": []
             },
             "enabled": true,
-            "tone": "neutral"
+            "tone": "neutral",
+            "style": "secondary",
+            "small": false
           },
           {
             "kind": "text",
-            "value": "That code is not right. Please try again."
+            "value": "That code is not right. Please try again.",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           }
-        ]
+        ],
+        "gap": 12,
+        "padding": 0
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

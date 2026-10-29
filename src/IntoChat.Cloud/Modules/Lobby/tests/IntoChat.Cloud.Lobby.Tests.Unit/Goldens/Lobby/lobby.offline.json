@@ -5,8 +5,13 @@
     "children": [
       {
         "kind": "text",
-        "value": "You are offline. Check your connection and try again."
+        "value": "You are offline. Check your connection and try again.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

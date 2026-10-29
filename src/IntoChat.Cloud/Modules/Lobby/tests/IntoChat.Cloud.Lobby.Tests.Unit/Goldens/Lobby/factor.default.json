@@ -5,11 +5,17 @@
     "children": [
       {
         "kind": "text",
-        "value": "Verify your sign-in"
+        "value": "Verify your sign-in",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Use your authenticator app or a recovery code to continue."
+        "value": "Use your authenticator app or a recovery code to continue.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "textField",
@@ -26,7 +32,9 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "accent"
+        "tone": "accent",
+        "style": "secondary",
+        "small": false
       },
       {
         "kind": "button",
@@ -37,8 +45,12 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "neutral"
+        "tone": "neutral",
+        "style": "secondary",
+        "small": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

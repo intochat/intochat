@@ -227,31 +227,146 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
     public View RenderSide()
     {
         var visible = FilteredEntries(State.Category, State.Search);
+        var categoryButtons = new Node[]
+        {
+            new Button("All", new ButtonAction("gallery", "filter", ["all"]), Tone: State.Category == "all" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+            new Button("Design", new ButtonAction("gallery", "filter", ["design"]), Tone: State.Category == "design" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+            new Button("Controls", new ButtonAction("gallery", "filter", ["controls"]), Tone: State.Category == "controls" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+            new Button("Chat & LFP", new ButtonAction("gallery", "filter", ["chat-lfp"]), Tone: State.Category == "chat-lfp" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+            new Button("3D Brain", new ButtonAction("gallery", "filter", ["3d-brain"]), Tone: State.Category == "3d-brain" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+        };
+
         return new(
             "UI Kit Catalog",
             new Column(
             [
-                new Text($"Identity: {State.StylePreset} · {State.BarLayout}"),
+                new Surface(
+                    [
+                        new Row(
+                        [
+                            new TagPill(State.StylePreset, "accent", "palette"),
+                            new TagPill(State.BarLayout, "neutral", "layout"),
+                        ]) { Gap = 6 },
+                        new Text($"Identity: {State.StylePreset} · {State.BarLayout}") { Tone = "muted", Tabular = true },
+                    ],
+                    Kind: SurfaceKind.Acrylic,
+                    Title: "Active UI Identity"),
+                new Row(categoryButtons) { Gap = 6 },
                 new Collection(visible.Select(entry =>
                     new Entry(entry.Id, entry.Title, $"{entry.Category} · {entry.NeuronContract}")).ToArray()),
-            ]));
+            ]) { Gap = 12 });
     }
 
     public View Render()
     {
         var selected = State.Entries.FirstOrDefault(e => e.Id == State.SelectedId) ?? State.Entries[0];
+        var livePreview = BuildSamplePreviewNode(selected);
+
         return new(
             "UI Gallery",
             new Column(
             [
-                new Text(State.Status),
-                new Text($"Control: {selected.Title} [{selected.NeuronContract}]"),
-                new Text($"URI: {selected.SourceNeuronUri}"),
-                new Text($"Signals: {string.Join(", ", selected.Signals)}"),
-                new Text(selected.Summary),
-                new Text(selected.CSharpSample),
-            ]));
+                new Surface(
+                    [
+                        new Heading(selected.Title, Level: 1, Subtitle: selected.Summary),
+                        new Row(
+                        [
+                            new TagPill(selected.Category, "accent"),
+                            new TagPill(selected.NeuronContract, "ok", "cpu"),
+                            new TagPill($"{State.StylePreset} · {State.BarLayout}", "neutral"),
+                        ]) { Gap = 8 },
+                        new Text(State.Status) { Tone = "muted" },
+                        new Text($"Control: {selected.Title} [{selected.NeuronContract}]") { Tabular = true },
+                        new Text($"URI: {selected.SourceNeuronUri}") { Mono = true, Tabular = true },
+                        new Text($"Signals: {string.Join(", ", selected.Signals)}") { Mono = true },
+                        new NeuronRef("gallery", selected.SourceNeuronUri),
+                    ],
+                    Kind: SurfaceKind.Acrylic,
+                    Title: "WinUI 3 Gallery · Interactive Control Playground"),
+                new Surface(
+                    [
+                        livePreview,
+                    ],
+                    Kind: SurfaceKind.Elevated,
+                    Title: "Live Control Preview",
+                    Subtitle: selected.NeuronContract),
+                new Surface(
+                    [
+                        new Row(
+                        [
+                            new Button("Fluent Acrylic", new ButtonAction("gallery", "switch-identity", ["fluent-acrylic", "floating-glass"]), Tone: State.StylePreset == "fluent-acrylic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                            new Button("Spatial Glass", new ButtonAction("gallery", "switch-identity", ["spatial-glass", "compact-pill"]), Tone: State.StylePreset == "spatial-glass" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                            new Button("Cyber Synaptic", new ButtonAction("gallery", "switch-identity", ["cyber-synaptic", "split-top-dock"]), Tone: State.StylePreset == "cyber-synaptic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                            new Button("Warm Paper", new ButtonAction("gallery", "switch-identity", ["warm-paper", "classic-bottom"]), Tone: State.StylePreset == "warm-paper" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                        ]) { Gap = 8 },
+                        new Text(selected.CSharpSample) { Mono = true },
+                    ],
+                    Kind: SurfaceKind.Recessed,
+                    Title: "C# App<TState> & [Signal] Contract"),
+            ]) { Gap = 16 });
     }
+
+    private static Node BuildSamplePreviewNode(GalleryCatalogEntry selected) => selected.Id switch
+    {
+        "approval-card" => new ApprovalCardNode(
+            "card-gallery-1",
+            "Approve Opportunity Stage Change",
+            "scope:neuron://local/apps/ino#card-1",
+            [
+                new ApprovalRowNode("Account", "Discovery", "Closed Won", "$420,000"),
+                new ApprovalRowNode("Owner", "Unassigned", "Vlad Horb"),
+            ],
+            SystemName: "Ino",
+            Status: "pending",
+            OnApprove: new ButtonAction("ino", "approve-card", ["card-1", "true"]),
+            OnReject: new ButtonAction("ino", "approve-card", ["card-1", "false"]),
+            SourceNeuronUri: selected.SourceNeuronUri),
+        "table-card" => new DataTable(
+            "Opportunities — Q4 2026",
+            ["Account", "Stage", "Amount", "Owner"],
+            [
+                ["Nordlys Bank", "Closed Won", "$420,000", "Vlad"],
+                ["Solstice Bio", "Commit", "$185,000", "Aria"],
+                ["Kestrel Aero", "Review", "$92,400", "Devon"],
+            ],
+            SourceNeuronUri: selected.SourceNeuronUri,
+            From: "Postgres"),
+        "chart-card" => new Chart(
+            "bar",
+            "Won per month, 2026",
+            [
+                new ChartPointNode("Jan", 68),
+                new ChartPointNode("Feb", 82),
+                new ChartPointNode("Mar", 94),
+                new ChartPointNode("Apr", 128),
+            ],
+            ComparePoints: [54, 62, 71, 88],
+            SeriesName: "2026",
+            CompareName: "2025",
+            SourceNeuronUri: selected.SourceNeuronUri,
+            From: "Analytics",
+            Prefix: "$"),
+        "brain-scene-3d" => new BrainSceneNode(
+            [
+                new BrainGraphNode("os", "OperatingSystem", "neuron://local/os", "core", 0, 0, 0, "working"),
+                new BrainGraphNode("ino", "Ino Agent", "neuron://local/apps/ino", "agent", 120, 40, -20, "working"),
+                new BrainGraphNode("pg", "Postgres", "neuron://local/postgres/main", "connector", -110, -50, 30, "idle"),
+            ],
+            [
+                new BrainGraphSynapse("os", "ino", "InoSend", true),
+                new BrainGraphSynapse("ino", "pg", "InoQueryDb", true),
+            ],
+            SelectedId: "os"),
+        _ => new RecordCardNode(
+            selected.Category,
+            selected.Title,
+            [
+                new RecordFieldNode("Contract", selected.NeuronContract),
+                new RecordFieldNode("Neuron URI", selected.SourceNeuronUri),
+                new RecordFieldNode("Signals", string.Join(", ", selected.Signals)),
+            ],
+            Subtitle: selected.Summary),
+    };
 
     [DigitalBrain.Scenario("Gallery filters controls, inspects NodeContract and neuron:// URI, and switches UI identity")]
     public async Task VerifyGalleryCatalogAndIdentitySwitchScenario()

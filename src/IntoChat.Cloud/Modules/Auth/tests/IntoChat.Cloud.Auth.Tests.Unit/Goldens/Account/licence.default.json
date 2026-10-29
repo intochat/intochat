@@ -5,25 +5,41 @@
     "children": [
       {
         "kind": "text",
-        "value": "Profile"
+        "value": "Profile",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Your name, photo and how you sign in."
+        "value": "Your name, photo and how you sign in.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "column",
         "children": [
           {
             "kind": "text",
-            "value": "Licence"
+            "value": "Licence",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           },
           {
             "kind": "text",
-            "value": "Renews 2027-01-01"
+            "value": "Renews 2027-01-01",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           }
-        ]
+        ],
+        "gap": 12,
+        "padding": 0
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

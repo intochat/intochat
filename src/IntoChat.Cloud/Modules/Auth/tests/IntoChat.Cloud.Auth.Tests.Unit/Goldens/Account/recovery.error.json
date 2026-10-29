@@ -5,26 +5,41 @@
     "children": [
       {
         "kind": "text",
-        "value": "Profile"
+        "value": "Profile",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Your name, photo and how you sign in."
+        "value": "Your name, photo and how you sign in.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "column",
         "children": [
           {
             "kind": "text",
-            "value": "Recovery codes"
+            "value": "Recovery codes",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           },
           {
             "kind": "text",
-            "value": "Save these 10 codes somewhere safe. Each works once if you lose your authenticator. They will not be shown again."
+            "value": "Save these 10 codes somewhere safe. Each works once if you lose your authenticator. They will not be shown again.",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           },
           {
             "kind": "text",
-            "value": "a1b2c3d4"
+            "value": "a1b2c3d4",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           },
           {
             "kind": "button",
@@ -35,7 +50,9 @@
               "arguments": []
             },
             "enabled": true,
-            "tone": "neutral"
+            "tone": "neutral",
+            "style": "secondary",
+            "small": false
           },
           {
             "kind": "button",
@@ -46,7 +63,9 @@
               "arguments": []
             },
             "enabled": true,
-            "tone": "neutral"
+            "tone": "neutral",
+            "style": "secondary",
+            "small": false
           },
           {
             "kind": "button",
@@ -57,14 +76,23 @@
               "arguments": []
             },
             "enabled": false,
-            "tone": "accent"
+            "tone": "accent",
+            "style": "secondary",
+            "small": false
           },
           {
             "kind": "text",
-            "value": "Authenticator removed. Your other devices were signed out."
+            "value": "Authenticator removed. Your other devices were signed out.",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
           }
-        ]
+        ],
+        "gap": 12,
+        "padding": 0
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

@@ -50,6 +50,12 @@ internal static class FilesScreen
             Button("rename", FilesCopy.Rename, "rename", one && selected!.Item.Flags.HasFlag(ItemFlags.Rename)),
             Button("move", FilesCopy.Move, "move", one && selected!.Item.Flags.HasFlag(ItemFlags.Move)),
             Button("copy", FilesCopy.Copy, "copy", one && selected!.Item.Flags.HasFlag(ItemFlags.Copy)),
+            state.SelectedNeuronUri is { } toolbarUri
+                ? Ui.CopyButton("copy-neuron-id", FilesCopy.CopyNeuronId, toolbarUri)
+                : Button("copy-neuron-id", FilesCopy.CopyNeuronId, "copy-neuron-id", false, UiStyle.Ghost),
+            selected is not null
+                ? Ui.CopyButton("copy-display-path", FilesCopy.CopyDisplayPath, DisplayPath(state, selected))
+                : Button("copy-display-path", FilesCopy.CopyDisplayPath, "copy-display-path", false, UiStyle.Ghost),
             Button("download", FilesCopy.Download, "download", file && selected!.Item.Flags.HasFlag(ItemFlags.Read), UiStyle.Link),
             Button("delete", FilesCopy.Delete, "delete", one && selected!.Item.Flags.HasFlag(ItemFlags.Trash)),
         ]);
@@ -100,6 +106,11 @@ internal static class FilesScreen
         if (state.SelectedNeuronUri is { } neuronUri)
         {
             notices.Add(Ui.Text("neuron-uri", neuronUri));
+            notices.Add(Ui.CopyButton("copy-selected-neuron-uri", FilesCopy.CopyNeuronId + " (" + neuronUri + ")", neuronUri));
+            if (selected is not null)
+            {
+                notices.Add(Ui.CopyButton("copy-selected-display-path", FilesCopy.CopyDisplayPath, DisplayPath(state, selected)));
+            }
         }
 
         var preview = Preview(state);
@@ -169,6 +180,17 @@ internal static class FilesScreen
     }
 
     private static string RowId(FilesItem entry) => entry.Connection + "/" + entry.Item.Id.Value;
+
+    private static string DisplayPath(FilesState state, FilesItem selected)
+    {
+        var crumbs = state.Breadcrumbs
+            .Where(c => c.Connection == selected.Connection)
+            .Select(c => c.Item.Name)
+            .Append(selected.Item.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name));
+        var joined = string.Join("/", crumbs);
+        return string.IsNullOrWhiteSpace(joined) ? selected.Item.Name : joined;
+    }
 
     private static UiNode Crumbs(FilesState state) => Ui.Row("breadcrumbs", state.Breadcrumbs.Select((item, index) =>
         Ui.Button("crumb-" + index, item.Item.Name, state.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":breadcrumb:" + index.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray());

@@ -5,12 +5,20 @@
     "children": [
       {
         "kind": "text",
-        "value": "Sign-in is unavailable"
+        "value": "Sign-in is unavailable",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Sign-in is unavailable. Please try again later."
+        "value": "Sign-in is unavailable. Please try again later.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

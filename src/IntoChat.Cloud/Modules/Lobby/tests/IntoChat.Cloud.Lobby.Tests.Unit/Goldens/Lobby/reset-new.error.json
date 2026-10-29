@@ -5,11 +5,17 @@
     "children": [
       {
         "kind": "text",
-        "value": "Choose a new password"
+        "value": "Choose a new password",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "Use 12 to 256 characters. Choose a password you do not use elsewhere."
+        "value": "Use 12 to 256 characters. Choose a password you do not use elsewhere.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "textField",
@@ -32,12 +38,19 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "accent"
+        "tone": "accent",
+        "style": "secondary",
+        "small": false
       },
       {
         "kind": "text",
-        "value": "Use 12 to 256 characters. Choose a password you do not use elsewhere."
+        "value": "Use 12 to 256 characters. Choose a password you do not use elsewhere.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }

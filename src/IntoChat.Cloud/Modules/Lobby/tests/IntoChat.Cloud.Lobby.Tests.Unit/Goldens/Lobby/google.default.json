@@ -5,11 +5,17 @@
     "children": [
       {
         "kind": "text",
-        "value": "Opening Google"
+        "value": "Opening Google",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "text",
-        "value": "You will return here in a moment."
+        "value": "You will return here in a moment.",
+        "tone": "neutral",
+        "tabular": false,
+        "mono": false
       },
       {
         "kind": "button",
@@ -20,8 +26,12 @@
           "arguments": []
         },
         "enabled": true,
-        "tone": "neutral"
+        "tone": "neutral",
+        "style": "secondary",
+        "small": false
       }
-    ]
+    ],
+    "gap": 12,
+    "padding": 0
   }
 }
