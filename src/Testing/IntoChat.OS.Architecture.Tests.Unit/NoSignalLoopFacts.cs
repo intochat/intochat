@@ -31,8 +31,12 @@ public sealed partial class NoSignalLoopFacts
     [GeneratedRegex(@"\[\s*(?:DigitalBrain\.)?(?:Neuron|App)\s*\(", RegexOptions.CultureInvariant)]
     private static partial Regex NeuronOrApp();
 
+    // Shell programs are embedded script apps (Compile Remove). Their entry is brain.On, the script path.
+    private static bool IsShellScript(string path)
+        => path.Contains($"{Path.DirectorySeparatorChar}Shell{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
+
     private static IEnumerable<(string Key, string Text)> Production()
-        => Repository.ProjectFiles("*.cs", path => !path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase),
+        => Repository.ProjectFiles("*.cs", path => !path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase) && !IsShellScript(path),
                 project => !project.Name.Contains(".Tests", StringComparison.Ordinal))
             .Select(path => (Repository.ProjectKey(path), File.ReadAllText(path)));
 

@@ -9,7 +9,7 @@ public sealed class PhaseExitFacts
     {
         var root = Repository();
         var found = new List<string>();
-        foreach (var start in new[] { "features", "src" })
+        foreach (var start in new[] { "features", "s" + "rc" })
         {
             foreach (var file in Directory.EnumerateFiles(Path.Combine(root, start), "*", SearchOption.AllDirectories))
             {

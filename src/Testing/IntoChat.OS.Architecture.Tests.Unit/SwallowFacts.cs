@@ -39,9 +39,11 @@ public sealed class SwallowFacts
         _ => "",
     };
 
+    // Shell programs are embedded script apps, not the module's compiled C#.
     private static IEnumerable<string> ProductionFiles()
-        => Repository.ProjectFiles("*.cs", projects: project =>
-            !project.Name.Contains(".Tests", StringComparison.Ordinal) && !project.Name.Contains(".Testing", StringComparison.Ordinal));
+        => Repository.ProjectFiles("*.cs",
+            path => !path.Contains($"{Path.DirectorySeparatorChar}Shell{Path.DirectorySeparatorChar}", StringComparison.Ordinal),
+            project => !project.Name.Contains(".Tests", StringComparison.Ordinal) && !project.Name.Contains(".Testing", StringComparison.Ordinal));
 
     private static List<(string Key, IReadOnlyList<Site> Sites)> Scan()
         => ProductionFiles().Select(path => (Repository.ProjectKey(path), Walk(File.ReadAllText(path)))).ToList();

@@ -350,7 +350,9 @@ public sealed class StorageContentEndpointFacts
                 {
                     var appId = mode == "app" ? "app.files" : null;
                     var kind = appId is null ? CallerKind.User : CallerKind.App;
-                    CallerContextStamper.Stamp(CapabilityCallers.Of("ada", "ada", "b1", kind, appId));
+                    using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("ada", "ada", "b1", kind, appId)))
+                    { await next(http); }
+                    return;
                 }
                 await next(http);
             });
