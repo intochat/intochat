@@ -7,9 +7,15 @@ using DigitalBrain.Capabilities.Identity;
 namespace IntoChat.Cloud.Auth.Services;
 
 // Lobby screens call this. The member is returned to the lobby neuron and the session cookie is written later, at handoff.
-internal sealed record CloudSignInResult(string Screen, string? Error, Member? Member);
+public sealed record CloudSignInResult(string Screen, string? Error, Member? Member);
 
-internal sealed class CloudSignIn(LoginService login, AuthCalls calls, AuthHashing hashing, AccountProvisioner provisioner, AuthModuleOptions options, TimeProvider clock)
+// The kernel's lobby adapter calls this. CloudSignIn stays internal.
+public interface ICloudSignIn
+{
+    Task<CloudSignInResult> Submit(string screen, string visitorId, string? email, string? secret, string? purpose, bool consent, CancellationToken cancellationToken = default);
+}
+
+internal sealed class CloudSignIn(LoginService login, AuthCalls calls, AuthHashing hashing, AccountProvisioner provisioner, AuthModuleOptions options, TimeProvider clock) : ICloudSignIn
 {
     private readonly ConcurrentDictionary<string, Pending> pending = new(StringComparer.Ordinal);
     private readonly PasswordHasher hasher = new(options.PasswordIterations);

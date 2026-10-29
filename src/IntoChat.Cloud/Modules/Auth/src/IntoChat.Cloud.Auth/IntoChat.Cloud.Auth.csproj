@@ -22,7 +22,6 @@
     <ProjectReference Include="../../../Organisations/Contracts/IntoChat.Cloud.Organisations.Contracts/IntoChat.Cloud.Organisations.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Kernel" />
     <InternalsVisibleTo Include="IntoChat.Cloud.Auth.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.Cloud.Auth.Tests.Integration" />
   </ItemGroup>

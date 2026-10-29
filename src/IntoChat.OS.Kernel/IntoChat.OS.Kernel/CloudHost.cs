@@ -38,9 +38,7 @@ public static class CloudHost
         services.TryAddSingleton<IMailHost, KernelMailHost>();
         services.AddIdentitySessions<AuthIdentityProvider>();
         services.TryAddSingleton<ISessions>(provider => provider.GetRequiredKeyedService<ISessions>(Capability.Identity.V1Id));
-        services.TryAddSingleton<AccountAuth>();
-        services.TryAddSingleton<IAccountAuth>(provider => provider.GetRequiredService<AccountAuth>());
-        services.TryAddSingleton<CloudSignIn>();
+        AuthCloudRegistration.Register(services);
         services.TryAddSingleton<ILobbyAuth, CloudLobbyAuth>();
         services.TryAddSingleton<ILobbyTokenKey, SecretLobbyTokenKey>();
         services.TryAddSingleton<IOrganisationMail, CloudOrganisationMail>();
@@ -147,7 +145,7 @@ internal sealed class KernelMailHost : IMailHost
     public IDisposable StampModule() => RuntimeCallerContext.Stamp(Module);
 }
 
-internal sealed class CloudLobbyAuth(CloudSignIn signIn) : ILobbyAuth
+internal sealed class CloudLobbyAuth(ICloudSignIn signIn) : ILobbyAuth
 {
     public async Task<LobbyAuthResult> Submit(LobbyAuthCommand command, CancellationToken cancellationToken = default)
     {

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Http;
@@ -26,7 +27,7 @@ public sealed class LegacyPortalRoutesFacts
         new LobbyModule().ConfigureServices(builder.Services);
         var app = builder.Build();
         LobbyModule.MapHttp(app);
-        var auth = Directory.GetFiles(Path.Combine(RepoRoot(), "src", "IntoChat.Cloud", "Modules", "Auth"), "*.cs", SearchOption.AllDirectories)
+        var auth = Directory.GetFiles(AuthProjectDirectory(RepoRoot()), "*.cs", SearchOption.AllDirectories)
             .Where(path => path.Contains($"{Path.DirectorySeparatorChar}Http{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Select(File.ReadAllText)
             .Aggregate((left, right) => left + right);
@@ -69,6 +70,14 @@ public sealed class LegacyPortalRoutesFacts
         => app.DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>()
             .FirstOrDefault(endpoint => endpoint.RoutePattern.RawText == path
                 && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains(method) != false);
+
+    private static string AuthProjectDirectory(string root)
+    {
+        var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
+            .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Single(path => path.EndsWith("/IntoChat.Cloud.Auth.csproj", StringComparison.Ordinal));
+        return Path.Combine(root, Path.GetDirectoryName(project)!);
+    }
 
     private static string RepoRoot()
     {

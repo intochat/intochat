@@ -4,15 +4,33 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.Cloud.Auth.Neurons;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.Cloud.Auth.Services;
 
 // identity@1 sessions and description for the Auth module (D-08): the host's SessionsCapability checks the privileged grant and
 // the claims, then calls this port. A session id is "{base64url principal}.{32 random bytes}": the prefix routes to the
 // principal's sessions neuron, which holds only the id's keyed hash and the member it was issued for (CV-3).
-// The cloud kernel binds AddIdentitySessions over this port (InternalsVisibleTo). The kernel registers it before this module's TryAdd.
-internal sealed class AuthIdentityProvider(AuthCalls calls, AuthHashing hashing, AuthModuleOptions options) : IIdentitySessionPort
+// The cloud kernel binds AddIdentitySessions over this port. The public constructor takes IServiceProvider so the kernel
+// does not see AuthCalls or AuthHashing. The kernel registers it before this module's TryAdd.
+public sealed class AuthIdentityProvider : IIdentitySessionPort
 {
+    private readonly AuthCalls calls;
+    private readonly AuthHashing hashing;
+    private readonly AuthModuleOptions options;
+
+    public AuthIdentityProvider(IServiceProvider services)
+        : this(services.GetRequiredService<AuthCalls>(), services.GetRequiredService<AuthHashing>(), services.GetRequiredService<AuthModuleOptions>())
+    {
+    }
+
+    internal AuthIdentityProvider(AuthCalls calls, AuthHashing hashing, AuthModuleOptions options)
+    {
+        this.calls = calls;
+        this.hashing = hashing;
+        this.options = options;
+    }
+
     public const string ProviderId = "auth";
 
     public async Task<SessionIssued> Issue(CapabilityCaller caller, SessionRequest request, CancellationToken cancellationToken)
