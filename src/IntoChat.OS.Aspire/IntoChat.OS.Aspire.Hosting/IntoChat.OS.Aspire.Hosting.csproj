@@ -7,11 +7,34 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting" />
     <PackageReference Include="Aspire.Hosting.Azure.Storage" />
+    <PackageReference Include="Aspire.Hosting.ClickHouse" />
     <PackageReference Include="Aspire.Hosting.Orleans" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.Qdrant" />
+    <PackageReference Include="Aspire.Hosting.Yarp" />
+    <PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama" />
+    <PackageReference Include="Microsoft.AI.Foundry.Local" ExcludeAssets="build;buildTransitive;contentfiles" PrivateAssets="contentfiles;analyzers;build;buildTransitive" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/AI/src/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/src/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/ClickHouse/src/IntoChat.OS.Modules.ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Auth/src/IntoChat.OS.Modules.Google.Auth/IntoChat.OS.Modules.Google.Auth.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Flutter/src/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/src/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Aspire/src/IntoChat.OS.Modules.Microsoft.Aspire/IntoChat.OS.Modules.Microsoft.Aspire.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/GitHub/src/IntoChat.OS.Modules.Microsoft.GitHub/IntoChat.OS.Modules.Microsoft.GitHub.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/src/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Qdrant/src/IntoChat.OS.Modules.Qdrant/IntoChat.OS.Modules.Qdrant.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Salesforce/src/IntoChat.OS.Modules.Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Supabase/src/IntoChat.OS.Modules.Supabase/IntoChat.OS.Modules.Supabase.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Seeds/*.sql" LogicalName="Seeds/%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Aspire.Hosting.Tests.Unit" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" /></ItemGroup>
 </Project>

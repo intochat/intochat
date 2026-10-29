@@ -19,9 +19,16 @@ public sealed class GmailModule : DigitalBrain.Module, IHttpModule
     public static DigitalBrain.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
-        Needs: [],
+        Needs:
+        [
+            DigitalBrain.Need.HttpClient("gmail", IntoChatOSConfiguration.ModuleOptionsSection("gmail") + ":ApiBaseUri", requestsPerMinute: 120),
+            DigitalBrain.Need.Webhook(WatchPath, "gmail"),
+        ],
         Settings: [DigitalBrain.Setting.Of<GmailModuleOptions>(IntoChatOSConfiguration.ModuleOptionsSection("gmail"))],
-        Secrets: []);
+        Secrets: [])
+    {
+        Auth = new DigitalBrain.ModuleAuth("google-oauth", [GmailScopes.Read]),
+    };
 
     public static System.Reflection.Assembly? Contracts => typeof(IGmail).Assembly;
 

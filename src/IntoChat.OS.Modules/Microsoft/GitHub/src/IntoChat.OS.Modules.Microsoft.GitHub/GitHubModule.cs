@@ -15,9 +15,16 @@ public sealed class GitHubModule : DigitalBrain.Module
     public static DigitalBrain.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
-        Needs: [],
+        Needs:
+        [
+            DigitalBrain.Need.HttpClient("github", requestsPerMinute: 120),
+            DigitalBrain.Need.Webhook("/github/webhook", "github.repository"),
+        ],
         Settings: [DigitalBrain.Setting.Of<GitHubModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(ManifestName))],
-        Secrets: []);
+        Secrets: [])
+    {
+        Auth = new DigitalBrain.ModuleAuth("github", []),
+    };
 
     public static System.Reflection.Assembly? Contracts => typeof(IRepository).Assembly;
 

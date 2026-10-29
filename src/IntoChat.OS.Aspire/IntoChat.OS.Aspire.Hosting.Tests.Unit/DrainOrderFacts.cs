@@ -1,3 +1,4 @@
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Http.Features;
@@ -15,7 +16,11 @@ public sealed class DrainOrderFacts
         var ct = TestContext.Current.CancellationToken;
         var events = new List<string>();
         var builder = Host.CreateApplicationBuilder();
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [HealthProbes.DrainDelayKey] = "00:00:00.010" });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [IntoChatOSNames.HomeKey] = Path.GetTempPath(),
+            [HealthProbes.DrainDelayKey] = "00:00:00.010",
+        });
         // Registered before the defaults, so it stops after the drain's own service; a later one stops before it.
         builder.Services.AddSingleton<IHostedService>(new Recorder("early", events));
         builder.AddServiceDefaults();

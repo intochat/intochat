@@ -15,8 +15,4 @@
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Playwright/src/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
-  <ItemGroup>
-    <!-- Every module hosting adapter, by convention; ModuleHostingScan finds them from the references. -->
-    <ProjectReference Include="../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Aspire.Hosting.csproj" Exclude="../IntoChat.OS.Modules/**/tests/**" IsAspireProjectResource="false" />
-  </ItemGroup>
 </Project>

@@ -1,40 +1,34 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DigitalBrain;
 
-/// <summary>The resource kinds a module can need from its host.</summary>
+/// <summary>What kind of runtime resource a <see cref="Need"/> names.</summary>
 public enum NeedKind
 {
-    /// <summary>A named state store.</summary>
+    /// <summary>A named durable state store (<see cref="Need.State"/>).</summary>
     State,
 
-    /// <summary>Streams.</summary>
+    /// <summary>Signal streams (<see cref="Need.Streams"/>).</summary>
     Streams,
 
-    /// <summary>Durable reminders.</summary>
+    /// <summary>Durable reminders (<see cref="Need.Reminders"/>).</summary>
     Reminders,
 
-    /// <summary>Secret storage.</summary>
+    /// <summary>Encrypted secrets (<see cref="Need.Secrets"/>).</summary>
     Secrets,
 
-    /// <summary>Outbound HTTP.</summary>
+    /// <summary>Outbound HTTP or inbound webhook ingress (<see cref="Need.Http"/>, <see cref="Need.HttpClient"/>, <see cref="Need.Webhook"/>).</summary>
     Http,
 
-    /// <summary>A code sandbox.</summary>
+    /// <summary>Isolated code execution or container sidecar (<see cref="Need.Sandbox"/>, <see cref="Need.Container"/>).</summary>
     Sandbox,
 
-    /// <summary>A language model.</summary>
+    /// <summary>A language model (<see cref="Need.Model"/>).</summary>
     Model,
-
-    /// <summary>A named, metered outbound HTTP client.</summary>
-    HttpClient,
-
-    /// <summary>An inbound webhook route forwarded to a target neuron type.</summary>
-    Webhook,
-
-    /// <summary>A container image needed by the module.</summary>
-    Container,
 }
 
-/// <summary>A resource a module needs from its host.</summary>
+/// <summary>A runtime resource a module needs from the host.</summary>
+[SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "Need is the domain term for a module's runtime dependency.")]
 public sealed record Need
 {
     private Need(NeedKind kind, string? name)
@@ -43,71 +37,74 @@ public sealed record Need
         Name = name;
     }
 
-    /// <summary>The resource kind.</summary>
+    /// <summary>Which resource kind this is.</summary>
     public NeedKind Kind { get; }
 
-    /// <summary>The resource name or route path, when applicable.</summary>
+    /// <summary>The store, client, webhook path, or container name when applicable; <see langword="null"/> for unnamed needs.</summary>
     public string? Name { get; }
 
-    /// <summary>Optional setting section or key holding the base address for <see cref="NeedKind.HttpClient"/>.</summary>
+    /// <summary>Optional setting section or key holding the base address for <see cref="Need.HttpClient"/>.</summary>
     public string? BaseAddressSetting { get; init; }
 
-    /// <summary>Optional rate limit in requests per minute for <see cref="NeedKind.HttpClient"/>.</summary>
+    /// <summary>Optional rate limit in requests per minute for <see cref="Need.HttpClient"/>.</summary>
     public int? RequestsPerMinute { get; init; }
 
-    /// <summary>The target neuron type alias for <see cref="NeedKind.Webhook"/>.</summary>
+    /// <summary>The target neuron type alias for <see cref="Need.Webhook"/>.</summary>
     public string? TargetNeuronType { get; init; }
 
-    /// <summary>The container image for <see cref="NeedKind.Container"/>.</summary>
+    /// <summary>The container image for <see cref="Need.Container"/>.</summary>
     public string? Image { get; init; }
 
-    /// <summary>Streams.</summary>
+    /// <summary>Signal streams.</summary>
     public static Need Streams { get; } = new(NeedKind.Streams, null);
 
     /// <summary>Durable reminders.</summary>
     public static Need Reminders { get; } = new(NeedKind.Reminders, null);
 
-    /// <summary>Secret storage.</summary>
+    /// <summary>Encrypted secrets.</summary>
     public static Need Secrets { get; } = new(NeedKind.Secrets, null);
 
     /// <summary>Outbound HTTP.</summary>
     public static Need Http { get; } = new(NeedKind.Http, null);
 
-    /// <summary>A code sandbox.</summary>
+    /// <summary>Isolated code execution.</summary>
     public static Need Sandbox { get; } = new(NeedKind.Sandbox, null);
 
     /// <summary>A language model.</summary>
     public static Need Model { get; } = new(NeedKind.Model, null);
 
-    /// <summary>A named state store.</summary>
-    /// <exception cref="ArgumentException"><paramref name="name"/> does not match <c>^[a-z][a-z0-9-]{0,62}$</c>.</exception>
+    /// <summary>A named durable state store.</summary>
     public static Need State(string name) => new(NeedKind.State, Names.Require(name, nameof(name), "state store"));
 
-    /// <summary>A named, metered outbound HTTP client.</summary>
+    /// <summary>A named metered and rate-limited HTTP client pipeline.</summary>
     public static Need HttpClient(string name, string? baseAddressSetting = null, int requestsPerMinute = 120)
-        => new(NeedKind.HttpClient, Names.Require(name, nameof(name), "http client"))
+        => new(NeedKind.Http, Names.Require(name, nameof(name), "http client"))
         {
             BaseAddressSetting = baseAddressSetting,
             RequestsPerMinute = requestsPerMinute,
         };
 
-    /// <summary>An inbound webhook route forwarded to <paramref name="targetNeuronType"/>.</summary>
+    /// <summary>A declarative webhook ingress endpoint that dispatches a signal to a target neuron.</summary>
     public static Need Webhook(string path, string targetNeuronType)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        return new(NeedKind.Webhook, path)
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetNeuronType);
+        return new(NeedKind.Http, path)
         {
-            TargetNeuronType = Names.Require(targetNeuronType, nameof(targetNeuronType), "neuron type"),
+            TargetNeuronType = targetNeuronType,
         };
     }
 
-    /// <summary>A container image needed by the module.</summary>
+    /// <summary>A declarative container sidecar resource.</summary>
     public static Need Container(string name, string image)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(image);
-        return new(NeedKind.Container, Names.Require(name, nameof(name), "container"))
+        return new(NeedKind.Sandbox, Names.Require(name, nameof(name), "container"))
         {
             Image = image,
         };
     }
+
+    /// <inheritdoc />
+    public override string ToString() => Name is null ? Kind.ToString() : $"{Kind}({Name})";
 }

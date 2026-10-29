@@ -1,6 +1,7 @@
 using System.Reflection;
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Kernel.Http;
 using Microsoft.Extensions.DependencyModel;
 
 namespace IntoChat.OS.Kernel;
@@ -90,8 +91,13 @@ public static class OperatingSystemModules
     public static IntoChatOSServerBuilder AddOperatingSystem(this IntoChatOSServerBuilder server, IReadOnlyList<OsModule>? modules = null)
     {
         ArgumentNullException.ThrowIfNull(server);
-        foreach (var module in modules ?? Modules) { server.AddModule(module); }
-        server.ConfigureServices(services => services.AddOperatingSystemApps());
+        var selected = modules ?? Modules;
+        foreach (var module in selected) { server.AddModule(module); }
+        server.ConfigureServices(services =>
+        {
+            services.AddMeteredHttpPipelines(selected);
+            services.AddOperatingSystemApps();
+        });
         return server;
     }
 }

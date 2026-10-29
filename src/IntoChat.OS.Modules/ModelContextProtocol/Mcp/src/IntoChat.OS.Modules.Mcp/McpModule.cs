@@ -9,7 +9,7 @@ public sealed class McpModule : DigitalBrain.Module
     public static DigitalBrain.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
-        Needs: [],
+        Needs: [DigitalBrain.Need.HttpClient("mcp", requestsPerMinute: 120)],
         Settings: [],
         Secrets: []);
 

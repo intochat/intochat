@@ -1045,20 +1045,20 @@ DigitalBrain.BddVerified.Passed.get -> bool
 DigitalBrain.BddVerified.Passed.init -> void
 DigitalBrain.BddVerified.Report.get -> DigitalBrain.BddReport!
 DigitalBrain.BddVerified.Report.init -> void
-DigitalBrain.ConnectorManifest
-DigitalBrain.ConnectorManifest.<Clone>$() -> DigitalBrain.ConnectorManifest!
-DigitalBrain.ConnectorManifest.Auth.get -> string!
-DigitalBrain.ConnectorManifest.Auth.init -> void
-DigitalBrain.ConnectorManifest.ConnectorManifest(string! Auth, System.Collections.Generic.IReadOnlyList<string!>! Scopes) -> void
-DigitalBrain.ConnectorManifest.Deconstruct(out string! Auth, out System.Collections.Generic.IReadOnlyList<string!>! Scopes) -> void
-DigitalBrain.ConnectorManifest.Equals(DigitalBrain.ConnectorManifest? other) -> bool
-DigitalBrain.ConnectorManifest.Scopes.get -> System.Collections.Generic.IReadOnlyList<string!>!
-DigitalBrain.ConnectorManifest.Scopes.init -> void
+DigitalBrain.ModuleAuth
+DigitalBrain.ModuleAuth.<Clone>$() -> DigitalBrain.ModuleAuth!
+DigitalBrain.ModuleAuth.Scheme.get -> string!
+DigitalBrain.ModuleAuth.Scheme.init -> void
+DigitalBrain.ModuleAuth.ModuleAuth(string! Scheme, System.Collections.Generic.IReadOnlyList<string!>! Scopes) -> void
+DigitalBrain.ModuleAuth.Deconstruct(out string! Scheme, out System.Collections.Generic.IReadOnlyList<string!>! Scopes) -> void
+DigitalBrain.ModuleAuth.Equals(DigitalBrain.ModuleAuth? other) -> bool
+DigitalBrain.ModuleAuth.Scopes.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.ModuleAuth.Scopes.init -> void
 DigitalBrain.IBdd
 DigitalBrain.IBdd.Read(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BddReport?>!
 DigitalBrain.IBdd.Record(DigitalBrain.BddReport! report, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.BddReport!>!
-DigitalBrain.ModuleManifest.Connector.get -> DigitalBrain.ConnectorManifest?
-DigitalBrain.ModuleManifest.Connector.init -> void
+DigitalBrain.ModuleManifest.Auth.get -> DigitalBrain.ModuleAuth?
+DigitalBrain.ModuleManifest.Auth.init -> void
 DigitalBrain.Need.BaseAddressSetting.get -> string?
 DigitalBrain.Need.BaseAddressSetting.init -> void
 DigitalBrain.Need.Image.get -> string?
@@ -1067,9 +1067,6 @@ DigitalBrain.Need.RequestsPerMinute.get -> int?
 DigitalBrain.Need.RequestsPerMinute.init -> void
 DigitalBrain.Need.TargetNeuronType.get -> string?
 DigitalBrain.Need.TargetNeuronType.init -> void
-DigitalBrain.NeedKind.Container = 9 -> DigitalBrain.NeedKind
-DigitalBrain.NeedKind.HttpClient = 7 -> DigitalBrain.NeedKind
-DigitalBrain.NeedKind.Webhook = 8 -> DigitalBrain.NeedKind
 DigitalBrain.ScenarioAttribute
 DigitalBrain.ScenarioAttribute.ScenarioAttribute(string! title) -> void
 DigitalBrain.ScenarioAttribute.Title.get -> string!
@@ -1096,9 +1093,9 @@ override DigitalBrain.BddVerified.<Clone>$() -> DigitalBrain.BddVerified!
 override DigitalBrain.BddVerified.Equals(object? obj) -> bool
 override DigitalBrain.BddVerified.GetHashCode() -> int
 override DigitalBrain.BddVerified.ToString() -> string!
-override DigitalBrain.ConnectorManifest.Equals(object? obj) -> bool
-override DigitalBrain.ConnectorManifest.GetHashCode() -> int
-override DigitalBrain.ConnectorManifest.ToString() -> string!
+override DigitalBrain.ModuleAuth.Equals(object? obj) -> bool
+override DigitalBrain.ModuleAuth.GetHashCode() -> int
+override DigitalBrain.ModuleAuth.ToString() -> string!
 override DigitalBrain.ScenarioVerdict.Equals(object? obj) -> bool
 override DigitalBrain.ScenarioVerdict.GetHashCode() -> int
 override DigitalBrain.ScenarioVerdict.ToString() -> string!
@@ -1109,8 +1106,8 @@ static DigitalBrain.BddState.operator !=(DigitalBrain.BddState? left, DigitalBra
 static DigitalBrain.BddState.operator ==(DigitalBrain.BddState? left, DigitalBrain.BddState? right) -> bool
 static DigitalBrain.BddVerified.operator !=(DigitalBrain.BddVerified? left, DigitalBrain.BddVerified? right) -> bool
 static DigitalBrain.BddVerified.operator ==(DigitalBrain.BddVerified? left, DigitalBrain.BddVerified? right) -> bool
-static DigitalBrain.ConnectorManifest.operator !=(DigitalBrain.ConnectorManifest? left, DigitalBrain.ConnectorManifest? right) -> bool
-static DigitalBrain.ConnectorManifest.operator ==(DigitalBrain.ConnectorManifest? left, DigitalBrain.ConnectorManifest? right) -> bool
+static DigitalBrain.ModuleAuth.operator !=(DigitalBrain.ModuleAuth? left, DigitalBrain.ModuleAuth? right) -> bool
+static DigitalBrain.ModuleAuth.operator ==(DigitalBrain.ModuleAuth? left, DigitalBrain.ModuleAuth? right) -> bool
 static DigitalBrain.Need.Container(string! name, string! image) -> DigitalBrain.Need!
 static DigitalBrain.Need.HttpClient(string! name, string? baseAddressSetting = null, int requestsPerMinute = 120) -> DigitalBrain.Need!
 static DigitalBrain.Need.Webhook(string! path, string! targetNeuronType) -> DigitalBrain.Need!

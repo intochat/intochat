@@ -1,4 +1,5 @@
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Contracts.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -16,6 +17,7 @@ public sealed class ConfigurationFileFacts
             var builder = Host.CreateApplicationBuilder();
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
+                [IntoChatOSNames.HomeKey] = Path.GetTempPath(),
                 [ServerHostingExtensions.ConfigurationFileKey] = path,
             });
             builder.AddIntoChatOSServer(server => { });

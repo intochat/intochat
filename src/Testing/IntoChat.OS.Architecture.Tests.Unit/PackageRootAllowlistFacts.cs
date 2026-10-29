@@ -7,8 +7,8 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // repository and the deleted IntoChat.OS.Sdk* tier never comes back under its old name.
 public sealed partial class PackageRootAllowlistFacts
 {
-    // The packable count when the fact was written (03-14); a drop below it means the scan stopped seeing projects.
-    private const int KnownPackable = 70;
+    // The packable count after consolidating the 14 module Aspire.Hosting projects into IntoChat.OS.Aspire.Hosting; a drop below it means the scan stopped seeing projects.
+    private const int KnownPackable = 56;
 
     [GeneratedRegex(@"^IntoChat\.OS(\.|$)|^IntoChat\.Cloud\.", RegexOptions.CultureInvariant)]
     private static partial Regex AllowedRoot();

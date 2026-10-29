@@ -44,4 +44,8 @@ public static class IntoChatOSNames
     public const string BrainStorageOwnershipBlobLease = "BlobLease";
     public const string BrainStorageOwnershipWriterLock = "WriterLock";
     public const string IntegrationsSectionName = "IntoChatOS:Integrations";
+
+    // Single source of truth for modules switched off by default in local / local+cloud runs (shared by Kernel and AppHost).
+    public static readonly IReadOnlyList<string> LocalDisabledModules =
+        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "salesforce", "gmail"];
 }

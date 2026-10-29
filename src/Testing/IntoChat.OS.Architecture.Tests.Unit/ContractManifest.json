@@ -179,6 +179,7 @@
     "IntoChat.OS.Kernel.Composition.TypeTableGrain": "features=cluster:IntoChat.OS.Kernel.Composition.TypeTableGrain+State"
   },
   "Signals": {
+    "DigitalBrain.BddVerified": "BddVerified",
     "DigitalBrain.Confirmation.ConfirmationRequested": "ConfirmationRequested",
     "DigitalBrain.Confirmation.ConfirmationResolved": "ConfirmationResolved",
     "DigitalBrain.Gap": "Gap",

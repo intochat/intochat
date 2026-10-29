@@ -47,7 +47,9 @@ public sealed class OsModule
         ArgumentNullException.ThrowIfNull(type);
         var manifest = DigitalBrain.ModuleManifest.Of(type);
         var id = new ModuleId(manifest.Id ?? throw new InvalidOperationException($"{type.FullName} has no module id."));
-        return new OsModule(type, id, Flag(type, "RequiresContainer"), Number(type, "Order"), Text(type, "LicenseProduct"),
+        var requiresContainer = Flag(type, "RequiresContainer")
+            || manifest.Needs.Any(need => need.Kind == DigitalBrain.NeedKind.Sandbox && need.Image is not null);
+        return new OsModule(type, id, requiresContainer, Number(type, "Order"), Text(type, "LicenseProduct"),
             ContractsOf(type), NeuronsOf(type), Profiles(type));
     }
 

@@ -10,11 +10,7 @@ public sealed partial class ModuleKeyGrammarFacts
     [GeneratedRegex("\"\\$?IntoChat.OS(:|__)(?!Modules[:_])[A-Za-z]", RegexOptions.CultureInvariant)]
     private static partial Regex ForeignRootLiteral();
 
-    private static readonly string[] Allowed =
-    [
-        // Brain-scoped owner identity, not a module option; platform-owned by design review.
-        "IntoChat.OS.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
-    ];
+    private static readonly string[] Allowed = [];
 
     [Fact]
     public void ModuleKeysLiveUnderTheModulesSection()
