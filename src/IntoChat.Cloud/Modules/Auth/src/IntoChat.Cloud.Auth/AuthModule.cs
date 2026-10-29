@@ -62,6 +62,7 @@ public sealed class AuthModule : Module
         services.TryAddSingleton<LoginService>();
         services.TryAddSingleton<ExternalTicketIssuer>();
         services.TryAddSingleton<AuthIdentityProvider>();
+        services.TryAddSingleton<IntoChat.Cloud.Auth.Ui.IAccountAuth, IntoChat.Cloud.Auth.Ui.UnconfiguredAccountAuth>();
         services.TryAddSingleton<IIdentitySessionPort>(provider => provider.GetRequiredService<AuthIdentityProvider>());
         services.TryAddSingleton<AuthLicenseGate>();
         GoogleWiring.Register(services);
