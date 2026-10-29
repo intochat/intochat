@@ -50,6 +50,8 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, BrainSceneLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, SettingsModulesLifecycle>();
+        services.AddSingleton<DevAppGate>();
+        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
     }
 
@@ -60,5 +62,6 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
             Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
+        DevAppEndpoints.Map(endpoints);
     }
 }

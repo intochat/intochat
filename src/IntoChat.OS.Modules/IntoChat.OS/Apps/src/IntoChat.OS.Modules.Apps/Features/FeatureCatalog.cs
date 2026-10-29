@@ -19,17 +19,19 @@ public sealed class FeatureCatalog
     private readonly FeatureDirectory? _directory;
     private readonly IScriptSandbox? _sandbox;
     private readonly Assembly? _modules;
+    private readonly FeatureDirectory? _dev;
     private readonly Lock _gate = new();
     private Task<Loaded>? _loaded;
 
-    public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null)
-        : this(directory, sandbox, null) { }
+    public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null, FeatureDirectory? dev = null)
+        : this(directory, sandbox, null, dev) { }
 
-    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, Assembly? modules)
+    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, Assembly? modules, FeatureDirectory? dev = null)
     {
         _directory = directory;
         _sandbox = sandbox;
         _modules = modules;
+        _dev = dev;
     }
 
     // A relative folder resolves against the host's base directory, where a published image carries it.
@@ -40,7 +42,20 @@ public sealed class FeatureCatalog
         var development = services.GetService<IHostEnvironment>()?.IsDevelopment() == true;
         if (string.IsNullOrWhiteSpace(path)) { path = DefaultScriptFolder(development); }
         var directory = new FeatureDirectory(System.IO.Path.GetFullPath(path, AppContext.BaseDirectory), development);
-        return new(directory, services.GetService<IScriptSandbox>(), typeof(AppsModule).Assembly);
+        return new(directory, services.GetService<IScriptSandbox>(), typeof(AppsModule).Assembly, DevDirectory(services));
+    }
+
+    // <Home>/dev-apps, owner folders underneath. Missing until the first `intochat run`.
+    private static FeatureDirectory? DevDirectory(IServiceProvider services)
+    {
+        try
+        {
+            var configuration = services.GetService<global::Microsoft.Extensions.Configuration.IConfiguration>();
+            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration);
+            return new FeatureDirectory(System.IO.Path.Combine(home.Path, "dev-apps"), writable: true);
+        }
+        catch (Exception error) when (error is InvalidOperationException or IOException)
+        { return null; }
     }
 
     // Development: the features/os next to Intochat.OS.slnx, walking up from the build output.
@@ -113,6 +128,18 @@ public sealed class FeatureCatalog
     // its errors and leaves the previous snapshot in place. A feature the folder no longer holds is left as it was.
     public async Task<AppBundle?> Reload(string owner, string name)
     {
+        if (string.Equals(owner, DevOwner, StringComparison.Ordinal) && _dev is { } dev && System.IO.Directory.Exists(dev.Path))
+        {
+            var developed = dev.Load().Where(feature => feature.Owner == owner && feature.Bundle.Name == name).ToArray();
+            if (developed.Length > 1)
+            { throw new InvalidOperationException($"{owner}/{name} ships twice: {string.Join(", ", developed.Select(copy => copy.Folder))}."); }
+            if (developed.Length == 1)
+            {
+                await RequireCompiles(owner, developed[0].Bundle, _sandbox);
+                lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), owner, developed[0].Bundle); }
+                return developed[0].Bundle;
+            }
+        }
         if (_directory is not { } directory) { return null; }
         var copies = directory.Load().Where(feature => feature.Owner == owner && feature.Bundle.Name == name).ToArray();
         if (copies.Length == 0) { return await Find(owner, name); }
@@ -121,6 +148,21 @@ public sealed class FeatureCatalog
         var bundle = copies[0].Bundle;
         await RequireCompiles(owner, bundle, _sandbox);
         lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), owner, bundle); }
+        return bundle;
+    }
+
+    // Publisher of a folder pushed by `intochat run`. Never os, whatever the folder says.
+    public const string DevOwner = "local";
+
+    // Compiles through the sandbox, then keeps the bundle. A failure throws and leaves the previous snapshot.
+    public async Task<AppBundle> AcceptLocal(AppBundle bundle)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        if (_dev is not { Writable: true }) { throw new InvalidOperationException("This host has no dev apps folder."); }
+        if (_sandbox is null) { throw new InvalidOperationException("The script sandbox is not available."); }
+        await RequireCompiles(DevOwner, bundle, _sandbox);
+        _dev.Write(DevOwner, bundle);
+        lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), DevOwner, bundle); }
         return bundle;
     }
 
@@ -150,6 +192,29 @@ public sealed class FeatureCatalog
             try { scripts = await Load(_directory, _sandbox); }
             catch (DirectoryNotFoundException error)
             { scripts = new(Nothing.Bundles, [new("", "", "", error.Message)], Nothing.Origins); }
+        }
+        if (_dev is { } dev && System.IO.Directory.Exists(dev.Path))
+        {
+            Loaded developed;
+            try { developed = await Load(dev, _sandbox); }
+            catch (DirectoryNotFoundException) { developed = Nothing; }
+            var devBundles = scripts.Bundles.ToDictionary();
+            var devOrigins = scripts.Origins.ToDictionary();
+            List<FeatureFailure> devFailures = [.. scripts.Failures];
+            foreach (var (key, bundle) in developed.Bundles)
+            {
+                if (devBundles.ContainsKey(key))
+                {
+                    devFailures.Add(new(key.Owner, key.Name, bundle.Version, $"{key.Owner}/{key.Name} ships twice: the features folder and the dev apps folder."));
+                    devBundles.Remove(key);
+                    devOrigins.Remove(key);
+                    continue;
+                }
+                devBundles[key] = bundle;
+                devOrigins[key] = developed.Origins[key];
+            }
+            devFailures.AddRange(developed.Failures);
+            scripts = new(devBundles, [.. devFailures], devOrigins);
         }
         if (_modules is null) { return scripts; }
         var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>(scripts.Bundles.ToDictionary());
