@@ -5,7 +5,7 @@ using IntoChat.OS.Modules.Flutter.Views;
 // then the view is shown again. Install, Update, Open and Remove are button neurons with their own activations; any
 // other action (copy: among them) is not ours.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
-await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Apps.Key(brain) + "/view"), brain.Stopping))
+await foreach (var clicked in brain.On<ViewAction>(brain.Get<IView>(Apps.Key(brain) + "/apps-view"), brain.Stopping))
 {
     if (Apps.Command(brain, clicked.Action) is not { } command) { continue; }
     try

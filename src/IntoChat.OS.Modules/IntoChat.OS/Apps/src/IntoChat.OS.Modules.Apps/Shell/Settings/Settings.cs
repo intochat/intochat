@@ -16,7 +16,7 @@ using IntoChat.OS.Integrations;
 public sealed record SettingsViewState(string Tab = "general", int ArchivedTake = SettingsView.ArchivedPage, bool ConfirmDelete = false, string? Toast = null);
 
 // What the model reads, so the facts can stand in for the brain.
-public sealed record SettingsSources(Func<Task<ModelChoices>> Models, Func<int, int, Task<ChatIndexPage>> Archived, Func<Task<ConnectionRow[]>> Connections, Func<AccountSurface?>? Account = null);
+public sealed record SettingsSources(Func<Task<ModelChoices>> Models, Func<int, int, Task<ChatIndexPage>> Archived, Func<Task<ConnectionRow[]>> Connections, Func<AccountSurface?>? Account = null, Func<Task<ModuleRow[]>>? Modules = null);
 
 // Shared by the Settings synapses: keys, the trust rule, view state, the model and the single Show.
 public static class Settings
@@ -135,6 +135,7 @@ public static class Settings
         ArchivedRow[] archived = [];
         var archivedTotal = 0;
         ConnectionRow[] connections = [];
+        ModuleRow[] modules = [];
         try
         {
             if (state.Tab == "models")
@@ -151,11 +152,12 @@ public static class Settings
                 // The view shows Show more while more remain after this page.
                 archivedTotal = Math.Max(0, page.Total - skip);
             }
-            else if (state.Tab == "connections") { connections = await sources.Connections(); }
+            else if (state.Tab is "connections" or "modules") { connections = await sources.Connections(); }
+            if (state.Tab == "modules" && sources.Modules is { } load) { modules = await load(); }
         }
         catch (Exception error) when (error is not OperationCanceledException) { toast = SettingsCopy.SaveFailed; }
         return new(state.Tab, appKey, auto, models, archived, archivedTotal, connections, state.ConfirmDelete && state.Tab == "danger", toast,
-            sources.Account?.Invoke());
+            sources.Account?.Invoke(), modules);
     }
 
     // The brain's connections first, then each connector this host offers that is not connected yet.
@@ -163,7 +165,7 @@ public static class Settings
     {
         string Provider(string id) => kinds.FirstOrDefault(kind => kind.Id == id)?.DisplayName
             ?? offers.FirstOrDefault(offer => offer.Id == id)?.DisplayName ?? id;
-        var rows = current.OrderBy(item => item.Kind, StringComparer.Ordinal).ThenBy(item => item.Id, StringComparer.Ordinal)
+        var rows = current.OrderBy(item => item.Order).ThenBy(item => item.Kind, StringComparer.Ordinal).ThenBy(item => item.Id, StringComparer.Ordinal)
             .Select(item => new ConnectionRow(item.Kind, Provider(item.Kind) + " · " + (item.Account is { Length: > 0 } account ? account : item.Id),
                 State(item.Status), item.Status == "connected")).ToList();
         foreach (var offer in offers.Where(offer => current.All(item => item.Kind != offer.Id)))
@@ -188,7 +190,16 @@ public static class Settings
             () => brain.Get<IModelCatalog>(IModelCatalog.Key(scope)).List(),
             async (skip, take) => await (await Index(brain)).List(true, skip, take),
             async () => Connections(await requests.ListConnections(), await requests.ListKinds(), await requests.ListOffers()),
-            () => AccountOf(brain.Setting("AccountSurface")));
+            () => AccountOf(brain.Setting("AccountSurface")),
+            async () =>
+            {
+                try
+                {
+                    var raw = (await brain.Get<IText>(Key(brain) + "/modules-json").Read()).Markdown;
+                    return raw is { Length: > 0 } ? JsonSerializer.Deserialize<ModuleRow[]>(raw, Json) ?? [] : [];
+                }
+                catch (Exception error) when (error is not OperationCanceledException) { return []; }
+            });
     }
 
     // The host writes the identity provider's account surface neuron into the app's setting as "{kind}|{name}";
@@ -255,6 +266,11 @@ public static class Settings
         var sources = Sources(brain);
         ChatIndexPage? shown = null;
         var model = await Model(app, state, sources with { Archived = async (skip, take) => shown = await sources.Archived(skip, take) });
+        if (state.Tab == "apps")
+        {
+            try { await Apps.Show(brain); }
+            catch (Exception error) when (error is not OperationCanceledException) { }
+        }
         // Recorded before the publish, so each row's Unarchive names a token that resolves to that row's chat.
         if (shown is not null)
         {

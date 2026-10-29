@@ -2,8 +2,9 @@
 # Settings
 
 Settings is a value tree the app publishes to {app}/view: tabs (General, AI models, API keys,
-Connections, Variables and secrets, Notifications, Archived chats, Danger zone, then a disabled
-Billing · Later) above the active tab's body. Every control that reads or writes a person's data
+Connections, Variables and secrets, Notifications, Archived chats, Modules, Apps, Danger zone, then a disabled
+Billing · Later) above the active tab's body. Modules lists loaded module manifests and the broker's
+connections. Apps is the former Apps library, published at {app}/apps-view. Every control that reads or writes a person's data
 is a neuron the view references by name, so the tree carries labels and row indexes only. The
 durable view state {app}/view-state holds the tab, the archived page, the delete confirmation and
 the toast, so a reconnect shows the same tab.

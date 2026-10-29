@@ -12,7 +12,8 @@ public static class ShippedApps
     public static readonly IReadOnlySet<string> Services = new HashSet<string>(["desktop", "workspace", "router", "selfimprove", "circleroom", "usage"], StringComparer.Ordinal);
 
     // What the OS runs on, which Remove refuses: its services, Settings, Apps and Ino.
-    public static readonly IReadOnlySet<string> Roots = new HashSet<string>([.. Services, "settings", "apps", "ino"], StringComparer.Ordinal);
+    // Apps folded into Settings (08-09). The folder is no longer a boot root.
+    public static readonly IReadOnlySet<string> Roots = new HashSet<string>([.. Services, "settings", "ino"], StringComparer.Ordinal);
 
     public static bool Is(AppSnapshot app, string name) => Is(app, name, [Publisher]);
 

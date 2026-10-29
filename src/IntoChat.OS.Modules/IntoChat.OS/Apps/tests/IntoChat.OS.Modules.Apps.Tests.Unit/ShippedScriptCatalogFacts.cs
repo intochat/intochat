@@ -11,8 +11,8 @@ public sealed class ShippedScriptCatalogFacts
 {
     private static readonly string[] Scripts =
     [
-        "apps", "brainview", "calculator", "circle", "circleroom", "datavisualizer", "desktop", "engineer",
-        "filmcraft", "friends", "ino", "memory", "photocraft", "router", "selfimprove", "settings", "usage", "workspace",
+        "brainview", "calculator", "circle", "circleroom", "datavisualizer", "engineer",
+        "filmcraft", "friends", "ino", "memory", "photocraft", "router", "selfimprove", "usage",
     ];
 
     [Fact]
@@ -33,9 +33,13 @@ public sealed class ShippedScriptCatalogFacts
         Assert.All(Scripts, name => Assert.Contains(("os", name), names));
         Assert.Contains(("os", "files"), names);
         Assert.Equal(Scripts.Length, listings.Count(listing => listing.Publisher == "os" && Scripts.Contains(listing.Name)));
+        Assert.DoesNotContain(("os", "apps"), names);
         Assert.IsType<FeatureOrigin.Folder>(await catalog.Origin("os", "calculator"));
-        var files = Assert.IsType<FeatureOrigin.Module>(await catalog.Origin("os", "files"));
-        Assert.Same(typeof(AppsModule).Assembly, files.Assembly);
+        foreach (var compiled in new[] { "files", "workspace", "desktop", "settings" })
+        {
+            var origin = Assert.IsType<FeatureOrigin.Module>(await catalog.Origin("os", compiled));
+            Assert.Same(typeof(AppsModule).Assembly, origin.Assembly);
+        }
     }
 
     private sealed class DevelopmentHost : IHostEnvironment

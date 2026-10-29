@@ -68,8 +68,8 @@ public static class DesktopLayout
             .. Favourites(m),
             .. m.Dock.Where(item => item.Key != "ino").Select(item => (Ui.Button("dock-" + item.Key, item.Title, "open:" + item.Key, style: UiStyle.Ghost), Width(item.Title, false))),
             (Ui.IconButton("newtab", "plus", "New tab", "newtab"), IconWidth),
-            // The Apps app's window: its own key, since the row is "apps" and an open Apps app is "dock-apps".
-            (Ui.Button("apps-open", "Apps", "open:apps", style: UiStyle.Ghost, icon: "grid"), IconWidth),
+            // Apps lives on the Settings Apps tab. The button's activation opens that window.
+            (m.AppsButton is { } library ? (Ui.Reference("apps-open", new(UIVocabulary.ButtonType, library)), IconWidth) : (Ui.Button("apps-open", "Apps", "open:apps", enabled: false), IconWidth)),
         ]);
         UiNode settings = m.SettingsButton is { } armed
             ? Ui.Reference("more-settings", new(UIVocabulary.ButtonType, armed)) : Ui.Button("more-settings", "Settings", "settings", enabled: false);

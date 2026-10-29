@@ -21,7 +21,7 @@ public sealed record FavouriteModel(string Id, string Title, string Action, bool
 public sealed record DockItem(string Key, string Title, string? Icon, bool Pinned, bool Open);
 public sealed record DesktopModel(IReadOnlyList<WindowModel> Windows, string? FocusedId, IReadOnlyList<DockItem> Dock, bool Narrow,
     string? Usage = null, string? Person = null, string? LayoutButton = null, string? SettingsButton = null,
-    IReadOnlyList<FavouriteModel>? Favourites = null, string? Toast = null);
+    IReadOnlyList<FavouriteModel>? Favourites = null, string? Toast = null, string? AppsButton = null);
 
 // Shared by the desktop's synapses: keys, state, and composing the model from the brain.
 public static class Desktop
@@ -45,6 +45,8 @@ public static class Desktop
     public static string LayoutButton(IntoChatOSConnection brain) => Key(brain) + "/classic";
     // More's Settings: a button neuron whose activation asks the shell to open the Settings app's window.
     public static string SettingsButton(IntoChatOSConnection brain) => Key(brain) + "/settings";
+    // The dock's Apps button opens Settings on the Apps tab. Apps is no longer its own window.
+    public static string AppsButton(IntoChatOSConnection brain) => Key(brain) + "/apps";
     public static string? ChosenLayout(string input) => input is "classic" or "desktop" ? input : null;
     public static string LayoutActivation(string brainId, string layout) => System.Text.Json.JsonSerializer.Serialize(
         new { kind = "reconnect", brainId, application = "desktop", operation = "layout", input = layout });
@@ -140,7 +142,7 @@ public static class Desktop
         var focused = FocusedWindow(Scope(brain), state);
         var toast = ShownToast((await Toast(brain).Read()).Markdown, state.Revision);
         var narrow = (await Narrow(brain).Read()).Markdown == "true";
-        return new(windows, focused, dock, narrow, await Usage(brain), await Person(brain), LayoutButton(brain), SettingsButton(brain), favourites, toast);
+        return new(windows, focused, dock, narrow, await Usage(brain), await Person(brain), LayoutButton(brain), SettingsButton(brain), favourites, toast, AppsButton(brain));
     }
 
     // Ino first, then pinned apps, then open apps; each group by title. Everything else opens from the Apps app.
@@ -177,6 +179,14 @@ public static class Desktop
         var activation = SettingsActivation(Scope(brain));
         var current = await button.Read();
         if (current.Activation != activation || current.Label != "Settings") { await button.SetActivation("Settings", activation); }
+    }
+
+    public static async Task SetAppsButton(IntoChatOSConnection brain)
+    {
+        var button = brain.Get<IButton>(AppsButton(brain));
+        var activation = SettingsActivation(Scope(brain), "apps");
+        var current = await button.Read();
+        if (current.Activation != activation || current.Label != "Apps") { await button.SetActivation("Apps", activation); }
     }
 
     // Opens the installed app in a window beside the others (or focuses its window). Not opened if it
@@ -244,6 +254,7 @@ public static class Desktop
             if (current.Target is not null) { await stale.Set(null, current.Revision); }
         }
         await SetSettingsButton(brain);
+        await SetAppsButton(brain);
         var classic = brain.Get<IButton>(LayoutButton(brain));
         var switching = LayoutActivation(Scope(brain), "classic");
         if ((await classic.Read()).Activation != switching) { await classic.SetActivation("Classic layout", switching); }

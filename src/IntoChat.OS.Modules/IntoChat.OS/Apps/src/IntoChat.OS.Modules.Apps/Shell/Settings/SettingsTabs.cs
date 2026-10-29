@@ -10,6 +10,8 @@ public static class SettingsTabs
         ("variables", "Variables and secrets"),
         ("notifications", "Notifications"),
         ("archived", "Archived chats"),
+        ("modules", "Modules"),
+        ("apps", "Apps"),
         ("danger", "Danger zone"),
     ];
 
@@ -39,6 +41,8 @@ public static class SettingsTabs
         "variables" => "Values your brain's apps and agents can use. A secret is never shown again once saved.",
         "notifications" => "Choose what this brain tells you about.",
         "archived" => "Conversations you have archived.",
+        "modules" => "Modules loaded for this brain, and the connections the broker resolves.",
+        "apps" => "Install, update and remove apps for this brain.",
         "account" => "Your sign-in, profile and two-step verification.",
         _ => "Actions that change access to your account.",
     };

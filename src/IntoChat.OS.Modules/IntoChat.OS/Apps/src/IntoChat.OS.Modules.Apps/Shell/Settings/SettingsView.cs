@@ -12,13 +12,16 @@ public sealed record ArchivedRow(string Title, DateTimeOffset UpdatedAt, string 
 // Connectable is false for a connector this host has not configured: it shows no Connect.
 public sealed record ConnectionRow(string Connector, string Title, string Status, bool Connected, bool Connectable = true);
 
+// One module the host listed: id, display name, and the capability ids it provides. No secrets.
+public sealed record ModuleRow(string Id, string Name, string Capabilities);
+
 // The neuron a brain's identity provider contributes for the signed-in member's account (identity@1
 // IdentityProviderDescriptor.AccountSurface): Settings mounts its value tree under the Account tab by reference.
 public sealed record AccountSurface(string Kind, string Name);
 
 public sealed record SettingsModel(string Tab, string AppKey, ModelRow Auto, IReadOnlyList<ModelRow> Models,
     IReadOnlyList<ArchivedRow> Archived, int ArchivedTotal, IReadOnlyList<ConnectionRow> Connections, bool ConfirmDelete, string? Toast,
-    AccountSurface? Account = null);
+    AccountSurface? Account = null, IReadOnlyList<ModuleRow>? Modules = null);
 
 // Pure composition of the Settings surface. Controls that read or write a person's data are neurons referenced by
 // name; the tree itself carries labels and opaque tokens only, never an entry name, a value or a chat id.
@@ -67,6 +70,8 @@ public static class SettingsView
             "models" => Models(m),
             "keys" => Keys(m.AppKey),
             "connections" => Connections(m),
+            "modules" => Modules(m),
+            "apps" => [Ui.Reference("apps-library", new(UIVocabulary.ViewType, m.AppKey + "/apps-view"))],
             "variables" => [Ui.Reference("variables-field", new(UIVocabulary.EntryControlType, m.AppKey + "/variables"))],
             "notifications" => [.. SettingsCopy.Notifications.Select(n => Preference("notify-" + n.Key, m.AppKey))],
             "archived" => Archived(m, now),
@@ -74,6 +79,18 @@ public static class SettingsView
             _ => Danger(m),
         },
     ]);
+
+    private static UiNode[] Modules(SettingsModel m)
+    {
+        var rows = m.Modules ?? [];
+        UiNode[] moduleRows = rows.Count == 0
+            ? [Ui.Text("modules-empty", "No modules are loaded.")]
+            : [.. rows.Select(row => Ui.Text("module-" + row.Id, row.Name + " — " + (row.Capabilities.Length == 0 ? "No capabilities" : row.Capabilities)))];
+        UiNode[] connectionRows = m.Connections.Count == 0
+            ? [Ui.Text("module-connections-empty", "No connections")]
+            : [.. m.Connections.Take(ConnectionsShown).Select((row, index) => Ui.Text("module-connection-" + index.ToString(CultureInfo.InvariantCulture), row.Title + " — " + row.Status))];
+        return [Ui.Text("modules-heading", "Modules"), .. moduleRows, Ui.Text("module-connections-heading", "Connections"), .. connectionRows];
+    }
 
     private static UiNode Preference(string name, string appKey)
         => Ui.Reference("pref-" + name, new(UIVocabulary.PreferenceType, appKey + "/pref/" + name));

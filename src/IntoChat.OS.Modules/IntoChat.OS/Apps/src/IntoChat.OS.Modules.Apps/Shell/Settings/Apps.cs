@@ -21,7 +21,7 @@ public static class Apps
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string Scope(IntoChatOSConnection brain)
         => brain.Setting("Brain") is { Length: > 0 } scope ? scope : Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
-    public static IText ViewState(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/view-state");
+    public static IText ViewState(IntoChatOSConnection brain) => brain.Get<IText>(Key(brain) + "/apps-view-state");
     public static IAppStore Store(IntoChatOSConnection brain) => brain.Get<IAppStore>(IAppStore.Key(Scope(brain)));
     public static IConnectionRequests Connections(IntoChatOSConnection brain) => brain.Get<IConnectionRequests>(IConnectionRequests.Key(Scope(brain)));
     public static ISelect Slot(IntoChatOSConnection brain, int i) => brain.Get<ISelect>(Key(brain) + "/slot/" + i.ToString(CultureInfo.InvariantCulture));
@@ -227,7 +227,7 @@ public static class Apps
     {
         var model = await Model(brain, await ReadState(ViewState(brain)));
         model = await ArmButtons(brain, model);
-        await new ViewPublisher(brain.Get<IView>(Key(brain) + "/view"), Revision(brain)).Publish(AppsView.Render(Key(brain), model));
+        await new ViewPublisher(brain.Get<IView>(Key(brain) + "/apps-view"), Revision(brain)).Publish(AppsView.Render(Key(brain), model));
     }
 
     public static Task Present(IntoChatOSConnection brain)

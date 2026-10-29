@@ -24,8 +24,8 @@ follow Ino in the dock, hidden when empty and a menu when narrow; `view:<id>` op
 favourite as a new tab. A refusal (a cap reached) shows a toast above the dock until the next change.
 
 ## Scenario: Apps opens the Apps window
-The dock holds Ino, pinned and open apps only. Its Apps button (`open:apps`) opens the Apps app's window beside the
-others, or focuses it: the library, details, installs and connections live there. The desktop has no gallery.
+The dock holds Ino, pinned and open apps only. Its Apps button opens Settings on the Apps tab: the library,
+details, installs and connections live there. The desktop has no gallery and no separate Apps window.
 
 The same holds for a workspace activation (Settings, an Apps detail, a finished install): while the desktop is the
 root, the Workspace app hands a new window to the desktop's `open` request, so the cap and its toast apply there too.
