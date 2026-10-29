@@ -3,6 +3,7 @@
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <ProjectReference Include="../../../../AI/src/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../../../Microsoft/Aspire/src/IntoChat.OS.Modules.Microsoft.Aspire/IntoChat.OS.Modules.Microsoft.Aspire.csproj" />
     <ProjectReference Include="../../../../LocalDisk/src/IntoChat.OS.Modules.LocalDisk/IntoChat.OS.Modules.LocalDisk.csproj" />
   </ItemGroup>
 </Project>

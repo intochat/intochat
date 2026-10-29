@@ -15,6 +15,9 @@ public sealed class ShellAppFacts
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> PostOperations => AppBaseline.Cases(typeof(PostApp));
 
+    public static IEnumerable<TheoryDataRow<AppOperationCase>> CreatorOperations
+        => AppBaseline.Cases(typeof(CreatorApp), os => os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>());
+
     [Theory, MemberData(nameof(WorkspaceOperations))]
     public Task WorkspaceBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
@@ -29,6 +32,9 @@ public sealed class ShellAppFacts
 
     [Theory, MemberData(nameof(PostOperations))]
     public Task PostBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+
+    [Theory, MemberData(nameof(CreatorOperations))]
+    public Task CreatorBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Fact]
     public void SettingsCarriesTheFlutterTreesAndTheAppsLibrary()
@@ -82,6 +88,12 @@ public sealed class ShellAppFacts
         var postReport = await BddRunner.VerifyAsync<PostApp>(cancellationToken: ct);
         Assert.True(postReport.Passed);
         Assert.Single(postReport.Scenarios);
+
+        var creatorReport = await BddRunner.VerifyAsync<CreatorApp>(
+            fakes: os => os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>(),
+            cancellationToken: ct);
+        Assert.True(creatorReport.Passed);
+        Assert.Single(creatorReport.Scenarios);
 
         await using var os = TestOS.Local();
         os.Register<UserSettingsNeuron>();
