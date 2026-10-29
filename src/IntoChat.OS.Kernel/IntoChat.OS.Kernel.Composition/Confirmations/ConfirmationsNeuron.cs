@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Spi;
 using DigitalBrain.Contracts;
 using IntoChat.OS.Confirmation;
 using IntoChat.OS.Framework;
@@ -17,23 +18,22 @@ internal interface IConfirmationEntity
     Task Cancel(string planId);
 }
 
-internal sealed record ConfirmationEntry(ConfirmationRequested Request, ConfirmationResult? Result = null);
-
-internal sealed record ConfirmationState
-{
-    public long Revision { get; init; }
-    public ConfirmationEntry[] Entries { get; init; } = [];
-}
-
+/// <summary>
+/// The confirmations neuron. The shell alias <c>confirmations</c> (<see cref="IConfirmationInbox"/>) addresses this type
+/// <c>runtime.confirmations</c> at instance key <c>confirmations</c>. The clock is <see cref="TimeProvider"/> (<see cref="INeuronContext.Time"/>).
+/// </summary>
 [DigitalBrain.Neuron("runtime.confirmations")]
-internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
+internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
     : DigitalBrain.Neuron<ConfirmationState>, IConfirmationEntity, IConfirmationInbox
 {
     private const string ExpiryTimer = "confirmation-expiry";
+    private const int PendingLimit = 20;
+
+    private TimeProvider Clock => Context.Time;
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        if (Id.Key != "confirmations") { throw new InvalidOperationException("A confirmation inbox has the key confirmations."); }
+        if (Id.Key != IConfirmations.ConfirmationsNeuronKey) { throw new InvalidOperationException("A confirmation inbox has the key confirmations."); }
         await Expire();
         Schedule();
     }
@@ -47,14 +47,16 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
         RequireOwnCaller(required: false);
         if (State.Entries.Any(entry => entry.Request.PlanId == plan.Id))
         { throw new InvalidOperationException("This confirmation plan was already requested."); }
+        if (State.Entries.Count(entry => entry.Result is null) >= PendingLimit)
+        { throw new InvalidOperationException("This brain already has 20 confirmations waiting."); }
         var requester = Requester(origin);
-        var policy = options.Value.For(Id.Brain.Value);
+        var policy = ConfirmationPolicyPreference.For(options.Value, Id.Brain.Value);
         var expiry = plan.Expiry < ConfirmationRules.DefaultExpiry ? plan.Expiry : ConfirmationRules.DefaultExpiry;
-        var request = new ConfirmationRequested(plan.Id, plan with { Expiry = expiry }, requester, policy, Context.Time.GetUtcNow() + expiry);
+        var request = new ConfirmationRequested(plan.Id, plan with { Expiry = expiry }, requester, policy, Clock.GetUtcNow() + expiry);
         var asks = ConfirmationRules.Asks(policy, plan);
         var result = asks ? null : new ConfirmationResult(plan.Id, ConfirmationOutcome.Approved, ConfirmationDenyReason.None, true);
-        var next = State with { Revision = State.Revision + 1, Entries = [.. State.Entries, new(request, result)] };
-        await Save(next, asks ? request : Resolved(request, result!, null));
+        var next = State with { Revision = State.Revision + 1, Entries = [.. State.Entries, new ConfirmationEntry(request, result)] };
+        await Save(next, asks ? request : ConfirmationAudit.Record(request, result!, null, Clock.GetUtcNow()));
         Schedule();
     }
 
@@ -80,7 +82,7 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
         var human = direct && caller.Kind == CallerKind.User && caller.StampedBy == TrustedEdge.AuthenticatedHttp
             && caller.AppId is null && caller.OnBehalfOf is null && !AppPrincipal.IsApp(caller.PrincipalId)
             && !CallerContextStamper.IsModelOriginated(caller);
-        var principal = human ? ConfirmationPrincipal.Person(caller.PrincipalId) : ConfirmationPrincipal.Agent(caller.PrincipalId);
+        var principal = human ? ConfirmationPrincipal.Person(caller.PrincipalId) : Approver(caller);
         await Expire();
         await End(planId, !approve ? ConfirmationOutcome.Denied : human ? ConfirmationOutcome.Approved : ConfirmationOutcome.Denied,
             !approve ? ConfirmationDenyReason.ByPerson : human ? ConfirmationDenyReason.None : ConfirmationDenyReason.SelfApproval, principal);
@@ -114,6 +116,9 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
         return caller;
     }
 
+    private static ConfirmationPrincipal Approver(CapabilityCaller caller)
+        => caller.Kind == CallerKind.App ? ConfirmationPrincipal.App(caller.PrincipalId) : ConfirmationPrincipal.Agent(caller.PrincipalId);
+
     private static ConfirmationPrincipal Requester(string origin)
     {
         if (!CallerContextStamper.TryGet(out var caller)) { return ConfirmationPrincipal.App(origin); }
@@ -127,7 +132,7 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
 
     private async Task Expire()
     {
-        var now = Context.Time.GetUtcNow();
+        var now = Clock.GetUtcNow();
         foreach (var entry in State.Entries.Where(entry => entry.Result is null && entry.Request.ExpiresAt <= now).ToArray())
         { await End(entry.Request.PlanId, ConfirmationOutcome.Expired, ConfirmationDenyReason.Expired, null); }
     }
@@ -140,19 +145,15 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
         var result = new ConfirmationResult(planId, outcome, reason, false);
         var entries = State.Entries.ToArray();
         entries[index] = entry with { Result = result };
-        await Save(State with { Revision = State.Revision + 1, Entries = entries }, Resolved(entry.Request, result, approver));
+        await Save(State with { Revision = State.Revision + 1, Entries = entries }, ConfirmationAudit.Record(entry.Request, result, approver, Clock.GetUtcNow()));
         Schedule();
     }
-
-    private ConfirmationResolved Resolved(ConfirmationRequested request, ConfirmationResult result, ConfirmationPrincipal? approver)
-        => new(request.PlanId, request.Plan.Action, request.Plan.TargetLabel, request.Requester, approver, request.Policy,
-            result.Outcome, result.Reason, result.Skipped, Context.Time.GetUtcNow());
 
     private void Schedule()
     {
         var pending = State.Entries.Where(entry => entry.Result is null).ToArray();
         if (pending.Length == 0) { Context.Timers.Stop(ExpiryTimer); return; }
-        var due = pending.Min(entry => entry.Request.ExpiresAt) - Context.Time.GetUtcNow();
+        var due = pending.Min(entry => entry.Request.ExpiresAt) - Clock.GetUtcNow();
         Context.Timers.Start(ExpiryTimer, due > TimeSpan.Zero ? due : TimeSpan.FromMilliseconds(1), null, keepAlive: true);
     }
 }
@@ -160,5 +161,10 @@ internal sealed class ConfirmationNeuron(IOptions<ConfirmationOptions> options)
 [DigitalBrain.Module("kernel-confirmations")]
 public sealed class ConfirmationNeurons : DigitalBrain.Module
 {
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<ConfirmationPolicyPreference>(ConfirmationPolicyPreference.Section)],
+        Secrets: []);
 }
