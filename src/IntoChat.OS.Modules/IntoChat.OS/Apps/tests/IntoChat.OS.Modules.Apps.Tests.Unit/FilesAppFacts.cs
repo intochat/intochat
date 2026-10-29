@@ -144,6 +144,28 @@ public sealed class FilesAppFacts
         Assert.Equal("hello", app.Snapshot.Preview);
     }
 
+    [Fact]
+    public async Task SelectedFileExposesCanonicalDistributedNeuronUriAcrossCloudAndLocalHybridStorage()
+    {
+        var drive = new InMemoryStorage("Google Drive", kind: "google-drive");
+        var computer = new InMemoryStorage("This computer", kind: "local");
+        var projects = drive.AddFolder(drive.Root, "Projects");
+        var cloudFile = drive.AddFile(projects, "Context.md", "# Context"u8);
+        var localFile = computer.AddFile(computer.Root, "notes.txt", "local note"u8);
+        var app = new FilesApp(
+            new Broker([new("drive", "Google Drive", drive), new("computer", "This computer", computer)]),
+            new("owner"),
+            new());
+
+        await app.Browse(new("drive", projects), Ct);
+        await app.Select(new(new("drive", await drive.Stat(cloudFile, Ct))), Ct);
+        Assert.Equal("neuron://owner/drive.files/projects/context.md", app.Snapshot.SelectedNeuronUri);
+
+        await app.Browse(new("computer", computer.Root), Ct);
+        await app.Select(new(new("computer", await computer.Stat(localFile, Ct))), Ct);
+        Assert.Equal("neuron://owner/computer.files/notes.txt", app.Snapshot.SelectedNeuronUri);
+    }
+
     private sealed class ScriptedStorage : InMemoryStorage, IStorage
     {
         public bool FailSearch { get; init; }

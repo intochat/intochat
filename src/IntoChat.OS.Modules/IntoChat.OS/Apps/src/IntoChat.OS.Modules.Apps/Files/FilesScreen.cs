@@ -97,6 +97,10 @@ internal static class FilesScreen
         {
             notices.Add(Ui.Text("download-url", download));
         }
+        if (state.SelectedNeuronUri is { } neuronUri)
+        {
+            notices.Add(Ui.Text("neuron-uri", neuronUri));
+        }
 
         var preview = Preview(state);
         var list = Ui.Column("files-list", [headers, .. notices, Ui.Reference("items", new(IntoChat.OS.Modules.Flutter.UIVocabulary.CollectionType, "items"))]);

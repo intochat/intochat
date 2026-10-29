@@ -8,13 +8,20 @@ public sealed record UserSettingsState(
     string DisplayName,
     string Theme,
     string DefaultModel,
-    UserVariableEntry[] Variables)
+    UserVariableEntry[] Variables,
+    string StylePreset = "fluent-acrylic",
+    string BarLayout = "floating-glass")
 {
-    public UserSettingsState() : this("User", "dark", "qwen3.5:4b", []) { }
+    public UserSettingsState() : this("User", "dark", "qwen3.5:4b", [], "fluent-acrylic", "floating-glass") { }
 }
 
 [DigitalBrain.Signal("os.settings.changed")]
-public sealed record UserSettingsChanged(string DisplayName, string Theme, string DefaultModel) : DigitalBrain.Signal;
+public sealed record UserSettingsChanged(
+    string DisplayName,
+    string Theme,
+    string DefaultModel,
+    string StylePreset = "fluent-acrylic",
+    string BarLayout = "floating-glass") : DigitalBrain.Signal;
 
 [NeuronAlias("os.settings"), DefaultNeuronType("os.settings")]
 public interface IUserSettings
@@ -23,6 +30,8 @@ public interface IUserSettings
     Task<UserSettingsState> Read();
 
     Task<UserSettingsState> SetProfile(string displayName, string theme, string defaultModel);
+
+    Task<UserSettingsState> SetUiIdentity(string stylePreset, string barLayout);
 
     Task<UserSettingsState> SetVariable(string key, string value);
 }

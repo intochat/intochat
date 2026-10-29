@@ -46,6 +46,7 @@ public sealed record FilesState
     public FilesItem[] Items { get; init; } = [];
     public FilesItem[] Breadcrumbs { get; init; } = [];
     public FilesItem? Selected { get; init; }
+    public string? SelectedNeuronUri { get; init; }
     public FilesClipboard? Clipboard { get; init; }
     public FilesPage[] Pages { get; init; } = [];
     public string? Search { get; init; }
@@ -106,6 +107,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             Items = [],
             Breadcrumbs = [],
             Selected = null,
+            SelectedNeuronUri = null,
             Pages = [],
             Search = null,
             Preview = null,
@@ -153,6 +155,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
                 Items = items.Select(item => new FilesItem(connection, item)).ToArray(),
                 Breadcrumbs = ancestors.Select(item => new FilesItem(connection, item)).ToArray(),
                 Selected = null,
+                SelectedNeuronUri = null,
                 Pages = pages,
                 Search = null,
                 Preview = null,
@@ -182,6 +185,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         Set(Snapshot with
         {
             Selected = chosen,
+            SelectedNeuronUri = NeuronUriOf(chosen),
             Preview = null,
             PreviewUrl = null,
             PreviewApp = null,
@@ -229,6 +233,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             Pages = found.Select(group => new FilesPage(group.Connection, within, group.Cursor, !group.Bounded || group.Failed)).ToArray(),
             Search = needle,
             Selected = null,
+            SelectedNeuronUri = null,
             Preview = null,
             PreviewUrl = null,
             PreviewApp = null,
@@ -300,6 +305,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             Items = [],
             Breadcrumbs = [],
             Selected = null,
+            SelectedNeuronUri = null,
             Pages = [],
             Searching = false,
             Loading = false,
@@ -325,6 +331,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         Set(Snapshot with
         {
             Selected = chosen,
+            SelectedNeuronUri = NeuronUriOf(chosen, ancestors),
             Searching = false,
             PreviousConnection = backConnection,
             PreviousFolder = backFolder,
@@ -445,6 +452,32 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
     }
 
     private string? LabelOf(string connection) => Snapshot.Storages.FirstOrDefault(item => item.Connection == connection)?.Label;
+
+    public string NeuronUriOf(FilesItem item, IReadOnlyList<Item>? ancestors = null)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        var chain = ancestors ?? Snapshot.Breadcrumbs
+            .Where(crumb => crumb.Connection == item.Connection)
+            .Select(crumb => crumb.Item)
+            .ToArray();
+        var segments = chain
+            .Skip(1)
+            .Select(folder => SlugSegment(folder.Name))
+            .Append(SlugSegment(item.Item.Name))
+            .Where(segment => segment.Length > 0);
+        return $"neuron://{brain.Value}/{SlugSegment(item.Connection)}.files/{string.Join("/", segments)}";
+    }
+
+    private static string SlugSegment(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_') { builder.Append(ch); }
+            else if (char.IsWhiteSpace(ch) || ch is '/' or '\\') { builder.Append('-'); }
+        }
+        return builder.ToString().Trim('-');
+    }
 
     private string ContentUrl(string connection, ItemId item) => "/brains/" + brain.Value + "/storage/" + connection + "/items/" + item.Value + "/content";
 

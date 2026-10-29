@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, new, new-conversation, voice, make
+Operations: open, send, approve-card, new, new-conversation, voice, make
 
 The brain's personal assistant. Connects to MemoryNeuron (IMemory) and UserSettingsNeuron (IUserSettings)
 to maintain context across conversations, route intents, and answer messages.
@@ -30,6 +30,17 @@ public sealed record InoVoice : DigitalBrain.Signal;
 [DigitalBrain.Signal("ino.make")]
 public sealed record InoMake(string? Sentence = null, string[]? Focus = null) : DigitalBrain.Signal;
 
+[DigitalBrain.Signal("ino.approve-card")]
+public sealed record InoApproveCard(string? CardId = null, bool Approved = true) : DigitalBrain.Signal;
+
+public sealed record InoCard(
+    string Id,
+    string Kind,
+    string Title,
+    string Summary,
+    string SourceNeuronUri,
+    string Status);
+
 public sealed record InoTurn(
     string UserMessage,
     string Reply,
@@ -41,9 +52,12 @@ public sealed record InoAppState(
     string Title,
     string Status,
     string VoiceStatus,
-    InoTurn[] Turns)
+    InoTurn[] Turns,
+    InoCard[]? Cards = null)
 {
-    public InoAppState() : this("main", "New chat", "Ready", "idle", []) { }
+    public InoAppState() : this("main", "New chat", "Ready", "idle", [], []) { }
+
+    public InoCard[] ActiveCards => Cards ?? [];
 }
 
 [DigitalBrain.App("ino")]
@@ -125,11 +139,47 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             ? (text.Length <= 52 ? text : text[..52])
             : State.Title;
         var turns = State.Turns.Append(new InoTurn(text, reply, routeHint, recalled.Length)).ToArray();
+        var cards = State.ActiveCards;
+        if (text.Contains("approve", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("close date", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("confirm", StringComparison.OrdinalIgnoreCase))
+        {
+            var card = new InoCard(
+                $"card-{turns.Length}",
+                "approval",
+                $"Approve: {text}",
+                "Pre-filled LFP ApprovalCard ready for 1-click confirmation.",
+                "neuron://local/os.confirmations/inbox",
+                "pending");
+            cards = [.. cards, card];
+        }
+
         Set(State with
         {
             Title = title,
             Status = routeHint,
             Turns = turns,
+            Cards = cards,
+        });
+    }
+
+    [DigitalBrain.On]
+    public async Task ApproveCard(InoApproveCard request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var cardId = string.IsNullOrWhiteSpace(request.CardId) ? "card-1" : request.CardId;
+        var nextStatus = request.Approved ? "approved" : "rejected";
+        var updated = State.ActiveCards
+            .Select(c => string.Equals(c.Id, cardId, StringComparison.Ordinal) ? c with { Status = nextStatus } : c)
+            .ToArray();
+        if (TryGetMemory() is { } memory)
+        {
+            await memory.CaptureEpisode("ino.card", $"Card {cardId} -> {nextStatus}", importance: 6);
+        }
+        Set(State with
+        {
+            Status = $"Card {cardId}: {nextStatus}",
+            Cards = updated,
         });
     }
 
@@ -176,7 +226,18 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         {
             await memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6);
         }
-        Set(State with { Status = $"Applied '{sentence}' to {target}" });
+        var card = new InoCard(
+            $"app-{target}",
+            "applet",
+            $"Live App: {target}",
+            sentence,
+            $"neuron://local/apps/{target}",
+            "running");
+        Set(State with
+        {
+            Status = $"Applied '{sentence}' to {target}",
+            Cards = [.. State.ActiveCards, card],
+        });
     }
 
     [DigitalBrain.On("settings", Contract = typeof(IUserSettings))]
@@ -195,6 +256,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         new Column(
         [
             new Text(State.Status),
+            .. State.ActiveCards.Select(card =>
+                new Text($"[{card.Kind}:{card.Status}] {card.Title} ({card.SourceNeuronUri})")),
             new Collection(State.Turns.Select((turn, i) =>
                 new Entry($"turn-{i + 1}", turn.UserMessage, turn.Reply)).ToArray()),
         ]));

@@ -25,7 +25,9 @@ public sealed record SettingsRefreshConnections : DigitalBrain.Signal;
 public sealed record SettingsSavePreferences(
     string? DisplayName = null,
     string? Theme = null,
-    string? DefaultModel = null) : DigitalBrain.Signal;
+    string? DefaultModel = null,
+    string? StylePreset = null,
+    string? BarLayout = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.reload-preferences")]
 public sealed record SettingsReloadPreferences : DigitalBrain.Signal;
@@ -48,9 +50,11 @@ public sealed record SettingsAppState(
     string DisplayName,
     string Theme,
     string DefaultModel,
-    Node? OverrideBody = null)
+    Node? OverrideBody = null,
+    string StylePreset = "fluent-acrylic",
+    string BarLayout = "floating-glass")
 {
-    public SettingsAppState() : this("Settings", "Settings", "User", "dark", "qwen3.5:4b", null) { }
+    public SettingsAppState() : this("Settings", "Settings", "User", "dark", "qwen3.5:4b", null, "fluent-acrylic", "floating-glass") { }
 }
 
 [DigitalBrain.App("settings")]
@@ -90,17 +94,34 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.DisplayName)
             && string.IsNullOrWhiteSpace(request.Theme)
-            && string.IsNullOrWhiteSpace(request.DefaultModel))
+            && string.IsNullOrWhiteSpace(request.DefaultModel)
+            && string.IsNullOrWhiteSpace(request.StylePreset)
+            && string.IsNullOrWhiteSpace(request.BarLayout))
         {
             Update(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
             return;
         }
 
-        var updated = await Get<IUserSettings>("settings").SetProfile(
+        var settings = Get<IUserSettings>("settings");
+        var updated = await settings.SetProfile(
             request.DisplayName ?? State.DisplayName,
             request.Theme ?? State.Theme,
             request.DefaultModel ?? State.DefaultModel);
-        Update(new SettingsAppState("Settings", $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel})", updated.DisplayName, updated.Theme, updated.DefaultModel));
+        if (!string.IsNullOrWhiteSpace(request.StylePreset) || !string.IsNullOrWhiteSpace(request.BarLayout))
+        {
+            updated = await settings.SetUiIdentity(
+                request.StylePreset ?? State.StylePreset,
+                request.BarLayout ?? State.BarLayout);
+        }
+        Update(new SettingsAppState(
+            "Settings",
+            $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})",
+            updated.DisplayName,
+            updated.Theme,
+            updated.DefaultModel,
+            null,
+            updated.StylePreset,
+            updated.BarLayout));
     }
 
     [DigitalBrain.On]

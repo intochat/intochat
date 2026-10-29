@@ -114,5 +114,20 @@ public sealed class ShellAppFacts
         await settings.SetProfile("ElonWatcher", "dark", "qwen3.5:4b");
         await os.Idle();
         Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Synced settings: ElonWatcher (qwen3.5:4b)", StringComparison.Ordinal));
+
+        var uiIdentity = await settings.SetUiIdentity("spatial-glass", "compact-pill");
+        Assert.Equal("spatial-glass", uiIdentity.StylePreset);
+        Assert.Equal("compact-pill", uiIdentity.BarLayout);
+
+        await inoInstalled.Request("send", new InoSend("Draft confirmation card"));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/os.confirmations/inbox", StringComparison.Ordinal));
+        await inoInstalled.Request("approve-card", new InoApproveCard("card-1", true));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("approved", StringComparison.Ordinal));
+
+        os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
+        var creatorInstalled = await os.Install<CreatorApp>();
+        await creatorInstalled.Request("open");
+        await creatorInstalled.Request("prompt", new CreatorPrompt("Track Elon Musk posts", "post"));
+        Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("3D BrainScene", StringComparison.Ordinal));
     }
 }

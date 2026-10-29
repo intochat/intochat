@@ -135,11 +135,13 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
 
         var bdd = Get<IBdd>("bdd");
         await bdd.Record(report);
+        var scene = ComposeBrainGraph(target);
 
         Set(State with
         {
             TargetApp = target,
             Status = $"Promoted {target} (BDD passed: {report.Scenarios.Count}/{report.Scenarios.Count})",
+            SceneNodeCount = scene.Nodes.Length,
             ActiveResources = resources,
             DiagnosedErrors = errors,
             GeneratedSource = source,
@@ -164,7 +166,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         new Column(
         [
             new Text(State.Status),
-            new Text($"Target App: {State.TargetApp} · Promoted: {State.Promoted}"),
+            new Text($"Target App: {State.TargetApp} · Promoted: {State.Promoted} · 3D BrainScene: {State.SceneNodeCount} nodes"),
             new Text(string.IsNullOrWhiteSpace(State.GeneratedSource) ? "// Prompt Creator to synthesize an App<TState>." : State.GeneratedSource),
         ]));
 
@@ -208,21 +210,27 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         }
     }
 
-    private static SceneDefinition ComposeBrainGraph()
+    private static SceneDefinition ComposeBrainGraph(string? promotedApp = null)
     {
-        BrainInstance[] neurons =
-        [
+        var neurons = new List<BrainInstance>
+        {
             new("creator", "local/creator", DateTimeOffset.UtcNow, null),
             new("bdd", "local/bdd", DateTimeOffset.UtcNow, null),
             new("aspire", "local/aspire", DateTimeOffset.UtcNow, null),
             new("ai.memory", "local/memory", DateTimeOffset.UtcNow, null),
-        ];
-        ObservedSynapse[] synapses =
-        [
+        };
+        var synapses = new List<ObservedSynapse>
+        {
             new("local/creator", "local/bdd", "bdd.verified"),
             new("local/creator", "local/aspire", "aspire.telemetry.changed"),
-        ];
-        return BrainScene.Compose(neurons, synapses, live: null, zoom: 1.0);
+        };
+        if (!string.IsNullOrWhiteSpace(promotedApp))
+        {
+            var key = $"local/apps/{promotedApp}";
+            neurons.Add(new($"app.{promotedApp}", key, DateTimeOffset.UtcNow, null));
+            synapses.Add(new("local/creator", key, "app.promoted"));
+        }
+        return BrainScene.Compose([.. neurons], [.. synapses], live: null, zoom: 1.0);
     }
 
     private async Task<(string[] Resources, string[] Errors)> ReadTelemetryAsync(string? resourceFilter)
