@@ -74,7 +74,15 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
                 var typeName = contractType.GetCustomAttribute<DigitalBrain.Contracts.DefaultNeuronTypeAttribute>(false)?.Type
                     ?? throw new InvalidOperationException($"Contract {contractType.FullName} has no [DefaultNeuronType] attribute.");
                 var id = new NeuronId(new BrainId("local"), typeName, key);
-                return typeof(TestOS).GetMethod(nameof(TestOS.Get))!.MakeGenericMethod(contractType).Invoke(_os, [id])!;
+                try
+                {
+                    return typeof(TestOS).GetMethod(nameof(TestOS.Get))!.MakeGenericMethod(contractType).Invoke(_os, [id])!;
+                }
+                catch (TargetInvocationException error) when (error.InnerException is not null)
+                {
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error.InnerException).Throw();
+                    throw;
+                }
             });
         }
         try

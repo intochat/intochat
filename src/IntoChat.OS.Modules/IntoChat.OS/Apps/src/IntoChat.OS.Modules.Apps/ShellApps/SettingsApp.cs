@@ -54,7 +54,7 @@ public sealed record SettingsAppState(
 }
 
 [DigitalBrain.App("settings")]
-public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.App<SettingsAppState>
+public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? sideload = null) : DigitalBrain.App<SettingsAppState>
 {
     public static DigitalBrain.AppManifest Manifest { get; } = new(
         "settings", "Settings", "2.1.0", [typeof(UserSettingsNeuron)], new DigitalBrain.AppRequirements([]));
@@ -66,7 +66,7 @@ public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.Ap
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Set(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+        Update(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
     }
 
     [DigitalBrain.On]
@@ -74,14 +74,14 @@ public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.Ap
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Set(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+        Update(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
     }
 
     [DigitalBrain.On]
     public void RefreshConnections(SettingsRefreshConnections request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(State with { Title = "Settings", Status = "Connections", OverrideBody = null });
+        Update(State with { Title = "Settings", Status = "Connections", OverrideBody = null });
     }
 
     [DigitalBrain.On]
@@ -92,7 +92,7 @@ public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.Ap
             && string.IsNullOrWhiteSpace(request.Theme)
             && string.IsNullOrWhiteSpace(request.DefaultModel))
         {
-            Set(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
+            Update(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
             return;
         }
 
@@ -100,7 +100,7 @@ public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.Ap
             request.DisplayName ?? State.DisplayName,
             request.Theme ?? State.Theme,
             request.DefaultModel ?? State.DefaultModel);
-        Set(new SettingsAppState("Settings", $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel})", updated.DisplayName, updated.Theme, updated.DefaultModel));
+        Update(new SettingsAppState("Settings", $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel})", updated.DisplayName, updated.Theme, updated.DefaultModel));
     }
 
     [DigitalBrain.On]
@@ -108,14 +108,14 @@ public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.Ap
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Set(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+        Update(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
     }
 
     [DigitalBrain.On]
     public void ReconcilePreferences(SettingsReconcilePreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
+        Update(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
     }
 
     [DigitalBrain.On]
@@ -125,7 +125,7 @@ public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.Ap
         var view = sideload is null
             ? new View("Sideload", new Collection([]))
             : await sideload.List(CancellationToken.None);
-        Set(State with { Title = view.Title, OverrideBody = view.Root });
+        Update(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
     [DigitalBrain.On]
@@ -135,7 +135,7 @@ public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.Ap
         var view = sideload is null
             ? new View("Sideload", new Text(string.IsNullOrWhiteSpace(request.Name) ? "Name an app." : request.Name))
             : await sideload.Install(request.Name, CancellationToken.None);
-        Set(State with { Title = view.Title, OverrideBody = view.Root });
+        Update(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
     [DigitalBrain.On]
@@ -145,12 +145,21 @@ public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.Ap
         var view = sideload is null
             ? new View("Sideload", new Text(string.IsNullOrWhiteSpace(request.Url) ? "Name a git URL." : request.Url))
             : await sideload.AddGit(request.Url, CancellationToken.None);
-        Set(State with { Title = view.Title, OverrideBody = view.Root });
+        Update(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
     public View Render() => new(
         State.Title,
         State.OverrideBody ?? new Text(State.Status));
+
+    private void Update(SettingsAppState next)
+    {
+        Set(next);
+        if (presenter is not null)
+        {
+            Present(presenter.Present, static () => null, Render);
+        }
+    }
 
     [DigitalBrain.Scenario("Saving user preferences updates UserSettingsNeuron and view")]
     public async Task VerifySavePreferencesScenario()

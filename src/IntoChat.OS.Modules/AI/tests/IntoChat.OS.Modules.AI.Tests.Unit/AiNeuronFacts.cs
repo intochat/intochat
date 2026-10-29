@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
 using IntoChat.OS.Modules.AI.Embeddings;
 using IntoChat.OS.Modules.AI.Embeddings.Signals;
 using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Signals;
@@ -170,6 +171,29 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
         Assert.Equal(key, Assert.Single(await runtime.WaitForSignals<AgentConfigured>(id, 1, Within, ct)).AgentId);
         Assert.Equal("post/greeting", Assert.Single(await runtime.WaitForSignals<TurnCompleted>(id, 1, Within, ct)).RunId);
         Assert.Equal(2, Assert.Single(await runtime.WaitForSignals<TranscriptCleared>(id, 1, Within, ct)).Revision);
+    }
+
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task MemoryNeuronCapturesEpisodesAndFactsAndRecallsByTopic(NeuronRuntimeKind kind)
+    {
+        var runtime = await fixture.Runtime(kind);
+        var memory = runtime.Get<IMemory>(runtime.Id("ai.memory", "memory"));
+
+        var ep = await memory.CaptureEpisode("user", "I prefer dark mode and clean C# apps", 5);
+        var fact = await memory.RememberFact("preferences", "User prefers dark mode", 9);
+
+        Assert.NotEmpty(ep.Id);
+        Assert.NotEmpty(fact.Id);
+
+        var recalled = await memory.Recall("dark mode", 5);
+        Assert.Equal(2, recalled.Length);
+        Assert.Contains(recalled, hit => hit.Kind == "fact");
+        Assert.Contains(recalled, hit => hit.Kind == "episode");
+
+        var context = runtime.Get<IAgentContext>(runtime.Id("agent-context", "memory/brain-context-" + kind));
+        var brainView = await context.ReadBrainContext();
+        Assert.Single(brainView.Facts);
+        Assert.Single(brainView.RecentEpisodes);
     }
 
     private static InferenceRequest Ask(string text) => new([new("user", [new AiText(text)])]);

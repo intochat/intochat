@@ -9,7 +9,7 @@ public static class ShippedApps
     public const string Publisher = "os";
 
     // The OS's own services: the desktop shows none of them as a window.
-    public static readonly IReadOnlySet<string> Services = new HashSet<string>(["desktop", "workspace", "router", "selfimprove", "circleroom", "usage"], StringComparer.Ordinal);
+    public static readonly IReadOnlySet<string> Services = new HashSet<string>(["desktop", "workspace", "selfimprove", "circleroom", "usage"], StringComparer.Ordinal);
 
     // What the OS runs on, which Remove refuses: its services, Settings, Apps and Ino.
     // Apps folded into Settings (08-09). The folder is no longer a boot root.

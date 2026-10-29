@@ -12,7 +12,7 @@ public sealed class ShippedScriptCatalogFacts
     private static readonly string[] Scripts =
     [
         "brainview", "calculator", "circle", "circleroom", "datavisualizer", "engineer",
-        "filmcraft", "friends", "ino", "memory", "photocraft", "router", "selfimprove", "usage",
+        "filmcraft", "friends", "photocraft", "selfimprove", "usage",
     ];
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class ShippedScriptCatalogFacts
         Assert.Equal(Scripts.Length, listings.Count(listing => listing.Publisher == "os" && Scripts.Contains(listing.Name)));
         Assert.DoesNotContain(("os", "apps"), names);
         Assert.IsType<FeatureOrigin.Folder>(await catalog.Origin("os", "calculator"));
-        foreach (var compiled in new[] { "files", "workspace", "desktop", "settings" })
+        foreach (var compiled in new[] { "files", "workspace", "desktop", "settings", "ino" })
         {
             var origin = Assert.IsType<FeatureOrigin.Module>(await catalog.Origin("os", compiled));
             Assert.Same(typeof(AppsModule).Assembly, origin.Assembly);

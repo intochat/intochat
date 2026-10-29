@@ -1,9 +1,12 @@
 using DigitalBrain;
+using DigitalBrain.Spi;
+using DigitalBrain.State;
 using IntoChat.OS;
-using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using DigitalBrain.State;
+using IntoChat.OS.Modules.AI.Agents.Context.Signals;
+using IntoChat.OS.Modules.AI.Memory;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Agents.Context;
 
@@ -43,4 +46,37 @@ internal sealed class AgentContextNeuron
     }
 
     public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(Snapshot.Revision, Snapshot.Entries.ToArray()));
+
+    public async Task<BrainContextView> ReadBrainContext()
+    {
+        var activeNeurons = new List<string>();
+        if (Context.Services.GetService<IBrainObserver>() is { } observer)
+        {
+            await foreach (var instance in observer.Instances(null))
+            {
+                activeNeurons.Add($"{instance.Type}:{instance.Key}");
+            }
+        }
+
+        MemoryFact[] facts = [];
+        MemoryEpisode[] episodes = [];
+        try
+        {
+            var memory = Get<IMemory>(new DigitalBrain.NeuronId(Id.Brain, "ai.memory", "memory"));
+            var memSnapshot = await memory.Read().ConfigureAwait(false);
+            facts = memSnapshot.Facts;
+            episodes = memSnapshot.Episodes.TakeLast(10).ToArray();
+        }
+        catch (InvalidOperationException error)
+        {
+            _ = error.Message;
+        }
+
+        return new BrainContextView(
+            Snapshot.Revision,
+            Snapshot.Entries.ToArray(),
+            activeNeurons.Order(StringComparer.Ordinal).ToArray(),
+            facts,
+            episodes);
+    }
 }
