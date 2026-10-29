@@ -37,7 +37,7 @@ public static class GrantRules
 
         foreach (var semanticTypeId in request.SemanticTypeIds)
         {
-            if (!IsGranted(caller, semanticTypeId, grants))
+            if (!IsGranted(caller, semanticTypeId, grants, request.TargetNeuron))
             {
                 return CallDecision.Deny(CallDenial.MissingGrant,
                     $"No grant for semantic type '{semanticTypeId}'. The value is treated as missing.");
@@ -64,9 +64,12 @@ public static class GrantRules
                 && string.Equals(grant.WorkspaceId, caller.BrainId, StringComparison.Ordinal)
                 && string.Equals(grant.AppId, app, StringComparison.Ordinal)
                 && request.SemanticTypeIds.Contains(grant.SemanticTypeId, StringComparer.Ordinal)
+                && (grant.TargetNeuronKey is null || string.Equals(grant.TargetNeuronKey, request.TargetNeuron, StringComparison.Ordinal))
                 && !grants.Any(other => other.Mode != GrantMode.Once && !other.Revoked
                     && other.WorkspaceId == grant.WorkspaceId && other.AppId == grant.AppId
-                    && other.SemanticTypeId == grant.SemanticTypeId && ModeSatisfied(other, caller))),
+                    && other.SemanticTypeId == grant.SemanticTypeId
+                    && (other.TargetNeuronKey is null || string.Equals(other.TargetNeuronKey, request.TargetNeuron, StringComparison.Ordinal))
+                    && ModeSatisfied(other, caller))),
         ];
     }
 
@@ -81,11 +84,12 @@ public static class GrantRules
         return AppPrincipal.AppKeyOf(caller.PrincipalId) is { } app && app != caller.AppId ? null : caller.AppId;
     }
 
-    internal static bool IsGranted(CapabilityCaller caller, string semanticTypeId, IReadOnlyList<Grant> grants)
+    internal static bool IsGranted(CapabilityCaller caller, string semanticTypeId, IReadOnlyList<Grant> grants, string? targetNeuron = null)
         => AppOf(caller) is { } app && grants.Any(grant => !grant.Revoked
             && string.Equals(grant.WorkspaceId, caller.BrainId, StringComparison.Ordinal)
             && string.Equals(grant.AppId, app, StringComparison.Ordinal)
             && string.Equals(grant.SemanticTypeId, semanticTypeId, StringComparison.Ordinal)
+            && (grant.TargetNeuronKey is null || string.Equals(grant.TargetNeuronKey, targetNeuron, StringComparison.Ordinal))
             && ModeSatisfied(grant, caller));
 
     private static bool ModeSatisfied(Grant grant, CapabilityCaller caller) => grant.Mode switch

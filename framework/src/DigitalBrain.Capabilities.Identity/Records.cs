@@ -108,16 +108,27 @@ public sealed record Grant
     /// <summary>True once revoked; a revoked grant covers nothing.</summary>
     public bool Revoked { get; init; }
 
+    /// <summary>Optional specific neuron key the grant is scoped to (neuron-level Circle access).</summary>
+    public string? TargetNeuronKey { get; init; }
+
     /// <summary>
     /// Whether this grant lets <paramref name="appId"/> use <paramref name="semanticTypeId"/> in
     /// <paramref name="workspaceId"/>, within <paramref name="conversationId"/> for a <see cref="GrantMode.ThisChat"/> grant.
     /// Ordinal comparison throughout.
     /// </summary>
     public bool Covers(string appId, string semanticTypeId, string workspaceId, string? conversationId) =>
+        Covers(appId, semanticTypeId, workspaceId, conversationId, targetNeuronKey: null);
+
+    /// <summary>
+    /// Whether this grant lets <paramref name="appId"/> use <paramref name="semanticTypeId"/> on <paramref name="targetNeuronKey"/>
+    /// in <paramref name="workspaceId"/>, within <paramref name="conversationId"/> for a <see cref="GrantMode.ThisChat"/> grant.
+    /// </summary>
+    public bool Covers(string appId, string semanticTypeId, string workspaceId, string? conversationId, string? targetNeuronKey) =>
         !Revoked
         && string.Equals(AppId, appId, StringComparison.Ordinal)
         && string.Equals(SemanticTypeId, semanticTypeId, StringComparison.Ordinal)
         && string.Equals(WorkspaceId, workspaceId, StringComparison.Ordinal)
+        && (TargetNeuronKey is null || string.Equals(TargetNeuronKey, targetNeuronKey, StringComparison.Ordinal))
         && (Mode != GrantMode.ThisChat || (conversationId is not null && string.Equals(ConversationId, conversationId, StringComparison.Ordinal)));
 }
 

@@ -18,4 +18,5 @@ public sealed record Grant
     [Id(4)] public string? ConversationId { get; init; }
     [Id(5)] public DateTimeOffset GrantedAt { get; init; }
     [Id(6)] public bool Revoked { get; init; }
+    [Id(7)] public string? TargetNeuronKey { get; init; }
 }

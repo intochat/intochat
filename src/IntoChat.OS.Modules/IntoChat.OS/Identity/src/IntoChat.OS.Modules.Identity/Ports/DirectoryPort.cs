@@ -128,6 +128,7 @@ public sealed class DirectoryPort(IIdentityClient identity) : IIdentityDirectory
                 ConversationId = grant.ConversationId,
                 GrantedAt = grant.GrantedAt,
                 Revoked = grant.Revoked,
+                TargetNeuronKey = grant.TargetNeuronKey,
             }).WaitAsync(cancellationToken).ConfigureAwait(false));
         }
         catch (UnauthorizedAccessException) { return null; }
@@ -202,5 +203,6 @@ public sealed class DirectoryPort(IIdentityClient identity) : IIdentityDirectory
         ConversationId = grant.ConversationId,
         GrantedAt = grant.GrantedAt,
         Revoked = grant.Revoked,
+        TargetNeuronKey = grant.TargetNeuronKey,
     };
 }

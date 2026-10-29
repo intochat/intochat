@@ -13,6 +13,8 @@ public sealed class ShellAppFacts
     public static IEnumerable<TheoryDataRow<AppOperationCase>> InoOperations
         => AppBaseline.Cases(typeof(InoApp), os => os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>());
 
+    public static IEnumerable<TheoryDataRow<AppOperationCase>> PostOperations => AppBaseline.Cases(typeof(PostApp));
+
     [Theory, MemberData(nameof(WorkspaceOperations))]
     public Task WorkspaceBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
@@ -24,6 +26,9 @@ public sealed class ShellAppFacts
 
     [Theory, MemberData(nameof(InoOperations))]
     public Task InoBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+
+    [Theory, MemberData(nameof(PostOperations))]
+    public Task PostBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Fact]
     public void SettingsCarriesTheFlutterTreesAndTheAppsLibrary()
@@ -63,7 +68,7 @@ public sealed class ShellAppFacts
     }
 
     [Fact]
-    public async Task SettingsAndInoBddScenariosAndSystemNeuronsPass()
+    public async Task SettingsInoAndPostBddScenariosAndSystemNeuronsPass()
     {
         var ct = TestContext.Current.CancellationToken;
         var settingsReport = await BddRunner.VerifyAsync<SettingsApp>(cancellationToken: ct);
@@ -73,6 +78,10 @@ public sealed class ShellAppFacts
         var inoReport = await BddRunner.VerifyAsync<InoApp>(fakes: os => os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>(), cancellationToken: ct);
         Assert.True(inoReport.Passed);
         Assert.Single(inoReport.Scenarios);
+
+        var postReport = await BddRunner.VerifyAsync<PostApp>(cancellationToken: ct);
+        Assert.True(postReport.Passed);
+        Assert.Single(postReport.Scenarios);
 
         await using var os = TestOS.Local();
         os.Register<UserSettingsNeuron>();

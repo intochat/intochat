@@ -24,11 +24,11 @@ public sealed class PhaseExitFacts
     public void DeferredAppsRemainFolderScripts()
     {
         var root = Path.Combine(Repository(), "features", "os");
-        foreach (var name in new[] { "Circle", "CircleRoom", "Friends", "Engineer", "SelfImprove", "Usage", "DataVisualizer", "BrainView", "Calculator", "FilmCraft", "PhotoCraft" })
+        foreach (var name in new[] { "Circle", "CircleRoom", "Friends", "Usage", "DataVisualizer", "Calculator", "FilmCraft", "PhotoCraft" })
         {
             Assert.True(File.Exists(Path.Combine(root, name, "app.cs")), name);
         }
-        foreach (var compiled in new[] { "Workspace", "Desktop", "Settings", "Apps", "Ino", "Memory", "Router" })
+        foreach (var compiled in new[] { "Workspace", "Desktop", "Settings", "Apps", "Ino", "Memory", "Router", "Engineer", "SelfImprove", "BrainView" })
         {
             Assert.False(Directory.Exists(Path.Combine(root, compiled)), compiled);
         }
