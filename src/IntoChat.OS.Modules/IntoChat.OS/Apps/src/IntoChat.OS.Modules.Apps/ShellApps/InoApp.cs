@@ -404,11 +404,33 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         new Column(
         [
             new Text(State.Status),
-            .. State.ActiveCards.Select(card =>
-                new Text($"[{card.Kind}:{card.Status}] {card.Title} ({card.SourceNeuronUri} | scope:{card.EffectiveScopeUri})")),
+            .. State.ActiveCards.SelectMany(RenderCardNodes),
             new Collection(State.Turns.Select((turn, i) =>
                 new Entry($"turn-{i + 1}", turn.UserMessage, turn.Reply)).ToArray()),
         ]));
+
+    private static IEnumerable<Node> RenderCardNodes(InoCard card)
+    {
+        yield return new Text($"[{card.Kind}:{card.Status}] {card.Title} ({card.SourceNeuronUri} | scope:{card.EffectiveScopeUri})");
+        var children = new List<Node>();
+        if (card.Kind == "approval" && card.Status == "pending")
+        {
+            children.Add(new Button(
+                "Approve",
+                new ButtonAction("apps/ino", "approve-card", [card.Id]),
+                Enabled: true,
+                Tone: ButtonTone.Accent));
+        }
+        else if (card.Kind == "table" && card.Columns is { Length: > 0 } cols && card.Rows is { Length: > 0 } rows)
+        {
+            children.Add(new Collection(rows.Select((row, r) =>
+                new Entry(
+                    $"{card.Id}-row-{r + 1}",
+                    row[0],
+                    string.Join(" · ", cols.Skip(1).Zip(row.Skip(1), (col, val) => $"{col}: {val}")))).ToArray()));
+        }
+        yield return new Card(card.Title, card.Summary, children);
+    }
 
     [DigitalBrain.Scenario("Sending a message recalls memory, captures an episode, and updates transcript")]
     public async Task VerifyMemoryAndConversationScenario()

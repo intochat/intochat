@@ -375,14 +375,70 @@ internal sealed class CompiledAppsHost(
             {
                 var turn = state.Turns[i];
                 entries.Add(new ChatEntry($"turn-{i + 1}-user", ChatRole.User, turn.UserMessage));
-                entries.Add(new ChatEntry($"turn-{i + 1}-assistant", ChatRole.Assistant, turn.Reply)
-                {
-                    Model = turn.RouteHint,
-                });
+                entries.Add(BuildAssistantChatEntry(i + 1, turn, state));
             }
         }
 
         await chat.Project(new ChatProjection(runtime.AppKey, chatGen, nextVersion, [.. entries]));
+    }
+
+    private static ChatEntry BuildAssistantChatEntry(int turnNumber, InoTurn turn, InoAppState state)
+    {
+        var text = turn.Reply;
+        var activities = new List<ChatActivity>();
+        ChatAppCard? appCard = null;
+
+        if (turn.RouteHint == "postgres:query")
+        {
+            var tableCard = state.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Columns is { Length: > 0 } && c.Rows is { Length: > 0 });
+            if (tableCard is { Columns: { } cols, Rows: { } rows })
+            {
+                var mdHeader = "| " + string.Join(" | ", cols) + " |";
+                var mdSep = "| " + string.Join(" | ", cols.Select(_ => "---")) + " |";
+                var mdRows = string.Join("\n", rows.Select(r => "| " + string.Join(" | ", r) + " |"));
+                text = $"{turn.Reply}\n\n{mdHeader}\n{mdSep}\n{mdRows}";
+            }
+            activities.Add(new ChatActivity(
+                $"sql-{turnNumber}",
+                $"PostgreSQL Query ({state.ConnectedDatabase ?? "main"})",
+                turn.UserMessage,
+                turn.Reply));
+        }
+        else if (turn.RouteHint.StartsWith("postgres:", StringComparison.Ordinal))
+        {
+            activities.Add(new ChatActivity(
+                $"db-{turnNumber}",
+                "PostgreSQL Connection",
+                turn.UserMessage,
+                turn.Reply));
+        }
+
+        if (state.ActiveCards.FirstOrDefault(c => c.Id == $"card-{turnNumber}") is { } approvalCard)
+        {
+            activities.Add(new ChatActivity(
+                approvalCard.Id,
+                $"{approvalCard.Title} [{approvalCard.Status}]",
+                approvalCard.SourceNeuronUri,
+                $"Scope: {approvalCard.EffectiveScopeUri} · Status: {approvalCard.Status}"));
+        }
+
+        if (turn.RouteHint.StartsWith("routed:", StringComparison.Ordinal))
+        {
+            var routedTarget = turn.RouteHint["routed:".Length..];
+            var dot = routedTarget.IndexOf('.', StringComparison.Ordinal);
+            var targetApp = dot > 0 ? routedTarget[..dot] : routedTarget;
+            if (ChatAppCard.IsAppName(targetApp))
+            {
+                appCard = new ChatAppCard(targetApp, targetApp, "grid", true);
+            }
+        }
+
+        return new ChatEntry($"turn-{turnNumber}-assistant", ChatRole.Assistant, text)
+        {
+            Model = turn.RouteHint,
+            Activities = [.. activities],
+            App = appCard,
+        };
     }
 
     private static View? InvokeRenderMethod(Type type, App instance, string methodName, string fallbackTitle)
