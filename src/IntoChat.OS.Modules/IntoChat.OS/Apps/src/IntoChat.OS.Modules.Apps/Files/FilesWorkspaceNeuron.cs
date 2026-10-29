@@ -30,6 +30,8 @@ internal sealed record FilesWorkspaceState
     public string? Notice { get; init; }
     public string? PendingRequest { get; init; }
     public bool Ready { get; init; }
+    public int Width { get; init; } = 1440;
+    public bool PreviewOpen { get; init; }
 }
 
 // The provider-neutral app owns navigation; this host owns durable request receipts, runtime operations and UI delivery.
@@ -75,7 +77,8 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     private async Task Recover(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        await Field("search").Configure("Search names", "text");
+        await Field("search").Configure("Search all storages", "search", "Search");
+        await Field("filter").Configure("Filter by name", "text");
         await Field("name").Configure("Name", "text");
         await Field("content").Configure("File content", "multiline");
         foreach (var slot in new[] { "side", "main", "full" })
@@ -107,14 +110,20 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                 case "open": await app.Open(new(), ct); await Store(app, resetPage: true); break;
                 case "storage":
                     var storage = At(State.Files.Storages, input.Index);
-                    await app.Browse(new(storage.Connection), ct); await Store(app, resetPage: true); break;
+                    if (storage.Error is not null) { app.ShowUnavailable(storage.Connection); }
+                    else { await app.Browse(new(storage.Connection), ct); }
+                    await Store(app, resetPage: true); break;
                 case "browse":
                     var item = At(State.Files.Items, input.Index);
                     await app.Browse(new(item.Connection, item.Item.Id), ct); await Store(app, resetPage: true); break;
                 case "breadcrumb":
                     var parent = At(State.Files.Breadcrumbs, input.Index);
                     await app.Browse(new(parent.Connection, parent.Item.Id), ct); await Store(app, resetPage: true); break;
-                case "select": await app.Select(new(At(State.Files.Items, input.Index)), ct); await Store(app); break;
+                case "select":
+                    await app.Select(new(At(State.Files.Items, input.Index)), ct);
+                    await Store(app);
+                    if (State.Width <= 390) { await Persist(State with { PreviewOpen = true }); }
+                    break;
                 case "preview": await app.Preview(new(), ct); await Store(app, resetPage: true); break;
                 case "up":
                     if (State.Files.Breadcrumbs.Length > 1)
@@ -156,6 +165,19 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     var cancelling = At(State.Operations, input.Index);
                     if (!cancelling.Done) { await Context.Operations.Cancel(new(cancelling.Id), ct); }
                     break;
+                case "filter": app.Filter(input.Query); await Store(app); break;
+                case "clear-filter": app.Filter(""); await Store(app); break;
+                case "sort-name": app.SortBy("name"); await Store(app); break;
+                case "sort-size": app.SortBy("size"); await Store(app); break;
+                case "sort-modified": app.SortBy("modified"); await Store(app); break;
+                case "back-folder": await app.BackToFolder(ct); await Store(app, resetPage: true); break;
+                case "back-files": await Persist(State with { PreviewOpen = false }); break;
+                case "retry":
+                    if (State.Files.Searching && State.Files.Search is { } again) { await app.Search(new(again, Everywhere: true), ct); }
+                    else if (State.Files.Connection is { } current) { await app.Browse(new(current, State.Files.Folder), ct); }
+                    else { await app.Open(new(), ct); }
+                    await Store(app, resetPage: true); break;
+                case "upload" or "download" or "open-app" or "open-settings": break;
                 default: throw new ArgumentException("Unknown Files action.", nameof(operation));
             }
         }

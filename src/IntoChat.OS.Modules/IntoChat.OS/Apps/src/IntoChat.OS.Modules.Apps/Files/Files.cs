@@ -26,7 +26,8 @@ using DigitalBrain.Capabilities.Storage;
 
 namespace IntoChat.Files;
 
-public sealed record FilesStorage(string Connection, string Label, string Kind, ItemFlags Flags, string? Error);
+public sealed record FilesStorage(string Connection, string Label, string Kind, ItemFlags Flags, string? Error, Quota? Space = null);
+public sealed record FilesGroup(string Connection, string Label, FilesItem[] Items, bool Failed, bool Bounded, string? Cursor = null);
 public sealed record FilesItem(string Connection, Item Item);
 public sealed record FilesPage(string Connection, ItemId? Folder, string? Cursor, bool Complete);
 public sealed record FilesClipboard(FilesItem Source, bool Move);
@@ -49,7 +50,22 @@ public sealed record FilesState
     public FilesPage[] Pages { get; init; } = [];
     public string? Search { get; init; }
     public string? Preview { get; init; }
+    public string? PreviewUrl { get; init; }
+    public string? PreviewApp { get; init; }
+    public string? PreviewNote { get; init; }
+    public string? DownloadUrl { get; init; }
     public string? Message { get; init; }
+    public string? StatusTitle { get; init; }
+    public string? StatusBody { get; init; }
+    public string StatusSeverity { get; init; } = "info";
+    public string Filter { get; init; } = "";
+    public string Sort { get; init; } = "name";
+    public bool SortDescending { get; init; }
+    public bool Loading { get; init; }
+    public bool Searching { get; init; }
+    public FilesGroup[] Groups { get; init; } = [];
+    public string? PreviousConnection { get; init; }
+    public ItemId? PreviousFolder { get; init; }
     public ConflictPolicy Conflict { get; init; }
     public bool DryRun { get; init; }
 }
@@ -58,8 +74,13 @@ public sealed record FilesState
 [App("files")]
 public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state) : App
 {
+    public const int PageSize = 100;
+    public static readonly TimeSpan DefaultSearchLimit = TimeSpan.FromSeconds(2);
     public static AppManifest Manifest { get; } = new("files", "Files", "3.0.1", [], new([Capability.Storage.V1]));
     public FilesState Snapshot { get; private set; } = state;
+    public TimeSpan SearchLimit { get; set; } = DefaultSearchLimit;
+    public IReadOnlySet<string> InstalledApps { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    public event Action? Changed;
 
     [On]
     public async Task Open(FilesOpened request, CancellationToken ct = default)
@@ -71,12 +92,13 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             try
             {
                 var descriptor = await connection.Capability.Describe(ct);
-                storages.Add(new(connection.ConnectionKey, connection.Label, descriptor.Kind, descriptor.Flags, null));
+                storages.Add(new(connection.ConnectionKey, connection.Label, descriptor.Kind, descriptor.Flags, null, descriptor.Quota));
             }
             catch (StorageException error)
             { storages.Add(new(connection.ConnectionKey, connection.Label, "storage", ItemFlags.None, error.Code)); }
         }
-        Snapshot = Snapshot with
+        var empty = storages.Count == 0;
+        Set(Snapshot with
         {
             Storages = [.. storages],
             Connection = null,
@@ -87,8 +109,18 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             Pages = [],
             Search = null,
             Preview = null,
-            Message = storages.Count == 0 ? "No storage is connected. Add a storage connection in Settings." : null,
-        };
+            PreviewUrl = null,
+            PreviewApp = null,
+            PreviewNote = null,
+            DownloadUrl = null,
+            Searching = false,
+            Groups = [],
+            Loading = false,
+            Message = null,
+            StatusTitle = empty ? FilesCopy.NoStorageHeading : null,
+            StatusBody = empty ? FilesCopy.NoStorageBody : null,
+            StatusSeverity = "info",
+        });
     }
 
     [On]
@@ -96,32 +128,49 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
     {
         var (connection, folder) = location;
         var storage = await Storage(connection, ct);
-        Item[] items;
-        Item[] ancestors = [];
-        FilesPage[] pages = [];
-        if (folder is { } id)
+        Set(Snapshot with { Loading = true, Searching = false, StatusTitle = null, StatusBody = null, Connection = connection, Folder = folder });
+        try
         {
-            var current = await storage.Stat(id, ct);
-            if (current is { Kind: ItemKind.Link, Target: { } target }) { current = await storage.Stat(target, ct); id = current.Id; folder = id; }
-            if (current.Kind != ItemKind.Folder) { throw new Unsupported(id); }
-            ancestors = [.. await storage.Ancestors(id, ct), current];
-            var page = await storage.List(id, new(PageSize: 40), ct);
-            items = [.. page.Items];
-            pages = [new(connection, id, page.NextCursor, page.NextCursor is null)];
+            Item[] items;
+            Item[] ancestors = [];
+            FilesPage[] pages = [];
+            if (folder is { } id)
+            {
+                var current = await storage.Stat(id, ct);
+                if (current is { Kind: ItemKind.Link, Target: { } target }) { current = await storage.Stat(target, ct); id = current.Id; folder = id; }
+                if (current.Kind != ItemKind.Folder) { throw new Unsupported(id); }
+                ancestors = [.. await storage.Ancestors(id, ct), current];
+                var page = await storage.List(id, new(PageSize: PageSize), ct);
+                items = [.. page.Items];
+                pages = [new(connection, id, page.NextCursor, page.NextCursor is null)];
+            }
+            else { items = [.. await storage.Roots(ct)]; }
+            Set(Snapshot with
+            {
+                Loading = false,
+                Connection = connection,
+                Folder = folder,
+                Items = items.Select(item => new FilesItem(connection, item)).ToArray(),
+                Breadcrumbs = ancestors.Select(item => new FilesItem(connection, item)).ToArray(),
+                Selected = null,
+                Pages = pages,
+                Search = null,
+                Preview = null,
+                PreviewUrl = null,
+                PreviewApp = null,
+                PreviewNote = null,
+                DownloadUrl = null,
+                Groups = [],
+                Message = null,
+                StatusTitle = null,
+                StatusBody = null,
+            });
         }
-        else { items = [.. await storage.Roots(ct)]; }
-        Snapshot = Snapshot with
+        catch (StorageException error)
         {
-            Connection = connection,
-            Folder = folder,
-            Items = items.Select(item => new FilesItem(connection, item)).ToArray(),
-            Breadcrumbs = ancestors.Select(item => new FilesItem(connection, item)).ToArray(),
-            Selected = null,
-            Pages = pages,
-            Search = null,
-            Preview = null,
-            Message = items.Length == 0 ? "This folder is empty." : null,
-        };
+            var (title, body, severity) = Explain(error, LabelOf(connection));
+            Set(Snapshot with { Loading = false, StatusTitle = title, StatusBody = body, StatusSeverity = severity, Items = [], Message = null });
+        }
     }
 
     [On]
@@ -129,7 +178,18 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
     {
         var selected = request.Item;
         var item = await (await Storage(selected.Connection, ct)).Stat(selected.Item.Id, ct);
-        Snapshot = Snapshot with { Selected = new(selected.Connection, item), Preview = null, Message = null };
+        var chosen = new FilesItem(selected.Connection, item);
+        Set(Snapshot with
+        {
+            Selected = chosen,
+            Preview = null,
+            PreviewUrl = null,
+            PreviewApp = null,
+            PreviewNote = null,
+            DownloadUrl = item.Kind == ItemKind.File ? ContentUrl(selected.Connection, item.Id) : null,
+            Message = null,
+        });
+        if (item.Kind == ItemKind.File) { await LoadPreview(ct); }
     }
 
     [On]
@@ -137,31 +197,47 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
     {
         var (text, everywhere) = query;
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        var connections = await broker.ResolveAll<IStorage>(brain, ct);
-        var pages = new List<FilesPage>();
-        var items = new List<FilesItem>();
-        var unavailable = new List<string>();
-        foreach (var connection in connections.Where(item => everywhere || Snapshot.Connection is null || item.ConnectionKey == Snapshot.Connection))
+        var needle = text.Trim();
+        var connections = (await broker.ResolveAll<IStorage>(brain, ct))
+            .Where(item => everywhere || Snapshot.Connection is null || item.ConnectionKey == Snapshot.Connection)
+            .ToArray();
+        var within = everywhere ? null : Snapshot.Folder;
+        Set(Snapshot with { Loading = true, Searching = true, Search = needle, StatusTitle = null, StatusBody = null });
+        var found = await Task.WhenAll(connections.Select(connection => SearchOne(connection, needle, within, ct)));
+        var items = found.SelectMany(group => group.Items).ToArray();
+        var failed = found.Where(group => group.Failed).Select(group => group.Label).ToArray();
+        var responded = found.Where(group => !group.Failed).ToArray();
+        string? title = null;
+        string? body = null;
+        var severity = "info";
+        if (failed.Length > 0)
         {
-            var within = everywhere ? null : Snapshot.Folder;
-            try
-            {
-                var page = await connection.Capability.Search(new(text.Trim(), Within: within, PageSize: 40), ct);
-                items.AddRange(page.Items.Select(item => new FilesItem(connection.ConnectionKey, item)));
-                pages.Add(new(connection.ConnectionKey, within, page.NextCursor, page.NextCursor is null));
-            }
-            catch (StorageException error) { unavailable.Add($"{connection.Label}: {error.Code}"); }
+            title = FilesCopy.SearchMissed;
+            body = FilesCopy.SearchMissedBody(string.Join(", ", failed));
+            severity = "warning";
         }
-        Snapshot = Snapshot with
+        else if (responded.Length > 0 && items.Length == 0 && found.All(group => group.Items.Length == 0 && !group.Bounded))
         {
-            Items = [.. items],
-            Pages = [.. pages],
-            Search = text.Trim(),
+            title = FilesCopy.NothingNamed(needle);
+        }
+        Set(Snapshot with
+        {
+            Loading = false,
+            Searching = true,
+            Items = items,
+            Groups = found,
+            Pages = found.Select(group => new FilesPage(group.Connection, within, group.Cursor, !group.Bounded || group.Failed)).ToArray(),
+            Search = needle,
             Selected = null,
             Preview = null,
-            Message = unavailable.Count > 0 ? "Some storages could not be searched: " + string.Join(", ", unavailable)
-                : items.Count == 0 ? "No matching files or folders on this page." : null,
-        };
+            PreviewUrl = null,
+            PreviewApp = null,
+            PreviewNote = null,
+            Message = null,
+            StatusTitle = title,
+            StatusBody = body,
+            StatusSeverity = severity,
+        });
     }
 
     [On]
@@ -176,43 +252,103 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             if (cursor.Complete) { continue; }
             var storage = await Storage(cursor.Connection, ct);
             var page = Snapshot.Search is { } search
-                ? await storage.Search(new(search, Within: cursor.Folder, Cursor: cursor.Cursor, PageSize: 40), ct)
-                : await storage.List(cursor.Folder!.Value, new(cursor.Cursor, 40), ct);
+                ? await storage.Search(new(search, Within: cursor.Folder, Cursor: cursor.Cursor, PageSize: PageSize), ct)
+                : await storage.List(cursor.Folder!.Value, new(cursor.Cursor, PageSize), ct);
             items.AddRange(page.Items.Select(item => new FilesItem(cursor.Connection, item)));
             pages[n] = cursor with { Cursor = page.NextCursor, Complete = page.NextCursor is null };
         }
-        Snapshot = Snapshot with
+        var distinct = items.DistinctBy(item => (item.Connection, item.Item.Id)).ToArray();
+        Set(Snapshot with
         {
-            Items = [.. items.DistinctBy(item => (item.Connection, item.Item.Id))],
+            Items = distinct,
             Pages = pages,
-            Message = items.Count > 0 && Snapshot.Message == "No matching files or folders on this page." ? null : Snapshot.Message,
-        };
+            Loading = false,
+            Message = null,
+            StatusTitle = distinct.Length > 0 && Snapshot.StatusTitle == FilesCopy.NothingNamed(Snapshot.Search ?? "") ? null : Snapshot.StatusTitle,
+        });
     }
 
     [On]
     public async Task Preview(FilesPreview request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var selected = Snapshot.Selected ?? throw new InvalidOperationException("Select a file first.");
-        var storage = await Storage(selected.Connection, ct);
-        var item = await storage.Stat(selected.Item.Id, ct);
-        if (item is { Kind: ItemKind.Link, Target: { } target }) { item = await storage.Stat(target, ct); }
-        if (item.Kind == ItemKind.Folder) { await Browse(new(selected.Connection, item.Id), ct); return; }
-        var content = await storage.Read(item.Id, new ByteRange(0, 256 * 1024), ct);
-        var bytes = content.Bytes.Span;
-        var preview = bytes.Contains((byte)0) ? "This file cannot be previewed as text." : Encoding.UTF8.GetString(bytes);
-        if (content.TotalLength > content.Bytes.Length) { preview += "\n\nPreview limited to the first 256 KiB."; }
-        Snapshot = Snapshot with { Preview = preview, Message = null };
+        if (Snapshot.Selected is null) { throw new InvalidOperationException("Select a file first."); }
+        if (Snapshot.Selected.Item.Kind == ItemKind.Folder)
+        {
+            await Browse(new(Snapshot.Selected.Connection, Snapshot.Selected.Item.Id), ct);
+            return;
+        }
+        await LoadPreview(ct);
+    }
+
+    public void Filter(string? text) => Set(Snapshot with { Filter = text?.Trim() ?? "" });
+
+    public void SortBy(string column)
+    {
+        var next = column is "size" or "modified" or "name" ? column : "name";
+        var descending = Snapshot.Sort == next && !Snapshot.SortDescending;
+        Set(Snapshot with { Sort = next, SortDescending = descending });
+    }
+
+    public void ShowUnavailable(string connection)
+    {
+        var storage = Snapshot.Storages.Single(item => item.Connection == connection);
+        Set(Snapshot with
+        {
+            Connection = connection,
+            Folder = null,
+            Items = [],
+            Breadcrumbs = [],
+            Selected = null,
+            Pages = [],
+            Searching = false,
+            Loading = false,
+            Preview = null,
+            StatusTitle = FilesCopy.UnavailableTitle(storage.Label),
+            StatusBody = FilesCopy.UnavailableBody,
+            StatusSeverity = "warning",
+            Message = null,
+        });
+    }
+
+    public async Task OpenResult(FilesItem item, CancellationToken ct = default)
+    {
+        var backConnection = Snapshot.Connection;
+        var backFolder = Snapshot.Folder;
+        var storage = await Storage(item.Connection, ct);
+        var stat = await storage.Stat(item.Item.Id, ct);
+        if (stat is { Kind: ItemKind.Link, Target: { } target }) { stat = await storage.Stat(target, ct); }
+        var ancestors = await storage.Ancestors(stat.Id, ct);
+        var folder = stat.Kind == ItemKind.Folder ? stat.Id : ancestors.Count == 0 ? (ItemId?)null : ancestors[^1].Id;
+        await Browse(new(item.Connection, folder), ct);
+        var chosen = Snapshot.Items.FirstOrDefault(entry => entry.Item.Id == stat.Id) ?? new FilesItem(item.Connection, stat);
+        Set(Snapshot with
+        {
+            Selected = chosen,
+            Searching = false,
+            PreviousConnection = backConnection,
+            PreviousFolder = backFolder,
+            DownloadUrl = stat.Kind == ItemKind.File ? ContentUrl(item.Connection, stat.Id) : null,
+        });
+        if (stat.Kind == ItemKind.File) { await LoadPreview(ct); }
+    }
+
+    public async Task BackToFolder(CancellationToken ct = default)
+    {
+        if (Snapshot.PreviousConnection is { } connection)
+        {
+            await Browse(new(connection, Snapshot.PreviousFolder), ct);
+        }
     }
 
     public void Copy(bool move)
     {
         var selected = Snapshot.Selected ?? throw new InvalidOperationException("Select a file or folder first.");
         Require(selected.Item.Flags, move ? ItemFlags.Move : ItemFlags.Copy, selected.Item.Id);
-        Snapshot = Snapshot with { Clipboard = new(selected, move), Message = $"Choose a destination folder, then {(move ? "Move here" : "Copy here")}." };
+        Set(Snapshot with { Clipboard = new(selected, move), Message = $"Choose a destination folder, then {(move ? "Move here" : "Copy here")}." });
     }
 
-    public void Options(ConflictPolicy conflict, bool dryRun) => Snapshot = Snapshot with { Conflict = conflict, DryRun = dryRun };
+    public void Options(ConflictPolicy conflict, bool dryRun) => Set(Snapshot with { Conflict = conflict, DryRun = dryRun });
 
     public WritePlan Plan(string operation, string name = "", string text = "")
     {
@@ -238,9 +374,116 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         return plan with { DryRun = Snapshot.DryRun };
     }
 
+    private async Task<FilesGroup> SearchOne(CapabilityConnection<IStorage> connection, string text, ItemId? within, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(SearchLimit);
+        try
+        {
+            var page = await connection.Capability.Search(new(text, Within: within, PageSize: PageSize), timeout.Token).ConfigureAwait(false);
+            var rows = page.Items.Select(item => new FilesItem(connection.ConnectionKey, item)).ToArray();
+            return new(connection.ConnectionKey, connection.Label, rows, false, page.NextCursor is not null, page.NextCursor);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return new(connection.ConnectionKey, connection.Label, [], true, false);
+        }
+        catch (StorageException)
+        {
+            return new(connection.ConnectionKey, connection.Label, [], true, false);
+        }
+    }
+
+    private async Task LoadPreview(CancellationToken ct)
+    {
+        var selected = Snapshot.Selected ?? throw new InvalidOperationException("Select a file first.");
+        var storage = await Storage(selected.Connection, ct).ConfigureAwait(false);
+        var item = await storage.Stat(selected.Item.Id, ct).ConfigureAwait(false);
+        if (item is { Kind: ItemKind.Link, Target: { } target }) { item = await storage.Stat(target, ct).ConfigureAwait(false); }
+        if (item.Kind == ItemKind.Folder) { await Browse(new(selected.Connection, item.Id), ct).ConfigureAwait(false); return; }
+        var url = ContentUrl(selected.Connection, item.Id);
+        var ancestors = await storage.Ancestors(item.Id, ct).ConfigureAwait(false);
+        var app = ancestors.LastOrDefault(folder => InstalledApps.Contains(folder.Name));
+        if (item.Name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && app is { } match)
+        {
+            Set(Snapshot with { Preview = null, PreviewUrl = null, PreviewApp = match.Name, PreviewNote = null, DownloadUrl = url, Message = null });
+            return;
+        }
+        if (IsImage(item.Name))
+        {
+            Set(item.Size is > TenMegabytes
+                ? Snapshot with { Preview = FilesCopy.PreviewTooLarge, PreviewUrl = null, PreviewApp = null, PreviewNote = null, DownloadUrl = url }
+                : Snapshot with { Preview = null, PreviewUrl = url, PreviewApp = null, PreviewNote = null, DownloadUrl = url, Message = null });
+            return;
+        }
+        if (!IsText(item.Name))
+        {
+            Set(Snapshot with { Preview = FilesCopy.PreviewUnavailable, PreviewUrl = null, PreviewApp = null, PreviewNote = null, DownloadUrl = url });
+            return;
+        }
+        var content = await storage.Read(item.Id, new ByteRange(0, 256 * 1024), ct).ConfigureAwait(false);
+        if (content.Bytes.Span.Contains((byte)0))
+        {
+            Set(Snapshot with { Preview = FilesCopy.PreviewUnavailable, PreviewUrl = null, PreviewApp = null, PreviewNote = null, DownloadUrl = url });
+            return;
+        }
+        Set(Snapshot with
+        {
+            Preview = Encoding.UTF8.GetString(content.Bytes.Span),
+            PreviewNote = content.TotalLength > content.Bytes.Length ? FilesCopy.PreviewLimited : null,
+            PreviewUrl = null,
+            PreviewApp = null,
+            DownloadUrl = url,
+            Message = null,
+        });
+    }
+
+    private void Set(FilesState next)
+    {
+        Snapshot = next;
+        Changed?.Invoke();
+    }
+
+    private string? LabelOf(string connection) => Snapshot.Storages.FirstOrDefault(item => item.Connection == connection)?.Label;
+
+    private string ContentUrl(string connection, ItemId item) => "/brains/" + brain.Value + "/storage/" + connection + "/items/" + item.Value + "/content";
+
     private async Task<IStorage> Storage(string connection, CancellationToken ct)
-        => (await broker.ResolveAll<IStorage>(brain, ct)).SingleOrDefault(item => item.ConnectionKey == connection)?.Capability
+        => (await broker.ResolveAll<IStorage>(brain, ct).ConfigureAwait(false)).SingleOrDefault(item => item.ConnectionKey == connection)?.Capability
             ?? throw new Unavailable(null);
+
+    private static (string Title, string Body, string Severity) Explain(StorageException error, string? label)
+        => error switch
+        {
+            Unavailable when label is not null => (FilesCopy.UnavailableTitle(label), FilesCopy.UnavailableBody, "warning"),
+            Denied => (FilesCopy.DeniedTitle, FilesCopy.DeniedBody, "error"),
+            _ => (FilesCopy.ListFailed, FilesCopy.NothingChanged, "error"),
+        };
+
+    private static bool IsImage(string name)
+    {
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".webp", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsText(string name)
+    {
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".md", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".csv", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".log", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".xml", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".cs", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private const long TenMegabytes = 10L * 1024 * 1024;
 
     private static void Require(ItemFlags actual, ItemFlags required, ItemId item)
     { if (!actual.HasFlag(required)) { throw new Unsupported(item); } }
