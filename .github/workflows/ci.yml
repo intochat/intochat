@@ -50,9 +50,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p ../nuget
-          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.0 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
@@ -94,9 +94,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p ../nuget
-          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.0 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
 
       # Restore runs inside the build: one evaluation of the solution instead of two.
       - name: Build solution
@@ -213,9 +213,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p ../nuget
-          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.0 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
       - name: Blob storage conformance
         run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/blob-storage-results
       - uses: actions/upload-artifact@v7
@@ -302,9 +302,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p ../nuget
-          gh release download v0.8.0 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.0 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.0 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
+          gh release download v0.8.1 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx
