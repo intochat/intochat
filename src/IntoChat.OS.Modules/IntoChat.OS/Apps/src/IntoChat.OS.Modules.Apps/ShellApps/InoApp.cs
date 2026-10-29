@@ -8,7 +8,9 @@ The brain's personal assistant. Connects to MemoryNeuron (IMemory), UserSettings
 and Postgres connections to maintain context across conversations, route intents, query databases, and render LFP cards.
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -16,7 +18,11 @@ namespace IntoChat.OS.Modules.Apps;
 public sealed record InoOpen(string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("ino.send")]
-public sealed record InoSend(string? Message = null) : DigitalBrain.Signal;
+public sealed record InoSend(string? Message = null, string? Text = null) : DigitalBrain.Signal
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? EffectiveMessage => !string.IsNullOrWhiteSpace(Message) ? Message : Text;
+}
 
 [DigitalBrain.Signal("ino.new")]
 public sealed record InoNew : DigitalBrain.Signal;
@@ -133,7 +139,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task Send(InoSend request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var text = string.IsNullOrWhiteSpace(request.Message) ? "hello" : request.Message.Trim();
+        var text = string.IsNullOrWhiteSpace(request.EffectiveMessage) ? "hello" : request.EffectiveMessage.Trim();
         var memory = TryGetMemory();
         var recalled = memory is null ? [] : await memory.Recall(text, 3);
         var settings = await Get<IUserSettings>("settings").Read();
@@ -156,7 +162,12 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         var contextSummary = recalled.Length > 0
             ? $" (recalled {recalled.Length} memory item(s): {recalled[0].Text})"
             : string.Empty;
-        var reply = $"Ino ({settings.DefaultModel}): Answered '{text}'{contextSummary}";
+        var generated = string.IsNullOrWhiteSpace(request.EffectiveMessage)
+            ? null
+            : await TryGenerateReplyAsync(text, settings, recalled);
+        var reply = generated is { Length: > 0 }
+            ? $"Ino ({settings.DefaultModel}): {generated}{contextSummary}"
+            : $"Ino ({settings.DefaultModel}): Answered '{text}'{contextSummary}";
 
         if (memory is not null)
         {
@@ -502,6 +513,42 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             ["Cold-chain sensors", "Lofoten Seafood", "Proposal", "€31,200"],
         ];
         return (defaultCols, defaultRows, $"Queried 5 opportunity row(s) totaling €627,700 from {database}.");
+    }
+
+    private async Task<string?> TryGenerateReplyAsync(string text, UserSettingsState settings, MemoryRecallHit[] recalled)
+    {
+        try
+        {
+            var model = Get<IQwen35>("main");
+            var systemPrompt =
+                $"You are Ino, the personal AI assistant of IntoChat OS (user: {settings.DisplayName}, model: {settings.DefaultModel}). "
+                + (recalled.Length > 0 ? $"Recalled memory: {string.Join("; ", recalled.Select(r => r.Text))}. " : string.Empty)
+                + "Reply concisely and helpfully.";
+            var messages = new List<AiMessage>
+            {
+                new("system", [new AiText(systemPrompt)]),
+            };
+            foreach (var turn in State.Turns.TakeLast(6))
+            {
+                messages.Add(new("user", [new AiText(turn.UserMessage)]));
+                messages.Add(new("assistant", [new AiText(turn.Reply)]));
+            }
+            messages.Add(new("user", [new AiText(text)]));
+            var result = await model.Generate(new InferenceRequest(messages));
+            var generated = string.Join(
+                "\n",
+                result.Messages
+                    .SelectMany(m => m.Content)
+                    .OfType<AiText>()
+                    .Select(t => t.Text)
+                    .Where(t => !string.IsNullOrWhiteSpace(t))).Trim();
+            return string.IsNullOrWhiteSpace(generated) ? null : generated;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Local model IQwen35 is optional when running InoApp in unit tests without Ollama.");
+            return null;
+        }
     }
 
     private IMemory? TryGetMemory()

@@ -21,18 +21,36 @@ internal static class LoadedContracts
         .Where(assembly => !assembly.IsDynamic).Select(assembly => assembly.GetType(name, throwOnError: false))
         .FirstOrDefault(type => type is not null && IntoChat.OS.Runtime.PlainNeuronContracts.Is(type));
 
-    // Referenced contract assemblies load lazily; load what the entry assembly references, transitively.
+    // Referenced contract assemblies load lazily; load what the entry assembly and base directory deploy, transitively.
     private static bool LoadReferenced()
     {
-        if (Assembly.GetEntryAssembly() is not { } entry) { return false; }
         var seen = AppDomain.CurrentDomain.GetAssemblies().Select(assembly => assembly.GetName().Name).ToHashSet(StringComparer.Ordinal);
-        var pending = new Queue<AssemblyName>(entry.GetReferencedAssemblies());
+        var pending = new Queue<AssemblyName>();
+        if (Assembly.GetEntryAssembly() is { } entry)
+        {
+            foreach (var reference in entry.GetReferencedAssemblies()) { pending.Enqueue(reference); }
+        }
+        if (Directory.Exists(AppContext.BaseDirectory))
+        {
+            foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll"))
+            {
+                var fileName = Path.GetFileNameWithoutExtension(file);
+                if (fileName.StartsWith("IntoChat.OS", StringComparison.Ordinal) || fileName.StartsWith("DigitalBrain", StringComparison.Ordinal))
+                {
+                    try { pending.Enqueue(AssemblyName.GetAssemblyName(file)); }
+                    catch (BadImageFormatException) { }
+                    catch (FileLoadException) { }
+                }
+            }
+        }
         while (pending.TryDequeue(out var reference))
         {
             if (!(reference.Name!.StartsWith("IntoChat.OS", StringComparison.Ordinal) || reference.Name.StartsWith("DigitalBrain", StringComparison.Ordinal))
                 || !seen.Add(reference.Name)) { continue; }
             try { foreach (var next in Assembly.Load(reference).GetReferencedAssemblies()) { pending.Enqueue(next); } }
             catch (FileNotFoundException) { continue; } // an optional reference that is not deployed
+            catch (FileLoadException) { continue; }
+            catch (BadImageFormatException) { continue; }
         }
         return true;
     }

@@ -7,7 +7,10 @@
 **/.claude
 **/.codex
 **/.grok
+**/.superpowers
 
+artifacts
+compiled-apps
 **/bin
 **/obj
 **/TestResults
