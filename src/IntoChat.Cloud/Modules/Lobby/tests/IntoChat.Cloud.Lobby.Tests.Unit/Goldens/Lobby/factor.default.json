@@ -1,0 +1,44 @@
+{
+  "title": "factor",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Verify your sign-in"
+      },
+      {
+        "kind": "text",
+        "value": "Use your authenticator app or a recovery code to continue."
+      },
+      {
+        "kind": "textField",
+        "name": "code",
+        "value": null,
+        "placeholder": "6-digit code"
+      },
+      {
+        "kind": "button",
+        "label": "Verify",
+        "action": {
+          "neuron": "lobby",
+          "operation": "verify",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "accent"
+      },
+      {
+        "kind": "button",
+        "label": "Forgot password?",
+        "action": {
+          "neuron": "lobby",
+          "operation": "email",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "neutral"
+      }
+    ]
+  }
+}

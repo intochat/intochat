@@ -1,0 +1,23 @@
+{
+  "title": "reset-done",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Password changed. Log in with your new password to continue."
+      },
+      {
+        "kind": "button",
+        "label": "Log in",
+        "action": {
+          "neuron": "lobby",
+          "operation": "login",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "accent"
+      }
+    ]
+  }
+}

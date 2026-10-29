@@ -21,6 +21,12 @@
   <Folder Name="/Desktop/">
     <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
   </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Lobby/">
+    <Project Path="src/IntoChat.Cloud/Modules/Lobby/tests/IntoChat.Cloud.Lobby.Tests.Unit/IntoChat.Cloud.Lobby.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/IntoChat.Cloud/Modules/Lobby/src/">
+    <Project Path="src/IntoChat.Cloud/Modules/Lobby/src/IntoChat.Cloud.Lobby/IntoChat.Cloud.Lobby.csproj" />
+  </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Localization/">
     <Project Path="src/IntoChat.Cloud/Modules/Localization/tests/IntoChat.Cloud.Localization.Tests.Unit/IntoChat.Cloud.Localization.Tests.Unit.csproj" />
   </Folder>

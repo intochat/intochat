@@ -1,0 +1,33 @@
+{
+  "title": "reset-request",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Reset your password"
+      },
+      {
+        "kind": "text",
+        "value": "Enter your work email to request a reset code."
+      },
+      {
+        "kind": "textField",
+        "name": "email",
+        "value": null,
+        "placeholder": "Work email"
+      },
+      {
+        "kind": "button",
+        "label": "Log in",
+        "action": {
+          "neuron": "lobby",
+          "operation": "send",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "accent"
+      }
+    ]
+  }
+}

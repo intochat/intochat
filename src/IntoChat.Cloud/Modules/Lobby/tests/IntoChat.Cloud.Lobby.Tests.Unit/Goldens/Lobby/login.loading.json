@@ -1,0 +1,76 @@
+{
+  "title": "login",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Log in to IntoChat"
+      },
+      {
+        "kind": "text",
+        "value": "Use your work account to continue."
+      },
+      {
+        "kind": "button",
+        "label": "Continue with Google",
+        "action": {
+          "neuron": "lobby",
+          "operation": "google",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "neutral"
+      },
+      {
+        "kind": "text",
+        "value": "or"
+      },
+      {
+        "kind": "textField",
+        "name": "email",
+        "value": null,
+        "placeholder": "Email"
+      },
+      {
+        "kind": "textField",
+        "name": "password",
+        "value": null,
+        "placeholder": "Password"
+      },
+      {
+        "kind": "button",
+        "label": "Forgot password?",
+        "action": {
+          "neuron": "lobby",
+          "operation": "forgot",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "neutral"
+      },
+      {
+        "kind": "button",
+        "label": "Logging in",
+        "action": {
+          "neuron": "lobby",
+          "operation": "submit",
+          "arguments": []
+        },
+        "enabled": false,
+        "tone": "accent"
+      },
+      {
+        "kind": "button",
+        "label": "Create an account",
+        "action": {
+          "neuron": "lobby",
+          "operation": "signup",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "neutral"
+      }
+    ]
+  }
+}
