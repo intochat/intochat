@@ -32,6 +32,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
                 return;
             }
         }
+        EnsureDockerNugetFeed(repository, contextPath);
         var sandbox = brain.ApplicationBuilder.AddDockerfile(ResourceName, contextPath, dockerfilePath: Dockerfile)
             .WithHttpEndpoint(targetPort: 8080, name: "http")
             .WithHttpHealthCheck("/health")
@@ -42,6 +43,42 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
             .WithContainerRuntimeArgs("--add-host", "host.docker.internal:host-gateway")
             .WithParentRelationship(brain.Resource);
         brain.AddProjection(new SandboxUrlProjection(sandbox));
+    }
+
+    private static void EnsureDockerNugetFeed(string repository, string contextPath)
+    {
+        var sharedNuget = Path.GetFullPath(Path.Combine(repository, "..", "nuget"));
+        if (!Directory.Exists(sharedNuget))
+        {
+            return;
+        }
+
+        var dockerNuget = Path.Combine(contextPath, ".nuget-local");
+        Directory.CreateDirectory(dockerNuget);
+        foreach (var nupkg in Directory.EnumerateFiles(sharedNuget, "*.nupkg"))
+        {
+            var fileName = Path.GetFileName(nupkg);
+            if (!fileName.StartsWith("DigitalBrain.", StringComparison.OrdinalIgnoreCase)
+                && !fileName.StartsWith("IntoChat.OS.", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (fileName.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase)
+                && !fileName.StartsWith("IntoChat.OS.Modules.Apps.", StringComparison.OrdinalIgnoreCase)
+                && !fileName.StartsWith("IntoChat.OS.Modules.Circles.", StringComparison.OrdinalIgnoreCase)
+                && !fileName.StartsWith("IntoChat.OS.Modules.Flame.", StringComparison.OrdinalIgnoreCase)
+                && !fileName.StartsWith("IntoChat.OS.Modules.Identity.", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var destination = Path.Combine(dockerNuget, fileName);
+            if (!File.Exists(destination))
+            {
+                File.Copy(nupkg, destination);
+            }
+        }
     }
 
     private sealed class SandboxUrlProjection(IResourceBuilder<ContainerResource> sandbox) : IntoChatOSModuleProjection
