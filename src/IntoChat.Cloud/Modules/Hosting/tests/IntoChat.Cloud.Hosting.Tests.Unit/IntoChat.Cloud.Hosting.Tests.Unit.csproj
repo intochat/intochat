@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/IntoChat.Cloud.Hosting/IntoChat.Cloud.Hosting.csproj" />
+  </ItemGroup>
+</Project>

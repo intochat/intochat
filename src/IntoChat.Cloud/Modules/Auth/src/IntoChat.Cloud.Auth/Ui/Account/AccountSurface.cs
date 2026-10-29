@@ -136,6 +136,7 @@ internal sealed class AccountSurfaceNeuron(IAccountAuth auth, ILocalizer localiz
         next.EmailSent = now;
         next.Error = null;
         next.Screen = "email-code";
+        await auth.RequestEmailChange(email);
         await Save(next, new AccountChanged("email-code"));
     }
 
@@ -355,6 +356,9 @@ public interface IAccountAuth
     Task<bool> ConfirmEmail(string email, string code, CancellationToken cancellationToken = default);
 
     Task<bool> ChangePassword(string current, string next, CancellationToken cancellationToken = default);
+
+    // Issues the change-email code. The default does nothing so a test double that only answers the two checks still compiles.
+    Task RequestEmailChange(string email, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 internal sealed class UnconfiguredAccountAuth : IAccountAuth

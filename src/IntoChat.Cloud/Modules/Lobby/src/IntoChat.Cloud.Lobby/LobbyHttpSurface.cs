@@ -30,18 +30,18 @@ internal sealed class LobbyHttpSurface : IModuleHttpSurface
                 return Results.Unauthorized();
             }
 
-            return Results.Json(new { brainId = options.BrainId, chromeless = true, visitorId = visitor });
+            return Results.Json(new { lobby = true, brainId = options.BrainId, chromeless = true, visitorId = visitor });
         }
 
         var created = Guid.NewGuid().ToString("N");
         if (!budget.TryAdmit(prefix, created, now, options.VisitorsPerPrefix, LobbyToken.Lifetime))
         {
-            return Results.Json(new { brainId = options.BrainId, chromeless = true, unavailable = true });
+            return Results.Json(new { lobby = true, brainId = options.BrainId, chromeless = true, unavailable = true });
         }
 
         var token = LobbyToken.Issue(keys.Key, created, prefix, now + LobbyToken.Lifetime);
         http.Response.Cookies.Append(LobbyToken.CookieName, token, Cookie(now + LobbyToken.Lifetime));
-        return Results.Json(new { brainId = options.BrainId, chromeless = true, visitorId = created });
+        return Results.Json(new { lobby = true, brainId = options.BrainId, chromeless = true, visitorId = created });
     }
 
     internal static async Task<IResult> Handoff(HttpContext http, INeuronProxies proxies, LobbyModuleOptions options, ILobbyTokenKey keys, ISessionIssuer issuer, TimeProvider clock, CancellationToken cancellationToken)

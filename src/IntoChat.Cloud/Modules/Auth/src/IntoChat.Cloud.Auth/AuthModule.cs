@@ -70,4 +70,7 @@ public sealed class AuthModule : Module
         services.AddSingleton<IHostedService, AuthStartupGuard>();
         services.AddHealthChecks().AddCheck<AuthLicenseHealthCheck>("auth-license");
     }
+
+    // The kernel's legacy-route facts map this without starting the silo. Anonymous JSON APIs stay; the old portal pages are not here.
+    public static void MapHttp(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints) => new Http.AuthHttpSurface().Map(endpoints);
 }

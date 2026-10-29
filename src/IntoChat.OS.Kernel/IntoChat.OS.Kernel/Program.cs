@@ -18,7 +18,12 @@ LocalRunDefaults.Apply(builder.Configuration);
 var topology = builder.Configuration[IntoChatOSNames.TopologyKey];
 var catalog = (OperatingSystem.IsWindows() ? OperatingSystemModules.WithWindowsEdge() : OperatingSystemModules.Modules)
     .Where(module => module.LoadsUnder(topology)).ToArray();
-builder.AddIntoChatOSServer(server => server.UseOrleansDashboard().AddOperatingSystem(catalog));
+builder.AddIntoChatOSServer(server =>
+{
+    server.UseOrleansDashboard().AddOperatingSystem(catalog);
+    if (!CloudHost.IsCloud(topology)) { return; }
+    server.UseLicenseCheck(new CloudLicenseCheck()).ConfigureServices(CloudHost.Register);
+});
 var app = builder.Build();
 app.MapIntoChatOSServer();
 app.Run();

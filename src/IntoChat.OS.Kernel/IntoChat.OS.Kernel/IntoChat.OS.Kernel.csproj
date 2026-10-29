@@ -47,5 +47,10 @@
     <ProjectReference Include="../../IntoChat.Cloud/Modules/Auth/src/IntoChat.Cloud.Auth/IntoChat.Cloud.Auth.csproj" />
     <ProjectReference Include="../../IntoChat.Cloud/Modules/Blob/src/IntoChat.Cloud.Blob/IntoChat.Cloud.Blob.csproj" />
     <ProjectReference Include="../../IntoChat.Cloud/Modules/Circle/src/IntoChat.Cloud.Circle.Server/IntoChat.Cloud.Circle.Server.csproj" />
+    <ProjectReference Include="../../IntoChat.Cloud/Modules/Hosting/src/IntoChat.Cloud.Hosting/IntoChat.Cloud.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.Cloud/Modules/Lobby/src/IntoChat.Cloud.Lobby/IntoChat.Cloud.Lobby.csproj" />
+    <ProjectReference Include="../../IntoChat.Cloud/Modules/Localization/src/IntoChat.Cloud.Localization/IntoChat.Cloud.Localization.csproj" />
+    <ProjectReference Include="../../IntoChat.Cloud/Modules/Mail/src/IntoChat.Cloud.Mail/IntoChat.Cloud.Mail.csproj" />
+    <ProjectReference Include="../../IntoChat.Cloud/Modules/Organisations/src/IntoChat.Cloud.Organisations/IntoChat.Cloud.Organisations.csproj" />
   </ItemGroup>
 </Project>

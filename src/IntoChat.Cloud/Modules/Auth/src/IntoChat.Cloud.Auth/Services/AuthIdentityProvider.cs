@@ -10,6 +10,7 @@ namespace IntoChat.Cloud.Auth.Services;
 // identity@1 sessions and description for the Auth module (D-08): the host's SessionsCapability checks the privileged grant and
 // the claims, then calls this port. A session id is "{base64url principal}.{32 random bytes}": the prefix routes to the
 // principal's sessions neuron, which holds only the id's keyed hash and the member it was issued for (CV-3).
+// The cloud kernel binds AddIdentitySessions over this port (InternalsVisibleTo). The kernel registers it before this module's TryAdd.
 internal sealed class AuthIdentityProvider(AuthCalls calls, AuthHashing hashing, AuthModuleOptions options) : IIdentitySessionPort
 {
     public const string ProviderId = "auth";

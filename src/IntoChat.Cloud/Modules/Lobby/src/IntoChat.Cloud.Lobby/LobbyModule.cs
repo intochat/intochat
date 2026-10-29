@@ -40,6 +40,8 @@ public sealed class LobbyModule : Module
         services.TryAddSingleton<ILobbyTokenKey, LobbyTokenKeys>();
         services.AddModuleHttpSurface<LobbyHttpSurface>();
     }
+
+    public static void MapHttp(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints) => new LobbyHttpSurface().Map(endpoints);
 }
 
 public sealed class LobbyModuleOptions
