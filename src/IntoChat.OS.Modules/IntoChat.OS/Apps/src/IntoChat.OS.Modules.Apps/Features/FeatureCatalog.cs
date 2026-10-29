@@ -20,18 +20,22 @@ public sealed class FeatureCatalog
     private readonly IScriptSandbox? _sandbox;
     private readonly Assembly? _modules;
     private readonly FeatureDirectory? _dev;
+    private readonly SideloadDirectory? _sideload;
+    private readonly GitSideload? _git;
     private readonly Lock _gate = new();
     private Task<Loaded>? _loaded;
 
-    public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null, FeatureDirectory? dev = null)
-        : this(directory, sandbox, null, dev) { }
+    public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
+        : this(directory, sandbox, null, dev, sideload, git) { }
 
-    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, Assembly? modules, FeatureDirectory? dev = null)
+    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, Assembly? modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
     {
         _directory = directory;
         _sandbox = sandbox;
         _modules = modules;
         _dev = dev;
+        _sideload = sideload;
+        _git = git;
     }
 
     // A relative folder resolves against the host's base directory, where a published image carries it.
@@ -42,7 +46,22 @@ public sealed class FeatureCatalog
         var development = services.GetService<IHostEnvironment>()?.IsDevelopment() == true;
         if (string.IsNullOrWhiteSpace(path)) { path = DefaultScriptFolder(development); }
         var directory = new FeatureDirectory(System.IO.Path.GetFullPath(path, AppContext.BaseDirectory), development);
-        return new(directory, services.GetService<IScriptSandbox>(), typeof(AppsModule).Assembly, DevDirectory(services));
+        return new(directory, services.GetService<IScriptSandbox>(), typeof(AppsModule).Assembly, DevDirectory(services), SideloadRoot(services), services.GetService<GitSideload>());
+    }
+
+    // IntoChatOS:Apps:SideloadDirectory, or <Home>/apps. Missing until a folder or a git URL is dropped.
+    private static SideloadDirectory? SideloadRoot(IServiceProvider services)
+    {
+        try
+        {
+            var configuration = services.GetService<global::Microsoft.Extensions.Configuration.IConfiguration>();
+            var configured = configuration?["IntoChatOS:Apps:SideloadDirectory"];
+            if (!string.IsNullOrWhiteSpace(configured)) { return new SideloadDirectory(System.IO.Path.GetFullPath(configured)); }
+            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration);
+            return new SideloadDirectory(home.Apps);
+        }
+        catch (Exception error) when (error is InvalidOperationException or IOException)
+        { return null; }
     }
 
     // <Home>/dev-apps, owner folders underneath. Missing until the first `intochat run`.
@@ -128,6 +147,18 @@ public sealed class FeatureCatalog
     // its errors and leaves the previous snapshot in place. A feature the folder no longer holds is left as it was.
     public async Task<AppBundle?> Reload(string owner, string name)
     {
+        if (string.Equals(owner, SideloadOwner, StringComparison.Ordinal) && _sideload is { } side)
+        {
+            var developed = side.Scan().Features.Where(feature => feature.Bundle.Name == name).ToArray();
+            if (developed.Length > 1)
+            { throw new InvalidOperationException($"{owner}/{name} ships twice: {string.Join(", ", developed.Select(copy => copy.Folder))}."); }
+            if (developed.Length == 1)
+            {
+                await RequireCompiles(owner, developed[0].Bundle, _sandbox);
+                lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), owner, developed[0].Bundle); }
+                return developed[0].Bundle;
+            }
+        }
         if (string.Equals(owner, DevOwner, StringComparison.Ordinal) && _dev is { } dev && System.IO.Directory.Exists(dev.Path))
         {
             var developed = dev.Load().Where(feature => feature.Owner == owner && feature.Bundle.Name == name).ToArray();
@@ -154,6 +185,9 @@ public sealed class FeatureCatalog
     // Publisher of a folder pushed by `intochat run`. Never os, whatever the folder says.
     public const string DevOwner = "local";
 
+    // Publisher of <Home>/apps. Never os, whatever the folder or the spec says. Role is ignored.
+    public const string SideloadOwner = "sideload";
+
     // Compiles through the sandbox, then keeps the bundle. A failure throws and leaves the previous snapshot.
     public async Task<AppBundle> AcceptLocal(AppBundle bundle)
     {
@@ -164,6 +198,60 @@ public sealed class FeatureCatalog
         _dev.Write(DevOwner, bundle);
         lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), DevOwner, bundle); }
         return bundle;
+    }
+
+    // Compiles through the sandbox, then keeps the bundle under sideload. A failure throws and writes nothing.
+    public async Task<AppBundle> AcceptSideload(AppBundle bundle)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        if (_sideload is null) { throw new InvalidOperationException("This host has no apps directory."); }
+        if (_sandbox is null) { throw new InvalidOperationException("The script sandbox is not available."); }
+        if (SideloadDirectoryBlocked(bundle.Files) is { } blocked) { throw new InvalidOperationException(blocked); }
+        await RequireCompiles(SideloadOwner, bundle, _sandbox);
+        _sideload.Write(bundle);
+        lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), SideloadOwner, bundle); }
+        return bundle;
+    }
+
+    public async Task RescanSideload()
+    {
+        if (_sideload is null) { return; }
+        if (_git is not null) { await Materialize(_sideload); }
+        var added = await LoadSideload(_sideload.Scan(), _sandbox);
+        var merged = Merge(await Snapshot(), added, SideloadOwner);
+        lock (_gate) { _loaded = Task.FromResult(merged); }
+    }
+
+    public async Task<string> AddSideloadGit(GitSideload git, string url, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(git);
+        if (_sideload is null) { throw new InvalidOperationException("This host has no apps directory."); }
+        var name = await _sideload.Adopt(git, url, cancellationToken);
+        await RescanSideload();
+        return name;
+    }
+
+    private async Task Materialize(SideloadDirectory side)
+    {
+        if (_git is null || !System.IO.Directory.Exists(side.Path)) { return; }
+        foreach (var file in System.IO.Directory.EnumerateFiles(side.Path, "*.git-url"))
+        {
+            try
+            {
+                await side.Adopt(_git, File.ReadAllText(file).Trim(), CancellationToken.None);
+                File.Delete(file);
+            }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException or IntoChat.OS.Runtime.Storage.Confinement.ConfinementDenied)
+            { _ = error.Message; }
+        }
+    }
+
+    private static string? SideloadDirectoryBlocked(IReadOnlyDictionary<string, string> files)
+    {
+        var found = DevAppEndpoints.EmptyCatches(files);
+        if (found.Length == 0) { return null; }
+        var first = found[0];
+        return $"{first.Id} {first.Message} ({first.File}:{first.Line})";
     }
 
     private static async Task<Loaded> Replace(Task<Loaded> previous, string owner, AppBundle bundle)
@@ -215,6 +303,15 @@ public sealed class FeatureCatalog
             }
             devFailures.AddRange(developed.Failures);
             scripts = new(devBundles, [.. devFailures], devOrigins);
+        }
+        if (_sideload is { } side)
+        {
+            if (_git is not null) { await Materialize(side); }
+            Loaded added;
+            try { added = await LoadSideload(side.Scan(), _sandbox); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { added = new(Nothing.Bundles, [new(SideloadOwner, "", "", error.Message)], Nothing.Origins); }
+            scripts = Merge(scripts, added, SideloadOwner);
         }
         if (_modules is null) { return scripts; }
         var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>(scripts.Bundles.ToDictionary());
@@ -279,6 +376,59 @@ public sealed class FeatureCatalog
         }
         load?.SetTag("features.count", bundles.Count);
         load?.SetTag("features.failed", failures.Count);
+        return new(bundles, [.. failures], origins);
+    }
+
+    private static async Task<Loaded> LoadSideload(SideloadScan scan, IScriptSandbox? sandbox)
+    {
+        var bundles = new Dictionary<(string Owner, string Name), AppBundle>();
+        var origins = new Dictionary<(string Owner, string Name), FeatureOrigin>();
+        var failures = scan.Failures.ToList();
+        var twice = scan.Features.GroupBy(feature => feature.Bundle.Name).Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
+        foreach (var feature in scan.Features)
+        {
+            if (twice.Contains(feature.Bundle.Name))
+            {
+                failures.Add(new(feature.Owner, feature.Bundle.Name, feature.Bundle.Version, $"{feature.Owner}/{feature.Bundle.Name} ships twice: {feature.Folder}."));
+                continue;
+            }
+            var key = (feature.Owner, feature.Bundle.Name);
+            bundles[key] = feature.Bundle;
+            origins[key] = new FeatureOrigin.Folder(feature.Folder);
+            try { await RequireCompiles(feature.Owner, feature.Bundle, sandbox); }
+            catch (InvalidOperationException error)
+            {
+                bundles.Remove(key);
+                origins.Remove(key);
+                failures.Add(new(feature.Owner, feature.Bundle.Name, feature.Bundle.Version, error.Message));
+            }
+        }
+        return new(bundles, [.. failures], origins);
+    }
+
+    private static Loaded Merge(Loaded scripts, Loaded added, string owner)
+    {
+        var bundles = scripts.Bundles.ToDictionary();
+        var origins = scripts.Origins.ToDictionary();
+        List<FeatureFailure> failures = [.. scripts.Failures.Where(failure => failure.Owner != owner)];
+        foreach (var key in bundles.Keys.Where(key => key.Owner == owner).ToArray())
+        {
+            bundles.Remove(key);
+            origins.Remove(key);
+        }
+        foreach (var (key, bundle) in added.Bundles)
+        {
+            if (bundles.ContainsKey(key))
+            {
+                failures.Add(new(key.Owner, key.Name, bundle.Version, $"{key.Owner}/{key.Name} ships twice."));
+                bundles.Remove(key);
+                origins.Remove(key);
+                continue;
+            }
+            bundles[key] = bundle;
+            if (added.Origins.TryGetValue(key, out var origin)) { origins[key] = origin; }
+        }
+        failures.AddRange(added.Failures);
         return new(bundles, [.. failures], origins);
     }
 
