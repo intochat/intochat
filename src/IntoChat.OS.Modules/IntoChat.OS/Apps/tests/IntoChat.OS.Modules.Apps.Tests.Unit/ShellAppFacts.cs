@@ -33,6 +33,15 @@ public sealed class ShellAppFacts
         Assert.Contains("Apps", DesktopApp.Bundle.Files["DesktopLayout.cs"], StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("settings", "cloud", true)]
+    [InlineData("settings", " local ", false)]
+    [InlineData("settings", "cloud ", true)]
+    [InlineData("workspace", "cloud", false)]
+    [InlineData("settings", null, false)]
+    public void TheSettingsAppWritesTheAccountSurfaceOnlyOnACloudHost(string app, string? topology, bool writes)
+        => Assert.Equal(writes, AppNeuron.WritesAccountSurface(app, topology));
+
     [Fact]
     public void ModuleListNamesTheAppsModuleAndNoSecretFields()
     {

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.Cloud.Auth.Neurons;
@@ -37,7 +38,17 @@ internal sealed class AuthIdentityProvider(AuthCalls calls, AuthHashing hashing,
         return row;
     }
 
-    public IdentityProviderDescriptor Describe() => new() { ProviderId = ProviderId, Posture = options.Posture };
+    // The Settings Account tab mounts this neuron (kind|key = view|surface). The kernel writes that setting only under Topology=cloud.
+    public static readonly NeuronId AccountSurfaceId = new(new DigitalBrain.BrainId("account"), "view", "surface");
+
+    public const string AccountSurfaceSetting = "view|surface";
+
+    public IdentityProviderDescriptor Describe() => new()
+    {
+        ProviderId = ProviderId,
+        Posture = options.Posture,
+        AccountSurface = AccountSurfaceId,
+    };
 
     // The principal a session id names, or null for an id Auth did not issue (never resolves a neuron for it).
     internal static string? PrincipalOf(string sessionId)

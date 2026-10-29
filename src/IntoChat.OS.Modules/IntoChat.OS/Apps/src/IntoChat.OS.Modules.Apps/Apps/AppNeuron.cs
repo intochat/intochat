@@ -828,9 +828,20 @@ internal sealed partial class AppNeuron(
         values["Brain"] = state.BrainScopeId ?? "";
         values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // The host's public origin (empty when unset): Settings opens the account page there, Apps builds share links.
-        values["PublicOrigin"] = ServiceProvider.GetService<IConfiguration>()?[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
+        var configuration = ServiceProvider.GetService<IConfiguration>();
+        values["PublicOrigin"] = configuration?[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
+        // Cloud sign-in contributes an account surface. The literal matches AuthIdentityProvider.AccountSurfaceSetting (view|surface).
+        if (WritesAccountSurface(Name(), configuration?["IntoChatOS:Topology"]))
+        {
+            values["AccountSurface"] = "view|surface";
+        }
         return values;
     }
+
+    // The settings app on a cloud host mounts auth's account neuron. Other apps and a local host leave the setting unset.
+    internal static bool WritesAccountSurface(string appName, string? topology) =>
+        string.Equals(appName, "settings", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     private void Record(AppState next)
     {
