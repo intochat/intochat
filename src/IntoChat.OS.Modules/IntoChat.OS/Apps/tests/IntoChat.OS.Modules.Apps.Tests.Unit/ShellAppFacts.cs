@@ -55,4 +55,27 @@ public sealed class ShellAppFacts
         Assert.DoesNotContain("\"token\"", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"account\"", json, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task SettingsBddScenarioAndSystemNeuronsPass()
+    {
+        var report = await BddRunner.VerifyAsync<SettingsApp>(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(report.Passed);
+        Assert.Single(report.Scenarios);
+
+        await using var os = TestOS.Local();
+        os.Register<UserSettingsNeuron>();
+        os.Register<ProfileNeuron>();
+        var settings = os.Get<IUserSettings>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "os.settings", "settings"));
+        var updated = await settings.SetProfile("Vlad", "light", "gpt-5");
+        Assert.Equal("Vlad", updated.DisplayName);
+        Assert.Equal("light", updated.Theme);
+        Assert.Equal("gpt-5", updated.DefaultModel);
+
+        var profile = os.Get<IProfile>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "os.profile", "profile"));
+        var pinned = await profile.SetBio("vlad", "AI OS Architect", ["creator"]);
+        Assert.Equal("vlad", pinned.Handle);
+        Assert.Equal("AI OS Architect", pinned.Bio);
+        Assert.Contains("creator", pinned.PinnedApps);
+    }
 }

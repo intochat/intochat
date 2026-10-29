@@ -66,7 +66,17 @@ public sealed partial class InstalledApp<TApp> : IInstalledApp where TApp : App
     {
         await previous.ConfigureAwait(false);
         await Task.Yield();
-        _app ??= (TApp)_definition.Create(Service);
+        if (_app is null)
+        {
+            _app = (TApp)_definition.Create(Service);
+            _app.AttachNeuronResolver((contractType, key) =>
+            {
+                var typeName = contractType.GetCustomAttribute<DigitalBrain.Contracts.DefaultNeuronTypeAttribute>(false)?.Type
+                    ?? throw new InvalidOperationException($"Contract {contractType.FullName} has no [DefaultNeuronType] attribute.");
+                var id = new NeuronId(new BrainId("local"), typeName, key);
+                return typeof(TestOS).GetMethod(nameof(TestOS.Get))!.MakeGenericMethod(contractType).Invoke(_os, [id])!;
+            });
+        }
         try
         {
             if (method is not null)

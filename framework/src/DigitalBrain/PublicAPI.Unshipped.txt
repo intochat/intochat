@@ -804,6 +804,8 @@ static DigitalBrain.Apps.SpecComment.Extract(string! source) -> string?
 static DigitalBrain.Apps.SpecComment.NormalizeOperation(string! name) -> string!
 static DigitalBrain.Apps.SpecComment.Parse(string! text) -> DigitalBrain.Apps.SpecComment!
 DigitalBrain.App.AppId.get -> string!
+DigitalBrain.App.AttachNeuronResolver(System.Func<System.Type!, string!, object!>! resolver) -> void
+DigitalBrain.App.Get<T>(string! key) -> T!
 DigitalBrain.App.ClearError() -> void
 DigitalBrain.App.Key(DigitalBrain.BrainId brain) -> DigitalBrain.AppKey
 DigitalBrain.App.Present<TView>(System.Action<TView?, TView?>! publish, System.Func<TView?>! side, System.Func<TView?>! main, string! operation = "") -> bool

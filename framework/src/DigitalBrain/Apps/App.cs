@@ -16,12 +16,31 @@ public abstract class App
 
     private readonly Lock _gate = new();
     private readonly List<AppError> _swallowed = [];
+    private Func<Type, string, object>? _neuronResolver;
     private string? _id;
     private AppError? _error;
 
     /// <summary>Creates the app.</summary>
     protected App()
     {
+    }
+
+    /// <summary>Attaches the host's neuron proxy resolver to this app instance.</summary>
+    public void AttachNeuronResolver(Func<Type, string, object> resolver)
+    {
+        ArgumentNullException.ThrowIfNull(resolver);
+        _neuronResolver = resolver;
+    }
+
+    /// <summary>A typed interface to a neuron of the current brain by its default neuron type and <paramref name="key"/>.</summary>
+    protected T Get<T>(string key) where T : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (_neuronResolver is null)
+        {
+            throw new InvalidOperationException($"App '{AppId}' has no attached neuron resolver.");
+        }
+        return (T)_neuronResolver(typeof(T), key);
     }
 
     /// <summary>The frozen app id from <c>[App(id)]</c>.</summary>

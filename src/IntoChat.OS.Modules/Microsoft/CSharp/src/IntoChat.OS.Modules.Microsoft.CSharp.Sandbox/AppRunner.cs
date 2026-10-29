@@ -29,6 +29,10 @@ internal static class AppRunner
         var definition = new AppDefinition(appType);
         var presenter = new ViewPresenter(brain, appKey, long.Parse(brain.Setting("ProgramRevision") ?? "1", System.Globalization.CultureInfo.InvariantCulture));
         var instance = definition.Create(service => service == typeof(IPresenter) ? presenter : null);
+        instance.AttachNeuronResolver((contractType, key) =>
+            typeof(IntoChatOSConnection).GetMethod(nameof(IntoChatOSConnection.Get), [typeof(string)])!
+                .MakeGenericMethod(contractType)
+                .Invoke(brain, [key])!);
         var app = brain.Get<IApp>(appKey);
         // The operations the app is requested by are the manifest's; each one that is an [On] method is served.
         var snapshot = await app.Read().ConfigureAwait(false);

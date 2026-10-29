@@ -6,7 +6,7 @@ Operations: open, read, refresh-connections, save-preferences, reload-preference
 
 The embedded folder scripts publish the Flutter settings tree, including the Modules and Apps tabs.
 Sideload lists folders in the apps directory, installs one through the store path, and clones an https or ssh URL.
-These operations present a status for the baseline. Empty input records no error.
+Preferences read and persist through the brain's UserSettingsNeuron (IUserSettings).
 */
 using DigitalBrain.UI;
 
@@ -22,7 +22,10 @@ public sealed record SettingsRead : DigitalBrain.Signal;
 public sealed record SettingsRefreshConnections : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.save-preferences")]
-public sealed record SettingsSavePreferences : DigitalBrain.Signal;
+public sealed record SettingsSavePreferences(
+    string? DisplayName = null,
+    string? Theme = null,
+    string? DefaultModel = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.reload-preferences")]
 public sealed record SettingsReloadPreferences : DigitalBrain.Signal;
@@ -39,31 +42,81 @@ public sealed record SettingsSideloadInstall(string? Name = null) : DigitalBrain
 [DigitalBrain.Signal("settings.sideload-add-git")]
 public sealed record SettingsSideloadAddGit(string? Url = null) : DigitalBrain.Signal;
 
+public sealed record SettingsAppState(
+    string Title,
+    string Status,
+    string DisplayName,
+    string Theme,
+    string DefaultModel,
+    Node? OverrideBody = null)
+{
+    public SettingsAppState() : this("Settings", "Settings", "User", "dark", "qwen3.5:4b", null) { }
+}
+
 [DigitalBrain.App("settings")]
-public sealed class SettingsApp(IPresenter presenter, SideloadDesk? sideload = null) : DigitalBrain.App
+public sealed class SettingsApp(SideloadDesk? sideload = null) : DigitalBrain.App<SettingsAppState>
 {
     public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "settings", "Settings", "2.0.1", [], new DigitalBrain.AppRequirements([]));
+        "settings", "Settings", "2.1.0", [typeof(UserSettingsNeuron)], new DigitalBrain.AppRequirements([]));
 
     public static AppBundle Bundle { get; } = ShellPrograms.Load("Settings");
 
     [DigitalBrain.On]
-    public Task Open(SettingsOpen request) => Show(request, "Settings");
+    public async Task Open(SettingsOpen request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var user = await Get<IUserSettings>("settings").Read();
+        Set(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+    }
 
     [DigitalBrain.On]
-    public Task Read(SettingsRead request) => Show(request, "Settings");
+    public async Task Read(SettingsRead request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var user = await Get<IUserSettings>("settings").Read();
+        Set(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+    }
 
     [DigitalBrain.On]
-    public Task RefreshConnections(SettingsRefreshConnections request) => Show(request, "Connections");
+    public void RefreshConnections(SettingsRefreshConnections request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        Set(State with { Title = "Settings", Status = "Connections", OverrideBody = null });
+    }
 
     [DigitalBrain.On]
-    public Task SavePreferences(SettingsSavePreferences request) => Show(request, "Nothing to save.");
+    public async Task SavePreferences(SettingsSavePreferences request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.DisplayName)
+            && string.IsNullOrWhiteSpace(request.Theme)
+            && string.IsNullOrWhiteSpace(request.DefaultModel))
+        {
+            Set(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
+            return;
+        }
+
+        var updated = await Get<IUserSettings>("settings").SetProfile(
+            request.DisplayName ?? State.DisplayName,
+            request.Theme ?? State.Theme,
+            request.DefaultModel ?? State.DefaultModel);
+        Set(new SettingsAppState("Settings", $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel})", updated.DisplayName, updated.Theme, updated.DefaultModel));
+    }
 
     [DigitalBrain.On]
-    public Task ReloadPreferences(SettingsReloadPreferences request) => Show(request, "Settings");
+    public async Task ReloadPreferences(SettingsReloadPreferences request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var user = await Get<IUserSettings>("settings").Read();
+        Set(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+    }
 
     [DigitalBrain.On]
-    public Task ReconcilePreferences(SettingsReconcilePreferences request) => Show(request, "Settings");
+    public void ReconcilePreferences(SettingsReconcilePreferences request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        Set(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
+    }
 
     [DigitalBrain.On]
     public async Task SideloadList(SettingsSideloadList request)
@@ -72,7 +125,7 @@ public sealed class SettingsApp(IPresenter presenter, SideloadDesk? sideload = n
         var view = sideload is null
             ? new View("Sideload", new Collection([]))
             : await sideload.List(CancellationToken.None);
-        Present(presenter.Present, static () => null, () => view);
+        Set(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
     [DigitalBrain.On]
@@ -82,7 +135,7 @@ public sealed class SettingsApp(IPresenter presenter, SideloadDesk? sideload = n
         var view = sideload is null
             ? new View("Sideload", new Text(string.IsNullOrWhiteSpace(request.Name) ? "Name an app." : request.Name))
             : await sideload.Install(request.Name, CancellationToken.None);
-        Present(presenter.Present, static () => null, () => view);
+        Set(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
     [DigitalBrain.On]
@@ -92,13 +145,20 @@ public sealed class SettingsApp(IPresenter presenter, SideloadDesk? sideload = n
         var view = sideload is null
             ? new View("Sideload", new Text(string.IsNullOrWhiteSpace(request.Url) ? "Name a git URL." : request.Url))
             : await sideload.AddGit(request.Url, CancellationToken.None);
-        Present(presenter.Present, static () => null, () => view);
+        Set(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
-    private Task Show(DigitalBrain.Signal request, string title)
+    public View Render() => new(
+        State.Title,
+        State.OverrideBody ?? new Text(State.Status));
+
+    [DigitalBrain.Scenario("Saving user preferences updates UserSettingsNeuron and view")]
+    public async Task VerifySavePreferencesScenario()
     {
-        ArgumentNullException.ThrowIfNull(request);
-        Present(presenter.Present, static () => null, () => new View("Settings", new Text(title)));
-        return Task.CompletedTask;
+        await SavePreferences(new SettingsSavePreferences("Alice", "light", "gpt-5"));
+        if (State.DisplayName != "Alice" || State.Theme != "light" || State.DefaultModel != "gpt-5")
+        {
+            throw new InvalidOperationException($"Expected Alice/light/gpt-5, got {State.DisplayName}/{State.Theme}/{State.DefaultModel}.");
+        }
     }
 }

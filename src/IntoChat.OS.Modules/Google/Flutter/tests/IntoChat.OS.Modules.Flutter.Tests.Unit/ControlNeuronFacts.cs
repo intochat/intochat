@@ -128,4 +128,20 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
         Assert.All(changes, change => Assert.Equal($"{id.Brain.Value}/apps/ino-data/chats", change.Name));
         Assert.Equal([1L, 2L, 3L], changes.Select(change => change.Revision));
     }
+
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task ComputeNeuronReturnsDefaultUsageAndRecordsNewUsage(NeuronRuntimeKind kind)
+    {
+        var runtime = await fixture.Runtime(kind);
+        var id = runtime.Id("ui.compute", "usage");
+        var compute = runtime.Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>(id);
+
+        var initial = await compute.Read();
+        Assert.Equal(1_970_000L, initial.SpentMicros);
+        Assert.Equal(3, initial.Rows.Length);
+
+        var updated = await compute.Record("creator", 500_000L);
+        Assert.Equal(2_470_000L, updated.SpentMicros);
+        Assert.Contains(updated.Rows, r => r.Key == "creator" && r.Micros == 1_180_000L && r.Count == 15L);
+    }
 }
