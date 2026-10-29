@@ -1,7 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
 </Project>

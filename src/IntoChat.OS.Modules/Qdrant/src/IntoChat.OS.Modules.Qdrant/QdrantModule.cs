@@ -1,22 +1,15 @@
-using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Orleans.Hosting;
 
 using QdrantSdk = Qdrant;
 namespace IntoChat.OS.Modules.Qdrant;
 
-public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("qdrant"))
+[DigitalBrain.Module(QdrantModule.ManifestName)]
+public sealed class QdrantModule : DigitalBrain.Module
 {
     internal const string ManifestName = "qdrant";
 
-    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
-    // leaves (06-08).
     public static DigitalBrain.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
@@ -24,7 +17,7 @@ public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("q
         Settings: [DigitalBrain.Setting.Of<QdrantModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(QdrantModule.ManifestName))],
         Secrets: []);
 
-    public override bool RequiresContainer => true;
+    public static bool RequiresContainer => true;
 
     public const string ConnectionName = "qdrant";
 
@@ -32,7 +25,7 @@ public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("q
         => !string.IsNullOrWhiteSpace(configuration.GetConnectionString(ConnectionName));
 
     // Without a connection IVectorStore is served from memory, so search still works; nothing survives a restart.
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton(_ => QdrantConnection.CreateClient(

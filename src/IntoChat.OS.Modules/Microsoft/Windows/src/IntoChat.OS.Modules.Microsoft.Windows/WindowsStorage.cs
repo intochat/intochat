@@ -1,3 +1,4 @@
+using IntoChat.OS.Runtime.Storage.Confinement;
 using CultureInfo = System.Globalization.CultureInfo;
 using NumberStyles = System.Globalization.NumberStyles;
 using System.Text;
@@ -7,7 +8,7 @@ using DigitalBrain.Spi;
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // storage@1 of a Windows PC (05-08, D-03): the allowed roots, read fresh on every call. An ItemId is "w:" plus the base64url of
-// the normalised full path; it is decoded only here and always resolved through MachineRoots, so an id outside the roots (an
+// the normalised full path; it is decoded only here and always resolved through PathConfinement, so an id outside the roots (an
 // escape, a system file, a revoked root) is Denied. Streams stage on the destination volume and publish only on commit.
 internal sealed partial class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? volumes = null,
     IOperations? operations = null, Func<IReadOnlyList<string>>? currentRoots = null, WindowsStorageCoordinator? coordinator = null) : IStorage
@@ -96,7 +97,7 @@ internal sealed partial class WindowsStorage(IReadOnlyList<string> roots, IVolum
         return Task.FromResult(Guard(id, () =>
         {
             if (!Directory.Exists(path) && !File.Exists(path)) { throw new NotFound(id); }
-            var root = MachineRoots.Containing(AllowedRoots, path);
+            var root = PathConfinement.Containing(AllowedRoots, path);
             var chain = new List<Item>();
             var current = root;
             foreach (var part in path[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries).SkipLast(1).Prepend(string.Empty))
@@ -144,7 +145,7 @@ internal sealed partial class WindowsStorage(IReadOnlyList<string> roots, IVolum
         if (string.IsNullOrWhiteSpace(path)) { throw new NotFound(id); }
         try
         {
-            var full = MachineRoots.Resolve(AllowedRoots, path);
+            var full = PathConfinement.Resolve(AllowedRoots, path);
             if (PrivatePath(full)) { throw new UnauthorizedAccessException("Storage working files and trash are private."); }
             foreach (var part in full[Path.GetPathRoot(full)!.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)) { _ = SafeName(part); }
             return full;
@@ -168,9 +169,9 @@ internal sealed partial class WindowsStorage(IReadOnlyList<string> roots, IVolum
 
     private Item ToItem(FileSystemInfo entry) => entry switch
     {
-        DirectoryInfo folder => new Item(IdOf(MachineRoots.Normalize(folder.FullName)), Name(folder.FullName), ItemKind.Folder, null, folder.LastWriteTimeUtc,
+        DirectoryInfo folder => new Item(IdOf(PathConfinement.Normalize(folder.FullName)), Name(folder.FullName), ItemKind.Folder, null, folder.LastWriteTimeUtc,
             IsRoot(folder.FullName) ? ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder : Offered),
-        FileInfo file => new Item(IdOf(MachineRoots.Normalize(file.FullName)), file.Name, ItemKind.File, file.Length, file.LastWriteTimeUtc,
+        FileInfo file => new Item(IdOf(PathConfinement.Normalize(file.FullName)), file.Name, ItemKind.File, file.Length, file.LastWriteTimeUtc,
             Offered & ~(ItemFlags.Search | ItemFlags.CreateFolder)),
         _ => throw new ArgumentOutOfRangeException(nameof(entry)),
     };

@@ -20,11 +20,11 @@ public sealed class IntoChatOSBuilder
     public IConfiguration GetModuleConfiguration(string id)
         => _compiledConfiguration.TryGetValue(id, out var configuration) ? configuration : ApplicationBuilder.Configuration;
 
-    public IntoChatOSBuilder WithModule(Module module, IIntoChatOSModuleHosting? hosting = null,
+    public IntoChatOSBuilder WithModule(DigitalBrain.Module module, IIntoChatOSModuleHosting? hosting = null,
         IReadOnlyDictionary<string, string?>? settings = null)
     {
         ArgumentNullException.ThrowIfNull(module);
-        return Register(module.Id, hosting, settings);
+        return Register(HostedModuleId.Of(module.GetType()), hosting, settings);
     }
 
     public IntoChatOSBuilder WithHosting(IIntoChatOSModuleHosting hosting, IReadOnlyDictionary<string, string?>? settings = null)
@@ -58,14 +58,14 @@ public sealed class IntoChatOSBuilder
 
     // A module the deployment configures but does not host (no containers): its typed options only.
     public IntoChatOSBuilder WithModule<TModule, TOptions>(Action<TOptions> configure)
-        where TModule : Module, new() where TOptions : class, IModuleOptions, new()
+        where TModule : class, new() where TOptions : class, IModuleOptions, new()
     {
         ArgumentNullException.ThrowIfNull(configure);
-        var module = new TModule();
+        var id = HostedModuleId.Of(typeof(TModule));
         var options = new TOptions();
         configure(options);
-        ModuleOptionsSerialization.Validate(options, module.Id.ToString());
-        return WithModule(module, null, HostingModuleOptions.Flatten(options, module.Id.ToString()));
+        ModuleOptionsSerialization.Validate(options, id.ToString());
+        return Register(id, null, HostingModuleOptions.Flatten(options, id.ToString()));
     }
 
     private IntoChatOSBuilder Register(ModuleId id, IIntoChatOSModuleHosting? hosting,

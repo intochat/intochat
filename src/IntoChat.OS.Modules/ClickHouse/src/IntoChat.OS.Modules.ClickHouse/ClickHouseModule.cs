@@ -1,44 +1,36 @@
-using ClickHouse.Driver;
-using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Configuration;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.ClickHouse;
 
-public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new ModuleId("clickhouse"))
+[DigitalBrain.Module(ClickHouseModule.ManifestName)]
+public sealed class ClickHouseModule : DigitalBrain.Module
 {
     internal const string ManifestName = "clickhouse";
 
-    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
-    // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest => ClickHouseNeurons.Manifest;
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<ClickHouseModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
+        Secrets: []);
 
-    // The connection neuron is plain (06-08): ClickHouseNeurons' assembly [Neuron] classes run on the runtime's host grains.
-    public override Type? Neurons => typeof(ClickHouseNeurons);
+    public static bool RequiresContainer => true;
 
-    public override bool RequiresContainer => true;
-
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.ClickHouse.Query.IClickHouse).Assembly;
+    public static System.Reflection.Assembly? Contracts => typeof(Query.IClickHouse).Assembly;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("clickhouse", "ClickHouse").RequiresSecret("ConnectionString");
-    public static ConnectorDefinition Connector => new("clickhouse", "ClickHouse", ["connection-string"], ["clickhouse"]) { Neurons = [typeof(IntoChat.OS.Modules.ClickHouse.Query.IClickHouse)], Signals = [] };
+    public static ConnectorDefinition Connector => new("clickhouse", "ClickHouse", ["connection-string"], ["clickhouse"]) { Neurons = [typeof(Query.IClickHouse)], Signals = [] };
 
     public const string DriverProviderName = "ClickHouse";
 
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
         services.AddOptions<ClickHouseModuleOptions>()
             .Validate(static options => string.Equals(options.Provider, DriverProviderName, StringComparison.OrdinalIgnoreCase),
                 "ClickHouse requires the module option Provider=ClickHouse.");
@@ -49,16 +41,4 @@ public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new Mod
         services.TryAddSingleton<IClickHouseSourceFactory, ClickHouseClientSourceFactory>();
         services.AddHealthChecks().AddCheck<ClickHouseHealthCheck>("clickhouse", tags: ["ready"]);
     }
-}
-
-// The DigitalBrain module of this connector (06-08): its assembly's [Neuron] classes run on the runtime's host grains.
-[DigitalBrain.Module(ClickHouseModule.ManifestName)]
-public sealed class ClickHouseNeurons : DigitalBrain.Module
-{
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<ClickHouseModuleOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
-        Secrets: []);
 }

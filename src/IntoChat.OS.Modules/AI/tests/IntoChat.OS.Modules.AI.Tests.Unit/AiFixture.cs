@@ -1,4 +1,4 @@
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Tests;
@@ -10,7 +10,7 @@ public sealed class AiFixture : BothRuntimesFixture
 
     public GatedInference Inference { get; } = new();
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(AINeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(AIModule)];
 
     protected override void ConfigureTestOS(IServiceCollection services)
         => services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);

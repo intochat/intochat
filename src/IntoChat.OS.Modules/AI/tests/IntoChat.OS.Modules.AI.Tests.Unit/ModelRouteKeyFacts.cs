@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -9,14 +10,7 @@ namespace IntoChat.OS.Modules.AI.Tests.Unit;
 // otherwise: an identified caller without a valid brain must not turn into a 500.
 public sealed class ModelRouteKeyFacts
 {
-    private static CallerContext Caller(string brainId) => new()
-    {
-        PrincipalId = "person-1",
-        AccountId = "account-1",
-        BrainId = brainId,
-        Kind = CallerKind.User,
-        StampedBy = TrustedEdge.AuthenticatedHttp,
-    };
+    private static CapabilityCaller Caller(string brainId) => new("person-1", "account-1", brainId);
 
     [Fact]
     public void A_valid_brain_lists_that_brain() => Assert.Equal("brain-1/main", AIModule.CatalogKey(Caller("brain-1")));

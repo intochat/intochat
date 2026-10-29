@@ -1,16 +1,13 @@
 namespace IntoChat.OS.Modules.Apps;
 
-[GenerateSerializer, Alias("apps.operation2")]
-public sealed record AppOperation([property: Id(0)] string Name, [property: Id(1)] string Description);
+public sealed record AppOperation(string Name, string Description);
 
-[GenerateSerializer, Alias("apps.setting2")]
-public sealed record AppSetting([property: Id(0)] string Name, [property: Id(1)] string Description, [property: Id(2)] string Default);
+public sealed record AppSetting(string Name, string Description, string Default);
 
 // A named connection slot; the bound connection id is per-brain state, never shared. A slot binds either a capability
 // ("storage@1", any connection whose module provides it) or, for a module with no capability yet, one module id
 // ("google-sheets"). Exactly one of the two is set.
-[GenerateSerializer, Alias("apps.slot")]
-public sealed record AppSlot([property: Id(0)] string Name, [property: Id(1)] string Connector = "", [property: Id(2)] string? Capability = null)
+public sealed record AppSlot(string Name, string Connector = "", string? Capability = null)
 {
     // What the slot binds, for display: its capability id, else its module id.
     public string Binds => Capability ?? Connector;
@@ -27,25 +24,23 @@ public static class AppToolbarKinds
 
 // One control in the dock: how an operation the app declares is shown, and what input it posts
 // (a button "", a toggle "on"/"off", a slider its value as text on release, a text field its text on submit).
-[GenerateSerializer, Alias("apps.toolbar-entry")]
 public sealed record AppToolbarEntry(
-    [property: Id(0)] string Operation,
-    [property: Id(1)] string Kind = AppToolbarKinds.Button,
-    [property: Id(2)] string? Icon = null,
-    [property: Id(3)] string? Label = null,
-    [property: Id(4)] double? Min = null,
-    [property: Id(5)] double? Max = null);
+    string Operation,
+    string Kind = AppToolbarKinds.Button,
+    string? Icon = null,
+    string? Label = null,
+    double? Min = null,
+    double? Max = null);
 
 // What an app needs before it is useful, declared so install asks once and review can gate on it: the semantic types
 // it reads (each a grant scope, e.g. "person.birthDate"), the module ids its slots bind (only modules that provide no
 // capability yet), the secret names it reads, and the capabilities ("storage@1") some connection in the brain must
 // provide. Declaring a need grants nothing; the install consent does.
-[GenerateSerializer, Alias("apps.requirements")]
 public sealed record AppRequirements(
-    [property: Id(0)] string[]? SemanticTypes = null,
-    [property: Id(1)] string[]? Connectors = null,
-    [property: Id(2)] string[]? Secrets = null,
-    [property: Id(3)] string[]? Capabilities = null)
+    string[]? SemanticTypes = null,
+    string[]? Connectors = null,
+    string[]? Secrets = null,
+    string[]? Capabilities = null)
 {
     // By value, so an origin read back from storage equals the one that was written; null and empty lists are the same need.
     public bool Equals(AppRequirements? other)
@@ -90,16 +85,15 @@ public sealed record AppRequirements(
     }
 }
 
-[GenerateSerializer, Alias("apps.manifest2")]
 public sealed record AppManifest(
-    [property: Id(0)] string Title,
-    [property: Id(1)] string Description,
-    [property: Id(2)] AppOperation[] Operations,
-    [property: Id(3)] AppSetting[] Settings,
-    [property: Id(4)] AppSlot[] Slots,
-    [property: Id(5)] string? Icon = null,
-    [property: Id(6)] AppToolbarEntry[]? Toolbar = null,
-    [property: Id(7)] AppRequirements? Requires = null)
+    string Title,
+    string Description,
+    AppOperation[] Operations,
+    AppSetting[] Settings,
+    AppSlot[] Slots,
+    string? Icon = null,
+    AppToolbarEntry[]? Toolbar = null,
+    AppRequirements? Requires = null)
 {
     // The dock renders only what the app can answer: every entry names a declared operation with one of the four kinds.
     public AppManifest Validated()

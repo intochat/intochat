@@ -1,10 +1,11 @@
 using IntoChat.OS.Framework.Machine;
+using IntoChat.OS.Runtime.Storage.Confinement;
 using System.Diagnostics;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
-using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A plain neuron (06-08) keyed {connectionKey}/console.
@@ -22,8 +23,8 @@ internal sealed class ConsoleNeuron(IMachineIdentity identity) : DigitalBrain.Ne
         var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        var roots = await MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>(Context.Services).Get<IWindows>(connection).Roots();
-        var directory = MachineRoots.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
+        var roots = await SiloNeurons.Get<IWindows>(Context.Services, connection).Roots();
+        var directory = PathConfinement.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
         var seconds = Math.Clamp(timeoutSeconds, 1, MaxTimeoutSeconds);
 
         // cmd.exe parses its own command line, so the command goes through verbatim rather than argv-quoted.

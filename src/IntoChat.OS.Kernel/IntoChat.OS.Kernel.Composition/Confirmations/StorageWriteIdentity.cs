@@ -2,6 +2,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Storage;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Kernel.Composition.Confirmations;
 

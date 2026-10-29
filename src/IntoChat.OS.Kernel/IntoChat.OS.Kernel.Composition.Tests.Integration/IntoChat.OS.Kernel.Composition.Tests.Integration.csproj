@@ -1,6 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
-  <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+  </ItemGroup>
 </Project>

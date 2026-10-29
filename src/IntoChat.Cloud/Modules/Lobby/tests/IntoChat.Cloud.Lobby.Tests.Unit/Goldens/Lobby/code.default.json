@@ -1,0 +1,48 @@
+{
+  "title": "code",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Check your email"
+      },
+      {
+        "kind": "text",
+        "value": "Enter the code we sent to your email."
+      },
+      {
+        "kind": "text",
+        "value": "a***@example.com"
+      },
+      {
+        "kind": "textField",
+        "name": "code",
+        "value": null,
+        "placeholder": "6-digit code"
+      },
+      {
+        "kind": "button",
+        "label": "Verify",
+        "action": {
+          "neuron": "lobby",
+          "operation": "verify",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "accent"
+      },
+      {
+        "kind": "button",
+        "label": "Resend code",
+        "action": {
+          "neuron": "lobby",
+          "operation": "resend",
+          "arguments": []
+        },
+        "enabled": true,
+        "tone": "neutral"
+      }
+    ]
+  }
+}

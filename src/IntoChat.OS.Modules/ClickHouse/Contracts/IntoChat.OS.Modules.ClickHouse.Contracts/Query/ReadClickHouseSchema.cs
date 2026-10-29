@@ -1,5 +1,3 @@
 namespace IntoChat.OS.Modules.ClickHouse.Query;
 
-[GenerateSerializer]
-[Alias("db.clickhouse.read-schema")]
-public sealed record ReadClickHouseSchema([property: Id(0)] string? Table = null);
+public sealed record ReadClickHouseSchema(string? Table = null);

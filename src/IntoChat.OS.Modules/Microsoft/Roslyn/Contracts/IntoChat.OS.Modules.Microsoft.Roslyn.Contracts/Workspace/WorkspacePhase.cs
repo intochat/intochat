@@ -1,7 +1,5 @@
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[GenerateSerializer]
-[Alias("coding.workspace-phase")]
 public enum WorkspacePhase
 {
     NotOpened = 0,

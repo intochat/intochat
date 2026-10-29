@@ -9,23 +9,20 @@ public enum FactKind { Profile, Fact, Insight }
 
 public enum FactScope { Private, Circle }
 
-[GenerateSerializer, Alias("facts.fact")]
-public sealed record Fact([property: Id(0)] Guid Id, [property: Id(1)] FactKind Kind, [property: Id(2)] string Text,
-    [property: Id(3)] string Subject, [property: Id(4)] double Confidence, [property: Id(5)] int Importance,
-    [property: Id(6)] DateTimeOffset ValidFrom, [property: Id(7)] DateTimeOffset? ValidTo, [property: Id(8)] string? InvalidReason,
-    [property: Id(9)] DateTimeOffset Recorded, [property: Id(10)] string SourcePublisher, [property: Id(11)] long SourceSequence,
-    [property: Id(12)] string PromptVersion, [property: Id(13)] FactScope Scope, [property: Id(14)] Guid[] Links, [property: Id(15)] bool Hidden);
+public sealed record Fact(Guid Id, FactKind Kind, string Text,
+    string Subject, double Confidence, int Importance,
+    DateTimeOffset ValidFrom, DateTimeOffset? ValidTo, string? InvalidReason,
+    DateTimeOffset Recorded, string SourcePublisher, long SourceSequence,
+    string PromptVersion, FactScope Scope, Guid[] Links, bool Hidden);
 
 // DedupKey: a content hash (Memory hashes the item's normalised kind, subject, text and episode ids), so Assert is
 // idempotent: a known key returns its fact, current or not.
-[GenerateSerializer, Alias("facts.assertion")]
-public sealed record FactAssertion([property: Id(0)] FactKind Kind, [property: Id(1)] string Text, [property: Id(2)] string Subject,
-    [property: Id(3)] double Confidence, [property: Id(4)] int Importance, [property: Id(5)] DateTimeOffset ValidFrom,
-    [property: Id(6)] string SourcePublisher, [property: Id(7)] long SourceSequence, [property: Id(8)] string PromptVersion,
-    [property: Id(9)] Guid[] Links, [property: Id(10)] string DedupKey);
+public sealed record FactAssertion(FactKind Kind, string Text, string Subject,
+    double Confidence, int Importance, DateTimeOffset ValidFrom,
+    string SourcePublisher, long SourceSequence, string PromptVersion,
+    Guid[] Links, string DedupKey);
 
-[GenerateSerializer, Alias("facts.snapshot")]
-public sealed record FactsSnapshot([property: Id(0)] long Revision, [property: Id(1)] Fact[] Facts);
+public sealed record FactsSnapshot(long Revision, Fact[] Facts);
 
 [NeuronAlias("facts"), DefaultNeuronType("facts")]
 public interface IFacts

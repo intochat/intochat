@@ -240,7 +240,7 @@ public static partial class Engineer
         var context = new StringBuilder("Installed apps: ").AppendLine(string.Join(", ", names.Order(StringComparer.Ordinal)));
         context.AppendLine().AppendLine("Installed neuron contracts:");
         var budget = 9000;
-        foreach (var entry in (await brain.Kernel.Types(ct)).Where(entry => entry.Kind == TypeKind.Neuron).OrderBy(entry => entry.Name, StringComparer.Ordinal))
+        foreach (var entry in (await brain.Kernel.Types(ct)).Where(entry => entry.Kind == DigitalBrain.TypeKind.Neuron).OrderBy(entry => entry.Name, StringComparer.Ordinal))
         {
             var line = $"- {entry.Name}: {Clip(entry.Description, 100)}";
             if (line.Length > budget) { break; }
@@ -257,7 +257,7 @@ public static partial class Engineer
         if ((await scratch.Read()).Manifest.Title.Length > 0) { return scratch; }
         try
         {
-            await scratch.Create(new AppManifest("Scratch", "Synapses the Engineer wrote from single sentences.",
+            await scratch.Create(new IntoChat.OS.Modules.Apps.AppManifest("Scratch", "Synapses the Engineer wrote from single sentences.",
                 [new AppOperation("run", "Free-form input for the synapses written here; each reads what it needs.")], [], []),
                 "# Scratch\n\nThe Engineer's scratch app: each synapse here was written from one sentence through the fast path. "
                 + "\"run\" carries free-form input to whichever synapse reacts to it.");

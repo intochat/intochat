@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Compute;
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Connections.Platform.Connections;
@@ -158,7 +157,7 @@ internal sealed partial class DriveNeuron()
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
         { throw new UnauthorizedAccessException("The Drive connection belongs to another brain."); }
         return TraceContext.Current is null
-            ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, new NeuronId(FullKey))) : null;
+            ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, TraceContext.OriginOf(Key.Brain, FullKey))) : null;
     }
 
     private DriveModuleOptions Options => ServiceProvider.GetRequiredService<DriveModuleOptions>();

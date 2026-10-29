@@ -14,7 +14,7 @@ public static class AzureInstaller
 
     public static bool IsInstall(string[] args) => args is [var verb, ..] && verb == "install";
 
-    public static async Task<int> Run(string[] args, IAzureArm arm, IEnumerable<Module> modules, TextWriter output, TextWriter error, CancellationToken ct)
+    public static async Task<int> Run(string[] args, IAzureArm arm, IEnumerable<OsModule> modules, TextWriter output, TextWriter error, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(arm);

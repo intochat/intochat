@@ -6,6 +6,7 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
 using DigitalBrain.Spi;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Drive;
@@ -14,8 +15,7 @@ internal sealed partial class DriveNeuron : IStorageUpload
 {
     private StorageUploadSessions? _uploads;
     private StorageUploadSessions Uploads => _uploads ??= new(OpenWriteCore, UploadCaller, Context.Time);
-    private bool CanWrite => Snapshot.Scopes.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-        .Any(scope => scope is DriveScopes.Write or DriveScopes.Files);
+    private bool CanWrite => DriveScopes.GrantsWrite(Snapshot.Scopes);
 
     public async Task<string> BeginUpload(WritePlan plan, CancellationToken ct = default)
     {

@@ -1,13 +1,11 @@
-using IntoChat.OS.Connections.Platform.Marketplace;
 using System.Text.Json;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Only the app neuron a listing names may write it: Upsert's listing must address the calling
-// app, and Remove may only take down the caller's own listing. A Remove of a listing that no
-// longer exists is a no-op for anyone. A features owner name is never anyone's to publish under.
-internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog, IMarketplaceClient listings) : IIncomingGrainCallFilter
+// Only the app neuron a listing names may write it. Marketplace storage returns in 0.8.0, so Remove
+// has no stored listing to check. A features owner name is never anyone's to publish under.
+internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog) : IIncomingGrainCallFilter
 {
     public async Task Invoke(IIncomingGrainCallContext context)
     {
@@ -15,20 +13,13 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog, IMarketplace
         if (context.Grain is DigitalBrain.Runtime.Orleans.Hosting.INeuronHost
             && context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is DigitalBrain.Invocation.RuntimeInvocation call
             && DigitalBrain.NeuronId.TryParse(call.Key, out var target) && target.Type == MarketplaceType
-            && call.Method is nameof(IMarketplace.Upsert) or nameof(IMarketplace.Remove))
+            && call.Method == nameof(IMarketplace.Upsert))
         {
             var json = DigitalBrain.Invocation.RuntimeProtocol.Json;
-            if (call.Method == nameof(IMarketplace.Upsert))
-            {
-                var listed = call.Arguments.Length > 0 ? call.Arguments[0].Deserialize<MarketplaceListing>(json) : null;
-                if (listed is not null && await catalog.IsOwner(listed.Publisher))
-                { throw new UnauthorizedAccessException($"{listed.Publisher} owns the features folder's apps; no one publishes under it."); }
-                // An Upsert always names its owner: a listing whose source is not a brain has no app to write it.
-                Require(context, listed is null ? "" : MarketplaceNeuron.OwnerKey(listed) ?? "");
-            }
-            else if (call.Arguments.Length >= 2
-                && await listings.Read(call.Arguments[0].Deserialize<string>(json) ?? "", call.Arguments[1].Deserialize<string>(json) ?? "") is { } stored)
-            { Require(context, MarketplaceNeuron.OwnerKey(MarketplaceNeuron.Listing(stored))); }
+            var listed = call.Arguments.Length > 0 ? call.Arguments[0].Deserialize<MarketplaceListing>(json) : null;
+            if (listed is not null && await catalog.IsOwner(listed.Publisher))
+            { throw new UnauthorizedAccessException($"{listed.Publisher} owns the features folder's apps; no one publishes under it."); }
+            Require(context, listed is null ? "" : MarketplaceNeuron.OwnerKey(listed) ?? "");
         }
         await context.Invoke();
     }

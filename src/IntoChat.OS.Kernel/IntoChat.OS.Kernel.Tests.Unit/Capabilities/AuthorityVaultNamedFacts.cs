@@ -1,6 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
-using IntoChat.OS.Kernel.Composition.Capabilities;
+using IntoChat.OS.Authority;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Capabilities;
@@ -9,7 +9,7 @@ namespace IntoChat.OS.Kernel.Tests.Unit.Capabilities;
 // the variable the installer renders (ManifestEnvironment.SecretVariable). The runtime has already checked the manifest declares it.
 public sealed class AuthorityVaultNamedFacts
 {
-    private static AuthorityVaultPort Port(params (string Key, string Value)[] values) => new(null!, null,
+    private static VaultPort Port(params (string Key, string Value)[] values) => new(null!, null,
         new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(pair => pair.Key, pair => (string?)pair.Value)).Build());
 
     // The variable the installer renders for a module's declared secret (ManifestEnvironment.SecretVariable).

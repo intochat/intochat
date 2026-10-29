@@ -1,5 +1,6 @@
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
@@ -10,7 +11,7 @@ internal sealed class TableStorageHook(IServiceProvider services) : IAppStorageH
     // Resolved lazily: the hook is registered on service collections that are validated
     // before the Orleans runtime exists. The index is a plain neuron (06-08).
     private ITableIndex Index(string brainId, string appKey)
-        => services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ITableIndex>(new TableOwner(brainId, appKey).Key);
+        => SiloNeurons.Get<ITableIndex>(services, new TableOwner(brainId, appKey).Key);
 
     public async Task OnRetired(string brainId, string appKey, CancellationToken cancellationToken)
         => await Index(brainId, appKey).Retire();

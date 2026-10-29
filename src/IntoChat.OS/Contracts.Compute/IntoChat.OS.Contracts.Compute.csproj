@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Neutral module pricing, metering and compute wire contracts.</Description>
+    <RootNamespace>IntoChat.OS.Contracts.Compute</RootNamespace>
+  </PropertyGroup>
+</Project>

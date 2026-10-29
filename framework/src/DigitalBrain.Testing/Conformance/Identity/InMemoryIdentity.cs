@@ -436,7 +436,7 @@ public class InMemoryIdentity(AmbientCallerScope? callers = null, TimeProvider? 
     {
     }
 
-    private void RequireOwnerLocked(KitCaller caller, string brainId)
+    private void RequireOwnerLocked(CapabilityCaller caller, string brainId)
     {
         var owner = OwnerLocked(brainId);
         if (owner is null || owner.PrincipalId != caller.PrincipalId || !string.IsNullOrWhiteSpace(caller.AppId))

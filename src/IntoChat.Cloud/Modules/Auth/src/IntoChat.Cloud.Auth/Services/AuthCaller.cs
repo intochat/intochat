@@ -1,13 +1,13 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using Microsoft.AspNetCore.Http;
 
 namespace IntoChat.Cloud.Auth.Services;
 
-// The signed-in person of a session-required route, read from the session claims the host issued (SessionClaims): the one place
-// Auth turns an authenticated request into principal, account and brain.
-internal sealed record AuthCaller(string PrincipalId, string AccountId, string BrainId)
+// The signed-in person of a session-required route, read from the session claims the host issued.
+internal static class AuthCaller
 {
-    public static AuthCaller Require(HttpContext http)
+    public static CapabilityCaller Require(HttpContext http)
     {
         ArgumentNullException.ThrowIfNull(http);
         var user = http.User;
@@ -17,6 +17,6 @@ internal sealed record AuthCaller(string PrincipalId, string AccountId, string B
             throw new UnauthorizedAccessException("This route needs a signed-in caller.");
         }
 
-        return new AuthCaller(principal, user.FindFirst(SessionClaims.Account)?.Value ?? "", user.FindFirst(SessionClaims.Brain)?.Value ?? "");
+        return new CapabilityCaller(principal, user.FindFirst(SessionClaims.Account)?.Value ?? "", user.FindFirst(SessionClaims.Brain)?.Value ?? "");
     }
 }

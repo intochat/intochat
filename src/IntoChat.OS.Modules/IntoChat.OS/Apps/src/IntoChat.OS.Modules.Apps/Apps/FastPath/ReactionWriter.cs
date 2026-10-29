@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Invocation;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -9,6 +11,8 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Contracts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using Orleans;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -19,8 +23,8 @@ namespace IntoChat.OS.Modules.Apps;
 // the compiler gate it, with at most one repair; WriteBehavior makes it live and CompleteSynapse records
 // the outcome. The app neuron holds everything durable; the job completes its request on every path.
 internal sealed class ReactionWriter(
-    IntoChat.OS.Runtime.IStillGrains grains,
-    IntoChat.OS.Runtime.IPlainNeurons plain,
+    IGrainFactory grains,
+    IServiceProvider plain,
     IKernel kernel,
     ReactionExamples examples,
     NeuronTypeSearch search,
@@ -87,8 +91,8 @@ internal sealed class ReactionWriter(
         using var span = Telemetry.StartActivity("apps.fastpath.write", ActivityKind.Internal, parentContext: default, startTime: job.RequestedAt);
         span?.SetTag("apps.app", job.AppKey);
         span?.SetTag("apps.fastpath.operation", job.OperationId.ToString());
-        var app = plain.Get<IApp>(job.AppKey);
-        var deploys = plain.Get<IAppDeploy>(job.AppKey);
+        var app = SiloNeurons.Get<IApp>(plain, job.AppKey);
+        var deploys = SiloNeurons.Get<IAppDeploy>(plain, job.AppKey);
         // The job owns the request's completion: every path below, a throw or a cancellation included, ends in
         // CompleteSynapse, so no request stays Requested while its job is gone.
         Outcome outcome;
@@ -302,8 +306,9 @@ internal sealed class ReactionWriter(
         var settings = options.Value;
         var selection = new ModelSelection(Reasoning: settings.FastPathReasoning is { Length: > 0 } reasoning ? reasoning.ToLowerInvariant() : null,
             MaxOutputTokens: settings.FastPathMaxOutputTokens);
-        var result = await grains.Get<ICreatorModel>(0L).Generate(brain, Model, new InferenceRequest(
-            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection)).WaitAsync(cancellationToken);
+        var result = (await grains.GetGrain<ICreatorModel>(0L).Generate(brain, Model, JsonSerializer.SerializeToElement(new InferenceRequest(
+            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection), RuntimeProtocol.Json)).WaitAsync(cancellationToken))
+            .Deserialize<InferenceResult>(RuntimeProtocol.Json)!;
         span?.SetTag("apps.fastpath.input_tokens", result.Usage?.InputTokens);
         span?.SetTag("apps.fastpath.output_tokens", result.Usage?.OutputTokens);
         var text = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
@@ -366,10 +371,10 @@ internal sealed class ReactionWriter(
         return text.AppendLine().AppendLine("Fix every error and reply with the corrected JSON object only.").ToString();
     }
 
-    private async Task<(string[] Focused, string[] Contracts)> FocusOf(Job job, string brain, Task<TypeEntry[]> types, CancellationToken cancellationToken)
+    private async Task<(string[] Focused, string[] Contracts)> FocusOf(Job job, string brain, Task<BrainType[]> types, CancellationToken cancellationToken)
         => await Focus(job, brain, await types, cancellationToken);
 
-    private async Task<string[]> MatchesOf(string sentence, Task<TypeEntry[]> types, Task<float[]?> query, CancellationToken cancellationToken)
+    private async Task<string[]> MatchesOf(string sentence, Task<BrainType[]> types, Task<float[]?> query, CancellationToken cancellationToken)
         => await Matches(sentence, await types, await query, cancellationToken);
 
     private string Prompt(Job job, AppSnapshot app, ReactionExample[] ranked, ReactionExample? basis, ReactionExample[] layouts,
@@ -448,7 +453,7 @@ internal sealed class ReactionWriter(
         => text.AppendLine($"--- {example.Name} ---").AppendLine("// " + example.Spec.Replace("\n", "\n// ", StringComparison.Ordinal)).AppendLine(example.Source);
 
     // Focus keys still come from the kernel; callable material comes only from complete discovery detail.
-    private async Task<(string[] Focused, string[] Contracts)> Focus(Job job, string brain, TypeEntry[] types, CancellationToken cancellationToken)
+    private async Task<(string[] Focused, string[] Contracts)> Focus(Job job, string brain, BrainType[] types, CancellationToken cancellationToken)
     {
         if (job.Focus.Length == 0) { return ([], []); }
         var wanted = job.Focus.ToHashSet(StringComparer.Ordinal);
@@ -459,22 +464,22 @@ internal sealed class ReactionWriter(
             if (found.Count == wanted.Count) { break; }
         }
         var focused = job.Focus.Select(key => (Key: key, Entry: found.TryGetValue(key, out var type)
-            ? types.FirstOrDefault(entry => entry.Kind == TypeKind.Neuron && entry.Alias == type) : null)).ToArray();
-        TypeEntry[] entries = [.. focused.Select(item => item.Entry).OfType<TypeEntry>().DistinctBy(entry => entry.Name)];
+            ? types.FirstOrDefault(entry => entry.Kind == DigitalBrain.TypeKind.Neuron && entry.Alias == type) : null)).ToArray();
+        BrainType[] entries = [.. focused.Select(item => item.Entry).OfType<BrainType>().DistinctBy(entry => entry.Name)];
         string[] keys = [.. focused.Select(item => item.Entry is { } entry ? $"{item.Key} ({entry.Name})" : $"{item.Key} (no neuron with state under this key yet)")];
         if (entries.Length == 0) { return (keys, []); }
         return (keys, await Details(entries, types, cancellationToken));
     }
 
-    private async Task<string[]> Details(TypeEntry[] entries, TypeEntry[] types, CancellationToken cancellationToken)
+    private async Task<string[]> Details(BrainType[] entries, BrainType[] types, CancellationToken cancellationToken)
     {
         if (sandbox is null) { throw new InvalidOperationException(NoContract + AppAuthoringPolicy.SandboxMissing); }
         var result = new List<string>();
-        var selected = entries.Concat(types.Where(type => type.Kind == TypeKind.Signal
-            && entries.Any(entry => string.Equals(entry.Provider, type.Provider, StringComparison.OrdinalIgnoreCase))));
-        foreach (var entry in selected.DistinctBy(entry => (entry.Provider, entry.Name)))
+        var selected = entries.Concat(types.Where(type => type.Kind == DigitalBrain.TypeKind.Signal
+            && entries.Any(entry => string.Equals(entry.Origin, type.Origin, StringComparison.OrdinalIgnoreCase))));
+        foreach (var entry in selected.DistinctBy(entry => (entry.Origin, entry.Name)))
         {
-            var detail = await sandbox.ReadContractDetail(entry.Provider, entry.Name, null, cancellationToken);
+            var detail = await sandbox.ReadContractDetail(entry.Origin, entry.Name, null, cancellationToken);
             if (detail.Truncated) { throw new InvalidOperationException(NoContract + $"complete detail is unavailable for {entry.Name}; narrow the request."); }
             result.AddRange(detail.Contracts);
         }
@@ -497,9 +502,9 @@ internal sealed class ReactionWriter(
     // The kernel's neuron contracts closest to the sentence (the Builder's search_contracts), with their modules'
     // signals, ranked by the sentence's one embedding when there is one. A hint beside the focus and the examples:
     // a search that fails leaves it out. The prompt drops the lines the focus already shows and bounds the rest.
-    private async Task<string[]> Matches(string sentence, TypeEntry[] types, float[]? query, CancellationToken cancellationToken)
+    private async Task<string[]> Matches(string sentence, BrainType[] types, float[]? query, CancellationToken cancellationToken)
     {
-        var neurons = types.Where(entry => entry.Kind == TypeKind.Neuron).ToArray();
+        var neurons = types.Where(entry => entry.Kind == DigitalBrain.TypeKind.Neuron).ToArray();
         if (neurons.Length == 0) { return []; }
         IReadOnlyList<NeuronTypeHit> hits;
         try { hits = await search.Search(sentence, [.. neurons.Select(NeuronType.From)], ContractMatches, cancellationToken, query); }
@@ -508,7 +513,7 @@ internal sealed class ReactionWriter(
             log.LogWarning(error, "The fast path's contract search failed; the prompt goes without matching contracts");
             return [];
         }
-        TypeEntry[] entries = [.. hits.Select(hit => neurons.FirstOrDefault(entry => entry.Name == hit.Type.Contract)).OfType<TypeEntry>()];
+        BrainType[] entries = [.. hits.Select(hit => neurons.FirstOrDefault(entry => entry.Name == hit.Type.Contract)).OfType<BrainType>()];
         return await Details(entries, types, cancellationToken);
     }
 

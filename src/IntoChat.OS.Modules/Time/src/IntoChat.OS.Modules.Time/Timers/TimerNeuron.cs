@@ -1,13 +1,12 @@
 using DigitalBrain;
-using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Time.Timers.Signals;
 
 namespace IntoChat.OS.Modules.Time.Timers;
 
 // A plain neuron (06-03): the schedule is an activation timer of the runtime host, so it dies with the activation and a new
-// activation needs another Start. Each tick is a turn (IRemindedNeuron.OnReminder) that publishes TimerTick.
+// activation needs another Start. Each tick is a turn (Neuron.OnReminder) that publishes TimerTick.
 [Neuron("timer")]
-internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer, IRemindedNeuron
+internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer
 {
     private const string Schedule = "schedule";
     internal static readonly TimeSpan MaximumDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
@@ -37,7 +36,7 @@ internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer, IRemindedNeuron
         return Task.CompletedTask;
     }
 
-    public async Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         if (name != Schedule || !_running || cancellationToken.IsCancellationRequested) { return; }
         if (_once) { await Stop(); }

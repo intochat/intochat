@@ -1,3 +1,6 @@
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
+using IntoChat.OS.Runtime;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -8,10 +11,10 @@ namespace IntoChat.OS.Modules.Apps;
 // shows and what the app store groups.
 internal static class InstalledApps
 {
-    public static async Task<IReadOnlyList<(string Name, AppSnapshot Snapshot)>> Read(IIntoChatOS brain, string scope, CancellationToken ct)
+    public static async Task<IReadOnlyList<(string Name, AppSnapshot Snapshot)>> Read(INeuronProxies brain, IBrainObserver kernel, string scope, CancellationToken ct)
     {
         List<string> names = [];
-        await foreach (var instance in brain.Kernel.Instances<IApp>(ct)) { if (IApp.NameOf(scope, instance.Key) is { } app) { names.Add(app); } }
+        await foreach (var instance in kernel.Instances<IApp>(ct)) { if (IApp.NameOf(scope, instance.Key) is { } app) { names.Add(app); } }
         names.Sort(StringComparer.Ordinal);
         var snapshots = new List<(string, AppSnapshot)>(names.Count);
         foreach (var name in names) { snapshots.Add((name, await brain.Get<IApp>(IApp.Key(scope, name)).Read().WaitAsync(ct))); }

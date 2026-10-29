@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework.Modules;
 using DigitalBrain.State;
 
@@ -11,7 +12,7 @@ internal sealed record CSharpFileState
     public string Program { get; init; } = "";
     public string? Hash { get; init; }
     public bool Wanted { get; init; }
-    public CallerContext? Owner { get; init; }
+    public CapabilityCaller? Owner { get; init; }
     public string Name { get; init; } = "";
     public string Purpose { get; init; } = "";
     public DateTimeOffset? Created { get; init; }

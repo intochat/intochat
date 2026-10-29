@@ -12,13 +12,12 @@ public interface IImage
     [DigitalBrain.ReadOnlyCall] Task<ImageState> Read();
 }
 
-[GenerateSerializer, Alias("ui.image-state")]
 [ExportableState]
 public sealed class ImageState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Prompt { get; set; } = "";
-    [Id(3)] public string MediaType { get; set; } = "";
-    [Id(4)] public string Url { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Prompt { get; set; } = "";
+    public string MediaType { get; set; } = "";
+    public string Url { get; set; } = "";
 }

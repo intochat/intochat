@@ -2,13 +2,11 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
-    <ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing/IntoChat.OS.Testing.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../../../../ModelContextProtocol/Mcp/src/IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Tools/src/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Include="IntoChat.OS.Testing" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../../Testing/IntoChat.OS.Testing.Neurons/IntoChat.OS.Testing.Neurons.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../../../framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" /></ItemGroup>
   <ItemGroup>
     <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
     <Compile Include="../IntoChat.OS.Modules.ArtCraft.Tests.Unit/StudioNeuronFacts.cs" Link="Neurons/StudioNeuronFacts.cs" />

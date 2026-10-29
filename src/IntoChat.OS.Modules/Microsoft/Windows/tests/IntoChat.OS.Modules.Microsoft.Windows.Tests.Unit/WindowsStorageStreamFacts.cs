@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities.Storage;
+using IntoChat.OS.Runtime.Storage.Confinement;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows.Tests.Unit;
 
@@ -14,8 +15,8 @@ public sealed class WindowsStorageStreamFacts
         var root = Directory.CreateTempSubdirectory("windows-stream").FullName;
         var path = Path.Combine(root, "plan.txt");
         await File.WriteAllBytesAsync(path, [.. Enumerable.Range(0, 16).Select(value => (byte)value)], Ct);
-        var storage = new WindowsStorage([MachineRoots.Normalize(root)]);
-        var id = WindowsStorage.IdOf(MachineRoots.Normalize(path));
+        var storage = new WindowsStorage([PathConfinement.Normalize(root)]);
+        var id = WindowsStorage.IdOf(PathConfinement.Normalize(path));
 
         await using (var whole = await storage.OpenRead(id, null, Ct))
         {
@@ -37,8 +38,8 @@ public sealed class WindowsStorageStreamFacts
     public async Task RootFlagsOfferCreationButNeverRootDestruction()
     {
         var root = Directory.CreateTempSubdirectory("windows-stream").FullName;
-        var storage = new WindowsStorage([MachineRoots.Normalize(root)]);
-        var folder = WindowsStorage.IdOf(MachineRoots.Normalize(root));
+        var storage = new WindowsStorage([PathConfinement.Normalize(root)]);
+        var folder = WindowsStorage.IdOf(PathConfinement.Normalize(root));
 
         Assert.True((await storage.Describe(Ct)).Flags.HasFlag(ItemFlags.Write | ItemFlags.CreateFolder | ItemFlags.Trash));
         Assert.Equal(ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder, (await storage.Stat(folder, Ct)).Flags);
@@ -49,7 +50,7 @@ public sealed class WindowsStorageStreamFacts
     public async Task AnIdOutsideTheRootsIsDeniedAndAForeignIdNotFound()
     {
         var root = Directory.CreateTempSubdirectory("windows-stream").FullName;
-        var storage = new WindowsStorage([MachineRoots.Normalize(root)]);
+        var storage = new WindowsStorage([PathConfinement.Normalize(root)]);
 
         Assert.Equal("denied", (await Assert.ThrowsAnyAsync<StorageException>(() => storage.Stat(WindowsStorage.IdOf(Path.Combine(root, "..", "escape.txt")), Ct))).Code);
         Assert.Equal("not-found", (await Assert.ThrowsAnyAsync<StorageException>(() => storage.Stat(new ItemId("drive-file-id"), Ct))).Code);

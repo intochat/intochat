@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using System.Runtime.Serialization;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
@@ -25,7 +26,7 @@ public sealed class AppState
     [Id(10)] public DateTimeOffset BuildStartedAt { get; set; }
     [Id(11)] public string? BrainScopeId { get; set; }
     // The caller that created the app: what its running program acts as, so a restart keeps its identity.
-    [Id(12)] public CallerContext? Principal { get; set; }
+    [Id(12)] public CapabilityCaller? Principal { get; set; }
     [Id(17)] public OperationReceipt[] Receipts { get; set; } = [];
     [Id(18)] public string? PublishedVersion { get; set; }
     [Id(19)] public AppOrigin? Origin { get; set; }

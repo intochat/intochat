@@ -2,6 +2,7 @@ using System.Text.Json;
 using DigitalBrain.Invocation;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 

@@ -11,8 +11,8 @@ internal static class SubscriptionFilter
 {
 
     // The same selector over a plain [Signal] record (06-08: AppRequested is plain), read from its journal JSON.
-    public static readonly string RequestedAlias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(AppRequested));
-    public static readonly string ActivityAlias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(AppActivity));
+    public static readonly string RequestedAlias = DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(AppRequested));
+    public static readonly string ActivityAlias = DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(AppActivity));
 
     public static bool AcceptsPlain(string? selector, string alias, string? json)
     {
@@ -22,7 +22,7 @@ internal static class SubscriptionFilter
             && string.Equals(operation.GetString(), selector, StringComparison.Ordinal);
     }
 
-    public static readonly string RunsChangedAlias = IntoChat.OS.Runtime.PlainSignalTypes.AliasOf(typeof(BrainRunsChanged));
+    public static readonly string RunsChangedAlias = DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(typeof(BrainRunsChanged));
 
     // The self-feed rule over the plain BrainRunsChanged record (06-08), read from its journal JSON: a revision whose behaviors are
     // only the subscriber is not delivered.

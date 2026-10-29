@@ -3,7 +3,7 @@
 #:property DisableMSBuildAssemblyCopyCheck=true
 #:property PublishAot=false
 // Generates the options/secrets table of every module README: `dotnet run scripts/module-readmes.cs [-- --check]`.
-// Reflects over OsCatalog.Modules plus the Windows edge. Writes only between the BEGIN/END GENERATED markers, and creates a
+// Reflects over OperatingSystemModules.Modules plus the Windows edge. Writes only between the BEGIN/END GENERATED markers, and creates a
 // short README (title, description, how to test, docs link) where a module has none. Secrets are listed by NAME from
 // [Secret] attributes; no configuration is loaded and no value is read. --check changes nothing and exits 1 listing stale files.
 using System.Reflection;
@@ -13,8 +13,8 @@ using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Framework.Modules;
-using Module = IntoChat.OS.Framework.Modules.Module;
 using IntoChat.OS.Kernel;
 
 const string Begin = "<!-- BEGIN GENERATED options -->";
@@ -32,14 +32,20 @@ string? Csproj(string assembly) => projects.FirstOrDefault(path => Path.GetFileN
 var stale = new List<string>();
 var written = 0;
 var seen = 0;
-foreach (var module in OsCatalog.WithWindowsEdge().DistinctBy(m => m.Id.ToString()))
+var readmes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+// One README per project. A neuron bundle sharing the project (authority beside identity) does not overwrite it.
+// The capability module, the type whose name ends with Module, owns the file.
+foreach (var module in OperatingSystemModules.WithWindowsEdge().DistinctBy(m => m.Id.ToString())
+    .OrderBy(m => m.Type.Name.EndsWith("Module", StringComparison.Ordinal) ? 0 : 1)
+    .ThenBy(m => m.Id.Value, StringComparer.Ordinal))
 {
-    var type = module.GetType();
+    var type = module.Type;
     var assembly = type.Assembly.GetName().Name!;
     var csprojRelative = Csproj(assembly) ?? throw new InvalidOperationException($"{assembly} is not in Intochat.OS.slnx.");
     var csproj = Path.Combine(root, csprojRelative);
     var folder = Path.GetDirectoryName(csproj)!;
     var readme = Path.Combine(folder, "README.md");
+    if (!readmes.Add(readme)) { continue; }
     var description = XDocument.Load(csproj).Descendants("Description").FirstOrDefault()?.Value.Trim() ?? "";
     var moduleRoot = (Path.GetDirectoryName(csprojRelative) ?? "").Replace('\\', '/') + "/";
     var testProject = projects
@@ -75,7 +81,7 @@ static string Replace(string text, string table)
     return text[..start] + block + text[(end + End.Length)..];
 }
 
-static string Stub(Module module, string assembly, string description, string? testProject)
+static string Stub(OsModule module, string assembly, string description, string? testProject)
 {
     var builder = new StringBuilder();
     builder.Append($"# {assembly}\n\n");
@@ -87,7 +93,7 @@ static string Stub(Module module, string assembly, string description, string? t
     return builder.ToString();
 }
 
-static string Render(Module module, Type type)
+static string Render(OsModule module, Type type)
 {
     var builder = new StringBuilder();
     var section = IntoChatOSConfiguration.ModuleOptionsSection(module.Id);
@@ -107,7 +113,7 @@ static string Render(Module module, Type type)
             rows.Add($"| `{property.Name}` | `{TypeName(property.PropertyType)}` | {shown} | {(setting.Required ? "yes" : "no")} |");
         }
     }
-    foreach (var setting in type.GetCustomAttributes<SettingAttribute>().OrderBy(s => s.Name, StringComparer.Ordinal))
+    foreach (var setting in (Digital(type) ? SchemaSettings(type) : AttributeSettings(type)).OrderBy(s => s.Name, StringComparer.Ordinal))
     {
         rows.Add($"| `{setting.Name}` | integration setting | unset | {(setting.Optional ? "no" : "yes")} |");
     }
@@ -120,7 +126,7 @@ static string Render(Module module, Type type)
         builder.Append('\n');
     }
 
-    var secrets = type.GetCustomAttributes<SecretAttribute>().OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
+    var secrets = (Digital(type) ? SchemaSecrets(type) : AttributeSecrets(type)).OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
     builder.Append("Secrets (names only; values are sealed per brain, never configuration):\n\n");
     if (secrets.Length == 0) { builder.Append("None.\n\n"); }
     else
@@ -148,6 +154,14 @@ static Type? OptionsType(Type type)
     {
         if (current.IsGenericType && current.GetGenericTypeDefinition().Name.StartsWith("Module`", StringComparison.Ordinal)) { return current.GetGenericArguments()[0]; }
     }
+    var manifest = type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+    if (manifest?.GetType().GetProperty("Settings")?.GetValue(manifest) is System.Collections.IEnumerable settings)
+    {
+        foreach (var setting in settings)
+        {
+            if (setting?.GetType().GetProperty("OptionsType")?.GetValue(setting) is Type options) { return options; }
+        }
+    }
     return null;
 }
 
@@ -155,3 +169,44 @@ static string TypeName(Type type)
     => Nullable.GetUnderlyingType(type) is { } inner ? TypeName(inner) + "?"
         : type.IsGenericType ? type.Name[..type.Name.IndexOf('`')] + "<" + string.Join(", ", type.GetGenericArguments().Select(TypeName)) + ">"
         : type.Name;
+
+// A module that has left the generator has no [Secret]/[Setting] attributes. Its static Integration schema is the same declaration.
+static bool Digital(Type type)
+    => typeof(DigitalBrain.Module).IsAssignableFrom(type);
+
+static IEnumerable<(string Name, bool Optional)> AttributeSettings(Type type)
+    => type.GetCustomAttributes<SettingAttribute>().Select(setting => (setting.Name ?? "", setting.Optional));
+
+static IEnumerable<(string Name, bool Optional)> AttributeSecrets(Type type)
+    => type.GetCustomAttributes<SecretAttribute>().Select(secret => (secret.Name, secret.Optional));
+
+static IEnumerable<(string Name, bool Optional)> SchemaSettings(Type type)
+{
+    foreach (var schema in Schemas(type))
+    {
+        foreach (var name in schema.SettingFields) { yield return (name, false); }
+        foreach (var name in schema.OptionalSettingFields) { yield return (name, true); }
+    }
+}
+
+static IEnumerable<(string Name, bool Optional)> SchemaSecrets(Type type)
+{
+    foreach (var schema in Schemas(type))
+    {
+        foreach (var name in schema.SecretFields) { yield return (name, false); }
+        foreach (var name in schema.OptionalSecretFields) { yield return (name, true); }
+    }
+}
+
+static IEnumerable<IntegrationSchema> Schemas(Type type)
+{
+    const BindingFlags Flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+    if (type.GetProperty("Integration", Flags)?.GetValue(null) is IntegrationSchema one) { yield return one; }
+    if (type.GetProperty("Integrations", Flags)?.GetValue(null) is System.Collections.IEnumerable items)
+    {
+        foreach (var item in items)
+        {
+            if (item is IntegrationSchema schema) { yield return schema; }
+        }
+    }
+}

@@ -1,4 +1,4 @@
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Flame.Tests;
 
@@ -7,5 +7,5 @@ public sealed class FlameFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => new(NeuronRuntimeKind.TestOS);
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(FlameNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(FlameModule)];
 }

@@ -143,7 +143,7 @@ public sealed record Bindings(
     /// <exception cref="ArgumentOutOfRangeException">A need kind without a mapping.</exception>
     public bool Binds(NeedKind kind) => kind switch
     {
-        NeedKind.GrainStore => GrainStores != GrainStoreBinding.None,
+        NeedKind.State => GrainStores != GrainStoreBinding.None,
         NeedKind.Streams => Streams != StreamsBinding.None,
         NeedKind.Reminders => Reminders != RemindersBinding.None,
         NeedKind.Secrets => Secrets != SecretsBinding.None,
@@ -154,7 +154,7 @@ public sealed record Bindings(
     };
 
     /// <summary>
-    /// True when <paramref name="need"/> is bound. A <c>GrainStore("cluster")</c> need is bound only when
+    /// True when <paramref name="need"/> is bound. A <c>State("cluster")</c> need is bound only when
     /// <see cref="ClusterStore"/> is <see cref="ClusterStoreBinding.HostBound"/> and the host registered the store.
     /// </summary>
     public bool Binds(Need need, bool clusterStoreRegistered)
@@ -166,5 +166,5 @@ public sealed record Bindings(
     }
 
     internal static bool IsClusterStore(Need need)
-        => need.Kind == NeedKind.GrainStore && need.Name == IntoChatOSNames.ClusterGrainStorage;
+        => need.Kind == NeedKind.State && need.Name == IntoChatOSNames.ClusterGrainStorage;
 }

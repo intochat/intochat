@@ -279,7 +279,7 @@ internal static class CounterLog
 }
 
 [Neuron("probe.counter", State = "count")]
-public sealed class CounterNeuron : Neuron<CounterState>, ICounter, IRemindedNeuron
+public sealed class CounterNeuron : Neuron<CounterState>, ICounter
 {
     public async Task<int> Add(int by)
     {
@@ -317,7 +317,7 @@ public sealed class CounterNeuron : Neuron<CounterState>, ICounter, IRemindedNeu
 
     public async Task<long> HistoryLast() => (await Context.History.Read(Id, 0, 10, CancellationToken.None)).Last;
 
-    public async Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         CounterLog.Ticks.AddOrUpdate($"{Id}:{name}", 1, static (_, count) => count + 1);
         if (name.StartsWith("once", StringComparison.Ordinal)) { await Context.Reminders.Stop(name); }

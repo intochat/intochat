@@ -1,11 +1,12 @@
 using System.Reflection;
-using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Framework.Modules.Metering;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Modules.Google.Auth;
 using IntoChat.OS.Modules.Google.Drive;
 using IntoChat.OS.Modules.Google.Gmail;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Hosting;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -17,17 +18,17 @@ public sealed class GoogleSplitFacts
     [Fact]
     public void EachExternalOperationHasOneOwner()
     {
-        var names = Modules.SelectMany(module => module.GetCustomAttributes<ExternalOperationAttribute>().Select(operation => operation.Name)).ToArray();
+        var names = Modules.SelectMany(module => Operations(module).Select(operation => operation.Name)).ToArray();
         Assert.Equal(19, names.Length);
         Assert.Equal(names.Length, names.Distinct(StringComparer.Ordinal).Count());
         Assert.Equal([GoogleAuthOperations.CodeExchange, GoogleAuthOperations.Refresh],
-            typeof(GoogleAuthModule).GetCustomAttributes<ExternalOperationAttribute>().Select(operation => operation.Name).Order(StringComparer.Ordinal));
-        Assert.All(typeof(DriveModule).GetCustomAttributes<ExternalOperationAttribute>(), operation => Assert.StartsWith("google.drive.", operation.Name, StringComparison.Ordinal));
+            Operations(typeof(GoogleAuthModule)).Select(operation => operation.Name).Order(StringComparer.Ordinal));
+        Assert.All(Operations(typeof(DriveModule)), operation => Assert.StartsWith("google.drive.", operation.Name, StringComparison.Ordinal));
         Assert.Equal(new[] { GoogleDriveOperations.About, GoogleDriveOperations.List, GoogleDriveOperations.Metadata,
                 GoogleDriveOperations.Media, GoogleDriveOperations.Export, GoogleDriveOperations.Create,
                 GoogleDriveOperations.Update, GoogleDriveOperations.Copy, GoogleDriveOperations.Delete }.Order(StringComparer.Ordinal),
-            typeof(DriveModule).GetCustomAttributes<ExternalOperationAttribute>().Select(operation => operation.Name).Order(StringComparer.Ordinal));
-        Assert.All(typeof(GmailModule).GetCustomAttributes<ExternalOperationAttribute>(), operation => Assert.StartsWith("google.gmail.", operation.Name, StringComparison.Ordinal));
+            Operations(typeof(DriveModule)).Select(operation => operation.Name).Order(StringComparer.Ordinal));
+        Assert.All(Operations(typeof(GmailModule)), operation => Assert.StartsWith("google.gmail.", operation.Name, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -48,7 +49,7 @@ public sealed class GoogleSplitFacts
     [Fact]
     public void OnlyAuthDeclaresGoogleOAuthIntegration()
     {
-        var owners = Modules.Where(module => module.GetCustomAttributes<IntegrationAttribute>().Any(integration => integration.Id == GoogleAuth.Integration)).ToArray();
+        var owners = Modules.Where(module => Schemas(module).Any(integration => integration.Id == GoogleAuth.Integration)).ToArray();
         Assert.Equal([typeof(GoogleAuthModule)], owners);
         Assert.Equal(GoogleAuth.Integration, GoogleAuthModule.Integration.Id);
         Assert.All(typeof(GoogleAuthModule).Assembly.GetExportedTypes().SelectMany(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)),
@@ -58,23 +59,43 @@ public sealed class GoogleSplitFacts
     [Fact]
     public void DriveWithoutAuthFailsLoudly()
     {
-        using var alone = Compose(new DriveModule());
+        using var alone = Compose(typeof(DriveModule));
         var error = Assert.Throws<InvalidOperationException>(() => GoogleAuth.EnsureRegistered(alone, DriveModule.ModuleName));
         Assert.Contains("google-auth", error.Message, StringComparison.Ordinal);
 
-        using var gmailAlone = Compose(new GmailModule());
+        using var gmailAlone = Compose(typeof(GmailModule));
         Assert.Contains("google-auth", Assert.Throws<InvalidOperationException>(() => GoogleAuth.EnsureRegistered(gmailAlone, "gmail")).Message, StringComparison.Ordinal);
 
         // Order does not matter: Drive composed before Auth still passes.
-        using var together = Compose(new DriveModule(), new GoogleAuthModule());
+        using var together = Compose(typeof(DriveModule), typeof(GoogleAuthModule));
         GoogleAuth.EnsureRegistered(together, DriveModule.ModuleName);
     }
 
-    private static ServiceProvider Compose(params IntoChat.OS.Framework.Modules.Module[] modules)
+    private static ExternalOperationDescriptor[] Operations(Type module)
+    {
+        using var provider = Compose(module);
+        return Assert.Single(provider.GetServices<ModulePriceListRegistration>()).Operations;
+    }
+
+    private static IEnumerable<IntegrationSchema> Schemas(Type module)
+    {
+        const BindingFlags Flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+        if (module.GetProperty("Integration", Flags)?.GetValue(null) is IntegrationSchema one) { yield return one; }
+        if (module.GetProperty("Integrations", Flags)?.GetValue(null) is IEnumerable<IntegrationSchema> more)
+        {
+            foreach (var schema in more) { yield return schema; }
+        }
+    }
+
+    private static ServiceProvider Compose(params Type[] modules)
     {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder().Build();
-        foreach (var module in modules) { module.ConfigureServices(services, configuration); }
+        foreach (var module in modules)
+        {
+            module.GetMethod("ConfigureServices", BindingFlags.Public | BindingFlags.Static, [typeof(IServiceCollection), typeof(IConfiguration)])!
+                .Invoke(null, [services, configuration]);
+        }
         return services.BuildServiceProvider();
     }
 }

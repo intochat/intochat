@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
@@ -87,7 +88,7 @@ public sealed class SessionConnectionFacts
             return HttpStatusCode.OK;
         }
         };
-        await using var session = await SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(Signal).Assembly]), brain, time, ct);
+        await using var session = await SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(IBrain).Assembly]), brain, time, ct);
         var stalled = session.AcknowledgeAsync("stalled", 1, ct);
         await entered.Task.WaitAsync(ct);
         var next = session.AcknowledgeAsync("next", 1, ct);
@@ -614,7 +615,7 @@ public sealed class SessionConnectionFacts
         private int _streams;
 
         public Task<SessionConnection> OpenAsync(CancellationToken ct)
-            => SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(Signal).Assembly]), this, ct);
+            => SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(IBrain).Assembly]), this, ct);
 
         public IEnumerable<JsonNode> Reports(string member)
             => Requests.Where(request => request.Path.EndsWith(RuntimeProtocol.Report, StringComparison.Ordinal) && request.Body?[member] is not null).Select(request => request.Body![member]!);

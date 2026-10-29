@@ -1,13 +1,10 @@
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
-using IntoChat.OS;
-using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Caching;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
@@ -29,19 +26,20 @@ using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp;
 
-public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
+[DigitalBrain.Module(ManifestName)]
+public sealed class CSharpModule : DigitalBrain.Module, IHttpModule
 {
     internal const string ManifestName = "csharp";
 
-    // R4-04: what the module needs from its host (CSharpNeurons). The runtime and its runs are still grains (06-06b: they wait
-    // for the legacy publishers, 06-08); C# files are plain (06-06d). The grain registrations stay in Configure until the
-    // Framework leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest => CSharpNeurons.Manifest;
+    // The runtime and its runs are still grains (06-06b: they wait for the legacy publishers); C# files are plain.
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<CSharpOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId(ManifestName)))],
+        Secrets: []);
 
-    // CSharpFileNeuron runs on the runtime's host grains.
-    public override Type? Neurons => typeof(CSharpNeurons);
-
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.CSharp.Files.ICSharpFile).Assembly;
+    public static System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.CSharp.Files.ICSharpFile).Assembly;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
 
@@ -56,7 +54,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         Signals = [typeof(CSharpFileChanged)],
     };
 
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         var options = configuration.GetModuleOptions<CSharpOptions>("csharp");
@@ -102,16 +100,4 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         LocalBehaviorAssemblies.Map(endpoints);
         if (endpoints.ServiceProvider.GetRequiredService<IOptions<CSharpOptions>>().Value.Authoring) { CSharpAuthoringEndpoints.Map(endpoints); }
     }
-}
-
-// The DigitalBrain module of CSharp (06-06d): its assembly's [Neuron] classes run on the runtime's host grains.
-[DigitalBrain.Module(CSharpModule.ManifestName)]
-public sealed class CSharpNeurons : DigitalBrain.Module
-{
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<CSharpOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId(CSharpModule.ManifestName)))],
-        Secrets: []);
 }

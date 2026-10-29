@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/IntoChat.Cloud.Auth/IntoChat.Cloud.Auth.csproj" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Goldens\Account\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

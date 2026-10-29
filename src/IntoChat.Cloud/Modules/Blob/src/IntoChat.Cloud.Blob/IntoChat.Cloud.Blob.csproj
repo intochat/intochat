@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Azure Blob storage@1: one container per brain, loaded only for cloud and local+cloud.</Description>
+    <RootNamespace>IntoChat.Cloud.Blob</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.Cloud.Blob.Tests.Integration" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+  </ItemGroup>
+</Project>

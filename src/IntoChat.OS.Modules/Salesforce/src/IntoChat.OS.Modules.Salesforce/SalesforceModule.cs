@@ -1,11 +1,7 @@
-using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,19 +9,21 @@ namespace IntoChat.OS.Modules.Salesforce;
 
 // An org connection is the Salesforce neuron's own sealed state; the Platform runs its browser login,
 // the code exchange and the refresh through the OAuth method below.
-[Module("salesforce")]
-[ModuleContracts(typeof(ISalesforce))]
-[Integration("salesforce", "Salesforce")]
-[Secret("ConsumerKey")]
-[Secret("ConsumerSecret")]
-public sealed partial class SalesforceModule : Module<SalesforceModuleOptions>
+[DigitalBrain.Module("salesforce")]
+public sealed class SalesforceModule : DigitalBrain.Module
 {
-    // R4-04: what the module needs from its host. It has no neurons; its registrations stay in Configure until the Framework
-    // leaves (06-08).
-    public static DigitalBrain.ModuleManifest Manifest => SalesforceNeurons.Manifest;
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<SalesforceModuleOptions>(IntoChatOSConfiguration.ModuleOptionsSection("salesforce"))],
+        Secrets: []);
 
-    // The connection neuron is plain (06-08): SalesforceNeurons' assembly [Neuron] classes run on the runtime's host grains.
-    public override Type? Neurons => typeof(SalesforceNeurons);
+    public static System.Reflection.Assembly? Contracts => typeof(ISalesforce).Assembly;
+
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("salesforce", "Salesforce")
+        .RequiresSecret("ConsumerKey")
+        .RequiresSecret("ConsumerSecret");
 
     public static ConnectorDefinition[] Connectors => [new("salesforce", "Salesforce", ["org-oauth"], ["salesforce"])
     {
@@ -37,26 +35,15 @@ public sealed partial class SalesforceModule : Module<SalesforceModuleOptions>
 
     public static readonly Uri DefaultMcpEndpoint = new("https://api.salesforce.com/platform/mcp/v1/platform/sobject-all");
 
-    partial void OnConfigure(IModuleServices services)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        var collection = services.Services;
-        collection.TryAddSingleton(TimeProvider.System);
-        var options = services.Options<SalesforceModuleOptions>();
-        collection.TryAddSingleton(options);
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        services.TryAddSingleton(TimeProvider.System);
+        var options = configuration.GetModuleOptions<SalesforceModuleOptions>("salesforce");
+        services.TryAddSingleton(options);
         // Resolved at composition, so a host with a misconfigured MCP endpoint fails to start.
         var endpoint = options.ResolveMcpEndpoint();
-        collection.TryAddSingleton<ISalesforceProvider>(_ => new SalesforceMcpProvider(endpoint));
+        services.TryAddSingleton<ISalesforceProvider>(_ => new SalesforceMcpProvider(endpoint));
     }
-}
-
-// The DigitalBrain module of this connector (06-08): its assembly's [Neuron] classes run on the runtime's host grains.
-[DigitalBrain.Module("salesforce")]
-public sealed class SalesforceNeurons : DigitalBrain.Module
-{
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<SalesforceModuleOptions>()],
-        Secrets: []);
 }

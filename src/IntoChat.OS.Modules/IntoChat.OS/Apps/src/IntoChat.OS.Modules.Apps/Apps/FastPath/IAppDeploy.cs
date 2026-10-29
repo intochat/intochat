@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -26,4 +27,4 @@ internal interface IAppDeploy
 internal sealed record StagedProgram(
     [property: Id(0)] Dictionary<string, string> Sources,
     [property: Id(1)] Dictionary<string, string> Configuration,
-    [property: Id(2)] CallerContext? Principal);
+    [property: Id(2)] CapabilityCaller? Principal);

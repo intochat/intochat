@@ -6,8 +6,8 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.Options;
-
 using OrleansSdk = Orleans;
+
 namespace DigitalBrain.Runtime.Orleans.Signalling;
 
 /// <summary>
@@ -20,7 +20,7 @@ namespace DigitalBrain.Runtime.Orleans.Signalling;
 [Neuron(SessionSynapses.NeuronType)]
 internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> options, RuntimeClock clock, JournalPayloads payloads,
     IOptions<OrleansSdk.Configuration.SiloMessagingOptions> messaging)
-    : Neuron, ISessionSynapses, ISignalSink, IRemindedNeuron
+    : Neuron, ISessionSynapses, ISignalSink
 {
     internal const string SweepTimer = "session.ttl";
 
@@ -154,7 +154,7 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
         return Task.CompletedTask;
     }
 
-    public async Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         if (name != SweepTimer || clock.Now - _lastAck < _options.SessionTtl) { return; }
         await End().ConfigureAwait(true);

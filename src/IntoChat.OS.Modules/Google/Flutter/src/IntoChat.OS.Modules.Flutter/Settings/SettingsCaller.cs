@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -11,10 +13,10 @@ internal static class SettingsCaller
 {
     public const string App = "settings";
 
-    public static Task<bool> IsShipped(IIntoChatOS brain, string? scope) => IsShipped(brain, scope, App);
+    public static Task<bool> IsShipped(INeuronProxies brain, string? scope) => IsShipped(brain, scope, App);
 
     // The named app the OS ships, unedited, calling through the app proxy from its install in this brain.
-    public static async Task<bool> IsShipped(IIntoChatOS brain, string? scope, string app)
+    public static async Task<bool> IsShipped(INeuronProxies brain, string? scope, string app)
     {
         if (scope is null || !CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App
             || caller.StampedBy != TrustedEdge.AppProxy || caller.AppId != IApp.Key(scope, app)) { return false; }

@@ -1,4 +1,4 @@
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Flutter.Tests;
 
@@ -7,5 +7,5 @@ public sealed class FlutterFixture : BothRuntimesFixture
 {
     public static TheoryData<NeuronRuntimeKind> Kinds => new(NeuronRuntimeKind.TestOS);
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(FlutterNeurons)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(FlutterModule)];
 }

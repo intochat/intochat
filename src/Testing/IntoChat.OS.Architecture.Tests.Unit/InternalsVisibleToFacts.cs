@@ -44,6 +44,8 @@ public sealed partial class InternalsVisibleToFacts
         }
         // Transitional (06-02, R4-12): the kernel composition hosts the os Framework until 06-08 deletes the Framework.
         if (grantor == "IntoChat.OS.Framework" && grantee == "IntoChat.OS.Kernel.Composition") { return true; }
+        // The kernel tests still construct identity internals. The grants go away with that reach in 0.8.0.
+        if (grantor == "IntoChat.OS.Modules.Identity" && grantee is "IntoChat.OS.Kernel.Tests.Unit" or "IntoChat.OS.Kernel.Tests.Integration" or "IntoChat.OS.Kernel.Composition.Tests.Integration") { return true; }
         const string hosting = ".Aspire.Hosting";
         return grantor.EndsWith(hosting, StringComparison.Ordinal) && grantee == grantor[..^hosting.Length] + ".Tests.Hosting";
     }
@@ -53,7 +55,7 @@ public sealed partial class InternalsVisibleToFacts
         var grants = Grants().ToArray();
         var offenders = grants.Where(grant => !Allowed(grant.Grantor, grant.Grantee)).Select(grant => $"{grant.Grantor} -> {grant.Grantee}");
         var duplicates = grants.GroupBy(grant => grant).Where(group => group.Count() > 1).Select(group => $"{group.Key.Grantor} -> {group.Key.Grantee} (duplicate)");
-        return CaptureWriter.Ordered(offenders.Concat(duplicates));
+        return offenders.Concat(duplicates).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
     }
 
     [Theory]

@@ -26,7 +26,7 @@ internal interface IBrainListenerHost
 /// </summary>
 [Neuron(BrainListeners.NeuronType)]
 internal sealed class BrainListenerNeuron(IOptions<SessionSynapseOptions> options, RuntimeClock clock, BrainListeners listeners)
-    : Neuron, IBrainListenerHost, ISignalSink, IRemindedNeuron
+    : Neuron, IBrainListenerHost, ISignalSink
 {
     internal const string SweepTimer = "listener.ttl";
 
@@ -56,7 +56,7 @@ internal sealed class BrainListenerNeuron(IOptions<SessionSynapseOptions> option
         return listeners.Dispatch(Id.Brain, item.Signal);
     }
 
-    public async Task OnReminder(string name, CancellationToken cancellationToken)
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         if (name != SweepTimer) { return; }
         if (listeners.Count(Id.Brain) > 0)

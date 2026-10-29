@@ -58,8 +58,10 @@ public sealed class ModuleOptionValidationFacts
         }
     }
 
-    public sealed class CheckedModule() : Module<CheckedOptions>(new("checked"))
+    [DigitalBrain.Module("checked")]
+    public sealed class CheckedModule : DigitalBrain.Module
     {
+        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [DigitalBrain.Setting.Of<CheckedOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("checked"))], []);
     }
 
     public sealed class CheckedHosting : ModuleHosting<CheckedModule>

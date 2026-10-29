@@ -13,7 +13,7 @@ public sealed class SampleModule : Module
     public static ModuleManifest Manifest { get; } = new(
         Provides: [CapabilityId.Parse("storage@1")],
         Requires: [],
-        Needs: [Need.GrainStore("drive"), Need.Http],
+        Needs: [Need.State("drive"), Need.Http],
         Settings: [Setting.Of<SampleOptions>()],
         Secrets: [Secret.Named("google-oauth")]);
 }
@@ -46,7 +46,7 @@ public sealed class ModuleManifestFacts
         var manifest = ModuleManifest.Of(typeof(SampleModule));
         Assert.Equal("sample.module", manifest.Id);
         Assert.Equal([new CapabilityId("storage", 1)], manifest.Provides);
-        Assert.Equal([Need.GrainStore("drive"), Need.Http], manifest.Needs);
+        Assert.Equal([Need.State("drive"), Need.Http], manifest.Needs);
         Assert.Equal("google-oauth", Assert.Single(manifest.Secrets).Name);
     }
 

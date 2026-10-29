@@ -11,19 +11,18 @@ public static class TreeKinds
 }
 
 // One closed shape for every node, as SceneNode is: the kind decides which fields mean something.
-[GenerateSerializer, Alias("flame.tree-node")]
 public sealed record TreeNode(
-    [property: Id(0)] string Kind,
-    [property: Id(1)] TreeNode[] Children,
-    [property: Id(2)] string? Key = null,      // condition: blackboard key
-    [property: Id(3)] string? Value = null,    // condition: expected value
-    [property: Id(4)] double Seconds = 0,      // wait, moveTo, scale, fade, pulse
-    [property: Id(5)] double X = 0,            // moveTo
-    [property: Id(6)] double Y = 0,            // moveTo
-    [property: Id(7)] double Factor = 1,       // scale
-    [property: Id(8)] double Alpha = 1,        // fade
-    [property: Id(9)] double Amplitude = 0,    // pulse
-    [property: Id(10)] bool Memory = false)    // sequence: a running child is resumed on the next tick
+    string Kind,
+    TreeNode[] Children,
+    string? Key = null,      // condition: blackboard key
+    string? Value = null,    // condition: expected value
+    double Seconds = 0,      // wait, moveTo, scale, fade, pulse
+    double X = 0,            // moveTo
+    double Y = 0,            // moveTo
+    double Factor = 1,       // scale
+    double Alpha = 1,        // fade
+    double Amplitude = 0,    // pulse
+    bool Memory = false)    // sequence: a running child is resumed on the next tick
 {
     public static TreeNode Selector(params TreeNode[] children) => new(TreeKinds.Selector, children);
     public static TreeNode Sequence(bool memory, params TreeNode[] children) => new(TreeKinds.Sequence, children, Memory: memory);
@@ -36,5 +35,4 @@ public sealed record TreeNode(
     public static TreeNode Pulse(double amplitude, double seconds) => new(TreeKinds.Pulse, [], Seconds: seconds, Amplitude: amplitude);
 }
 
-[GenerateSerializer, Alias("flame.behavior-tree")]
-public sealed record BehaviorTree([property: Id(0)] TreeNode Root);
+public sealed record BehaviorTree(TreeNode Root);

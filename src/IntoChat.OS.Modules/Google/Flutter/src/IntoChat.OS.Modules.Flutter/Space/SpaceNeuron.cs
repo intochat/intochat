@@ -8,19 +8,20 @@ using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
 [Neuron("ui.space")]
 internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogger<SpaceNeuron> logger, CircleMembers friends,
-    IntoChat.OS.Runtime.IPlainNeurons plain) : DigitalBrain.Neuron, ISpace
+    IServiceProvider plain) : DigitalBrain.Neuron, ISpace
 {
     public Task<PersonState> ReadProfile(string key) => ReadShared(async () =>
     {
         if (!key.EndsWith("/profile", StringComparison.Ordinal)) { throw new UnauthorizedAccessException(); }
         await AuthorizeFriend(key[..^8]);
-        return await plain.Get<ISharedPersonReader>(key).Read();
+        return await SiloNeurons.Get<ISharedPersonReader>(plain, key).Read();
     });
 
     public Task<CardState> ReadPost(string key) => ReadShared(async () =>
@@ -29,7 +30,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         var friend = await AuthorizeFriend(author);
         if (friend is not null && !(await friends.Posts(friend)).Contains(key, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The post is not published in a shared circle."); }
-        var card = await plain.Get<ISharedCardReader>(key).Read();
+        var card = await SiloNeurons.Get<ISharedCardReader>(plain, key).Read();
         return new CardState { Name = key, Version = card.Version, Title = card.Title, Body = card.Body };
     });
 
@@ -37,10 +38,10 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
     {
         if (!key.EndsWith("/posts", StringComparison.Ordinal)) { throw new UnauthorizedAccessException(); }
         var friend = await AuthorizeFriend(key[..^6]);
-        if (friend is null) { return await plain.Get<ICollectionView>(key).Read(); }
+        if (friend is null) { return await SiloNeurons.Get<ICollectionView>(plain, key).Read(); }
         List<CollectionItem> items = [];
         foreach (var post in await friends.Posts(friend))
-        { items.Add(new(post, (await plain.Get<ISharedCardReader>(post).Read()).Title, "post")); }
+        { items.Add(new(post, (await SiloNeurons.Get<ISharedCardReader>(plain, post).Read()).Title, "post")); }
         return new CollectionState { Name = key, Revision = 1, Definition = new(items.ToArray(), FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet") };
     });
 
@@ -181,7 +182,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
             }
             SpaceComposer.SpaceEntry[] entries = [.. _entries.Values, .. _friendEntries];
             // The scene is a plain neuron (06-06a), reached by its os key.
-            var scene = plain.Get<IScene>(brain + "/space");
+            var scene = SiloNeurons.Get<IScene>(plain, brain + "/space");
             var current = await scene.Read();
             // Always publish. A refresh whose picture matches still moves the revision, which is
             // how a caller knows the composition finished. The cost that repeats is the source reads above.

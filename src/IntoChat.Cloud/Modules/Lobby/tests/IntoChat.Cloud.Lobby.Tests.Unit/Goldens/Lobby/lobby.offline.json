@@ -1,0 +1,12 @@
+{
+  "title": "offline",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "You are offline. Check your connection and try again."
+      }
+    ]
+  }
+}

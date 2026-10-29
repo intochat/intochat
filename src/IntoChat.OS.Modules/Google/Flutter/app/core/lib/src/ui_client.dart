@@ -119,14 +119,24 @@ final class IntoChatOSUiClient {
   Future<bool> readLobbySession() async {
     try {
       final response = await _http
-          .get(baseUri.replace(path: '/lobby/session', query: null, fragment: null))
+          .get(
+            baseUri.replace(
+              path: '/lobby/session',
+              query: null,
+              fragment: null,
+            ),
+          )
           .timeout(const Duration(seconds: 5));
       if (response.statusCode != 200 || response.body.isEmpty) return false;
       final body = jsonDecode(response.body);
       final brain = body is Map<String, dynamic> ? body['brainId'] : null;
       // Only an explicit chrome-less descriptor is a lobby: a host that answers this path with a member session
       // (or anything else) is not offering one.
-      if (brain is! String || brain.isEmpty || (body as Map<String, dynamic>)['chromeless'] != true) return false;
+      if (brain is! String ||
+          brain.isEmpty ||
+          (body as Map<String, dynamic>)['chromeless'] != true) {
+        return false;
+      }
       defaultBrainId = brain;
       chromeless = true;
       return true;

@@ -1,3 +1,6 @@
+using DigitalBrain;
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
@@ -11,20 +14,20 @@ internal static class WorkspaceEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var brain = BrainRoutes.Group(endpoints);
-        brain.MapGet("", (IIntoChatOS intoChatOS, CancellationToken ct)
+        brain.MapGet("", (INeuronProxies intoChatOS, CancellationToken ct)
             => Respond(async () => Results.Ok(await Workspace(intoChatOS).Read().WaitAsync(ct))));
-        brain.MapPost("/show", (NeuronCommand input, IIntoChatOS intoChatOS, CancellationToken ct)
+        brain.MapPost("/show", (NeuronCommand input, INeuronProxies intoChatOS, CancellationToken ct)
             => Respond(async () => Results.Ok(await Workspace(intoChatOS).Show(input.App, input.OperationId, input.ExpectedRevision).WaitAsync(ct))));
-        brain.MapPost("/back", (NavigationCommand input, IIntoChatOS intoChatOS, CancellationToken ct)
+        brain.MapPost("/back", (NavigationCommand input, INeuronProxies intoChatOS, CancellationToken ct)
             => Respond(async () => Results.Ok(await Workspace(intoChatOS).Back(input.OperationId, input.ExpectedRevision).WaitAsync(ct))));
-        brain.MapPost("/home", (NavigationCommand input, IIntoChatOS intoChatOS, CancellationToken ct)
+        brain.MapPost("/home", (NavigationCommand input, INeuronProxies intoChatOS, CancellationToken ct)
             => Respond(async () => Results.Ok(await Workspace(intoChatOS).Home(input.OperationId, input.ExpectedRevision).WaitAsync(ct))));
-        brain.MapPost("/close", (NeuronCommand input, IIntoChatOS intoChatOS, CancellationToken ct)
+        brain.MapPost("/close", (NeuronCommand input, INeuronProxies intoChatOS, CancellationToken ct)
             => Respond(async () => Results.Ok(await Workspace(intoChatOS).Close(input.App, input.OperationId, input.ExpectedRevision).WaitAsync(ct))));
-        brain.MapPost("/reports", (ProblemReportInput input, IIntoChatOS intoChatOS, CancellationToken ct) => ProblemReportEndpoint.File(input, intoChatOS, ct));
+        brain.MapPost("/reports", (ProblemReportInput input, INeuronProxies intoChatOS, CancellationToken ct) => ProblemReportEndpoint.File(input, intoChatOS, ct));
     }
 
-    private static IWorkspace Workspace(IIntoChatOS intoChatOS) => intoChatOS.Get<IWorkspace>(IWorkspace.Key(BrainScope.CurrentId()));
+    private static IWorkspace Workspace(INeuronProxies intoChatOS) => intoChatOS.Get<IWorkspace>(IWorkspace.Key(BrainScope.CurrentId()));
 
     private static async Task<IResult> Respond(Func<Task<IResult>> action)
     {

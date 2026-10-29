@@ -13,6 +13,9 @@
     <ProjectReference Include="../../../../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
     <PackageReference Include="Otp.NET" />
+    <PackageReference Include="QRCoder" />
+    <ProjectReference Include="../../../../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <ProjectReference Include="../../../Localization/src/IntoChat.Cloud.Localization/IntoChat.Cloud.Localization.csproj" />
     <ProjectReference Include="../IntoChat.Cloud.Auth.Core/IntoChat.Cloud.Auth.Core.csproj" />
     <ProjectReference Include="../../Contracts/IntoChat.Cloud.Auth.Contracts/IntoChat.Cloud.Auth.Contracts.csproj" />
     <ProjectReference Include="../../../Mail/Contracts/IntoChat.Cloud.Mail.Contracts/IntoChat.Cloud.Mail.Contracts.csproj" />

@@ -22,7 +22,7 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(plan);
         var clock = Stopwatch.StartNew();
-        var server = brains.Open(brainId).Neuron<IMcpServer>($"mcp/candidate-{sha}");
+        var server = brains.Get<IMcpServer>($"{brainId}/mcp/candidate-{sha}");
         List<VerificationCheck> checks = [];
         try { await server.Connect(new($"candidate {sha}", $"{endpoints.Mcp}/brains/{brainId}/mcp"), ct); }
         catch (Exception error) when (error is not OperationCanceledException)

@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -69,7 +70,7 @@ internal sealed partial class AppNeuron(
     private DigitalBrain.NeuronId AppId(string key) => new(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Id.Brain.Value.Length + 1)..]);
 
     // The platform-wide Marketplace is still a grain outside every brain.
-    private IMarketplace Marketplace => Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IMarketplace>(IMarketplace.Key);
+    private IMarketplace Marketplace => SiloNeurons.Get<IMarketplace>(Context.Services, IMarketplace.Key);
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
     private const int MaxPayloadLength = 64 * 1024;
@@ -768,11 +769,7 @@ internal sealed partial class AppNeuron(
         else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
         try
         {
-            // Durable assignments contain compiled hashes. Reassign the source on activation so a new
-            // host's contracts replace old binary calls, even when the app's version did not change.
-            // This ordinary grain turn serializes source capture and reassignment with program edits.
-            // A shipped built-in is assigned again as its prebuilt package, which the new host carries rebuilt.
-            if (await AssignShipped(configuration)) { return; }
+            // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
             RequireShape(sources);
             await runtime.Deploy(Key, sources, configuration, CancellationToken.None);
         }
@@ -799,18 +796,11 @@ internal sealed partial class AppNeuron(
         if (Snapshot.MigrationPaused) { return; }
         await RecordFeature();
         if (Runtime is not { } runtime) { return; }
-        // A host-shipped built-in the person has not edited runs as its prebuilt package; the sources it carries are for editing.
-        if (await AssignShipped()) { return; }
         var sources = Sources(Snapshot);
         if (sources.Count == 0) { await runtime.Retire(Key, CancellationToken.None); return; }
         RequireShape(sources);
         await runtime.Deploy(Key, sources, Configuration(Snapshot), CancellationToken.None);
     }
-
-    private async Task<bool> AssignShipped(Dictionary<string, string>? configuration = null)
-        => Snapshot.Origin is { PackageDigest: not null } && !Snapshot.Edited
-            && ServiceProvider.GetService<ShippedPrograms>() is { } shipped
-            && await shipped.Assign(Key, Snapshot.Origin, Snapshot.Edited, configuration ?? Configuration(Snapshot), CancellationToken.None);
 
     // The shape gate in front of the runtime's compile gate: every synapse is one reaction.
     private static void RequireShape(IReadOnlyDictionary<string, string> sources)
@@ -838,9 +828,20 @@ internal sealed partial class AppNeuron(
         values["Brain"] = state.BrainScopeId ?? "";
         values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // The host's public origin (empty when unset): Settings opens the account page there, Apps builds share links.
-        values["PublicOrigin"] = ServiceProvider.GetService<IConfiguration>()?[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
+        var configuration = ServiceProvider.GetService<IConfiguration>();
+        values["PublicOrigin"] = configuration?[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
+        // Cloud sign-in contributes an account surface. The literal matches AuthIdentityProvider.AccountSurfaceSetting (view|surface).
+        if (WritesAccountSurface(Name(), configuration?["IntoChatOS:Topology"]))
+        {
+            values["AccountSurface"] = "view|surface";
+        }
         return values;
     }
+
+    // The settings app on a cloud host mounts auth's account neuron. Other apps and a local host leave the setting unset.
+    internal static bool WritesAccountSurface(string appName, string? topology) =>
+        string.Equals(appName, "settings", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     private void Record(AppState next)
     {

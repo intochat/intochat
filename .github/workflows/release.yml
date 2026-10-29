@@ -18,8 +18,15 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+  e2e-latest:
+    uses: ./.github/workflows/e2e.yml
+    secrets: inherit
   release:
     name: release
+    needs: [ci, e2e-latest]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:

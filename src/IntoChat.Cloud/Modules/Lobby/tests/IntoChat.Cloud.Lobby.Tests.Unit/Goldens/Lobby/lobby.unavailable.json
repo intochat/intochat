@@ -1,0 +1,16 @@
+{
+  "title": "unavailable",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Sign-in is unavailable"
+      },
+      {
+        "kind": "text",
+        "value": "Sign-in is unavailable. Please try again later."
+      }
+    ]
+  }
+}

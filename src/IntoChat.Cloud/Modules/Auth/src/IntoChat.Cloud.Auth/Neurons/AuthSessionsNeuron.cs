@@ -43,18 +43,27 @@ internal sealed class AuthSessionsNeuron(
             PrincipalId = open.Member.PrincipalId,
             AccountId = open.Member.AccountId,
             BrainId = open.Member.BrainId,
-            Role = open.Member.Role,
+            Role = open.Member.Role.ToString(),
             DisplayName = open.Member.DisplayName,
         };
         await SaveQuietly(new AuthSessionsState { Sessions = [.. Pruned(now), row] });
         return new SessionCreated(row.Handle, row.ExpiresAt);
     }
 
-    public Task<SessionMember?> Find(string sidHash)
+    public Task<DigitalBrain.Capabilities.Identity.Member?> Find(string sidHash)
     {
         var now = clock.GetUtcNow();
-        return Task.FromResult(Snapshot.Sessions.FirstOrDefault(row => row.SidHash == sidHash) is { RevokedAt: null } row && row.ExpiresAt > now
-            ? new SessionMember(row.PrincipalId, row.AccountId, row.BrainId, row.Role, row.DisplayName) : null);
+        var row = Snapshot.Sessions.FirstOrDefault(session => session.SidHash == sidHash);
+        if (row is not { RevokedAt: null } || row.ExpiresAt <= now || !Enum.TryParse<DigitalBrain.Capabilities.Identity.MemberRole>(row.Role, out var role))
+        { return Task.FromResult<DigitalBrain.Capabilities.Identity.Member?>(null); }
+        return Task.FromResult<DigitalBrain.Capabilities.Identity.Member?>(new DigitalBrain.Capabilities.Identity.Member
+        {
+            PrincipalId = row.PrincipalId,
+            AccountId = row.AccountId,
+            BrainId = row.BrainId,
+            Role = role,
+            DisplayName = row.DisplayName,
+        });
     }
 
     public async Task Describe(string sidHash, string label)

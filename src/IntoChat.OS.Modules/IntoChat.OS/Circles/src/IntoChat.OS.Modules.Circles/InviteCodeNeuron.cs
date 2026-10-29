@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Access;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -47,7 +48,7 @@ internal sealed class InviteCodeNeuron : DigitalBrain.Neuron, IInviteCode
     public Task<RedeemOutcome> Redeem(RedeemInvite request)
         => record is null ? Task.FromResult(RedeemOutcome.Rejected)
             // The circle brain's invites, reached through the host seam (a neuron's own Get stays in its brain).
-            : Context.Services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<ICircleInvites>(ICircleInvites.Key(record.CircleBrainId)).Redeem(record.InviteId, request);
+            : SiloNeurons.Get<ICircleInvites>(Context.Services, ICircleInvites.Key(record.CircleBrainId)).Redeem(record.InviteId, request);
 }
 
 // The deployment's invite HMAC key: IntoChatOS:Circles:InviteHmacKey (base64, at least 32 bytes) when configured,
@@ -94,12 +95,12 @@ internal sealed class InviteKeyNeuron : DigitalBrain.Neuron, IInviteKey
     }
 }
 
-internal sealed class CircleInviteRedeemer(IntoChat.OS.Runtime.IPlainNeurons plain) : ICircleInviteRedeemer
+internal sealed class CircleInviteRedeemer(IServiceProvider plain) : ICircleInviteRedeemer
 {
     public async Task<RedeemOutcome> Redeem(string code, string machineId, string machineKeyThumbprint, string machineName)
     {
         if (!InviteCode.TryNormalize(code, out var normalized)) { return RedeemOutcome.Rejected; }
-        var hash = InviteCode.Hash(normalized, await plain.Get<IInviteKey>(IInviteKey.Key).Get());
-        return await plain.Get<IInviteCode>(IInviteCode.Key(hash)).Redeem(new RedeemInvite(hash, machineId, machineKeyThumbprint, machineName));
+        var hash = InviteCode.Hash(normalized, await SiloNeurons.Get<IInviteKey>(plain, IInviteKey.Key).Get());
+        return await SiloNeurons.Get<IInviteCode>(plain, IInviteCode.Key(hash)).Redeem(new RedeemInvite(hash, machineId, machineKeyThumbprint, machineName));
     }
 }

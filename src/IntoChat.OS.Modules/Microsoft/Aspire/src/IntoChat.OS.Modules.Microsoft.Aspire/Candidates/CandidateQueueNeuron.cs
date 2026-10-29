@@ -10,13 +10,14 @@ internal sealed class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.N
 {
     private CandidateQueueState Snapshot => State;
     private string BrainId => Id.Brain.Value;
-    private IIntoChatOS Brain => Context.Services.GetRequiredService<IIntoChatOSBrains>().Open(BrainId);
+    private T Peer<T>(string relative) where T : class
+        => Get<T>(IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(typeof(T), $"{BrainId}/{relative}"));
 
     public async Task<string> Propose(CandidateProposal proposal)
     {
         ArgumentNullException.ThrowIfNull(proposal);
         await Heal();
-        var cluster = await Brain.Neuron<IDeployment>(IDeployment.Relative).Read();
+        var cluster = await Peer<IDeployment>(IDeployment.Relative).Read();
         var prepared = await host.Prepare(cluster.CurrentSha, proposal.Summary, proposal.Files, CancellationToken.None);
         var candidate = Candidate(prepared.Sha);
         await candidate.Propose(proposal.Branch, proposal.Summary, proposal.Plan);
@@ -48,7 +49,7 @@ internal sealed class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.N
 
     private static bool Ended(CandidateStage stage) => stage is CandidateStage.Promoted or CandidateStage.Discarded or CandidateStage.Failed;
 
-    private ICandidate Candidate(string sha) => Brain.Neuron<ICandidate>(ICandidate.Relative(sha));
+    private ICandidate Candidate(string sha) => Peer<ICandidate>(ICandidate.Relative(sha));
 
     public Task<string?> Live() => Task.FromResult(Snapshot.Live);
 

@@ -33,7 +33,7 @@ public sealed class FilesAppFacts
         for (var n = 0; n < 105; n++) { storage.AddFile(folder, $"file-{n:D3}.txt", [1]); }
         var app = App(storage);
         await app.Browse(new("a", folder), Ct);
-        Assert.Equal(40, app.Snapshot.Items.Length);
+        Assert.Equal(100, app.Snapshot.Items.Length);
         while (app.Snapshot.Pages.Any(page => !page.Complete)) { await app.More(new(), Ct); }
         Assert.Equal(105, app.Snapshot.Items.Length);
         Assert.Equal(folder, app.Snapshot.Breadcrumbs[^1].Item.Id);
@@ -93,7 +93,8 @@ public sealed class FilesAppFacts
         var app = new FilesApp(new Broker([]), new("owner"), new());
         await app.Open(new(), Ct);
         Assert.Empty(app.Snapshot.Storages);
-        Assert.Contains("Settings", app.Snapshot.Message!, StringComparison.Ordinal);
+        Assert.Equal(FilesCopy.NoStorageHeading, app.Snapshot.StatusTitle);
+        Assert.Contains("Google Drive", app.Snapshot.StatusBody, StringComparison.Ordinal);
     }
 
     private static FilesApp App(IStorage a, IStorage? b = null) => new(new Broker(b is null ? [new("a", "A", a)] : [new("a", "A", a), new("b", "B", b)]), new("owner"), new());
@@ -109,7 +110,8 @@ public sealed class FilesAppFacts
         Assert.Equal(["A", "B"], app.Snapshot.Storages.Select(item => item.Label));
         await app.Search(new("report", Everywhere: true), Ct);
         Assert.Equal("a", Assert.Single(app.Snapshot.Items).Connection);
-        Assert.Contains("B:", app.Snapshot.Message!, StringComparison.Ordinal);
+        Assert.Equal(FilesCopy.SearchMissed, app.Snapshot.StatusTitle);
+        Assert.Contains("B", app.Snapshot.StatusBody, StringComparison.Ordinal);
     }
 
     [Fact]

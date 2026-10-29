@@ -64,7 +64,7 @@ internal sealed record ContractManifest(
                 manifest.GrainInterfaces[name] = interfaceTypes.GetGrainInterfaceType(type).ToString()!;
             }
             if (Contract(type) is { } contract) { manifest.Contracts[name] = contract; }
-            if (typeof(Signal).IsAssignableFrom(type)) { manifest.Signals[name] = type.Name; }
+            if (typeof(DigitalBrain.Signal).IsAssignableFrom(type)) { manifest.Signals[name] = type.Name; }
         }
         return manifest;
     }

@@ -1,0 +1,12 @@
+# Default gitleaks rules, plus values that are public fixtures rather than credentials.
+# The workflow passes this file with --config.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Azurite well-known development storage key, and Auth test hashing keys (base64 of the phrases test-hashing-key-32-bytes-long!! and auth-test-hashing-key-32-bytes-long!)"
+regexes = [
+  '''(?i)Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==''',
+  '''dGVzdC1oYXNoaW5nLWtleS0zMi1ieXRlcy1sb25nISE=''',
+  '''YXV0aC10ZXN0LWhhc2hpbmcta2V5LTMyLWJ5dGVzLWxvbmch''',
+]

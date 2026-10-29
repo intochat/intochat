@@ -1,3 +1,6 @@
+using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.ComponentModel;
 using System.Reflection;
 using IntoChat.OS;
@@ -12,7 +15,7 @@ using ModelContextProtocol.Server;
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
 
 // The contract discovery is registered by CSharpModule, so its absence means this host cannot run C# files.
-public sealed class CSharpToolService(IIntoChatOS brain, IKernelView kernel, CSharpContractDiscovery? contracts = null, CSharpScriptCheck? check = null)
+public sealed class CSharpToolService(INeuronProxies brain, IBrainObserver kernel, CSharpContractDiscovery? contracts = null, CSharpScriptCheck? check = null)
 {
     public static readonly (MethodInfo Method, string Name)[] Tools = [.. typeof(ScopedCSharpTools).GetMethods()
         .Select(method => (Method: method, Tool: method.GetCustomAttribute<McpServerToolAttribute>()))

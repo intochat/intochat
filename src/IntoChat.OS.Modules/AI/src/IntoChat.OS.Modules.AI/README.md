@@ -13,11 +13,26 @@ Configuration section: `IntoChatOS:Modules:ai:Options` (environment prefix `Into
 
 Options:
 
-None.
+| Option | Type | Default | Required |
+| --- | --- | --- | --- |
+| `Endpoint` | integration setting | unset | no |
+| `Endpoint` | integration setting | unset | no |
+| `Endpoint` | integration setting | unset | no |
+| `Endpoint` | integration setting | unset | no |
+| `Endpoint` | integration setting | unset | no |
+| `Endpoint` | integration setting | unset | no |
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `ApiKey` | yes |
+| `ApiKey` | yes |
+| `ApiKey` | yes |
+| `ApiKey` | yes |
+| `ApiKey` | yes |
+| `ApiKey` | yes |
+| `ApiKey` | yes |
 
 Contracts: assembly `IntoChat.OS.Modules.AI.Contracts` (`IAgentContext`, `IAgent`, `IAiMarker`, `IDeepSeekV41Flash`, `IEmbeddingGemma`, `IEmbeddingModel`, `IEmbedding`, `IFable5`, `IFacts`, `IGemini31Pro`, `IGemini36Flash`, `IGemini36Pro`, `IGeminiEmbedding`, `IGemma4`, `IGpt4oMiniTranscribe`, `IGpt4oTranscribe`, `IGpt54Mini`, `IGpt54Nano`, `IGpt54`, `IGpt56Luna`, `IGpt56Sol`, `IGpt56Terra`, `IGptImage1`, `IGrok46`, `IGroupChat`, `IHaiku45`, `IImageGeneration`, `IImageGenerator`, `IImageModel`, `IIntentUsage`, `IIntents`, `IJev`, `ILLM`, `ILocalJev`, `IModelCatalog`, `IOpus5`, `IQwen35`, `IRouter`, `ISonnet5`, `ISpeechRecognizer`, `ISpeechSynthesizer`, `ISystemOneModel`, `ISystemOne`, `ITextEmbedding3Large`, `ITextEmbedding3Small`, `ITranscription`, `IVectorIndex`, `IWhisper1`, `IWhisperLargeV3Turbo`, `IWhisperSmall`, `IWhisperTiny`).
 Hosting: runs in process.

@@ -771,7 +771,14 @@ DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Named(string! name, 
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Open(string! context, DigitalBrain.Capabilities.Secrets.SealedSecret! sealedSecret, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<byte[]!>!
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Seal(string! context, System.ReadOnlyMemory<byte> plaintext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SealedSecret!>!
 DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons
+DigitalBrain.Runtime.Orleans.Hosting.INeuronHostCatalog
+DigitalBrain.Runtime.Orleans.Hosting.INeuronHostCatalog.HostType(string! neuronType) -> System.Threading.Tasks.Task<string?>!
+static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.AuthorizeStreams(Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, DigitalBrain.NeuronId, DigitalBrain.Invocation.RuntimeInvocation!, System.Threading.Tasks.Task!>! authorize) -> void
+static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get(System.IServiceProvider! services, System.Type! contract, DigitalBrain.NeuronId id) -> object!
+static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get(System.IServiceProvider! services, System.Type! contract, string! fullKey) -> object!
 static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<T>(System.IServiceProvider! services, DigitalBrain.NeuronId id) -> T!
+static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<T>(System.IServiceProvider! services, string! fullKey) -> T!
+static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.IdOf(System.Type! contract, string! fullKey) -> DigitalBrain.NeuronId
 DigitalBrain.Runtime.Orleans.Operations.IConfirmationContexts
 DigitalBrain.Runtime.Orleans.Operations.IConfirmationContexts.For(DigitalBrain.BrainId brain, string! requester) -> DigitalBrain.Confirmation.IConfirmations!
 DigitalBrain.Runtime.Orleans.Operations.OperationRecovery
@@ -781,3 +788,14 @@ DigitalBrain.Runtime.Orleans.Hosting.INeuronHost.InvokeInterleaved(DigitalBrain.
 DigitalBrain.Runtime.Orleans.Hosting.INeuronHost.PostInterleaved(DigitalBrain.Invocation.RuntimeInvocation! call) -> System.Threading.Tasks.Task!
 
 static DigitalBrain.Runtime.Orleans.Signalling.SessionSynapses.Subscribe(this DigitalBrain.Runtime.Orleans.Signalling.ISessionSynapses! session, DigitalBrain.NeuronId source, string![]! aliases) -> System.Threading.Tasks.Task!
+const DigitalBrain.Runtime.Orleans.Signalling.SignalLog.GapAlias = "synapse.gap" -> string!
+static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Alias(System.Type! signal) -> string!
+static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Decode<T>(string! json) -> T!
+static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Decode<T>(System.ReadOnlyMemory<byte> json) -> T!
+static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.IsGap(DigitalBrain.Runtime.Orleans.Signalling.SessionSignal! signal) -> bool
+static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Live(System.IServiceProvider! services, DigitalBrain.NeuronId source, string![]! aliases, string! session, System.Func<System.Threading.Tasks.Task!>! onSubscribed, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.Runtime.Orleans.Signalling.SessionSignal!>!
+static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.Newest(DigitalBrain.Runtime.Orleans.IBrainJournalWriter! journal, DigitalBrain.NeuronId publisher, string! alias, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Runtime.Orleans.Signalling.SessionSignal?>!
+static DigitalBrain.Runtime.Orleans.Signalling.SignalLog.ToSignal(DigitalBrain.Runtime.Orleans.JournalSignalEntry! entry) -> DigitalBrain.Runtime.Orleans.Signalling.SessionSignal!
+DigitalBrain.Runtime.Orleans.Signalling.SignalLog
+DigitalBrain.Runtime.Orleans.Hosting.NeuronProxyHosting
+static DigitalBrain.Runtime.Orleans.Hosting.NeuronProxyHosting.AddNeuronProxies(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

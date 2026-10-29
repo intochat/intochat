@@ -1,31 +1,24 @@
 using Microsoft.Extensions.Configuration;
-using IntoChat.OS;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Configuration;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
-public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"))
+[DigitalBrain.Module(ManifestName)]
+public sealed class AspireModule : DigitalBrain.Module
 {
     internal const string ManifestName = "aspire";
 
-    // R4-04: what the module needs from its host (AspireNeurons).
-    public static DigitalBrain.ModuleManifest Manifest => AspireNeurons.Manifest;
+    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        Provides: [],
+        Requires: [],
+        Needs: [],
+        Settings: [DigitalBrain.Setting.Of<AspireOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(ManifestName))],
+        Secrets: []);
 
-    // The candidates, their queue (06-06d) and the deployment (06-08) are plain neurons on the runtime's host grains.
-    public override Type? Neurons => typeof(AspireNeurons);
-
-    public override System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.Aspire.IDeployment).Assembly;
+    public static System.Reflection.Assembly? Contracts => typeof(IDeployment).Assembly;
 
     // Candidate builds receive model credentials and their own fresh stores.
     public const string WorkdirField = "Workdir";
@@ -45,24 +38,13 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
         Signals = [typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
     };
 
-    public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton<Candidates.IProcessRunner, Candidates.SystemProcessRunner>();
         services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
         services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
         services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
     }
-}
-
-// The DigitalBrain module of Aspire (06-06d): its assembly's [Neuron] classes run on the runtime's host grains.
-[DigitalBrain.Module(AspireModule.ManifestName)]
-public sealed class AspireNeurons : DigitalBrain.Module
-{
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
-        Provides: [],
-        Requires: [],
-        Needs: [],
-        Settings: [DigitalBrain.Setting.Of<AspireOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(AspireModule.ManifestName))],
-        Secrets: []);
 }

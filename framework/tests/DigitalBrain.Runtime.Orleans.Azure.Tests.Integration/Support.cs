@@ -38,7 +38,7 @@ public sealed class CloudProbeGrain([PersistentState("probe", IntoChatOSNames.Pl
 [Module("drive-test")]
 public sealed class DriveModule : Module
 {
-    public static ModuleManifest Manifest { get; } = new([], [], [Need.GrainStore("drive")], [], []);
+    public static ModuleManifest Manifest { get; } = new([], [], [Need.State("drive")], [], []);
 }
 
 /// <summary>A stand-in for BrainLog (os AddBrainStorage): the host's cluster store registration.</summary>

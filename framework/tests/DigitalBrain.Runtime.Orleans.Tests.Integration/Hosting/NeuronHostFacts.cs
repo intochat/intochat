@@ -49,7 +49,7 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
         var probe = silo.Get<IProbe>("b1/probe/a");
         Assert.Equal("b1/probe/a", await probe.Key());
         var id = NeuronId.Parse("b1/probe/a");
-        var host = new OrleansInvocationSink(silo.Grains, silo.Services.GetRequiredService<NeuronTypeRegistry>(), null).Host(id, Calls.Of("", "b1/probe/a", "Key"));
+        var host = (await new OrleansInvocationSink(silo.Grains, silo.Services.GetRequiredService<NeuronTypeRegistry>(), null).Host(id, Calls.Of("", "b1/probe/a", "Key"), CancellationToken.None)).Host;
         var grain = host.GetGrainId();
         Assert.Equal("neuron.host", grain.Type.ToString());
         Assert.Equal("b1/probe/a", grain.Key.ToString());
@@ -107,8 +107,8 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
     public async Task A_StatelessNeuron_is_hosted_by_neuron_host_stateless_and_answers_from_several_activations_at_once()
     {
         var id = NeuronId.Parse("b1/probe.stateless/s");
-        var host = new OrleansInvocationSink(silo.Grains, silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
-            .Host(id, new RuntimeInvocation("", NeuronProxy.ContractName(typeof(IStatelessProbe)), id.ToString(), "Busy", []));
+        var host = (await new OrleansInvocationSink(silo.Grains, silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
+            .Host(id, new RuntimeInvocation("", NeuronProxy.ContractName(typeof(IStatelessProbe)), id.ToString(), "Busy", []), CancellationToken.None)).Host;
         Assert.Equal("neuron.host.stateless", host.GetGrainId().Type.ToString());
 
         var probe = silo.Get<IStatelessProbe>("b1/probe.stateless/s");

@@ -1,0 +1,70 @@
+{
+  "title": "recovery",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Profile"
+      },
+      {
+        "kind": "text",
+        "value": "Your name, photo and how you sign in."
+      },
+      {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "text",
+            "value": "Recovery codes"
+          },
+          {
+            "kind": "text",
+            "value": "Save these 10 codes somewhere safe. Each works once if you lose your authenticator. They will not be shown again."
+          },
+          {
+            "kind": "text",
+            "value": "a1b2c3d4"
+          },
+          {
+            "kind": "button",
+            "label": "Download backup codes (.txt)",
+            "action": {
+              "neuron": "account",
+              "operation": "download",
+              "arguments": []
+            },
+            "enabled": true,
+            "tone": "neutral"
+          },
+          {
+            "kind": "button",
+            "label": "I have saved these codes",
+            "action": {
+              "neuron": "account",
+              "operation": "ack",
+              "arguments": []
+            },
+            "enabled": true,
+            "tone": "neutral"
+          },
+          {
+            "kind": "button",
+            "label": "Done",
+            "action": {
+              "neuron": "account",
+              "operation": "done",
+              "arguments": []
+            },
+            "enabled": false,
+            "tone": "accent"
+          },
+          {
+            "kind": "text",
+            "value": "Authenticator removed. Your other devices were signed out."
+          }
+        ]
+      }
+    ]
+  }
+}

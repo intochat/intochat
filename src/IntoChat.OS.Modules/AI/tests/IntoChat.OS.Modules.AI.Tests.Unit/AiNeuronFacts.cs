@@ -12,7 +12,7 @@ using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Signals;
-using IntoChat.OS.Testing.Neurons;
+using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.AI.Tests;
 

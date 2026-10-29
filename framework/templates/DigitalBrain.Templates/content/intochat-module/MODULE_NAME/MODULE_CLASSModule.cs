@@ -13,7 +13,7 @@ public sealed class MODULE_CLASSModule : Module
     public static ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
-        Needs: [Need.GrainStore("state")],
+        Needs: [Need.State("state")],
         Settings: [Setting.Of<MODULE_CLASSOptions>()],
         Secrets: []);
 }

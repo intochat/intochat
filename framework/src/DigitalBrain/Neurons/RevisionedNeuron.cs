@@ -31,6 +31,9 @@ public sealed class RevisionConflictException : Exception
 
     /// <summary>The revision the state is at.</summary>
     public long CurrentRevision { get; }
+
+    /// <summary>The refusal header the runtime edge answers with.</summary>
+    public const string Code = "RevisionConflict";
 }
 
 /// <summary>A neuron whose state carries a revision checked optimistically on each commit, and whose operations are idempotent.</summary>

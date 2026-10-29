@@ -17,7 +17,9 @@ None.
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `ConnectionString` | yes |
 
 Contracts: assembly `IntoChat.OS.Modules.ClickHouse.Contracts` (`IClickHouse`).
 Hosting: needs a container.

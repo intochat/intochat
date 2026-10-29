@@ -12,6 +12,7 @@ using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -21,7 +22,7 @@ internal static class PublicationButton
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private sealed record Command(AppPublicationRef Publication, string TargetName, Guid OperationId);
 
-    public static async Task Handle(IntoChat.OS.Runtime.IPlainNeurons plain, string brain, string application, string button,
+    public static async Task Handle(IServiceProvider plain, string brain, string application, string button,
         UiEvent uiEvent, Func<AppPublicationRef, string, Guid, Task<AppSnapshot>> install)
     {
         ArgumentNullException.ThrowIfNull(uiEvent);
@@ -35,11 +36,11 @@ internal static class PublicationButton
         var app = IApp.Key(brain, application);
         if (uiEvent.As<ButtonClicked>() is not { } click || click.Name != app + "/" + button || click.RequestId == Guid.Empty)
         { throw new ArgumentException("This handler accepts only its publication button.", nameof(uiEvent)); }
-        var status = plain.Get<IText>(app + "/status");
+        var status = SiloNeurons.Get<IText>(plain, app + "/status");
         try
         {
             // The owning neuron serializes captures. Retries keep the original name and release.
-            var capture = plain.Get<IText>(app + "/commands/" + caller.AccountId + "/" + click.RequestId.ToString("N"));
+            var capture = SiloNeurons.Get<IText>(plain, app + "/commands/" + caller.AccountId + "/" + click.RequestId.ToString("N"));
             var saved = (await capture.Read()).Markdown;
             Command command;
             if (!string.IsNullOrEmpty(saved))
@@ -47,13 +48,13 @@ internal static class PublicationButton
             else
             {
                 var reference = JsonSerializer.Deserialize<AppPublicationRef>(click.Action, Json) ?? throw new ArgumentException("Missing publication.");
-                var form = await plain.Get<IForm>(app + "/forms/" + reference.Digest).Read();
+                var form = await SiloNeurons.Get<IForm>(plain, app + "/forms/" + reference.Digest).Read();
                 command = new(reference, form.Fields.Single(field => field.Name == "name").Value?.Trim() ?? "", click.RequestId);
                 await capture.Set(JsonSerializer.Serialize(command, Json));
             }
             var commandKey = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
                 JsonSerializer.Serialize(new { command.Publication, command.TargetName }, Json))));
-            var pending = plain.Get<IText>(app + "/pending/" + caller.AccountId + "/" + commandKey);
+            var pending = SiloNeurons.Get<IText>(plain, app + "/pending/" + caller.AccountId + "/" + commandKey);
             var prior = (await pending.Read()).Markdown;
             if (!string.IsNullOrEmpty(prior))
             { command = JsonSerializer.Deserialize<Command>(prior, Json) ?? throw new ArgumentException("Missing pending command."); }
@@ -64,11 +65,11 @@ internal static class PublicationButton
                 && (!installed.Connections.TryGetValue(slot.Name, out var connection)
                     || string.IsNullOrWhiteSpace(connection))).Select(slot => slot.Name).ToArray();
             var state = missing.Length > 0 ? "Needs setup: " + string.Join(", ", missing) : installed.Status.ToString();
-            await plain.Get<ICard>(app + "/installed").Set("Your copy", state + ". Connections belong to this destination.");
+            await SiloNeurons.Get<ICard>(plain, app + "/installed").Set("Your copy", state + ". Connections belong to this destination.");
             List<UiChildRef> controls = [new("card", app + "/installed")];
             await AddButton("configure-installed", "Configure app", "configuration");
             await AddButton("open-installed", "Open app", null);
-            var layout = plain.Get<ILayout>(app + "/result");
+            var layout = SiloNeurons.Get<ILayout>(plain, app + "/result");
             await layout.Set(new("list", [.. controls]), (await layout.Read()).Revision);
             await status.Set("Installed " + installed.Name + " · " + installed.Version + " · from @" + installed.Origin?.Publisher + ". " + state + ".");
             await pending.Set("");
@@ -76,7 +77,7 @@ internal static class PublicationButton
             async Task AddButton(string id, string label, string? view)
             {
                 var key = app + "/" + id;
-                await plain.Get<IButton>(key).SetActivation(label, JsonSerializer.Serialize(new
+                await SiloNeurons.Get<IButton>(plain, key).SetActivation(label, JsonSerializer.Serialize(new
                 { kind = "workspace", brainId = brain, application = installed.Name, view }, Json));
                 controls.Add(new("button", key));
             }

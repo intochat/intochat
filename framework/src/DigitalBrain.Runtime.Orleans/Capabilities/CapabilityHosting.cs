@@ -39,6 +39,7 @@ public static class CapabilityHosting
     internal static void AddCapabilityBroker(this IServiceCollection services)
     {
         var registry = Registry(services);
+        services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Capabilities.Storage.StorageAccessLog>();
         services.TryAddSingleton(sp => new CapabilityBroker(
             registry,
             sp.GetService<ICapabilityConnections>()

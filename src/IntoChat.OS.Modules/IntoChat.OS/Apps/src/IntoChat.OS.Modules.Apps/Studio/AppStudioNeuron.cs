@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -17,13 +19,13 @@ internal sealed class AppStudioNeuron(Creator creator) : DigitalBrain.Neuron, IA
     private string Scope => Id.Brain.Value;
 
     public Task<AppSnapshot> Author(string request, CancellationToken ct)
-        => creator.Author(Context.Services.GetRequiredService<IIntoChatOS>(), Scope, null, request, ct);
+        => creator.Author(Context.Services.GetRequiredService<INeuronProxies>(), Scope, null, request, ct);
 
     public async Task<AppSnapshot> Build(string request, CancellationToken ct)
     {
         var authored = await Author(request, ct);
         var key = IApp.Key(Scope, authored.Name);
-        await creator.Implement(Context.Services.GetRequiredService<IIntoChatOS>(), key, null, ct);
+        await creator.Implement(Context.Services.GetRequiredService<INeuronProxies>(), key, null, ct);
         var app = Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Scope.Length + 1)..]));
         var deadline = DateTimeOffset.UtcNow + BuildTimeout;
         while (DateTimeOffset.UtcNow < deadline)

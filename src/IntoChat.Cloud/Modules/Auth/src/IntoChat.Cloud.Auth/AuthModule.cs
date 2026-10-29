@@ -24,6 +24,8 @@ public sealed class AuthModule : Module
 {
     public const string Id = "auth";
     public const string OptionsSection = "IntoChatOS:Modules:" + Id + ":Options";
+    // Composed only when Topology=cloud. A local kernel lists the module and does not load it.
+    public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     // Auth requires identity@1 (it provisions the verified principal) and secrets@1. It does not list identity@1 under Provides: the
     // runtime accepts a provider only when the module holds a neuron implementing IIdentity (ModuleCapabilityValidator) and
@@ -60,6 +62,7 @@ public sealed class AuthModule : Module
         services.TryAddSingleton<LoginService>();
         services.TryAddSingleton<ExternalTicketIssuer>();
         services.TryAddSingleton<AuthIdentityProvider>();
+        services.TryAddSingleton<IntoChat.Cloud.Auth.Ui.IAccountAuth, IntoChat.Cloud.Auth.Ui.UnconfiguredAccountAuth>();
         services.TryAddSingleton<IIdentitySessionPort>(provider => provider.GetRequiredService<AuthIdentityProvider>());
         services.TryAddSingleton<AuthLicenseGate>();
         GoogleWiring.Register(services);
@@ -67,4 +70,7 @@ public sealed class AuthModule : Module
         services.AddSingleton<IHostedService, AuthStartupGuard>();
         services.AddHealthChecks().AddCheck<AuthLicenseHealthCheck>("auth-license");
     }
+
+    // The kernel's legacy-route facts map this without starting the silo. Anonymous JSON APIs stay; the old portal pages are not here.
+    public static void MapHttp(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints) => new Http.AuthHttpSurface().Map(endpoints);
 }

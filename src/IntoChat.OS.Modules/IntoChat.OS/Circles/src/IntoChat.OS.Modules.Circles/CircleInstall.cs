@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -9,7 +11,7 @@ namespace IntoChat.OS.Modules.Circles;
 // its Apps detail, where the person sees what it asks for and installs it.
 internal static class CircleInstall
 {
-    public static async Task<AppSnapshot> InstallExact(this AppInstaller installer, IIntoChatOS brain, AppPublicationRef publication, string targetName, Guid operationId)
+    public static async Task<AppSnapshot> InstallExact(this AppInstaller installer, INeuronProxies brain, AppPublicationRef publication, string targetName, Guid operationId)
     {
         ArgumentNullException.ThrowIfNull(publication);
         var request = new InstallRequest(new(publication.Publisher, publication.Name, publication.Version, publication.Digest),

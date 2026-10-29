@@ -1,3 +1,5 @@
+using IntoChat.OS.Runtime;
+using DigitalBrain.Spi;
 using System.Text.Json;
 using IntoChat.OS.Confirmation;
 using IntoChat.OS.Modules.Apps;
@@ -35,6 +37,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter;
@@ -52,7 +55,7 @@ internal static class AppUiEndpoints
             var provider = providers.SingleOrDefault();
             return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
         });
-        apps.MapGet("/node", async (string kind, string name, IIntoChatOS brain, CancellationToken ct) =>
+        apps.MapGet("/node", async (string kind, string name, INeuronProxies brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             if (kind == UIVocabulary.ConfirmationType)
@@ -123,7 +126,7 @@ internal static class AppUiEndpoints
                 _ => throw new ArgumentException("Unknown app UI kind.")
             };
         });
-        apps.MapPost("/event", async (UiEvent input, IIntoChatOS brain, CancellationToken ct) =>
+        apps.MapPost("/event", async (UiEvent input, INeuronProxies brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             if (input.Kind == UIVocabulary.ConfirmationType)
@@ -229,9 +232,9 @@ internal static class AppUiEndpoints
         });
 
         UiHttp.MapGet<ITable, TableState>(endpoints, "tables", neuron => neuron.Read());
-        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, [MicrosoftSdk.AspNetCore.Mvc.FromServices] IntoChat.OS.Runtime.IPlainNeurons plain, CancellationToken ct) =>
+        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, [MicrosoftSdk.AspNetCore.Mvc.FromServices] IServiceProvider plain, CancellationToken ct) =>
         {
-            await plain.Get<ITable>(name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
+            await SiloNeurons.Get<ITable>(plain, name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
             return Results.Accepted();
         });
     }
@@ -245,7 +248,7 @@ internal static class AppUiEndpoints
         catch (FormatException) { throw new ArgumentException("Audio must be base64 encoded."); }
     }
 
-    private static async Task<string> ResolveViewAlias(IIntoChatOS brain, string scope, string name, CancellationToken ct)
+    private static async Task<string> ResolveViewAlias(INeuronProxies brain, string scope, string name, CancellationToken ct)
     {
         if (!name.EndsWith("/view", StringComparison.Ordinal)) { return name; }
         var appKey = name[..^5];

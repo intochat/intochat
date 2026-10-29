@@ -51,6 +51,26 @@ public sealed class LegacyConfigurationGuardFacts
     }
 
     [Fact]
+    public void AnExplicitHomeChecksThatHomeOnly()
+    {
+        var machine = Directory.CreateTempSubdirectory("legacy-machine-").FullName;
+        var home = Directory.CreateTempSubdirectory("legacy-home-").FullName;
+        Directory.CreateDirectory(Path.Combine(machine, Old));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["IntoChatOS:Home"] = home,
+        }).Build();
+        LegacyConfigurationGuard.Verify(configuration, Host(Environments.Production), [], machine);
+        Directory.CreateDirectory(Path.Combine(home, Old));
+        var exception = Assert.Throws<InvalidOperationException>(() => LegacyConfigurationGuard.Verify(configuration, Host(Environments.Production), [], machine));
+        Assert.Contains(Path.Combine(home, Old), exception.Message);
+        Assert.DoesNotContain(machine, exception.Message);
+        Assert.True(Directory.Exists(Path.Combine(machine, Old)));
+        Directory.Delete(machine, recursive: true);
+        Directory.Delete(home, recursive: true);
+    }
+
+    [Fact]
     public void CurrentNamesAreNotOffenders()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

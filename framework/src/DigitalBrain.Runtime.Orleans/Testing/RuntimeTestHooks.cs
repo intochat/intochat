@@ -39,7 +39,7 @@ internal static class RuntimeTestHooks
         var types = services.GetRequiredService<NeuronTypeRegistry>();
         var sink = new OrleansInvocationSink(services.GetRequiredService<IGrainFactory>(), types, null);
         var key = id.ToString();
-        var host = sink.Host(id, new RuntimeInvocation(string.Empty, string.Empty, key, string.Empty, []));
+        var host = (await sink.Host(id, new RuntimeInvocation(string.Empty, string.Empty, key, string.Empty, []), CancellationToken.None).ConfigureAwait(false)).Host;
         await host.Cast<IGrainManagementExtension>().DeactivateOnIdle().ConfigureAwait(false);
     }
 

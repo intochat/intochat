@@ -2,5 +2,4 @@
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Supabase/IntoChat.OS.Modules.Supabase.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Remove="IntoChat.OS.Testing" /></ItemGroup>
 </Project>

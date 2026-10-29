@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
@@ -35,7 +36,7 @@ public sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> op
         ArgumentNullException.ThrowIfNull(request);
         var type = Type.GetType(request.SignalType, throwOnError: false);
         // An os Signal, or a plain neuron's [Signal] record (06-08: AppRequested is plain).
-        if (type is null || !(typeof(Signal).IsAssignableFrom(type) || typeof(DigitalBrain.Signal).IsAssignableFrom(type)))
+        if (type is null || !typeof(DigitalBrain.Signal).IsAssignableFrom(type))
         { return new([new(Library, false, $"this sandbox does not know the signal {request.SignalType}")]); }
         var signal = request.Signal.Deserialize(type, RuntimeProtocol.Json)!;
         var clock = System.Diagnostics.Stopwatch.StartNew();

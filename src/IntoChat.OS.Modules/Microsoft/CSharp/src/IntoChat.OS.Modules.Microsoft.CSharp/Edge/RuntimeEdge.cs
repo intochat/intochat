@@ -10,7 +10,10 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Http;
+using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using Orleans;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 
@@ -18,8 +21,8 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Edge;
 // for the session its runtime currently records, only neuron contracts from installed contract
 // assemblies are callable, and each call carries the behavior owner's caller context re-stamped as an
 // app behind the app proxy.
-internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IntoChat.OS.Runtime.IStillGrains grains, SessionStreams streams, IKernel kernel, RuntimeDirectory directory,
-    IntoChat.OS.Runtime.IPlainNeurons? plain = null)
+internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGrainFactory grains, SessionStreams streams, IKernel kernel, RuntimeDirectory directory,
+    IServiceProvider? plain = null)
 {
     public async Task<(SessionClaims Claims, IBrainRuntimeEdge Runtime)> AuthorizeAsync(string brainId, string? token)
     {
@@ -52,7 +55,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, Int
                 : cancellationToken;
         }
         // Transitional (06-07): a plain contract (06-03 seam) is called on its runtime host after the same access checks.
-        var neuron = IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract) ? Plain.Get(contract, invocation.Key) : grains.Get(contract, invocation.Key);
+        var neuron = IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract) ? SiloNeurons.Get(Plain, contract, invocation.Key) : grains.GetGrain(contract, invocation.Key);
         Stamp(identity);
         object? returned;
         try { returned = method.Invoke(neuron, values); }
@@ -78,7 +81,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, Int
                 break;
             case RuntimeProtocol.KernelInstances when invocation.Arguments.Length == 2:
                 var type = Argument(0) is { } contract ? kernel.TypeOf(Callable(contract)) : Argument(1);
-                List<Instance> listed = [];
+                List<BrainInstance> listed = [];
                 await foreach (var instance in kernel.Instances(type, cancellationToken).ConfigureAwait(false)) { listed.Add(instance); }
                 answer = listed.ToArray();
                 break;
@@ -118,7 +121,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, Int
             var contract = Callable(subscribe.Contract);
             // A neuron is named by its runtime id; the runtime hears it through the session synapse neuron.
             var neuron = IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract)
-                ? PlainSources.Of(Plain.IdOf(contract, subscribe.Key))
+                ? PlainSources.Of(SiloNeurons.IdOf(contract, subscribe.Key))
                 : throw new ArgumentException($"{subscribe.Contract} is not a neuron contract.");
             var identity = await IdentityOf(brainId, claims.Session, subscribe.Behavior).ConfigureAwait(false);
             RequireTargetBrain(brainId, subscribe.Key, "Watch", identity, contract.GetCustomAttribute<AccessAttribute>());
@@ -168,7 +171,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, Int
         finally { streams.Close(session, channel); }
     }
 
-    private IntoChat.OS.Runtime.IPlainNeurons Plain => plain ?? throw new NotSupportedException("This host does not reach plain neurons: the kernel composition registers them.");
+    private IServiceProvider Plain => plain ?? throw new NotSupportedException("This host does not reach plain neurons: the kernel composition registers them.");
 
     private Type Callable(string name)
         // Only neuron contracts are kernel types; kernel grains and inbound plumbing are not neurons.
@@ -185,7 +188,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, Int
 
     // The brain's runtime is a plain neuron (06-08), reached through the host seam.
     private IBrainRuntimeEdge Runtime(string brainId)
-        => Plain.Get<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
+        => SiloNeurons.Get<IBrainRuntimeEdge>(Plain, BrainRuntimeKeys.For(brainId));
 
     private SessionClaims ValidateToken(string brainId, string? token)
     {

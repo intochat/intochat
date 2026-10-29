@@ -26,7 +26,7 @@ public sealed partial class CircleServerModule : Module
     public static ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [CapabilityId.Parse("identity@1")],
-        Needs: [Need.GrainStore(GrainStore), Need.Http],
+        Needs: [Need.State(GrainStore), Need.Http],
         Settings: [Setting.Of<CircleServerOptions>(OptionsSection)],
         Secrets: [Secret.Named("circle-deployment-key")]);
 

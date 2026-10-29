@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Synapses;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,7 +20,7 @@ namespace DigitalBrain.Runtime.Orleans.Signalling;
 internal sealed partial class ClusterListeners(IServiceProvider services) : IClusterListeners, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<(string Listener, Type Signal), Handler> _handlers = new();
-    private readonly Channel<(NeuronId Publisher, Signal Signal)> _queue = Channel.CreateUnbounded<(NeuronId, Signal)>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<(NeuronId Publisher, Signal Signal, CapabilityCaller? Caller)> _queue = Channel.CreateUnbounded<(NeuronId, Signal, CapabilityCaller?)>(new UnboundedChannelOptions { SingleReader = true });
     private readonly CancellationTokenSource _stopping = new();
     private readonly ILogger _log = services.GetService<ILoggerFactory>()?.CreateLogger<ClusterListeners>() ?? NullLogger<ClusterListeners>.Instance;
     private Task? _pump;
@@ -52,9 +54,11 @@ internal sealed partial class ClusterListeners(IServiceProvider services) : IClu
     internal void Offer(NeuronId publisher, IReadOnlyList<Signal> signals)
     {
         if (_handlers.IsEmpty) { return; }
+        // The pump is not the publishing call. The caller's stamp is on this turn and does not flow onto that task.
+        var caller = RuntimeCallerContext.Current;
         foreach (var signal in signals)
         {
-            if (_handlers.Values.Any(item => item.Type.IsInstanceOfType(signal))) { _queue.Writer.TryWrite((publisher, signal)); }
+            if (_handlers.Values.Any(item => item.Type.IsInstanceOfType(signal))) { _queue.Writer.TryWrite((publisher, signal, caller)); }
         }
     }
 
@@ -62,8 +66,9 @@ internal sealed partial class ClusterListeners(IServiceProvider services) : IClu
     {
         try
         {
-            await foreach (var (publisher, signal) in _queue.Reader.ReadAllAsync(_stopping.Token).ConfigureAwait(false))
+            await foreach (var (publisher, signal, caller) in _queue.Reader.ReadAllAsync(_stopping.Token).ConfigureAwait(false))
             {
+                using var scope = caller is null ? null : RuntimeCallerContext.Stamp(caller);
                 foreach (var handler in _handlers.Values.Where(item => item.Type.IsInstanceOfType(signal)).ToArray())
                 {
                     try { await handler.Run(publisher, signal, _stopping.Token).ConfigureAwait(false); }

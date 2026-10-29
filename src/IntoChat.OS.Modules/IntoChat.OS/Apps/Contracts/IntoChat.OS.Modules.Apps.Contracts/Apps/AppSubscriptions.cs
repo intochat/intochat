@@ -6,11 +6,11 @@ namespace IntoChat.OS.Modules.Apps;
 // An app's operations arrive as AppRequested; a synapse for one operation watches only that one.
 public static class AppSubscriptions
 {
-    public static IAsyncEnumerable<AppRequested> On(this IIntoChatOS brain, IApp app, string operation, CancellationToken cancellationToken = default)
+    public static IAsyncEnumerable<AppRequested> On(this ISignalWatch brain, IApp app, string operation, CancellationToken cancellationToken = default)
         => On(brain, app, operation, static () => Task.CompletedTask, cancellationToken);
 
     // onSubscribed runs once the subscription is registered: requests made after it are delivered.
-    public static async IAsyncEnumerable<AppRequested> On(this IIntoChatOS brain, IApp app, string operation, Func<Task> onSubscribed,
+    public static async IAsyncEnumerable<AppRequested> On(this ISignalWatch brain, IApp app, string operation, Func<Task> onSubscribed,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(brain);

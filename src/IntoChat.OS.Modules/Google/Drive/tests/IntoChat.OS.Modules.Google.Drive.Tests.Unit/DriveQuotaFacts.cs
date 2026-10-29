@@ -48,6 +48,7 @@ public sealed class DriveErrorsFacts
     [InlineData(401, null, "needs-auth")]
     [InlineData(403, "storageQuotaExceeded", "quota-exceeded")]
     [InlineData(403, "insufficientFilePermissions", "denied")]
+    [InlineData(403, "insufficientPermissions", "unsupported")]
     [InlineData(403, "rateLimitExceeded", "unavailable")]
     [InlineData(429, null, "unavailable")]
     [InlineData(503, null, "unavailable")]

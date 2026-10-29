@@ -212,11 +212,11 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     async Task<IReadOnlyList<string>> IHostTicks.ReminderNames()
         => [.. (await this.GetReminders().ConfigureAwait(true)).Select(reminder => reminder.ReminderName)];
 
-    // A timer or reminder tick: a turn on this grain that reaches IRemindedNeuron.OnReminder, then runs deferred work.
+    // A timer or reminder tick: a turn on this grain that reaches Neuron.OnReminder, then runs deferred work.
     private async Task Tick(string name, CancellationToken cancellationToken)
     {
-        if (_neuron is not IRemindedNeuron reminded) { return; }
-        try { await reminded.OnReminder(name, cancellationToken).ConfigureAwait(true); }
+        if (_neuron is not { } neuron) { return; }
+        try { await NeuronAttachment.Remind(neuron, name, cancellationToken).ConfigureAwait(true); }
         finally { await Drain().ConfigureAwait(true); }
     }
 

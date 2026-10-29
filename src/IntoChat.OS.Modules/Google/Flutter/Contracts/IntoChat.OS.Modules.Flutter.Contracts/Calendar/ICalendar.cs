@@ -12,12 +12,11 @@ public interface ICalendar
     [DigitalBrain.ReadOnlyCall] Task<CalendarState> Read();
 }
 
-[GenerateSerializer, Alias("ui.calendar-state")]
 [ExportableState]
 public sealed class CalendarState
 {
-    [Id(0)] public string Name { get; set; } = "";
-    [Id(1)] public int Version { get; set; }
-    [Id(2)] public string Mode { get; set; } = "day";
-    [Id(3)] public List<string> Selected { get; set; } = [];
+    public string Name { get; set; } = "";
+    public int Version { get; set; }
+    public string Mode { get; set; } = "day";
+    public List<string> Selected { get; set; } = [];
 }

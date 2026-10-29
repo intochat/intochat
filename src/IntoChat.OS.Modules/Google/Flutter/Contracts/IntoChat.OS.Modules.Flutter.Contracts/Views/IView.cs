@@ -12,8 +12,7 @@ public interface IView
     Task Activate(long generation, string key, string expectedAction, Guid requestId);
 }
 
-[GenerateSerializer, Alias("ui.view")]
-public sealed record UiView([property: Id(0)] long Generation, [property: Id(1)] long Version, [property: Id(2)] UiNode Root);
+public sealed record UiView(long Generation, long Version, UiNode Root);
 
 public enum UiNodeKind { Text = 0, Button = 1, Column = 2, Row = 3, Card = 4, Reference = 5, Menu = 6, Modal = 7, Toast = 8, List = 9, Badge = 10, Avatar = 11, Divider = 12, Tabs = 13 }
 
@@ -21,21 +20,20 @@ public enum UiStyle { Primary = 0, Secondary = 1, Ghost = 2, Danger = 3, Link = 
 
 public enum UiTone { Neutral = 0, Done = 1, Working = 2, Error = 3 }
 
-[GenerateSerializer, Alias("ui.node")]
-public sealed record UiNode([property: Id(0)] UiNodeKind Kind, [property: Id(1)] string Key)
+public sealed record UiNode(UiNodeKind Kind, string Key)
 {
-    [Id(2)] public string? Text { get; init; }
-    [Id(3)] public string? Detail { get; init; }
-    [Id(4)] public string? Action { get; init; }
-    [Id(5)] public bool Enabled { get; init; } = true;
-    [Id(6)] public UiNode[] Children { get; init; } = [];
-    [Id(7)] public double[]? Extents { get; init; }
-    [Id(8)] public UiChildRef? Reference { get; init; }
-    [Id(9)] public double Gap { get; init; } = 12;
-    [Id(10)] public bool FollowEnd { get; init; }
-    [Id(11)] public string? Icon { get; init; }
-    [Id(12)] public UiStyle Style { get; init; }
-    [Id(13)] public UiTone Tone { get; init; }
+    public string? Text { get; init; }
+    public string? Detail { get; init; }
+    public string? Action { get; init; }
+    public bool Enabled { get; init; } = true;
+    public UiNode[] Children { get; init; } = [];
+    public double[]? Extents { get; init; }
+    public UiChildRef? Reference { get; init; }
+    public double Gap { get; init; } = 12;
+    public bool FollowEnd { get; init; }
+    public string? Icon { get; init; }
+    public UiStyle Style { get; init; }
+    public UiTone Tone { get; init; }
 }
 
 public static class Ui

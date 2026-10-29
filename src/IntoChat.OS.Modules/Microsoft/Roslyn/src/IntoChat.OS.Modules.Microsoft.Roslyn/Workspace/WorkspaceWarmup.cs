@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
@@ -8,7 +9,7 @@ namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 internal sealed class WorkspaceWarmup(
     SolutionWorkspace workspace,
     SolutionFileWatcher watcher,
-    IntoChat.OS.Runtime.IPlainNeurons plain,
+    IServiceProvider plain,
     IOptions<RoslynModuleOptions> options,
     ILogger<WorkspaceWarmup> logger) : IHostedService
 {
@@ -72,7 +73,7 @@ internal sealed class WorkspaceWarmup(
         }
 
         // The workspace is a cluster-scoped plain neuron in the system brain (06-06a, R4-19).
-        var neuron = plain.Get<IRoslyn>($"{RoslynNeuron.SystemBrain}/{key}");
+        var neuron = SiloNeurons.Get<IRoslyn>(plain, $"{RoslynNeuron.SystemBrain}/{key}");
         for (var attempt = 0; attempt < 30; attempt++)
         {
             try

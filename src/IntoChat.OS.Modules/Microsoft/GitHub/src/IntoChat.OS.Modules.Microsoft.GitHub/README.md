@@ -19,10 +19,16 @@ Options:
 | `ClientId` | `String` | `` | no |
 | `PublicOrigin` | `Uri` | unset | no |
 | `PublicWebhookUrl` | `String` | `` | no |
+| `AppId` | integration setting | unset | yes |
+| `ClientId` | integration setting | unset | no |
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `ClientSecret` | no |
+| `PrivateKeyPem` | yes |
+| `WebhookSecret` | no |
 
 Contracts: assembly `IntoChat.OS.Modules.Microsoft.GitHub.Contracts` (`IRepository`).
 Hosting: runs in process.

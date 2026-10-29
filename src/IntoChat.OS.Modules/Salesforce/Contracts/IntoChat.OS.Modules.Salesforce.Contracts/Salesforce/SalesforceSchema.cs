@@ -1,4 +1,3 @@
 namespace IntoChat.OS.Modules.Salesforce;
 
-[GenerateSerializer, Alias("salesforce.schema")]
-public sealed record SalesforceSchema([property: Id(0)] string Content);
+public sealed record SalesforceSchema(string Content);

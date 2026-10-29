@@ -2,16 +2,14 @@ using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
-[GenerateSerializer, Alias("aspire.deployment.stage")]
 public enum DeploymentStage { Steady, Restarting, Rolling, RollingBack }
 
-[GenerateSerializer, Alias("aspire.deployment.snapshot")]
 public sealed record DeploymentSnapshot(
-    [property: Id(0)] string CurrentSha,
-    [property: Id(1)] DeploymentStage Stage,
-    [property: Id(2)] string? TargetSha,
-    [property: Id(3)] string[] Remaining,
-    [property: Id(4)] string? Failure);
+    string CurrentSha,
+    DeploymentStage Stage,
+    string? TargetSha,
+    string[] Remaining,
+    string? Failure);
 
 // A plain neuron (06-08).
 [DigitalBrain.Contracts.NeuronAlias("aspire.deployment"), DigitalBrain.Contracts.DefaultNeuronType("aspire.deployment")]

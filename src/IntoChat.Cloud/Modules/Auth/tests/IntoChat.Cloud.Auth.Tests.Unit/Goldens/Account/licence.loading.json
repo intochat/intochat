@@ -1,0 +1,29 @@
+{
+  "title": "licence",
+  "root": {
+    "kind": "column",
+    "children": [
+      {
+        "kind": "text",
+        "value": "Profile"
+      },
+      {
+        "kind": "text",
+        "value": "Your name, photo and how you sign in."
+      },
+      {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "text",
+            "value": "Licence"
+          },
+          {
+            "kind": "text",
+            "value": "Renews 2027-01-01"
+          }
+        ]
+      }
+    ]
+  }
+}

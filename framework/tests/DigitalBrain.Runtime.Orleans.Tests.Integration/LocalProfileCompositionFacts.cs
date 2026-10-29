@@ -55,7 +55,7 @@ public sealed class LocalProfileCompositionFacts
     [InlineData("pubsubstore")]
     public void A_module_grain_store_with_a_reserved_name_is_an_issue_naming_the_module(string name)
     {
-        var module = new ModuleManifest([], [], [Need.GrainStore(name)], [], []) { Id = "greedy" };
+        var module = new ModuleManifest([], [], [Need.State(name)], [], []) { Id = "greedy" };
         var issue = Assert.Single(new LocalProfile().Validate(new ConfigurationBuilder().Build(), [module]));
         Assert.Contains("greedy", issue.Key, StringComparison.Ordinal);
         Assert.Contains(name, issue.Message, StringComparison.Ordinal);

@@ -6,11 +6,6 @@ using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit;
 
-public sealed class DiscoveryModule(string id, Assembly? contracts = null) : IntoChat.OS.Framework.Modules.Module(new ModuleId(id))
-{
-    public override Assembly? Contracts => contracts ?? typeof(IDiscoveryFixture).Assembly;
-}
-
 public interface IPlainCapability
 {
     Task<string> Capability();
@@ -37,8 +32,10 @@ public sealed class DiscoveryOuter<T>
     public sealed record Nested<U>(T Value, U Number);
 }
 
-public interface IHiddenFixture : INeuron { Task Hidden(); }
-public interface IExpandingFixture : INeuron { Task<Expanding<int>> Read(); }
+[DigitalBrain.Contracts.DefaultNeuronType("fixture.hidden")]
+public interface IHiddenFixture { Task Hidden(); }
+[DigitalBrain.Contracts.DefaultNeuronType("fixture.expanding")]
+public interface IExpandingFixture { Task<Expanding<int>> Read(); }
 public sealed record Expanding<T>(Expanding<(T, T)>? Next);
 
 public sealed record DiscoveryRequest(DiscoveryAddress[] Recipients, string? Cursor, DiscoveryMode Mode)

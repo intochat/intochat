@@ -12,6 +12,7 @@ using IntoChat.OS.Modules.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using AzureSdk = Azure;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Authoring;
@@ -114,7 +115,7 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
                 // Whatever the ensuring or the second asking throws (an Orleans timeout, say) is no answer, never a failed request.
                 try
                 {
-                    await services.GetRequiredService<IntoChat.OS.Runtime.IPlainNeurons>().Get<IBrainRuntimeSession>(BrainRuntimeKeys.For(brain))
+                    await SiloNeurons.Get<IBrainRuntimeSession>(services, BrainRuntimeKeys.For(brain))
                         .Hold(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
                     answer = await runner.Judge(brain, request, deadline.Token).ConfigureAwait(false);
                 }

@@ -18,7 +18,7 @@ public sealed class SourceSetProxyFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = new SetBrain();
-        await using var session = await SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(Signal).Assembly]), brain, ct);
+        await using var session = await SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(IBrain).Assembly]), brain, ct);
         await using var connection = await Connect(session, ct);
         var sources = Sources.Of(connection.Get<ISource>("set-proxy-a"), connection.Get<ISource>("set-proxy-a"), connection.Get<ISource>("set-proxy-b"));
 

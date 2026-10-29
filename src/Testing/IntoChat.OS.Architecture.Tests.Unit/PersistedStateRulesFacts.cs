@@ -101,7 +101,8 @@ public sealed class PersistedStateRulesFacts
     [Fact]
     public void PublishedMessageContentIsTheOnlyCompatibleCollectionException()
     {
-        Assert.Empty(PersistedStateRules.ShapeViolations(typeof(AiMessage)));
+        // AiMessage is a JSON record. It carries no Orleans serializer, so the Id rules do not apply to it.
+        Assert.False(typeof(AiMessage).IsDefined(typeof(GenerateSerializerAttribute), false));
         Assert.NotEmpty(PersistedStateRules.ShapeViolations(typeof(OtherMessage)));
         Assert.NotEmpty(PersistedStateRules.ShapeViolations(typeof(InterfaceListState)));
         Assert.NotEmpty(PersistedStateRules.ShapeViolations(typeof(NestedListState)));

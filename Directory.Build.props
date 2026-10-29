@@ -61,11 +61,15 @@
 
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
-       and project shape, and get just the Aspire target from IntoChat.OS.Testing.Aspire. -->
+       and project shape. Module tests host on DigitalBrain.Testing (TestOS, SiloHost). -->
   <PropertyGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
-    <!-- The tier comes from the suffix; CI shards on `dotnet msbuild -getProperty:IntoChatOSTestTier`. -->
+    <!-- The MTP package sets this when its targets import. The tier jobs test from the archived
+         binaries and have no project.assets.json, so the flag has to be true here or the SDK
+         reports the project as VSTest. -->
+    <IsTestingPlatformApplication>true</IsTestingPlatformApplication>
+    <!-- The tier comes from the suffix. CI selects one tier with the Tier trait filter. -->
     <IntoChatOSTestTier>Legacy</IntoChatOSTestTier>
     <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">Unit</IntoChatOSTestTier>
     <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">Integration</IntoChatOSTestTier>
@@ -78,6 +82,9 @@
     <IntoChatOSNightly Condition="'$(IntoChatOSNightly)' == ''">true</IntoChatOSNightly>
     <IsTestProject Condition="'$(IntoChatOSNightly)' == 'false' And ('$(IntoChatOSTestTier)' == 'E2E' Or '$(IntoChatOSTestTier)' == 'Browser')">false</IsTestProject>
     <IsTestingPlatformApplication Condition="'$(IntoChatOSNightly)' == 'false' And ('$(IntoChatOSTestTier)' == 'E2E' Or '$(IntoChatOSTestTier)' == 'Browser')">false</IsTestingPlatformApplication>
+    <!-- A solution test of one tier must not invoke the other tiers: a tier with no selected tests exits 8. -->
+    <IsTestProject Condition="'$(IntoChatOSOnlyTier)' != '' And '$(IntoChatOSTestTier)' != '$(IntoChatOSOnlyTier)'">false</IsTestProject>
+    <IsTestingPlatformApplication Condition="'$(IntoChatOSOnlyTier)' != '' And '$(IntoChatOSTestTier)' != '$(IntoChatOSOnlyTier)'">false</IsTestingPlatformApplication>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
@@ -87,11 +94,10 @@
   <ItemGroup Condition="($(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))) And !$(MSBuildProjectName.EndsWith('.Tests.Support'))">
     <PackageReference Include="xunit.v3.mtp-v2" />
     <Using Include="Xunit" />
-    <Using Include="IntoChat.OS.Testing" />
-  </ItemGroup>
-  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">
-    <Using Include="IntoChat.OS.Testing.Aspire" />
-    <Using Include="IntoChat.OS.Kernel.Testing" />
+    <AssemblyAttribute Include="Xunit.TraitAttribute" Condition="'$(IntoChatOSTestTier)' != 'Legacy'">
+      <_Parameter1>Tier</_Parameter1>
+      <_Parameter2>$(IntoChatOSTestTier)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <PropertyGroup>

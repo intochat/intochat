@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Aspire.Hosting.ApplicationModel;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
@@ -11,7 +12,7 @@ internal sealed class FlutterWebBuildHealthCheck(
     Func<CancellationToken, Task<bool>>? bundleServed = null) : IHealthCheck
 {
     public FlutterWebBuildHealthCheck(ResourceLoggerService logs, IResource resource, EndpointReference endpoint)
-        : this(ct => ReadLines(logs, resource, ct), ct => BundleServedAsync(endpoint, ct)) { }
+        : this(ct => ReadLines(logs, resource, ct), ct => BundleServedAsync(endpoint, logs.GetLogger(resource), ct)) { }
 
     private static readonly HttpClient Probe = new() { Timeout = TimeSpan.FromSeconds(5) };
 
@@ -47,7 +48,7 @@ internal sealed class FlutterWebBuildHealthCheck(
         return HealthCheckResult.Unhealthy("Waiting for the current Flutter web compilation.");
     }
 
-    private static async Task<bool> BundleServedAsync(EndpointReference endpoint, CancellationToken ct)
+    private static async Task<bool> BundleServedAsync(EndpointReference endpoint, ILogger logger, CancellationToken ct)
     {
         try
         {
@@ -55,7 +56,10 @@ internal sealed class FlutterWebBuildHealthCheck(
                 HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
-        catch (Exception) when (!ct.IsCancellationRequested)
-        { return false; }
+        catch (Exception error) when (!ct.IsCancellationRequested)
+        {
+            logger.LogDebug(error, "Flutter web bundle probe failed.");
+            return false;
+        }
     }
 }

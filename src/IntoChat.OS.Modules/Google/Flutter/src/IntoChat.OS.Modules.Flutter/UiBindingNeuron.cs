@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using DigitalBrain.State;
@@ -47,8 +48,6 @@ internal static class UiEventDispatch
     }
 
     // The caller stamped at the trusted edge this dispatch descends from, or null (a background dispatch).
-    public static UiEventCaller? Caller()
-        => CallerContextStamper.TryGet(out var caller)
-            ? new(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.Kind.ToString(), caller.StampedBy.ToString(), caller.AppId, caller.OnBehalfOf)
-            : null;
+    public static CapabilityCaller? Caller()
+        => CallerContextStamper.TryGet(out var caller) ? caller : null;
 }

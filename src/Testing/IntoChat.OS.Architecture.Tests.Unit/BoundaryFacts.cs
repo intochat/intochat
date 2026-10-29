@@ -1,3 +1,4 @@
+using System.Reflection;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
@@ -12,19 +13,15 @@ public sealed class BoundaryFacts
     // configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Authority.Contracts", "IntoChat.OS.Client", "IntoChat.OS.Framework",
-        "IntoChat.OS.Connections", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority"
+        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Framework",
+        "IntoChat.OS.Client", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Modules.Identity.Contracts", "IntoChat.OS.Modules.Identity"
     ];
 
     [Theory]
     [InlineData("DigitalBrain", "IntoChat.OS")]
     [InlineData("IntoChat.OS", "IntoChat.OS.Framework")]
-    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Connections")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client.Orleans")]
-    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Authority")]
-    [InlineData("IntoChat.OS.Client", "IntoChat.OS.Authority")]
-    [InlineData("IntoChat.OS.Client.Orleans", "IntoChat.OS.Authority")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
             .Check(ProductionArchitecture.Graph.Value);
@@ -55,7 +52,7 @@ public sealed class BoundaryFacts
         var implementations = Repository.References(Repository.ProjectNamed("IntoChat.OS.Modules.Circles").Path)
             .Where(reference => reference.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && !reference.EndsWith(".Contracts", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(["IntoChat.OS.Modules.Apps"], implementations);
+        Assert.Equal(["IntoChat.OS.Modules.Apps", "IntoChat.OS.Modules.Identity"], implementations);
         var circles = Assert.Single(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name == "IntoChat.OS.Modules.Circles");
         Assert.Contains(circles.GetTypes(), type => type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
             .Any(constructor => constructor.GetParameters().Any(parameter => parameter.ParameterType.FullName == "IntoChat.OS.Modules.Apps.FeatureLoader")));
@@ -65,7 +62,7 @@ public sealed class BoundaryFacts
     public void FeatureModulesNeverDependOnTheCredentialImplementation()
     {
         var architecture = ProductionArchitecture.Graph.Value;
-        var platform = ArchRuleDefinition.Types().That().ResideInAssembly("IntoChat.OS.Authority");
+        var platform = ArchRuleDefinition.Types().That().ResideInAssembly("IntoChat.OS.Modules.Identity");
         var modules = ProductionArchitecture.Assemblies.Where(assembly => !KernelLayers.Contains(assembly.GetName().Name)).ToArray();
         Assert.NotEmpty(modules);
         foreach (var assembly in modules)
@@ -125,7 +122,7 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {
-            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly, typeof(IntoChat.OS.Framework.Modules.Module).Assembly, typeof(IIdentityProvisioning).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecretRedactor).Assembly, typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly, typeof(IIdentityProvisioning).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }
@@ -142,23 +139,16 @@ public sealed class BoundaryFacts
     public void ModuleOptionsContainNoCredentialMembers()
     {
         var options = ProductionArchitecture.Types.Where(type => !type.IsAbstract)
-            .Select(ModuleOptionsType)
-            .Where(type => type is not null)
-            .Select(type => type!)
+            .SelectMany(ModuleOptionsTypes)
             .Distinct().ToArray();
         Assert.NotEmpty(options);
         Assert.Empty(options.SelectMany(ContractRules.CredentialMembers));
     }
 
-    // Module options are the generic argument of a concrete module's Module<TOptions> base.
-    private static Type? ModuleOptionsType(Type type)
+    private static IEnumerable<Type> ModuleOptionsTypes(Type type)
     {
-        for (var current = type.BaseType; current is not null; current = current.BaseType)
-        {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Framework.Modules.Module<>))
-            { return current.GetGenericArguments()[0]; }
-        }
-        return null;
+        if (type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null || !typeof(DigitalBrain.Module).IsAssignableFrom(type)) { yield break; }
+        foreach (var setting in DigitalBrain.ModuleManifest.Of(type).Settings) { yield return setting.OptionsType; }
     }
 
     [Fact]
