@@ -29,7 +29,9 @@ public sealed class DriveModule : DigitalBrain.Module
     public static ConnectorDefinition Connector { get; } = new(DriveScopes.Connector, "Google Drive", [GoogleAuth.Integration], [GoogleAuth.Integration])
     {
         Neurons = [typeof(ILegacyStorage)],
-        OAuthMethods = [GoogleAuth.OAuth(GoogleAuth.Integration, [DriveScopes.Write])],
+        // Verification of the restricted drive scope is still pending. Connections request drive.readonly.
+        // Writes run only when the grant already includes DriveScopes.Write or DriveScopes.Files.
+        OAuthMethods = [GoogleAuth.OAuth(GoogleAuth.Integration, [DriveScopes.Read])],
     };
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
@@ -71,6 +73,9 @@ internal static class DriveScopes
     internal const string Read = "https://www.googleapis.com/auth/drive.readonly";
     internal const string Write = "https://www.googleapis.com/auth/drive";
     internal const string Files = "https://www.googleapis.com/auth/drive.file";
+
+    internal static bool GrantsWrite(string? scopes)
+        => (scopes ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(scope => scope is Write or Files);
 }
 
 [GenerateSerializer, Alias("db.google-drive.unavailable")]

@@ -760,6 +760,7 @@ Opening a window (`desktop` request, or workspace `activate`) places the window.
 
 ## Operator
 
+- Google Drive writes are implemented and stay off for a `drive.readonly` grant. The connector still requests `https://www.googleapis.com/auth/drive.readonly`. Before public write access: add `https://www.googleapis.com/auth/drive` on the OAuth consent screen, finish restricted-scope verification, then change `DriveModule.Connector` OAuth scopes from `DriveScopes.Read` to `DriveScopes.Write` and ship that change. Do not send users through the restricted scope before Google verifies it.
 - Production file custody still requires TPM or `IntoChatOS:Platform:Storage:ConfiguredCustodyAcknowledged=true`. `LocalProfile` does not default that flag. Without it a Production kernel writes `secrets/session-token.key` and exits before listen.
 - `Topology=cloud` still requires csharp `RunTokenKey`. This pass did not start a cloud host.
 - Do not merge pull request 335. Do not push a tag and do not run a release workflow.

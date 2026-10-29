@@ -12,6 +12,7 @@ internal static class DriveErrors
     {
         404 => new NotFound(item),
         401 => new NeedsAuth(item),
+        403 when reason is "insufficientPermissions" => new Unsupported(item),
         403 when reason is "storageQuotaExceeded" or "quotaExceeded" => new QuotaExceeded(item),
         403 when reason is "rateLimitExceeded" or "userRateLimitExceeded" or "dailyLimitExceeded" => new Unavailable(item),
         403 => new Denied(item),
