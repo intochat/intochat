@@ -33,6 +33,7 @@
   <Folder Name="/IntoChat.Cloud/Modules/Auth/">
     <Project Path="src/IntoChat.Cloud/Modules/Auth/tests/IntoChat.Cloud.Auth.Core.Tests.Unit/IntoChat.Cloud.Auth.Core.Tests.Unit.csproj" />
     <Project Path="src/IntoChat.Cloud/Modules/Auth/tests/IntoChat.Cloud.Auth.Tests.Integration/IntoChat.Cloud.Auth.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.Cloud/Modules/Auth/tests/IntoChat.Cloud.Auth.Tests.Unit/IntoChat.Cloud.Auth.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/IntoChat.Cloud/Modules/Auth/Contracts/">
     <Project Path="src/IntoChat.Cloud/Modules/Auth/Contracts/IntoChat.Cloud.Auth.Contracts/IntoChat.Cloud.Auth.Contracts.csproj" />
