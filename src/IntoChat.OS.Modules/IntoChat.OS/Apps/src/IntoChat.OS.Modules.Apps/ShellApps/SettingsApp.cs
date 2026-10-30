@@ -44,6 +44,12 @@ public sealed record SettingsSideloadInstall(string? Name = null) : DigitalBrain
 [DigitalBrain.Signal("settings.sideload-add-git")]
 public sealed record SettingsSideloadAddGit(string? Url = null) : DigitalBrain.Signal;
 
+public sealed record SettingsSearchEntry(
+    string SectionId,
+    string Title,
+    string Keywords,
+    string ActionUri);
+
 public sealed record SettingsAppState(
     string Title,
     string Status,
@@ -60,6 +66,23 @@ public sealed record SettingsAppState(
 [DigitalBrain.App("settings", Accent = "#64748B", Category = "System")]
 public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? sideload = null) : DigitalBrain.App<SettingsAppState>
 {
+    public static IReadOnlyList<SettingsSearchEntry> SearchIndex { get; } =
+    [
+        new("appearance", "Appearance & 7 UI Identities", "theme dark light glass acrylic mica carbon nordic", "os://window/settings?section=appearance"),
+        new("profile", "Profile, Identity & 2FA", "avatar handle bio two-factor session", "os://window/profile"),
+        new("models", "Models & AI Routing", "ollama claude gpt gemini local inference", "os://window/settings?section=models"),
+        new("keys", "API Keys & Secure Vault", "secrets token encryption vault", "os://window/secure"),
+        new("connections", "Connections & OAuth", "postgres salesforce google drive github tripletex", "os://window/settings?section=connections"),
+        new("circles", "Circles & LFP Permissions", "approval human-in-the-loop grants", "os://window/settings?section=circles"),
+        new("compute", "Compute & Credits", "tokens usage budget billing", "os://window/settings?section=compute"),
+        new("apps", "Apps Store, Link Install & Sideload", "install reconsent sandbox git", "os://sheet/install"),
+        new("modules", "Kernel Modules", "orleans grains runtime", "os://window/settings?section=modules"),
+        new("variables", "Environment & Blackboard", "env vars scope", "os://window/settings?section=variables"),
+        new("notifications", "Notifications & Focus", "inbox quiet hours", "os://window/settings?section=notifications"),
+        new("archived", "Archived Sessions & File Conflicts", "snapshots two-version conflict", "os://sheet/conflict"),
+        new("danger", "Danger Zone", "reset revoke export", "os://window/settings?section=danger"),
+    ];
+
     public static DigitalBrain.AppManifest Manifest { get; } = new(
         "settings", "Settings", "2.1.0", [typeof(UserSettingsNeuron)], new DigitalBrain.AppRequirements([]));
 
@@ -179,26 +202,26 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
                     new Text($"{State.DisplayName} · {State.DefaultModel}") { Tone = "muted", Tabular = true },
                 ],
                 Kind: SurfaceKind.Acrylic,
-                Title: "DigitalBrain Settings"),
+                Title: "DigitalBrain Settings (13 Sections)"),
             new Collection(
-            [
-                new Entry("appearance", "Appearance & UI Identity", $"{State.StylePreset} · {State.BarLayout} · {State.Theme}"),
-                new Entry("models", "Models & AI", State.DefaultModel),
-                new Entry("connections", "Connections", "Postgres, Google Drive, GitHub, Salesforce"),
-                new Entry("circles", "Circles & Permissions", "Human-in-the-loop LFP approvals"),
-                new Entry("compute", "Compute & Credits", "Local Ollama + Cloud Inference"),
-                new Entry("apps", "Apps & Sideload", "C# App<TState> sandbox & Git sideload"),
-                new Entry("about", "About", "IntoChat OS v0.9.0"),
-            ]),
+                SearchIndex.Select(s => new Entry(s.SectionId, s.Title, s.Keywords)).ToArray()),
         ]) { Gap = 10 });
 
     public View Render() => new(
         State.Title,
         State.OverrideBody ?? new Column(
         [
+            new Grid(
+                3,
+                [
+                    Ui.StatCard("stat-preset", "Active UI Identity", State.StylePreset, State.BarLayout, BadgeTone.Accent, "palette"),
+                    Ui.StatCard("stat-model", "Default Brain Model", State.DefaultModel, "Local + Cloud", BadgeTone.Done, "cpu"),
+                    Ui.StatCard("stat-vault", "Zero-Leakage Vault", "4 Secrets Sealed", "2FA Active", BadgeTone.Neutral, "key-round"),
+                ],
+                Gap: 12),
             new Surface(
                 [
-                    new Heading("Appearance & UI Identity", Level: 2, Subtitle: "Switch live Acrylic glass presets, colour themes, and adaptive OS bar layouts."),
+                    new Heading("1 · Appearance & UI Identity", Level: 2, Subtitle: "Switch live Acrylic glass presets, colour themes, and adaptive OS bar layouts."),
                     new Row(
                     [
                         new TagPill(State.StylePreset, "accent", "palette"),
@@ -216,6 +239,20 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
                 ],
                 Kind: SurfaceKind.Acrylic,
                 Title: "1 · Appearance & UI Identity"),
+            new Surface(
+                [
+                    new Heading("2 · Quick OS Windows & Security Sheets", Level: 3, Subtitle: "Declarative os:// window and sheet protocol across Profile, Secure Vault, App Store & File Conflict."),
+                    new Row(
+                    [
+                        new Button("Open Profile & 2FA", new ButtonAction("os://window/profile", "os://window/profile", []), Tone: ButtonTone.Accent) { Small = true, Icon = "user" },
+                        new Button("Open Secure Vault", new ButtonAction("os://window/secure", "os://window/secure", [])) { Small = true, Icon = "key-round" },
+                        new Button("Install App by Link", new ButtonAction("os://sheet/install", "os://sheet/install", [])) { Small = true, Icon = "package-plus" },
+                        new Button("Review Update Consent", new ButtonAction("os://sheet/reconsent", "os://sheet/reconsent", [])) { Small = true, Icon = "shield-check" },
+                        new Button("Resolve File Conflict", new ButtonAction("os://sheet/conflict", "os://sheet/conflict", [])) { Small = true, Icon = "git-compare" },
+                    ]) { Gap = 8 },
+                ],
+                Kind: SurfaceKind.Elevated,
+                Title: "2 · Profile, Secure Vault & Modal Sheets"),
             new Grid(
                 2,
                 [
@@ -229,10 +266,10 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
                                     new RecordFieldNode("Default Model", State.DefaultModel),
                                     new RecordFieldNode("Memory Neuron", "neuron://local/memory"),
                                 ],
-                                Subtitle: "2 · Models & AI"),
+                                Subtitle: "3 · Models & AI"),
                         ],
                         Kind: SurfaceKind.Elevated,
-                        Title: "2 · Models & AI"),
+                        Title: "3 · Models & AI"),
                     new Surface(
                         [
                             new RecordCardNode(
@@ -243,10 +280,10 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
                                     new RecordFieldNode("Postgres SQL", "neuron://local/postgres/main"),
                                     new RecordFieldNode("Confirmations", "neuron://local/os.confirmations/inbox"),
                                 ],
-                                Subtitle: "3 · Connections"),
+                                Subtitle: "4 · Connections & API Keys"),
                         ],
                         Kind: SurfaceKind.Elevated,
-                        Title: "3 · Connections"),
+                        Title: "4 · Connections & API Keys"),
                     new Surface(
                         [
                             new RecordCardNode(
@@ -255,25 +292,26 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
                                 [
                                     new RecordFieldNode("Default Circle", "owner"),
                                     new RecordFieldNode("Write Gate", "LFP ApprovalCard"),
+                                    new RecordFieldNode("2FA Policy", "Hardware TOTP Active"),
                                 ],
-                                Subtitle: "4 · Circles & Permissions"),
+                                Subtitle: "5–8 · Circles, Modules, Variables & Notifications"),
                         ],
                         Kind: SurfaceKind.Elevated,
-                        Title: "4 · Circles & Permissions"),
+                        Title: "5–8 · Circles, Modules, Variables & Notifications"),
                     new Surface(
                         [
                             new RecordCardNode(
-                                "Telemetry",
-                                "Compute & Credits · Apps & Sideload · About",
+                                "Telemetry & Store",
+                                "Compute & Credits · Apps & Sideload · Danger Zone",
                                 [
                                     new RecordFieldNode("Compute", "Local Ollama + Cloud Credits"),
                                     new RecordFieldNode("Apps Sandbox", "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox"),
-                                    new RecordFieldNode("OS Version", "IntoChat OS v0.9.0"),
+                                    new RecordFieldNode("OS Version", "IntoChat OS v0.9.1"),
                                 ],
-                                Subtitle: "5–7 · Compute, Sideload & About"),
+                                Subtitle: "9–13 · Compute, Apps, Archived & Danger Zone"),
                         ],
                         Kind: SurfaceKind.Elevated,
-                        Title: "5–7 · Compute, Sideload & About"),
+                        Title: "9–13 · Compute, Apps, Archived & Danger Zone"),
                 ],
                 Gap: 12),
         ]) { Gap = 14 });

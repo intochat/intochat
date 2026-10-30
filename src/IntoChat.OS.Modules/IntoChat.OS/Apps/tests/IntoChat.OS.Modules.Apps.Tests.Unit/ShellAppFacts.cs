@@ -143,6 +143,17 @@ public sealed class ShellAppFacts
         await inoInstalled.Request("send", new InoSend("SELECT account, city, owner FROM customers"));
         Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/postgres/main#query-result", StringComparison.Ordinal));
 
+        await inoInstalled.Request("send", new InoSend("/scenario invoice-check"));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Tripletex Session Token", StringComparison.Ordinal));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Waiting on you", StringComparison.Ordinal));
+
+        await inoInstalled.Request("send", new InoSend("https://intochat.app/a/tripletex-sync"));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Tripletex Accounting Sync (v1.4.0)", StringComparison.Ordinal));
+
+        Assert.Equal(13, SettingsApp.SearchIndex.Count);
+        Assert.Contains(SettingsApp.SearchIndex, s => s.ActionUri == "os://window/secure");
+        Assert.Contains(SettingsApp.SearchIndex, s => s.ActionUri == "os://window/profile");
+
         os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
         var creatorInstalled = await os.Install<CreatorApp>();
         await creatorInstalled.Request("open");
