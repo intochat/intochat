@@ -12,11 +12,20 @@ public sealed class ArtCraftImageSourceFacts
     private static readonly (string App, string Ref)[] Apps =
         [("photocraft", ArtCraftModuleHosting.PhotoCraftRef), ("filmcraft", ArtCraftModuleHosting.FilmCraftRef)];
 
-    private static IDistributedApplicationBuilder Compose(string? registry)
+    private static IDistributedApplicationBuilder Compose(string? registry, bool headless = false)
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
-            .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(o => { o.WithHostedApps(); o.ImageRegistry = registry; });
+            .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(o =>
+            {
+                o.WithHostedApps();
+                o.ImageRegistry = registry;
+                if (headless)
+                {
+                    o.PhotoCraftWeb = null;
+                    o.FilmCraftWeb = null;
+                }
+            });
         return builder;
     }
 
@@ -50,5 +59,19 @@ public sealed class ArtCraftImageSourceFacts
                 Assert.Single(Resource(builder, app, kind).Annotations.OfType<DockerfileBuildAnnotation>());
             }
         }
+    }
+
+    [Fact]
+    public void HeadlessModeSkipsTheWasmWebContainersAndMountsSharedWorkVolume()
+    {
+        var builder = Compose("ghcr.io/intochat", headless: true);
+        foreach (var (app, _) in Apps)
+        {
+            var mcp = Resource(builder, app, "mcp");
+            Assert.Contains(mcp.Annotations.OfType<ContainerMountAnnotation>(), m => m.Target == "/work");
+            Assert.DoesNotContain(builder.Resources, r => r.Name.EndsWith(app + "-web", StringComparison.Ordinal));
+        }
+        Assert.Equal(18082, ArtCraftModuleHosting.PhotoCraftWebPort);
+        Assert.Equal(18083, ArtCraftModuleHosting.FilmCraftWebPort);
     }
 }

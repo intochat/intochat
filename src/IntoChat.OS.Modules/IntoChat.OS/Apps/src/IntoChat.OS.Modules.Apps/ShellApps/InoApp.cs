@@ -11,6 +11,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.ArtCraft;
+using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -177,6 +179,18 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         if (LooksLikeConnectionString(text))
         {
             await ConnectDb(new InoConnectDb(text, "main"));
+            return;
+        }
+
+        if (LooksLikePhotoCraftRequest(text))
+        {
+            await HandleStudioRequestAsync("photocraft", text, settings, recalled, memory);
+            return;
+        }
+
+        if (LooksLikeFilmCraftRequest(text))
+        {
+            await HandleStudioRequestAsync("filmcraft", text, settings, recalled, memory);
             return;
         }
 
@@ -661,7 +675,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 selected: State.ConversationId == s.Id,
                 badge: s.Badge)),
             new Collection([new Entry(State.ConversationId, State.Title, $"{State.Turns.Length} turn(s)")]),
-        ]) { Gap = 8 });
+        ])
+        { Gap = 8 });
 
     public View Render()
     {
@@ -699,7 +714,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                     Kind: SurfaceKind.Elevated,
                     Title: turn.UserMessage,
                     Subtitle: turn.RouteHint)),
-            ]) { Gap = 12 });
+            ])
+            { Gap = 12 });
     }
 
     private static Node RenderDockedPromptBanner(InoCard card) => new Surface(
@@ -803,6 +819,22 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 From: "Postgres",
                 Prefix: "€");
         }
+        else if (card.Kind is "photocraft" or "filmcraft")
+        {
+            var targetApp = card.Kind;
+            var label = targetApp == "photocraft" ? "Open PhotoCraft Studio" : "Open FilmCraft Studio";
+            yield return new RecordCardNode(
+                targetApp == "photocraft" ? "PhotoCraft · Image Studio" : "FilmCraft · Video Studio",
+                card.Title,
+                [
+                    new RecordFieldNode("Status", card.Status),
+                    new RecordFieldNode("Studio Neuron", card.SourceNeuronUri),
+                    new RecordFieldNode("Scope", card.EffectiveScopeUri),
+                ],
+                Subtitle: card.Summary,
+                LinkLabel: label,
+                OnOpen: new ButtonAction($"apps/{targetApp}", "open", []));
+        }
         else
         {
             yield return new RecordCardNode(
@@ -849,11 +881,138 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             throw new InvalidOperationException("Expected InoApp to switch the active chart kind to pie.");
         }
 
+        await Send(new InoSend("Remove background from portrait.png"));
+        if (!State.ActiveCards.Any(c => c.Kind == "photocraft")
+            || !State.Turns[^1].Reply.Contains("layer.removeBackground", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected InoApp to route photo background removal to PhotoCraft and emit a photocraft card.");
+        }
+
         var snapshot = await memory.Read();
         if (snapshot.Episodes.Length == 0)
         {
             throw new InvalidOperationException("Expected InoApp to capture the conversation episode in MemoryNeuron.");
         }
+    }
+
+    internal static bool LooksLikePhotoCraftRequest(string text)
+    {
+        if (text.Contains("photocraft", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("remove background", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("remove-background", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("background removal", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("select subject", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("select sky", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("desaturate", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("layer.removeBackground", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("layer.newFillLayer.gradient", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var mentionsImage = text.Contains("photo", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("image", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("picture", StringComparison.OrdinalIgnoreCase)
+            || text.Contains(".png", StringComparison.OrdinalIgnoreCase)
+            || text.Contains(".jpg", StringComparison.OrdinalIgnoreCase)
+            || text.Contains(".psd", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("512x512", StringComparison.OrdinalIgnoreCase);
+
+        return mentionsImage && (
+            text.Contains("gradient", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("cutout", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("grayscale", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("flip", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("rotate", StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static bool LooksLikeFilmCraftRequest(string text)
+        => text.Contains("filmcraft", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("videocraft", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("razor split", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("split timeline", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("cut timeline", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("ripple trim", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("trim video", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("lumetri", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("timeline.razor", StringComparison.OrdinalIgnoreCase);
+
+    private async Task HandleStudioRequestAsync(
+        string studioApp,
+        string text,
+        UserSettingsState settings,
+        MemoryRecallHit[] recalled,
+        IMemory? memory)
+    {
+        var requestedMode = text.Contains("mcp", StringComparison.OrdinalIgnoreCase)
+            ? "mcp"
+            : text.Contains("wasm", StringComparison.OrdinalIgnoreCase)
+                ? "wasm-ui"
+                : "native-linux";
+
+        var result = studioApp == "photocraft"
+            ? await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
+                text,
+                explicitParamsJson: null,
+                currentDocument: null,
+                requestedMode,
+                TryGetArtCraftStudio(),
+                TryGetMcpServer,
+                (err, reason) => Swallow(err, reason))
+            : await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
+                text,
+                explicitParamsJson: null,
+                currentSequence: null,
+                requestedMode,
+                TryGetArtCraftStudio(),
+                TryGetMcpServer,
+                (err, reason) => Swallow(err, reason));
+
+        try
+        {
+            await Get<IApp>($"apps/{studioApp}").Request("edit", text);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, $"{studioApp} app neuron is optional when running InoApp in standalone unit tests.");
+        }
+
+        var turnsCount = State.Turns.Length + 1;
+        var cardId = $"studio-{turnsCount}";
+        var studioCard = new InoCard(
+            cardId,
+            studioApp,
+            $"{result.CommandTitle} [{result.ExecutionMode}]",
+            $"{result.Summary} · CLI: {result.CliInvocation}",
+            $"neuron://local/apps/{studioApp}",
+            "completed",
+            $"neuron://local/apps/ino#{cardId}");
+
+        var routeHint = $"routed:{studioApp}.{result.CommandId}";
+        var reply =
+            $"Ino ({settings.DefaultModel}): {result.Summary}\n\n"
+            + $"- **Command**: `{result.CommandId}` ({result.CommandTitle})\n"
+            + $"- **Execution Mode**: `{result.ExecutionMode}` (`{result.CliInvocation}`)\n"
+            + $"- **Output Artifact**: `{result.OutputDocument}`\n"
+            + $"- **Layers / Tracks**: {string.Join(", ", result.LayersOrTracks)}";
+
+        if (memory is not null)
+        {
+            await memory.CaptureEpisode($"ino.{studioApp}", $"User: {text} | Cmd: {result.CommandId} | Out: {result.OutputDocument}", importance: 7);
+        }
+
+        var title = State.Turns.Length == 0
+            ? (text.Length <= 52 ? text : text[..52])
+            : State.Title;
+        var nextTurns = State.Turns.Append(new InoTurn(text, reply, routeHint, recalled.Length)).ToArray();
+
+        Set(State with
+        {
+            Title = title,
+            Status = $"{result.CommandTitle} ({result.ExecutionMode}) -> {result.OutputDocument}",
+            Turns = nextTurns,
+            Cards = [.. State.ActiveCards, studioCard],
+        });
     }
 
     private async Task ApplyChartMutationOrFilterAsync(string text, UserSettingsState settings, IMemory? memory)
@@ -1261,6 +1420,32 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         catch (InvalidOperationException error)
         {
             Swallow(error, "AppStudioNeuron is optional when running in unit tests without Creator registered.");
+            return null;
+        }
+    }
+
+    private IArtCraftStudio? TryGetArtCraftStudio()
+    {
+        try
+        {
+            return Get<IArtCraftStudio>("artcraft");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "ArtCraftStudioNeuron is optional when running InoApp without ArtCraftModule registered.");
+            return null;
+        }
+    }
+
+    private IMcpServer? TryGetMcpServer(string mcpKey)
+    {
+        try
+        {
+            return Get<IMcpServer>(mcpKey);
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "McpServerNeuron is optional when running InoApp without McpModule registered.");
             return null;
         }
     }

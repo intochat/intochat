@@ -1,17 +1,16 @@
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Client;
-using IntoChat.OS.Modules.Flutter.Card;
-using IntoChat.OS.Modules.Flutter.Text;
-using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Modules.Time.Reminders;
 using AppTable = IntoChat.OS.Modules.Postgres.Tables.ITable;
+using ViewUi = IntoChat.OS.Modules.Flutter.Views.Ui;
 
-// The app's operations arrive as requests; each one only writes neurons, never an answer. The
-// registry, the composed layouts and the table/chart neurons are what a caller reads.
+// The app's operations arrive as requests; each one updates the declarative view surface.
 await using var brain = await IntoChatOSClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -22,7 +21,7 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     if (request.Operation == "refresh") { continue; }
     try { await Answer(request.RequestId, request.Operation, request.Input); }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await brain.Get<ICard>(appKey + "/status").Set("Request failed", request.Operation + ": " + error.Message); }
+    { await Views.SetStatus(brain, appKey, "Request failed", request.Operation + ": " + error.Message); }
 }
 
 async Task Answer(Guid requestId, string operation, string input)
@@ -50,10 +49,8 @@ async Task Answer(Guid requestId, string operation, string input)
             if (source == "sql" && sql.Length is 0 or > 20_000) { throw new ArgumentException("A SQL view needs 1-20000 characters of SQL."); }
             if (source != "sql") { await RequireOwnTable(source["apptable:".Length..]); }
             var filters = request.TryGetProperty("filters", out var f) ? f.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).Distinct(StringComparer.Ordinal).Take(16).ToArray() : [];
-            // Refresh runs on a durable reminder, whose shortest period is one minute: 0 is off, anything else is 60 s to a day.
             var refresh = request.TryGetProperty("refreshSeconds", out var r) && r.TryGetInt32(out var seconds) && seconds > 0 ? Math.Clamp(seconds, 60, 86_400) : 0;
-            // The request id makes the view deterministic, so a redelivered request cannot append another view.
-            var view = new View("v-" + requestId.ToString("N"), request.GetProperty("title").GetString() ?? "View", kind, source, sql, filters, refresh);
+            var view = new DataViewDefinition("v-" + requestId.ToString("N"), request.GetProperty("title").GetString() ?? "View", kind, source, sql, filters, refresh);
             var existing = await Views.All(brain, appKey);
             view = existing.FirstOrDefault(item => item.Id == view.Id) ?? view;
             await Views.Compose(brain, appKey, view);
@@ -61,8 +58,8 @@ async Task Answer(Guid requestId, string operation, string input)
             await Views.Save(brain, appKey, views);
             await Views.Schedule(brain, appKey, view);
             await Views.ComposeHome(brain, appKey, views);
-            // Which view the request created, readable by whoever asked.
-            await brain.Get<IText>(appKey + "/last-view").Set(view.Id);
+            var revision = long.Parse(brain.Setting("ProgramRevision") ?? "1", CultureInfo.InvariantCulture);
+            await new ViewPublisher(brain.Get<IView>(appKey + "/last-view"), revision).Publish(ViewUi.Text("last-view", view.Id));
             await Refresh(view.Id);
             return;
         }
@@ -117,7 +114,6 @@ async Task Answer(Guid requestId, string operation, string input)
                 { throw new ArgumentException("Linked filters must name output columns declared by the source view."); }
                 changed = changed with { FilterGroup = source.FilterGroup ?? source.Id };
             }
-            // Composition only configures fields; it preserves their current values.
             await Views.Compose(brain, appKey, changed);
             await Views.Schedule(brain, appKey, changed);
             await Views.Save(brain, appKey, views.Select(item => item.Id == id ? changed : item).ToArray());
@@ -125,8 +121,7 @@ async Task Answer(Guid requestId, string operation, string input)
             {
                 foreach (var property in values.EnumerateObject())
                 {
-                    await brain.Get<ITextField>($"{appKey}/views/{changed.FilterGroup ?? changed.Id}/filter/{property.Name}")
-                        .SetValue(property.Value.GetString() ?? "");
+                    await Views.SetFilterValue(brain, $"{appKey}/views/{changed.FilterGroup ?? changed.Id}/filter/{property.Name}", property.Value.GetString() ?? "");
                 }
             }
             await Refresh(id);
@@ -136,7 +131,6 @@ async Task Answer(Guid requestId, string operation, string input)
         {
             var id = input.Trim();
             _ = (await Views.All(brain, appKey)).FirstOrDefault(v => v.Id == id) ?? throw new InvalidOperationException("No view " + id);
-            // The table or chart neuron is the result; refreshing it is all a read does.
             await Refresh(id);
             return;
         }
@@ -154,15 +148,12 @@ async Task Answer(Guid requestId, string operation, string input)
     }
 }
 
-// The operations take JSON; a caller that sent prose learns the shape from the status card.
 static JsonElement Parse(string input, string shape)
 {
     try { return JsonSerializer.Deserialize<JsonElement>(input); }
     catch (JsonException error) { throw new ArgumentException($"Input is JSON {shape}; {error.Message}", error); }
 }
 
-// An app table answers only the app that defined it. Reading one row proves this app owns the source, so a
-// table it cannot read never reaches the registry, where run-on-row and run-on-row-deleted would fail to watch it.
 async Task RequireOwnTable(string table)
 {
     try { _ = await brain.Get<AppTable>(table).Page(0, 1); }
@@ -170,5 +161,4 @@ async Task RequireOwnTable(string table)
     { throw new ArgumentException($"apptable:{table} is not a table this app defined: {error.Message}", error); }
 }
 
-// A refresh is a request of its own: the refresh synapse answers it by writing the table or chart.
 async Task Refresh(string view) => await app.Request("refresh", view);

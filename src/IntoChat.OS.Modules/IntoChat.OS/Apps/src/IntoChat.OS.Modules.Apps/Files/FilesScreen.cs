@@ -7,16 +7,23 @@ using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The value tree the Files shell already renders: side list, toolbar, collection, preview.
+// The value tree the Files shell renders: side list, WinUI 3 breadcrumb bar, toolbar, interactive item list, QuickView preview.
 internal static class FilesScreen
 {
     internal sealed record Model(UiNode Side, UiNode Main, CollectionDefinition Files, string? ImageUrl);
 
-    public static Model Compose(FilesState state, int width, bool previewOpen, long revision = 0)
+    public static Model Compose(
+        FilesState state,
+        int width,
+        bool previewOpen,
+        long revision = 0,
+        string appKey = "owner/apps/files",
+        int pageOffset = 0)
     {
         ArgumentNullException.ThrowIfNull(state);
         var narrow = width <= 390;
-        string Act(string verb, int? index = null) => revision.ToString(CultureInfo.InvariantCulture) + ":" + verb
+        var rev = (revision != 0 ? revision : state.Revision).ToString(CultureInfo.InvariantCulture);
+        string Act(string verb, int? index = null) => rev + ":" + verb
             + (index is { } value ? ":" + value.ToString(CultureInfo.InvariantCulture) : "");
         if (state.Storages.Length == 0 && state.Connection is null && !state.Loading && !state.Searching)
         {
@@ -32,10 +39,21 @@ internal static class FilesScreen
         var sideRows = state.Storages.Select((storage, index) =>
         {
             var quota = storage.Error is null ? QuotaText.For(storage.Space ?? Quota.Unknown, storage.Kind) : FilesCopy.Unavailable;
+            var isCurrentStorage = string.Equals(state.Connection, storage.Connection, StringComparison.Ordinal);
             return Ui.Card("storage-" + index, storage.Label, quota,
-                [Ui.Button("storage-open-" + index, storage.Error is null ? "Browse" : FilesCopy.TryAgain, Act(storage.Error is null ? "storage" : "retry", index))]);
+                [Ui.Button(
+                    "storage-open-" + index,
+                    storage.Error is null ? "Browse" : FilesCopy.TryAgain,
+                    Act(storage.Error is null ? "storage" : "retry", index),
+                    style: isCurrentStorage ? UiStyle.Primary : UiStyle.Secondary,
+                    icon: storage.Kind == "google-drive" ? "cloud" : "hard-drive")]);
         }).ToArray();
-        var side = Ui.Column("files-side", [Ui.Text("storages-title", FilesCopy.StorageHeading), .. sideRows]);
+        var side = Ui.Column("files-side",
+        [
+            Ui.Text("storages-title", FilesCopy.StorageHeading),
+            .. sideRows,
+            Ui.Button("side-open-settings", FilesCopy.OpenSettings, Act("open-settings"), style: UiStyle.Ghost, icon: "plug"),
+        ]);
 
         var selected = state.Selected;
         var folder = state.Breadcrumbs.LastOrDefault()?.Item.Flags ?? ItemFlags.None;
@@ -43,24 +61,24 @@ internal static class FilesScreen
         var create = folder.HasFlag(ItemFlags.CreateFolder);
         var one = selected is not null;
         var file = selected?.Item.Kind == ItemKind.File;
-        UiNode Button(string key, string text, string verb, bool enabled, UiStyle style = UiStyle.Secondary, int? index = null)
-            => new(UiNodeKind.Button, key) { Text = text, Action = Act(verb, index), Enabled = enabled, Style = style };
+        UiNode Button(string key, string text, string verb, bool enabled, UiStyle style = UiStyle.Secondary, int? index = null, string? icon = null)
+            => new(UiNodeKind.Button, key) { Text = text, Action = Act(verb, index), Enabled = enabled, Style = style, Icon = icon };
         var toolbar = Ui.Row("toolbar",
         [
-            Button("upload", FilesCopy.Upload, "upload", writable, UiStyle.Primary),
-            Button("mkdir", FilesCopy.NewFolder, "mkdir", create),
-            Button("rename", FilesCopy.Rename, "rename", one && selected!.Item.Flags.HasFlag(ItemFlags.Rename)),
+            Button("upload", FilesCopy.Upload, "upload", writable, UiStyle.Primary, icon: "upload"),
+            Button("mkdir", FilesCopy.NewFolder, "mkdir", create, icon: "folder-plus"),
+            Button("rename", FilesCopy.Rename, "rename", one && selected!.Item.Flags.HasFlag(ItemFlags.Rename), icon: "pencil"),
             Button("move", FilesCopy.Move, "move", one && selected!.Item.Flags.HasFlag(ItemFlags.Move)),
-            Button("copy", FilesCopy.Copy, "copy", one && selected!.Item.Flags.HasFlag(ItemFlags.Copy)),
+            Button("copy", FilesCopy.Copy, "copy", one && selected!.Item.Flags.HasFlag(ItemFlags.Copy), icon: "copy"),
             state.SelectedNeuronUri is { } toolbarUri
                 ? Ui.CopyButton("copy-neuron-id", FilesCopy.CopyNeuronId, toolbarUri)
                 : Button("copy-neuron-id", FilesCopy.CopyNeuronId, "copy-neuron-id", false, UiStyle.Ghost),
             selected is not null
                 ? Ui.CopyButton("copy-display-path", FilesCopy.CopyDisplayPath, DisplayPath(state, selected))
                 : Button("copy-display-path", FilesCopy.CopyDisplayPath, "copy-display-path", false, UiStyle.Ghost),
-            Button("ask-ino-toolbar", FilesCopy.AskInoAboutFile, "ask-ino", one, UiStyle.Primary),
-            Button("download", FilesCopy.Download, "download", file && selected!.Item.Flags.HasFlag(ItemFlags.Read), UiStyle.Link),
-            Button("delete", FilesCopy.Delete, "delete", one && selected!.Item.Flags.HasFlag(ItemFlags.Trash)),
+            Button("ask-ino-toolbar", FilesCopy.AskInoAboutFile, "ask-ino", one, UiStyle.Primary, icon: "sparkles"),
+            Button("download", FilesCopy.Download, "download", file && selected!.Item.Flags.HasFlag(ItemFlags.Read), UiStyle.Link, icon: "download"),
+            Button("delete", FilesCopy.Delete, "delete", one && selected!.Item.Flags.HasFlag(ItemFlags.Trash), UiStyle.Danger, icon: "trash-2"),
         ]);
 
         var files = state.Searching ? SearchCollection(state) : FolderCollection(state);
@@ -116,20 +134,123 @@ internal static class FilesScreen
             }
         }
 
-        var preview = Preview(state, revision);
-        var list = Ui.Column("files-list", [headers, .. notices, Ui.Reference("items", new(IntoChat.OS.Modules.Flutter.UIVocabulary.CollectionType, "items"))]);
+        var preview = Preview(state, revision, appKey);
+        var itemsNode = BuildItemList(state, rev, pageOffset);
+        var list = Ui.Column("files-list", [headers, .. notices, itemsNode]);
         var chrome = new UiNode[]
         {
-            Ui.Row("navigation", [Button("up", FilesCopy.Up, "up", state.Connection is not null)]),
+            Ui.Row("navigation",
+            [
+                Button("up", FilesCopy.Up, "up", state.Connection is not null, icon: "arrow-up"),
+                Button("search-all", "Search All Storages", "search-all", true, icon: "search"),
+                Button("apply-filter", "Filter", "filter", true, UiStyle.Ghost, icon: "filter"),
+            ]),
             Crumbs(state, revision),
             toolbar,
-            Ui.Reference("filter", new(IntoChat.OS.Modules.Flutter.UIVocabulary.TextFieldType, "filter")),
-            Ui.Reference("search", new(IntoChat.OS.Modules.Flutter.UIVocabulary.TextFieldType, "search")),
+            Ui.Reference("filter", new(IntoChat.OS.Modules.Flutter.UIVocabulary.TextFieldType, appKey + "/filter")),
+            Ui.Reference("search", new(IntoChat.OS.Modules.Flutter.UIVocabulary.TextFieldType, appKey + "/search")),
         };
         var main = narrow && previewOpen && preview is not null
             ? Ui.Column("files-main", [Ui.Button("back-files", FilesCopy.BackToFiles, Act("back-files")), preview])
             : Ui.Column("files-main", [.. chrome, preview is null ? list : Ui.Row("browse-split", [list, preview], extents: [1, 360])]);
         return new(side, main, files, state.PreviewUrl);
+    }
+
+    private static UiNode BuildItemList(FilesState state, string rev, int pageOffset)
+    {
+        var rows = new List<UiNode>();
+        if (state.Searching)
+        {
+            var itemIdx = 0;
+            foreach (var group in state.Groups)
+            {
+                rows.Add(Ui.Divider("group-div-" + group.Connection, group.Label));
+                foreach (var entry in group.Items.Take(40))
+                {
+                    if (itemIdx >= 40) { break; }
+                    var rawIndex = Array.IndexOf(state.Items, entry);
+                    if (rawIndex < 0) { continue; }
+                    var isFolder = entry.Item.Kind == ItemKind.Folder;
+                    var isSelected = state.Selected is { } sel && sel.Connection == entry.Connection && sel.Item.Id == entry.Item.Id;
+                    rows.Add(Ui.Row("search-row-" + itemIdx,
+                    [
+                        Ui.Button(
+                            "search-item-" + itemIdx,
+                            entry.Item.Name,
+                            rev + ":" + (isFolder ? "browse" : "select") + ":" + rawIndex.ToString(CultureInfo.InvariantCulture),
+                            style: isSelected ? UiStyle.Primary : UiStyle.Ghost,
+                            icon: isFolder ? "folder" : "file"),
+                        Ui.Badge("search-meta-" + itemIdx, FormatItemMeta(state, entry), isFolder ? UiTone.Neutral : UiTone.Working),
+                    ]));
+                    itemIdx++;
+                }
+            }
+            return Ui.List("items", [.. rows]);
+        }
+
+        var ordered = Ordered(state);
+        var start = Math.Clamp(pageOffset, 0, Math.Max(0, ordered.Count - 1));
+        var slice = ordered.Skip(start).Take(40).ToArray();
+        for (var i = 0; i < slice.Length; i++)
+        {
+            var entry = slice[i];
+            var rawIndex = Array.IndexOf(state.Items, entry);
+            if (rawIndex < 0) { continue; }
+            var isFolder = entry.Item.Kind == ItemKind.Folder;
+            var isSelected = state.Selected is { } sel && sel.Connection == entry.Connection && sel.Item.Id == entry.Item.Id;
+            rows.Add(Ui.Row("item-row-" + i,
+            [
+                Ui.Button(
+                    "item-open-" + i,
+                    entry.Item.Name,
+                    rev + ":" + (isFolder ? "browse" : "select") + ":" + rawIndex.ToString(CultureInfo.InvariantCulture),
+                    style: isSelected ? UiStyle.Primary : UiStyle.Ghost,
+                    icon: isFolder ? "folder" : "file"),
+                Ui.Badge("item-meta-" + i, FormatItemMeta(state, entry), isFolder ? UiTone.Neutral : UiTone.Working),
+                Ui.Button(
+                    "item-select-" + i,
+                    isFolder ? "Select" : (isSelected ? "Selected" : "Inspect"),
+                    rev + ":select:" + rawIndex.ToString(CultureInfo.InvariantCulture),
+                    style: isSelected ? UiStyle.Primary : UiStyle.Secondary),
+            ], gap: 8, extents: [0, 140, 96]));
+        }
+
+        if (ordered.Count > 40)
+        {
+            rows.Add(Ui.Row("items-pager",
+            [
+                Ui.Button("page-prev", "Previous 40", rev + ":previous", enabled: start > 0, style: UiStyle.Secondary),
+                Ui.Badge("page-info", $"{start + 1}-{Math.Min(ordered.Count, start + slice.Length)} of {ordered.Count}", UiTone.Neutral),
+                Ui.Button("page-next", "Next 40", rev + ":next", enabled: start + 40 < ordered.Count, style: UiStyle.Secondary),
+            ]));
+        }
+
+        return Ui.List("items", [.. rows]);
+    }
+
+    private static string FormatItemMeta(FilesState state, FilesItem entry)
+    {
+        var item = entry.Item;
+        var modPart = item.Modified is { } mod
+            ? mod.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+            : "—";
+        var whereSuffix = state.Connection is null && !state.Searching
+            ? " · " + (state.Storages.FirstOrDefault(s => string.Equals(s.Connection, entry.Connection, StringComparison.Ordinal))?.Label ?? entry.Connection)
+            : "";
+        if (item.Kind == ItemKind.Folder)
+        {
+            return $"Folder · -- · {modPart}{whereSuffix}";
+        }
+        var sizePart = item.Size is { } bytes
+            ? bytes < 1024
+                ? $"{bytes} B"
+                : bytes < 1048576
+                    ? $"{bytes / 1024.0:F1} KB"
+                    : bytes < 1073741824
+                        ? $"{bytes / 1048576.0:F1} MB"
+                        : $"{bytes / 1073741824.0:F2} GB"
+            : "--";
+        return $"File · {sizePart} · {modPart}{whereSuffix}";
     }
 
     public static IReadOnlyList<FilesItem> Ordered(FilesState state)
@@ -242,11 +363,40 @@ internal static class FilesScreen
     private static UiNode Crumbs(FilesState state, long revision)
     {
         var rev = (revision != 0 ? revision : state.Revision).ToString(CultureInfo.InvariantCulture);
-        var nodes = new List<UiNode>();
+        var nodes = new List<UiNode>
+        {
+            Ui.Button(
+                "crumb-root",
+                FilesCopy.StorageHeading,
+                rev + ":open",
+                style: state.Connection is null ? UiStyle.Primary : UiStyle.Ghost,
+                icon: "hard-drive"),
+        };
+
+        if (state.Connection is { } activeConn)
+        {
+            var storageIdx = Array.FindIndex(state.Storages, s => string.Equals(s.Connection, activeConn, StringComparison.Ordinal));
+            var storageLabel = storageIdx >= 0 ? state.Storages[storageIdx].Label : activeConn;
+            var storageAction = storageIdx >= 0
+                ? rev + ":storage:" + storageIdx.ToString(CultureInfo.InvariantCulture)
+                : rev + ":open";
+            nodes.Add(Ui.Button(
+                "crumb-storage",
+                storageLabel,
+                storageAction,
+                style: state.Breadcrumbs.Length == 0 ? UiStyle.Primary : UiStyle.Ghost,
+                icon: "folder"));
+        }
+
         for (var index = 0; index < state.Breadcrumbs.Length; index++)
         {
             var item = state.Breadcrumbs[index];
-            nodes.Add(Ui.Button("crumb-" + index, item.Item.Name, rev + ":breadcrumb:" + index.ToString(CultureInfo.InvariantCulture)));
+            nodes.Add(Ui.Button(
+                "crumb-" + index,
+                item.Item.Name,
+                rev + ":breadcrumb:" + index.ToString(CultureInfo.InvariantCulture),
+                style: index == state.Breadcrumbs.Length - 1 ? UiStyle.Primary : UiStyle.Ghost,
+                icon: "folder"));
         }
 
         var activeUri = ActiveFolderNeuronUri(state);
@@ -274,7 +424,7 @@ internal static class FilesScreen
         return Ui.Row("breadcrumbs", [.. nodes]);
     }
 
-    private static UiNode? Preview(FilesState state, long revision)
+    private static UiNode? Preview(FilesState state, long revision, string appKey)
     {
         var selected = state.Selected;
         if (selected is null && state.PreviewApp is null && state.PreviewUrl is null && state.Preview is null)
@@ -324,7 +474,7 @@ internal static class FilesScreen
         }
         else if (state.PreviewUrl is { } url)
         {
-            children.Add(Ui.Column("preview", [Ui.Text("preview-url", url), Ui.Reference("preview-image", new(IntoChat.OS.Modules.Flutter.UIVocabulary.ImageType, "preview"))]));
+            children.Add(Ui.Column("preview", [Ui.Text("preview-url", url), Ui.Reference("preview-image", new(IntoChat.OS.Modules.Flutter.UIVocabulary.ImageType, appKey + "/preview"))]));
         }
         else if (state.Preview is { } text)
         {

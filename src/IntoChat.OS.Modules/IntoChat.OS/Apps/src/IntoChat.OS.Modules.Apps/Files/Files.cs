@@ -88,13 +88,15 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
     public async Task Open(FilesOpened request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var storages = new List<FilesStorage>();
+        var storages = new List<FilesStorage>(); var openRoots = new List<FilesItem>();
         foreach (var connection in await broker.ResolveAll<IStorage>(brain, ct))
         {
             try
             {
                 var descriptor = await connection.Capability.Describe(ct);
+                var roots = await connection.Capability.Roots(ct);
                 storages.Add(new(connection.ConnectionKey, connection.Label, descriptor.Kind, descriptor.Flags, null, descriptor.Quota));
+                openRoots.AddRange(roots.Select(root => new FilesItem(connection.ConnectionKey, root)));
             }
             catch (StorageException error)
             { storages.Add(new(connection.ConnectionKey, connection.Label, "storage", ItemFlags.None, error.Code)); }
@@ -105,7 +107,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             Storages = [.. storages],
             Connection = null,
             Folder = null,
-            Items = [],
+            Items = [.. openRoots],
             Breadcrumbs = [],
             Selected = null,
             SelectedNeuronUri = null,

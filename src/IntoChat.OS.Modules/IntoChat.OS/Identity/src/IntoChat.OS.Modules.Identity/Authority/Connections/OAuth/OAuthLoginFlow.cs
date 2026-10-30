@@ -13,6 +13,10 @@ internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExch
 {
     public Uri CallbackUri(string connectorId)
         => new(options.Value.PublicOrigin ?? throw new InvalidOperationException("Configure IntoChatOS:Connections:PublicOrigin before starting a browser login."),
+            $"integrations/{Uri.EscapeDataString(connectorId)}/oauth/callback");
+
+    public Uri LegacyCallbackUri(string connectorId)
+        => new(options.Value.PublicOrigin ?? throw new InvalidOperationException("Configure IntoChatOS:Connections:PublicOrigin before starting a browser login."),
             $"connections/oauth/{Uri.EscapeDataString(connectorId)}/callback");
 
     public async Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, CapabilityCaller owner, CancellationToken ct)

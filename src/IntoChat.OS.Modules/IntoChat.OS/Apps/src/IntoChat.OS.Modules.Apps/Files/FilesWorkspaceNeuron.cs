@@ -12,6 +12,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.TextField.Signals;
 using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -50,11 +51,15 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     public async Task Open(CancellationToken ct = default)
     {
         RequireAccess();
-        if (!State.Ready)
+        var hasHealthyState = State.Ready
+            && State.Files.Storages.Any(s => s.Error is null)
+            && State.Files.Items.Length > 0;
+        if (!hasHealthyState)
         {
             var app = App;
             await app.Open(new(), ct);
-            await Persist(State with { Files = app.Snapshot with { Revision = 1 }, Ready = true });
+            var nextRevision = Math.Max(1, State.Files.Revision + 1);
+            await Persist(State with { Files = app.Snapshot with { Revision = nextRevision }, Ready = true });
         }
         await Recover(ct);
     }
@@ -62,27 +67,32 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         if (!State.Ready) { return; }
-        if (State.PendingRequest is not null)
+        await WithAppCallerAsync(async () =>
         {
-            await Persist(State with
+            if (State.PendingRequest is not null)
             {
-                PendingRequest = null,
-                Files = State.Files with { Revision = checked(State.Files.Revision + 1) },
-                Notice = "An interrupted request was not repeated. Check the folder before retrying.",
-            });
-        }
-        await Recover(cancellationToken);
+                await Persist(State with
+                {
+                    PendingRequest = null,
+                    Files = State.Files with { Revision = checked(State.Files.Revision + 1) },
+                    Notice = "An interrupted request was not repeated. Check the folder before retrying.",
+                });
+            }
+            await Recover(cancellationToken);
+        });
     }
 
     private async Task Recover(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        await Field("search").Configure("Search all storages", "search", "Search");
+        await Field("search").Configure("Search all storages", "text", "Search");
         await Field("filter").Configure("Filter by name", "text");
         await Field("name").Configure("Name", "text");
         await Field("content").Configure("File content", "multiline");
         foreach (var slot in new[] { "side", "main", "full" })
         { await Context.Synapses.Ensure<ViewAction>(new(Id.Brain, UIVocabulary.ViewType, AppPath + "/" + slot)); }
+        foreach (var field in new[] { "search", "filter" })
+        { await Context.Synapses.Ensure<TextFieldChanged>(new(Id.Brain, UIVocabulary.TextFieldType, AppPath + "/" + field)); }
         foreach (var operation in State.Operations.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
@@ -178,7 +188,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     var cancelling = At(State.Operations, input.Index);
                     if (!cancelling.Done) { await Context.Operations.Cancel(new(cancelling.Id), ct); }
                     break;
-                case "filter": app.Filter(input.Query); await Store(app); break;
+                case "filter": app.Filter(input.Query ?? (await Field("filter").Read()).Value); await Store(app); break;
                 case "clear-filter": app.Filter(""); await Store(app); break;
                 case "sort-name": app.SortBy("name"); await Store(app); break;
                 case "sort-size": app.SortBy("size"); await Store(app); break;
@@ -190,7 +200,16 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     else if (State.Files.Connection is { } current) { await app.Browse(new(current, State.Files.Folder), ct); }
                     else { await app.Open(new(), ct); }
                     await Store(app, resetPage: true); break;
-                case "upload" or "download" or "open-app" or "open-settings": break;
+                case "open-settings":
+                    await FilesHost.EnsureDefaultLocalRootsAsync(Context.Services, Id.Brain.Value);
+                    await app.Open(new(), ct);
+                    if (app.Snapshot.Storages.FirstOrDefault(s => s.Error is null) is { } healthyStorage)
+                    {
+                        await app.Browse(new(healthyStorage.Connection), ct);
+                    }
+                    await Store(app, resetPage: true);
+                    break;
+                case "upload" or "download" or "open-app": break;
                 default: throw new ArgumentException("Unknown Files action.", nameof(operation));
             }
         }
@@ -207,10 +226,42 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         var parts = action.Action.Split(':');
         if (parts.Length is < 2 or > 3 || !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var revision)) { return; }
         int? index = parts.Length == 3 && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
-        try { await Request(parts[1] == "search-all" ? "search" : parts[1], new(Index: index, Everywhere: parts[1] == "search-all"), revision, action.RequestId); }
-        catch (StaleActionException error)
+        await WithAppCallerAsync(async () =>
         {
-            Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files view action was stale.");
+            try { await Request(parts[1] == "search-all" ? "search" : parts[1], new(Index: index, Everywhere: parts[1] == "search-all"), revision, action.RequestId); }
+            catch (StaleActionException error)
+            {
+                Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files view action was stale.");
+            }
+        });
+    }
+
+    [On]
+    public async Task On(TextFieldChanged changed)
+    {
+        if (changed.Name == AppKey + "/filter")
+        {
+            if (string.Equals(State.Files.Filter, changed.Value, StringComparison.Ordinal)) { return; }
+            await WithAppCallerAsync(async () =>
+            {
+                try { await Request("filter", new(Query: changed.Value), State.Files.Revision, Guid.NewGuid()); }
+                catch (StaleActionException error)
+                {
+                    Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files filter action was stale.");
+                }
+            });
+        }
+        else if (changed.Name == AppKey + "/search" && !string.IsNullOrWhiteSpace(changed.Value))
+        {
+            if (State.Files.Searching && string.Equals(State.Files.Search, changed.Value, StringComparison.Ordinal)) { return; }
+            await WithAppCallerAsync(async () =>
+            {
+                try { await Request("search", new(Query: changed.Value, Everywhere: true), State.Files.Revision, Guid.NewGuid()); }
+                catch (StaleActionException error)
+                {
+                    Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files search action was stale.");
+                }
+            });
         }
     }
 
@@ -218,35 +269,59 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     public async Task On(OperationProgress progress)
     {
         if (!State.Operations.Any(item => item.Id == progress.Operation.Value && !item.Done)) { return; }
-        await Persist(State with { Operations = State.Operations.Select(item => item.Id == progress.Operation.Value ? item with { Progress = Math.Clamp(progress.Fraction, 0, 1), Status = "Working" } : item).ToArray() });
-        await Render();
+        await WithAppCallerAsync(async () =>
+        {
+            await Persist(State with { Operations = State.Operations.Select(item => item.Id == progress.Operation.Value ? item with { Progress = Math.Clamp(progress.Fraction, 0, 1), Status = "Working" } : item).ToArray() });
+            await Render();
+        });
     }
 
     [On]
     public async Task On(OperationDone done)
     {
         if (!State.Operations.Any(item => item.Id == done.Operation.Value && !item.Done)) { return; }
-        var status = done.Result switch
+        await WithAppCallerAsync(async () =>
         {
-            OperationResult.Succeeded => "Completed",
-            OperationResult.Cancelled => "Cancelled",
-            OperationResult.Planned => "Dry run complete. No files changed.",
-            OperationResult.Failed failed => "Failed: " + failed.Code,
-            _ => "Finished",
-        };
-        await Persist(State with
-        {
-            Files = State.Files with { Revision = checked(State.Files.Revision + 1) },
-            Operations = State.Operations.Select(item => item.Id == done.Operation.Value ? item with
-            { Done = true, Progress = done.Result is OperationResult.Succeeded ? 1 : item.Progress, Status = item.Label == "Move to trash" && done.Result is OperationResult.Succeeded ? "Moved to trash" : status } : item).ToArray(),
+            var status = done.Result switch
+            {
+                OperationResult.Succeeded => "Completed",
+                OperationResult.Cancelled => "Cancelled",
+                OperationResult.Planned => "Dry run complete. No files changed.",
+                OperationResult.Failed failed => "Failed: " + failed.Code,
+                _ => "Finished",
+            };
+            await Persist(State with
+            {
+                Files = State.Files with { Revision = checked(State.Files.Revision + 1) },
+                Operations = State.Operations.Select(item => item.Id == done.Operation.Value ? item with
+                { Done = true, Progress = done.Result is OperationResult.Succeeded ? 1 : item.Progress, Status = item.Label == "Move to trash" && done.Result is OperationResult.Succeeded ? "Moved to trash" : status } : item).ToArray(),
+            });
+            if (State.Files.Connection is { } connection)
+            {
+                try { var app = App; await app.Browse(new(connection, State.Files.Folder)); await Store(app, resetPage: true); }
+                catch (StorageException error) { await Persist(State with { Notice = "Storage: " + error.Code }); }
+            }
+            await Context.Synapses.Remove(new(Id.Brain, "runtime.operation", done.Operation.Value));
+            await Render();
         });
-        if (State.Files.Connection is { } connection)
+    }
+
+    private async Task WithAppCallerAsync(Func<Task> action)
+    {
+        var hadPrevious = CallerContextStamper.TryGet(out var previous);
+        var baseCaller = hadPrevious && previous is not null && previous.BrainId == Id.Brain.Value
+            ? previous
+            : await HostCaller.ForBrain(Context.Services, Id.Brain.Value) ?? new CapabilityCaller(Id.Brain.Value, Id.Brain.Value, Id.Brain.Value);
+        CallerContextStamper.Stamp(baseCaller with { AppId = AppKey });
+        try
         {
-            try { var app = App; await app.Browse(new(connection, State.Files.Folder)); await Store(app, resetPage: true); }
-            catch (StorageException error) { await Persist(State with { Notice = "Storage: " + error.Code }); }
+            await action();
         }
-        await Context.Synapses.Remove(new(Id.Brain, "runtime.operation", done.Operation.Value));
-        await Render();
+        finally
+        {
+            if (hadPrevious && previous is not null) { CallerContextStamper.Stamp(previous); }
+            else { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        }
     }
 
     private async Task FollowOperation(string operation, CancellationToken ct = default)

@@ -18,7 +18,7 @@ internal sealed partial class FilesWorkspaceNeuron
     private async Task Render()
     {
         var files = State.Files;
-        var screen = FilesScreen.Compose(files, State.Width, State.PreviewOpen, files.Revision);
+        var screen = FilesScreen.Compose(files, State.Width, State.PreviewOpen, files.Revision, AppKey, State.PageOffset);
         await Push(screen);
         string Action(string verb, int? index = null) => files.Revision.ToString(CultureInfo.InvariantCulture) + ":" + verb
             + (index is { } value ? ":" + value.ToString(CultureInfo.InvariantCulture) : "");
@@ -42,9 +42,25 @@ internal sealed partial class FilesWorkspaceNeuron
             .. operations,
         ]);
         var main = Ui.Column("files-main-wrap", [screen.Main, extras]);
-        await View("side").Publish(new(files.Revision, State.ViewVersion, screen.Side));
-        await View("main").Publish(new(files.Revision, State.ViewVersion, main));
-        await View("full").Publish(new(files.Revision, State.ViewVersion, Ui.Row("files-full", [screen.Side, main], gap: 12, extents: [240, 0])));
+        var full = Ui.Row("files-full", [screen.Side, main], gap: 12, extents: [240, 0]);
+        var version = Math.Max(1L, State.ViewVersion);
+        try
+        {
+            await View("side").Publish(new(files.Revision, version, screen.Side));
+            await View("main").Publish(new(files.Revision, version, main));
+            await View("full").Publish(new(files.Revision, version, full));
+        }
+        catch (InvalidOperationException)
+        {
+            var maxPublished = Math.Max(
+                (await View("side").Read())?.Version ?? 0L,
+                Math.Max((await View("main").Read())?.Version ?? 0L, (await View("full").Read())?.Version ?? 0L));
+            var bumpedVersion = Math.Max(version, maxPublished) + 1L;
+            await Save(State with { ViewVersion = bumpedVersion }, new FilesWorkspaceChanged(files.Revision));
+            await View("side").Publish(new(files.Revision, bumpedVersion, screen.Side));
+            await View("main").Publish(new(files.Revision, bumpedVersion, main));
+            await View("full").Publish(new(files.Revision, bumpedVersion, full));
+        }
     }
 
     private async Task Push(FilesScreen.Model screen)

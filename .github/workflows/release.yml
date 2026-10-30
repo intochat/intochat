@@ -63,10 +63,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          version="v$(tr -d '[:space:]' < VERSION)"
           mkdir -p ../nuget
-          gh release download v0.8.1 --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.1 --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download v0.8.1 --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
+          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx
@@ -103,20 +104,26 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          docker build -f src/IntoChat.OS.Modules/Google/Flutter/app/shell/Dockerfile \
+          docker build -f ui/shell/Dockerfile \
             -t ghcr.io/intochat/os-ui:${VERSION} \
             -t ghcr.io/intochat/os-ui:latest \
-            src/IntoChat.OS.Modules/Google/Flutter/app
+            ui
           docker push --all-tags ghcr.io/intochat/os-ui
+
+      - name: Check out intochat/modules for sandbox Dockerfile
+        uses: actions/checkout@v7
+        with:
+          repository: intochat/modules
+          path: modules
 
       # Built from the same commit as the kernel, so its contracts match the brains that run its sessions.
       - name: Publish sandbox image
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
+          docker build -f modules/src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
             -t ghcr.io/intochat/os-sandbox:${VERSION} \
-            -t ghcr.io/intochat/os-sandbox:latest .
+            -t ghcr.io/intochat/os-sandbox:latest modules
           bash scripts/check-sandbox-image.sh "ghcr.io/intochat/os-sandbox:${VERSION}"
           docker push --all-tags ghcr.io/intochat/os-sandbox
 

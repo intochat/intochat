@@ -20,6 +20,10 @@ public sealed class ShellAppFacts
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> GalleryOperations => AppBaseline.Cases(typeof(GalleryApp));
 
+    public static IEnumerable<TheoryDataRow<AppOperationCase>> PhotoCraftOperations => AppBaseline.Cases(typeof(PhotoCraftApp));
+
+    public static IEnumerable<TheoryDataRow<AppOperationCase>> FilmCraftOperations => AppBaseline.Cases(typeof(FilmCraftApp));
+
     [Theory, MemberData(nameof(WorkspaceOperations))]
     public Task WorkspaceBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
@@ -40,6 +44,12 @@ public sealed class ShellAppFacts
 
     [Theory, MemberData(nameof(GalleryOperations))]
     public Task GalleryBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+
+    [Theory, MemberData(nameof(PhotoCraftOperations))]
+    public Task PhotoCraftStudioBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+
+    [Theory, MemberData(nameof(FilmCraftOperations))]
+    public Task FilmCraftStudioBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Fact]
     public void SettingsCarriesTheFlutterTreesAndTheAppsLibrary()
@@ -94,6 +104,14 @@ public sealed class ShellAppFacts
         Assert.True(galleryReport.Passed);
         Assert.Single(galleryReport.Scenarios);
 
+        var photoCraftReport = await BddRunner.VerifyAsync<PhotoCraftApp>(cancellationToken: ct);
+        Assert.True(photoCraftReport.Passed);
+        Assert.Single(photoCraftReport.Scenarios);
+
+        var filmCraftReport = await BddRunner.VerifyAsync<FilmCraftApp>(cancellationToken: ct);
+        Assert.True(filmCraftReport.Passed);
+        Assert.Single(filmCraftReport.Scenarios);
+
         var inoReport = await BddRunner.VerifyAsync<InoApp>(fakes: os => os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>(), cancellationToken: ct);
         Assert.True(inoReport.Passed);
         Assert.Single(inoReport.Scenarios);
@@ -143,6 +161,14 @@ public sealed class ShellAppFacts
         await inoInstalled.Request("send", new InoSend("SELECT account, city, owner FROM customers"));
         Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/postgres/main#query-result", StringComparison.Ordinal));
 
+        await inoInstalled.Request("send", new InoSend("Remove background from portrait.png"));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("layer.removeBackground", StringComparison.Ordinal));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/apps/photocraft", StringComparison.Ordinal));
+
+        await inoInstalled.Request("send", new InoSend("Razor split timeline in FilmCraft via mcp"));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("timeline.razor", StringComparison.Ordinal));
+        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/apps/filmcraft", StringComparison.Ordinal));
+
         await inoInstalled.Request("send", new InoSend("/scenario invoice-check"));
         Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Tripletex Session Token", StringComparison.Ordinal));
         Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Waiting on you", StringComparison.Ordinal));
@@ -154,10 +180,53 @@ public sealed class ShellAppFacts
         Assert.Contains(SettingsApp.SearchIndex, s => s.ActionUri == "os://window/secure");
         Assert.Contains(SettingsApp.SearchIndex, s => s.ActionUri == "os://window/profile");
 
+        var photoCraftInstalled = await os.Install<PhotoCraftApp>();
+        Assert.Equal("http://localhost:18082", photoCraftInstalled.App.State.WebUrl);
+        await photoCraftInstalled.Request("remove-background", new PhotoCraftRemoveBackground("/work/hero.png", "native-linux"));
+        Assert.Contains(photoCraftInstalled.Main.Texts, text => text.Contains("/work/hero.nobg.png", StringComparison.Ordinal));
+        var photoCraftMapped = System.Text.Json.JsonSerializer.Serialize(AppNeuron.MapView(photoCraftInstalled.App.Render(), "local/apps/photocraft/main"));
+        Assert.Contains("webbrowser", photoCraftMapped, StringComparison.Ordinal);
+        Assert.Contains("http://localhost:18082", photoCraftMapped, StringComparison.Ordinal);
+
+        var filmCraftInstalled = await os.Install<FilmCraftApp>();
+        Assert.Equal("http://localhost:18083", filmCraftInstalled.App.State.WebUrl);
+        await filmCraftInstalled.Request("export", new FilmCraftExport("h264-1080p60", "/work/clip.fcproj", "native-linux"));
+        Assert.Contains(filmCraftInstalled.Main.Texts, text => text.Contains("/work/clip.1080p60.mp4", StringComparison.Ordinal));
+        var filmCraftMapped = System.Text.Json.JsonSerializer.Serialize(AppNeuron.MapView(filmCraftInstalled.App.Render(), "local/apps/filmcraft/main"));
+        Assert.Contains("webbrowser", filmCraftMapped, StringComparison.Ordinal);
+        Assert.Contains("http://localhost:18083", filmCraftMapped, StringComparison.Ordinal);
+
+        var desktopInstalled = await os.Install<DesktopApp>();
+        await desktopInstalled.Request("start");
+        Assert.Contains("ino", desktopInstalled.App.State.PinnedApps);
+        Assert.Contains("creator", desktopInstalled.App.State.PinnedApps);
+        await desktopInstalled.Request("pin", new DesktopPinApp("photocraft", true));
+        Assert.Contains("photocraft", desktopInstalled.App.State.PinnedApps);
+        await desktopInstalled.Request("auto-arrange", new DesktopAutoArrange());
+        Assert.Contains("Auto-Arranged", desktopInstalled.App.State.Status, StringComparison.Ordinal);
+
         os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
         var creatorInstalled = await os.Install<CreatorApp>();
         await creatorInstalled.Request("open");
-        await creatorInstalled.Request("prompt", new CreatorPrompt("Track Elon Musk posts", "post"));
+        await creatorInstalled.Request("prompt", new CreatorPrompt("Track Elon Musk posts", "post", "uk"));
+        Assert.True(creatorInstalled.App.State.SceneRotationPaused);
+        Assert.Equal(1.65, creatorInstalled.App.State.CameraZoom);
+        Assert.Equal("uk", creatorInstalled.App.State.BddLanguage);
+        Assert.Equal("1.1.0", creatorInstalled.App.State.CurrentVersion);
+        Assert.True(creatorInstalled.App.State.SandboxCompiled);
         Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("3D BrainScene", StringComparison.Ordinal));
+        Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("SANDBOX / TEST CREDENTIALS", StringComparison.Ordinal));
+        var creatorMapped = System.Text.Json.JsonSerializer.Serialize(AppNeuron.MapView(creatorInstalled.App.Render(), "local/apps/creator/main"));
+        Assert.Contains("pauseRotation", creatorMapped, StringComparison.Ordinal);
+        Assert.Contains("1.65", creatorMapped, StringComparison.Ordinal);
+
+        await creatorInstalled.Request("language", new CreatorSwitchLanguage("es"));
+        Assert.Equal("es", creatorInstalled.App.State.BddLanguage);
+
+        await creatorInstalled.Request("hot-restart", new CreatorHotRestart());
+        Assert.Equal(1, creatorInstalled.App.State.SandboxRestartCount);
+
+        await creatorInstalled.Request("rollback", new CreatorRollback("1.0.0"));
+        Assert.Equal("1.0.0", creatorInstalled.App.State.CurrentVersion);
     }
 }

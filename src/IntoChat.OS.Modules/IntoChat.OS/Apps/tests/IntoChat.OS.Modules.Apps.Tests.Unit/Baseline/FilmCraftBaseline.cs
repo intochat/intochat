@@ -22,7 +22,16 @@ public sealed class FilmCraftBaseline(IPresenter presenter) : DigitalBrain.App
     public Task Open(FilmCraftOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Present(presenter.Present, static () => null, static () => new View("FilmCraft", new Text(Connected)));
+        Present(
+            presenter.Present,
+            static () => null,
+            static () => new View(
+                "FilmCraft",
+                new Column(
+                [
+                    new Text(Connected),
+                    Ui.WebBrowser("http://localhost:18083", "FilmCraft WASM Studio", "filmcraft-wasm", 520, "wasm"),
+                ])));
         return Task.CompletedTask;
     }
 }

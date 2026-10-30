@@ -21,7 +21,7 @@ namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>
 /// Hosts compiled <see cref="DigitalBrain.App"/> classes declared in <see cref="AppsModule"/> (<see cref="InoApp"/>,
-/// <see cref="GalleryApp"/>, <see cref="CreatorApp"/>, and <see cref="PostApp"/>) in-process on the silo,
+/// <see cref="GalleryApp"/>, <see cref="CreatorApp"/>, <see cref="PostApp"/>, <see cref="PhotoCraftApp"/>, and <see cref="FilmCraftApp"/>) in-process on the silo,
 /// publishing their <see cref="IView"/> trees, <see cref="Presentation"/>s, and Ino's interactive <see cref="IChat"/> + <see cref="IComposer"/>.
 /// </summary>
 internal sealed class CompiledAppsHost(
@@ -40,6 +40,8 @@ internal sealed class CompiledAppsHost(
         ("gallery", typeof(GalleryApp), GalleryApp.Bundle),
         ("creator", typeof(CreatorApp), CreatorApp.Bundle),
         ("post", typeof(PostApp), PostApp.Bundle),
+        ("photocraft", typeof(PhotoCraftApp), PhotoCraftApp.HostedBundle),
+        ("filmcraft", typeof(FilmCraftApp), FilmCraftApp.HostedBundle),
     ];
 
     private static readonly IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName =
@@ -116,6 +118,11 @@ internal sealed class CompiledAppsHost(
                     await app.Import(runtime.Bundle);
                     snapshot = await app.Read();
                 }
+                else if (snapshot.Manifest.Operations.Length < runtime.Bundle.Manifest.Operations.Length)
+                {
+                    await app.Replace(runtime.Bundle);
+                    snapshot = await app.Read();
+                }
 
                 var mainView = SiloNeurons.Get<IView>(services, runtime.AppKey + "/view");
                 if (!runtime.Presented || await mainView.Read() is null)
@@ -155,6 +162,11 @@ internal sealed class CompiledAppsHost(
                     await app.Import(runtime.Bundle);
                     snapshot = await app.Read();
                 }
+                else if (snapshot.Manifest.Operations.Length < runtime.Bundle.Manifest.Operations.Length)
+                {
+                    await app.Replace(runtime.Bundle);
+                    snapshot = await app.Read();
+                }
 
                 if (runtime.Definition.FindOperation(request.Operation) is { } method)
                 {
@@ -165,6 +177,13 @@ internal sealed class CompiledAppsHost(
                 snapshot = await app.Read();
                 await PublishViewsAndPresentationAsync(runtime, app, snapshot);
                 await app.Progress("idle", $"{runtime.Bundle.Manifest.Title}: {request.Operation}");
+
+                if (appName == "ino" && request.InstanceOrLastTurnTargetsStudio(out var studioApp, out var studioPrompt))
+                {
+                    _ = Task.Run(
+                        () => HandleAppRequestedAsync(brain, studioApp, new AppRequested("edit", studioPrompt, Guid.NewGuid()), CancellationToken.None),
+                        CancellationToken.None);
+                }
 
                 if (appName == "ino" && request.Operation == "open")
                 {
@@ -209,6 +228,8 @@ internal sealed class CompiledAppsHost(
             }
 
             await composer.Settle(signal.RequestId);
+            string? syncStudioApp = null;
+            string? syncStudioPrompt = null;
             await runtime.Gate.WaitAsync(ct);
             try
             {
@@ -224,10 +245,30 @@ internal sealed class CompiledAppsHost(
                 snapshot = await app.Read();
                 await PublishViewsAndPresentationAsync(runtime, app, snapshot);
                 await app.Progress("idle", "Ino: answered");
+
+                if (runtime.Instance is InoApp ino && ino.State.Turns is { Length: > 0 } turns)
+                {
+                    var latest = turns[^1];
+                    if (latest.RouteHint.StartsWith("routed:photocraft.", StringComparison.Ordinal))
+                    {
+                        syncStudioApp = "photocraft";
+                        syncStudioPrompt = latest.UserMessage;
+                    }
+                    else if (latest.RouteHint.StartsWith("routed:filmcraft.", StringComparison.Ordinal))
+                    {
+                        syncStudioApp = "filmcraft";
+                        syncStudioPrompt = latest.UserMessage;
+                    }
+                }
             }
             finally
             {
                 runtime.Gate.Release();
+            }
+
+            if (syncStudioApp is not null && syncStudioPrompt is not null)
+            {
+                await HandleAppRequestedAsync(brain, syncStudioApp, new AppRequested("edit", syncStudioPrompt, Guid.NewGuid()), ct);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -369,7 +410,7 @@ internal sealed class CompiledAppsHost(
         var currentComposer = await composer.Read();
         if (currentComposer.Generation < 1 || !string.Equals(currentComposer.Context, runtime.AppKey, StringComparison.Ordinal))
         {
-            await composer.Configure(runtime.AppKey, 1L, "Message Ino (local model, SQL, or apps)...");
+            await composer.Configure(runtime.AppKey, 1L, "Message Ino (local model, SQL, PhotoCraft, or apps)...");
         }
 
         var dvKey = IApp.Key(runtime.Brain, "datavisualizer");
@@ -401,7 +442,7 @@ internal sealed class CompiledAppsHost(
             entries.Add(new ChatEntry(
                 "welcome",
                 ChatRole.Assistant,
-                $"Hello! I am **Ino**, your personal AI assistant in IntoChat OS ({state.Status}).\n\nAsk me anything to chat with your local model (`qwen3.5:4b`), visualize your database as a live **UI Table** and **Chart**, or ask questions about the chart on screen (e.g., *\"What are top 3 on the chart I see?\"*).")
+                $"Hello! I am **Ino**, your personal AI assistant in IntoChat OS ({state.Status}).\n\nAsk me anything to chat with your local model (`qwen3.5:4b`), edit photos or videos in **PhotoCraft** and **FilmCraft** (e.g., *\"remove background from portrait.png\"*), or visualize your database as a live **UI Table** and **Chart**.")
             {
                 Model = "qwen3.5:4b",
             });
@@ -470,6 +511,15 @@ internal sealed class CompiledAppsHost(
                 $"Scope: {approvalCard.EffectiveScopeUri} · Status: {approvalCard.Status}"));
         }
 
+        if (state.ActiveCards.LastOrDefault(c => c.Id == $"studio-{turnNumber}") is { } studioCard)
+        {
+            activities.Add(new ChatActivity(
+                studioCard.Id,
+                studioCard.Title,
+                studioCard.SourceNeuronUri,
+                studioCard.Summary));
+        }
+
         if (turn.RouteHint.StartsWith("routed:", StringComparison.Ordinal))
         {
             var routedTarget = turn.RouteHint["routed:".Length..];
@@ -477,7 +527,19 @@ internal sealed class CompiledAppsHost(
             var targetApp = dot > 0 ? routedTarget[..dot] : routedTarget;
             if (ChatAppCard.IsAppName(targetApp))
             {
-                appCard = new ChatAppCard(targetApp, targetApp, "grid", true);
+                var displayTitle = targetApp switch
+                {
+                    "photocraft" => "PhotoCraft",
+                    "filmcraft" => "FilmCraft",
+                    _ => targetApp,
+                };
+                var displayIcon = targetApp switch
+                {
+                    "photocraft" => "image",
+                    "filmcraft" => "film",
+                    _ => "grid",
+                };
+                appCard = new ChatAppCard(targetApp, displayTitle, displayIcon, true);
             }
         }
 
@@ -539,9 +601,25 @@ internal sealed class CompiledAppsHost(
         if (targetType == typeof(GalleryFilter)) { return new GalleryFilter(unquoted); }
         if (targetType == typeof(GallerySelect)) { return new GallerySelect(unquoted); }
         if (targetType == typeof(GallerySwitchIdentity)) { return new GallerySwitchIdentity(unquoted); }
+        if (targetType == typeof(DesktopNarrow)) { return new DesktopNarrow(unquoted); }
+        if (targetType == typeof(DesktopAutoArrange)) { return new DesktopAutoArrange(); }
+        if (targetType == typeof(DesktopPinApp)) { return new DesktopPinApp(unquoted, true); }
         if (targetType == typeof(CreatorInspect)) { return new CreatorInspect(unquoted); }
         if (targetType == typeof(CreatorPrompt)) { return new CreatorPrompt(unquoted); }
+        if (targetType == typeof(CreatorSwitchLanguage)) { return new CreatorSwitchLanguage(unquoted); }
+        if (targetType == typeof(CreatorRollback)) { return new CreatorRollback(unquoted); }
+        if (targetType == typeof(CreatorHotRestart)) { return new CreatorHotRestart(); }
         if (targetType == typeof(PostPublish)) { return new PostPublish(unquoted); }
+        if (targetType == typeof(PhotoCraftStudioOpen)) { return new PhotoCraftStudioOpen(unquoted); }
+        if (targetType == typeof(PhotoCraftStudioEdit)) { return new PhotoCraftStudioEdit(unquoted); }
+        if (targetType == typeof(PhotoCraftRemoveBackground)) { return new PhotoCraftRemoveBackground(unquoted); }
+        if (targetType == typeof(PhotoCraftRunCommand)) { return new PhotoCraftRunCommand(unquoted); }
+        if (targetType == typeof(PhotoCraftSwitchMode)) { return new PhotoCraftSwitchMode(unquoted); }
+        if (targetType == typeof(FilmCraftStudioOpen)) { return new FilmCraftStudioOpen(unquoted); }
+        if (targetType == typeof(FilmCraftStudioEdit)) { return new FilmCraftStudioEdit(unquoted); }
+        if (targetType == typeof(FilmCraftRunCommand)) { return new FilmCraftRunCommand(unquoted); }
+        if (targetType == typeof(FilmCraftExport)) { return new FilmCraftExport(unquoted); }
+        if (targetType == typeof(FilmCraftSwitchMode)) { return new FilmCraftSwitchMode(unquoted); }
         return null;
     }
 
@@ -555,6 +633,35 @@ internal sealed class CompiledAppsHost(
         public required App Instance { get; init; }
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public bool Presented { get; set; }
+    }
+}
+
+file static class AppRequestedExtensions
+{
+    public static bool InstanceOrLastTurnTargetsStudio(this AppRequested request, out string studioApp, out string studioPrompt)
+    {
+        studioApp = string.Empty;
+        studioPrompt = string.Empty;
+        if (request.Operation != "send" || string.IsNullOrWhiteSpace(request.Input))
+        {
+            return false;
+        }
+
+        if (InoApp.LooksLikePhotoCraftRequest(request.Input))
+        {
+            studioApp = "photocraft";
+            studioPrompt = request.Input;
+            return true;
+        }
+
+        if (InoApp.LooksLikeFilmCraftRequest(request.Input))
+        {
+            studioApp = "filmcraft";
+            studioPrompt = request.Input;
+            return true;
+        }
+
+        return false;
     }
 }
 

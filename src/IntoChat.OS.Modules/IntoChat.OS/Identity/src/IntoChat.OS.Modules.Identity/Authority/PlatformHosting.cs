@@ -69,7 +69,15 @@ public static class PlatformHosting
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
-        services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName);
+        services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName)
+            .PostConfigure(options =>
+            {
+                if (options.PublicOrigin is { Host: "localhost" } origin
+                    && string.Equals(origin.Port.ToString(System.Globalization.CultureInfo.InvariantCulture), Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS"), StringComparison.Ordinal))
+                {
+                    options.PublicOrigin = new Uri("http://localhost:5080");
+                }
+            });
         // Silo singletons: a restart takes the pending logins with it, so a callback fails closed.
         services.TryAddSingleton<Connections.OAuth.OAuthLoginRequests>();
         services.TryAddSingleton<Connections.OAuth.OAuthTokenExchange>();

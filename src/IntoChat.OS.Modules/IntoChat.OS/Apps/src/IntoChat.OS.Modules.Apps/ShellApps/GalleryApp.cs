@@ -268,7 +268,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                 new Column(categoryButtons) { Gap = 4 },
                 new Collection(visible.Select(entry =>
                     new Entry(entry.Id, entry.Title, $"{entry.Category} · {entry.NeuronContract}")).ToArray()),
-            ]) { Gap = 12 });
+            ])
+            { Gap = 12 });
     }
 
     public View Render()
@@ -320,7 +321,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                     ],
                     Kind: SurfaceKind.Recessed,
                     Title: "C# App<TState> & [Signal] Contract"),
-            ]) { Gap = 16 });
+            ])
+            { Gap = 16 });
     }
 
     private static Node BuildSamplePreviewNode(GalleryCatalogEntry selected) => selected.Id switch

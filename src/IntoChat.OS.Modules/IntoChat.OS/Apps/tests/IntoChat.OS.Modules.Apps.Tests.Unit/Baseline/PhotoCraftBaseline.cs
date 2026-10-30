@@ -53,6 +53,15 @@ public sealed class PhotoCraftBaseline(IPresenter presenter) : DigitalBrain.App
     private void Show(string status)
     {
         Status = status;
-        Present(presenter.Present, static () => null, () => new View("PhotoCraft", new Text(Status)));
+        Present(
+            presenter.Present,
+            static () => null,
+            () => new View(
+                "PhotoCraft",
+                new Column(
+                [
+                    new Text(Status),
+                    Ui.WebBrowser("http://localhost:18082", "PhotoCraft WASM Studio", "photocraft-wasm", 520, "wasm"),
+                ])));
     }
 }

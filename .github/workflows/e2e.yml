@@ -65,10 +65,16 @@ jobs:
       # over the SAME contexts, so the in-test builds hit a warm layer cache instead of a cold build
       # inside a fact's HTTP timeout.
       - name: Warm the shell image layer cache
-        run: docker build -f src/IntoChat.OS.Modules/Google/Flutter/app/shell/Dockerfile src/IntoChat.OS.Modules/Google/Flutter/app
+        run: docker build -f ui/shell/Dockerfile ui
+
+      - name: Check out intochat/modules for sandbox Dockerfile
+        uses: actions/checkout@v7
+        with:
+          repository: intochat/modules
+          path: modules
 
       - name: Warm the sandbox image layer cache
-        run: docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
+        run: docker build -f modules/src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile modules
 
       # ArtCraft images are built once per pinned ref by artcraft-images.yml and pulled here; the tags are the first
       # 12 characters of the refs in ArtCraftModuleHosting (E2EWarmUpFacts pins them). A missing tag fails the step:

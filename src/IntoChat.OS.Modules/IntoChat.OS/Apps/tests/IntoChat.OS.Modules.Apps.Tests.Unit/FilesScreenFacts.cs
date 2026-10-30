@@ -357,6 +357,23 @@ public sealed class FilesPreviewFacts
         Assert.Contains(FilesCopy.AskInoAboutFile, buttons, StringComparer.Ordinal);
         Assert.Contains(FilesCopy.QuickViewHeading, texts, StringComparer.Ordinal);
         Assert.Contains(prompt, texts, StringComparer.Ordinal);
+
+        var allNodes = Walk.Nodes(screen.Main).ToArray();
+        var keys = allNodes.Select(n => n.Key).ToArray();
+        Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains("crumb-root", keys, StringComparer.Ordinal);
+        Assert.Contains("crumb-storage", keys, StringComparer.Ordinal);
+        Assert.Contains("crumb-0", keys, StringComparer.Ordinal);
+        Assert.Contains("item-open-0", keys, StringComparer.Ordinal);
+
+        var references = allNodes.Where(n => n.Kind == UiNodeKind.Reference).ToArray();
+        Assert.NotEmpty(references);
+        Assert.All(references, r =>
+        {
+            Assert.NotNull(r.Reference);
+            Assert.StartsWith("owner/apps/files/", r.Reference!.Name, StringComparison.Ordinal);
+            Assert.Contains(r.Reference.Kind, new[] { "textfield", "image" });
+        });
     }
 }
 

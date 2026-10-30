@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -13,10 +14,78 @@ namespace IntoChat.OS.Authority.Identity.Grants;
 // indistinguishable from a missing one.
 public static class GrantRules
 {
+    private static readonly string[] ForbiddenAppTargets =
+    [
+        "identity.vault",
+        "IVault",
+        "ISecretValueSource",
+        "VaultSecretValueSource",
+        "IBrainSecretSealer",
+        "BrainSecretSealer",
+        "ISecretSealer",
+        "SecretSealer",
+        "OAuthTokenExchange",
+        "IOAuthTokenExchange",
+    ];
+
+    private static readonly string[] ForbiddenAppOperations =
+    [
+        "IVault.",
+        "ISecretValueSource.",
+        "IBrainSecretSealer.",
+        "ISecretSealer.",
+        "IOAuthTokenExchange.",
+        "ExportFor",
+        "AcceptGrant",
+        "OpenSecret",
+        "CurrentValues",
+    ];
+
+    // Zero-token auth enforcement: sandbox and app callers can never read raw OAuth credentials or unsealed secrets directly.
+    public static CallDecision? EvaluateZeroTokenGuard(CallRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var caller = request.Caller;
+        if (caller is null) { return null; }
+        if (caller.Kind != CallerKind.App && !AppPrincipal.IsApp(caller.PrincipalId))
+        {
+            return null;
+        }
+
+        var target = request.TargetNeuron ?? "";
+        var operation = request.Operation ?? "";
+        foreach (var forbiddenTarget in ForbiddenAppTargets)
+        {
+            if (target.Contains(forbiddenTarget, StringComparison.OrdinalIgnoreCase))
+            {
+                return CallDecision.Deny(
+                    CallDenial.UntrustedCaller,
+                    "Zero-token auth enforcement: sandbox and app callers cannot access raw credentials or unsealed secrets directly; use ICapabilityBroker and ConnectionNeuron.UseCredentialAsync.");
+            }
+        }
+
+        foreach (var forbiddenOp in ForbiddenAppOperations)
+        {
+            if (operation.Contains(forbiddenOp, StringComparison.OrdinalIgnoreCase))
+            {
+                return CallDecision.Deny(
+                    CallDenial.UntrustedCaller,
+                    "Zero-token auth enforcement: sandbox and app callers cannot invoke raw secret or credential operations directly; use ICapabilityBroker and ConnectionNeuron.UseCredentialAsync.");
+            }
+        }
+
+        return null;
+    }
+
     public static CallDecision? Evaluate(CallRequest request, Member? member, IReadOnlyList<Grant> grants)
     {
         ArgumentNullException.ThrowIfNull(request);
         grants ??= [];
+
+        if (EvaluateZeroTokenGuard(request) is { } zeroTokenDenial)
+        {
+            return zeroTokenDenial;
+        }
 
         var caller = request.Caller;
         if (caller.Kind is CallerKind.User or CallerKind.Assistant
@@ -25,7 +94,7 @@ public static class GrantRules
             return CallDecision.Deny(CallDenial.OutsideWorkspace, "The principal is not a member of this account and brain.");
         }
 
-        if (caller.Kind != CallerKind.App || request.SemanticTypeIds.Length == 0)
+        if (caller.Kind != CallerKind.App)
         {
             return null;
         }
@@ -33,6 +102,13 @@ public static class GrantRules
         if (AppOf(caller) is null)
         {
             return CallDecision.Deny(CallDenial.UntrustedCaller, "An app caller must identify its app, and its principal must be that app's.");
+        }
+
+        if (request.SemanticTypeIds.Length == 0)
+        {
+            return SdkCapabilitySharing.IsConnectionBoundToFriend(caller, request.TargetNeuron)
+                ? CallDecision.Allow()
+                : null;
         }
 
         foreach (var semanticTypeId in request.SemanticTypeIds)
@@ -87,7 +163,9 @@ public static class GrantRules
     internal static bool IsGranted(CapabilityCaller caller, string semanticTypeId, IReadOnlyList<Grant> grants, string? targetNeuron = null)
         => AppOf(caller) is { } app && grants.Any(grant => !grant.Revoked
             && string.Equals(grant.WorkspaceId, caller.BrainId, StringComparison.Ordinal)
-            && string.Equals(grant.AppId, app, StringComparison.Ordinal)
+            && (string.Equals(grant.AppId, app, StringComparison.Ordinal)
+                || SdkCapabilitySharing.IsFriend(grant.AppId, app, semanticTypeId)
+                || (!string.IsNullOrWhiteSpace(targetNeuron) && SdkCapabilitySharing.IsFriend(grant.AppId, app, targetNeuron)))
             && string.Equals(grant.SemanticTypeId, semanticTypeId, StringComparison.Ordinal)
             && (grant.TargetNeuronKey is null || string.Equals(grant.TargetNeuronKey, targetNeuron, StringComparison.Ordinal))
             && ModeSatisfied(grant, caller));

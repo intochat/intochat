@@ -13,26 +13,148 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Connections.OAuth;
 
-// The browser returns here with a code and the one-use state. The owner was recorded at login
-// start; this edge stamps that owner, the way the authenticated edge stamps a cookie.
-internal sealed class OAuthCallback : IHttpSurface
+// Unified /integrations/{provider} edge for OAuth redirects (/integrations/{provider}/oauth/callback,
+// /integrations/{provider}/callback, and legacy /connections/oauth/{provider}/callback) and inbound webhooks
+// (POST /integrations/{provider}/webhook and POST /integrations/{provider}), routing to target grains via 3-part ConnectionKeys.
+public sealed class OAuthCallback : IHttpSurface
 {
-    private const string Prefix = "/connections/oauth/";
-    private const string Suffix = "/callback";
+    private const string IntegrationsPrefix = "/integrations/";
+    private const string LegacyPrefix = "/connections/oauth/";
+    private const string OAuthCallbackSuffix = "/oauth/callback";
+    private const string CallbackSuffix = "/callback";
+    private const string WebhookSuffix = "/webhook";
+    public const string ConnectionKeyHeader = "X-IntoChat-Connection-Key";
 
     // ASP.NET Core's per-request Information log, which prints the full query string.
     internal const string RequestLogCategory = "Microsoft.AspNetCore.Hosting.Diagnostics";
+
+    public static bool TryMatchCallbackPath(string? path, out string provider)
+    {
+        provider = "";
+        if (string.IsNullOrWhiteSpace(path)) { return false; }
+
+        if (path.StartsWith(IntegrationsPrefix, StringComparison.Ordinal))
+        {
+            if (path.EndsWith(OAuthCallbackSuffix, StringComparison.Ordinal)
+                && path.Length > IntegrationsPrefix.Length + OAuthCallbackSuffix.Length)
+            {
+                var segment = path[IntegrationsPrefix.Length..^OAuthCallbackSuffix.Length];
+                if (!segment.Contains('/', StringComparison.Ordinal))
+                {
+                    provider = Uri.UnescapeDataString(segment);
+                    return !string.IsNullOrWhiteSpace(provider);
+                }
+            }
+
+            if (path.EndsWith(CallbackSuffix, StringComparison.Ordinal)
+                && path.Length > IntegrationsPrefix.Length + CallbackSuffix.Length)
+            {
+                var segment = path[IntegrationsPrefix.Length..^CallbackSuffix.Length];
+                if (!segment.Contains('/', StringComparison.Ordinal))
+                {
+                    provider = Uri.UnescapeDataString(segment);
+                    return !string.IsNullOrWhiteSpace(provider);
+                }
+            }
+        }
+
+        if (path.StartsWith(LegacyPrefix, StringComparison.Ordinal)
+            && path.EndsWith(CallbackSuffix, StringComparison.Ordinal)
+            && path.Length > LegacyPrefix.Length + CallbackSuffix.Length)
+        {
+            var segment = path[LegacyPrefix.Length..^CallbackSuffix.Length];
+            if (!segment.Contains('/', StringComparison.Ordinal))
+            {
+                provider = Uri.UnescapeDataString(segment);
+                return !string.IsNullOrWhiteSpace(provider);
+            }
+        }
+
+        return false;
+    }
+
+    public static bool TryMatchWebhookPath(string? path, out string provider)
+    {
+        provider = "";
+        if (string.IsNullOrWhiteSpace(path) || !path.StartsWith(IntegrationsPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (path.EndsWith(WebhookSuffix, StringComparison.Ordinal)
+            && path.Length > IntegrationsPrefix.Length + WebhookSuffix.Length)
+        {
+            var segment = path[IntegrationsPrefix.Length..^WebhookSuffix.Length];
+            if (!segment.Contains('/', StringComparison.Ordinal))
+            {
+                provider = Uri.UnescapeDataString(segment);
+                return !string.IsNullOrWhiteSpace(provider);
+            }
+        }
+
+        var tail = path[IntegrationsPrefix.Length..].TrimEnd('/');
+        if (tail.Length > 0 && !tail.Contains('/', StringComparison.Ordinal)
+            && !string.Equals(tail, "registration", StringComparison.OrdinalIgnoreCase))
+        {
+            provider = Uri.UnescapeDataString(tail);
+            return !string.IsNullOrWhiteSpace(provider);
+        }
+
+        return false;
+    }
+
+    public static bool TryResolveWebhookConnectionKey(HttpRequest request, string provider, out string connectionKey)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(provider);
+        connectionKey = "";
+
+        var rawKey = request.Query["connectionKey"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(rawKey) && request.Headers.TryGetValue(ConnectionKeyHeader, out var headerValues))
+        {
+            rawKey = headerValues.FirstOrDefault();
+        }
+
+        if (!string.IsNullOrWhiteSpace(rawKey))
+        {
+            if (!ConnectionKeys.TryParse(rawKey, out var parsed) || !string.Equals(parsed.ConnectorId, provider, StringComparison.Ordinal))
+            {
+                return false;
+            }
+            connectionKey = ConnectionKeys.For(parsed.BrainId, parsed.ConnectorId, parsed.ConnectionId);
+            return true;
+        }
+
+        var brain = request.Query["brain"].FirstOrDefault() ?? request.Query["brainId"].FirstOrDefault();
+        var connectionId = request.Query["connectionId"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(brain) && !string.IsNullOrWhiteSpace(connectionId) && BrainScope.IsValidId(brain))
+        {
+            connectionKey = ConnectionKeys.For(brain, provider, connectionId);
+            return true;
+        }
+
+        return false;
+    }
 
     public void Map(IApplicationBuilder app)
     {
         app.Use(async (context, next) =>
         {
             var path = context.Request.Path.Value ?? "";
-            if (!path.StartsWith(Prefix, StringComparison.Ordinal) || !path.EndsWith(Suffix, StringComparison.Ordinal) || path.Length <= Prefix.Length + Suffix.Length)
-            { await next(context); return; }
+            if (HttpMethods.IsPost(context.Request.Method) && TryMatchWebhookPath(path, out var webhookProvider))
+            {
+                await HandleWebhookAsync(context, webhookProvider);
+                return;
+            }
+
+            if (!TryMatchCallbackPath(path, out var connector))
+            {
+                await next(context);
+                return;
+            }
+
             Redact(context);
             LoginPage.PrivateHeaders(context);
-            var connector = Uri.UnescapeDataString(path[Prefix.Length..^Suffix.Length]);
             var requests = context.RequestServices.GetRequiredService<OAuthLoginRequests>();
             var code = context.Request.Query["code"].ToString();
             if (!HttpMethods.IsGet(context.Request.Method) || string.IsNullOrWhiteSpace(code) || !requests.TryClaim(context.Request.Query["state"], out var login))
@@ -40,7 +162,7 @@ internal sealed class OAuthCallback : IHttpSurface
                 await LoginPage.WriteAsync(context, "This login link expired or was already used", "Return to IntoChat.OS and connect again.", 400);
                 return;
             }
-            var (_, keyConnector, connectionId) = ConnectionKeys.Parse(login.ConnectionKey);
+            var (_, keyConnector, _) = ConnectionKeys.Parse(login.ConnectionKey);
             if (keyConnector != connector) { await LoginPage.WriteAsync(context, "Invalid callback", "Return to IntoChat.OS and connect again.", 400); return; }
             try
             {
@@ -51,13 +173,6 @@ internal sealed class OAuthCallback : IHttpSurface
                     BrainScope.Create(login.Owner.AccountId, login.Owner.BrainId).Id, TraceContext.OriginOf(login.Owner.BrainId, login.ConnectionKey))))
                 {
                     var neurons = context.RequestServices.GetRequiredService<AuthorityNeurons>();
-                    // Another connector may have taken this id while the browser was at the provider;
-                    // granting anyway would leave two keys under one id that probe and disconnect refuse.
-                    if (await ConnectionEndpoints.IsTakenByAnotherConnector(neurons, connectionId, connector))
-                    {
-                        await LoginPage.WriteAsync(context, $"{connector} connection needs attention", "Return to IntoChat.OS and connect again.", 400);
-                        return;
-                    }
                     var grant = await exchange.ExchangeCodeAsync(login.ConnectionKey, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector).AbsoluteUri, login.Target, context.RequestAborted);
                     await neurons.ConnectionInbound(login.ConnectionKey).AcceptGrant(grant);
                 }
@@ -72,6 +187,44 @@ internal sealed class OAuthCallback : IHttpSurface
             }
             finally { Redact(context); }
         });
+    }
+
+    internal static async Task HandleWebhookAsync(HttpContext context, string provider)
+    {
+        if (!TryResolveWebhookConnectionKey(context.Request, provider, out var connectionKey))
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            context.Response.ContentType = "application/json";
+            await System.Text.Json.JsonSerializer.SerializeAsync(
+                context.Response.Body,
+                new { error = $"A valid 3-part ConnectionKey for provider '{provider}' is required." },
+                cancellationToken: context.RequestAborted);
+            return;
+        }
+
+        if (context.RequestServices?.GetService<AuthorityNeurons>() is { } neurons)
+        {
+            try
+            {
+                _ = neurons.ConnectionInbound(connectionKey);
+            }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException)
+            {
+                _ = error.Message;
+            }
+        }
+
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "application/json";
+        await System.Text.Json.JsonSerializer.SerializeAsync(
+            context.Response.Body,
+            new
+            {
+                status = "accepted",
+                connectionKey,
+                provider,
+            },
+            cancellationToken: context.RequestAborted);
     }
 
     // Callback query strings carry authorization codes; traces keep only the path.

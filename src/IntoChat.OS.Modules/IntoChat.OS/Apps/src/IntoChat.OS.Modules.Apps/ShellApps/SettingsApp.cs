@@ -19,7 +19,9 @@ public sealed record SettingsOpen : DigitalBrain.Signal;
 public sealed record SettingsRead : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.refresh-connections")]
-public sealed record SettingsRefreshConnections : DigitalBrain.Signal;
+public sealed record SettingsRefreshConnections(
+    string? ConnectionKey = null,
+    string? FriendApp = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.save-preferences")]
 public sealed record SettingsSavePreferences(
@@ -58,9 +60,37 @@ public sealed record SettingsAppState(
     string DefaultModel,
     Node? OverrideBody = null,
     string StylePreset = "fluent-acrylic",
-    string BarLayout = "floating-glass")
+    string BarLayout = "floating-glass",
+    IReadOnlyList<string>? ConnectionKeys = null,
+    IReadOnlyList<string>? FriendGrants = null)
 {
-    public SettingsAppState() : this("Settings", "Settings", "User", "dark", "qwen3.5:4b", null, "fluent-acrylic", "floating-glass") { }
+    public static IReadOnlyList<string> DefaultConnectionKeys { get; } =
+    [
+        "neuron://local/connection/github/personal",
+        "neuron://local/connection/github/work",
+        "neuron://local/connection/google-drive/work",
+        "neuron://local/local-cloud/main",
+    ];
+
+    public static IReadOnlyList<string> DefaultFriendGrants { get; } =
+    [
+        "sdk -> app:local/apps/creator (storage@1 · SANDBOX / TEST CREDENTIALS)",
+        "sdk -> app:local/apps/ino (connections · ICapabilityBroker Zero-Token)",
+    ];
+
+    public SettingsAppState() : this(
+        "Settings",
+        "Settings",
+        "User",
+        "dark",
+        "qwen3.5:4b",
+        null,
+        "fluent-acrylic",
+        "floating-glass",
+        DefaultConnectionKeys,
+        DefaultFriendGrants)
+    {
+    }
 }
 
 [DigitalBrain.App("settings", Accent = "#64748B", Category = "System")]
@@ -72,11 +102,11 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
         new("profile", "Profile, Identity & 2FA", "avatar handle bio two-factor session", "os://window/profile"),
         new("models", "Models & AI Routing", "ollama claude gpt gemini local inference", "os://window/settings?section=models"),
         new("keys", "API Keys & Secure Vault", "secrets token encryption vault", "os://window/secure"),
-        new("connections", "Connections & OAuth", "postgres salesforce google drive github tripletex", "os://window/settings?section=connections"),
+        new("connections", "Connections & OAuth", "postgres salesforce google drive github tripletex integrations webhook", "os://window/settings?section=connections"),
         new("circles", "Circles & LFP Permissions", "approval human-in-the-loop grants", "os://window/settings?section=circles"),
         new("compute", "Compute & Credits", "tokens usage budget billing", "os://window/settings?section=compute"),
         new("apps", "Apps Store, Link Install & Sideload", "install reconsent sandbox git", "os://sheet/install"),
-        new("modules", "Kernel Modules", "orleans grains runtime", "os://window/settings?section=modules"),
+        new("modules", "Kernel Modules", "orleans grains runtime sdk cloud", "os://window/settings?section=modules"),
         new("variables", "Environment & Blackboard", "env vars scope", "os://window/settings?section=variables"),
         new("notifications", "Notifications & Focus", "inbox quiet hours", "os://window/settings?section=notifications"),
         new("archived", "Archived Sessions & File Conflicts", "snapshots two-version conflict", "os://sheet/conflict"),
@@ -93,7 +123,14 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Update(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+        Update(new SettingsAppState(
+            "Settings",
+            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
+            user.DisplayName,
+            user.Theme,
+            user.DefaultModel,
+            ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
+            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
     }
 
     [DigitalBrain.On]
@@ -101,14 +138,42 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Update(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+        Update(new SettingsAppState(
+            "Settings",
+            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
+            user.DisplayName,
+            user.Theme,
+            user.DefaultModel,
+            ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
+            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
     }
 
     [DigitalBrain.On]
     public void RefreshConnections(SettingsRefreshConnections request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Update(State with { Title = "Settings", Status = "Connections", OverrideBody = null });
+        var keys = (State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys).ToList();
+        if (!string.IsNullOrWhiteSpace(request.ConnectionKey) && !keys.Contains(request.ConnectionKey, StringComparer.Ordinal))
+        {
+            keys.Add(request.ConnectionKey);
+        }
+        var grants = (State.FriendGrants ?? SettingsAppState.DefaultFriendGrants).ToList();
+        if (!string.IsNullOrWhiteSpace(request.FriendApp))
+        {
+            var grantEntry = $"sdk -> {request.FriendApp} ({request.ConnectionKey ?? "storage@1"})";
+            if (!grants.Contains(grantEntry, StringComparer.Ordinal))
+            {
+                grants.Add(grantEntry);
+            }
+        }
+        Update(State with
+        {
+            Title = "Settings",
+            Status = "Connections",
+            OverrideBody = null,
+            ConnectionKeys = keys,
+            FriendGrants = grants,
+        });
     }
 
     [DigitalBrain.On]
@@ -144,7 +209,9 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
             updated.DefaultModel,
             null,
             updated.StylePreset,
-            updated.BarLayout));
+            updated.BarLayout,
+            State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
+            State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
     }
 
     [DigitalBrain.On]
@@ -152,7 +219,14 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Update(new SettingsAppState("Settings", $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", user.DisplayName, user.Theme, user.DefaultModel));
+        Update(new SettingsAppState(
+            "Settings",
+            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
+            user.DisplayName,
+            user.Theme,
+            user.DefaultModel,
+            ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
+            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
     }
 
     [DigitalBrain.On]
@@ -205,7 +279,8 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
                 Title: "DigitalBrain Settings (13 Sections)"),
             new Collection(
                 SearchIndex.Select(s => new Entry(s.SectionId, s.Title, s.Keywords)).ToArray()),
-        ]) { Gap = 10 });
+        ])
+        { Gap = 10 });
 
     public View Render() => new(
         State.Title,
@@ -277,8 +352,15 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
                                 "Connections & Storage",
                                 [
                                     new RecordFieldNode("Local Disk", "neuron://local/disk.files"),
+                                    new RecordFieldNode("Local Cloud", "neuron://local/local-cloud/main"),
+                                    new RecordFieldNode("GitHub (Personal)", "neuron://local/connection/github/personal"),
+                                    new RecordFieldNode("GitHub (Work)", "neuron://local/connection/github/work"),
+                                    new RecordFieldNode("Google Drive (Work)", "neuron://local/connection/google-drive/work"),
                                     new RecordFieldNode("Postgres SQL", "neuron://local/postgres/main"),
                                     new RecordFieldNode("Confirmations", "neuron://local/os.confirmations/inbox"),
+                                    new RecordFieldNode("Unified OAuth & Webhooks", "/integrations/{provider}/oauth/callback · /integrations/{provider}/webhook"),
+                                    new RecordFieldNode("Zero-Token Broker", "ICapabilityBroker · ConnectionNeuron.UseCredentialAsync (Active)"),
+                                    new RecordFieldNode("Sandbox & Friend Sharing", "sdk · ShareWith(app:*) · SANDBOX / TEST CREDENTIALS"),
                                 ],
                                 Subtitle: "4 · Connections & API Keys"),
                         ],
@@ -314,7 +396,8 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
                         Title: "9–13 · Compute, Apps, Archived & Danger Zone"),
                 ],
                 Gap: 12),
-        ]) { Gap = 14 });
+        ])
+        { Gap = 14 });
 
     private void Update(SettingsAppState next)
     {

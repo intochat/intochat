@@ -106,7 +106,7 @@ public static class ShellHostingExtensions
             {
                 throw new InvalidOperationException(
                     $"Flutter host package was not found at '{packageRoot}'. " +
-                    "Pass FlutterHostOptions.WorkingDirectory or place src/IntoChat.OS.Modules/Google/Flutter/app/core in the repo.");
+                    "Pass FlutterHostOptions.WorkingDirectory or place ui/core in the repo.");
             }
 
             var resourceName = string.IsNullOrWhiteSpace(options.ResourceName)
@@ -360,18 +360,27 @@ public static class ShellHostingExtensions
 
             // Walk up rather than guessing a fixed depth: the caller can be an application AppHost
             // or any test project, and those sit at different depths under the repository root.
+            string[] packageDirectories = ["core", "shell", "ui"];
             string[] packagePathsFromRepositoryRoot =
             [
+                Path.Combine("ui", "core"),
+                Path.Combine("ui", "shell"),
+                Path.Combine("ui", "ui"),
                 Path.Combine("src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "core"),
                 Path.Combine("src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "shell"),
                 Path.Combine("..", "modules", "src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "core"),
                 Path.Combine("..", "modules", "src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "shell"),
             ];
-            for (var directory = new DirectoryInfo(Path.GetFullPath(appHostDirectory)); directory is not null; directory = directory.Parent)
+            for (var current = new DirectoryInfo(Path.GetFullPath(appHostDirectory)); current is not null; current = current.Parent)
             {
+                foreach (var packageDirectory in packageDirectories)
+                {
+                    var uiCandidate = Path.Combine(current.FullName, "ui", packageDirectory);
+                    if (File.Exists(Path.Combine(uiCandidate, "pubspec.yaml"))) { return uiCandidate; }
+                }
                 foreach (var packagePath in packagePathsFromRepositoryRoot)
                 {
-                    var candidate = Path.Combine(directory.FullName, packagePath);
+                    var candidate = Path.Combine(current.FullName, packagePath);
                     if (File.Exists(Path.Combine(candidate, "pubspec.yaml"))) { return candidate; }
                 }
             }

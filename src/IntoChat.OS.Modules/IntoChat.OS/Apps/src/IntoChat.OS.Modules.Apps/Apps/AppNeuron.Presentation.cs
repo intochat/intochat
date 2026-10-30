@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DigitalBrain.Contracts;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps.Signals;
@@ -354,8 +355,23 @@ internal sealed partial class AppNeuron
 
         StatCardNode stat => MapStatCard(key, stat),
 
+        WebBrowser wb => MapWebBrowser(key, wb),
+
         _ => throw new InvalidOperationException($"Unsupported view node {node.GetType().Name}."),
     };
+
+    private static UiNode MapWebBrowser(string key, WebBrowser wb) =>
+        MetaCard(
+            string.IsNullOrWhiteSpace(wb.Key) ? key : wb.Key,
+            wb.Title ?? "WASM Studio",
+            new JsonObject
+            {
+                ["_ui"] = "webbrowser",
+                ["url"] = wb.Url,
+                ["title"] = wb.Title ?? "WASM Studio",
+                ["height"] = wb.Height,
+                ["executionMode"] = wb.ExecutionMode,
+            });
 
     private static UiNode MetaCard(string key, string title, object meta, params ReadOnlySpan<UiNode?> children)
     {
@@ -408,6 +424,9 @@ internal sealed partial class AppNeuron
         {
             _ui = "brain3d",
             selectedId = scene.SelectedId,
+            pauseRotation = scene.PauseRotation,
+            zoomTargetId = scene.ZoomTargetId,
+            targetZoom = scene.TargetZoom,
             height = 340.0,
             interactive = true,
             showHud = true,

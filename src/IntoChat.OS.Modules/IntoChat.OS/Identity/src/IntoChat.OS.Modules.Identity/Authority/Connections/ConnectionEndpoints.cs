@@ -41,9 +41,9 @@ internal static class ConnectionEndpoints
             if (!connectors.Any(connector => connector.Id == input.ConnectorId))
             { return Results.BadRequest(new { error = $"No composed module declares connector '{input.ConnectorId}'." }); }
             if (await ConnectionLogin.UnavailableError(context.RequestServices, input.ConnectorId, ct) is { } unavailable) { return Conflict(unavailable); }
-            if (await ConnectionLogin.TakenError(neurons, connectionId, input.ConnectorId) is { } taken) { return Conflict(taken); }
+            var key = ResolveTargetKey(BrainScope.CurrentId(), input.ConnectorId, connectionId);
             // A declared connector may ship no connection neuron; the manifest check refuses it by name.
-            try { return Results.Ok(await neurons.CallerConnection<IConnection>(context.RequestServices, ConnectionKeys.For(BrainScope.CurrentId(), input.ConnectorId, connectionId)).Connect(input.AuthMethodId, input.Value)); }
+            try { return Results.Ok(await neurons.CallerConnection<IConnection>(context.RequestServices, key).Connect(input.AuthMethodId, input.Value)); }
             catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
         });
 
@@ -56,9 +56,11 @@ internal static class ConnectionEndpoints
                 : Results.BadRequest(new { error = start.Error });
         });
 
-        group.MapPost("/{connectionId}/probe", async (string connectionId, AuthorityNeurons neurons) =>
+        group.MapPost("/{connectionId}/probe", async (string connectionId, HttpContext context, AuthorityNeurons neurons) =>
         {
-            var keys = await Tracked(neurons, connectionId);
+            var connectorId = context.Request.Query["connectorId"].FirstOrDefault();
+            var connectionKey = context.Request.Query["connectionKey"].FirstOrDefault();
+            var keys = await Tracked(neurons, connectionId, connectorId, connectionKey);
             return keys.Length switch
             {
                 0 => Results.NotFound(),
@@ -67,25 +69,97 @@ internal static class ConnectionEndpoints
             };
         });
 
-        group.MapPost("/{connectionId}/disconnect", async (string connectionId, AuthorityNeurons neurons) =>
+        group.MapPost("/{connectorId}/{connectionId}/probe", async (string connectorId, string connectionId, AuthorityNeurons neurons) =>
         {
-            var keys = await Tracked(neurons, connectionId);
+            var keys = await Tracked(neurons, connectionId, connectorId);
+            return keys.Length switch
+            {
+                0 => Results.NotFound(),
+                1 => Results.Ok(await neurons.Connection(keys[0]).Probe()),
+                _ => Ambiguous(connectionId),
+            };
+        });
+
+        group.MapPost("/{connectionId}/disconnect", async (string connectionId, HttpContext context, AuthorityNeurons neurons) =>
+        {
+            var connectorId = context.Request.Query["connectorId"].FirstOrDefault();
+            var connectionKey = context.Request.Query["connectionKey"].FirstOrDefault();
+            var keys = await Tracked(neurons, connectionId, connectorId, connectionKey);
+            if (keys.Length != 1) { return keys.Length == 0 ? Results.NotFound() : Ambiguous(connectionId); }
+            await neurons.Connection(keys[0]).Disconnect();
+            return Results.Ok();
+        });
+
+        group.MapPost("/{connectorId}/{connectionId}/disconnect", async (string connectorId, string connectionId, AuthorityNeurons neurons) =>
+        {
+            var keys = await Tracked(neurons, connectionId, connectorId);
             if (keys.Length != 1) { return keys.Length == 0 ? Results.NotFound() : Ambiguous(connectionId); }
             await neurons.Connection(keys[0]).Disconnect();
             return Results.Ok();
         });
     }
 
-    private static async Task<string[]> Tracked(AuthorityNeurons neurons, string connectionId)
-        => [.. (await neurons.Connections(BrainScope.CurrentId()).List())
-            .Where(key => ConnectionKeys.Parse(key).ConnectionId == connectionId)];
+    internal static string ResolveTargetKey(string brainScope, string connectorId, string connectionIdOrKey)
+    {
+        var unescaped = Uri.UnescapeDataString(connectionIdOrKey);
+        if (ConnectionKeys.TryParse(unescaped, out var parsed)
+            && string.Equals(parsed.BrainId, brainScope, StringComparison.Ordinal)
+            && string.Equals(parsed.ConnectorId, connectorId, StringComparison.Ordinal))
+        {
+            return ConnectionKeys.For(parsed.BrainId, parsed.ConnectorId, parsed.ConnectionId);
+        }
+        return ConnectionKeys.For(brainScope, connectorId, connectionIdOrKey);
+    }
 
-    internal static async Task<bool> IsTakenByAnotherConnector(AuthorityNeurons neurons, string connectionId, string connectorId)
-        => (await Tracked(neurons, connectionId)).Any(key => ConnectionKeys.Parse(key).ConnectorId != connectorId);
+    internal static async Task<string[]> Tracked(AuthorityNeurons neurons, string connectionId, string? connectorId = null, string? connectionKey = null, string? scopeOverride = null)
+    {
+        var scope = scopeOverride ?? BrainScope.CurrentId();
+        var all = await neurons.Connections(scope).List();
+        return FilterTrackedKeys(all, scope, connectionId, connectorId, connectionKey);
+    }
+
+    public static string[] FilterTrackedKeys(IEnumerable<string> trackedKeys, string brainScope, string connectionId, string? connectorId = null, string? connectionKey = null)
+    {
+        ArgumentNullException.ThrowIfNull(trackedKeys);
+        if (!string.IsNullOrWhiteSpace(connectionKey) && ConnectionKeys.TryParse(connectionKey, out var explicitKey))
+        {
+            var canonical = ConnectionKeys.For(explicitKey.BrainId, explicitKey.ConnectorId, explicitKey.ConnectionId);
+            return string.Equals(explicitKey.BrainId, brainScope, StringComparison.Ordinal)
+                ? [.. trackedKeys.Where(key => string.Equals(key, canonical, StringComparison.Ordinal))]
+                : [];
+        }
+
+        var unescaped = Uri.UnescapeDataString(connectionId);
+        if (ConnectionKeys.TryParse(unescaped, out var parsedId))
+        {
+            var canonical = ConnectionKeys.For(parsedId.BrainId, parsedId.ConnectorId, parsedId.ConnectionId);
+            return string.Equals(parsedId.BrainId, brainScope, StringComparison.Ordinal)
+                ? [.. trackedKeys.Where(key => string.Equals(key, canonical, StringComparison.Ordinal))]
+                : [];
+        }
+
+        return
+        [
+            .. trackedKeys.Where(key =>
+            {
+                var parsed = ConnectionKeys.Parse(key);
+                if (!string.Equals(parsed.ConnectionId, connectionId, StringComparison.Ordinal)) { return false; }
+                return string.IsNullOrWhiteSpace(connectorId) || string.Equals(parsed.ConnectorId, connectorId, StringComparison.Ordinal);
+            })
+        ];
+    }
+
+    internal static Task<bool> IsTakenByAnotherConnector(AuthorityNeurons neurons, string connectionId, string connectorId)
+    {
+        _ = neurons;
+        _ = connectionId;
+        _ = connectorId;
+        return Task.FromResult(false);
+    }
 
     private static IResult Conflict(string error) => Results.Json(new { error }, statusCode: StatusCodes.Status409Conflict);
 
-    // Only a race between two connects can leave two keys; never pick one silently.
+    // When a connectionId is shared by multiple connectors and no connectorId/connectionKey is specified, ask for disambiguation.
     private static IResult Ambiguous(string connectionId)
-        => Results.Json(new { error = $"Connection '{connectionId}' names more than one connector in this brain." }, statusCode: StatusCodes.Status409Conflict);
+        => Results.Json(new { error = $"Connection '{connectionId}' names more than one connector in this brain; specify connectorId or a 3-part connectionKey." }, statusCode: StatusCodes.Status409Conflict);
 }
