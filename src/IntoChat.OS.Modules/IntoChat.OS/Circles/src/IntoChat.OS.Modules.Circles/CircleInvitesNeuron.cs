@@ -1,9 +1,9 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 

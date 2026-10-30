@@ -20,24 +20,6 @@ void main() {
     expect(find.text('E2E BTC chart'), findsOneWidget);
   });
 
-  testWidgets('video shows url', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: UiVideo(
-            part: UiVideoPart(
-              name: 'e2e',
-              url: 'https://example.com/intro.mp4',
-              playing: true,
-            ),
-          ),
-        ),
-      ),
-    );
-    expect(find.text('Playing'), findsOneWidget);
-    expect(find.text('https://example.com/intro.mp4'), findsOneWidget);
-  });
-
   testWidgets('browser shows its title without a raw URL row', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(

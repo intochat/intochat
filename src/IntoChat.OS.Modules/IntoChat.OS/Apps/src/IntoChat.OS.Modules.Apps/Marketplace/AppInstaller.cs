@@ -1,14 +1,14 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using Idn = DigitalBrain.Capabilities.Identity;
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Integrations;
 using Microsoft.Extensions.Options;
-using DigitalBrain.Runtime.Orleans.Hosting;
+using Idn = DigitalBrain.Capabilities.Identity;
 
 namespace IntoChat.OS.Modules.Apps;
 

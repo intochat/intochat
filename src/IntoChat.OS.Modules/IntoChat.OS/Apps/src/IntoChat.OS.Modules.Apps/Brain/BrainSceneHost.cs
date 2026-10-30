@@ -1,5 +1,5 @@
-using DigitalBrain.Capabilities;
 using DigitalBrain;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using IntoChat.OS.Framework;

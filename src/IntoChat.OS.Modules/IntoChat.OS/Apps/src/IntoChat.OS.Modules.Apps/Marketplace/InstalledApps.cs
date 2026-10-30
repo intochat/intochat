@@ -1,9 +1,9 @@
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
-using IntoChat.OS.Runtime;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
 

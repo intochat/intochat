@@ -1,5 +1,5 @@
-using IntoChat.OS.Runtime;
 using DigitalBrain.Spi;
+using IntoChat.OS.Runtime;
 namespace IntoChat.OS;
 
 // A watch that tells the runtime which signals to deliver. Callers that only have INeuronProxies

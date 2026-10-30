@@ -25,14 +25,7 @@ class _ImmutableView extends StatelessWidget {
   final LocalPreferences? localPreferences;
   final ValueChanged<Map<String, dynamic>>? onActivate;
 
-  static final _random = Random.secure();
-  static String _operationId() {
-    final bytes = List.generate(16, (_) => _random.nextInt(256));
-    bytes[6] = (bytes[6] & 15) | 64;
-    bytes[8] = (bytes[8] & 63) | 128;
-    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
-  }
+  static String _operationId() => const Uuid().v4();
 
   static Map<String, dynamic>? _tryParseUiMeta(Object? detail) {
     if (detail is! String || !detail.startsWith('{"_ui":')) return null;

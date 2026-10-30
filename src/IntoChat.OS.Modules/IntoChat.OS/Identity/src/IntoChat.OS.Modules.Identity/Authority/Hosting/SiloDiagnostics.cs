@@ -1,4 +1,3 @@
-using IntoChat.OS.Framework.Modules.Identity;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -99,15 +98,14 @@ public static class SiloDiagnostics
 
     private static SiloReport Report(IServiceProvider provider, IConfiguration configuration)
     {
-        var store = provider.GetRequiredService<IOptions<BrainStoreOptions>>().Value;
-        var hosted = provider.GetServices<IHostedStorageExtension>().Any();
+        _ = provider.GetRequiredService<IOptions<BrainStoreOptions>>().Value;
         return new SiloReport(
             provider.GetService<ILocalSiloDetails>()?.SiloAddress.ToString(),
             provider.GetService<IOptions<ClusterOptions>>()?.Value.ClusterId,
             Revision(configuration),
             Environment.MachineName,
             // The runtime BrainLog writes one format (DBLG 0x02, JSON payloads) since 06-02.
-            new SiloStorage(hosted ? "hosted" : "local", "Json"),
+            new SiloStorage("local", "Json"),
             (provider.GetService<IBrainOwnershipCounters>() ?? new NoBrainOwnershipCounters()).Snapshot());
     }
 

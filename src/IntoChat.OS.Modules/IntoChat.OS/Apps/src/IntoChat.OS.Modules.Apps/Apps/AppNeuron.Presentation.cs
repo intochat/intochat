@@ -3,13 +3,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DigitalBrain.Contracts;
 using DigitalBrain.UI;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;

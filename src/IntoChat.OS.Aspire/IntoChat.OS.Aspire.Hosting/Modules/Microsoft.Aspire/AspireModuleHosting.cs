@@ -1,17 +1,16 @@
-using IntoChat.OS.Modules.Microsoft.Aspire;
 using System.Text.Json;
+using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Yarp;
+using Aspire.Hosting.Yarp.Transforms;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.ServiceDefaults;
-using Aspire.Hosting;
-using Aspire.Hosting.ApplicationModel;
-using Aspire.Hosting.Yarp;
-using Aspire.Hosting.Yarp.Transforms;
-
 using AspireSdk = Aspire;
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 

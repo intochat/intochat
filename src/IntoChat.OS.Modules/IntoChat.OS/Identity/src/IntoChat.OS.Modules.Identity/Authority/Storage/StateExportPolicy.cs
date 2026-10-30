@@ -1,7 +1,7 @@
 using System.Collections.Frozen;
 using System.Reflection;
-using IntoChat.OS.Connections.Platform.Connections;
 using DigitalBrain.State;
+using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Authority.Storage;
 

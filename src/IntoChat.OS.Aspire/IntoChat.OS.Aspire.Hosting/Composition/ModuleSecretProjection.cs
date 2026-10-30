@@ -1,8 +1,8 @@
-using System.Reflection;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
@@ -18,8 +18,8 @@ internal sealed class ModuleSecretProjection : IntoChatOSModuleProjection
 
     public static void Project(IntoChatOSBuilder brain, Type module)
     {
-        var schemas = Declared(module, "Integration").Concat(Declared(module, "Integrations")).ToArray();
-        if (schemas.Length == 0) { return; }
+        var schemas = OsModule.ReadSchemas(module);
+        if (schemas.Count == 0) { return; }
 
         var state = brain.GetOrAddState(_ => new ModuleSecretProjection(), out var added);
         if (added) { brain.AddProjection(state); }
@@ -43,17 +43,5 @@ internal sealed class ModuleSecretProjection : IntoChatOSModuleProjection
     {
         ArgumentNullException.ThrowIfNull(builder);
         foreach (var (variable, parameter) in _secrets) { builder.WithEnvironment(variable, parameter); }
-    }
-
-    private static IEnumerable<IntegrationSchema> Declared(Type module, string member)
-    {
-        const BindingFlags Static = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        var value = module.GetProperty(member, Static)?.GetValue(null) ?? module.GetField(member, Static)?.GetValue(null);
-        return value switch
-        {
-            IntegrationSchema single => [single],
-            IEnumerable<IntegrationSchema> many => many,
-            _ => [],
-        };
     }
 }

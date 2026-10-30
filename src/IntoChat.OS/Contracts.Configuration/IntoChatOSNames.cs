@@ -44,8 +44,12 @@ public static class IntoChatOSNames
     public const string BrainStorageOwnershipBlobLease = "BlobLease";
     public const string BrainStorageOwnershipWriterLock = "WriterLock";
     public const string IntegrationsSectionName = "IntoChatOS:Integrations";
+    public const string ShellEnabledKey = "IntoChatOS:Shell:Enabled";
+    public const string LocalGpuKey = "IntoChatOS:Local:Gpu";
+    public const string LocalModelKey = "IntoChatOS:Local:Model";
+    public const string LocalOllamaEndpointKey = "http://localhost:11434";
 
     // Single source of truth for modules switched off by default in local / local+cloud runs (shared by Kernel and AppHost).
     public static readonly IReadOnlyList<string> LocalDisabledModules =
-        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "salesforce"];
+        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "azure", "roslyn"];
 }

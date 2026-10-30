@@ -1,10 +1,10 @@
-using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS;
+using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Integrations;
-using IntoChat.OS.Authority.Integrations;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Connections;
 

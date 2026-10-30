@@ -1,8 +1,8 @@
+using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
 using IntoChat.OS.Framework;
-using System.Runtime.CompilerServices;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Kernel.Composition;

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using DigitalBrain;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Compute;
 

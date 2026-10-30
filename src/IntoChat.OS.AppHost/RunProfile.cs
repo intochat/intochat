@@ -1,12 +1,12 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
-using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
@@ -16,7 +16,6 @@ using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
-using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.ClickHouse;
 using IntoChat.OS.Modules.ClickHouse.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;
@@ -30,6 +29,7 @@ using IntoChat.OS.Modules.Qdrant;
 using IntoChat.OS.Modules.Qdrant.Aspire.Hosting;
 using IntoChat.OS.Modules.Supabase;
 using IntoChat.OS.Modules.Supabase.Aspire.Hosting;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.AppHost;
 
@@ -86,7 +86,7 @@ public static class RunProfile
         return resource;
     }
 
-    public const string LocalOllamaEndpoint = "http://localhost:11434";
+    public const string LocalOllamaEndpoint = IntoChatOSNames.LocalOllamaEndpointKey;
 
     // The modules the local and local+cloud runs switch off by default (code, not a configuration file); an explicit
     // IntoChatOS:Modules:<id>:Enabled from appsettings, the environment or the command line still wins.

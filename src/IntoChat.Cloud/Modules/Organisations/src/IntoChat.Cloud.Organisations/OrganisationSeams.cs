@@ -42,47 +42,12 @@ internal sealed class AllowAllPersonalOrganisationGuard : IPersonalOrganisationG
     public Task<bool> CanDissolveAsync(string personalOrgBrain, string principalId) => Task.FromResult(true);
 }
 
-// Same SHA-256 / base64url rules as IntoChat.Cloud.Mail.Templates.InviteTokens. Duplicated so this project does not reference Templates.
-internal static class InviteTokens
-{
-    public const int MaxTokenLength = 64;
-    public const string LinkPath = "/invite#";
-
-    public static string NewToken() =>
-        Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-    public static string Hash(string token) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-
-    public static bool IsWellFormed(string? token)
-    {
-        if (string.IsNullOrEmpty(token) || token.Length > MaxTokenLength) { return false; }
-        foreach (var c in token)
-        {
-            if (!(char.IsAsciiLetterOrDigit(c) || c is '-' or '_')) { return false; }
-        }
-        return true;
-    }
-
-    public static string LinkFor(string publicBaseUrl, string token) => publicBaseUrl.TrimEnd('/') + LinkPath + token;
-
-    public static bool HashesEqual(string left, string right) =>
-        CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(left), Encoding.UTF8.GetBytes(right));
-}
-
-internal static class EmailMask
-{
-    public static string Mask(string email)
-    {
-        if (string.IsNullOrEmpty(email)) { return "***"; }
-        var at = email.IndexOf('@');
-        return at < 1 ? "***" : $"{email[0]}***@{email[(at + 1)..]}";
-    }
-}
-
 internal static class InviteHasher
 {
     public const string EmailPurpose = "member-email";
 
     public static string HashEmail(this IRecipientHasher hasher, string email) => hasher.Hash(EmailPurpose, email);
+
+    public static bool HashesEqual(string left, string right) =>
+        CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(left), Encoding.UTF8.GetBytes(right));
 }

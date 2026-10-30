@@ -1,10 +1,10 @@
 using System.Reflection;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 
 namespace IntoChat.OS.Connections.Configuration;
 

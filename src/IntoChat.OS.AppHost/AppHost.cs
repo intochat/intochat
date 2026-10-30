@@ -1,3 +1,4 @@
+using System.Reflection;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.AppHost;
@@ -6,7 +7,6 @@ using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.ServiceDefaults;
-using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.UserSecrets;
 
@@ -45,7 +45,7 @@ builder.Configuration.Sources.Insert(defaultsAt,
     new Microsoft.Extensions.Configuration.Memory.MemoryConfigurationSource { InitialData = RunProfile.ModuleDefaults(topology) });
 var brainProfile = RunProfile.ForTopology(topology, builder.Configuration[IntoChatOSHostingOptions.LocalModelKey]);
 if (cloud) { IntoChat.OS.Modules.Microsoft.Orleans.OrleansModuleOptionsExtensions.WithAzurite(brainProfile.Orleans); }
-var shellEnabled = builder.Configuration.GetValue("IntoChatOS:Shell:Enabled", true);
+var shellEnabled = builder.Configuration.GetValue(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.ShellEnabledKey, true);
 var intoChatOS = AppHostIntoChatOS.Add(builder, "Modules", brainProfile, IntoChatOSHostingOptions.Named(builder.Configuration, "os"))
     .WithHttpIdentity();
 if (shellEnabled) { intoChatOS = intoChatOS.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }

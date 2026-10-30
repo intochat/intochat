@@ -1,11 +1,11 @@
 using DigitalBrain.Capabilities;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Circles.Signals;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.State;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles.Signals;
 
 namespace IntoChat.OS.Modules.Circles;
 

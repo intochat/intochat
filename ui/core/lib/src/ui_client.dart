@@ -16,8 +16,6 @@ import 'models/installed_app.dart';
 import 'models/cluster.dart';
 import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
-import 'models/model_catalog.dart';
-import 'models/grant_summary.dart';
 import 'neuron_channel.dart';
 import 'neuron_watch_mux.dart';
 import 'node_contracts.dart';
@@ -65,7 +63,7 @@ final class IntoChatOSUiClient {
   /// succeeds. Returns false only on an explicit 401, so a wrong password is
   /// distinguishable from an unreachable kernel, which throws.
   Future<bool> checkAuth() async {
-    final uri = baseUri.replace(path: authCheckPath);
+    final uri = baseUri.resolve(authCheckPath);
     final streamed = await _http.send(http.Request('GET', uri));
     final response = await http.Response.fromStream(streamed);
     if (response.statusCode == 401) {
@@ -119,13 +117,7 @@ final class IntoChatOSUiClient {
   Future<bool> readLobbySession() async {
     try {
       final response = await _http
-          .get(
-            baseUri.replace(
-              path: '/lobby/session',
-              query: null,
-              fragment: null,
-            ),
-          )
+          .get(baseUri.resolve('/lobby/session'))
           .timeout(const Duration(seconds: 5));
       if (response.statusCode != 200 || response.body.isEmpty) return false;
       final body = jsonDecode(response.body);
@@ -641,42 +633,21 @@ final class IntoChatOSUiClient {
     Duration timeout = const Duration(seconds: 40),
     Future<void>? cancelled,
   }) async {
-    final abort = Completer<void>();
-    final request = http.AbortableRequest(
-      method,
-      baseUri.resolve(path),
-      abortTrigger: cancelled == null
-          ? abort.future
-          : Future.any([abort.future, cancelled]),
-    );
-    if (body != null) {
-      request.headers['content-type'] = 'application/json';
-      request.body = jsonEncode(body);
+    try {
+      final response = await _request(
+        method,
+        path,
+        body: body,
+        timeout: timeout,
+        cancelled: cancelled,
+      );
+      return response.body.isEmpty ? null : jsonDecode(response.body);
+    } on UiRequestException catch (error) {
+      throw TableRequestException(
+        error.statusCode,
+        error.error ?? error.detail ?? error.body,
+      );
     }
-    final response = await _http
-        .send(request)
-        .then(http.Response.fromStream)
-        .timeout(
-          timeout,
-          onTimeout: () {
-            abort.complete();
-            throw TimeoutException('$method $path timed out.');
-          },
-        );
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      var message = response.body;
-      try {
-        final error = jsonDecode(message);
-        if (error is Map) {
-          final detail = error['error'] ?? error['detail'];
-          if (detail is String) message = detail;
-        }
-      } on FormatException {
-        // Non-JSON proxy/server failures still carry their original text.
-      }
-      throw TableRequestException(response.statusCode, message);
-    }
-    return response.body.isEmpty ? null : jsonDecode(response.body);
   }
 
   /// The brain's neurons as snapshots: the whole brain with [brainId], or one chat's view with [chatName].
@@ -694,7 +665,7 @@ final class IntoChatOSUiClient {
         try {
           final request = http.AbortableRequest(
             'GET',
-            baseUri.replace(path: path),
+            baseUri.resolve(path),
             abortTrigger: abort.future,
           )..headers['accept'] = 'text/event-stream';
           final response = await _http.send(request);
@@ -827,14 +798,19 @@ final class IntoChatOSUiClient {
     String path, {
     Map<String, Object?>? body,
     Duration? timeout,
+    Future<void>? cancelled,
   }) async {
-    final abort = timeout == null ? null : Completer<void>();
+    final abort = timeout == null && cancelled == null
+        ? null
+        : Completer<void>();
     final request = abort == null
         ? http.Request(method, baseUri.resolve(path))
         : http.AbortableRequest(
             method,
             baseUri.resolve(path),
-            abortTrigger: abort.future,
+            abortTrigger: cancelled == null
+                ? abort.future
+                : Future.any([abort.future, cancelled]),
           );
     if (body != null) {
       request.headers['content-type'] = 'application/json';
@@ -918,13 +894,6 @@ final class IntoChatOSUiClient {
         : Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
-  Future<ChatModelCatalog> readModelCatalog() async =>
-      ChatModelCatalog.fromJson(
-        Map<String, dynamic>.from(
-          await jsonRequest('GET', '/ai/models') as Map,
-        ),
-      );
-
   Future<Object?> connectorRequest(
     String workspaceId,
     String path, {
@@ -950,6 +919,77 @@ final class IntoChatOSUiClient {
     body,
   );
 
+  Future<List<Map<String, dynamic>>> listWorkspaceConnections(
+    String workspaceId,
+  ) async {
+    final result = await workspaceConnectionsRequest(workspaceId, '');
+    return [
+      for (final item in (result as List? ?? const []))
+        Map<String, dynamic>.from(item as Map),
+    ];
+  }
+
+  Future<Map<String, dynamic>> connectWorkspaceSecret(
+    String workspaceId,
+    String connectionId, {
+    required String connectorId,
+    required String authMethodId,
+    required String value,
+  }) async {
+    final result = await workspaceConnectionsRequest(
+      workspaceId,
+      '${Uri.encodeComponent(connectionId)}/connect',
+      body: {
+        'connectorId': connectorId,
+        'authMethodId': authMethodId,
+        'value': value,
+      },
+    );
+    return result is Map ? Map<String, dynamic>.from(result) : {};
+  }
+
+  Future<Map<String, dynamic>> startWorkspaceConnectionLogin(
+    String workspaceId,
+    String connectionId, {
+    required String connectorId,
+    required String authMethodId,
+    String? target,
+  }) async {
+    final result = await workspaceConnectionsRequest(
+      workspaceId,
+      '${Uri.encodeComponent(connectionId)}/login',
+      body: {
+        'connectorId': connectorId,
+        'authMethodId': authMethodId,
+        'target': ?target,
+      },
+    );
+    return result is Map ? Map<String, dynamic>.from(result) : {};
+  }
+
+  Future<Map<String, dynamic>> probeWorkspaceConnection(
+    String workspaceId,
+    String connectionId,
+  ) async {
+    final result = await workspaceConnectionsRequest(
+      workspaceId,
+      '${Uri.encodeComponent(connectionId)}/probe',
+      body: const {},
+    );
+    return result is Map ? Map<String, dynamic>.from(result) : {};
+  }
+
+  Future<void> disconnectWorkspaceConnection(
+    String workspaceId,
+    String connectionId,
+  ) async {
+    await workspaceConnectionsRequest(
+      workspaceId,
+      '${Uri.encodeComponent(connectionId)}/disconnect',
+      body: const {},
+    );
+  }
+
   Future<Object?> workspaceWindowsRequest(
     String workspaceId,
     String path, {
@@ -959,44 +999,6 @@ final class IntoChatOSUiClient {
     '/brains/${Uri.encodeComponent(workspaceId)}/windows/$path',
     body,
   );
-
-  /// The live grants an owner has given to apps in this workspace.
-  Future<List<GrantSummary>> listGrants(String workspace) async {
-    final response = await _request(
-      'GET',
-      '/brains/${Uri.encodeComponent(workspace)}/grants',
-      timeout: const Duration(seconds: 30),
-    );
-    return [
-      for (final item in jsonDecode(response.body) as List)
-        GrantSummary.fromJson(Map<String, dynamic>.from(item as Map)),
-    ];
-  }
-
-  /// Revokes one (app, semantic type, mode) grant so its value looks missing again.
-  Future<void> revokeGrant(
-    String workspace, {
-    required String appId,
-    required String semanticTypeId,
-    required String mode,
-  }) async {
-    await _request(
-      'POST',
-      '/brains/${Uri.encodeComponent(workspace)}/grants/revoke',
-      body: {
-        'appId': appId,
-        'semanticTypeId': semanticTypeId,
-        'mode': _grantModeValue(mode),
-      },
-      timeout: const Duration(seconds: 30),
-    );
-  }
-
-  static Object _grantModeValue(String mode) => switch (mode) {
-    'Once' => 0,
-    'ThisChat' => 1,
-    _ => 2,
-  };
 
   void close() {
     if (_ownsClient) {
@@ -1034,38 +1036,55 @@ final class IntoChatOSUiClient {
 
 /// Includes status without requiring callers to parse server error text.
 final class UiRequestException extends StateError {
-  UiRequestException(String method, String path, this.statusCode, String body)
-    : detail = _problemDetail(body),
-      error = _field(body, 'error'),
-      status = _field(body, 'status'),
-      super('$method $path failed: $statusCode $body');
+  factory UiRequestException(
+    String method,
+    String path,
+    int statusCode,
+    String body,
+  ) {
+    final decoded = _decodeMap(body);
+    return UiRequestException._(
+      method,
+      path,
+      statusCode,
+      body,
+      detail: _stringField(decoded, 'detail'),
+      error: _stringField(decoded, 'error'),
+      status: _stringField(decoded, 'status'),
+    );
+  }
+
+  UiRequestException._(
+    String method,
+    String path,
+    this.statusCode,
+    this.body, {
+    required this.detail,
+    required this.error,
+    required this.status,
+  }) : super('$method $path failed: $statusCode $body');
+
   final int statusCode;
+  final String body;
   final String? detail;
 
   /// The answer's own `error` and `status` strings, when it is a JSON object that carries them.
   final String? error, status;
 
-  static String? _field(String body, String name) {
+  static Map<Object?, Object?>? _decodeMap(String body) {
+    if (body.isEmpty) return null;
     try {
       final value = jsonDecode(body);
-      return value is Map && value[name] is String
-          ? value[name] as String
-          : null;
+      return value is Map ? value : null;
     } on FormatException {
+      // Non-JSON failures keep their existing diagnostic text.
       return null;
     }
   }
 
-  static String? _problemDetail(String body) {
-    try {
-      final problem = jsonDecode(body);
-      if (problem is Map && problem['detail'] is String) {
-        return problem['detail'] as String;
-      }
-    } on FormatException {
-      // Non-JSON failures keep their existing diagnostic text.
-    }
-    return null;
+  static String? _stringField(Map<Object?, Object?>? map, String name) {
+    final value = map?[name];
+    return value is String ? value : null;
   }
 
   @override

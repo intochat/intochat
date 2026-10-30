@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../connections/connect_window.dart';
-import '../connections/connectors_menu.dart';
 import '../desktop/command_palette.dart';
 import '../desktop/live_desktop_shell.dart';
 import '../desktop/smart_desktop.dart';

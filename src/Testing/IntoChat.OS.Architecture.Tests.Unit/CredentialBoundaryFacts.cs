@@ -1,11 +1,11 @@
-using DigitalBrain.Capabilities;
 using System.Reflection;
 using System.Reflection.Emit;
+using DigitalBrain.Capabilities;
+using IntoChat.OS.Connections.Platform.Entries;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;

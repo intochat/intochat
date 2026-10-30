@@ -1,7 +1,5 @@
 using System.Globalization;
 using DigitalBrain;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
@@ -14,6 +12,8 @@ using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.TextField;
 using IntoChat.OS.Modules.Flutter.TextField.Signals;
 using IntoChat.OS.Modules.Flutter.Views;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 

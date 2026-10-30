@@ -1,5 +1,4 @@
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using NetHeaders = Microsoft.Net.Http.Headers;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -8,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NetHeaders = Microsoft.Net.Http.Headers;
 
 namespace IntoChat.OS.Kernel.Composition.Storage;
 

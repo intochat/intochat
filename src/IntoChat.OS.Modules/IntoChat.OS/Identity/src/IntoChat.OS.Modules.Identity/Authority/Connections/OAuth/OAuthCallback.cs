@@ -1,11 +1,11 @@
 using System.Diagnostics;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Contracts.Compute;
-using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,11 +13,12 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Connections.OAuth;
 
-// Unified /integrations/{provider} edge for OAuth redirects (/integrations/{provider}/oauth/callback,
+// Unified /integrations/{provider} edge for OAuth redirects (/integrations/oauth/callback, /integrations/{provider}/oauth/callback,
 // /integrations/{provider}/callback, and legacy /connections/oauth/{provider}/callback) and inbound webhooks
 // (POST /integrations/{provider}/webhook and POST /integrations/{provider}), routing to target grains via 3-part ConnectionKeys.
 public sealed class OAuthCallback : IHttpSurface
 {
+    public const string CanonicalCallbackPath = "/integrations/oauth/callback";
     private const string IntegrationsPrefix = "/integrations/";
     private const string LegacyPrefix = "/connections/oauth/";
     private const string OAuthCallbackSuffix = "/oauth/callback";
@@ -32,6 +33,11 @@ public sealed class OAuthCallback : IHttpSurface
     {
         provider = "";
         if (string.IsNullOrWhiteSpace(path)) { return false; }
+
+        if (string.Equals(path, CanonicalCallbackPath, StringComparison.Ordinal))
+        {
+            return true;
+        }
 
         if (path.StartsWith(IntegrationsPrefix, StringComparison.Ordinal))
         {
@@ -163,7 +169,15 @@ public sealed class OAuthCallback : IHttpSurface
                 return;
             }
             var (_, keyConnector, _) = ConnectionKeys.Parse(login.ConnectionKey);
-            if (keyConnector != connector) { await LoginPage.WriteAsync(context, "Invalid callback", "Return to IntoChat.OS and connect again.", 400); return; }
+            if (string.IsNullOrEmpty(connector))
+            {
+                connector = keyConnector;
+            }
+            else if (keyConnector != connector)
+            {
+                await LoginPage.WriteAsync(context, "Invalid callback", "Return to IntoChat.OS and connect again.", 400);
+                return;
+            }
             try
             {
                 var exchange = context.RequestServices.GetRequiredService<OAuthTokenExchange>();
@@ -173,7 +187,7 @@ public sealed class OAuthCallback : IHttpSurface
                     BrainScope.Create(login.Owner.AccountId, login.Owner.BrainId).Id, TraceContext.OriginOf(login.Owner.BrainId, login.ConnectionKey))))
                 {
                     var neurons = context.RequestServices.GetRequiredService<AuthorityNeurons>();
-                    var grant = await exchange.ExchangeCodeAsync(login.ConnectionKey, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector).AbsoluteUri, login.Target, context.RequestAborted);
+                    var grant = await exchange.ExchangeCodeAsync(login.ConnectionKey, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector, context.Request).AbsoluteUri, login.Target, context.RequestAborted);
                     await neurons.ConnectionInbound(login.ConnectionKey).AcceptGrant(grant);
                 }
                 await LoginPage.WriteAsync(context, $"{connector} connected", "You can close this tab. IntoChat.OS is continuing your request.", 200);

@@ -2,11 +2,11 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
@@ -52,6 +52,10 @@ public static class GitHubAppHostingExtensions
             throw new InvalidOperationException("Configure the shared GitHub App once per IntoChat.OS.");
         }
         module.AddProjection(projection);
+        if (publicOrigin is not null)
+        {
+            ConnectionsPublicOriginWiring.Ensure(module.IntoChatOSBuilder, publicOrigin);
+        }
         return module;
     }
 
@@ -84,8 +88,7 @@ public static class GitHubAppHostingExtensions
             {
                 // The Platform's OAuth login reads the client from the github Integration and calls
                 // back on the shared connections origin.
-                builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSConfiguration.ConnectionsPublicOriginKey), publicOrigin.AbsoluteUri)
-                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntegrationRoot, "ClientId"), clientId)
+                builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntegrationRoot, "ClientId"), clientId)
                     .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntegrationRoot, "ClientSecret"), _clientSecret!);
             }
             if (publicWebhookUrl is not null)

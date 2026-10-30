@@ -1,14 +1,14 @@
 using DigitalBrain.Capabilities;
-using IntoChat.OS.Runtime;
+using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
-using IntoChat.OS.Modules.Apps;
+using DigitalBrain.State;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using DigitalBrain.Capabilities.Identity;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.State;
-using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Circles;
 

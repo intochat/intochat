@@ -1,5 +1,6 @@
 using System.Reflection;
 using IntoChat.OS.Contracts.Compute;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Metering;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Modules.Google.Auth;
@@ -49,7 +50,7 @@ public sealed class GoogleSplitFacts
     [Fact]
     public void OnlyAuthDeclaresGoogleOAuthIntegration()
     {
-        var owners = Modules.Where(module => Schemas(module).Any(integration => integration.Id == GoogleAuth.Integration)).ToArray();
+        var owners = Modules.Where(module => OsModule.ReadSchemas(module).Any(integration => integration.Id == GoogleAuth.Integration)).ToArray();
         Assert.Equal([typeof(GoogleAuthModule)], owners);
         Assert.Equal(GoogleAuth.Integration, GoogleAuthModule.Integration.Id);
         Assert.All(typeof(GoogleAuthModule).Assembly.GetExportedTypes().SelectMany(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)),
@@ -75,16 +76,6 @@ public sealed class GoogleSplitFacts
     {
         using var provider = Compose(module);
         return Assert.Single(provider.GetServices<ModulePriceListRegistration>()).Operations;
-    }
-
-    private static IEnumerable<IntegrationSchema> Schemas(Type module)
-    {
-        const BindingFlags Flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy;
-        if (module.GetProperty("Integration", Flags)?.GetValue(null) is IntegrationSchema one) { yield return one; }
-        if (module.GetProperty("Integrations", Flags)?.GetValue(null) is IEnumerable<IntegrationSchema> more)
-        {
-            foreach (var schema in more) { yield return schema; }
-        }
     }
 
     private static ServiceProvider Compose(params Type[] modules)

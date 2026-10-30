@@ -1,7 +1,7 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
-using DigitalBrain.Spi;
 using DigitalBrain.Contracts;
+using DigitalBrain.Spi;
 using IntoChat.OS.Confirmation;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

@@ -1,14 +1,14 @@
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Authority.Identity.Authority;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using External = IntoChat.OS.Authority.Identity.External;
+using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Authority.Identity.Authority;
 using IntoChat.OS.Authority.Integrations;
-using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Authority.Secrets;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using External = IntoChat.OS.Authority.Identity.External;
 
 namespace IntoChat.OS.Authority;
 

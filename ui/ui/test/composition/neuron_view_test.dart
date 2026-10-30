@@ -62,18 +62,22 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: UiCard(
-            part: part,
-            loadChild: (_, _) async => {
-              'definition': {
-                'items': [
-                  {
-                    'id': 'one',
-                    'label': 'Child item',
-                    'kind': 'file',
-                    'canActivate': false,
-                  },
-                ],
+          body: NeuronView(
+            kind: 'card',
+            name: 'container',
+            load: (kind, _) async => {
+              'definition': switch (kind) {
+                'card' => part.toMetadata(),
+                _ => {
+                  'items': [
+                    {
+                      'id': 'one',
+                      'label': 'Child item',
+                      'kind': 'file',
+                      'canActivate': false,
+                    },
+                  ],
+                },
               },
             },
           ),

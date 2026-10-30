@@ -1,12 +1,12 @@
-using CapabilityCaller = DigitalBrain.Capabilities.CapabilityCaller;
 using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using CapabilityCaller = DigitalBrain.Capabilities.CapabilityCaller;
 
 namespace IntoChat.OS.Authority.Integrations;
 

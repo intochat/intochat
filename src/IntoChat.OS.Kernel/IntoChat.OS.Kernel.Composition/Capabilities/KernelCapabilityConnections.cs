@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
@@ -13,8 +15,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StorageV1 = DigitalBrain.Capabilities.Storage.IStorage;
-using DigitalBrain.Capabilities.Storage;
-using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
 

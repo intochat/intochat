@@ -11,6 +11,7 @@
     <PackageReference Include="DigitalBrain.Runtime.Http" />
     <ProjectReference Include="../../Contracts/IntoChat.Cloud.Organisations.Contracts/IntoChat.Cloud.Organisations.Contracts.csproj" />
     <ProjectReference Include="../../../Mail/Contracts/IntoChat.Cloud.Mail.Contracts/IntoChat.Cloud.Mail.Contracts.csproj" />
+    <ProjectReference Include="../../../Mail/src/IntoChat.Cloud.Mail.Templates/IntoChat.Cloud.Mail.Templates.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.Cloud.Organisations.Tests.Unit" />

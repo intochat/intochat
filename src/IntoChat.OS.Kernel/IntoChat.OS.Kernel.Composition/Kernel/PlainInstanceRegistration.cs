@@ -6,10 +6,10 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
+using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 
 namespace IntoChat.OS.Kernel.Composition;
 

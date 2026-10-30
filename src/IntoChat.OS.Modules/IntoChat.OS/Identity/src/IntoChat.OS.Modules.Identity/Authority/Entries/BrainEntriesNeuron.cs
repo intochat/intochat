@@ -1,10 +1,10 @@
-using DigitalBrain.Capabilities;
 using System.Text;
+using DigitalBrain.Capabilities;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Logging;
 

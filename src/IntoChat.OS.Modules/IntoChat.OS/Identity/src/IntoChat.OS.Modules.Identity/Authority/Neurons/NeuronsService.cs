@@ -3,16 +3,16 @@ using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Signalling;
-using Microsoft.Extensions.DependencyInjection;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Authority.Neurons.Proto;
+using DigitalBrain.Spi;
 using Google.Protobuf;
 using Grpc.Core;
+using IntoChat.OS.Authority.Neurons.Proto;
+using IntoChat.OS.Connections.Surface;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using CallRequest = IntoChat.OS.Authority.Neurons.Proto.CallRequest;
-using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Authority.Neurons;
 

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'smart_desktop.dart';
-import 'window_frame.dart';
 
 class CommandPaletteEntry {
   const CommandPaletteEntry({
@@ -369,95 +368,6 @@ class _CommandPaletteState extends State<CommandPalette> {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Keyboard Window Switcher (`⌥` + `` ` ``) for cycling open Acrylic windows.
-class WindowSwitcher extends StatelessWidget {
-  const WindowSwitcher({
-    super.key,
-    required this.windows,
-    required this.selectedIndex,
-    required this.onSelect,
-  });
-
-  final List<DesktopWindowState> windows;
-  final int selectedIndex;
-  final ValueChanged<DesktopWindowState> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    if (windows.isEmpty) return const SizedBox.shrink();
-    final safeIdx = selectedIndex.clamp(0, windows.length - 1);
-
-    return Center(
-      child: IcAcrylicBox(
-        radius: IcRadius.panel,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        shadows: IcShadow.xl(c),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < windows.length; i++)
-              Padding(
-                padding: EdgeInsets.only(
-                  right: i == windows.length - 1 ? 0 : 12,
-                ),
-                child: GestureDetector(
-                  onTap: () => onSelect(windows[i]),
-                  child: Container(
-                    width: 120,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: i == safeIdx ? c.accentTint : c.surfaceSunk,
-                      borderRadius: BorderRadius.circular(IcRadius.card),
-                      border: Border.all(
-                        color: i == safeIdx ? c.accent : c.borderHairline,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IcAppIcon(
-                          appId: windows[i].appId,
-                          accentHex: windows[i].accentHex,
-                          size: 36,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          windows[i].title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: IcType.text(
-                            12,
-                            weight: FontWeight.w600,
-                            color: c.textStrong,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          windows[i].neuronUri,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: IcType.text(
-                            10,
-                            color: c.textMuted,
-                            tnum: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
         ),
       ),
     );

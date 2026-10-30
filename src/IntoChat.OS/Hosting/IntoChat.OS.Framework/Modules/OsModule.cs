@@ -1,5 +1,6 @@
 using System.Reflection;
 using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,7 +11,8 @@ namespace IntoChat.OS.Framework.Modules;
 public sealed class OsModule
 {
     private OsModule(Type type, ModuleId id, bool requiresContainer, int order, string? licenseProduct,
-        Assembly? contracts, Type? neurons, IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> topologyProfiles)
+        Assembly? contracts, Type? neurons, IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> topologyProfiles,
+        IReadOnlyList<IntegrationSchema>? integrationSchemas = null)
     {
         Type = type;
         Id = id;
@@ -20,6 +22,7 @@ public sealed class OsModule
         Contracts = contracts;
         Neurons = neurons;
         TopologyProfiles = topologyProfiles;
+        IntegrationSchemas = integrationSchemas ?? [];
     }
 
     public Type Type { get; }
@@ -30,6 +33,7 @@ public sealed class OsModule
     public Assembly? Contracts { get; }
     public Type? Neurons { get; }
     public IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles { get; }
+    public IReadOnlyList<IntegrationSchema> IntegrationSchemas { get; init; } = [];
     private object? _runtime;
 
     // ConfigureServices and the HTTP surface share one instance. A DigitalBrain module has no host-held instance until first use.
@@ -50,7 +54,13 @@ public sealed class OsModule
         var requiresContainer = Flag(type, "RequiresContainer")
             || manifest.Needs.Any(need => need.Kind == DigitalBrain.NeedKind.Sandbox && need.Image is not null);
         return new OsModule(type, id, requiresContainer, Number(type, "Order"), Text(type, "LicenseProduct"),
-            ContractsOf(type), NeuronsOf(type), Profiles(type));
+            ContractsOf(type), NeuronsOf(type), Profiles(type), ReadSchemas(type));
+    }
+
+    public static IReadOnlyList<IntegrationSchema> ReadSchemas(Type module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        return [.. Declared(module, "Integration"), .. Declared(module, "Integrations")];
     }
 
     // Absent LoadsUnder means the module loads under every topology. A cloud module returns false for local.
@@ -154,5 +164,17 @@ public sealed class OsModule
         { return ((ITopologyModule)Activator.CreateInstance(type)!).TopologyProfiles; }
         return type.GetProperty("TopologyProfiles", BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)?.GetValue(null)
             as IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> ?? [];
+    }
+
+    private static IEnumerable<IntegrationSchema> Declared(Type module, string member)
+    {
+        const BindingFlags Static = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        var value = module.GetProperty(member, Static)?.GetValue(null) ?? module.GetField(member, Static)?.GetValue(null);
+        return value switch
+        {
+            IntegrationSchema single => [single],
+            IEnumerable<IntegrationSchema> many => many,
+            _ => [],
+        };
     }
 }

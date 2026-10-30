@@ -1,6 +1,6 @@
+using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Connections.Hosting;
 

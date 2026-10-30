@@ -1,8 +1,8 @@
 using DigitalBrain.Runtime.Http;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 

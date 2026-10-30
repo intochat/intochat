@@ -1,11 +1,11 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
-using IntoChat.OS.Modules.AI.Models.FoundryLocal;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Modules.AI.Models.FoundryLocal;
 
 namespace IntoChat.OS.Modules.AI.Aspire.Hosting;
 

@@ -1,4 +1,3 @@
-using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Kernel;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
@@ -6,23 +5,20 @@ namespace IntoChat.OS.Kernel.Tests.Integration;
 public sealed class CloudCompositionFacts
 {
     [Fact]
-    public void CloudListsTheFiveModules()
+    public void CloudModulesLoadUnderCloudAndNeverUnderLocal()
     {
-        var ids = CloudModules.For(Topology.Cloud).Select(type => type.Name).Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(["AuthModule", "HostingModule", "LobbyModule", "MailModule", "OrganisationsModule"], ids);
+        var ids = OperatingSystemModules.Modules
+            .Where(module => module.LoadsUnder("cloud") && !module.LoadsUnder("local"))
+            .Select(module => module.Id.Value)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(["auth", "blob", "circle-server", "hosting", "lobby", "localization", "mail", "organisations"], ids);
     }
 
     [Fact]
-    public void LocalAndLocalCloudListNone()
+    public void CloudOnlyModulesNeverLoadUnderLocalOrLocalCloud()
     {
-        Assert.Empty(CloudModules.For(Topology.Local));
-        Assert.Empty(CloudModules.For(Topology.LocalCloud));
-    }
-
-    [Fact]
-    public void TheDiscoveredCatalogLoadsThoseIdsOnlyUnderCloud()
-    {
-        string[] ids = ["auth", "mail", "organisations", "lobby", "hosting"];
+        string[] ids = ["auth", "circle-server", "hosting", "lobby", "localization", "mail", "organisations"];
         var modules = OperatingSystemModules.Modules;
         foreach (var id in ids)
         {

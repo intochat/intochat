@@ -1,6 +1,6 @@
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
-using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 

@@ -1,17 +1,17 @@
-using DigitalBrain;
-using DigitalBrain.Invocation;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.OpenRouter;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Contracts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 

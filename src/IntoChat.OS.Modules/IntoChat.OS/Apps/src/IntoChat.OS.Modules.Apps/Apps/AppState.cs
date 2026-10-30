@@ -1,9 +1,9 @@
-using DigitalBrain.Capabilities;
 using System.Runtime.Serialization;
+using DigitalBrain.Capabilities;
+using DigitalBrain.State;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Apps;
 

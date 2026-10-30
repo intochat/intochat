@@ -1,6 +1,7 @@
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
-// Basic credentials are transient. Reload authentication uses the session cookie.
+// Basic credentials are kept in memory for the process lifetime; reload
+// authentication uses the session cookie.
 BasicCredentials? _credentials;
 
 BasicCredentials? readStoredCredentials() => _credentials;

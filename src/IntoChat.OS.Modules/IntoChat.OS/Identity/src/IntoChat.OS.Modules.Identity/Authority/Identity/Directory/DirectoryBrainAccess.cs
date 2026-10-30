@@ -1,7 +1,7 @@
+using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity.Directory;
 

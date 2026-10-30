@@ -4,9 +4,7 @@ import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
 
-import 'credential_store_io.dart'
-    if (dart.library.html) 'credential_store_web.dart'
-    as store;
+import 'credential_store.dart' as store;
 import 'login_screen.dart';
 import 'local_account.dart';
 import 'local_account_io.dart'

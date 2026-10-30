@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
-using DigitalBrain;
 using System.Text.Json;
+using DigitalBrain;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
 

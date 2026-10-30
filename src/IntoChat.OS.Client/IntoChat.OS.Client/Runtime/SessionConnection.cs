@@ -3,9 +3,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.ServerSentEvents;
-using DigitalBrain;
 using System.Text.Json;
 using System.Threading.Channels;
+using DigitalBrain;
 using IntoChat.OS.Client.Runtime.V1;
 
 namespace IntoChat.OS.Client.Runtime;

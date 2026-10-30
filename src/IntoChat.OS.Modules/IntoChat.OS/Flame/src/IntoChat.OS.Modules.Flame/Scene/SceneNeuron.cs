@@ -1,7 +1,7 @@
 using DigitalBrain;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flame.Scene.Signals;
-using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.Flame;
 

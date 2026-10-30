@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.Cloud.Auth.Core;
 using IntoChat.Cloud.Auth.Neurons;
 using IntoChat.Cloud.Mail.Templates;
-using DigitalBrain.Capabilities.Identity;
 
 namespace IntoChat.Cloud.Auth.Services;
 

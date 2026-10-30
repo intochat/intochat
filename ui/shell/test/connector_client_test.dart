@@ -18,26 +18,21 @@ void main() {
         }),
       );
       await client.connectorRequest('brain', '');
-      await client.workspaceConnectionsRequest('brain', '');
-      await client.workspaceConnectionsRequest(
+      await client.listWorkspaceConnections('brain');
+      await client.connectWorkspaceSecret(
         'brain',
-        'one/connect',
-        body: {
-          'connectorId': 'gmail',
-          'authMethodId': 'token',
-          'value': 'secret',
-        },
+        'one',
+        connectorId: 'gmail',
+        authMethodId: 'token',
+        value: 'secret',
       );
-      await client.workspaceConnectionsRequest('brain', 'one/probe', body: {});
-      await client.workspaceConnectionsRequest(
+      await client.probeWorkspaceConnection('brain', 'one');
+      await client.disconnectWorkspaceConnection('brain', 'one');
+      await client.startWorkspaceConnectionLogin(
         'brain',
-        'one/disconnect',
-        body: {},
-      );
-      await client.workspaceConnectionsRequest(
-        'brain',
-        'one/login',
-        body: {'connectorId': 'gmail', 'authMethodId': 'google-oauth'},
+        'one',
+        connectorId: 'gmail',
+        authMethodId: 'google-oauth',
       );
       expect(requests.map((r) => r.url.path), [
         '/connectors',

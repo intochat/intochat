@@ -1,6 +1,6 @@
 using DigitalBrain;
-using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Spi;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
 

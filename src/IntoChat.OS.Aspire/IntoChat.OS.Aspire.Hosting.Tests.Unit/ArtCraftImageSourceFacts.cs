@@ -1,8 +1,8 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
-using IntoChat.OS.Aspire.Hosting;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 

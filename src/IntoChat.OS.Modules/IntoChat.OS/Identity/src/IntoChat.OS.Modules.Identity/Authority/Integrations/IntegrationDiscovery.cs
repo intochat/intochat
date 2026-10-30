@@ -1,4 +1,4 @@
-using System.Reflection;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Authority.Integrations;
@@ -25,17 +25,5 @@ internal static class IntegrationDiscovery
     }
 
     internal static IEnumerable<IntegrationSchema> Declared(Type module)
-        => Declared(module, "Integration").Concat(Declared(module, "Integrations"));
-
-    private static IEnumerable<IntegrationSchema> Declared(Type module, string member)
-    {
-        const BindingFlags Static = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        var value = module.GetProperty(member, Static)?.GetValue(null) ?? module.GetField(member, Static)?.GetValue(null);
-        return value switch
-        {
-            IntegrationSchema single => [single],
-            IEnumerable<IntegrationSchema> many => many,
-            _ => [],
-        };
-    }
+        => OsModule.ReadSchemas(module);
 }

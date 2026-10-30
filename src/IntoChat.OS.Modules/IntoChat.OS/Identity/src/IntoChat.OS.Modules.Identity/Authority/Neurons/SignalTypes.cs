@@ -1,5 +1,5 @@
-using DigitalBrain;
 using System.Collections.Concurrent;
+using DigitalBrain;
 
 namespace IntoChat.OS.Authority.Neurons;
 

@@ -13,6 +13,8 @@ String connectionStatus(Object? status) => switch (status) {
   _ => 'Unavailable',
 };
 
+typedef OpenUrl = Future<void> Function(Uri url);
+
 typedef ConnectionsRequest = Future<Object?> Function(
   String path, {
   Map<String, Object?>? body,

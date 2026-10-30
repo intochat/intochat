@@ -1,17 +1,17 @@
 using DigitalBrain.Capabilities;
-using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Circles.Signals;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Connections.Platform.Connections;
 using DigitalBrain.Capabilities.Identity;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using DigitalBrain.State;
-using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Compute;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles.Signals;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Circles;
 

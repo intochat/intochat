@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
+using IntoChat.OS.Authority.Identity.Grants;
+using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Authority.Identity.Grants;
 
 namespace IntoChat.OS.Authority.Identity.Authority;
 

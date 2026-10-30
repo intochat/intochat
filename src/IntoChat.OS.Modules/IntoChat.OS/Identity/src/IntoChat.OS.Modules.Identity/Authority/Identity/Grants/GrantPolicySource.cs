@@ -1,12 +1,12 @@
 using DigitalBrain.Capabilities;
+using IntoChat.OS.Authority.Identity.Authority;
 using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Authority.Identity.Authority;
-using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Identity.Grants;

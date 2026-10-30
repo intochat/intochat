@@ -1,11 +1,11 @@
-using DigitalBrain.Capabilities;
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain.Capabilities;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

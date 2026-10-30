@@ -1,8 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Cli;
 
@@ -55,12 +54,7 @@ internal sealed class OwnerSessionClient(HttpClient http)
     private sealed record BrainView(string Id, string Kind);
     internal sealed record Requirements(string[]? SemanticTypes = null, string[]? Connectors = null, string[]? Secrets = null, string[]? Capabilities = null)
     {
-        internal string Consent()
-        {
-            static string Join(string[]? value) => string.Join(",", (value ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
-            var text = "s:" + Join(SemanticTypes) + "\nc:" + Join(Connectors) + "\nx:" + Join(Secrets) + (Capabilities is { Length: > 0 } ? "\nk:" + Join(Capabilities) : "");
-            return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
-        }
+        internal string Consent() => AppConsent.Of(new(SemanticTypes, Connectors, Secrets, Capabilities));
     }
     internal sealed record Upload(string Digest, string Id, string Name, string Version, Requirements Requires, string[] HostAdapters, string TrustMessage);
     internal sealed record Review(string Token, string Digest, string Brain, string Name, long ExpectedRevision, bool ReplacesExisting, DateTimeOffset ExpiresAt, Requirements Requires, string[] HostAdapters);

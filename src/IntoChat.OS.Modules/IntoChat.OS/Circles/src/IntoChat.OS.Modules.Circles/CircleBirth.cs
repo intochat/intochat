@@ -1,10 +1,10 @@
-using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Modules.Circles;
 

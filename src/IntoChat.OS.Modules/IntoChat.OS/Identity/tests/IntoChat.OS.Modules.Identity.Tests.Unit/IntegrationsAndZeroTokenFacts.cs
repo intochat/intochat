@@ -41,6 +41,16 @@ public sealed class IntegrationsAndZeroTokenFacts
         Assert.Equal("https://os.intochat.test/integrations/github/oauth/callback", flow.CallbackUri("github").AbsoluteUri);
         Assert.Equal("https://os.intochat.test/connections/oauth/github/callback", flow.LegacyCallbackUri("github").AbsoluteUri);
 
+        var unconfiguredOptions = Options.Create(new ConnectionsOptions());
+        var fallbackFlow = new OAuthLoginFlow(new OAuthLoginRequests(unconfiguredOptions, TimeProvider.System), exchange, unconfiguredOptions);
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Scheme = "http";
+        httpContext.Request.Host = new HostString("localhost", 5080);
+        Assert.Equal("http://localhost:5080/integrations/github/oauth/callback", fallbackFlow.CallbackUri("github", httpContext.Request).AbsoluteUri);
+
+        Assert.True(OAuthCallback.TryMatchCallbackPath("/integrations/oauth/callback", out var p0));
+        Assert.Equal("", p0);
+
         Assert.True(OAuthCallback.TryMatchCallbackPath("/integrations/github/oauth/callback", out var p1));
         Assert.Equal("github", p1);
 

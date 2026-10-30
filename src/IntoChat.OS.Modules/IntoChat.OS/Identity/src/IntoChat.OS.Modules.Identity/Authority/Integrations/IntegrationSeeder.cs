@@ -63,7 +63,7 @@ internal sealed class IntegrationSeeder(
     private async Task SeedOneAsync(IntegrationSchema definition, CancellationToken cancellationToken)
     {
         var values = definition.AllFields
-            .Select(field => (Field: field, Value: configuration[definition.Key(field)]))
+            .Select(field => (Field: field, Value: ResolveValue(definition, field)))
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
             .ToDictionary(pair => pair.Field, pair => pair.Value!, StringComparer.Ordinal);
         if (values.Count == 0)
@@ -74,5 +74,21 @@ internal sealed class IntegrationSeeder(
         var registration = neurons.Integration(definition.Id);
         var after = await registration.Seed(new ConfigureIntegration { Values = values }).WaitAsync(cancellationToken);
         logger.LogInformation("Integration {IntegrationId} is {Status} after seeding.", definition.Id, after.Status);
+    }
+
+    private string? ResolveValue(IntegrationSchema definition, string field)
+    {
+        var configured = configuration[definition.Key(field)];
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured;
+        }
+
+        return (definition.Id, field) switch
+        {
+            ("google-oauth", "ClientId") => configuration["IntoChatOS:Modules:auth:Secrets:google-client-id"],
+            ("google-oauth", "ClientSecret") => configuration["IntoChatOS:Modules:auth:Secrets:google-client-secret"],
+            _ => null,
+        };
     }
 }

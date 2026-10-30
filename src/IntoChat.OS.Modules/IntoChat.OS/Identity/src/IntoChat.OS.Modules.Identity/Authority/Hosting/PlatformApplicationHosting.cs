@@ -1,6 +1,6 @@
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Authority.Identity.Directory;
+using IntoChat.OS.Connections.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 namespace IntoChat.OS.Authority;

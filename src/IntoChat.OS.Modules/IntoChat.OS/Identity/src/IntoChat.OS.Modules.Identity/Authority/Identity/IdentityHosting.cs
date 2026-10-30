@@ -1,9 +1,9 @@
-using IntoChat.OS.Framework.Modules.Identity;
+using IntoChat.OS.Authority.Identity.Directory;
 using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Authority.Identity.Directory;
+using IntoChat.OS.Framework.Modules.Identity;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -81,7 +81,6 @@ public static class IdentityHosting
         app.UseKernelCors();
         app.UseModuleHttpSurfaces();
         app.UseAuthentication();
-        foreach (var extension in app.Services.GetServices<IAuthorityHttpExtension>()) { extension.UseAfterAuthentication(app); }
         app.UseAccountSession();
         // The shell targets web and the front proxies HTTP/1.1: every gRPC route also answers gRPC-Web.
         app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });

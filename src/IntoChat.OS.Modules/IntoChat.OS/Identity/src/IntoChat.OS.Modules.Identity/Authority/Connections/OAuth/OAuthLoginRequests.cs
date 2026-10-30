@@ -1,5 +1,5 @@
-using DigitalBrain.Capabilities;
 using System.Security.Cryptography;
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

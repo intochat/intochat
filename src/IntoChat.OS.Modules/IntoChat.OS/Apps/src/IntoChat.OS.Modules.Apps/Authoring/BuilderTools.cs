@@ -1,8 +1,8 @@
-using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Modules.Apps;
 

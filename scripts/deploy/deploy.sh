@@ -84,8 +84,12 @@ build_images() {
     docker push "$server/os-ui:$image_tag"
   fi
   if ! image_exists os-sandbox; then
-    docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
-      -t "$server/os-sandbox:$image_tag" .
+    local sandbox_dockerfile="src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile"
+    local sandbox_context="$root"
+    if [[ ! -f "$sandbox_context/$sandbox_dockerfile" ]]; then
+      sandbox_context="${MODULES_DIR:-$root/../modules}"
+    fi
+    docker build -f "$sandbox_context/$sandbox_dockerfile" -t "$server/os-sandbox:$image_tag" "$sandbox_context"
     docker push "$server/os-sandbox:$image_tag"
   fi
 }

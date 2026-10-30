@@ -1,10 +1,11 @@
-using MailAddress = System.Net.Mail.MailAddress;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Spi;
 using IntoChat.Cloud.Mail;
+using IntoChat.Cloud.Mail.Templates;
 using Microsoft.Extensions.Logging;
+using MailAddress = System.Net.Mail.MailAddress;
 
 namespace IntoChat.Cloud.Organisations;
 
@@ -146,7 +147,7 @@ internal sealed class OrganisationInvitesNeuron(
         var caller = Caller();
         var membershipNeuron = proxies.Get<IOrgMembership>(OrgIds.Of(IOrgMembership.Type, IOrgMembership.Key(caller.PrincipalId)));
         var membership = await host.InModuleCall(() => membershipNeuron.Get()) ?? throw new OrganisationException("MEMBERSHIP_CONFLICT");
-        if (!InviteTokens.HashesEqual(membership.EmailHash, invite.EmailHash)) { throw new OrganisationException("INVITE_EMAIL_MISMATCH"); }
+        if (!InviteHasher.HashesEqual(membership.EmailHash, invite.EmailHash)) { throw new OrganisationException("INVITE_EMAIL_MISMATCH"); }
 
         var target = await host.InModuleCall(() => Organisation().Read());
         if (target.Status != OrganisationStatus.Active) { throw new OrganisationException("INVITE_NOT_FOUND"); }

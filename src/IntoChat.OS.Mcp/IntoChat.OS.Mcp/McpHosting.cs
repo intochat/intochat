@@ -1,12 +1,12 @@
 using DigitalBrain.Runtime.Orleans;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Contracts;
-using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections.Identity;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using DigitalBrain.Spi;
+using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Surface;
+using IntoChat.OS.Framework;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Mcp;
 

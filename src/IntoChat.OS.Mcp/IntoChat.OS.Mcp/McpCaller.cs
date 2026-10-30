@@ -1,18 +1,18 @@
-using DigitalBrain.Capabilities;
 using System.ComponentModel;
-using DigitalBrain.Runtime.Orleans;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Surface;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Connections.Surface;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
-using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Mcp;
 

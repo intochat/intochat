@@ -125,14 +125,14 @@ void main() {
 
     await tester.tap(find.byTooltip('Probe connection'));
     await tester.pumpAndSettle();
-    expect(harness.calls.where((call) => call.$1 == 'db/probe'), [
-      ('db/probe', null),
+    expect(harness.calls.where((call) => call.$1 == 'db/probe'), const [
+      ('db/probe', <String, Object?>{}),
     ]);
 
     await tester.tap(find.byTooltip('Disconnect'));
     await tester.pumpAndSettle();
-    expect(harness.calls.where((call) => call.$1 == 'db/disconnect'), [
-      ('db/disconnect', null),
+    expect(harness.calls.where((call) => call.$1 == 'db/disconnect'), const [
+      ('db/disconnect', <String, Object?>{}),
     ]);
     expect(harness.records, isEmpty);
   });

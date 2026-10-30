@@ -1,9 +1,10 @@
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Authority.Connections.OAuth;
 using IntoChat.OS.Authority.Integrations;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Connections;
@@ -15,7 +16,10 @@ internal sealed record LoginStart(Uri? Url, bool Conflict, string? Error);
 // from the desktop gallery's Connect). No app starts a login: connections never belong to an app.
 internal static class ConnectionLogin
 {
-    public static async Task<LoginStart> StartAsync(IServiceProvider services, string brainId, string connectionId, string connectorId, string authMethodId, string? target, CancellationToken ct)
+    public static Task<LoginStart> StartAsync(IServiceProvider services, string brainId, string connectionId, string connectorId, string authMethodId, string? target, CancellationToken ct)
+        => StartAsync(services, brainId, connectionId, connectorId, authMethodId, target, request: null, ct);
+
+    public static async Task<LoginStart> StartAsync(IServiceProvider services, string brainId, string connectionId, string connectorId, string authMethodId, string? target, HttpRequest? request, CancellationToken ct)
     {
         var neurons = services.GetRequiredService<AuthorityNeurons>();
         if (await UnavailableError(services, connectorId, ct) is { } unavailable) { return new(null, true, unavailable); }
@@ -24,7 +28,7 @@ internal static class ConnectionLogin
         {
             // The callback grants into this key's neuron; refuse now rather than after the provider round trip.
             _ = neurons.CallerConnection<IConnection>(services, key);
-            return new(await services.GetRequiredService<OAuthLoginFlow>().StartAsync(key, authMethodId, target, CallerContextStamper.Require(), ct), false, null);
+            return new(await services.GetRequiredService<OAuthLoginFlow>().StartAsync(key, authMethodId, target, CallerContextStamper.Require(), request, ct), false, null);
         }
         catch (ArgumentException error) { return new(null, false, error.Message); }
         catch (InvalidOperationException error) { return new(null, true, error.Message); }

@@ -1,9 +1,9 @@
 using System.Reflection;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Platform.Secrets;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

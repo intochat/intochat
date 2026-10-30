@@ -1,5 +1,5 @@
 using DigitalBrain.Runtime.Orleans;
-using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
+using DigitalBrain.Spi;
 using IntoChat.OS;
 using IntoChat.OS.Client;
 using IntoChat.OS.Client.Orleans;
@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using DigitalBrain.Spi;
+using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 
 namespace IntoChat.OS.Aspire.Client;
 

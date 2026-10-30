@@ -7,7 +7,7 @@ public sealed record LocalModelOptions
 {
     public const string DefaultModel = "qwen3.5:4b";
     public const string SmallModel = "qwen3.5:2b";
-    public const string DefaultEndpoint = "http://localhost:11434";
+    public const string DefaultEndpoint = LocalSetupKeys.LocalOllamaEndpoint;
 
     public string Endpoint { get; init; } = DefaultEndpoint;
     public string Model { get; init; } = DefaultModel;

@@ -1,8 +1,8 @@
 using IntoChat.OS.Authority.Integrations;
-using Orleans;
+using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Platform.Entries;
+using Orleans;
 
 namespace IntoChat.OS.Authority.Entries;
 

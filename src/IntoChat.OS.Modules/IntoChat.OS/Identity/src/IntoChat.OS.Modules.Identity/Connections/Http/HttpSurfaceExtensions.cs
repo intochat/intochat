@@ -1,7 +1,7 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Connections;
 

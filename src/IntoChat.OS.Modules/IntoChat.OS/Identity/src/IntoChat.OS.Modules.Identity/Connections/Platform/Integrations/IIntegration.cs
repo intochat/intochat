@@ -1,8 +1,8 @@
-using DigitalBrain.Capabilities;
 using System.Text;
-using Orleans.Concurrency;
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using Orleans.Concurrency;
 
 namespace IntoChat.OS.Connections.Platform.Integrations;
 

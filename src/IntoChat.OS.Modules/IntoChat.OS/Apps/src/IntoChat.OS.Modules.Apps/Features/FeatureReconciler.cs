@@ -1,8 +1,8 @@
-using IntoChat.OS.Modules.Apps.Signals;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Apps.Signals;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;

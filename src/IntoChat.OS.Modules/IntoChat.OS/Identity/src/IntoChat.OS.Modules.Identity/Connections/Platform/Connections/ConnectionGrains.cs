@@ -1,9 +1,9 @@
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Platform.Integrations;
-using Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Runtime;
-using DigitalBrain.Runtime.Orleans.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Connections.Platform.Connections;
 

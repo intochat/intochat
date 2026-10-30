@@ -1,5 +1,4 @@
 using DigitalBrain.Runtime.Orleans;
-using IntoChat.OS.Runtime;
 using DigitalBrain.Spi;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
@@ -7,6 +6,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
+using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

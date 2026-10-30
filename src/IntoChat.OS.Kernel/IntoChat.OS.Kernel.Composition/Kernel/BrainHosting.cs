@@ -1,4 +1,6 @@
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Spi;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Modules;
@@ -7,8 +9,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
-using IntoChat.OS.Contracts.Configuration;
-using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Kernel.Composition;
 

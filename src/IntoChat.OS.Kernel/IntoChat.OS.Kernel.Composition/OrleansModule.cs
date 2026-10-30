@@ -1,9 +1,9 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans;
 

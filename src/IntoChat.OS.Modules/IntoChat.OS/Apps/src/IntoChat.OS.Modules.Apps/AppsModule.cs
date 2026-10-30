@@ -1,11 +1,11 @@
 using IntoChat.OS;
-using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Configuration;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Configuration;
+using IntoChat.OS.Modules.AI.Agents;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
-using Microsoft.Extensions.Options;
 using IntoChat.OS.Framework.Modules;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Framework;
 

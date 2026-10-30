@@ -30,6 +30,7 @@ import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart' hide TableColumn;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 
 import '../voice_input/ui_voice_input.dart';
 import '../chat/chat_run_link.dart';

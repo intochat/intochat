@@ -3,4 +3,7 @@
     <RootNamespace>IntoChat.OS.LocalSetup</RootNamespace>
     <Description>Preflight checks, model pull and launcher command parsing behind intochat-os.cs.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\IntoChat.OS\Contracts.Configuration\IntoChat.OS.Contracts.Configuration.csproj" />
+  </ItemGroup>
 </Project>

@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.Cloud.Auth.Services;
@@ -35,7 +36,19 @@ internal sealed class AuthSecrets(IServiceProvider services, IAuthHostSeam host)
     {
         using var stamp = Stamp(host);
         var reference = await Secrets.Named(name);
-        return reference.Status == SecretStatus.Set ? await Secrets.Resolve(reference) : null;
+        if (reference.Status == SecretStatus.Set)
+        {
+            return await Secrets.Resolve(reference);
+        }
+
+        var configuration = services.GetService<IConfiguration>();
+        var fallback = name switch
+        {
+            GoogleClientId => configuration?["IntoChatOS:Integrations:google-oauth:ClientId"],
+            GoogleClientSecret => configuration?["IntoChatOS:Integrations:google-oauth:ClientSecret"],
+            _ => null,
+        };
+        return string.IsNullOrWhiteSpace(fallback) ? null : fallback;
     }
 
     internal static string TotpContext(string principalId) => "auth/totp/" + principalId;

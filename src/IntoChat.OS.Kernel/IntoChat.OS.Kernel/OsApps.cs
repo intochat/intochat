@@ -1,8 +1,8 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;

@@ -1,8 +1,8 @@
-using IntoChat.OS.Runtime;
 using DigitalBrain.Spi;
-using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Runtime;
 
 namespace IntoChat.OS.Modules.Circles;
 

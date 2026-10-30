@@ -1,7 +1,7 @@
 using System.Text.Json;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
-using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Framework.Modules.Configuration;
 

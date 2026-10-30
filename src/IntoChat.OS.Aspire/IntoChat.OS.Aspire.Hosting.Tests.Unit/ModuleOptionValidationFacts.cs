@@ -1,8 +1,8 @@
 using Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Framework.Modules.Validation;
 using Orleans.Hosting;
 

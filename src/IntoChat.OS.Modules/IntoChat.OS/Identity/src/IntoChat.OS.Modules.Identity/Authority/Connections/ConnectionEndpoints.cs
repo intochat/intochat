@@ -1,7 +1,7 @@
 using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -50,7 +50,7 @@ internal static class ConnectionEndpoints
         group.MapPost("/{connectionId}/login", async (string connectionId, LoginInput input, HttpContext context, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId)) { return Results.BadRequest(); }
-            var start = await ConnectionLogin.StartAsync(context.RequestServices, BrainScope.CurrentId(), connectionId, input.ConnectorId, input.AuthMethodId, input.Target, ct);
+            var start = await ConnectionLogin.StartAsync(context.RequestServices, BrainScope.CurrentId(), connectionId, input.ConnectorId, input.AuthMethodId, input.Target, context.Request, ct);
             return start.Url is { } url ? Results.Ok(new { url = url.AbsoluteUri })
                 : start.Conflict ? Results.Json(new { error = start.Error }, statusCode: StatusCodes.Status409Conflict)
                 : Results.BadRequest(new { error = start.Error });

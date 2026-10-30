@@ -1,21 +1,20 @@
-using IntoChat.OS.Framework.Modules.Identity;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Authority.Hosting;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Authority.Identity.Directory;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Authority.Secrets;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Metering;
+using IntoChat.OS.Framework.Modules.Platform.Identity;
+using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -67,7 +66,6 @@ public static class PlatformHosting
         silo.AddStartupTask<IntegrationSeeder>();
         services.TryAddSingleton<Identity.Authority.AuthorityMirror>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
-        services.TryAddSingleton<IIdentity, PlatformIdentity>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
         services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName)
             .PostConfigure(options =>
@@ -104,7 +102,6 @@ public static class PlatformHosting
         IdentityEndpoints.Map(endpoints);
         Hosting.RuntimeManagementEndpoints.Map(endpoints);
         endpoints.MapSiloDiagnostics();
-        foreach (var extension in endpoints.ServiceProvider.GetServices<IAuthorityHttpExtension>()) { extension.Map(endpoints); }
         endpoints.MapGrpcService<Neurons.NeuronsService>();
         return endpoints;
     }

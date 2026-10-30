@@ -1,7 +1,7 @@
 using DigitalBrain;
+using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flame.Scene.Signals;
-using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Flame.Tests;
 

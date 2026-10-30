@@ -1,8 +1,8 @@
 using System.ComponentModel;
-using DigitalBrain;
 using System.Reflection;
-using IntoChat.OS.Framework.Modules;
+using DigitalBrain;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
 

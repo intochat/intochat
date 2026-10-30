@@ -1,13 +1,13 @@
-using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
-using IntoChat.OS.Runtime;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Spi;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Text;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Kernel;
