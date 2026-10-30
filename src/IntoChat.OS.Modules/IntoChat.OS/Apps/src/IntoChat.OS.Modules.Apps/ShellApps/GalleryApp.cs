@@ -64,7 +64,16 @@ public sealed record GalleryAppState(
             "IntoChat.UI.Surface@1",
             ["settings.save-preferences"],
             "neuron://local/ui.gallery/acrylic-surface",
-            "new View(\"Surface\", new Column([new Text(\"Fluent Acrylic Glass\")]));"),
+            "Ui.AppShell(\"shell\", sidebar: Ui.NavItem(\"nav\", \"Overview\", \"layout-grid\", \"open\", selected: true), body: Ui.StatCard(\"kpi\", \"Blur\", \"28px\", \"+100%\", BadgeTone.Accent));"),
+        new(
+            "app-shell",
+            "layout",
+            "Ui.AppShell & Ui.StatCard Builders",
+            "Ergonomic 30-line C# desktop layout builder with sidebar, toolbar, body, and split inspector.",
+            "DigitalBrain.UI.AppShellNode@1",
+            ["gallery.select"],
+            "neuron://local/ui.gallery/app-shell",
+            "Ui.AppShell(\"studio\", sidebar: Ui.NavItem(\"n1\", \"Studio\", \"sparkles\", \"open\", selected: true), body: Ui.StatCard(\"s1\", \"Throughput\", \"142 sig/m\", \"+18%\", BadgeTone.Success));"),
         new(
             "approval-card",
             "chat-lfp",
@@ -113,7 +122,7 @@ public sealed record GalleryAppState(
     ];
 }
 
-[DigitalBrain.App("gallery")]
+[DigitalBrain.App("gallery", Accent = "#22C55E", Category = "Studio")]
 public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
 {
     public static DigitalBrain.AppManifest Manifest { get; } = new(
@@ -121,7 +130,11 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
         "UI Gallery",
         "1.0.0",
         [],
-        new DigitalBrain.AppRequirements([]));
+        new DigitalBrain.AppRequirements([]))
+    {
+        Accent = "#22C55E",
+        Category = "Studio",
+    };
 
     public static AppBundle Bundle { get; } = new(
         "gallery",
@@ -229,11 +242,12 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
         var visible = FilteredEntries(State.Category, State.Search);
         var categoryButtons = new Node[]
         {
-            new Button("All", new ButtonAction("gallery", "filter", ["all"]), Tone: State.Category == "all" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-            new Button("Design", new ButtonAction("gallery", "filter", ["design"]), Tone: State.Category == "design" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-            new Button("Controls", new ButtonAction("gallery", "filter", ["controls"]), Tone: State.Category == "controls" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-            new Button("Chat & LFP", new ButtonAction("gallery", "filter", ["chat-lfp"]), Tone: State.Category == "chat-lfp" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-            new Button("3D Brain", new ButtonAction("gallery", "filter", ["3d-brain"]), Tone: State.Category == "3d-brain" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+            Ui.NavItem("cat-all", "All", "layout-grid", "filter:all", selected: State.Category == "all", badge: $"{State.Entries.Length}"),
+            Ui.NavItem("cat-design", "Design & Identity", "palette", "filter:design", selected: State.Category == "design"),
+            Ui.NavItem("cat-controls", "Basic Input", "mouse-pointer-click", "filter:controls", selected: State.Category == "controls"),
+            Ui.NavItem("cat-layout", "Layout & App Shell", "panel-left", "filter:layout", selected: State.Category == "layout"),
+            Ui.NavItem("cat-lfp", "Data & 13 LFP Chat Cards", "table", "filter:chat-lfp", selected: State.Category == "chat-lfp"),
+            Ui.NavItem("cat-3d", "3D Brain & Neurons", "brain-circuit", "filter:3d-brain", selected: State.Category == "3d-brain"),
         };
 
         return new(
@@ -251,7 +265,7 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                     ],
                     Kind: SurfaceKind.Acrylic,
                     Title: "Active UI Identity"),
-                new Row(categoryButtons) { Gap = 6 },
+                new Column(categoryButtons) { Gap = 4 },
                 new Collection(visible.Select(entry =>
                     new Entry(entry.Id, entry.Title, $"{entry.Category} · {entry.NeuronContract}")).ToArray()),
             ]) { Gap = 12 });
@@ -298,6 +312,9 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                             new Button("Spatial Glass", new ButtonAction("gallery", "switch-identity", ["spatial-glass", "compact-pill"]), Tone: State.StylePreset == "spatial-glass" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
                             new Button("Cyber Synaptic", new ButtonAction("gallery", "switch-identity", ["cyber-synaptic", "split-top-dock"]), Tone: State.StylePreset == "cyber-synaptic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
                             new Button("Warm Paper", new ButtonAction("gallery", "switch-identity", ["warm-paper", "classic-bottom"]), Tone: State.StylePreset == "warm-paper" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                            new Button("Warm Mica", new ButtonAction("gallery", "switch-identity", ["fluent-warm-mica", "floating-glass"]), Tone: State.StylePreset == "fluent-warm-mica" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                            new Button("Linear Carbon", new ButtonAction("gallery", "switch-identity", ["linear-carbon", "classic-bottom"]), Tone: State.StylePreset == "linear-carbon" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                            new Button("Nordic Tactical", new ButtonAction("gallery", "switch-identity", ["nordic-tactical", "split-top-dock"]), Tone: State.StylePreset == "nordic-tactical" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
                         ]) { Gap = 8 },
                         new Text(selected.CSharpSample) { Mono = true },
                     ],
@@ -308,6 +325,15 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
 
     private static Node BuildSamplePreviewNode(GalleryCatalogEntry selected) => selected.Id switch
     {
+        "app-shell" => Ui.AppShell(
+            "gallery-shell-preview",
+            sidebar: new Column(
+            [
+                Ui.NavItem("nav-1", "Overview", "layout-grid", "nav:overview", selected: true),
+                Ui.NavItem("nav-2", "Signals", "radio", "nav:signals", badge: "14"),
+            ]),
+            body: Ui.StatCard("stat-1", "Active Signals / min", "142", "+18.4%", BadgeTone.Done, "zap"),
+            toolbar: new Row([new Text("DigitalBrain.UI AppShell")])),
         "approval-card" => new ApprovalCardNode(
             "card-gallery-1",
             "Approve Opportunity Stage Change",

@@ -86,7 +86,7 @@ public sealed record InoAppState(
     public InoCard[] ActiveCards => Cards ?? [];
 }
 
-[DigitalBrain.App("ino")]
+[DigitalBrain.App("ino", Accent = "#3D7EFF", Category = "Intelligence")]
 public sealed class InoApp : DigitalBrain.App<InoAppState>
 {
     public static DigitalBrain.AppManifest Manifest { get; } = new(

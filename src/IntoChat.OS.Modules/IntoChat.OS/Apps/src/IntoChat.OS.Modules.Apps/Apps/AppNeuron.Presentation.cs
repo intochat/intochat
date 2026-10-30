@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -285,6 +286,12 @@ internal sealed partial class AppNeuron
         BrainSceneNode scene => MapBrainScene(key, scene),
 
         NeuronRef neuronRef => MapNeuronRef(key, neuronRef, brainId),
+
+        AppShellNode shell => MapAppShell(key, shell, brainId),
+
+        NavItemNode nav => MapNavItem(key, nav),
+
+        StatCardNode stat => MapStatCard(key, stat),
 
         _ => throw new InvalidOperationException($"Unsupported view node {node.GetType().Name}."),
     };
@@ -566,7 +573,8 @@ internal sealed partial class AppNeuron
                     id = n.Id,
                     label = n.Label,
                     category = n.Kind,
-                    subtitle = n.Uri,
+                    uri = n.Uri,
+                    subtitle = n.Subtitle ?? n.Uri,
                     status = n.Status,
                     x = n.X,
                     y = n.Y,
@@ -610,6 +618,72 @@ internal sealed partial class AppNeuron
             [.. children]);
     }
 
+    private static UiNode MapAppShell(string key, AppShellNode shell, string? brainId)
+    {
+        var shellKey = string.IsNullOrWhiteSpace(shell.Key) ? key : shell.Key;
+        var children = new List<UiNode>();
+        if (shell.Sidebar is not null)
+        {
+            children.Add(MapNode($"{shellKey}.sidebar", shell.Sidebar, brainId));
+        }
+        if (shell.Toolbar is not null)
+        {
+            children.Add(MapNode($"{shellKey}.toolbar", shell.Toolbar, brainId));
+        }
+        children.Add(MapNode($"{shellKey}.body", shell.Body, brainId));
+        if (shell.Inspector is not null)
+        {
+            children.Add(MapNode($"{shellKey}.inspector", shell.Inspector, brainId));
+        }
+
+        return Ui.Card(
+            shellKey,
+            string.Empty,
+            JsonSerializer.Serialize(new
+            {
+                _ui = "appshell",
+                hasSidebar = shell.Sidebar is not null,
+                hasToolbar = shell.Toolbar is not null,
+                hasInspector = shell.Inspector is not null,
+            }),
+            [.. children]);
+    }
+
+    private static UiNode MapNavItem(string key, NavItemNode nav)
+    {
+        var navKey = string.IsNullOrWhiteSpace(nav.Key) ? key : nav.Key;
+        return Ui.Card(
+            navKey,
+            nav.Label,
+            JsonSerializer.Serialize(new
+            {
+                _ui = "navitem",
+                label = nav.Label,
+                icon = SanitizeIcon(nav.Icon) ?? nav.Icon,
+                selected = nav.Selected,
+                badge = nav.Badge,
+            }),
+            [Ui.Button($"{navKey}.act", NonEmpty(nav.Label, "Select"), NonEmpty(nav.Action, "noop"), style: nav.Selected ? UiStyle.Primary : UiStyle.Ghost)]);
+    }
+
+    private static UiNode MapStatCard(string key, StatCardNode stat)
+    {
+        var statKey = string.IsNullOrWhiteSpace(stat.Key) ? key : stat.Key;
+        var toneStr = stat.Tone.ToString().ToLowerInvariant();
+        return Ui.Card(
+            statKey,
+            stat.Label,
+            JsonSerializer.Serialize(new
+            {
+                _ui = "statcard",
+                label = stat.Label,
+                value = stat.Value,
+                delta = stat.Delta,
+                tone = toneStr,
+                icon = SanitizeIcon(stat.Icon) ?? stat.Icon,
+            }));
+    }
+
     private static bool TryResolveBrainKey(string uriOrKey, string brainId, out string resolved)
     {
         resolved = string.Empty;
@@ -638,6 +712,11 @@ internal sealed partial class AppNeuron
 
     private static string FormatAction(ButtonAction action)
     {
+        if (string.Equals(action.Operation, "copy", StringComparison.OrdinalIgnoreCase) && action.Arguments.Count > 0)
+        {
+            return "copy:" + SanitizeCopyText(action.Arguments[0]);
+        }
+
         var op = string.IsNullOrWhiteSpace(action.Operation) ? "noop" : action.Operation;
         return action.Arguments.Count > 0
             ? op + ":" + string.Join(':', action.Arguments.Select(Uri.EscapeDataString))

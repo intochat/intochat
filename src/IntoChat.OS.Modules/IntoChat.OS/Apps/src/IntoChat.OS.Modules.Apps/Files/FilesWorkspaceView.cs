@@ -31,6 +31,9 @@ internal sealed partial class FilesWorkspaceNeuron
         var extras = Ui.Column("files-extras",
         [
             .. notice is null ? Array.Empty<UiNode>() : [Ui.Text("message", notice)],
+            .. files.InoHandoffPrompt is { } handoffPrompt
+                ? [Ui.Card("ino-handoff", "Ino Handoff", handoffPrompt, [Ui.Text("ino-handoff-uri", files.SelectedNeuronUri ?? ""), Ui.CopyButton("copy-ino-prompt", FilesCopy.CopyNeuronUri, files.SelectedNeuronUri ?? handoffPrompt)])]
+                : Array.Empty<UiNode>(),
             Ui.Reference("input-name", new(UIVocabulary.TextFieldType, AppKey + "/name")),
             Ui.Reference("input-content", new(UIVocabulary.TextFieldType, AppKey + "/content")),
             Button("write", "Save text file", "write", files.Breadcrumbs.LastOrDefault()?.Item.Flags.HasFlag(ItemFlags.Write) == true),

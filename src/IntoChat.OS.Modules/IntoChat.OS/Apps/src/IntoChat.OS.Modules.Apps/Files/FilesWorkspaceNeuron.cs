@@ -142,6 +142,19 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                 case "next": await Persist(State with { PageOffset = Math.Min(Math.Max(0, State.Files.Items.Length - 1) / 40 * 40, State.PageOffset + 40) }); break;
                 case "copy": app.Copy(move: false); await Store(app); break;
                 case "move": app.Copy(move: true); await Store(app); break;
+                case "ask-ino":
+                    var prompt = app.AskIno();
+                    await Store(app);
+                    try
+                    {
+                        var ino = Get<IApp>(new(Id.Brain, "os.app", IApp.Key(Id.Brain.Value, "ino")));
+                        await ino.Request("send", prompt);
+                    }
+                    catch (Exception error) when (error is not OperationCanceledException)
+                    {
+                        Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "Ino handoff signal could not be forwarded in-process.");
+                    }
+                    break;
                 case "fail": app.Options(ConflictPolicy.Fail, State.Files.DryRun); await Store(app); break;
                 case "keep-both": app.Options(ConflictPolicy.Rename, State.Files.DryRun); await Store(app); break;
                 case "replace": app.Options(ConflictPolicy.Overwrite, State.Files.DryRun); await Store(app); break;

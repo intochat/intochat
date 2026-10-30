@@ -334,6 +334,30 @@ public sealed class FilesPreviewFacts
         await app.Select(new(new("a", await storage.Stat(other, Ct))), Ct);
         Assert.Equal(FilesCopy.PreviewUnavailable, app.Snapshot.Preview);
     }
+
+    [Fact]
+    public async Task InteractiveBreadcrumbsQuickViewAndAskInoHandoffExposeNeuronUri()
+    {
+        var storage = new InMemoryStorage();
+        var folder = storage.AddFolder(storage.Root, "projects");
+        var file = storage.AddFile(folder, "Context.md", "# Context"u8.ToArray());
+        var app = Harness.App(storage);
+        await app.Browse(new("a", folder), Ct);
+        await app.Select(new(new("a", await storage.Stat(file, Ct))), Ct);
+
+        var prompt = app.AskIno();
+        Assert.Contains("neuron://owner/a.files/projects/context.md", prompt, StringComparison.Ordinal);
+        Assert.Equal(prompt, app.Snapshot.InoHandoffPrompt);
+
+        var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
+        var buttons = ViewReads.Buttons(screen.Main);
+        var texts = ViewReads.Texts(screen.Main);
+        Assert.Contains(FilesCopy.CopyNeuronUri + " (" + FilesCopy.CopyNeuronUriShortcut + ")", buttons, StringComparer.Ordinal);
+        Assert.Contains(FilesCopy.CopyDisplayPath, buttons, StringComparer.Ordinal);
+        Assert.Contains(FilesCopy.AskInoAboutFile, buttons, StringComparer.Ordinal);
+        Assert.Contains(FilesCopy.QuickViewHeading, texts, StringComparer.Ordinal);
+        Assert.Contains(prompt, texts, StringComparer.Ordinal);
+    }
 }
 
 file static class Harness

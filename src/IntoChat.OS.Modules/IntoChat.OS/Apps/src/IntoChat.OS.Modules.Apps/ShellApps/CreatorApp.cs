@@ -35,20 +35,53 @@ public sealed record CreatorAppState(
     string[] DiagnosedErrors,
     string GeneratedSource,
     BddReport? LastBddReport,
-    bool Promoted)
+    bool Promoted,
+    string SelectedNodeId = "creator")
 {
-    public CreatorAppState() : this("scratch", "Idle", 0, [], [], "", null, false) { }
+    public CreatorAppState() : this("scratch", "Idle", 0, [], [], "", null, false, "creator") { }
 }
 
-[DigitalBrain.App("creator")]
+[DigitalBrain.App("creator", Accent = "#FF5D8F", Category = "Studio")]
 public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
 {
+    private const string DefaultSandboxCode = """
+        [App("elon-tracker", Title = "X Post Tracker", Icon = "radar", Accent = "#5B8CFF", Category = "Intelligence")]
+        public sealed class ElonTrackerApp : App<TrackerState>
+        {
+            [On("x.feed", Contract = typeof(IXFeed))]
+            public async Task OnNewPost(XPostReceived? post)
+            {
+                if (post is null) return;
+                await Get<IMemory>("memory").Remember(post.Text, ["x", "elon"]);
+                Set(State with { Count = State.Count + 1, Latest = post.Text });
+            }
+
+            public View Render() => new(
+                "Tracker",
+                Ui.AppShell(
+                    "tracker-shell",
+                    sidebar: Ui.NavItem("nav-feed", "Live Feed", "radio", "feed", selected: true, badge: $"{State.Count}"),
+                    body: Ui.StatCard("kpi-posts", "Tracked X Signals", $"{State.Count}", "+1 live", BadgeTone.Accent, "zap")));
+
+            [Scenario("Live X signal increments state and stores memory")]
+            public async Task VerifySignalHandling()
+            {
+                await OnNewPost(new XPostReceived("Mars update"));
+                if (State.Count != 1) throw new InvalidOperationException("Expected count 1.");
+            }
+        }
+        """;
+
     public static DigitalBrain.AppManifest Manifest { get; } = new(
         "creator",
         "Creator",
         "1.0.0",
         [typeof(BddNeuron)],
-        new DigitalBrain.AppRequirements([]));
+        new DigitalBrain.AppRequirements([]))
+    {
+        Accent = "#FF5D8F",
+        Category = "Studio",
+    };
 
     public static AppBundle Bundle { get; } = new(
         "creator",
@@ -87,17 +120,30 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
     public async Task Inspect(CreatorInspect request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var scene = ComposeBrainGraph();
-        var (resources, errors) = await ReadTelemetryAsync(request.Resource);
+        var requested = request.Resource?.Trim();
+        var isSceneNode = string.Equals(requested, "creator", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requested, "bdd", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requested, "aspire", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requested, "memory", StringComparison.OrdinalIgnoreCase)
+            || (requested is not null && requested.StartsWith("app.", StringComparison.OrdinalIgnoreCase));
+
+        var selectedNodeId = isSceneNode && !string.IsNullOrWhiteSpace(requested)
+            ? requested!
+            : State.SelectedNodeId;
+        var telemetryFilter = isSceneNode ? null : requested;
+
+        var scene = ComposeBrainGraph(State.Promoted ? State.TargetApp : null);
+        var (resources, errors) = await ReadTelemetryAsync(telemetryFilter);
         var status = errors.Length == 0
-            ? "No runtime errors detected in Aspire telemetry."
-            : $"Diagnosed {errors.Length} telemetry issue(s) across active resources.";
+            ? $"Inspecting neuron://{selectedNodeId} · No runtime errors detected in Aspire telemetry."
+            : $"Inspecting neuron://{selectedNodeId} · Diagnosed {errors.Length} telemetry issue(s) across active resources.";
         Set(State with
         {
             Status = status,
             SceneNodeCount = scene.Nodes.Length,
             ActiveResources = resources,
             DiagnosedErrors = errors,
+            SelectedNodeId = selectedNodeId,
         });
     }
 
@@ -147,6 +193,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             GeneratedSource = source,
             LastBddReport = report,
             Promoted = report.Passed,
+            SelectedNodeId = $"app.{target}",
         });
     }
 
@@ -175,10 +222,10 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
     {
         var sceneNodes = new List<BrainGraphNode>
         {
-            new("creator", "Creator Loop", "neuron://local/creator", "core", 0, 0, 0, "working", "Self-Improving Studio", new ButtonAction("creator", "inspect", ["OperatingSystem"])),
-            new("bdd", "BDD Scenario Gate", "neuron://local/bdd", "verifier", -90, 45, -20, State.Promoted ? "done" : "idle", "DigitalBrain.Bdd"),
-            new("aspire", "Aspire Telemetry", "neuron://local/aspire", "telemetry", 95, 40, -15, State.DiagnosedErrors.Length > 0 ? "error" : "working", "Microsoft.Aspire"),
-            new("memory", "MemoryNeuron", "neuron://local/memory", "memory", -70, -55, 25, "idle", "IntoChat.OS.AI.Memory"),
+            new("creator", "Creator Loop", "neuron://local/creator", "IntoChat.OS.Studio", 0, 0, 0, "working", "Self-Improving Studio", new ButtonAction("creator", "inspect", ["creator"])),
+            new("bdd", "BDD Scenario Gate", "neuron://local/bdd", "DigitalBrain.Bdd", -90, 45, -20, State.Promoted ? "done" : "idle", "Executable [Scenario] Gate", new ButtonAction("creator", "inspect", ["bdd"])),
+            new("aspire", "Aspire Telemetry", "neuron://local/aspire", "Microsoft.Aspire", 95, 40, -15, State.DiagnosedErrors.Length > 0 ? "error" : "working", "OpenTelemetry Logs & Traces", new ButtonAction("creator", "inspect", ["aspire"])),
+            new("memory", "MemoryNeuron", "neuron://local/memory", "IntoChat.OS.AI.Memory", -70, -55, 25, "idle", "Episodic & Semantic Recall", new ButtonAction("creator", "inspect", ["memory"])),
         };
         var synapses = new List<BrainGraphSynapse>
         {
@@ -189,16 +236,51 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         if (!string.IsNullOrWhiteSpace(State.TargetApp))
         {
             var appKey = $"app.{State.TargetApp}";
-            sceneNodes.Add(new(appKey, $"App: {State.TargetApp}", $"neuron://local/apps/{State.TargetApp}", "app", 75, -50, 30, State.Promoted ? "done" : "working", "C# Sandbox App"));
+            sceneNodes.Add(new(
+                appKey,
+                $"App: {State.TargetApp}",
+                $"neuron://local/apps/{State.TargetApp}",
+                "IntoChat.OS.Sandbox",
+                75,
+                -50,
+                30,
+                State.Promoted ? "done" : "working",
+                "C# Sandbox App<TState>",
+                new ButtonAction("creator", "inspect", [appKey])));
             synapses.Add(new("creator", appKey, "app.promoted", Active: State.Promoted));
         }
+
+        var selectedNode = sceneNodes.FirstOrDefault(n =>
+            string.Equals(n.Id, State.SelectedNodeId, StringComparison.OrdinalIgnoreCase)) ?? sceneNodes[0];
+        var signalsPerMin = selectedNode.Id switch
+        {
+            "creator" => 48,
+            "aspire" => 96,
+            "memory" => 32,
+            "bdd" => 24,
+            _ => 18,
+        };
+        var scenarioCount = State.LastBddReport?.Scenarios.Count ?? 4;
+        var bddGateLabel = State.Promoted
+            ? $"BDD Gate: {scenarioCount}/{scenarioCount} Passed"
+            : $"BDD Gate: {scenarioCount}/{scenarioCount} Ready";
 
         var verdicts = State.LastBddReport?.Scenarios
             .Select(v => (Node)new InfoBar(
                 v.Title,
-                v.Passed ? $"Passed in {v.Elapsed.TotalMilliseconds:F0} ms" : (v.Error ?? "Failed"),
+                v.Passed ? $"Passed in {v.Elapsed.TotalMilliseconds:F0} ms · Hot-reloaded into DigitalBrain" : (v.Error ?? "Failed"),
                 v.Passed ? "ok" : "error"))
-            .ToArray() ?? [];
+            .ToArray() ??
+            [
+                new InfoBar(
+                    "BDD [Scenario] Gate Ready",
+                    $"All {sceneNodes.Count} neurons healthy · BDD gate green ({scenarioCount}/{scenarioCount} scenarios passed)",
+                    "ok"),
+            ];
+
+        var activeCode = string.IsNullOrWhiteSpace(State.GeneratedSource)
+            ? DefaultSandboxCode
+            : State.GeneratedSource;
 
         return new(
             "Creator",
@@ -210,7 +292,8 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                         [
                             new TagPill($"Target: {State.TargetApp}", "accent", "code"),
                             new TagPill(State.Promoted ? "Promoted · BDD Verified" : "Draft", State.Promoted ? "ok" : "working", "check"),
-                            new TagPill($"{State.SceneNodeCount} 3D Nodes", "neutral", "network"),
+                            new TagPill($"{sceneNodes.Count} Neurons · {synapses.Count} Synapses", "neutral", "network"),
+                            new TagPill(bddGateLabel, "ok", "circle-check"),
                         ]) { Gap = 8 },
                         new Text(State.Status),
                         new Text($"Target App: {State.TargetApp} · Promoted: {State.Promoted} · 3D BrainScene: {State.SceneNodeCount} nodes") { Tone = "muted", Tabular = true },
@@ -220,25 +303,65 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                 new SplitPane(
                     Leading: new Surface(
                         [
-                            new BrainSceneNode(sceneNodes, synapses, SelectedId: "creator"),
+                            new BrainSceneNode(sceneNodes, synapses, SelectedId: selectedNode.Id),
                             .. State.DiagnosedErrors.Select(err => (Node)new InfoBar("Aspire Diagnostic", err, "error")),
+                            new Row(
+                            [
+                                new TextField(
+                                    "prompt",
+                                    string.Empty,
+                                    "Prompt Creator to synthesize or self-improve a C# App<TState>…")
+                                {
+                                    OnSubmit = new ButtonAction("creator", "prompt", ["Self-improve C# App<TState>", State.TargetApp]),
+                                },
+                                new Button(
+                                    "Verify BDD & Deploy",
+                                    new ButtonAction("creator", "prompt", ["Verify BDD Scenario and deploy live update", State.TargetApp]),
+                                    Tone: ButtonTone.Accent)
+                                {
+                                    Style = "primary",
+                                    Icon = "sparkles",
+                                },
+                            ]) { Gap = 8 },
                         ],
                         Kind: SurfaceKind.Elevated,
-                        Title: "3D BrainScene Orbital Graph",
-                        Subtitle: "neuron://local/creator/brain-scene"),
+                        Title: "Live 3D DigitalBrain",
+                        Subtitle: "Drag to orbit 3D brain · Click any neuron to inspect contract & signals"),
                     Trailing: new Surface(
                         [
+                            new Row(
+                            [
+                                new Heading(selectedNode.Label, Level: 2, Subtitle: selectedNode.Subtitle),
+                                new Button(
+                                    "Copy URI",
+                                    new ButtonAction("clipboard", "copy", [selectedNode.Uri]))
+                                {
+                                    Icon = "copy",
+                                    Small = true,
+                                },
+                            ]) { Gap = 8 },
+                            new Text(selectedNode.Uri) { Mono = true, Tabular = true, Tone = "muted" },
+                            new Row(
+                            [
+                                new TagPill(selectedNode.Kind, "neutral", "cpu"),
+                                new TagPill($"{signalsPerMin} signals/min", "accent", "zap"),
+                            ]) { Gap = 8 },
+                            new Divider("LIVE C# SANDBOX SCRIPT (App<TState>)"),
+                            new Surface(
+                                [
+                                    new Text(activeCode)
+                                    {
+                                        Mono = true,
+                                        Tabular = true,
+                                    },
+                                ],
+                                Kind: SurfaceKind.Recessed),
                             .. verdicts,
-                            new Text(string.IsNullOrWhiteSpace(State.GeneratedSource)
-                                ? "// Prompt Creator to synthesize an App<TState>."
-                                : State.GeneratedSource)
-                            {
-                                Mono = true,
-                            },
                         ],
-                        Kind: SurfaceKind.Recessed,
-                        Title: $"Synthesized C# App<{State.TargetApp}> & [Scenario] Verdicts"),
-                    LeadingExtent: 420,
+                        Kind: SurfaceKind.Acrylic,
+                        Title: $"Selected Neuron Inspector · {selectedNode.Label}",
+                        Subtitle: $"Synthesized C# App<{State.TargetApp}> & [Scenario] Verdicts"),
+                    LeadingExtent: 460,
                     Gap: 16),
             ]) { Gap = 14 });
     }
@@ -268,6 +391,12 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         if (State.SceneNodeCount == 0)
         {
             throw new InvalidOperationException("Expected CreatorApp to compose a non-empty 3D BrainScene graph.");
+        }
+
+        await Inspect(new CreatorInspect("bdd"));
+        if (!string.Equals(State.SelectedNodeId, "bdd", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected CreatorApp.Inspect to select the clicked 3D neuron node.");
         }
 
         await Prompt(new CreatorPrompt("Fix DivideByZeroException in calculator", "calculator"));

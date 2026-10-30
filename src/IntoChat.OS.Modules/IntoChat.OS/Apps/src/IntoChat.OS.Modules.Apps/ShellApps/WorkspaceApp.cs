@@ -19,7 +19,7 @@ public sealed record WorkspaceNavigate : DigitalBrain.Signal;
 [DigitalBrain.Signal("workspace.activate")]
 public sealed record WorkspaceActivate : DigitalBrain.Signal;
 
-[DigitalBrain.App("workspace")]
+[DigitalBrain.App("workspace", Accent = "#A855F7", Category = "Social")]
 public sealed class WorkspaceApp(IPresenter presenter) : DigitalBrain.App
 {
     public static DigitalBrain.AppManifest Manifest { get; } = new(

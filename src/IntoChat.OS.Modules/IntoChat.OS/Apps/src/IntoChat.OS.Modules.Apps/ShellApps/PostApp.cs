@@ -35,7 +35,7 @@ public sealed record PostAppState(
     public PostAppState() : this("user", "", [], [], "Ready") { }
 }
 
-[DigitalBrain.App("post")]
+[DigitalBrain.App("post", Accent = "#FB7185", Category = "Reach")]
 public sealed class PostApp(IPresenter? presenter = null) : DigitalBrain.App<PostAppState>
 {
     public static DigitalBrain.AppManifest Manifest { get; } = new(

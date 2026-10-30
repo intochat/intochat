@@ -47,6 +47,7 @@ public sealed record FilesState
     public FilesItem[] Breadcrumbs { get; init; } = [];
     public FilesItem? Selected { get; init; }
     public string? SelectedNeuronUri { get; init; }
+    public string? InoHandoffPrompt { get; init; }
     public FilesClipboard? Clipboard { get; init; }
     public FilesPage[] Pages { get; init; } = [];
     public string? Search { get; init; }
@@ -72,7 +73,7 @@ public sealed record FilesState
 }
 
 // Files uses storage@1 only. The host persists snapshots and submits plans to the runtime's confirmation/operation gate.
-[App("files")]
+[App("files", Accent = "#F6B73C", Category = "Workspace")]
 public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state) : App
 {
     public const int PageSize = 100;
@@ -353,6 +354,20 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         var selected = Snapshot.Selected ?? throw new InvalidOperationException("Select a file or folder first.");
         Require(selected.Item.Flags, move ? ItemFlags.Move : ItemFlags.Copy, selected.Item.Id);
         Set(Snapshot with { Clipboard = new(selected, move), Message = $"Choose a destination folder, then {(move ? "Move here" : "Copy here")}." });
+    }
+
+    public string AskIno()
+    {
+        var selected = Snapshot.Selected ?? throw new InvalidOperationException("Select a file or folder first.");
+        var uri = Snapshot.SelectedNeuronUri ?? NeuronUriOf(selected);
+        var prompt = $"Explain and summarize {selected.Item.Name} ({uri})";
+        Set(Snapshot with
+        {
+            SelectedNeuronUri = uri,
+            InoHandoffPrompt = prompt,
+            Message = $"Opened Ino with {uri}",
+        });
+        return prompt;
     }
 
     public void Options(ConflictPolicy conflict, bool dryRun) => Set(Snapshot with { Conflict = conflict, DryRun = dryRun });

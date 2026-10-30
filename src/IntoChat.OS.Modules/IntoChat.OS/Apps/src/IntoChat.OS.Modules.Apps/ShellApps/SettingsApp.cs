@@ -57,7 +57,7 @@ public sealed record SettingsAppState(
     public SettingsAppState() : this("Settings", "Settings", "User", "dark", "qwen3.5:4b", null, "fluent-acrylic", "floating-glass") { }
 }
 
-[DigitalBrain.App("settings")]
+[DigitalBrain.App("settings", Accent = "#64748B", Category = "System")]
 public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? sideload = null) : DigitalBrain.App<SettingsAppState>
 {
     public static DigitalBrain.AppManifest Manifest { get; } = new(

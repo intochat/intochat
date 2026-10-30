@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using DigitalBrain.Capabilities.Storage;
 using IntoChat.Files;
 using IntoChat.OS.Modules.Flutter.Collection;
@@ -14,8 +16,8 @@ internal static class FilesScreen
     {
         ArgumentNullException.ThrowIfNull(state);
         var narrow = width <= 390;
-        string Act(string verb, int? index = null) => revision.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + verb
-            + (index is { } value ? ":" + value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "");
+        string Act(string verb, int? index = null) => revision.ToString(CultureInfo.InvariantCulture) + ":" + verb
+            + (index is { } value ? ":" + value.ToString(CultureInfo.InvariantCulture) : "");
         if (state.Storages.Length == 0 && state.Connection is null && !state.Loading && !state.Searching)
         {
             var empty = Ui.Column("files-empty",
@@ -56,6 +58,7 @@ internal static class FilesScreen
             selected is not null
                 ? Ui.CopyButton("copy-display-path", FilesCopy.CopyDisplayPath, DisplayPath(state, selected))
                 : Button("copy-display-path", FilesCopy.CopyDisplayPath, "copy-display-path", false, UiStyle.Ghost),
+            Button("ask-ino-toolbar", FilesCopy.AskInoAboutFile, "ask-ino", one, UiStyle.Primary),
             Button("download", FilesCopy.Download, "download", file && selected!.Item.Flags.HasFlag(ItemFlags.Read), UiStyle.Link),
             Button("delete", FilesCopy.Delete, "delete", one && selected!.Item.Flags.HasFlag(ItemFlags.Trash)),
         ]);
@@ -113,12 +116,12 @@ internal static class FilesScreen
             }
         }
 
-        var preview = Preview(state);
+        var preview = Preview(state, revision);
         var list = Ui.Column("files-list", [headers, .. notices, Ui.Reference("items", new(IntoChat.OS.Modules.Flutter.UIVocabulary.CollectionType, "items"))]);
         var chrome = new UiNode[]
         {
             Ui.Row("navigation", [Button("up", FilesCopy.Up, "up", state.Connection is not null)]),
-            Crumbs(state),
+            Crumbs(state, revision),
             toolbar,
             Ui.Reference("filter", new(IntoChat.OS.Modules.Flutter.UIVocabulary.TextFieldType, "filter")),
             Ui.Reference("search", new(IntoChat.OS.Modules.Flutter.UIVocabulary.TextFieldType, "search")),
@@ -192,26 +195,149 @@ internal static class FilesScreen
         return string.IsNullOrWhiteSpace(joined) ? selected.Item.Name : joined;
     }
 
-    private static UiNode Crumbs(FilesState state) => Ui.Row("breadcrumbs", state.Breadcrumbs.Select((item, index) =>
-        Ui.Button("crumb-" + index, item.Item.Name, state.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":breadcrumb:" + index.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray());
-
-    private static UiNode? Preview(FilesState state)
+    private static string? ActiveFolderDisplayPath(FilesState state)
     {
-        if (state.PreviewApp is { } app)
+        if (state.Breadcrumbs.Length > 0)
         {
-            return Ui.Card("preview-app", app, null, [Ui.Button("open-app", FilesCopy.OpenApp, state.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":open-app")]);
+            return string.Join("/", state.Breadcrumbs.Select(c => c.Item.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
         }
-        if (state.PreviewUrl is { } url)
+        if (state.Connection is { } conn)
         {
-            return Ui.Column("preview", [Ui.Text("preview-url", url), Ui.Reference("preview-image", new(IntoChat.OS.Modules.Flutter.UIVocabulary.ImageType, "preview"))]);
-        }
-        if (state.Preview is { } text)
-        {
-            var children = new List<UiNode> { Ui.Text("preview-text", text) };
-            if (state.PreviewNote is { } note) { children.Add(Ui.Text("preview-note", note)); }
-            return Ui.Column("preview", [.. children]);
+            return state.Storages.FirstOrDefault(s => s.Connection == conn)?.Label ?? conn;
         }
         return null;
+    }
+
+    private static string? ActiveFolderNeuronUri(FilesState state)
+    {
+        if (state.SelectedNeuronUri is { } selectedUri)
+        {
+            return selectedUri;
+        }
+        var connection = state.Connection ?? state.Breadcrumbs.LastOrDefault()?.Connection;
+        if (string.IsNullOrWhiteSpace(connection))
+        {
+            return null;
+        }
+        var segments = state.Breadcrumbs
+            .Skip(1)
+            .Select(folder => SlugSegment(folder.Item.Name))
+            .Where(s => s.Length > 0)
+            .ToArray();
+        var suffix = segments.Length == 0 ? "" : "/" + string.Join("/", segments);
+        return $"neuron://owner/{SlugSegment(connection)}.files{suffix}";
+    }
+
+    private static string SlugSegment(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_') { builder.Append(ch); }
+            else if (char.IsWhiteSpace(ch) || ch is '/' or '\\') { builder.Append('-'); }
+        }
+        return builder.ToString().Trim('-');
+    }
+
+    private static UiNode Crumbs(FilesState state, long revision)
+    {
+        var rev = (revision != 0 ? revision : state.Revision).ToString(CultureInfo.InvariantCulture);
+        var nodes = new List<UiNode>();
+        for (var index = 0; index < state.Breadcrumbs.Length; index++)
+        {
+            var item = state.Breadcrumbs[index];
+            nodes.Add(Ui.Button("crumb-" + index, item.Item.Name, rev + ":breadcrumb:" + index.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        var activeUri = ActiveFolderNeuronUri(state);
+        var activeDisplayPath = state.Selected is { } sel ? DisplayPath(state, sel) : ActiveFolderDisplayPath(state);
+
+        if (activeUri is { Length: > 0 })
+        {
+            nodes.Add(Ui.Badge("crumb-neuron-uri", activeUri, UiTone.Neutral));
+            nodes.Add(Ui.CopyButton("crumb-copy-neuron-uri", FilesCopy.CopyNeuronUri + " (" + FilesCopy.CopyNeuronUriShortcut + ")", activeUri));
+        }
+        else
+        {
+            nodes.Add(Ui.Button("crumb-copy-neuron-uri", FilesCopy.CopyNeuronUri + " (" + FilesCopy.CopyNeuronUriShortcut + ")", rev + ":copy-neuron-uri", enabled: false, style: UiStyle.Ghost));
+        }
+
+        if (activeDisplayPath is { Length: > 0 })
+        {
+            nodes.Add(Ui.CopyButton("crumb-copy-display-path", FilesCopy.CopyDisplayPath, activeDisplayPath));
+        }
+        else
+        {
+            nodes.Add(Ui.Button("crumb-copy-display-path", FilesCopy.CopyDisplayPath, rev + ":copy-display-path", enabled: false, style: UiStyle.Ghost));
+        }
+
+        return Ui.Row("breadcrumbs", [.. nodes]);
+    }
+
+    private static UiNode? Preview(FilesState state, long revision)
+    {
+        var selected = state.Selected;
+        if (selected is null && state.PreviewApp is null && state.PreviewUrl is null && state.Preview is null)
+        {
+            return null;
+        }
+
+        var rev = (revision != 0 ? revision : state.Revision).ToString(CultureInfo.InvariantCulture);
+        var children = new List<UiNode>
+        {
+            Ui.Badge("quick-view-badge", FilesCopy.QuickViewHeading, UiTone.Neutral),
+        };
+
+        if (selected is not null)
+        {
+            var kindText = selected.Item.Kind == ItemKind.Folder
+                ? "Folder"
+                : (Path.GetExtension(selected.Item.Name).TrimStart('.').ToUpperInvariant() is { Length: > 0 } ext ? ext + " file" : "File");
+            var sizeText = selected.Item.Size is { } bytes ? $" · {bytes} B" : "";
+            children.Add(Ui.Text("quick-view-meta", $"{kindText}{sizeText} · {DisplayPath(state, selected)}"));
+        }
+
+        if (state.SelectedNeuronUri is { } qvUri)
+        {
+            children.Add(Ui.Text("quick-view-uri", qvUri));
+        }
+
+        children.Add(Ui.Row("quick-view-actions",
+        [
+            Ui.Button("ask-ino", FilesCopy.AskInoAboutFile, rev + ":ask-ino", enabled: selected is not null, style: UiStyle.Primary, icon: "sparkles"),
+            state.SelectedNeuronUri is { } copyUri
+                ? Ui.CopyButton("quick-view-copy-neuron-uri", FilesCopy.CopyNeuronUri, copyUri)
+                : Ui.Button("quick-view-copy-neuron-uri", FilesCopy.CopyNeuronUri, rev + ":copy-neuron-uri", enabled: false, style: UiStyle.Ghost),
+            selected is not null
+                ? Ui.CopyButton("quick-view-copy-display-path", FilesCopy.CopyDisplayPath, DisplayPath(state, selected))
+                : Ui.Button("quick-view-copy-display-path", FilesCopy.CopyDisplayPath, rev + ":copy-display-path", enabled: false, style: UiStyle.Ghost),
+        ]));
+
+        if (state.InoHandoffPrompt is { } handoff)
+        {
+            children.Add(Ui.Text("ino-handoff-prompt", handoff));
+        }
+
+        if (state.PreviewApp is { } app)
+        {
+            children.Add(Ui.Card("preview-app", app, null, [Ui.Button("open-app", FilesCopy.OpenApp, rev + ":open-app")]));
+        }
+        else if (state.PreviewUrl is { } url)
+        {
+            children.Add(Ui.Column("preview", [Ui.Text("preview-url", url), Ui.Reference("preview-image", new(IntoChat.OS.Modules.Flutter.UIVocabulary.ImageType, "preview"))]));
+        }
+        else if (state.Preview is { } text)
+        {
+            var previewNodes = new List<UiNode> { Ui.Text("preview-text", text) };
+            if (state.PreviewNote is { } note) { previewNodes.Add(Ui.Text("preview-note", note)); }
+            children.Add(Ui.Column("preview", [.. previewNodes]));
+        }
+
+        return Ui.Card(
+            "quick-view",
+            selected?.Item.Name ?? FilesCopy.QuickViewHeading,
+            state.SelectedNeuronUri ?? FilesCopy.QuickViewHeading,
+            [.. children]);
     }
 
     private static IEnumerable<FilesItem> Order(IEnumerable<FilesItem> items, string sort, bool descending)
