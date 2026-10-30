@@ -294,43 +294,31 @@ internal sealed class CompiledAppsHost(
             if (runtime.Instance is InoApp ino)
             {
                 await SyncInoChatAndComposerAsync(runtime, ino.State);
-                var hasChart = ino.State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
-                var hasTable = ino.State.ActiveCards.Any(c => c.Kind == "table" && c.Rows is { Length: > 0 });
-                var headerExtent = ino.State.ActiveCards.Length > 0 ? 140d : 64d;
-                if (hasChart || hasTable)
-                {
-                    var vizChildren = new List<UiNode>();
-                    if (hasChart)
-                    {
-                        vizChildren.Add(Ui.Reference("chart", new(UIVocabulary.ChartType, runtime.AppKey + "/chart")));
-                    }
-                    if (hasTable)
-                    {
-                        vizChildren.Add(Ui.Reference("table", new(UIVocabulary.TableType, runtime.AppKey + "/table")));
-                    }
-                    mainTree = Ui.Column(
-                        "view",
-                        [
-                            MapNode("root", mainView.Root, runtime.Brain),
-                            Ui.Row("visualizations", [.. vizChildren], gap: 12),
-                            Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
-                            Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
-                        ],
-                        gap: 8,
-                        extents: [headerExtent, 268, 0, 96]);
-                }
-                else
-                {
-                    mainTree = Ui.Column(
-                        "view",
-                        [
-                            MapNode("root", mainView.Root, runtime.Brain),
-                            Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
-                            Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
-                        ],
-                        gap: 8,
-                        extents: [headerExtent, 0, 96]);
-                }
+                var headerExtent = ino.State.ActiveCards.Length > 0 ? 280d : 84d;
+                var rightColumn = Ui.Column(
+                    "view-main",
+                    [
+                        MapNode("root", mainView.Root, runtime.Brain),
+                        Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
+                        Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
+                    ],
+                    gap: 8,
+                    extents: [headerExtent, 0, 88]);
+                mainTree = sideView is not null
+                    ? Ui.Row("view", [MapNode("side", sideView.Root, runtime.Brain), rightColumn], gap: 12, extents: [224, 0])
+                    : rightColumn;
+            }
+            else if (sideView is not null)
+            {
+                var sideWidth = runtime.Instance is CreatorApp ? 340d : 236d;
+                mainTree = Ui.Row(
+                    "view",
+                    [
+                        MapNode("side", sideView.Root, runtime.Brain),
+                        MapNode("root", mainView.Root, runtime.Brain),
+                    ],
+                    gap: 14,
+                    extents: [sideWidth, 0]);
             }
             else
             {

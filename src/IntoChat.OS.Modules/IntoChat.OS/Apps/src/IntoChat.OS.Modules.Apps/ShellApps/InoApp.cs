@@ -442,6 +442,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 ],
                 Kind: SurfaceKind.Acrylic,
                 Title: State.Title),
+            .. State.ActiveCards.SelectMany(RenderCardNodes),
             .. State.Turns.Select((turn, i) => (Node)new Surface(
                 [
                     new Row(
@@ -456,7 +457,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 Kind: SurfaceKind.Elevated,
                 Title: turn.UserMessage,
                 Subtitle: turn.RouteHint)),
-            .. State.ActiveCards.SelectMany(RenderCardNodes),
         ]) { Gap = 12 });
 
     private static IEnumerable<Node> RenderCardNodes(InoCard card)

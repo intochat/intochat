@@ -41,7 +41,7 @@ internal sealed partial class FilesWorkspaceNeuron
         var main = Ui.Column("files-main-wrap", [screen.Main, extras]);
         await View("side").Publish(new(files.Revision, State.ViewVersion, screen.Side));
         await View("main").Publish(new(files.Revision, State.ViewVersion, main));
-        await View("full").Publish(new(files.Revision, State.ViewVersion, Ui.Column("files-full", [screen.Side, main], extents: [260, 1])));
+        await View("full").Publish(new(files.Revision, State.ViewVersion, Ui.Row("files-full", [screen.Side, main], gap: 12, extents: [240, 0])));
     }
 
     private async Task Push(FilesScreen.Model screen)
