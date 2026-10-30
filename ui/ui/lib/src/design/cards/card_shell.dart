@@ -69,16 +69,19 @@ class CardShell extends StatelessWidget {
               children: [
                 SizedBox(width: 16, height: 16, child: source.icon),
                 const SizedBox(width: 8),
-                Text(
-                  source.name,
-                  style: IcType.text(
-                    12,
-                    weight: FontWeight.w600,
-                    color: c.textMuted,
+                Expanded(
+                  child: Text(
+                    source.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IcType.text(
+                      12,
+                      weight: FontWeight.w600,
+                      color: c.textMuted,
+                    ),
                   ),
                 ),
-                const Spacer(),
-                ?status,
+                if (status != null) ...[const SizedBox(width: 8), status!],
               ],
             ),
             const SizedBox(height: 12),

@@ -93,7 +93,10 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
       _error = null;
     });
     try {
-      await widget.request!('${Uri.encodeComponent(id)}/$action');
+      await widget.request!(
+        '${Uri.encodeComponent(id)}/$action',
+        body: const {},
+      );
       if (mounted && generation == _generation) await _load();
     } catch (_) {
       if (mounted && generation == _generation) {

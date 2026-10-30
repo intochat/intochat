@@ -122,7 +122,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
                     await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
                 }
                 if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
-                { await app.Progress("failed", failure); }
+                { await app.Progress("attention", failure); }
             }
             finally
             {

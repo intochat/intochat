@@ -47,5 +47,5 @@ public static class IntoChatOSNames
 
     // Single source of truth for modules switched off by default in local / local+cloud runs (shared by Kernel and AppHost).
     public static readonly IReadOnlyList<string> LocalDisabledModules =
-        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "salesforce", "gmail"];
+        ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "salesforce"];
 }

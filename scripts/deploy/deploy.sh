@@ -80,7 +80,7 @@ build_images() {
       -p:ContainerRegistry="$server" -p:ContainerRepository=os -p:ContainerImageTags="$image_tag" "${restore_args[@]}"
   fi
   if ! image_exists os-ui; then
-    docker build -f src/IntoChat.OS.Modules/Google/Flutter/app/shell/Dockerfile -t "$server/os-ui:$image_tag" .
+    docker build -f ui/shell/Dockerfile -t "$server/os-ui:$image_tag" ui
     docker push "$server/os-ui:$image_tag"
   fi
   if ! image_exists os-sandbox; then

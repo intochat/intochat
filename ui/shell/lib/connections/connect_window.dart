@@ -177,7 +177,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
       error = null;
     });
     try {
-      await widget.request(action);
+      await widget.request(action, body: const {});
       if (!mounted || ticket != generation) return;
       setState(() => notice = message);
       await load();

@@ -18,11 +18,11 @@ compiled-apps
 **/publish
 **/out
 
-clients/**/build
-clients/**/.dart_tool
-clients/**/.flutter-plugins
-clients/**/.flutter-plugins-dependencies
-clients/**/.packages
+ui/**/build
+ui/**/.dart_tool
+ui/**/.flutter-plugins
+ui/**/.flutter-plugins-dependencies
+ui/**/.packages
 
 **/*.user
 **/*.suo
@@ -43,7 +43,7 @@ obj
 **/*.log
 
 # The sandbox image builds from the repository root; the Flutter shell is never part of it.
-src/IntoChat.OS.Modules/Google/Flutter/app
+ui
 
 # Live builds and candidate worktrees (gitignored, many GB) are never part of the sandbox image.
 .intochat-os
