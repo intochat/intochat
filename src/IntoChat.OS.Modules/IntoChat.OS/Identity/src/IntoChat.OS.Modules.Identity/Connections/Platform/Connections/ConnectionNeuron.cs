@@ -175,6 +175,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
 
     public async Task<ConnectionView> Adopt(string authMethodId, string? account)
     {
+        RequireNotAppCaller();
         RequireAuthMethod(authMethodId);
         if (Snapshot.Status != ConnectionStatus.Disconnected || Snapshot.Secrets.Length > 0) { return View(); }
         Snapshot.AuthMethodId = authMethodId;
@@ -190,6 +191,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     public async Task<SealedSecret[]> ExportFor(string brainId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        RequireNotAppCaller();
         if (Snapshot.Secrets.Length == 0) { return []; }
         var part = BrainSealer ?? throw new InvalidOperationException("Re-sealing a shared credential needs this machine's part keys.");
         var reSealed = new List<SealedSecret>(Snapshot.Secrets.Length);
@@ -201,6 +203,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     public async Task<ConnectionView> Import(string authMethodId, string? account, SealedSecret[] secrets, ConnectionStatus status, string? detail)
     {
         ArgumentNullException.ThrowIfNull(secrets);
+        RequireNotAppCaller();
         RequireAuthMethod(authMethodId);
         Snapshot.AuthMethodId = authMethodId;
         Snapshot.Account = account;
@@ -257,10 +260,12 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
             : "principal:" + principalId;
     }
 
-    // Opens the credential for one call; refreshes first when the access token is about to expire.
+    // Zero-token auth enforcement: opens the credential for one call inside the connection grain activation;
+    // refreshes first when the access token is about to expire, and guarantees raw credentials never leave the turn.
     protected async Task<T> UseCredentialAsync<T>(Func<Credential, CancellationToken, Task<T>> call, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(call);
+        AssertZeroTokenReturnType<T>();
         if (Snapshot.Status == ConnectionStatus.Disconnected || Snapshot.Secrets.Length == 0)
         { throw new InvalidOperationException($"{Key.Connector}/{Key.Connection} is not connected."); }
         var credential = await OpenAsync();
@@ -271,7 +276,33 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
             await Transition(ConnectionStatus.Connected, null);
             credential = await OpenAsync();
         }
-        return await call(credential, ct);
+        var result = await call(credential, ct);
+        AssertZeroTokenReturn(result, credential);
+        return result;
+    }
+
+    public static void AssertZeroTokenReturnType<T>()
+    {
+        var type = typeof(T);
+        if (type == typeof(Credential) || type == typeof(OAuthGrant) || type == typeof(SealedSecret) || type == typeof(SealedSecret[]))
+        {
+            throw new InvalidOperationException("Zero-token auth enforcement: UseCredentialAsync may never return raw credentials or OAuth grants.");
+        }
+    }
+
+    public static void AssertZeroTokenReturn<T>(T result, Credential credential)
+    {
+        AssertZeroTokenReturnType<T>();
+        if (result is null || credential is null) { return; }
+        if (result is Credential or OAuthGrant or SealedSecret or SealedSecret[])
+        {
+            throw new InvalidOperationException("Zero-token auth enforcement: UseCredentialAsync may never return raw credentials or OAuth grants.");
+        }
+        if (result is string text && (!string.IsNullOrEmpty(credential.Value) && text.Contains(credential.Value, StringComparison.Ordinal)
+            || (!string.IsNullOrEmpty(credential.Refresh) && text.Contains(credential.Refresh, StringComparison.Ordinal))))
+        {
+            throw new InvalidOperationException("Zero-token auth enforcement: UseCredentialAsync result may not leak the unsealed credential value.");
+        }
     }
 
     protected Task MarkExpired(string detail) => Transition(ConnectionStatus.Expired, detail);
@@ -351,9 +382,18 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
         CapabilityCaller caller;
         try { caller = CallerContextStamper.Require(); }
         catch (UntrustedCallerException error) { throw new UnauthorizedAccessException(error.Message, error); }
-        if (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy
+        if (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy || AppPrincipal.IsApp(caller.PrincipalId)
             || BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
         { throw new UnauthorizedAccessException($"Only a member of the owning brain can manage connection {Key.Connector}/{Key.Connection}."); }
+    }
+
+    private static void RequireNotAppCaller()
+    {
+        if (CallerContextStamper.TryGet(out var caller)
+            && (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy || AppPrincipal.IsApp(caller.PrincipalId)))
+        {
+            throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app callers cannot export or import raw connection secrets.");
+        }
     }
 
     private ConnectionView View() => new(Key.Connector, Key.Connection, Snapshot.AuthMethodId, Snapshot.Status, Snapshot.Account, Snapshot.ExpiresAt, Snapshot.LastProbedAt, Snapshot.Detail);

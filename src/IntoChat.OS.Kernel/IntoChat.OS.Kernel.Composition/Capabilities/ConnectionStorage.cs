@@ -5,10 +5,17 @@ namespace IntoChat.OS.Kernel.Composition.Capabilities;
 
 // The broker binds item IDs to this exact connection. Streams remain host-local: reads use bounded ranges and writes use
 // expiring upload sessions on the provider. Provider IDs are never guessed from a path or tested against another connection.
-public sealed class ConnectionStorage(IStorage remote, string? connectionKey = null, IStorageUpload? uploads = null, IStorageWriteAuthorizer? authorizer = null) : IStorage
+public sealed class ConnectionStorage(
+    IStorage remote,
+    string? connectionKey = null,
+    IStorageUpload? uploads = null,
+    IStorageWriteAuthorizer? authorizer = null,
+    string? sandboxBadge = null) : IStorage
 {
     private readonly IStorage _remote = remote ?? throw new ArgumentNullException(nameof(remote));
     private readonly string? _prefix = connectionKey is null ? null : Root(connectionKey);
+
+    public string? SandboxBadge => sandboxBadge;
 
     public static string Root(string connectionKey) => "storage:" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(connectionKey)) + ":";
 
@@ -29,7 +36,15 @@ public sealed class ConnectionStorage(IStorage remote, string? connectionKey = n
         TargetFolder = plan.TargetFolder is { } target ? Local(target) : null,
     };
 
-    public Task<StorageDescriptor> Describe(CancellationToken ct = default) => Typed(() => _remote.Describe(ct));
+    public async Task<StorageDescriptor> Describe(CancellationToken ct = default)
+    {
+        var descriptor = await Typed(() => _remote.Describe(ct)).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(sandboxBadge) && !descriptor.Label.Contains(sandboxBadge, StringComparison.Ordinal))
+        {
+            return descriptor with { Label = $"{descriptor.Label} [{sandboxBadge}]" };
+        }
+        return descriptor;
+    }
 
     public async Task<IReadOnlyList<Item>> Roots(CancellationToken ct = default) => (await Typed(() => _remote.Roots(ct)).ConfigureAwait(false)).Select(Bound).ToArray();
 

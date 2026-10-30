@@ -34,6 +34,7 @@ internal static class FilesRequests
                 new("replace", "Replace conflicts after confirmation; include ExpectedRevision."),
                 new("dry-run", "Toggle dry-run planning; include ExpectedRevision."),
                 new("cancel", "Cancel the indexed running operation; include ExpectedRevision."),
+                new("ask-ino", "Open Ino with the selected file's neuron:// reference pre-filled."),
             ],
             Settings: [], Slots: [],
             Toolbar: [new("up", Icon: "arrow-up", Label: "Up"), new("open", Icon: "folder", Label: "Storages")],
@@ -51,7 +52,7 @@ internal static class FilesRequests
         {
             var payload = string.IsNullOrWhiteSpace(request.Input) ? new Forwarded()
                 : JsonSerializer.Deserialize<Forwarded>(request.Input, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            var readOnly = request.Operation is "open" or "storage" or "browse" or "select" or "search" or "more" or "preview" or "up";
+            var readOnly = request.Operation is "open" or "storage" or "browse" or "select" or "search" or "more" or "preview" or "up" or "ask-ino";
             if (!readOnly && payload.ExpectedRevision is null)
             { return "Read the current Files workspace revision before changing files."; }
             await workspace.Request(request.Operation, payload.Input ?? new(), payload.ExpectedRevision ?? await workspace.Revision(), request.RequestId, ct);

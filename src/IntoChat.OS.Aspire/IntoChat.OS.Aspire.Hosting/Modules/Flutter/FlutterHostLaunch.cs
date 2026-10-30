@@ -34,19 +34,19 @@ internal static class FlutterHostLaunch
     {
         if (HasWindowMarkers(packageRoot, deviceTarget))
         {
-            return packageRoot;
+            return NormalizeDriveLetter(Path.GetFullPath(packageRoot));
         }
 
         var nestedShell = Path.Combine(packageRoot, ShellPackageDirectoryName);
         if (HasWindowMarkers(nestedShell, deviceTarget))
         {
-            return nestedShell;
+            return NormalizeDriveLetter(Path.GetFullPath(nestedShell));
         }
 
         var siblingShell = Path.GetFullPath(Path.Combine(packageRoot, "..", ShellPackageDirectoryName));
         if (HasWindowMarkers(siblingShell, deviceTarget))
         {
-            return siblingShell;
+            return NormalizeDriveLetter(siblingShell);
         }
 
         return null;
@@ -66,6 +66,8 @@ internal static class FlutterHostLaunch
                 $"under '{packageRoot}', '{packageRoot}/{ShellPackageDirectoryName}', " +
                 $"or the sibling '../{ShellPackageDirectoryName}' (clients/flutter/shell).");
 
+        HealWindowsEphemeral(workDir, deviceTarget);
+
         var args = new List<string> { "run", "-d", deviceTarget };
         if (options.ReleaseBuild)
         {
@@ -83,19 +85,19 @@ internal static class FlutterHostLaunch
     {
         if (HasWebMarkers(packageRoot))
         {
-            return packageRoot;
+            return NormalizeDriveLetter(Path.GetFullPath(packageRoot));
         }
 
         var nestedShell = Path.Combine(packageRoot, ShellPackageDirectoryName);
         if (HasWebMarkers(nestedShell))
         {
-            return nestedShell;
+            return NormalizeDriveLetter(Path.GetFullPath(nestedShell));
         }
 
         var siblingShell = Path.GetFullPath(Path.Combine(packageRoot, "..", ShellPackageDirectoryName));
         if (HasWebMarkers(siblingShell))
         {
-            return siblingShell;
+            return NormalizeDriveLetter(siblingShell);
         }
 
         return null;
@@ -150,6 +152,53 @@ internal static class FlutterHostLaunch
         }
 
         return Directory.Exists(Path.Combine(workingDirectory, deviceTarget));
+    }
+
+    internal static string NormalizeDriveLetter(string path)
+    {
+        if (OperatingSystem.IsWindows()
+            && path.Length >= 2
+            && path[1] == ':'
+            && char.IsAsciiLetterLower(path[0]))
+        {
+            return string.Concat(char.ToUpperInvariant(path[0]).ToString(), path.AsSpan(1));
+        }
+
+        return path;
+    }
+
+    private static void HealWindowsEphemeral(string workingDirectory, string deviceTarget)
+    {
+        var ephemeralDir = Path.Combine(workingDirectory, deviceTarget, "flutter", "ephemeral");
+        var symlinksDir = Path.Combine(ephemeralDir, ".plugin_symlinks");
+        if (Directory.Exists(symlinksDir))
+        {
+            foreach (var entry in Directory.EnumerateDirectories(symlinksDir))
+            {
+                if ((File.GetAttributes(entry) & FileAttributes.ReparsePoint) == 0)
+                {
+                    Directory.Delete(symlinksDir, recursive: true);
+                    break;
+                }
+            }
+        }
+
+        var engineDll = Path.Combine(ephemeralDir, "flutter_windows.dll");
+        var wrapperSource = Path.Combine(ephemeralDir, "cpp_client_wrapper", "core_implementations.cc");
+        if (!File.Exists(engineDll) || !File.Exists(wrapperSource))
+        {
+            var lastBuildId = Path.Combine(workingDirectory, "build", ".last_build_id");
+            if (File.Exists(lastBuildId))
+            {
+                File.Delete(lastBuildId);
+            }
+
+            var flutterBuildCache = Path.Combine(workingDirectory, ".dart_tool", "flutter_build");
+            if (Directory.Exists(flutterBuildCache))
+            {
+                Directory.Delete(flutterBuildCache, recursive: true);
+            }
+        }
     }
 
     private static bool HasWebMarkers(string workingDirectory)
@@ -262,11 +311,11 @@ internal static class FlutterHostLaunch
 
         return
         [
-            commandName,
             commandName + ".exe",
             commandName + ".cmd",
             commandName + ".bat",
             commandName + ".com",
+            commandName,
         ];
     }
 

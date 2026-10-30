@@ -9,7 +9,7 @@ How to test: this module has no tests project yet.
 Documentation: https://github.com/intochat/os.docs (modules).
 
 <!-- BEGIN GENERATED options -->
-Configuration section: `IntoChatOS:Modules:identity:Options` (environment prefix `IntoChatOS__Modules__identity__Options__`).
+Configuration section: `IntoChatOS:Modules:cloud:Options` (environment prefix `IntoChatOS__Modules__cloud__Options__`).
 
 Options:
 

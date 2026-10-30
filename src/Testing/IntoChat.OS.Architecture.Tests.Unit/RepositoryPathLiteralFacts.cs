@@ -80,8 +80,7 @@ public sealed partial class RepositoryPathLiteralFacts
                 // Build output under a checked-in directory is not on disk until a build runs.
                 var segments = match.Value.Split('/').TakeWhile(segment => segment is not ("bin" or "obj" or "build")).ToArray();
                 var path = Path.Combine([Repository.Root, .. segments]);
-                var modulesPath = Path.Combine([Repository.Root, "..", "modules", .. segments]);
-                if (!File.Exists(path) && !Directory.Exists(path) && !File.Exists(modulesPath) && !Directory.Exists(modulesPath))
+                if (!File.Exists(path) && !Directory.Exists(path))
                 {
                     missing.Add(Path.GetFileName(workflow) + ": " + match.Value);
                 }

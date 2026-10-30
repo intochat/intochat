@@ -41,7 +41,11 @@ public static class FilesCopy
     public const string Move = "Move";
     public const string Copy = "Copy";
     public const string CopyNeuronId = "Copy Neuron ID";
+    public const string CopyNeuronUri = "Copy neuron:// URI";
+    public const string CopyNeuronUriShortcut = "Ctrl+Shift+C";
     public const string CopyDisplayPath = "Copy Display Path";
+    public const string AskInoAboutFile = "Ask Ino about this file";
+    public const string QuickViewHeading = "QuickView";
     public const string Download = "Download";
     public const string Delete = "Delete";
 

@@ -25,6 +25,7 @@
     <Protobuf Include="Authority/Neurons/neurons.proto" GrpcServices="Both" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Identity.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Integration" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Composition.Tests.Integration" />

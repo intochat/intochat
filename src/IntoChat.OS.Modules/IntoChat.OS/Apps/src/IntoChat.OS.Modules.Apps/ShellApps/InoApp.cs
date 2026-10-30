@@ -11,6 +11,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.ArtCraft;
+using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -64,6 +66,8 @@ public sealed record InoCard(
     InoChartPoint[]? ChartPoints = null)
 {
     public string EffectiveScopeUri => SurfaceScopeUri ?? $"neuron://local/apps/ino#{Id}";
+    public bool IsWaiting => string.Equals(Status, "pending", StringComparison.OrdinalIgnoreCase)
+        && Kind is "approval" or "choice" or "draft" or "secret" or "app-install";
 }
 
 public sealed record InoTurn(
@@ -79,16 +83,25 @@ public sealed record InoAppState(
     string VoiceStatus,
     InoTurn[] Turns,
     InoCard[]? Cards = null,
-    string? ConnectedDatabase = null)
+    string? ConnectedDatabase = null,
+    bool IsPinned = true)
 {
-    public InoAppState() : this("main", "New chat", "Ready", "idle", [], [], null) { }
+    public InoAppState() : this("main", "New chat", "Ready", "idle", [], [], null, true) { }
 
     public InoCard[] ActiveCards => Cards ?? [];
 }
 
-[DigitalBrain.App("ino")]
+[DigitalBrain.App("ino", Accent = "#3D7EFF", Category = "Intelligence")]
 public sealed class InoApp : DigitalBrain.App<InoAppState>
 {
+    private static readonly (string Id, string Title, string Group, string Icon, string? Badge)[] ArcSessions =
+    [
+        ("q4-renewal", "Nordlys Q4 Renewal", "Pinned", "sparkles", "Needs you"),
+        ("morning-brief", "Morning Brief", "Pinned", "sun", "3"),
+        ("invoice-check", "Tripletex Invoice Check", "Today", "key-round", "Vault"),
+        ("first-run", "Ino Setup · First Run", "Today", "compass", null),
+    ];
+
     public static DigitalBrain.AppManifest Manifest { get; } = new(
         "ino",
         "Ino",
@@ -151,9 +164,33 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         var recalled = memory is null ? [] : await memory.Recall(text, 3);
         var settings = await Get<IUserSettings>("settings").Read();
 
+        if (text.StartsWith('/'))
+        {
+            await HandleSlashCommandAsync(text, settings);
+            return;
+        }
+
+        if (text.Contains("intochat.app/a/", StringComparison.OrdinalIgnoreCase))
+        {
+            EmitAppInstallLinkCard(text);
+            return;
+        }
+
         if (LooksLikeConnectionString(text))
         {
             await ConnectDb(new InoConnectDb(text, "main"));
+            return;
+        }
+
+        if (LooksLikePhotoCraftRequest(text))
+        {
+            await HandleStudioRequestAsync("photocraft", text, settings, recalled, memory);
+            return;
+        }
+
+        if (LooksLikeFilmCraftRequest(text))
+        {
+            await HandleStudioRequestAsync("filmcraft", text, settings, recalled, memory);
             return;
         }
 
@@ -215,6 +252,24 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 $"neuron://local/apps/ino#{cardId}");
             cards = [.. cards, card];
         }
+        else if (text.Contains("secret", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("api key", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("tripletex", StringComparison.OrdinalIgnoreCase))
+        {
+            var cardId = $"secret-{turns.Length}";
+            cards =
+            [
+                .. cards,
+                new InoCard(
+                    cardId,
+                    "secret",
+                    "Tripletex Session Token",
+                    "Required to verify Q4 invoice ledger balances in Tripletex. Value routes directly to Secure Vault.",
+                    "neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN",
+                    "pending",
+                    $"neuron://local/apps/ino#{cardId}"),
+            ];
+        }
 
         Set(State with
         {
@@ -222,6 +277,185 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Status = routeHint,
             Turns = turns,
             Cards = cards,
+        });
+    }
+
+    private async Task HandleSlashCommandAsync(string rawCommand, UserSettingsState settings)
+    {
+        var parts = rawCommand[1..].Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var cmd = parts.Length > 0 ? parts[0].ToLowerInvariant() : "help";
+        var arg = parts.Length > 1 ? parts[1] : string.Empty;
+
+        switch (cmd)
+        {
+            case "new":
+                New(new InoNew());
+                return;
+            case "clear":
+                Set(State with { Turns = [], Cards = [], Status = "Session cleared" });
+                return;
+            case "pin":
+                Set(State with { IsPinned = !State.IsPinned, Status = State.IsPinned ? "Unpinned session" : "Pinned session to Arc bar" });
+                return;
+            case "rename":
+                var nextTitle = string.IsNullOrWhiteSpace(arg) ? "Renamed session" : arg;
+                Set(State with { Title = nextTitle, Status = $"Renamed to '{nextTitle}'" });
+                return;
+            case "model":
+                var nextModel = string.IsNullOrWhiteSpace(arg) ? "claude-sonnet-4-5" : arg;
+                await Get<IUserSettings>("settings").SetProfile(settings.DisplayName, settings.Theme, nextModel);
+                Set(State with { Status = $"Switched model to {nextModel}" });
+                return;
+            case "scenario":
+            case "session":
+                LoadScenarioSession(string.IsNullOrWhiteSpace(arg) ? "q4-renewal" : arg.ToLowerInvariant(), settings);
+                return;
+            default:
+                Set(State with
+                {
+                    Status = $"Executed /{cmd}",
+                    Turns = [.. State.Turns, new InoTurn(rawCommand, $"Commands: `/scenario q4-renewal|morning-brief|invoice-check|first-run`, `/new`, `/rename <title>`, `/pin`, `/model <id>`, `/clear`.", $"slash:{cmd}", 0)],
+                });
+                return;
+        }
+    }
+
+    private void LoadScenarioSession(string scenarioId, UserSettingsState settings)
+    {
+        switch (scenarioId)
+        {
+            case "morning-brief":
+                Set(new InoAppState(
+                    "morning-brief",
+                    "Morning Brief",
+                    $"Scenario: Morning Brief ({settings.DefaultModel})",
+                    "idle",
+                    [
+                        new InoTurn(
+                            "Prepare my Morning Brief for Nordlys AS",
+                            "Good morning! You have **3 meetings**, **2 Q4 renewals** (€426,000 pipeline), and **1 overdue invoice** in Tripletex.",
+                            "scenario:morning-brief",
+                            2),
+                    ],
+                    [
+                        new InoCard(
+                            "choice-brief",
+                            "choice",
+                            "Which Nordlys workspace should receive the Q4 renewal brief?",
+                            "Select a target Circle (1..2) or press Enter.",
+                            "neuron://local/circles/nordlys",
+                            "pending",
+                            "neuron://local/apps/ino#choice-brief"),
+                    ]));
+                break;
+
+            case "invoice-check":
+                Set(new InoAppState(
+                    "invoice-check",
+                    "Tripletex Invoice Check",
+                    "Waiting on Secure Vault credential",
+                    "idle",
+                    [
+                        new InoTurn(
+                            "Check overdue Q4 invoices in Tripletex",
+                            "I need your **Tripletex Session Token** to read the Q4 ledger. Enter it in the **Secure Vault** window so it never touches the LLM.",
+                            "vault:secret",
+                            0),
+                    ],
+                    [
+                        new InoCard(
+                            "secret-tripletex",
+                            "secret",
+                            "Tripletex Session Token",
+                            "Zero-leakage credential request · Encrypted in neuron://local/vault/secrets",
+                            "neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN",
+                            "pending",
+                            "neuron://local/apps/ino#secret-tripletex"),
+                    ]));
+                break;
+
+            case "first-run":
+                Set(new InoAppState(
+                    "first-run",
+                    "Ino Setup · First Run",
+                    "Guided onboarding · 3 steps",
+                    "idle",
+                    [
+                        new InoTurn(
+                            "/scenario first-run",
+                            "Welcome to **IntoChat OS**! Let's verify your default AI model (`" + settings.DefaultModel + "`), connect your **Files** vault (`neuron://local/storage.files`), and seal API keys in **Secure**.",
+                            "onboarding:setup",
+                            0),
+                    ],
+                    [
+                        new InoCard(
+                            "setup-record",
+                            "record",
+                            "IntoChat OS First-Run Checklist",
+                            "All 3 local brain capabilities online",
+                            "neuron://local/os.settings/settings",
+                            "ready",
+                            "neuron://local/apps/ino#setup-record"),
+                    ]));
+                break;
+
+            default:
+                Set(new InoAppState(
+                    "q4-renewal",
+                    "Nordlys Q4 Renewal",
+                    "Waiting for approval · CloseDate -> 15 Nov 2026",
+                    "idle",
+                    [
+                        new InoTurn(
+                            "Check Kari Holm's email and update Nordlys Q4 close date to 15 Nov 2026",
+                            "Kari Holm confirmed moving the **Nordlys Q4 Enterprise** renewal (`480,000 NOK`) to **15 Nov 2026**. Please approve the Salesforce update below.",
+                            $"agent:{settings.DefaultModel}",
+                            1),
+                    ],
+                    [
+                        new InoCard(
+                            "card-1",
+                            "approval",
+                            "Update close date on Nordlys Q4 renewal to 15 Nov 2026?",
+                            "Ino matched Kari Holm's email to your open Salesforce opportunity (480,000 NOK).",
+                            "neuron://local/os.confirmations/inbox",
+                            "pending",
+                            "neuron://local/apps/ino#card-1"),
+                        new InoCard(
+                            "draft-1",
+                            "draft",
+                            "Nordlys Q4 Enterprise Renewal — 15 Nov confirmation",
+                            "Hi Kari, Confirmed: we updated the Q4 renewal close date to 15 Nov 2026 (480,000 NOK).",
+                            "neuron://local/apps/ino#draft-1",
+                            "pending",
+                            "neuron://local/apps/ino#draft-1"),
+                    ]));
+                break;
+        }
+    }
+
+    private void EmitAppInstallLinkCard(string text)
+    {
+        var cardId = $"install-{State.ActiveCards.Length + 1}";
+        var card = new InoCard(
+            cardId,
+            "app-install",
+            "Tripletex Accounting Sync (v1.4.0)",
+            "Verified Smart App from Nordlys Digital · Requests read access to Files & Postgres.",
+            "neuron://local/apps/tripletex-sync",
+            "pending",
+            $"neuron://local/apps/ino#{cardId}");
+        var turns = State.Turns.Append(new InoTurn(
+            text,
+            "Detected a Smart App install link (`nordlys/tripletex-sync`). Review its manifest and capability permissions below before installing.",
+            "store:install-link",
+            0)).ToArray();
+        Set(State with
+        {
+            Title = "Install Tripletex Accounting Sync",
+            Status = "Waiting for Smart App capability review",
+            Turns = turns,
+            Cards = [.. State.ActiveCards, card],
         });
     }
 
@@ -416,48 +650,86 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 [
                     new Row(
                     [
-                        new TagPill("Ino · DigitalBrain OS", "accent", "sparkles"),
+                        new TagPill("Ino · Arc Sidebar", "accent", "sparkles"),
                         new TagPill($"{State.Turns.Length} turn(s)", "neutral"),
                     ]) { Gap = 6 },
                     new Text(State.Status) { Tone = "muted", Tabular = true },
+                    new Button("+ New Session", new ButtonAction("apps/ino", "new", []), Tone: ButtonTone.Accent) { Small = true, Icon = "plus" },
                 ],
                 Kind: SurfaceKind.Acrylic,
                 Title: State.Title),
+            new Divider("PINNED SESSIONS"),
+            .. ArcSessions.Where(s => s.Group == "Pinned").Select(s => (Node)Ui.NavItem(
+                $"arc-{s.Id}",
+                s.Title,
+                s.Icon,
+                $"send:/scenario {s.Id}",
+                selected: State.ConversationId == s.Id,
+                badge: s.Badge)),
+            new Divider("TODAY"),
+            .. ArcSessions.Where(s => s.Group == "Today").Select(s => (Node)Ui.NavItem(
+                $"arc-{s.Id}",
+                s.Title,
+                s.Icon,
+                $"send:/scenario {s.Id}",
+                selected: State.ConversationId == s.Id,
+                badge: s.Badge)),
             new Collection([new Entry(State.ConversationId, State.Title, $"{State.Turns.Length} turn(s)")]),
-        ]) { Gap = 10 });
+        ])
+        { Gap = 8 });
 
-    public View Render() => new(
-        "Ino",
-        new Column(
+    public View Render()
+    {
+        var waitingCard = State.ActiveCards.FirstOrDefault(c => c.IsWaiting);
+        return new(
+            "Ino",
+            new Column(
+            [
+                new Surface(
+                    [
+                        new Row(
+                        [
+                            new TagPill("Ino Assistant", "accent", "bot"),
+                            new TagPill(State.VoiceStatus == "recording" ? "Listening" : "Ready", State.VoiceStatus == "recording" ? "working" : "ok"),
+                            .. State.ConnectedDatabase is { Length: > 0 } db ? new Node[] { new TagPill(db, "info", "database") } : [],
+                            .. waitingCard is not null ? new Node[] { new TagPill("Waiting on you · Docked below", "warn", "hand") } : [],
+                        ]) { Gap = 8 },
+                        new Text(State.Status) { Tabular = true },
+                    ],
+                    Kind: SurfaceKind.Acrylic,
+                    Title: State.Title),
+                .. State.ActiveCards.SelectMany(RenderCardNodes),
+                .. waitingCard is not null ? new Node[] { RenderDockedPromptBanner(waitingCard) } : [],
+                .. State.Turns.Select((turn, i) => (Node)new Surface(
+                    [
+                        new Row(
+                        [
+                            new TagPill($"Turn {i + 1}", "neutral"),
+                            new TagPill(turn.RouteHint, "accent"),
+                            .. turn.RecalledCount > 0 ? new Node[] { new TagPill($"{turn.RecalledCount} memory hit(s)", "ok", "brain") } : [],
+                        ]) { Gap = 6 },
+                        new Heading(turn.UserMessage, Level: 3),
+                        new Text(turn.Reply),
+                    ],
+                    Kind: SurfaceKind.Elevated,
+                    Title: turn.UserMessage,
+                    Subtitle: turn.RouteHint)),
+            ])
+            { Gap = 12 });
+    }
+
+    private static Node RenderDockedPromptBanner(InoCard card) => new Surface(
         [
-            new Surface(
-                [
-                    new Row(
-                    [
-                        new TagPill("Ino Assistant", "accent", "bot"),
-                        new TagPill(State.VoiceStatus == "recording" ? "Listening" : "Ready", State.VoiceStatus == "recording" ? "working" : "ok"),
-                        .. State.ConnectedDatabase is { Length: > 0 } db ? new Node[] { new TagPill(db, "info", "database") } : [],
-                    ]) { Gap = 8 },
-                    new Text(State.Status) { Tabular = true },
-                ],
-                Kind: SurfaceKind.Acrylic,
-                Title: State.Title),
-            .. State.ActiveCards.SelectMany(RenderCardNodes),
-            .. State.Turns.Select((turn, i) => (Node)new Surface(
-                [
-                    new Row(
-                    [
-                        new TagPill($"Turn {i + 1}", "neutral"),
-                        new TagPill(turn.RouteHint, "accent"),
-                        .. turn.RecalledCount > 0 ? new Node[] { new TagPill($"{turn.RecalledCount} memory hit(s)", "ok", "brain") } : [],
-                    ]) { Gap = 6 },
-                    new Heading(turn.UserMessage, Level: 3),
-                    new Text(turn.Reply),
-                ],
-                Kind: SurfaceKind.Elevated,
-                Title: turn.UserMessage,
-                Subtitle: turn.RouteHint)),
-        ]) { Gap = 12 });
+            new Row(
+            [
+                new TagPill("Docked Waiting Card", "warn", "keyboard"),
+                new Text($"Waiting on you · Docked below · Keyboard: ↵ Approve/Confirm · Esc Deny/Skip · {card.Title}") { Tone = "strong", Tabular = true },
+                new Button("Confirm (↵)", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]), Tone: ButtonTone.Accent) { Small = true, Icon = "check" },
+                new Button("Dismiss (Esc)", new ButtonAction("apps/ino", "approve-card", [card.Id, "false"])) { Small = true, Style = "ghost" },
+            ]) { Gap = 8 },
+        ],
+        Kind: SurfaceKind.Elevated,
+        Title: $"Waiting on you: {card.Title}");
 
     private static IEnumerable<Node> RenderCardNodes(InoCard card)
     {
@@ -479,6 +751,54 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 OnReject: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]) : null,
                 SourceNeuronUri: card.SourceNeuronUri);
         }
+        else if (card.Kind == "choice")
+        {
+            yield return new ChoiceCardNode(
+                card.Id,
+                card.Title,
+                [
+                    new ChoiceOptionNode("Nordlys Enterprise (Primary)", "neuron://local/circles/enterprise", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"])),
+                    new ChoiceOptionNode("Executive Board Circle", "neuron://local/circles/board", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"])),
+                ],
+                PickedIndex: card.Status == "approved" ? 0 : null);
+        }
+        else if (card.Kind == "draft")
+        {
+            yield return new DraftCardNode(
+                card.Id,
+                "email",
+                "Astrid Lindqvist <astrid@nordlys.no>",
+                "Kari Holm <kari@nordlys.no>",
+                card.Summary,
+                Subject: card.Title,
+                Status: card.Status == "approved" ? "sent" : card.Status,
+                OnSend: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]) : null,
+                OnDiscard: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]) : null);
+        }
+        else if (card.Kind == "secret")
+        {
+            yield return new SecretCardNode(
+                card.Title,
+                card.Summary,
+                SavedIn: "Secure Vault · neuron://local/vault/secrets",
+                Status: card.Status == "approved" ? "saved" : card.Status,
+                OnEnter: new ButtonAction("os://window/secure", "os://window/secure", []),
+                OnSkip: new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]));
+        }
+        else if (card.Kind == "app-install")
+        {
+            yield return new RecordCardNode(
+                "Smart App Manifest",
+                card.Title,
+                [
+                    new RecordFieldNode("Publisher", "Nordlys Digital (Verified)"),
+                    new RecordFieldNode("Capabilities", "Files (read), Postgres (read)"),
+                    new RecordFieldNode("Status", card.Status),
+                ],
+                Subtitle: card.Summary,
+                LinkLabel: "Review & Install",
+                OnOpen: new ButtonAction("os://sheet/install", "os://sheet/install", []));
+        }
         else if (card.Kind == "table" && card.Columns is { Length: > 0 } cols && card.Rows is { Length: > 0 } rows)
         {
             yield return new DataTable(
@@ -498,6 +818,22 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 SourceNeuronUri: card.SourceNeuronUri,
                 From: "Postgres",
                 Prefix: "€");
+        }
+        else if (card.Kind is "photocraft" or "filmcraft")
+        {
+            var targetApp = card.Kind;
+            var label = targetApp == "photocraft" ? "Open PhotoCraft Studio" : "Open FilmCraft Studio";
+            yield return new RecordCardNode(
+                targetApp == "photocraft" ? "PhotoCraft · Image Studio" : "FilmCraft · Video Studio",
+                card.Title,
+                [
+                    new RecordFieldNode("Status", card.Status),
+                    new RecordFieldNode("Studio Neuron", card.SourceNeuronUri),
+                    new RecordFieldNode("Scope", card.EffectiveScopeUri),
+                ],
+                Subtitle: card.Summary,
+                LinkLabel: label,
+                OnOpen: new ButtonAction($"apps/{targetApp}", "open", []));
         }
         else
         {
@@ -545,11 +881,138 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             throw new InvalidOperationException("Expected InoApp to switch the active chart kind to pie.");
         }
 
+        await Send(new InoSend("Remove background from portrait.png"));
+        if (!State.ActiveCards.Any(c => c.Kind == "photocraft")
+            || !State.Turns[^1].Reply.Contains("layer.removeBackground", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected InoApp to route photo background removal to PhotoCraft and emit a photocraft card.");
+        }
+
         var snapshot = await memory.Read();
         if (snapshot.Episodes.Length == 0)
         {
             throw new InvalidOperationException("Expected InoApp to capture the conversation episode in MemoryNeuron.");
         }
+    }
+
+    internal static bool LooksLikePhotoCraftRequest(string text)
+    {
+        if (text.Contains("photocraft", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("remove background", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("remove-background", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("background removal", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("select subject", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("select sky", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("desaturate", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("layer.removeBackground", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("layer.newFillLayer.gradient", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var mentionsImage = text.Contains("photo", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("image", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("picture", StringComparison.OrdinalIgnoreCase)
+            || text.Contains(".png", StringComparison.OrdinalIgnoreCase)
+            || text.Contains(".jpg", StringComparison.OrdinalIgnoreCase)
+            || text.Contains(".psd", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("512x512", StringComparison.OrdinalIgnoreCase);
+
+        return mentionsImage && (
+            text.Contains("gradient", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("cutout", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("grayscale", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("flip", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("rotate", StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static bool LooksLikeFilmCraftRequest(string text)
+        => text.Contains("filmcraft", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("videocraft", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("razor split", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("split timeline", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("cut timeline", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("ripple trim", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("trim video", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("lumetri", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("timeline.razor", StringComparison.OrdinalIgnoreCase);
+
+    private async Task HandleStudioRequestAsync(
+        string studioApp,
+        string text,
+        UserSettingsState settings,
+        MemoryRecallHit[] recalled,
+        IMemory? memory)
+    {
+        var requestedMode = text.Contains("mcp", StringComparison.OrdinalIgnoreCase)
+            ? "mcp"
+            : text.Contains("wasm", StringComparison.OrdinalIgnoreCase)
+                ? "wasm-ui"
+                : "native-linux";
+
+        var result = studioApp == "photocraft"
+            ? await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
+                text,
+                explicitParamsJson: null,
+                currentDocument: null,
+                requestedMode,
+                TryGetArtCraftStudio(),
+                TryGetMcpServer,
+                (err, reason) => Swallow(err, reason))
+            : await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
+                text,
+                explicitParamsJson: null,
+                currentSequence: null,
+                requestedMode,
+                TryGetArtCraftStudio(),
+                TryGetMcpServer,
+                (err, reason) => Swallow(err, reason));
+
+        try
+        {
+            await Get<IApp>($"apps/{studioApp}").Request("edit", text);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, $"{studioApp} app neuron is optional when running InoApp in standalone unit tests.");
+        }
+
+        var turnsCount = State.Turns.Length + 1;
+        var cardId = $"studio-{turnsCount}";
+        var studioCard = new InoCard(
+            cardId,
+            studioApp,
+            $"{result.CommandTitle} [{result.ExecutionMode}]",
+            $"{result.Summary} · CLI: {result.CliInvocation}",
+            $"neuron://local/apps/{studioApp}",
+            "completed",
+            $"neuron://local/apps/ino#{cardId}");
+
+        var routeHint = $"routed:{studioApp}.{result.CommandId}";
+        var reply =
+            $"Ino ({settings.DefaultModel}): {result.Summary}\n\n"
+            + $"- **Command**: `{result.CommandId}` ({result.CommandTitle})\n"
+            + $"- **Execution Mode**: `{result.ExecutionMode}` (`{result.CliInvocation}`)\n"
+            + $"- **Output Artifact**: `{result.OutputDocument}`\n"
+            + $"- **Layers / Tracks**: {string.Join(", ", result.LayersOrTracks)}";
+
+        if (memory is not null)
+        {
+            await memory.CaptureEpisode($"ino.{studioApp}", $"User: {text} | Cmd: {result.CommandId} | Out: {result.OutputDocument}", importance: 7);
+        }
+
+        var title = State.Turns.Length == 0
+            ? (text.Length <= 52 ? text : text[..52])
+            : State.Title;
+        var nextTurns = State.Turns.Append(new InoTurn(text, reply, routeHint, recalled.Length)).ToArray();
+
+        Set(State with
+        {
+            Title = title,
+            Status = $"{result.CommandTitle} ({result.ExecutionMode}) -> {result.OutputDocument}",
+            Turns = nextTurns,
+            Cards = [.. State.ActiveCards, studioCard],
+        });
     }
 
     private async Task ApplyChartMutationOrFilterAsync(string text, UserSettingsState settings, IMemory? memory)
@@ -957,6 +1420,32 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         catch (InvalidOperationException error)
         {
             Swallow(error, "AppStudioNeuron is optional when running in unit tests without Creator registered.");
+            return null;
+        }
+    }
+
+    private IArtCraftStudio? TryGetArtCraftStudio()
+    {
+        try
+        {
+            return Get<IArtCraftStudio>("artcraft");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "ArtCraftStudioNeuron is optional when running InoApp without ArtCraftModule registered.");
+            return null;
+        }
+    }
+
+    private IMcpServer? TryGetMcpServer(string mcpKey)
+    {
+        try
+        {
+            return Get<IMcpServer>(mcpKey);
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "McpServerNeuron is optional when running InoApp without McpModule registered.");
             return null;
         }
     }

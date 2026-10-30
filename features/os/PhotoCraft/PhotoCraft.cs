@@ -1,16 +1,72 @@
+using System.Globalization;
+using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Client;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Image;
-using IntoChat.OS.Modules.Flutter.Layout;
-using IntoChat.OS.Modules.Flutter.Text;
-using IntoChat.OS.Modules.Flutter.WebBrowser;
+using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Mcp;
+using UI = DigitalBrain.UI.Ui;
+using ViewUi = IntoChat.OS.Modules.Flutter.Views.Ui;
 
-// Shared by every PhotoCraft synapse: the app's neurons, connecting the tools, and composing main content.
-// Every call here is a plain grain call that is safe to repeat.
+public sealed record PhotoCraftScriptState(
+    string Status = "PhotoCraft tools connected.",
+    string WebUrl = "http://localhost:18082",
+    string ExecutionMode = "wasm",
+    string? PreviewDataUrl = null)
+{
+    public PhotoCraftScriptState() : this("PhotoCraft tools connected.", "http://localhost:18082", "wasm", null)
+    {
+    }
+}
+
+[DigitalBrain.App("photocraft", Icon = "image", Accent = "#F59E0B", Category = "Creative")]
+public sealed class PhotoCraftScriptApp : DigitalBrain.App<PhotoCraftScriptState>
+{
+    [DigitalBrain.On("open")]
+    public Task Open()
+    {
+        Set(State with { Status = "PhotoCraft tools connected." });
+        return Task.CompletedTask;
+    }
+
+    [DigitalBrain.On("edit")]
+    public Task Edit(string? request)
+    {
+        var text = (request ?? "").Trim();
+        Set(State with { Status = text.Length == 0 ? "Nothing to edit." : "Editing: " + text });
+        return Task.CompletedTask;
+    }
+
+    [DigitalBrain.On("preview")]
+    public Task Preview()
+    {
+        Set(State);
+        return Task.CompletedTask;
+    }
+
+    public View Render() => new(
+        "PhotoCraft",
+        new Column(
+        [
+            new Surface(
+                [
+                    new Text(State.Status),
+                ],
+                Kind: SurfaceKind.Elevated,
+                Title: "PhotoCraft Layered Studio",
+                Subtitle: $"Mode: {State.ExecutionMode} · {State.WebUrl}"),
+            UI.WebBrowser(
+                State.WebUrl,
+                "PhotoCraft WASM Studio",
+                "photocraft-wasm",
+                520,
+                State.ExecutionMode),
+        ]));
+}
+
+// Shared by every PhotoCraft synapse: the app's declarative view surface, connecting the tools, and composing main content.
 public static class PhotoCraft
 {
     public const int MaxRequestChars = 4000;
@@ -19,59 +75,80 @@ public static class PhotoCraft
     public static string Key(IntoChatOSConnection brain) => brain.Setting("App")!;
     public static string Name(IntoChatOSConnection brain, string part) => Key(brain) + "/" + part;
 
-    public static IText Status(IntoChatOSConnection brain) => brain.Get<IText>(Name(brain, "status"));
     public static IAgent Editor(IntoChatOSConnection brain) => brain.Get<IAgent>(Name(brain, "editor"));
-    public static IImage Preview(IntoChatOSConnection brain) => brain.Get<IImage>(Name(brain, "preview"));
-
-    // The run id of the editor turn the app last settled, so a replayed signal settles it once.
-    public static IText Settled(IntoChatOSConnection brain) => brain.Get<IText>(Name(brain, "settled"));
+    public static IView Surface(IntoChatOSConnection brain) => brain.Get<IView>(Name(brain, "view"));
 
     public static string Clip(string text, int max) => text.Length <= max ? text : text[..max];
 
-    // Connects PhotoCraft's MCP server to the brain; cheap when it is already connected.
     public static Task<ArtCraftSession> Connect(IntoChatOSConnection brain, CancellationToken ct)
         => brain.Get<IArtCraftStudio>(brain.Setting("Brain")! + "/artcraft").Open("photocraft", ct);
 
-    // The main content: the status line above the PhotoCraft web app.
+    public static async Task SetStatus(IntoChatOSConnection brain, string status, string? webUrl = null, string? settledRunId = null)
+    {
+        var current = await Surface(brain).Read();
+        var url = webUrl ?? current?.Root.Children?.ElementAtOrDefault(1)?.Text ?? "http://localhost:18082";
+        var settled = settledRunId ?? current?.Root.Children?.ElementAtOrDefault(2)?.Text ?? "";
+        var preview = current?.Root.Children?.ElementAtOrDefault(3)?.Text ?? "";
+        await PublishView(brain, status, url, settled, preview);
+    }
+
     public static async Task Show(IntoChatOSConnection brain, ArtCraftSession session, CancellationToken ct)
     {
-        var browser = brain.Get<IWebBrowser>(Name(brain, "browser"));
-        await browser.Configure(Name(brain, "browser"));
-        if (session.WebUrl is { } url && (await browser.Read()).Uri != url) { await browser.Navigate(url, "PhotoCraft"); }
-        await Compose(brain);
+        _ = ct;
+        var current = await Surface(brain).Read();
+        var status = current?.Root.Children?.FirstOrDefault()?.Text ?? "PhotoCraft tools connected.";
+        var settled = current?.Root.Children?.ElementAtOrDefault(2)?.Text ?? "";
+        var preview = current?.Root.Children?.ElementAtOrDefault(3)?.Text ?? "";
+        await PublishView(brain, status, session.WebUrl ?? "http://localhost:18082", settled, preview);
     }
 
     public static async Task Compose(IntoChatOSConnection brain)
     {
-        UiChildRef Ref(string kind, string part) => new(kind, Name(brain, part));
-        var main = brain.Get<ILayout>(Name(brain, "main"));
-        await main.Set(new LayoutDefinition("column", [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],
-            Extents: [40, 0]), (await main.Read()).Revision);
-        await brain.Get<IApp>(Key(brain)).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
-            new(new Sphere("icon.svg", []), Main: new("layout", Key(brain) + "/main"), Views: [new("full", new("layout", Key(brain) + "/main"))]));
+        var current = await Surface(brain).Read();
+        var status = current?.Root.Children?.FirstOrDefault()?.Text ?? "PhotoCraft is not connected.";
+        var url = current?.Root.Children?.ElementAtOrDefault(1)?.Text ?? "http://localhost:18082";
+        var settled = current?.Root.Children?.ElementAtOrDefault(2)?.Text ?? "";
+        var preview = current?.Root.Children?.ElementAtOrDefault(3)?.Text ?? "";
+        await PublishView(brain, status, url, settled, preview);
     }
 
-    // The editor's last turn when it has ended and the app has not settled it yet.
+    private static async Task PublishView(IntoChatOSConnection brain, string status, string webUrl, string settledRunId, string previewDataUrl)
+    {
+        var revision = long.Parse(brain.Setting("ProgramRevision") ?? "1", CultureInfo.InvariantCulture);
+        var publisher = new ViewPublisher(Surface(brain), revision);
+        await publisher.Publish(ViewUi.Column(
+            "photocraft",
+            [
+                ViewUi.Text("status", status),
+                ViewUi.Text("browser", webUrl),
+                ViewUi.Text("settled", settledRunId),
+                ViewUi.Text("preview", previewDataUrl),
+            ],
+            extents: [40, 520, 0, 0]));
+        await brain.Get<IApp>(Key(brain)).Present(
+            revision,
+            new(
+                new Sphere("icon.svg", []),
+                Main: new(UIVocabulary.ViewType, Key(brain) + "/view"),
+                Views: [new("full", new(UIVocabulary.ViewType, Key(brain) + "/view"))]));
+    }
+
     public static async Task<AgentRun?> Unsettled(IntoChatOSConnection brain)
     {
         var state = await Editor(brain).Read();
         if (state.ActiveRun is not null || state.Runs.LastOrDefault() is not { } last) { return null; }
-        return (await Settled(brain).Read()).Markdown == last.RunId ? null : last;
+        var current = await Surface(brain).Read();
+        var settled = current?.Root.Children?.ElementAtOrDefault(2)?.Text ?? "";
+        return settled == last.RunId ? null : last;
     }
 
-    // The brain's PhotoCraft MCP server, at the key IArtCraftStudio.Open answers as McpKey. Only a
-    // reference: it connects nothing.
     public static IMcpServer Tools(IntoChatOSConnection brain) => brain.Get<IMcpServer>(brain.Setting("Brain")! + "/mcp/photocraft");
 
-    // The caption of a preview rendered after PhotoCraft's tools changed the document outside an edit. It
-    // names no tool: signals arrive late, so the render may already show what several tools did.
     public const string ChangedWithTools = "Changed with PhotoCraft's tools.";
 
-    // Tools that only read or render the document: running one changes nothing the preview shows.
     public static readonly string[] Reads = ["render_preview", "doc_render_preview", "doc_inspect", "command_list",
         "session_list", "jobs_list", "ui_inspect", "ui_screenshot", "doc_save", "doc_export"];
 
-    // The active document as a PNG data URL, or null when nothing could be rendered.
     public static async Task<string?> Render(IMcpServer tools, CancellationToken ct)
     {
         var shot = await tools.Run("render_preview", "{\"max_side\":512}", ct);
@@ -79,9 +156,16 @@ public static class PhotoCraft
             ? "data:image/png;base64," + png.Data : null;
     }
 
-    // Renders the active document into the preview image; the request is the image's caption.
     public static async Task RenderPreview(IntoChatOSConnection brain, ArtCraftSession session, string request, CancellationToken ct)
     {
-        if (await Render(brain.Get<IMcpServer>(session.McpKey), ct) is { } png) { await Preview(brain).Set(png, "image/png", Clip(request, 500)); }
+        _ = request;
+        if (await Render(brain.Get<IMcpServer>(session.McpKey), ct) is { } png)
+        {
+            var current = await Surface(brain).Read();
+            var status = current?.Root.Children?.FirstOrDefault()?.Text ?? "Done.";
+            var url = session.WebUrl ?? current?.Root.Children?.ElementAtOrDefault(1)?.Text ?? "http://localhost:18082";
+            var settled = current?.Root.Children?.ElementAtOrDefault(2)?.Text ?? "";
+            await PublishView(brain, status, url, settled, png);
+        }
     }
 }

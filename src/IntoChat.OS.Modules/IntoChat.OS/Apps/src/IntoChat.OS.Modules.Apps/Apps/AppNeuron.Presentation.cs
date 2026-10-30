@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DigitalBrain.Contracts;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps.Signals;
@@ -9,6 +10,7 @@ using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -104,10 +106,10 @@ internal sealed partial class AppNeuron
             Math.Max(0, row.Gap),
             row.Extents is { Count: > 0 } rowExtents && rowExtents.Count == row.Children.Count ? [.. rowExtents] : null),
 
-        Grid grid => Ui.Card(
+        Grid grid => MetaCard(
             key,
             string.Empty,
-            JsonSerializer.Serialize(new { _ui = "grid", columns = Math.Max(1, grid.Columns), gap = Math.Max(0, grid.Gap) }),
+            new { _ui = "grid", columns = Math.Max(1, grid.Columns), gap = Math.Max(0, grid.Gap) },
             [.. grid.Children.Select((child, index) => MapNode($"{key}.{index}", child, brainId))]),
 
         SplitPane split => Ui.Row(
@@ -116,27 +118,24 @@ internal sealed partial class AppNeuron
             Math.Max(0, split.Gap),
             [Math.Max(0, split.LeadingExtent), 0]),
 
-        Surface surface => Ui.Card(
+        Surface surface => MetaCard(
             key,
             surface.Title ?? string.Empty,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "surface",
                 kind = (surface.Kind ?? SurfaceKind.Acrylic).ToLowerInvariant(),
                 subtitle = surface.Subtitle,
                 gap = 12.0,
                 padding = Math.Max(0, surface.Padding),
-            }),
+            },
             [.. surface.Children.Select((child, index) => MapNode($"{key}.{index}", child, brainId))]),
 
         Tabs tabs => MapTabs(key, tabs),
 
         Divider divider => Ui.Divider(key, divider.Label),
 
-        Spacer spacer => Ui.Card(
-            key,
-            string.Empty,
-            JsonSerializer.Serialize(new { _ui = "spacer", size = Math.Max(0, spacer.Size) })),
+        Spacer spacer => MetaCard(key, string.Empty, new { _ui = "spacer", size = Math.Max(0, spacer.Size) }),
 
         Collection collection => Ui.List(
             key,
@@ -148,7 +147,7 @@ internal sealed partial class AppNeuron
             Detail = JsonSerializer.Serialize(new { _ui = "heading", level = heading.Level, subtitle = heading.Subtitle }),
         },
 
-        Text text => (string.IsNullOrEmpty(text.Tone) || text.Tone == "neutral" || text.Tone == "default") && !text.Tabular && !text.Mono && text.Size is null
+        Text text => (string.IsNullOrEmpty(text.Tone) || text.Tone is "neutral" or "default") && !text.Tabular && !text.Mono && text.Size is null
             ? Ui.Text(key, text.Value)
             : new UiNode(UiNodeKind.Text, key)
             {
@@ -188,75 +187,44 @@ internal sealed partial class AppNeuron
             Detail = button.Small ? "small" : null,
         },
 
-        TextField field => Ui.Card(
+        TextField field => MetaCard(
             key,
             field.Value ?? field.Placeholder ?? field.Name,
-            JsonSerializer.Serialize(new
-            {
-                _ui = "textfield",
-                name = field.Name,
-                value = field.Value,
-                placeholder = field.Placeholder,
-                secret = false,
-            }),
-            field.OnSubmit is { } submitAction
-                ? [Ui.Button($"{key}.submit", NonEmpty(field.Name, "Submit"), FormatAction(submitAction), style: UiStyle.Primary)]
-                : []),
+            new { _ui = "textfield", name = field.Name, value = field.Value, placeholder = field.Placeholder, secret = false },
+            ActionButton($"{key}.submit", NonEmpty(field.Name, "Submit"), field.OnSubmit, UiStyle.Primary)),
 
-        Switch sw => Ui.Card(
+        Switch sw => MetaCard(
             key,
             sw.Label,
-            JsonSerializer.Serialize(new
-            {
-                _ui = "switch",
-                label = sw.Label,
-                value = sw.IsOn,
-                enabled = sw.Action is not null,
-                locked = sw.Locked,
-            }),
-            sw.Action is { } swAction
-                ? [Ui.Button($"{key}.toggle", NonEmpty(sw.Label, "Toggle"), FormatAction(swAction), !sw.Locked)]
-                : []),
+            new { _ui = "switch", label = sw.Label, value = sw.IsOn, enabled = sw.Action is not null, locked = sw.Locked },
+            sw.Action is { } swAction ? Ui.Button($"{key}.toggle", NonEmpty(sw.Label, "Toggle"), FormatAction(swAction), !sw.Locked) : null),
 
-        Select select => Ui.Card(
+        Select select => MetaCard(
             key,
             select.Label,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "select",
                 label = select.Label,
                 selectedId = select.Selected,
                 enabled = true,
                 options = select.Options.Select(o => new { id = o.Id, label = o.Label }),
-            }),
+            },
             [.. select.Options.Select((opt, index) => Ui.Button(
                 $"{key}.opt.{index}",
                 NonEmpty(opt.Label, opt.Id),
                 FormatAction(opt.Action ?? new ButtonAction("app", "select", [opt.Id]))))]),
 
-        Progress progress => Ui.Card(
+        Progress progress => MetaCard(
             key,
             progress.Label,
-            JsonSerializer.Serialize(new
-            {
-                _ui = "progress",
-                value = progress.Value,
-                label = progress.Label,
-                detail = progress.Detail,
-                indeterminate = false,
-            })),
+            new { _ui = "progress", value = progress.Value, label = progress.Label, detail = progress.Detail, indeterminate = false }),
 
-        InfoBar info => Ui.Card(
+        InfoBar info => MetaCard(
             key,
             info.Title,
-            JsonSerializer.Serialize(new
-            {
-                _ui = "infobar",
-                title = info.Title,
-                body = info.Message,
-                tone = info.Tone.ToLowerInvariant(),
-            }),
-            info.Action is { } infoBtn ? [MapNode($"{key}.action", infoBtn, brainId)] : []),
+            new { _ui = "infobar", title = info.Title, body = info.Message, tone = info.Tone.ToLowerInvariant() },
+            info.Action is { } infoBtn ? MapNode($"{key}.action", infoBtn, brainId) : null),
 
         DigitalBrain.UI.Toast toast => Ui.Toast(key, toast.Message),
 
@@ -266,93 +234,16 @@ internal sealed partial class AppNeuron
             card.Body,
             [.. card.Children.Select((child, index) => MapNode($"{key}.{index}", child, brainId))]),
 
-        DataTable table => MapDataTable(key, table),
-
-        Chart chart => MapChart(key, chart),
-
-        ApprovalCardNode approval => MapApprovalCard(key, approval),
-
-        ChoiceCardNode choice => MapChoiceCard(key, choice),
-
-        DraftCardNode draft => MapDraftCard(key, draft),
-
-        RecordCardNode record => MapRecordCard(key, record),
-
-        SecretCardNode secret => MapSecretCard(key, secret),
-
-        JobCardNode job => MapJobCard(key, job),
-
-        BrainSceneNode scene => MapBrainScene(key, scene),
-
-        NeuronRef neuronRef => MapNeuronRef(key, neuronRef, brainId),
-
-        _ => throw new InvalidOperationException($"Unsupported view node {node.GetType().Name}."),
-    };
-
-    private static UiNode MapTabs(string key, Tabs tabs)
-    {
-        if (tabs.Items.Count == 0)
-        {
-            return Ui.Column(key, []);
-        }
-
-        var activeIndex = -1;
-        for (var i = 0; i < tabs.Items.Count; i++)
-        {
-            if (string.Equals(tabs.Items[i].Id, tabs.SelectedId, StringComparison.Ordinal))
-            {
-                activeIndex = i;
-                break;
-            }
-        }
-        if (activeIndex < 0) { activeIndex = 0; }
-
-        var tabButtons = tabs.Items
-            .Select((item, index) => Ui.Tab(
-                $"{key}.tab.{index}",
-                NonEmpty(item.Label, item.Id),
-                FormatAction(item.Action),
-                index == activeIndex))
-            .ToArray();
-
-        return Ui.Tabs(key, tabButtons);
-    }
-
-    private static UiNode MapDataTable(string key, DataTable table)
-    {
-        var buttons = new List<UiNode>();
-        if (!string.IsNullOrWhiteSpace(table.SourceNeuronUri))
-        {
-            buttons.Add(Ui.CopyButton($"{key}.copy", "Copy URI", SanitizeCopyText(table.SourceNeuronUri!)));
-        }
-
-        return Ui.Card(
+        DataTable table => MetaCard(
             key,
             table.Title,
-            JsonSerializer.Serialize(new
-            {
-                _ui = "datatable",
-                title = table.Title,
-                columns = table.Columns,
-                rows = table.Rows,
-                sourceNeuronUri = table.SourceNeuronUri,
-                from = table.From,
-            }),
-            [.. buttons]);
-    }
+            new { _ui = "datatable", title = table.Title, columns = table.Columns, rows = table.Rows, sourceNeuronUri = table.SourceNeuronUri, from = table.From },
+            CopyUriButton($"{key}.copy", table.SourceNeuronUri)),
 
-    private static UiNode MapChart(string key, Chart chart)
-    {
-        var buttons = new List<UiNode>();
-        if (!string.IsNullOrWhiteSpace(chart.SourceNeuronUri))
-        {
-            buttons.Add(Ui.CopyButton($"{key}.copy", "Copy URI", SanitizeCopyText(chart.SourceNeuronUri!)));
-        }
-
-        return Ui.Card(
+        Chart chart => MetaCard(
             key,
             chart.Title,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "chart",
                 kind = chart.Kind,
@@ -364,30 +255,13 @@ internal sealed partial class AppNeuron
                 sourceNeuronUri = chart.SourceNeuronUri,
                 points = chart.Points.Select((p, idx) => new { id = $"pt-{idx}", label = p.Label, value = p.Value }),
                 comparePoints = chart.ComparePoints?.Select((v, idx) => new { id = $"cmp-{idx}", label = idx < chart.Points.Count ? chart.Points[idx].Label : $"pt-{idx}", value = v }),
-            }),
-            [.. buttons]);
-    }
+            },
+            CopyUriButton($"{key}.copy", chart.SourceNeuronUri)),
 
-    private static UiNode MapApprovalCard(string key, ApprovalCardNode approval)
-    {
-        var buttons = new List<UiNode>();
-        if (approval.OnApprove is { } approveAction)
-        {
-            buttons.Add(Ui.Button($"{key}.approve", "Approve", FormatAction(approveAction), style: UiStyle.Primary));
-        }
-        if (approval.OnReject is { } rejectAction)
-        {
-            buttons.Add(Ui.Button($"{key}.reject", "Deny", FormatAction(rejectAction), style: UiStyle.Secondary));
-        }
-        if (!string.IsNullOrWhiteSpace(approval.SourceNeuronUri))
-        {
-            buttons.Add(Ui.CopyButton($"{key}.copy", "Copy URI", SanitizeCopyText(approval.SourceNeuronUri!)));
-        }
-
-        return Ui.Card(
+        ApprovalCardNode approval => MetaCard(
             key,
             approval.Title,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "approval",
                 id = approval.Id,
@@ -401,23 +275,15 @@ internal sealed partial class AppNeuron
                 approveLabel = "Approve",
                 rejectLabel = "Deny",
                 rememberHint = approval.Summary,
-            }),
-            [.. buttons]);
-    }
+            },
+            ActionButton($"{key}.approve", "Approve", approval.OnApprove, UiStyle.Primary),
+            ActionButton($"{key}.reject", "Deny", approval.OnReject, UiStyle.Secondary),
+            CopyUriButton($"{key}.copy", approval.SourceNeuronUri)),
 
-    private static UiNode MapChoiceCard(string key, ChoiceCardNode choice)
-    {
-        var buttons = choice.Options
-            .Select((opt, index) => Ui.Button(
-                $"{key}.opt.{index}",
-                NonEmpty(opt.Title, $"Option {index + 1}"),
-                FormatAction(opt.Action ?? new ButtonAction("app", "choose", [index.ToString(CultureInfo.InvariantCulture)]))))
-            .ToArray();
-
-        return Ui.Card(
+        ChoiceCardNode choice => MetaCard(
             key,
             choice.Question,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "choice",
                 question = choice.Question,
@@ -425,26 +291,16 @@ internal sealed partial class AppNeuron
                 sourceApp = "Ino",
                 allowOther = true,
                 options = choice.Options.Select(o => new { label = o.Title, note = o.Detail }),
-            }),
-            buttons);
-    }
+            },
+            [.. choice.Options.Select((opt, index) => Ui.Button(
+                $"{key}.opt.{index}",
+                NonEmpty(opt.Title, $"Option {index + 1}"),
+                FormatAction(opt.Action ?? new ButtonAction("app", "choose", [index.ToString(CultureInfo.InvariantCulture)]))))]),
 
-    private static UiNode MapDraftCard(string key, DraftCardNode draft)
-    {
-        var buttons = new List<UiNode>();
-        if (draft.OnSend is { } sendAction)
-        {
-            buttons.Add(Ui.Button($"{key}.send", "Send", FormatAction(sendAction), style: UiStyle.Primary));
-        }
-        if (draft.OnDiscard is { } cancelAction)
-        {
-            buttons.Add(Ui.Button($"{key}.cancel", "Discard", FormatAction(cancelAction), style: UiStyle.Ghost));
-        }
-
-        return Ui.Card(
+        DraftCardNode draft => MetaCard(
             key,
             draft.Subject ?? draft.To,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "draft",
                 channel = draft.Channel,
@@ -453,22 +309,14 @@ internal sealed partial class AppNeuron
                 body = draft.Body,
                 sent = string.Equals(draft.Status, "sent", StringComparison.OrdinalIgnoreCase),
                 sendLabel = "Send",
-            }),
-            [.. buttons]);
-    }
+            },
+            ActionButton($"{key}.send", "Send", draft.OnSend, UiStyle.Primary),
+            ActionButton($"{key}.cancel", "Discard", draft.OnDiscard, UiStyle.Ghost)),
 
-    private static UiNode MapRecordCard(string key, RecordCardNode record)
-    {
-        var buttons = new List<UiNode>();
-        if (record.OnOpen is { } openAction)
-        {
-            buttons.Add(Ui.Button($"{key}.open", NonEmpty(record.LinkLabel, "Open"), FormatAction(openAction), style: UiStyle.Secondary));
-        }
-
-        return Ui.Card(
+        RecordCardNode record => MetaCard(
             key,
             record.Name,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "record",
                 kind = record.ObjectLabel,
@@ -478,58 +326,85 @@ internal sealed partial class AppNeuron
                 statusTone = "accent",
                 sourceApp = record.ObjectLabel,
                 fields = record.Fields.Select(f => new { key = f.Label, value = f.Value }),
-            }),
-            [.. buttons]);
-    }
+            },
+            ActionButton($"{key}.open", NonEmpty(record.LinkLabel, "Open"), record.OnOpen, UiStyle.Secondary)),
 
-    private static UiNode MapSecretCard(string key, SecretCardNode secret)
-    {
-        var buttons = new List<UiNode>();
-        if (secret.OnEnter is { } saveAction)
-        {
-            buttons.Add(Ui.Button($"{key}.save", "Save to vault", FormatAction(saveAction), style: UiStyle.Primary));
-        }
-        if (secret.OnSkip is { } skipAction)
-        {
-            buttons.Add(Ui.Button($"{key}.skip", "Skip", FormatAction(skipAction), style: UiStyle.Ghost));
-        }
-
-        return Ui.Card(
+        SecretCardNode secret => MetaCard(
             key,
             secret.Name,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "secret",
                 service = secret.Name,
                 keyName = secret.SavedIn,
                 hint = secret.Why,
                 saved = string.Equals(secret.Status, "saved", StringComparison.OrdinalIgnoreCase),
-            }),
-            [.. buttons]);
+            },
+            ActionButton($"{key}.save", "Save to vault", secret.OnEnter, UiStyle.Primary),
+            ActionButton($"{key}.skip", "Skip", secret.OnSkip, UiStyle.Ghost)),
+
+        JobCardNode job => MapJobCard(key, job),
+
+        BrainSceneNode scene => MapBrainScene(key, scene),
+
+        NeuronRef neuronRef => MapNeuronRef(key, neuronRef, brainId),
+
+        AppShellNode shell => MapAppShell(key, shell, brainId),
+
+        NavItemNode nav => MapNavItem(key, nav),
+
+        StatCardNode stat => MapStatCard(key, stat),
+
+        WebBrowser wb => MapWebBrowser(key, wb),
+
+        _ => throw new InvalidOperationException($"Unsupported view node {node.GetType().Name}."),
+    };
+
+    private static UiNode MapWebBrowser(string key, WebBrowser wb) =>
+        MetaCard(
+            string.IsNullOrWhiteSpace(wb.Key) ? key : wb.Key,
+            wb.Title ?? "WASM Studio",
+            new JsonObject
+            {
+                ["_ui"] = "webbrowser",
+                ["url"] = wb.Url,
+                ["title"] = wb.Title ?? "WASM Studio",
+                ["height"] = wb.Height,
+                ["executionMode"] = wb.ExecutionMode,
+            });
+
+    private static UiNode MetaCard(string key, string title, object meta, params ReadOnlySpan<UiNode?> children)
+    {
+        var list = new List<UiNode>(children.Length);
+        foreach (var child in children)
+        {
+            if (child is not null) { list.Add(child); }
+        }
+        return Ui.Card(key, title, JsonSerializer.Serialize(meta), [.. list]);
+    }
+
+    private static UiNode? ActionButton(string key, string label, ButtonAction? action, UiStyle style = UiStyle.Secondary)
+        => action is null ? null : Ui.Button(key, label, FormatAction(action), style: style);
+
+    private static UiNode? CopyUriButton(string key, string? uri)
+        => string.IsNullOrWhiteSpace(uri) ? null : Ui.CopyButton(key, "Copy URI", SanitizeCopyText(uri!));
+
+    private static UiNode MapTabs(string key, Tabs tabs)
+    {
+        if (tabs.Items.Count == 0) { return Ui.Column(key, []); }
+        var activeIndex = Math.Max(0, tabs.Items.ToList().FindIndex(item => string.Equals(item.Id, tabs.SelectedId, StringComparison.Ordinal)));
+        return Ui.Tabs(
+            key,
+            [.. tabs.Items.Select((item, index) => Ui.Tab($"{key}.tab.{index}", NonEmpty(item.Label, item.Id), FormatAction(item.Action), index == activeIndex))]);
     }
 
     private static UiNode MapJobCard(string key, JobCardNode job)
     {
-        var buttons = new List<UiNode>();
-        if (job.OnCancel is { } cancelAction)
-        {
-            buttons.Add(Ui.Button($"{key}.cancel", "Cancel", FormatAction(cancelAction), style: UiStyle.Ghost));
-        }
-
-        var currentStep = 0;
-        for (var i = 0; i < job.Steps.Count; i++)
-        {
-            if (string.Equals(job.Steps[i].Status, "running", StringComparison.OrdinalIgnoreCase))
-            {
-                currentStep = i;
-                break;
-            }
-        }
-
-        return Ui.Card(
+        var currentStep = Math.Max(0, job.Steps.ToList().FindIndex(s => string.Equals(s.Status, "running", StringComparison.OrdinalIgnoreCase)));
+        return MetaCard(
             key,
             job.Title,
-            JsonSerializer.Serialize(new
+            new
             {
                 _ui = "job",
                 title = job.Title,
@@ -538,77 +413,99 @@ internal sealed partial class AppNeuron
                 eta = job.ResultText,
                 done = string.Equals(job.Status, "done", StringComparison.OrdinalIgnoreCase),
                 steps = job.Steps.Select(s => new { label = s.Label, detail = s.Detail }),
-            }),
-            [.. buttons]);
+            },
+            ActionButton($"{key}.cancel", "Cancel", job.OnCancel, UiStyle.Ghost));
     }
 
-    private static UiNode MapBrainScene(string key, BrainSceneNode scene)
-    {
-        var buttons = scene.Nodes
-            .Select((n, index) => Ui.Button(
-                $"{key}.node.{index}",
-                NonEmpty(n.Label, NonEmpty(n.Id, $"Node {index + 1}")),
-                FormatAction(n.OnSelect ?? new ButtonAction("app", "inspect", [n.Id]))))
-            .ToArray();
-
-        return Ui.Card(
-            key,
-            "Brain Scene 3D",
-            JsonSerializer.Serialize(new
+    private static UiNode MapBrainScene(string key, BrainSceneNode scene) => MetaCard(
+        key,
+        "Brain Scene 3D",
+        new
+        {
+            _ui = "brain3d",
+            selectedId = scene.SelectedId,
+            pauseRotation = scene.PauseRotation,
+            zoomTargetId = scene.ZoomTargetId,
+            targetZoom = scene.TargetZoom,
+            height = 340.0,
+            interactive = true,
+            showHud = true,
+            nodes = scene.Nodes.Select(n => new
             {
-                _ui = "brain3d",
-                selectedId = scene.SelectedId,
-                height = 340.0,
-                interactive = true,
-                showHud = true,
-                nodes = scene.Nodes.Select(n => new
-                {
-                    id = n.Id,
-                    label = n.Label,
-                    category = n.Kind,
-                    subtitle = n.Uri,
-                    status = n.Status,
-                    x = n.X,
-                    y = n.Y,
-                    z = n.Z,
-                }),
-                synapses = scene.Synapses.Select(s => new
-                {
-                    fromId = s.FromId,
-                    toId = s.ToId,
-                    active = s.Active,
-                    signalType = s.SignalLabel ?? "Signal",
-                }),
+                id = n.Id,
+                label = n.Label,
+                category = n.Kind,
+                uri = n.Uri,
+                subtitle = n.Subtitle ?? n.Uri,
+                status = n.Status,
+                x = n.X,
+                y = n.Y,
+                z = n.Z,
             }),
-            buttons);
-    }
+            synapses = scene.Synapses.Select(s => new
+            {
+                fromId = s.FromId,
+                toId = s.ToId,
+                active = s.Active,
+                signalType = s.SignalLabel ?? "Signal",
+            }),
+        },
+        [.. scene.Nodes.Select((n, index) => Ui.Button(
+            $"{key}.node.{index}",
+            NonEmpty(n.Label, NonEmpty(n.Id, $"Node {index + 1}")),
+            FormatAction(n.OnSelect ?? new ButtonAction("app", "inspect", [n.Id]))))]);
 
     private static UiNode MapNeuronRef(string key, NeuronRef neuronRef, string? brainId)
     {
-        var children = new List<UiNode>
-        {
-            Ui.CopyButton($"{key}.copy", "Copy URI", SanitizeCopyText(neuronRef.NeuronUri)),
-        };
-
-        if (!string.IsNullOrWhiteSpace(brainId)
+        var resolvedRef = !string.IsNullOrWhiteSpace(brainId)
             && SupportedReferenceKinds.Contains(neuronRef.Kind)
-            && TryResolveBrainKey(neuronRef.NeuronUri, brainId!, out var resolvedKey))
-        {
-            children.Insert(0, Ui.Reference($"{key}.ref", new UiChildRef(neuronRef.Kind, resolvedKey)));
-        }
+            && TryResolveBrainKey(neuronRef.NeuronUri, brainId!, out var resolvedKey)
+            ? Ui.Reference($"{key}.ref", new UiChildRef(neuronRef.Kind, resolvedKey))
+            : null;
 
-        return Ui.Card(
+        return MetaCard(
             key,
             neuronRef.NeuronUri,
-            JsonSerializer.Serialize(new
-            {
-                _ui = "neuronRef",
-                kind = neuronRef.Kind,
-                neuronUri = neuronRef.NeuronUri,
-                title = neuronRef.NeuronUri,
-            }),
-            [.. children]);
+            new { _ui = "neuronRef", kind = neuronRef.Kind, neuronUri = neuronRef.NeuronUri, title = neuronRef.NeuronUri },
+            resolvedRef,
+            Ui.CopyButton($"{key}.copy", "Copy URI", SanitizeCopyText(neuronRef.NeuronUri)));
     }
+
+    private static UiNode MapAppShell(string key, AppShellNode shell, string? brainId)
+    {
+        var shellKey = NonEmpty(shell.Key, key);
+        return MetaCard(
+            shellKey,
+            string.Empty,
+            new { _ui = "appshell", hasSidebar = shell.Sidebar is not null, hasToolbar = shell.Toolbar is not null, hasInspector = shell.Inspector is not null },
+            shell.Sidebar is not null ? MapNode($"{shellKey}.sidebar", shell.Sidebar, brainId) : null,
+            shell.Toolbar is not null ? MapNode($"{shellKey}.toolbar", shell.Toolbar, brainId) : null,
+            MapNode($"{shellKey}.body", shell.Body, brainId),
+            shell.Inspector is not null ? MapNode($"{shellKey}.inspector", shell.Inspector, brainId) : null);
+    }
+
+    private static UiNode MapNavItem(string key, NavItemNode nav)
+    {
+        var navKey = NonEmpty(nav.Key, key);
+        return MetaCard(
+            navKey,
+            nav.Label,
+            new { _ui = "navitem", label = nav.Label, icon = SanitizeIcon(nav.Icon) ?? nav.Icon, selected = nav.Selected, badge = nav.Badge },
+            Ui.Button($"{navKey}.act", NonEmpty(nav.Label, "Select"), NonEmpty(nav.Action, "noop"), style: nav.Selected ? UiStyle.Primary : UiStyle.Ghost));
+    }
+
+    private static UiNode MapStatCard(string key, StatCardNode stat) => MetaCard(
+        NonEmpty(stat.Key, key),
+        stat.Label,
+        new
+        {
+            _ui = "statcard",
+            label = stat.Label,
+            value = stat.Value,
+            delta = stat.Delta,
+            tone = stat.Tone.ToString().ToLowerInvariant(),
+            icon = SanitizeIcon(stat.Icon) ?? stat.Icon,
+        });
 
     private static bool TryResolveBrainKey(string uriOrKey, string brainId, out string resolved)
     {
@@ -624,21 +521,22 @@ internal sealed partial class AppNeuron
             resolved = trimmed;
             return true;
         }
-        if (!trimmed.Contains("://", StringComparison.Ordinal) && !trimmed.StartsWith('/'))
+        if (!trimmed.Contains("://", StringComparison.Ordinal) && !trimmed.StartsWith('/') && !trimmed.Contains('/', StringComparison.Ordinal))
         {
-            var slash = trimmed.IndexOf('/', StringComparison.Ordinal);
-            if (slash < 0)
-            {
-                resolved = $"{brainId}/{trimmed}";
-                return true;
-            }
+            resolved = $"{brainId}/{trimmed}";
+            return true;
         }
         return false;
     }
 
     private static string FormatAction(ButtonAction action)
     {
-        var op = string.IsNullOrWhiteSpace(action.Operation) ? "noop" : action.Operation;
+        if (string.Equals(action.Operation, "copy", StringComparison.OrdinalIgnoreCase) && action.Arguments.Count > 0)
+        {
+            return "copy:" + SanitizeCopyText(action.Arguments[0]);
+        }
+
+        var op = NonEmpty(action.Operation, "noop");
         return action.Arguments.Count > 0
             ? op + ":" + string.Join(':', action.Arguments.Select(Uri.EscapeDataString))
             : op;
@@ -648,14 +546,8 @@ internal sealed partial class AppNeuron
     {
         var style = (button.Style ?? string.Empty).Trim().ToLowerInvariant();
         var tone = (button.Tone ?? string.Empty).Trim().ToLowerInvariant();
-        if (tone == "danger" || style == "danger")
-        {
-            return UiStyle.Danger;
-        }
-        if (style == "primary" || tone == ButtonTone.Accent)
-        {
-            return UiStyle.Primary;
-        }
+        if (tone == "danger" || style == "danger") { return UiStyle.Danger; }
+        if (style == "primary" || tone == ButtonTone.Accent) { return UiStyle.Primary; }
         return style switch
         {
             "ghost" => UiStyle.Ghost,
@@ -688,7 +580,7 @@ internal sealed partial class AppNeuron
         var normalized = new string(icon
             .Trim()
             .ToLowerInvariant()
-            .Select(c => c == '_' || c == ' ' ? '-' : c)
+            .Select(c => c is '_' or ' ' ? '-' : c)
             .Where(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-')
             .Take(64)
             .ToArray())

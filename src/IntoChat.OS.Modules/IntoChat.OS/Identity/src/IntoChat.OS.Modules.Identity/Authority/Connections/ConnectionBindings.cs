@@ -7,9 +7,8 @@ using IntoChat.OS.Connections.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Connections;
 
-// R146/R155: an app shared into another brain uses its sharer's connection only as the owner's connection recorded it
-// at Share (IConnection.ShareWith the app's principal, or its ShareInto alias), and only while the caller and the connection's owner are both members of the brain
-// the app runs in; nothing else crosses brains to a connection.
+// R146/R155 + R6.3: an app shared into another brain or a trusted friend app uses a shared connection only as the owner's
+// connection or SdkCapabilitySharing recorded it (IConnection.ShareWith the app's principal, its ShareInto alias, or friend pairing).
 internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClient identity) : IConnectionBindings
 {
     public async ValueTask<bool> IsBound(CapabilityCaller caller, string connectionKey, CancellationToken cancellationToken = default)
@@ -17,6 +16,8 @@ internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClie
         ArgumentNullException.ThrowIfNull(caller);
         cancellationToken.ThrowIfCancellationRequested();
         if (caller.AppId is not { Length: > 0 } app) { return false; }
+        if (SdkCapabilitySharing.IsConnectionBoundToFriend(caller, connectionKey)) { return true; }
+
         var callerBrain = BrainScope.Create(caller.AccountId, caller.BrainId).Id;
         if ((await identity.Membership(callerBrain, caller.PersonId))?.AccountId != caller.AccountId) { return false; }
         if (await neurons.Directory().OwnerOfBrain(ConnectionKeys.Parse(connectionKey).BrainId) is not { } account
@@ -28,9 +29,19 @@ internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClie
         {
             // Shared with the app's principal; an app id outside the caller's brain only matches a legacy pairing.
             var connection = neurons.Connection(connectionKey);
-            return BrainKey.BelongsTo(app, callerBrain)
+            var direct = BrainKey.BelongsTo(app, callerBrain)
                 ? await connection.IsSharedWith(AppPrincipal.Id(app))
                 : await connection.IsSharedInto(callerBrain, app);
+            if (direct) { return true; }
+
+            foreach (var ownerApp in SdkCapabilitySharing.OwnersSharingWith(app, connectionKey))
+            {
+                if (await connection.IsSharedWith(AppPrincipal.Id(ownerApp)))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
         finally { if (stamped is not null) { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, stamped); } }
     }

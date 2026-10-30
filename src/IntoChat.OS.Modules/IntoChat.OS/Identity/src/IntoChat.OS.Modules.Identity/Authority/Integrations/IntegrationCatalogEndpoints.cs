@@ -3,6 +3,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework.Modules.Platform.Integrations;
+using IntoChat.OS.Authority.Connections.OAuth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +20,13 @@ internal static class IntegrationCatalogEndpoints
             CallerContextStamper.TryGet(out _)
                 ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnector(context.RequestServices, entry.Id)).ToArray())
                 : Results.Unauthorized());
+
+        // Inbound webhooks for external providers resolve the target connection neuron via 3-part ConnectionKeys.
+        endpoints.MapPost("/integrations/{provider}/webhook", (string provider, HttpContext context) =>
+            OAuthCallback.HandleWebhookAsync(context, provider));
+        endpoints.MapPost("/integrations/{provider}", (string provider, HttpContext context) =>
+            OAuthCallback.HandleWebhookAsync(context, provider));
+
         // Deliberately not brain-scoped: registrations are deployment info, not workspace data.
         var group = endpoints.MapGroup("/integrations");
         group.AddEndpointFilter(async (context, next) =>

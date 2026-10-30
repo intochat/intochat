@@ -19,7 +19,6 @@ internal static class ConnectionLogin
     {
         var neurons = services.GetRequiredService<AuthorityNeurons>();
         if (await UnavailableError(services, connectorId, ct) is { } unavailable) { return new(null, true, unavailable); }
-        if (await TakenError(neurons, connectionId, connectorId) is { } taken) { return new(null, true, taken); }
         var key = ConnectionKeys.For(brainId, connectorId, connectionId);
         try
         {
@@ -31,11 +30,14 @@ internal static class ConnectionLogin
         catch (InvalidOperationException error) { return new(null, true, error.Message); }
     }
 
-    // Probe and disconnect name a connection by id alone, so connect and login refuse an id the brain
-    // already tracks under another connector; the index then holds at most one key per id.
-    public static async Task<string?> TakenError(AuthorityNeurons neurons, string connectionId, string connectorId)
-        => await ConnectionEndpoints.IsTakenByAnotherConnector(neurons, connectionId, connectorId)
-            ? $"Connection '{connectionId}' already belongs to another connector in this brain." : null;
+    // Multiple connection neurons per user/brain are supported via 3-part ConnectionKeys ({brain}/connection/{connector}/{id}).
+    public static Task<string?> TakenError(AuthorityNeurons neurons, string connectionId, string connectorId)
+    {
+        _ = neurons;
+        _ = connectionId;
+        _ = connectorId;
+        return Task.FromResult<string?>(null);
+    }
 
     // A declared connector whose required Integrations the deployment has not made Ready is hidden by
     // the catalog; it takes no new connection either. Names the connector only, never a field value.

@@ -1,0 +1,314 @@
+using System.Text;
+using System.Text.Json;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Storage;
+using IntoChat.OS.Authority.Connections;
+using IntoChat.OS.Authority.Connections.OAuth;
+using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Authority.Identity.Grants;
+using IntoChat.OS.Authority.Secrets;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Hosting;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Framework.Modules.Metering;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
+
+namespace IntoChat.OS.Authority;
+
+public sealed class IntegrationsAndZeroTokenFacts
+{
+    [Fact]
+    public void OAuthCallbackUriAndRoutingUseUnifiedIntegrationsProviderPathAndBackwardsCompatiblePaths()
+    {
+        var options = Options.Create(new ConnectionsOptions
+        {
+            PublicOrigin = new Uri("https://os.intochat.test"),
+        });
+        var requests = new OAuthLoginRequests(options, TimeProvider.System);
+        var exchange = new OAuthTokenExchange(
+            [],
+            new AuthorityNeurons(null!, new EmptyServiceProvider()),
+            options,
+            TimeProvider.System,
+            new FakeHttpClientFactory(),
+            new ModulePriceListRegistry([]));
+        var flow = new OAuthLoginFlow(requests, exchange, options);
+
+        Assert.Equal("https://os.intochat.test/integrations/github/oauth/callback", flow.CallbackUri("github").AbsoluteUri);
+        Assert.Equal("https://os.intochat.test/connections/oauth/github/callback", flow.LegacyCallbackUri("github").AbsoluteUri);
+
+        Assert.True(OAuthCallback.TryMatchCallbackPath("/integrations/github/oauth/callback", out var p1));
+        Assert.Equal("github", p1);
+
+        Assert.True(OAuthCallback.TryMatchCallbackPath("/integrations/google-drive/callback", out var p2));
+        Assert.Equal("google-drive", p2);
+
+        Assert.True(OAuthCallback.TryMatchCallbackPath("/connections/oauth/slack/callback", out var p3));
+        Assert.Equal("slack", p3);
+
+        Assert.False(OAuthCallback.TryMatchCallbackPath("/integrations/github/registration", out _));
+    }
+
+    [Fact]
+    public async Task InboundWebhookRoutesResolveThreePartConnectionKeysAndReturnAccepted()
+    {
+        Assert.True(OAuthCallback.TryMatchWebhookPath("/integrations/github/webhook", out var provider1));
+        Assert.Equal("github", provider1);
+
+        Assert.True(OAuthCallback.TryMatchWebhookPath("/integrations/github", out var provider2));
+        Assert.Equal("github", provider2);
+
+        Assert.False(OAuthCallback.TryMatchWebhookPath("/integrations/github/registration", out _));
+
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Path = "/integrations/github/webhook";
+        context.Request.QueryString = new QueryString("?connectionKey=local/connection/github/personal");
+        context.Response.Body = new MemoryStream();
+
+        await OAuthCallback.HandleWebhookAsync(context, "github");
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+
+        context.Response.Body.Position = 0;
+        using var doc = await JsonDocument.ParseAsync(context.Response.Body, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal("accepted", doc.RootElement.GetProperty("status").GetString());
+        Assert.Equal("local/connection/github/personal", doc.RootElement.GetProperty("connectionKey").GetString());
+        Assert.Equal("github", doc.RootElement.GetProperty("provider").GetString());
+
+        // Header-based 3-part ConnectionKey resolution
+        var headerContext = new DefaultHttpContext();
+        headerContext.Request.Method = HttpMethods.Post;
+        headerContext.Request.Path = "/integrations/github";
+        headerContext.Request.Headers[OAuthCallback.ConnectionKeyHeader] = "neuron://local/connection/github/work";
+        Assert.True(OAuthCallback.TryResolveWebhookConnectionKey(headerContext.Request, "github", out var resolvedWork));
+        Assert.Equal("local/connection/github/work", resolvedWork);
+
+        // Query brain + connectionId resolution
+        var partsContext = new DefaultHttpContext();
+        partsContext.Request.QueryString = new QueryString("?brain=local&connectionId=team");
+        Assert.True(OAuthCallback.TryResolveWebhookConnectionKey(partsContext.Request, "google-drive", out var resolvedTeam));
+        Assert.Equal("local/connection/google-drive/team", resolvedTeam);
+    }
+
+    [Fact]
+    public async Task MultiNeuronConnectionsPerBrainAreSupportedAndDisambiguatedByThreePartConnectionKey()
+    {
+        var tracked = new[]
+        {
+            ConnectionKeys.For("local", "github", "personal"),
+            ConnectionKeys.For("local", "github", "work"),
+            ConnectionKeys.For("local", "google-drive", "work"),
+        };
+
+        Assert.Equal("neuron://local/connection/github/personal", ConnectionKeys.NeuronUri(tracked[0]));
+        Assert.Equal("neuron://local/connection/github/work", ConnectionKeys.NeuronUri(tracked[1]));
+        Assert.Equal("neuron://local/connection/google-drive/work", ConnectionKeys.NeuronUri(tracked[2]));
+
+        Assert.Null(await ConnectionLogin.TakenError(null!, "work", "github"));
+        Assert.False(await ConnectionEndpoints.IsTakenByAnotherConnector(null!, "work", "github"));
+
+        var personalMatch = ConnectionEndpoints.FilterTrackedKeys(tracked, "local", "personal");
+        Assert.Single(personalMatch, tracked[0]);
+
+        var disambiguatedByConnector = ConnectionEndpoints.FilterTrackedKeys(tracked, "local", "work", connectorId: "github");
+        Assert.Single(disambiguatedByConnector, tracked[1]);
+
+        var disambiguatedByFullKey = ConnectionEndpoints.FilterTrackedKeys(tracked, "local", "work", connectionKey: "neuron://local/connection/google-drive/work");
+        Assert.Single(disambiguatedByFullKey, tracked[2]);
+    }
+
+    [Fact]
+    public async Task ZeroTokenAuthEnforcementDeniesDirectSecretAccessFromSandboxAndAppPrincipals()
+    {
+        var appCaller = new CapabilityCaller(AppPrincipal.Id("local/apps/sandbox"), "ada", "local", "local/apps/sandbox");
+
+        var vaultRequest = new CallRequest
+        {
+            Caller = appCaller,
+            TargetNeuron = "system/identity.vault/ada",
+            Operation = "IVault.Resolve",
+        };
+        var decision = GrantRules.Evaluate(vaultRequest, null, []);
+        Assert.NotNull(decision);
+        Assert.False(decision!.Allowed);
+        Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
+
+        var filterStage = new GrantCallFilterStage(new AllowAllPolicySource());
+        var stageDecision = await filterStage.EvaluateAsync(vaultRequest, TestContext.Current.CancellationToken);
+        Assert.NotNull(stageDecision);
+        Assert.False(stageDecision!.Allowed);
+
+        var exportRequest = new CallRequest
+        {
+            Caller = appCaller,
+            TargetNeuron = "local/connection/github/personal",
+            Operation = "IConnection.ExportFor",
+        };
+        var exportDecision = GrantRules.Evaluate(exportRequest, null, []);
+        Assert.NotNull(exportDecision);
+        Assert.False(exportDecision!.Allowed);
+
+        using (CallerContextScope.Scoped(appCaller))
+        {
+            var source = new VaultSecretValueSource(new AuthorityNeurons(null!, new EmptyServiceProvider()));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+                async () => await source.CurrentValues(TestContext.Current.CancellationToken));
+        }
+
+        var credential = new Credential("gho_secret_access_token_123", "ghr_secret_refresh_token_456");
+        Assert.Throws<InvalidOperationException>(ConnectionNeuron<ConnectionState>.AssertZeroTokenReturnType<Credential>);
+        Assert.Throws<InvalidOperationException>(ConnectionNeuron<ConnectionState>.AssertZeroTokenReturnType<OAuthGrant>);
+        Assert.Throws<InvalidOperationException>(() => ConnectionNeuron<ConnectionState>.AssertZeroTokenReturn("leaked: gho_secret_access_token_123", credential));
+        ConnectionNeuron<ConnectionState>.AssertZeroTokenReturn("repo: intochat/os (200 OK)", credential);
+    }
+
+    [Fact]
+    public async Task LocalCloudNeuronFiltersDotFilesSecretsAndBlocksPathTraversal()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "intochat-local-cloud-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            var ct = TestContext.Current.CancellationToken;
+            await File.WriteAllTextAsync(Path.Combine(tempRoot, "readme.md"), "# Workspace Cloud", ct);
+            await File.WriteAllTextAsync(Path.Combine(tempRoot, ".env"), "SECRET_KEY=topsecret", ct);
+            await File.WriteAllTextAsync(Path.Combine(tempRoot, "private.pem"), "PRIVATE KEY", ct);
+            Directory.CreateDirectory(Path.Combine(tempRoot, ".git"));
+            await File.WriteAllTextAsync(Path.Combine(tempRoot, ".git", "config"), "git config", ct);
+
+            var cloud = new LocalCloudNeuron(tempRoot);
+            var descriptor = await cloud.Describe(ct);
+            Assert.Equal("Local Cloud", descriptor.Label);
+            Assert.Equal("local-cloud", descriptor.Kind);
+
+            var roots = await cloud.Roots(ct);
+            Assert.Single(roots);
+            Assert.Equal("cloud", roots[0].Id.Value);
+
+            var writePlan = new WritePlan(
+                WriteKind.WriteFile,
+                Source: null,
+                TargetFolder: roots[0].Id,
+                Name: "notes.txt",
+                Conflict: ConflictPolicy.Overwrite,
+                DryRun: false,
+                Inline: Encoding.UTF8.GetBytes("hello cloud"));
+            await cloud.Write(writePlan, ct);
+
+            var listed = await cloud.List(roots[0].Id, new ListQuery(), ct);
+            Assert.Contains(listed.Items, i => i.Name == "readme.md");
+            Assert.Contains(listed.Items, i => i.Name == "notes.txt");
+            Assert.DoesNotContain(listed.Items, i => i.Name == ".env");
+            Assert.DoesNotContain(listed.Items, i => i.Name == ".git");
+            Assert.DoesNotContain(listed.Items, i => i.Name == "private.pem");
+
+            var searched = await cloud.Search(new SearchQuery("readme"), ct);
+            Assert.Contains(searched.Items, i => i.Name == "readme.md");
+
+            var searchedSecrets = await cloud.Search(new SearchQuery("env"), ct);
+            Assert.DoesNotContain(searchedSecrets.Items, i => i.Name == ".env");
+
+            var searchedPem = await cloud.Search(new SearchQuery("private"), ct);
+            Assert.DoesNotContain(searchedPem.Items, i => i.Name == "private.pem");
+
+            await Assert.ThrowsAsync<Denied>(() => cloud.Read(new ItemId("../escape.txt"), null, ct));
+            await Assert.ThrowsAsync<Denied>(() => cloud.Stat(new ItemId(".env"), ct));
+            await Assert.ThrowsAsync<Denied>(() => cloud.Stat(new ItemId(".git/config"), ct));
+
+            var forbiddenPlan = new WritePlan(
+                WriteKind.WriteFile,
+                Source: null,
+                TargetFolder: roots[0].Id,
+                Name: ".env.local",
+                Conflict: ConflictPolicy.Overwrite,
+                DryRun: false,
+                Inline: "x"u8.ToArray());
+            await Assert.ThrowsAsync<Denied>(() => cloud.Write(forbiddenPlan, ct));
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot)) { Directory.Delete(tempRoot, recursive: true); }
+        }
+    }
+
+    [Fact]
+    public async Task SdkCapabilitySharingAllowsTrustedFriendAppsThroughGrantRulesAndConnectionBindings()
+    {
+        SdkCapabilitySharing.ClearForTests();
+        try
+        {
+            var ownerApp = "local/apps/ino";
+            var friendApp = "local/apps/creator";
+            var strangerApp = "local/apps/stranger";
+            var connectionKey = ConnectionKeys.For("local", "github", "personal");
+
+            var ownerGrant = new Grant
+            {
+                WorkspaceId = "local",
+                AppId = ownerApp,
+                SemanticTypeId = "repo.contents",
+                TargetNeuronKey = connectionKey,
+                Mode = GrantMode.Always,
+                GrantedAt = DateTimeOffset.UtcNow,
+            };
+
+            SdkCapabilitySharing.RegisterFriend(ownerApp, friendApp, "repo.contents");
+            SdkCapabilitySharing.BindFriendConnection(connectionKey, friendApp);
+
+            var friendCaller = new CapabilityCaller(AppPrincipal.Id(friendApp), "ada", "local", friendApp);
+            var strangerCaller = new CapabilityCaller(AppPrincipal.Id(strangerApp), "ada", "local", strangerApp);
+
+            var friendRequest = new CallRequest
+            {
+                Caller = friendCaller,
+                TargetNeuron = connectionKey,
+                Operation = "IGitHub.ReadRepo",
+                SemanticTypeIds = ["repo.contents"],
+            };
+            var friendDecision = GrantRules.Evaluate(friendRequest, null, [ownerGrant]);
+            Assert.NotNull(friendDecision);
+            Assert.True(friendDecision!.Allowed);
+
+            var strangerRequest = friendRequest with { Caller = strangerCaller };
+            var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [ownerGrant]);
+            Assert.NotNull(strangerDecision);
+            Assert.False(strangerDecision!.Allowed);
+
+            var callBindings = new ConnectionCallBindings(new NoConnectionBindings());
+            var boundCall = new CallRequest
+            {
+                Caller = friendCaller,
+                TargetNeuron = "github/" + connectionKey,
+                Operation = "Read",
+            };
+            Assert.True(await callBindings.IsBound(boundCall, "local", TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            SdkCapabilitySharing.ClearForTests();
+        }
+    }
+
+    private sealed class EmptyServiceProvider : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => null;
+    }
+
+    private sealed class FakeHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new();
+    }
+
+    private sealed class AllowAllPolicySource : IGrantPolicySource
+    {
+        public ValueTask<CallDecision?> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken)
+            => ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
+
+        public ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CapabilityCaller caller, CancellationToken cancellationToken)
+            => ValueTask.FromResult<IReadOnlyList<Grant>>([]);
+    }
+}

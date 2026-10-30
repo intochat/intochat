@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -16,6 +17,12 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
+
+public sealed record SandboxCapabilityBinding<TCapability>(
+    string ConnectionKey,
+    string Badge,
+    bool Isolated,
+    TCapability Capability) where TCapability : class;
 
 // The kernel's side of capability resolution (05-07, R4-02): the runtime broker asks it for a brain's connections in Settings
 // order, binds the ones it picks and raises a connection request when none satisfies.
@@ -45,24 +52,126 @@ public static class KernelCapabilities
 public sealed class KernelCapabilityConnections(IServiceProvider plain, IServiceProvider services, ILogger<KernelCapabilityConnections>? logger = null)
     : ICapabilityConnections
 {
+    public const string SandboxCredentialsBadge = "SANDBOX / TEST CREDENTIALS";
+    public const string SandboxConnectionId = "sandbox-test";
+
     private readonly ILogger _logger = logger ?? (ILogger)NullLogger.Instance;
+    private readonly ConcurrentDictionary<string, LocalCloudNeuron> _localClouds = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, LocalCloudNeuron> _sandboxStorages = new(StringComparer.Ordinal);
+
+    private static NeuronId LocalDiskId(BrainId brain) => new(brain, "local-disk", "main");
+    private static string LocalDiskConnectionKey(BrainId brain) => $"{brain.Value}/local-disk/main";
+
+    public static NeuronId LocalCloudId(BrainId brain) => new(brain, LocalCloudNeuron.TypeName, "main");
+    public static string LocalCloudConnectionKey(BrainId brain) => $"{brain.Value}/{LocalCloudNeuron.TypeName}/main";
+
+    public static string SandboxConnectionKey(BrainId brain, string connector = "sandbox")
+        => ConnectionKeys.For(brain.Value, connector, SandboxConnectionId);
+
+    public static bool IsSandboxCaller(string? callerApp)
+    {
+        if (string.IsNullOrWhiteSpace(callerApp)) { return false; }
+        var normalized = callerApp.Trim();
+        return string.Equals(normalized, "sandbox", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "creator-sandbox", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith("/sandbox", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith("/creator-sandbox", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("sandbox:", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("test:", StringComparison.OrdinalIgnoreCase);
+    }
 
     public async Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct)
     {
         var summaries = await Requests(brain).ListConnections().WaitAsync(ct).ConfigureAwait(false);
-        return [.. summaries.OrderBy(summary => summary.Order).Select(ToConnection)];
+        var list = summaries.OrderBy(summary => summary.Order).Select(ToConnection).ToList();
+        var localKey = LocalDiskConnectionKey(brain);
+        if (!list.Any(item => string.Equals(item.Key, localKey, StringComparison.Ordinal)))
+        {
+            try
+            {
+                var localDisk = SiloNeurons.Get<StorageV1>(plain, LocalDiskId(brain));
+                var roots = await localDisk.Roots(ct).WaitAsync(ct).ConfigureAwait(false);
+                if (roots.Count > 0)
+                {
+                    list.Add(new BrainConnection(
+                        localKey,
+                        Environment.MachineName,
+                        true,
+                        [Capability.Storage.V1],
+                        ConnectionStorage.Root(localKey)));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogDebug(error, "LocalDisk module is optional in isolated test hosts for {Brain}", brain.Value);
+            }
+        }
+        return list;
     }
 
     public Task<TCapability> Bind<TCapability>(BrainId brain, string key, string callerApp, CancellationToken ct) where TCapability : class
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        var (owner, connector, _) = ConnectionKeys.Parse(key);
-        if (owner != brain.Value) { throw new ArgumentException("The connection belongs to another brain.", nameof(key)); }
+        var badge = IsSandboxCaller(callerApp) ? SandboxCredentialsBadge : null;
+
+        if (string.Equals(key, LocalDiskConnectionKey(brain), StringComparison.Ordinal) && typeof(TCapability) == typeof(StorageV1))
+        {
+            var localStorage = new ConnectionStorage(
+                SiloNeurons.Get<StorageV1>(plain, LocalDiskId(brain)),
+                key,
+                null,
+                services.GetService<IStorageWriteAuthorizer>(),
+                badge);
+            return Task.FromResult((TCapability)(object)localStorage);
+        }
+
+        if (string.Equals(key, LocalCloudConnectionKey(brain), StringComparison.Ordinal) && typeof(TCapability) == typeof(StorageV1))
+        {
+            var localCloudStorage = new ConnectionStorage(
+                ResolveLocalCloud(brain),
+                key,
+                null,
+                services.GetService<IStorageWriteAuthorizer>(),
+                badge);
+            return Task.FromResult((TCapability)(object)localCloudStorage);
+        }
+
+        var (owner, connector, connectionId) = ConnectionKeys.Parse(key);
+        if (owner != brain.Value && !SdkCapabilitySharing.IsConnectionBoundToFriend(
+            new CapabilityCaller($"app:{callerApp}", owner, brain.Value, callerApp), key))
+        {
+            throw new ArgumentException("The connection belongs to another brain.", nameof(key));
+        }
+
+        if ((string.Equals(connectionId, SandboxConnectionId, StringComparison.Ordinal) || IsSandboxCaller(callerApp))
+            && typeof(TCapability) == typeof(StorageV1)
+            && services.GetService<ConnectionNeuronTypes>()?.NeuronOf(connector) is null)
+        {
+            var sandboxStorage = new ConnectionStorage(
+                _sandboxStorages.GetOrAdd(key, _ => new LocalCloudNeuron()),
+                key,
+                null,
+                services.GetService<IStorageWriteAuthorizer>(),
+                SandboxCredentialsBadge);
+            return Task.FromResult((TCapability)(object)sandboxStorage);
+        }
+
         _logger.LogDebug("Binding {Capability} of connection {Connection} for {App}", typeof(TCapability).Name, key, callerApp);
         object bound = typeof(TCapability) == typeof(StorageV1)
-            ? BindStorage(key, connector)
+            ? BindStorage(key, connector, badge)
             : plain.GetNeuron<TCapability>(services, key);
         return Task.FromResult((TCapability)bound);
+    }
+
+    public async Task<SandboxCapabilityBinding<TCapability>> BindSandboxTestCapability<TCapability>(
+        BrainId brain,
+        string callerApp,
+        string connector = "sandbox",
+        CancellationToken ct = default) where TCapability : class
+    {
+        var key = SandboxConnectionKey(brain, connector);
+        var bound = await Bind<TCapability>(brain, key, string.IsNullOrWhiteSpace(callerApp) ? "sandbox" : callerApp, ct).ConfigureAwait(false);
+        return new SandboxCapabilityBinding<TCapability>(key, SandboxCredentialsBadge, Isolated: true, bound);
     }
 
     // Dedupes on the brain's pending requests: one pending request of a module providing the capability is enough.
@@ -85,15 +194,28 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
     private IConnectionRequests Requests(BrainId brain) => SiloNeurons.Get<IConnectionRequests>(plain, IConnectionRequests.Key(brain.Value));
 
+    private StorageV1 ResolveLocalCloud(BrainId brain)
+    {
+        try
+        {
+            return SiloNeurons.Get<StorageV1>(plain, LocalCloudId(brain));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogDebug(error, "Falling back to in-memory LocalCloudNeuron for {Brain}", brain.Value);
+            return _localClouds.GetOrAdd(brain.Value, _ => new LocalCloudNeuron());
+        }
+    }
+
     // A neuron implementing storage@1 is reached through its own contract (ConnectionStorage keeps streams host-local).
-    private StorageV1 BindStorage(string key, string connector)
+    private StorageV1 BindStorage(string key, string connector, string? sandboxBadge = null)
     {
         var neuron = services.GetService<ConnectionNeuronTypes>()?.NeuronOf(connector);
         if (neuron is not null && typeof(StorageV1).IsAssignableFrom(neuron))
         {
             var id = ConnectionGrains.IdFor(key);
             var uploads = typeof(IStorageUpload).IsAssignableFrom(neuron) ? (IStorageUpload)SiloNeurons.Get(plain, typeof(IStorageUpload), id) : null;
-            return new ConnectionStorage((StorageV1)SiloNeurons.Get(plain, typeof(StorageV1), id), key, uploads, services.GetService<IStorageWriteAuthorizer>());
+            return new ConnectionStorage((StorageV1)SiloNeurons.Get(plain, typeof(StorageV1), id), key, uploads, services.GetService<IStorageWriteAuthorizer>(), sandboxBadge);
         }
         throw new InvalidOperationException($"Connection '{connector}' does not implement storage.");
     }

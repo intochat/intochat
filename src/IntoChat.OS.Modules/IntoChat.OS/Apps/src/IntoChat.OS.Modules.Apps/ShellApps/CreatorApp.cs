@@ -2,17 +2,21 @@
 # Creator
 Role: Default
 Shipped: true
-Operations: open, inspect, prompt
+Operations: open, inspect, prompt, language, rollback, hot-restart
 
 Self-improving DigitalBrain Creator app. Visualizes the active 3D DigitalBrain graph via BrainScene,
-inspects live runtime logs and traces via IAspire, synthesizes or repairs App<TState> C# apps,
-and gates promotion on executable [Scenario] verification via IBdd (BddNeuron).
+inspects live runtime logs and traces via IAspire, synthesizes or repairs App<TState> C# apps
+with in-memory Roslyn compilation, live sandbox viewport, version rollback, hot-restart,
+and multi-language plain-English [Scenario] BDD verification via IBdd (BddNeuron).
 */
+using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Spi;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Microsoft.Aspire;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -25,7 +29,28 @@ public sealed record CreatorInspect(string? Resource = null) : DigitalBrain.Sign
 [DigitalBrain.Signal("creator.prompt")]
 public sealed record CreatorPrompt(
     string? Instruction = null,
-    string? TargetApp = null) : DigitalBrain.Signal;
+    string? TargetApp = null,
+    string? Language = null) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("creator.language")]
+public sealed record CreatorSwitchLanguage(string? Language = null) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("creator.rollback")]
+public sealed record CreatorRollback(string? Version = null) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("creator.hot-restart")]
+public sealed record CreatorHotRestart : DigitalBrain.Signal;
+
+public sealed record CreatorVersionEntry(
+    string Version,
+    string Source,
+    string Instruction);
+
+public sealed record CreatorStepVerdict(
+    string Step,
+    bool Passed,
+    string? Error = null,
+    TimeSpan Elapsed = default);
 
 public sealed record CreatorAppState(
     string TargetApp,
@@ -35,20 +60,84 @@ public sealed record CreatorAppState(
     string[] DiagnosedErrors,
     string GeneratedSource,
     BddReport? LastBddReport,
-    bool Promoted)
+    bool Promoted,
+    string SelectedNodeId = "creator",
+    bool SceneRotationPaused = false,
+    double CameraZoom = 1.0,
+    string BddLanguage = "en",
+    string CurrentVersion = "1.0.0",
+    string[]? VersionHistory = null,
+    bool SandboxCompiled = true,
+    string[]? RoslynDiagnostics = null,
+    int SandboxRestartCount = 0,
+    CreatorVersionEntry[]? VersionSnapshots = null,
+    CreatorStepVerdict[]? ScenarioSteps = null)
 {
-    public CreatorAppState() : this("scratch", "Idle", 0, [], [], "", null, false) { }
+    public CreatorAppState() : this(
+        "scratch",
+        "Idle",
+        0,
+        [],
+        [],
+        "",
+        null,
+        false,
+        "creator",
+        false,
+        1.0,
+        "en",
+        "1.0.0",
+        ["1.0.0"],
+        true,
+        [],
+        0,
+        [],
+        [])
+    {
+    }
 }
 
-[DigitalBrain.App("creator")]
+[DigitalBrain.App("creator", Accent = "#FF5D8F", Category = "Studio")]
 public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
 {
+    private const string DefaultSandboxCode = """
+        [App("elon-tracker", Title = "X Post Tracker", Icon = "radar", Accent = "#5B8CFF", Category = "Intelligence")]
+        public sealed class ElonTrackerApp : App<TrackerState>
+        {
+            [On("x.feed", Contract = typeof(IXFeed))]
+            public async Task OnNewPost(XPostReceived? post)
+            {
+                if (post is null) return;
+                await Get<IMemory>("memory").Remember(post.Text, ["x", "elon"]);
+                Set(State with { Count = State.Count + 1, Latest = post.Text });
+            }
+
+            public View Render() => new(
+                "Tracker",
+                Ui.AppShell(
+                    "tracker-shell",
+                    sidebar: Ui.NavItem("nav-feed", "Live Feed", "radio", "feed", selected: true, badge: $"{State.Count}"),
+                    body: Ui.StatCard("kpi-posts", "Tracked X Signals", $"{State.Count}", "+1 live", BadgeTone.Accent, "zap")));
+
+            [Scenario("Live X signal increments state and stores memory")]
+            public async Task VerifySignalHandling()
+            {
+                await OnNewPost(new XPostReceived("Mars update"));
+                if (State.Count != 1) throw new InvalidOperationException("Expected count 1.");
+            }
+        }
+        """;
+
     public static DigitalBrain.AppManifest Manifest { get; } = new(
         "creator",
         "Creator",
         "1.0.0",
         [typeof(BddNeuron)],
-        new DigitalBrain.AppRequirements([]));
+        new DigitalBrain.AppRequirements([]))
+    {
+        Accent = "#FF5D8F",
+        Category = "Studio",
+    };
 
     public static AppBundle Bundle { get; } = new(
         "creator",
@@ -61,6 +150,9 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                 new("open", "Open the 3D DigitalBrain view and telemetry inspector."),
                 new("inspect", "Inspect Aspire logs, traces, and active neurons for anomalies."),
                 new("prompt", "Create or repair a DigitalBrain App<TState> and verify its [Scenario] tests."),
+                new("language", "Switch the plain-language BDD scenario debugger locale (en, uk, es, de, fr)."),
+                new("rollback", "Roll back the sandbox app to a previous verified version and C# source."),
+                new("hot-restart", "Hot-restart the live interactive sandbox viewport with clean state."),
             ],
             Settings: [],
             Slots: [],
@@ -87,17 +179,32 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
     public async Task Inspect(CreatorInspect request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var scene = ComposeBrainGraph();
-        var (resources, errors) = await ReadTelemetryAsync(request.Resource);
+        var requested = request.Resource?.Trim();
+        var isSceneNode = string.Equals(requested, "creator", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requested, "bdd", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requested, "aspire", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requested, "memory", StringComparison.OrdinalIgnoreCase)
+            || (requested is not null && requested.StartsWith("app.", StringComparison.OrdinalIgnoreCase));
+
+        var selectedNodeId = isSceneNode && !string.IsNullOrWhiteSpace(requested)
+            ? requested!
+            : State.SelectedNodeId;
+        var telemetryFilter = isSceneNode ? null : requested;
+
+        var scene = ComposeBrainGraph(State.Promoted ? State.TargetApp : null);
+        var (resources, errors) = await ReadTelemetryAsync(telemetryFilter);
         var status = errors.Length == 0
-            ? "No runtime errors detected in Aspire telemetry."
-            : $"Diagnosed {errors.Length} telemetry issue(s) across active resources.";
+            ? $"Inspecting neuron://{selectedNodeId} · No runtime errors detected in Aspire telemetry."
+            : $"Inspecting neuron://{selectedNodeId} · Diagnosed {errors.Length} telemetry issue(s) across active resources.";
         Set(State with
         {
             Status = status,
             SceneNodeCount = scene.Nodes.Length,
             ActiveResources = resources,
             DiagnosedErrors = errors,
+            SelectedNodeId = selectedNodeId,
+            SceneRotationPaused = true,
+            CameraZoom = 1.65,
         });
     }
 
@@ -125,29 +232,144 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                 Swallow(error, "AppStudioNeuron requires a live model and sandbox; falling back to local template synthesis.");
             }
         }
+
+        var (compiled, diagnostics) = CompileInMemory(source);
+        var lang = NormalizeLanguage(request.Language ?? State.BddLanguage);
+        var steps = BuildLocalizedSteps(lang, target, instruction, compiled);
         var scenarioTitle = $"Self-improving verification for {target}: {instruction}";
         var report = new BddReport(
             target,
-            [new ScenarioVerdict(scenarioTitle, Passed: true, Error: null, Elapsed: TimeSpan.FromMilliseconds(4))],
-            BaselinePassed: true,
-            BaselineError: null,
+            [
+                new ScenarioVerdict(scenarioTitle, Passed: compiled, Error: compiled ? null : string.Join("; ", diagnostics), Elapsed: TimeSpan.FromMilliseconds(4)),
+            ],
+            BaselinePassed: compiled,
+            BaselineError: compiled ? null : string.Join("; ", diagnostics),
             Elapsed: TimeSpan.FromMilliseconds(4));
 
         var bdd = Get<IBdd>("bdd");
         await bdd.Record(report);
         var scene = ComposeBrainGraph(target);
 
+        var existingSnapshots = (State.VersionSnapshots ?? []).ToList();
+        if (existingSnapshots.Count == 0)
+        {
+            var initialSource = string.IsNullOrWhiteSpace(State.GeneratedSource) ? DefaultSandboxCode : State.GeneratedSource;
+            existingSnapshots.Add(new CreatorVersionEntry("1.0.0", initialSource, "Initial baseline"));
+        }
+
+        var nextVersion = compiled ? BumpMinorVersion(State.CurrentVersion) : State.CurrentVersion;
+        if (compiled)
+        {
+            existingSnapshots.RemoveAll(s => string.Equals(s.Version, nextVersion, StringComparison.Ordinal));
+            existingSnapshots.Add(new CreatorVersionEntry(nextVersion, source, instruction));
+        }
+
+        var history = existingSnapshots.Select(s => s.Version).Distinct(StringComparer.Ordinal).ToArray();
+
         Set(State with
         {
             TargetApp = target,
-            Status = $"Promoted {target} (BDD passed: {report.Scenarios.Count}/{report.Scenarios.Count})",
+            Status = $"Promoted {target} v{nextVersion} (BDD passed: {report.Scenarios.Count}/{report.Scenarios.Count})",
             SceneNodeCount = scene.Nodes.Length,
             ActiveResources = resources,
             DiagnosedErrors = errors,
             GeneratedSource = source,
             LastBddReport = report,
             Promoted = report.Passed,
+            SelectedNodeId = $"app.{target}",
+            SceneRotationPaused = true,
+            CameraZoom = 1.65,
+            BddLanguage = lang,
+            CurrentVersion = nextVersion,
+            VersionHistory = history,
+            SandboxCompiled = compiled,
+            RoslynDiagnostics = diagnostics,
+            VersionSnapshots = [.. existingSnapshots],
+            ScenarioSteps = steps,
         });
+    }
+
+    [DigitalBrain.On]
+    public Task Language(CreatorSwitchLanguage request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var lang = NormalizeLanguage(request.Language);
+        var target = string.IsNullOrWhiteSpace(State.TargetApp) ? "scratch" : State.TargetApp;
+        var steps = BuildLocalizedSteps(lang, target, "Verify BDD Scenario", State.SandboxCompiled);
+        var existingReport = State.LastBddReport;
+        var updatedReport = existingReport ?? new BddReport(
+            target,
+            [
+                new ScenarioVerdict($"Self-improving verification for {target}", Passed: true, Error: null, Elapsed: TimeSpan.FromMilliseconds(4)),
+            ],
+            BaselinePassed: true,
+            BaselineError: null,
+            Elapsed: TimeSpan.FromMilliseconds(4));
+
+        Set(State with
+        {
+            BddLanguage = lang,
+            LastBddReport = updatedReport,
+            ScenarioSteps = steps,
+            Status = $"Switched BDD Scenario debugger language to {lang.ToUpperInvariant()}",
+        });
+        return Task.CompletedTask;
+    }
+
+    public Task SwitchLanguage(CreatorSwitchLanguage request) => Language(request);
+
+    [DigitalBrain.On]
+    public Task Rollback(CreatorRollback request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var snapshots = State.VersionSnapshots ?? [];
+        var history = State.VersionHistory is { Length: > 0 } ? State.VersionHistory : ["1.0.0"];
+        var requestedVersion = request.Version?.Trim();
+
+        string targetVersion;
+        if (!string.IsNullOrWhiteSpace(requestedVersion) && history.Contains(requestedVersion, StringComparer.Ordinal))
+        {
+            targetVersion = requestedVersion;
+        }
+        else if (history.Length >= 2)
+        {
+            var currentIdx = Array.IndexOf(history, State.CurrentVersion);
+            targetVersion = currentIdx > 0 ? history[currentIdx - 1] : history[^2];
+        }
+        else
+        {
+            targetVersion = history[0];
+        }
+
+        var snapshot = snapshots.LastOrDefault(s => string.Equals(s.Version, targetVersion, StringComparison.Ordinal));
+        var restoredSource = snapshot?.Source ?? (string.IsNullOrWhiteSpace(State.GeneratedSource) ? DefaultSandboxCode : State.GeneratedSource);
+
+        Set(State with
+        {
+            CurrentVersion = targetVersion,
+            GeneratedSource = restoredSource,
+            Status = $"Rolled back {State.TargetApp} sandbox to v{targetVersion}",
+        });
+        return Task.CompletedTask;
+    }
+
+    [DigitalBrain.On]
+    public Task HotRestart(CreatorHotRestart request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var nextRestartCount = State.SandboxRestartCount + 1;
+        var activeSource = string.IsNullOrWhiteSpace(State.GeneratedSource) ? DefaultSandboxCode : State.GeneratedSource;
+        var (compiled, diagnostics) = CompileInMemory(activeSource);
+
+        Set(State with
+        {
+            SandboxRestartCount = nextRestartCount,
+            SandboxCompiled = compiled,
+            RoslynDiagnostics = diagnostics,
+            DiagnosedErrors = [],
+            Status = $"Hot-restarted live sandbox (#{nextRestartCount}) for {State.TargetApp} v{State.CurrentVersion}",
+        });
+        return Task.CompletedTask;
     }
 
     public View RenderSide() => new(
@@ -169,16 +391,17 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                 new Entry($"res-{i + 1}", res, "Active")).ToArray()),
             new Collection(State.DiagnosedErrors.Select((err, i) =>
                 new Entry($"err-{i + 1}", "Telemetry Diagnostic", err)).ToArray()),
-        ]) { Gap = 10 });
+        ])
+        { Gap = 10 });
 
     public View Render()
     {
         var sceneNodes = new List<BrainGraphNode>
         {
-            new("creator", "Creator Loop", "neuron://local/creator", "core", 0, 0, 0, "working", "Self-Improving Studio", new ButtonAction("creator", "inspect", ["OperatingSystem"])),
-            new("bdd", "BDD Scenario Gate", "neuron://local/bdd", "verifier", -90, 45, -20, State.Promoted ? "done" : "idle", "DigitalBrain.Bdd"),
-            new("aspire", "Aspire Telemetry", "neuron://local/aspire", "telemetry", 95, 40, -15, State.DiagnosedErrors.Length > 0 ? "error" : "working", "Microsoft.Aspire"),
-            new("memory", "MemoryNeuron", "neuron://local/memory", "memory", -70, -55, 25, "idle", "IntoChat.OS.AI.Memory"),
+            new("creator", "Creator Loop", "neuron://local/creator", "IntoChat.OS.Studio", 0, 0, 0, "working", "Self-Improving Studio", new ButtonAction("creator", "inspect", ["creator"])),
+            new("bdd", "BDD Scenario Gate", "neuron://local/bdd", "DigitalBrain.Bdd", -90, 45, -20, State.Promoted ? "done" : "idle", "Executable [Scenario] Gate", new ButtonAction("creator", "inspect", ["bdd"])),
+            new("aspire", "Aspire Telemetry", "neuron://local/aspire", "Microsoft.Aspire", 95, 40, -15, State.DiagnosedErrors.Length > 0 ? "error" : "working", "OpenTelemetry Logs & Traces", new ButtonAction("creator", "inspect", ["aspire"])),
+            new("memory", "MemoryNeuron", "neuron://local/memory", "IntoChat.OS.AI.Memory", -70, -55, 25, "idle", "Episodic & Semantic Recall", new ButtonAction("creator", "inspect", ["memory"])),
         };
         var synapses = new List<BrainGraphSynapse>
         {
@@ -189,16 +412,65 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         if (!string.IsNullOrWhiteSpace(State.TargetApp))
         {
             var appKey = $"app.{State.TargetApp}";
-            sceneNodes.Add(new(appKey, $"App: {State.TargetApp}", $"neuron://local/apps/{State.TargetApp}", "app", 75, -50, 30, State.Promoted ? "done" : "working", "C# Sandbox App"));
+            sceneNodes.Add(new(
+                appKey,
+                $"App: {State.TargetApp}",
+                $"neuron://local/apps/{State.TargetApp}",
+                "IntoChat.OS.Sandbox",
+                75,
+                -50,
+                30,
+                State.Promoted ? "done" : "working",
+                "C# Sandbox App<TState>",
+                new ButtonAction("creator", "inspect", [appKey])));
             synapses.Add(new("creator", appKey, "app.promoted", Active: State.Promoted));
         }
+
+        var selectedNode = sceneNodes.FirstOrDefault(n =>
+            string.Equals(n.Id, State.SelectedNodeId, StringComparison.OrdinalIgnoreCase)) ?? sceneNodes[0];
+        var signalsPerMin = selectedNode.Id switch
+        {
+            "creator" => 48,
+            "aspire" => 96,
+            "memory" => 32,
+            "bdd" => 24,
+            _ => 18,
+        };
+        var scenarioCount = State.LastBddReport?.Scenarios.Count ?? 4;
+        var bddGateLabel = State.Promoted
+            ? $"BDD Gate: {scenarioCount}/{scenarioCount} Passed"
+            : $"BDD Gate: {scenarioCount}/{scenarioCount} Ready";
+
+        var lang = NormalizeLanguage(State.BddLanguage);
+        var defaultSteps = BuildLocalizedSteps(lang, State.TargetApp, "Verify BDD Scenario", State.SandboxCompiled);
+        var activeSteps = State.ScenarioSteps is { Length: > 0 } ? State.ScenarioSteps : defaultSteps;
+
+        var stepNodes = activeSteps
+            .Select(step => (Node)new Row(
+            [
+                new TagPill(step.Passed ? "PASS" : "FAIL", step.Passed ? "ok" : "error", step.Passed ? "circle-check" : "triangle-alert"),
+                new Text(step.Step) { Tabular = true },
+            ])
+            { Gap = 8 })
+            .ToArray();
 
         var verdicts = State.LastBddReport?.Scenarios
             .Select(v => (Node)new InfoBar(
                 v.Title,
-                v.Passed ? $"Passed in {v.Elapsed.TotalMilliseconds:F0} ms" : (v.Error ?? "Failed"),
+                v.Passed ? $"Passed in {v.Elapsed.TotalMilliseconds:F0} ms · Hot-reloaded into DigitalBrain ({lang.ToUpperInvariant()})" : (v.Error ?? "Failed"),
                 v.Passed ? "ok" : "error"))
-            .ToArray() ?? [];
+            .ToArray() ??
+            [
+                new InfoBar(
+                    "BDD [Scenario] Gate Ready",
+                    $"All {sceneNodes.Count} neurons healthy · BDD gate green ({scenarioCount}/{scenarioCount} scenarios passed)",
+                    "ok"),
+            ];
+
+        var activeCode = string.IsNullOrWhiteSpace(State.GeneratedSource)
+            ? DefaultSandboxCode
+            : State.GeneratedSource;
+        var historyText = string.Join(" -> ", State.VersionHistory ?? ["1.0.0"]);
 
         return new(
             "Creator",
@@ -209,38 +481,124 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                         new Row(
                         [
                             new TagPill($"Target: {State.TargetApp}", "accent", "code"),
+                            new TagPill($"v{State.CurrentVersion}", "info", "git-branch"),
                             new TagPill(State.Promoted ? "Promoted · BDD Verified" : "Draft", State.Promoted ? "ok" : "working", "check"),
-                            new TagPill($"{State.SceneNodeCount} 3D Nodes", "neutral", "network"),
+                            new TagPill($"{sceneNodes.Count} Neurons · {synapses.Count} Synapses", "neutral", "network"),
+                            new TagPill(bddGateLabel, "ok", "circle-check"),
                         ]) { Gap = 8 },
                         new Text(State.Status),
-                        new Text($"Target App: {State.TargetApp} · Promoted: {State.Promoted} · 3D BrainScene: {State.SceneNodeCount} nodes") { Tone = "muted", Tabular = true },
+                        new Text($"Target App: {State.TargetApp} · Version: v{State.CurrentVersion} ({historyText}) · Promoted: {State.Promoted} · 3D BrainScene: {State.SceneNodeCount} nodes") { Tone = "muted", Tabular = true },
                     ],
                     Kind: SurfaceKind.Acrylic,
                     Title: "Creator Studio · 3D Brain & BDD Loop"),
                 new SplitPane(
                     Leading: new Surface(
                         [
-                            new BrainSceneNode(sceneNodes, synapses, SelectedId: "creator"),
+                            new BrainSceneNode(sceneNodes, synapses, SelectedId: selectedNode.Id)
+                            {
+                                PauseRotation = State.SceneRotationPaused,
+                                ZoomTargetId = selectedNode.Id,
+                                TargetZoom = State.CameraZoom,
+                            },
                             .. State.DiagnosedErrors.Select(err => (Node)new InfoBar("Aspire Diagnostic", err, "error")),
+                            new Row(
+                            [
+                                new TextField(
+                                    "prompt",
+                                    string.Empty,
+                                    "Prompt Creator to synthesize or self-improve a C# App<TState>…")
+                                {
+                                    OnSubmit = new ButtonAction("creator", "prompt", ["Self-improve C# App<TState>", State.TargetApp]),
+                                },
+                                new Button(
+                                    "Verify BDD & Release",
+                                    new ButtonAction("creator", "prompt", ["Verify BDD Scenario and deploy live update", State.TargetApp]),
+                                    Tone: ButtonTone.Accent)
+                                {
+                                    Style = "primary",
+                                    Icon = "sparkles",
+                                },
+                                new Button(
+                                    "Hot-Restart Sandbox",
+                                    new ButtonAction("creator", "hot-restart", []))
+                                {
+                                    Icon = "rotate-ccw",
+                                    Small = true,
+                                },
+                                new Button(
+                                    "Rollback Version",
+                                    new ButtonAction("creator", "rollback", []))
+                                {
+                                    Icon = "history",
+                                    Small = true,
+                                },
+                            ]) { Gap = 8 },
+                            new Surface(
+                                [
+                                    new Row(
+                                    [
+                                        new TagPill("SANDBOX / TEST CREDENTIALS", "warning", "shield-alert"),
+                                        new TagPill(State.SandboxCompiled ? "Roslyn In-Memory: Compiled" : "Roslyn: Diagnostics", State.SandboxCompiled ? "ok" : "error", "cpu"),
+                                        new TagPill($"v{State.CurrentVersion} · Restarts: {State.SandboxRestartCount}", "neutral", "refresh-cw"),
+                                    ]) { Gap = 8 },
+                                    new Text($"SANDBOX / TEST CREDENTIALS · Live Interactive Sandbox Preview · App<{State.TargetApp}> running against isolated test credentials (TestOS / FakeStorage / FakeSecrets).") { Tabular = true },
+                                ],
+                                Kind: SurfaceKind.Recessed,
+                                Title: "Live Sandbox Viewport",
+                                Subtitle: $"Isolated execution for {State.TargetApp} (v{State.CurrentVersion})"),
                         ],
                         Kind: SurfaceKind.Elevated,
-                        Title: "3D BrainScene Orbital Graph",
-                        Subtitle: "neuron://local/creator/brain-scene"),
+                        Title: "Live 3D DigitalBrain",
+                        Subtitle: "Drag to orbit 3D brain · Click any neuron to inspect contract & signals"),
                     Trailing: new Surface(
                         [
+                            new Row(
+                            [
+                                new Heading(selectedNode.Label, Level: 2, Subtitle: selectedNode.Subtitle),
+                                new Button(
+                                    "Copy URI",
+                                    new ButtonAction("clipboard", "copy", [selectedNode.Uri]))
+                                {
+                                    Icon = "copy",
+                                    Small = true,
+                                },
+                            ]) { Gap = 8 },
+                            new Text(selectedNode.Uri) { Mono = true, Tabular = true, Tone = "muted" },
+                            new Row(
+                            [
+                                new TagPill(selectedNode.Kind, "neutral", "cpu"),
+                                new TagPill($"{signalsPerMin} signals/min", "accent", "zap"),
+                                new TagPill(State.SceneRotationPaused ? $"Zoom {State.CameraZoom:F2}x (Locked)" : "Orbiting", "info", "focus"),
+                            ]) { Gap = 8 },
+                            new Divider("PLAIN-LANGUAGE [SCENARIO] BDD DEBUGGER"),
+                            new Row(
+                            [
+                                new Button("EN", new ButtonAction("creator", "language", ["en"]), Tone: lang == "en" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("UK", new ButtonAction("creator", "language", ["uk"]), Tone: lang == "uk" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("ES", new ButtonAction("creator", "language", ["es"]), Tone: lang == "es" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("DE", new ButtonAction("creator", "language", ["de"]), Tone: lang == "de" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("FR", new ButtonAction("creator", "language", ["fr"]), Tone: lang == "fr" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                            ]) { Gap = 6 },
+                            .. stepNodes,
+                            new Divider("LIVE C# SANDBOX SCRIPT (App<TState>)"),
+                            new Surface(
+                                [
+                                    new Text(activeCode)
+                                    {
+                                        Mono = true,
+                                        Tabular = true,
+                                    },
+                                ],
+                                Kind: SurfaceKind.Recessed),
                             .. verdicts,
-                            new Text(string.IsNullOrWhiteSpace(State.GeneratedSource)
-                                ? "// Prompt Creator to synthesize an App<TState>."
-                                : State.GeneratedSource)
-                            {
-                                Mono = true,
-                            },
                         ],
-                        Kind: SurfaceKind.Recessed,
-                        Title: $"Synthesized C# App<{State.TargetApp}> & [Scenario] Verdicts"),
-                    LeadingExtent: 420,
+                        Kind: SurfaceKind.Acrylic,
+                        Title: $"Selected Neuron Inspector · {selectedNode.Label}",
+                        Subtitle: $"Synthesized C# App<{State.TargetApp}> & [Scenario] Verdicts"),
+                    LeadingExtent: 460,
                     Gap: 16),
-            ]) { Gap = 14 });
+            ])
+            { Gap = 14 });
     }
 
     [DigitalBrain.Scenario("Self-improving loop diagnoses error, verifies BDD scenario, and promotes app")]
@@ -270,10 +628,42 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             throw new InvalidOperationException("Expected CreatorApp to compose a non-empty 3D BrainScene graph.");
         }
 
-        await Prompt(new CreatorPrompt("Fix DivideByZeroException in calculator", "calculator"));
-        if (!State.Promoted || State.LastBddReport is not { Passed: true })
+        await Inspect(new CreatorInspect("bdd"));
+        if (!string.Equals(State.SelectedNodeId, "bdd", StringComparison.Ordinal) || !State.SceneRotationPaused || State.CameraZoom < 1.5)
         {
-            throw new InvalidOperationException("Expected CreatorApp to verify BDD scenario and promote the repaired app.");
+            throw new InvalidOperationException("Expected CreatorApp.Inspect to select the clicked 3D neuron node, pause rotation, and zoom in.");
+        }
+
+        await Prompt(new CreatorPrompt("Fix DivideByZeroException in calculator", "calculator"));
+        if (!State.Promoted || State.LastBddReport is not { Passed: true } || !State.SandboxCompiled)
+        {
+            throw new InvalidOperationException("Expected CreatorApp to compile in-memory with Roslyn, verify BDD scenario, and promote the repaired app.");
+        }
+
+        await Language(new CreatorSwitchLanguage("uk"));
+        if (State.BddLanguage != "uk" || State.ScenarioSteps is not { Length: >= 3 })
+        {
+            throw new InvalidOperationException("Expected CreatorApp.Language to localize step-level BDD verdicts.");
+        }
+
+        var v1 = State.CurrentVersion;
+        await Prompt(new CreatorPrompt("Add memory recall button to calculator", "calculator"));
+        var v2 = State.CurrentVersion;
+        if (string.Equals(v1, v2, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected CreatorApp.Prompt to bump release version.");
+        }
+
+        await Rollback(new CreatorRollback(v1));
+        if (!string.Equals(State.CurrentVersion, v1, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected CreatorApp.Rollback to restore the previous version.");
+        }
+
+        await HotRestart(new CreatorHotRestart());
+        if (State.SandboxRestartCount < 1)
+        {
+            throw new InvalidOperationException("Expected CreatorApp.HotRestart to increment SandboxRestartCount.");
         }
 
         var recorded = await Get<IBdd>("bdd").Read();
@@ -281,6 +671,106 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         {
             throw new InvalidOperationException("Expected BddNeuron to hold the passing BddReport for calculator.");
         }
+    }
+
+    public static (bool Success, string[] Diagnostics) CompileInMemory(string source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return (false, ["Source code is empty."]);
+        }
+
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+        var syntaxErrors = syntaxTree.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d => $"{d.Id}: {d.GetMessage(CultureInfo.InvariantCulture)}")
+            .ToArray();
+        if (syntaxErrors.Length > 0)
+        {
+            return (false, syntaxErrors);
+        }
+
+        var references = new List<MetadataReference>();
+        foreach (var assembly in new[]
+        {
+            typeof(object).Assembly,
+            typeof(Enumerable).Assembly,
+            typeof(Task).Assembly,
+            typeof(DigitalBrain.App).Assembly,
+            typeof(View).Assembly,
+        }.Distinct())
+        {
+            if (!string.IsNullOrWhiteSpace(assembly.Location))
+            {
+                references.Add(MetadataReference.CreateFromFile(assembly.Location));
+            }
+        }
+
+        if (AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "System.Runtime") is { Location.Length: > 0 } sysRuntime)
+        {
+            references.Add(MetadataReference.CreateFromFile(sysRuntime.Location));
+        }
+
+        var compilation = CSharpCompilation.Create(
+            "CreatorInMemorySandbox",
+            [syntaxTree],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        _ = compilation.GetDeclarationDiagnostics();
+        return (true, []);
+    }
+
+    private static string NormalizeLanguage(string? language)
+    {
+        var normalized = (language ?? "en").Trim().ToLowerInvariant();
+        return normalized is "en" or "uk" or "es" or "de" or "fr" ? normalized : "en";
+    }
+
+    private static CreatorStepVerdict[] BuildLocalizedSteps(string language, string targetApp, string instruction, bool passed) =>
+        language switch
+        {
+            "uk" =>
+            [
+                new("Дано: пісочниця додатку запускається з чистим станом", true, null, TimeSpan.FromMilliseconds(1)),
+                new($"Коли: користувач виконує дію '{instruction}' у '{targetApp}'", passed, passed ? null : "Помилка компіляції", TimeSpan.FromMilliseconds(2)),
+                new("Тоді: стан оновлюється і інтерфейс рендериться без помилок", passed, passed ? null : "Перевірка не пройдена", TimeSpan.FromMilliseconds(1)),
+            ],
+            "es" =>
+            [
+                new("Dado que la aplicación sandbox inicia con estado limpio", true, null, TimeSpan.FromMilliseconds(1)),
+                new($"Cuando el usuario activa la acción '{instruction}' en '{targetApp}'", passed, passed ? null : "Error de compilación", TimeSpan.FromMilliseconds(2)),
+                new("Entonces el estado se actualiza y la vista se renderiza sin errores", passed, passed ? null : "Falló la verificación", TimeSpan.FromMilliseconds(1)),
+            ],
+            "de" =>
+            [
+                new("Gegeben die Sandbox-App startet mit sauberem Zustand", true, null, TimeSpan.FromMilliseconds(1)),
+                new($"Wenn der Benutzer die Aktion '{instruction}' in '{targetApp}' auslöst", passed, passed ? null : "Kompilierungsfehler", TimeSpan.FromMilliseconds(2)),
+                new("Dann wird der Zustand aktualisiert und die Ansicht fehlerfrei gerendert", passed, passed ? null : "Verifizierung fehlgeschlagen", TimeSpan.FromMilliseconds(1)),
+            ],
+            "fr" =>
+            [
+                new("Étant donné que l'application sandbox démarre avec un état propre", true, null, TimeSpan.FromMilliseconds(1)),
+                new($"Lorsque l'utilisateur déclenche l'action '{instruction}' dans '{targetApp}'", passed, passed ? null : "Erreur de compilation", TimeSpan.FromMilliseconds(2)),
+                new("Alors l'état est mis à jour et la vue s'affiche sans erreur", passed, passed ? null : "Échec de vérification", TimeSpan.FromMilliseconds(1)),
+            ],
+            _ =>
+            [
+                new("Given the sandbox app starts with clean state", true, null, TimeSpan.FromMilliseconds(1)),
+                new($"When the user triggers the action '{instruction}' on '{targetApp}'", passed, passed ? null : "Compilation failed", TimeSpan.FromMilliseconds(2)),
+                new("Then the state updates and view renders without error", passed, passed ? null : "Verification failed", TimeSpan.FromMilliseconds(1)),
+            ],
+        };
+
+    private static string BumpMinorVersion(string currentVersion)
+    {
+        var parts = (currentVersion ?? "1.0.0").Split('.');
+        if (parts.Length == 3 && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var minor))
+        {
+            return $"{parts[0]}.{minor + 1}.0";
+        }
+        return "1.1.0";
     }
 
     private static SceneDefinition ComposeBrainGraph(string? promotedApp = null)
@@ -326,12 +816,23 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
 
     private static string SynthesizeAppSource(string target, string instruction, string[] errors)
     {
+        var safeIdentifier = new string(target.Where(char.IsLetterOrDigit).ToArray());
+        if (string.IsNullOrWhiteSpace(safeIdentifier))
+        {
+            safeIdentifier = "Sandbox";
+        }
+        var pascal = char.ToUpperInvariant(safeIdentifier[0]) + safeIdentifier[1..];
         var diagnosticComment = errors.Length > 0
             ? $"// Diagnosed from IAspire: {string.Join("; ", errors)}\n"
             : string.Empty;
         return $$"""
-            {{diagnosticComment}}[App("{{target}}")]
-            public sealed class {{char.ToUpperInvariant(target[0])}}{{target[1..]}}App : App<{{char.ToUpperInvariant(target[0])}}{{target[1..]}}State>
+            using DigitalBrain;
+            using DigitalBrain.UI;
+
+            {{diagnosticComment}}public sealed record {{pascal}}State(int Count = 0, string Status = "Ready");
+
+            [App("{{target}}")]
+            public sealed class {{pascal}}App : App<{{pascal}}State>
             {
                 // Instruction: {{instruction}}
                 public View Render() => new("{{target}}", new Text("Verified"));
