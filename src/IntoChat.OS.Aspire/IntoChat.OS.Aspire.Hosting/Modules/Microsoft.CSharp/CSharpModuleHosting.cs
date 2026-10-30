@@ -74,9 +74,9 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
             }
 
             var destination = Path.Combine(dockerNuget, fileName);
-            if (!File.Exists(destination))
+            if (!File.Exists(destination) || File.GetLastWriteTimeUtc(nupkg) > File.GetLastWriteTimeUtc(destination))
             {
-                File.Copy(nupkg, destination);
+                File.Copy(nupkg, destination, overwrite: true);
             }
         }
     }
