@@ -3,7 +3,7 @@ using System.ComponentModel;
 namespace IntoChat.OS.Integrations;
 
 // The 0.6 storage contract preserved for binary compatibility with 0.10.0 published module assemblies.
-[EditorBrowsable(EditorBrowsableState.Never), IntoChat.OS.Runtime.ConnectionContract]
+[EditorBrowsable(EditorBrowsableState.Never)]
 public interface ILegacyStorage
 {
     [Description("The top-level folders this storage offers.")]

@@ -277,19 +277,17 @@ internal sealed partial class AppNeuron(
         if (!AppActivity.States.Contains(state, StringComparer.Ordinal))
         { throw new ArgumentException($"'{state}' is not an activity state: {string.Join(", ", AppActivity.States)}.", nameof(state)); }
         detail = (detail ?? "").Trim();
-        var next = Snapshot.Clone();
+        // In-memory update without Snapshot.Clone() or Save() disk flushes
         var building = Snapshot.Status == AppStatus.Building && detail.Length > 0
             && Snapshot.Activity.LastOrDefault() != detail;
-        if (building) { next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), detail]; }
+        if (building) { State.Activity = [.. State.Activity.TakeLast(MaxActivity - 1), detail]; }
         var activity = new AppActivity(Name(), state, detail);
-        next.ActivitySequence++;
-        next.LastActivity = activity;
-        var presentation = ApplyActivityPresentation(next, state, blackboard);
-        if (building && presentation is not null)
-        { await Save(next, new AppChanged(Name(), next.Version, next.Status), activity, presentation); }
-        else if (building) { await Save(next, new AppChanged(Name(), next.Version, next.Status), activity); }
-        else if (presentation is not null) { await Save(next, activity, presentation); }
-        else { await Save(next, activity); }
+        State.ActivitySequence++;
+        State.LastActivity = activity;
+        var presentation = ApplyActivityPresentation(State, state, blackboard);
+        await PublishEphemeral(activity);
+        if (presentation is not null)
+        { await PublishEphemeral(presentation); }
     }
 
     private PresentationChanged? ApplyActivityPresentation(AppState next, string state, Dictionary<string, string>? extra = null)
