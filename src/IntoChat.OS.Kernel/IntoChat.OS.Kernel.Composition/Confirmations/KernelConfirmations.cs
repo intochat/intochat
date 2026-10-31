@@ -22,12 +22,34 @@ internal sealed class KernelConfirmations(IServiceProvider services, IOptions<Co
         return new Bound(this, services, options, brain, requester);
     }
 
-    private Task EnsureListenerAsync()
+    internal async Task EnsureListenerAsync()
     {
-        if (_listenerTask is not null) { return _listenerTask; }
+        if (_listenerTask is { IsCompletedSuccessfully: true }) { return; }
+        Task task;
         lock (_listenerLock)
         {
-            return _listenerTask ??= InitializeListenerAsync();
+            if (_listenerTask is { IsFaulted: true } or { IsCanceled: true })
+            {
+                _listenerTask = null;
+            }
+
+            task = _listenerTask ??= InitializeListenerAsync();
+        }
+
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch
+        {
+            lock (_listenerLock)
+            {
+                if (ReferenceEquals(_listenerTask, task))
+                {
+                    _listenerTask = null;
+                }
+            }
+            throw;
         }
     }
 
@@ -64,13 +86,16 @@ internal sealed class KernelConfirmations(IServiceProvider services, IOptions<Co
             await owner.EnsureListenerAsync().ConfigureAwait(false);
             var entity = Entity;
             var tcs = new TaskCompletionSource<ConfirmationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-            owner._pending[plan.Id] = tcs;
+            if (!owner._pending.TryAdd(plan.Id, tcs))
+            {
+                throw new InvalidOperationException($"A confirmation for plan '{plan.Id}' is already pending.");
+            }
             try
             {
                 await entity.Begin(plan, requester).WaitAsync(ct).ConfigureAwait(false);
                 if (await entity.Result(plan.Id).WaitAsync(ct).ConfigureAwait(false) is { } immediate)
                 {
-                    owner._pending.TryRemove(plan.Id, out _);
+                    owner._pending.TryRemove(KeyValuePair.Create(plan.Id, tcs));
                     return immediate;
                 }
 
@@ -92,13 +117,13 @@ internal sealed class KernelConfirmations(IServiceProvider services, IOptions<Co
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                owner._pending.TryRemove(plan.Id, out _);
+                owner._pending.TryRemove(KeyValuePair.Create(plan.Id, tcs));
                 await entity.Cancel(plan.Id).ConfigureAwait(false);
                 throw;
             }
             finally
             {
-                owner._pending.TryRemove(plan.Id, out _);
+                owner._pending.TryRemove(KeyValuePair.Create(plan.Id, tcs));
             }
         }
 
