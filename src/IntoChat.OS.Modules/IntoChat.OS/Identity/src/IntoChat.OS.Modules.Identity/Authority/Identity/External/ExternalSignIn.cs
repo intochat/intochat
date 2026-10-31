@@ -2,9 +2,10 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework.Modules.Http;
-using IntoChat.OS.Framework.Modules.Identity;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -50,28 +51,28 @@ internal static class ExternalSignIn
         if (!new ReturnUrlValidator(auth.Value.ExternalReturnOrigins).IsAllowed(returnUrl))
         {
             log.LogInformation("External sign-in refused: return URL not allowed");
-            return HttpProblems.BadRequest(InvalidCode);
+            return Results.Json(new { code = InvalidCode }, statusCode: StatusCodes.Status400BadRequest);
         }
 
         var claims = ExternalSignInTicket.Verify(http.Request.Query["t"].FirstOrDefault(), issuers.Of, clock);
         if (claims is null)
         {
             log.LogInformation("External sign-in refused: ticket did not verify");
-            return HttpProblems.BadRequest(InvalidCode);
+            return Results.Json(new { code = InvalidCode }, statusCode: StatusCodes.Status400BadRequest);
         }
 
         if (!await neurons.ExternalTicketReplay(claims.Issuer, claims.Jti).Consume(claims.Jti, claims.ExpiresAt).WaitAsync(http.RequestAborted))
         {
             log.LogWarning("External sign-in refused: ticket from {Issuer} was already redeemed", claims.Issuer);
-            return HttpProblems.BadRequest(InvalidCode);
+            return Results.Json(new { code = InvalidCode }, statusCode: StatusCodes.Status400BadRequest);
         }
 
         var email = ExternalSignInTicket.NormalizeEmail(claims.Email)!;
         var principalId = PrincipalOf(claims.Issuer, email);
         var displayName = string.IsNullOrWhiteSpace(claims.Name) ? email : claims.Name.Trim();
-        var provisioning = http.RequestServices.GetRequiredKeyedService<IIdentityProvisioning>(PrivilegedModuleGate.HostKey);
+        var provisioning = http.RequestServices.GetRequiredService<IIdentityClient>();
         // Idempotent: a returning principal completes to its existing membership and brain; a new one registers once.
-        BrainProvision provision;
+        IntoChat.OS.Framework.Modules.Platform.Identity.BrainProvision provision;
         try
         {
             provision = await provisioning.CompleteRegistration(principalId).WaitAsync(http.RequestAborted)
@@ -90,7 +91,7 @@ internal static class ExternalSignIn
             new(AuthTimeClaim, clock.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
             new(IssuerClaim, claims.Issuer),
         ];
-        await http.RequestServices.GetRequiredKeyedService<DigitalBrain.Runtime.Http.ISessionIssuer>(PrivilegedModuleGate.HostKey)
+        await http.RequestServices.GetRequiredService<DigitalBrain.Runtime.Http.ISessionIssuer>()
             .IssueAsync(http, new DigitalBrain.Capabilities.Identity.SessionRequest
             {
                 Member = new DigitalBrain.Capabilities.Identity.Member

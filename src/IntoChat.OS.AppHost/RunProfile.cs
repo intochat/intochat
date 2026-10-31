@@ -156,7 +156,7 @@ public static class RunProfile
                 .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(profile.Supabase);
         }
         brain = brain.WithHosting<AIModuleHosting, AIOptions>(profile.Ai);
-        if (!profile.Lean) { brain = brain.WithHosting<GitHubModuleHosting>(); }
+        if (!profile.Lean) { brain = brain.WithModule<GitHubModule>(); }
         brain = brain.WithHosting<AspireModuleHosting>().WithHosting<CSharpModuleHosting>();
         return profile.Lean
             ? brain

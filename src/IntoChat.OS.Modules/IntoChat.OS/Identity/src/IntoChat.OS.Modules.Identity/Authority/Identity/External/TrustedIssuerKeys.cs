@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Framework.Modules.Identity;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Identity.External;

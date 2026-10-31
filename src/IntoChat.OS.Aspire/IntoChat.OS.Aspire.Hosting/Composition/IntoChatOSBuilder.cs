@@ -24,13 +24,16 @@ public sealed class IntoChatOSBuilder
         IReadOnlyDictionary<string, string?>? settings = null)
     {
         ArgumentNullException.ThrowIfNull(module);
-        return Register(HostedModuleId.Of(module.GetType()), hosting, settings);
+        return Register(HostedModuleId.Of(module.GetType()), module.GetType(), hosting, settings);
     }
+
+    public IntoChatOSBuilder WithModule<TModule>() where TModule : class, new()
+        => Register(HostedModuleId.Of(typeof(TModule)), typeof(TModule), null, null);
 
     public IntoChatOSBuilder WithHosting(IIntoChatOSModuleHosting hosting, IReadOnlyDictionary<string, string?>? settings = null)
     {
         ArgumentNullException.ThrowIfNull(hosting);
-        return Register(hosting.Module, hosting, settings);
+        return Register(hosting.Module, null, hosting, settings);
     }
 
     public IntoChatOSBuilder WithHosting<THosting>() where THosting : IIntoChatOSModuleHosting, new()
@@ -65,10 +68,10 @@ public sealed class IntoChatOSBuilder
         var options = new TOptions();
         configure(options);
         ModuleOptionsSerialization.Validate(options, id.ToString());
-        return Register(id, null, HostingModuleOptions.Flatten(options, id.ToString()));
+        return Register(id, typeof(TModule), null, HostingModuleOptions.Flatten(options, id.ToString()));
     }
 
-    private IntoChatOSBuilder Register(ModuleId id, IIntoChatOSModuleHosting? hosting,
+    private IntoChatOSBuilder Register(ModuleId id, Type? moduleType, IIntoChatOSModuleHosting? hosting,
         IReadOnlyDictionary<string, string?>? settings)
     {
         var moduleId = id.ToString();
@@ -87,6 +90,7 @@ public sealed class IntoChatOSBuilder
         Resource.WithAnnotation(new BrainModuleAnnotation(moduleId));
         GetOrAddModuleNode(moduleId);
         foreach (var pair in values) { _settings[pair.Key] = pair.Value; }
+        if (moduleType is not null) { ModuleSecretProjection.Project(this, moduleType); }
         hosting?.Configure(this);
         return this;
     }

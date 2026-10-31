@@ -13,7 +13,6 @@ using IntoChat.Cloud.Lobby;
 using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Organisations;
-using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Http;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -43,16 +42,8 @@ public static class CloudHost
         services.TryAddSingleton<ILobbyTokenKey, SecretLobbyTokenKey>();
         services.TryAddSingleton<IOrganisationMail, CloudOrganisationMail>();
         services.TryAddSingleton<IOrganisationIdentity, CloudOrganisationIdentity>();
-        services.AddOptions<IdentityHostOptions>().PostConfigure(IncludeAuth);
         services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
             .PostConfigure<IServiceProvider>(ValidateSession);
-    }
-
-    // Auth's manifest holds the privileged grants. The identity options list is what IPrivilegedServices reads.
-    private static void IncludeAuth(IdentityHostOptions options)
-    {
-        if (options.PrivilegedModules.Contains(AuthModule.Id, StringComparer.OrdinalIgnoreCase)) { return; }
-        options.PrivilegedModules = [.. options.PrivilegedModules, AuthModule.Id];
     }
 
     private static void ValidateSession(CookieAuthenticationOptions cookie, IServiceProvider provider)

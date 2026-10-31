@@ -122,7 +122,7 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {
-            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecretRedactor).Assembly, typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly, typeof(IIdentityProvisioning).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecretRedactor).Assembly, typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }

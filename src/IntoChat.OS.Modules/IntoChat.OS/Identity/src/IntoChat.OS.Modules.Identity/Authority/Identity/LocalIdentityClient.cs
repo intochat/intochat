@@ -8,7 +8,7 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 namespace IntoChat.OS.Authority.Identity;
 
 // The in-module directory facade. State lives on DirectoryNeuron; product callers use ICapabilityBroker.
-internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityClient, IIdentityProvisioning
+internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityClient
 {
     private IDirectoryStore Directory => neurons.Directory();
 

@@ -19,7 +19,7 @@ public sealed class IpThrottleFilter(IRequestThrottle throttle) : IEndpointFilte
         ArgumentNullException.ThrowIfNull(next);
         var prefix = IpPrefix.Truncate(context.HttpContext.Connection.RemoteIpAddress?.ToString());
         var hit = await throttle.HitAsync(prefix, context.HttpContext.RequestAborted);
-        return hit.Allowed ? await next(context) : HttpProblems.RateLimited(hit.RetryAt);
+        return hit.Allowed ? await next(context) : Results.Json(new { code = "RATE_LIMITED", retryAt = hit.RetryAt }, statusCode: StatusCodes.Status429TooManyRequests);
     }
 }
 

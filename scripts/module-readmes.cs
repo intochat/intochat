@@ -5,7 +5,7 @@
 // Generates the options/secrets table of every module README: `dotnet run scripts/module-readmes.cs [-- --check]`.
 // Reflects over OperatingSystemModules.Modules plus the Windows edge. Writes only between the BEGIN/END GENERATED markers, and creates a
 // short README (title, description, how to test, docs link) where a module has none. Secrets are listed by NAME from
-// [Secret] attributes; no configuration is loaded and no value is read. --check changes nothing and exits 1 listing stale files.
+// Integration schemas; no configuration is loaded and no value is read. --check changes nothing and exits 1 listing stale files.
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
@@ -114,7 +114,7 @@ static string Render(OsModule module, Type type)
             rows.Add($"| `{property.Name}` | `{TypeName(property.PropertyType)}` | {shown} | {(setting.Required ? "yes" : "no")} |");
         }
     }
-    foreach (var setting in (Digital(type) ? SchemaSettings(type) : AttributeSettings(type)).OrderBy(s => s.Name, StringComparer.Ordinal))
+    foreach (var setting in SchemaSettings(type).OrderBy(s => s.Name, StringComparer.Ordinal))
     {
         rows.Add($"| `{setting.Name}` | integration setting | unset | {(setting.Optional ? "no" : "yes")} |");
     }
@@ -127,7 +127,7 @@ static string Render(OsModule module, Type type)
         builder.Append('\n');
     }
 
-    var secrets = (Digital(type) ? SchemaSecrets(type) : AttributeSecrets(type)).OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
+    var secrets = SchemaSecrets(type).OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
     builder.Append("Secrets (names only; values are sealed per brain, never configuration):\n\n");
     if (secrets.Length == 0) { builder.Append("None.\n\n"); }
     else
@@ -171,19 +171,9 @@ static string TypeName(Type type)
         : type.IsGenericType ? type.Name[..type.Name.IndexOf('`')] + "<" + string.Join(", ", type.GetGenericArguments().Select(TypeName)) + ">"
         : type.Name;
 
-// A module that has left the generator has no [Secret]/[Setting] attributes. Its static Integration schema is the same declaration.
-static bool Digital(Type type)
-    => typeof(DigitalBrain.Module).IsAssignableFrom(type);
-
-static IEnumerable<(string Name, bool Optional)> AttributeSettings(Type type)
-    => type.GetCustomAttributes<SettingAttribute>().Select(setting => (setting.Name ?? "", setting.Optional));
-
-static IEnumerable<(string Name, bool Optional)> AttributeSecrets(Type type)
-    => type.GetCustomAttributes<SecretAttribute>().Select(secret => (secret.Name, secret.Optional));
-
 static IEnumerable<(string Name, bool Optional)> SchemaSettings(Type type)
 {
-    foreach (var schema in Schemas(type))
+    foreach (var schema in OsModule.ReadSchemas(type))
     {
         foreach (var name in schema.SettingFields) { yield return (name, false); }
         foreach (var name in schema.OptionalSettingFields) { yield return (name, true); }
@@ -192,22 +182,9 @@ static IEnumerable<(string Name, bool Optional)> SchemaSettings(Type type)
 
 static IEnumerable<(string Name, bool Optional)> SchemaSecrets(Type type)
 {
-    foreach (var schema in Schemas(type))
+    foreach (var schema in OsModule.ReadSchemas(type))
     {
         foreach (var name in schema.SecretFields) { yield return (name, false); }
         foreach (var name in schema.OptionalSecretFields) { yield return (name, true); }
-    }
-}
-
-static IEnumerable<IntegrationSchema> Schemas(Type type)
-{
-    const BindingFlags Flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy;
-    if (type.GetProperty("Integration", Flags)?.GetValue(null) is IntegrationSchema one) { yield return one; }
-    if (type.GetProperty("Integrations", Flags)?.GetValue(null) is System.Collections.IEnumerable items)
-    {
-        foreach (var item in items)
-        {
-            if (item is IntegrationSchema schema) { yield return schema; }
-        }
     }
 }

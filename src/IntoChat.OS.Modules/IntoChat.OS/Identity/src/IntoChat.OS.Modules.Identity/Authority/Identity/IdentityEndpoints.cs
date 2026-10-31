@@ -119,7 +119,7 @@ internal static class IdentityEndpoints
 
     private static async Task<IResult> IssueSessionAsync(OsMember member, HttpContext http, IReadOnlyCollection<Claim>? carried = null)
     {
-        await http.RequestServices.GetRequiredKeyedService<ISessionIssuer>(PrivilegedModuleGate.HostKey)
+        await http.RequestServices.GetRequiredService<ISessionIssuer>()
             .IssueAsync(http, SessionFor(member, carried), http.RequestAborted);
         return Results.Ok(member);
     }
@@ -161,7 +161,7 @@ internal static class IdentityEndpoints
 
     private static async Task<IResult> LogoutAsync(HttpContext http)
     {
-        await http.RequestServices.GetRequiredKeyedService<ISessionIssuer>(PrivilegedModuleGate.HostKey).EndAsync(http);
+        await http.RequestServices.GetRequiredService<ISessionIssuer>().EndAsync(http);
         return Results.NoContent();
     }
 
