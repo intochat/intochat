@@ -53,7 +53,12 @@ internal sealed class NeuronsService(NeuronSurface surface, IBrainObserver kerne
                 return new NeuronStateReply { StateJson = ByteString.Empty };
             }
 
-            var state = await kernel.State(id.Value, context.CancellationToken);
+            System.Text.Json.JsonElement? state = null;
+            if (kernel.GetType().GetMethod("State", [typeof(DigitalBrain.NeuronId), typeof(CancellationToken)]) is { } inspectState)
+            {
+                var stateTask = (Task<System.Text.Json.JsonElement?>)inspectState.Invoke(kernel, [id.Value, context.CancellationToken])!;
+                state = await stateTask.ConfigureAwait(false);
+            }
             return new NeuronStateReply
             {
                 StateJson = state is { } json ? ByteString.CopyFromUtf8(json.GetRawText()) : ByteString.Empty

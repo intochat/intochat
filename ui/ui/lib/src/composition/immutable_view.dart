@@ -2736,7 +2736,7 @@ class _InteractiveBrainSceneBoxState extends State<_InteractiveBrainSceneBox> {
                             ),
                           ),
                           const Spacer(),
-                          TagPill(
+                          const TagPill(
                             label: 'IInspectableNeuron',
                             tone: TagTone.accent,
                           ),
