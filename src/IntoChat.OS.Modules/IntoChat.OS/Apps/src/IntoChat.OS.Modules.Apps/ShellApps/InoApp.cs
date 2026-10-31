@@ -226,6 +226,12 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             return;
         }
 
+        if (LooksLikeFileOrResourceRequest(text, out var resFileName, out var resUri, out var resPreview, out var cleanPrompt))
+        {
+            await HandleFileOrResourceRequestAsync(cleanPrompt, resFileName, resUri, resPreview, settings, recalled, memory);
+            return;
+        }
+
         var routeHint = text.StartsWith("open ", StringComparison.OrdinalIgnoreCase)
             ? $"routed:{text[5..].Trim()}.open"
             : $"agent:{settings.DefaultModel}";
@@ -848,6 +854,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 Subtitle: card.Summary,
                 LinkLabel: label,
                 OnOpen: new ButtonAction($"apps/{targetApp}", "open", []));
+            yield return new WebBrowser(targetApp == "photocraft" ? "http://localhost:18082" : "http://localhost:18083", card.Title, $"{card.Id}-studio", 420, "wasm-ui");
         }
         else
         {
@@ -859,7 +866,9 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                     new RecordFieldNode("Neuron URI", card.SourceNeuronUri),
                     new RecordFieldNode("Scope", card.EffectiveScopeUri),
                 ],
-                Subtitle: card.Summary);
+                Subtitle: card.Summary,
+                LinkLabel: card.Kind == "file" ? "Open in Files" : "Open Neuron",
+                OnOpen: card.Kind == "file" ? new ButtonAction("apps/files", "open", []) : null);
         }
     }
 
@@ -907,6 +916,140 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         {
             throw new InvalidOperationException("Expected InoApp to capture the conversation episode in MemoryNeuron.");
         }
+    }
+
+    internal static bool LooksLikeFileOrResourceRequest(
+        string text,
+        out string fileName,
+        out string resourceUri,
+        out string? previewSnippet,
+        out string cleanPrompt)
+    {
+        fileName = string.Empty;
+        resourceUri = string.Empty;
+        previewSnippet = null;
+        cleanPrompt = text;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        const string previewMarker = "\n\n[File Preview]\n";
+        var markerIdx = text.IndexOf(previewMarker, StringComparison.Ordinal);
+        if (markerIdx >= 0)
+        {
+            cleanPrompt = text[..markerIdx].Trim();
+            previewSnippet = text[(markerIdx + previewMarker.Length)..].Trim();
+        }
+
+        var isFileHandoff = cleanPrompt.StartsWith("Explain and summarize ", StringComparison.OrdinalIgnoreCase)
+            || cleanPrompt.Contains(".files/", StringComparison.OrdinalIgnoreCase)
+            || cleanPrompt.StartsWith("@", StringComparison.Ordinal)
+            || markerIdx >= 0;
+
+        if (!isFileHandoff)
+        {
+            return false;
+        }
+
+        var uriStart = cleanPrompt.IndexOf("neuron://", StringComparison.OrdinalIgnoreCase);
+        if (uriStart >= 0)
+        {
+            var end = cleanPrompt.IndexOfAny([' ', ')', '\r', '\n', ']'], uriStart);
+            resourceUri = end > uriStart ? cleanPrompt[uriStart..end] : cleanPrompt[uriStart..];
+        }
+        else
+        {
+            resourceUri = "neuron://owner/local-disk.files/workspace";
+        }
+
+        if (cleanPrompt.StartsWith("Explain and summarize ", StringComparison.OrdinalIgnoreCase) && uriStart > "Explain and summarize ".Length)
+        {
+            fileName = cleanPrompt["Explain and summarize ".Length..uriStart].Trim(' ', '(', ')', ':');
+        }
+        else if (cleanPrompt.StartsWith("@", StringComparison.Ordinal))
+        {
+            var space = cleanPrompt.IndexOf(' ');
+            fileName = (space > 1 ? cleanPrompt[1..space] : cleanPrompt[1..]).Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            var slash = resourceUri.LastIndexOf('/');
+            fileName = slash >= 0 && slash + 1 < resourceUri.Length ? resourceUri[(slash + 1)..] : "resource";
+        }
+
+        return true;
+    }
+
+    private async Task HandleFileOrResourceRequestAsync(
+        string cleanPrompt,
+        string fileName,
+        string resourceUri,
+        string? previewSnippet,
+        UserSettingsState settings,
+        MemoryRecallHit[] recalled,
+        IMemory? memory)
+    {
+        var promptForModel = string.IsNullOrWhiteSpace(previewSnippet)
+            ? cleanPrompt
+            : $"{cleanPrompt}\n\nFile contents:\n{previewSnippet}";
+        var generated = await TryGenerateReplyAsync(promptForModel, settings, recalled);
+
+        string reply;
+        if (!string.IsNullOrWhiteSpace(generated))
+        {
+            reply = $"Ino ({settings.DefaultModel}): {generated}\n\n- **Resource**: `{fileName}` (`{resourceUri}`)";
+        }
+        else if (!string.IsNullOrWhiteSpace(previewSnippet))
+        {
+            var lines = previewSnippet.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var previewExcerpt = string.Join("\n", lines.Take(6).Select(l => $"> {l}"));
+            reply =
+                $"Ino ({settings.DefaultModel}): Analyzed **{fileName}** (`{resourceUri}`) — {lines.Length} non-empty line(s), {previewSnippet.Length} chars.\n\n"
+                + $"{previewExcerpt}\n\n"
+                + "**Suggested actions:** Ask me to *extract a table*, *draft a reply*, or *rewrite key sections* from this file.";
+        }
+        else
+        {
+            reply =
+                $"Ino ({settings.DefaultModel}): Attached **{fileName}** (`{resourceUri}`) from **Files**.\n\n"
+                + "- **Source URI**: `" + resourceUri + "`\n"
+                + "- **Ready for**: Summarization, key takeaway extraction, table conversion, or cross-app workflow routing.";
+        }
+
+        if (memory is not null)
+        {
+            await memory.CaptureEpisode("ino.file", $"File: {fileName} ({resourceUri}) | Prompt: {cleanPrompt}", importance: 7);
+        }
+
+        var turnsCount = State.Turns.Length + 1;
+        var cardId = $"file-{turnsCount}";
+        var summaryText = !string.IsNullOrWhiteSpace(previewSnippet)
+            ? (previewSnippet.Length <= 180 ? previewSnippet : previewSnippet[..180] + "…")
+            : $"Workspace file resource attached from Files ({resourceUri})";
+        var fileCard = new InoCard(
+            cardId,
+            "file",
+            fileName,
+            summaryText,
+            resourceUri,
+            "ready",
+            $"neuron://local/apps/ino#{cardId}");
+
+        var nextTitle = State.Turns.Length == 0 || State.Title == "New chat"
+            ? $"File · {fileName}"
+            : State.Title;
+        var nextTurns = State.Turns.Append(new InoTurn(cleanPrompt, reply, "routed:files.resource", recalled.Length)).ToArray();
+
+        Set(State with
+        {
+            Title = nextTitle,
+            Status = $"Attached {fileName} ({resourceUri})",
+            Turns = nextTurns,
+            Cards = [.. State.ActiveCards, fileCard],
+        });
     }
 
     internal static bool LooksLikePhotoCraftRequest(string text)

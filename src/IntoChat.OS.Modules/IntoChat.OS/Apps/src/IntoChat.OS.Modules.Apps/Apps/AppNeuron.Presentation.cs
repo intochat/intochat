@@ -521,7 +521,8 @@ internal sealed partial class AppNeuron
             resolved = trimmed;
             return true;
         }
-        if (!trimmed.Contains("://", StringComparison.Ordinal) && !trimmed.StartsWith('/') && !trimmed.Contains('/', StringComparison.Ordinal))
+        if (trimmed.StartsWith("local/", StringComparison.OrdinalIgnoreCase)) { trimmed = trimmed["local/".Length..]; }
+        if (!trimmed.Contains("://", StringComparison.Ordinal) && !trimmed.StartsWith('/'))
         {
             resolved = $"{brainId}/{trimmed}";
             return true;
@@ -536,6 +537,8 @@ internal sealed partial class AppNeuron
             return "copy:" + SanitizeCopyText(action.Arguments[0]);
         }
 
+        if (!string.IsNullOrWhiteSpace(action.Neuron) && action.Neuron.StartsWith("os://", StringComparison.OrdinalIgnoreCase)) { return action.Neuron; }
+        if (!string.IsNullOrWhiteSpace(action.Neuron) && action.Neuron.StartsWith("apps/", StringComparison.OrdinalIgnoreCase) && string.Equals(action.Operation, "open", StringComparison.OrdinalIgnoreCase)) { return $"os://window/open?app={action.Neuron["apps/".Length..]}"; }
         var op = NonEmpty(action.Operation, "noop");
         return action.Arguments.Count > 0
             ? op + ":" + string.Join(':', action.Arguments.Select(Uri.EscapeDataString))

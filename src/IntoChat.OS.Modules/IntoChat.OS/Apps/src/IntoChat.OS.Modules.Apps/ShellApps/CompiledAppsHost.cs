@@ -361,19 +361,16 @@ internal sealed class CompiledAppsHost(
             if (runtime.Instance is InoApp ino)
             {
                 await SyncInoChatAndComposerAsync(runtime, ino.State);
-                var headerExtent = ino.State.ActiveCards.Length > 0 ? 280d : 84d;
-                var rightColumn = Ui.Column(
-                    "view-main",
-                    [
-                        MapNode("root", mainView.Root, runtime.Brain),
-                        Ui.Reference("transcript", new(UIVocabulary.ChatType, runtime.AppKey + "/transcript")),
-                        Ui.Reference("composer", new(UIVocabulary.ComposerType, runtime.AppKey + "/composer")),
-                    ],
-                    gap: 8,
-                    extents: [headerExtent, 0, 88]);
                 mainTree = sideView is not null
-                    ? Ui.Row("view", [MapNode("side", sideView.Root, runtime.Brain), rightColumn], gap: 12, extents: [224, 0])
-                    : rightColumn;
+                    ? Ui.Row(
+                        "ino-workspace",
+                        [
+                            MapNode("ino-side", sideView.Root, runtime.Brain),
+                            MapNode("ino-main", mainView.Root, runtime.Brain),
+                        ],
+                        gap: 0,
+                        extents: [256, 0])
+                    : MapNode("ino-main", mainView.Root, runtime.Brain);
             }
             else if (sideView is not null)
             {
@@ -625,7 +622,12 @@ internal sealed class CompiledAppsHost(
         if (targetType == typeof(InoSend)) { return new InoSend(unquoted); }
         if (targetType == typeof(InoConnectDb)) { return new InoConnectDb(unquoted); }
         if (targetType == typeof(InoQueryDb)) { return new InoQueryDb(unquoted); }
-        if (targetType == typeof(InoApproveCard)) { return new InoApproveCard(unquoted, true); }
+        if (targetType == typeof(InoApproveCard))
+        {
+            var cardId = segs.ElementAtOrDefault(0) ?? unquoted;
+            var approved = segs.Length < 2 || !bool.TryParse(segs[1], out var parsedApproved) || parsedApproved;
+            return new InoApproveCard(cardId, approved);
+        }
         if (targetType == typeof(InoMake)) { return new InoMake(unquoted); }
         if (targetType == typeof(GalleryOpen)) { return new GalleryOpen(unquoted); }
         if (targetType == typeof(GalleryFilter)) { return new GalleryFilter(segs.ElementAtOrDefault(0), segs.ElementAtOrDefault(1)); }

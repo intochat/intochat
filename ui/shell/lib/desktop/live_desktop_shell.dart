@@ -353,9 +353,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       'gallery' => 'UI Gallery',
       'post' => 'Post',
       'settings' => 'Settings',
-      _ => appId.isEmpty
-          ? 'App'
-          : '${appId[0].toUpperCase()}${appId.substring(1)}',
+      _ =>
+        appId.isEmpty
+            ? 'App'
+            : '${appId[0].toUpperCase()}${appId.substring(1)}',
     };
   }
 
@@ -668,6 +669,52 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     );
   }
 
+  void _handleChildActivation(
+    Map<String, dynamic> activation,
+    List<_ParsedDesktopWindow> windows,
+    Map<String, Map<String, dynamic>> dockButtons,
+  ) {
+    if (activation['kind'] == 'os_uri') {
+      final uriStr = '${activation['uri'] ?? ''}';
+      final sheet = DesktopSystemModalSheet.parseUri(uriStr);
+      if (sheet != DesktopSystemSheetKind.none) {
+        setState(() => _systemSheet = sheet);
+        return;
+      }
+      final uri = Uri.tryParse(uriStr);
+      final queryApp = uri?.queryParameters['app'];
+      final querySection = uri?.queryParameters['section'];
+      if (queryApp != null && queryApp.isNotEmpty) {
+        _launchOrFocusApp(
+          queryApp,
+          windows,
+          dockButtons,
+          settingsSection: querySection,
+        );
+        return;
+      }
+      if (uriStr.contains('settings')) {
+        _launchOrFocusApp(
+          'settings',
+          windows,
+          dockButtons,
+          settingsSection: querySection,
+        );
+        return;
+      }
+    }
+    final targetApp = activation['application'] as String?;
+    if (targetApp != null && targetApp.isNotEmpty) {
+      _launchOrFocusApp(
+        targetApp,
+        windows,
+        dockButtons,
+        settingsSection: activation['tab'] as String?,
+      );
+    }
+    widget.onActivate({'brainId': widget.brain, ...activation});
+  }
+
   void _launchOrFocusApp(
     String appId,
     List<_ParsedDesktopWindow> windows,
@@ -946,27 +993,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                           load: widget.load,
                           watch: widget.watch,
                           onAction: widget.onAction,
-                          onActivate: (activation) {
-                            if (activation['kind'] == 'os_uri') {
-                              final uriStr = '${activation['uri'] ?? ''}';
-                              final sheet = DesktopSystemModalSheet.parseUri(
-                                uriStr,
-                              );
-                              if (sheet != DesktopSystemSheetKind.none) {
-                                setState(() => _systemSheet = sheet);
-                                return;
-                              }
-                              if (uriStr.contains('settings')) {
-                                _launchOrFocusApp(
-                                  'settings',
-                                  windows,
-                                  dockButtons,
-                                );
-                                return;
-                              }
-                            }
-                            widget.onActivate(activation);
-                          },
+                          onActivate: (activation) => _handleChildActivation(
+                            activation,
+                            windows,
+                            dockButtons,
+                          ),
                           scenes: widget.scenes,
                           entries: widget.entries,
                           localPreferences: widget.localPreferences,
@@ -1105,30 +1136,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                             load: widget.load,
                             watch: widget.watch,
                             onAction: widget.onAction,
-                            onActivate: (activation) {
-                              if (activation['kind'] == 'os_uri') {
-                                final uriStr = '${activation['uri'] ?? ''}';
-                                final sheet = DesktopSystemModalSheet.parseUri(
-                                  uriStr,
-                                );
-                                if (sheet != DesktopSystemSheetKind.none) {
-                                  setState(() => _systemSheet = sheet);
-                                  return;
-                                }
-                                if (uriStr.contains('settings')) {
-                                  _launchOrFocusApp(
-                                    'settings',
-                                    windows,
-                                    dockButtons,
-                                  );
-                                  return;
-                                }
-                              }
-                              widget.onActivate({
-                                'brainId': widget.brain,
-                                ...activation,
-                              });
-                            },
+                            onActivate: (activation) => _handleChildActivation(
+                              activation,
+                              windows,
+                              dockButtons,
+                            ),
                             scenes: widget.scenes,
                             entries: widget.entries,
                             localPreferences: widget.localPreferences,

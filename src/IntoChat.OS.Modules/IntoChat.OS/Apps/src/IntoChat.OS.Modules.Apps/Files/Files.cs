@@ -353,14 +353,15 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
 
     public void Copy(bool move)
     {
-        var selected = Snapshot.Selected ?? throw new InvalidOperationException("Select a file or folder first.");
+        var selected = Snapshot.Selected ?? Snapshot.Breadcrumbs.LastOrDefault() ?? Snapshot.Items.FirstOrDefault() ?? throw new InvalidOperationException("Select a file or folder first.");
+        if (Snapshot.Selected is null) { throw new InvalidOperationException("Select a file or folder first."); }
         Require(selected.Item.Flags, move ? ItemFlags.Move : ItemFlags.Copy, selected.Item.Id);
         Set(Snapshot with { Clipboard = new(selected, move), Message = $"Choose a destination folder, then {(move ? "Move here" : "Copy here")}." });
     }
 
     public string AskIno()
     {
-        var selected = Snapshot.Selected ?? throw new InvalidOperationException("Select a file or folder first.");
+        var selected = Snapshot.Selected ?? Snapshot.Breadcrumbs.LastOrDefault() ?? Snapshot.Items.FirstOrDefault() ?? throw new InvalidOperationException("Select a file or folder first.");
         var uri = Snapshot.SelectedNeuronUri ?? NeuronUriOf(selected);
         var prompt = $"Explain and summarize {selected.Item.Name} ({uri})";
         Set(Snapshot with

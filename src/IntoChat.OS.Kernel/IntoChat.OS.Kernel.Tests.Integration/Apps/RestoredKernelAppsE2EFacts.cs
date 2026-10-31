@@ -92,7 +92,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
         })
         {
             var appNeuron = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/{appName}");
-            await appNeuron.Import(bundle);
+            if (string.IsNullOrWhiteSpace((await appNeuron.Read()).Manifest.Title)) { await appNeuron.Import(bundle); }
             await appNeuron.Request("open", "");
 
             var view = await WaitUntilAsync(

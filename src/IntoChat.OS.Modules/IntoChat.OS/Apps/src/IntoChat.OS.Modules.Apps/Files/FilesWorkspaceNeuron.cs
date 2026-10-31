@@ -103,7 +103,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         ArgumentNullException.ThrowIfNull(input);
         if (requestId == Guid.Empty) { throw new ArgumentException("A request id is required.", nameof(requestId)); }
         if (State.Handled.Contains(requestId)) { return; }
-        if (expectedRevision != State.Files.Revision) { throw new StaleActionException("Files changed. Read the current view before acting."); }
+        if (expectedRevision != State.Files.Revision && operation is not "ask-ino") { throw new StaleActionException("Files changed. Read the current view before acting."); }
         ct.ThrowIfCancellationRequested();
         // This receipt and revision reach durable state before any operation starts; replay cannot become another write.
         await Persist(State with
@@ -157,8 +157,12 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     await Store(app);
                     try
                     {
-                        var ino = Get<IApp>(new(Id.Brain, "os.app", IApp.Key(Id.Brain.Value, "ino")));
-                        await ino.Request("send", prompt);
+                        var enrichedPrompt = !string.IsNullOrWhiteSpace(app.Snapshot.Preview) && !string.Equals(app.Snapshot.Preview, FilesCopy.PreviewUnavailable, StringComparison.Ordinal) ? $"{prompt}\n\n[File Preview]\n{(app.Snapshot.Preview.Length <= 1200 ? app.Snapshot.Preview : app.Snapshot.Preview[..1200])}" : prompt;
+                        var hadCaller = CallerContextStamper.TryGet(out var prevCaller);
+                        if (await HostCaller.ForBrain(Context.Services, Id.Brain.Value) is { } hostCaller) { CallerContextStamper.Stamp(hostCaller); }
+                        try { await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(Context.Services, IApp.Key(Id.Brain.Value, "ino")).Request("send", enrichedPrompt); }
+                        finally { if (hadCaller && prevCaller is not null) { CallerContextStamper.Stamp(prevCaller); } else { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); } }
+
                     }
                     catch (Exception error) when (error is not OperationCanceledException)
                     {

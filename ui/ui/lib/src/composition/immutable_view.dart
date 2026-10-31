@@ -91,6 +91,16 @@ class _ImmutableView extends StatelessWidget {
               'query': const {'app': 'settings', 'section': 'connections'},
             });
           }
+          if ((action == 'ask-ino' || action.endsWith(':ask-ino')) &&
+              onActivate != null) {
+            onActivate!({
+              'kind': 'os_uri',
+              'uri': 'os://window/open?app=ino',
+              'host': 'window',
+              'target': 'open',
+              'query': const {'app': 'ino'},
+            });
+          }
           unawaited(
             dispatch({
               'kind': 'view',
@@ -1013,6 +1023,10 @@ class _ImmutableView extends StatelessWidget {
         }
       case 2:
       case 3:
+        if (const {'ino-workspace', 'ino-main'}.contains(node['key'])) {
+          content = _buildInoChatDesktopView(context, node, children, depth);
+          break;
+        }
         if (node['kind'] == 2 &&
             node['key'] == 'settings' &&
             children.length >= 2 &&
@@ -1648,6 +1662,38 @@ class _ImmutableView extends StatelessWidget {
       }
     }
 
+    final effectiveOnAskIno =
+        onAskIno ??
+        (enabled
+            ? () {
+                final targetName =
+                    selectedName ??
+                    items.where((i) => i.selected).firstOrNull?.name ??
+                    items.firstOrNull?.name ??
+                    activeWhereLabel();
+                final targetUri =
+                    selectedNeuronUri ??
+                    activeNeuronUri ??
+                    'neuron://owner/local-disk.files';
+                final basePrompt =
+                    'Explain and summarize $targetName ($targetUri)';
+                final fullPrompt =
+                    previewText != null && previewText!.trim().isNotEmpty
+                    ? '$basePrompt\n\n[File Preview]\n${previewText!.length <= 1200 ? previewText! : previewText!.substring(0, 1200)}'
+                    : basePrompt;
+                unawaited(_submitToInoComposer(fullPrompt));
+                if (onActivate != null) {
+                  onActivate!({
+                    'kind': 'os_uri',
+                    'uri': 'os://window/open?app=ino',
+                    'host': 'window',
+                    'target': 'open',
+                    'query': const {'app': 'ino'},
+                  });
+                }
+              }
+            : null);
+
     return IcFilesFinderView(
       storages: storages,
       breadcrumbs: breadcrumbs,
@@ -1672,7 +1718,7 @@ class _ImmutableView extends StatelessWidget {
       onDelete: onDelete,
       onPaste: onPaste,
       onWriteFile: onWriteFile,
-      onAskIno: onAskIno,
+      onAskIno: effectiveOnAskIno,
       onOpenSettings: onOpenSettings,
       onConnectGoogleDrive: onConnectGoogleDrive,
       filterFieldWidget: filterFieldWidget,
@@ -1701,6 +1747,318 @@ class _ImmutableView extends StatelessWidget {
       previewNote: previewNote,
       previewImageWidget: previewImageWidget,
       previewAppCard: previewAppCard,
+    );
+  }
+
+  Future<void> _submitToInoComposer(String rawText) async {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty || !enabled) return;
+    final appsIdx = name.indexOf('/apps/');
+    final brainPrefix = appsIdx > 0 ? name.substring(0, appsIdx) : 'owner';
+    final appKey = '$brainPrefix/apps/ino';
+    final composerName = '$appKey/composer';
+    try {
+      await dispatch({
+        'kind': 'composer',
+        'name': composerName,
+        'action': 'edit',
+        'context': appKey,
+        'selectionRevision': 1,
+        'value': trimmed,
+      });
+      await dispatch({
+        'kind': 'composer',
+        'name': composerName,
+        'action': 'submit',
+        'context': appKey,
+        'selectionRevision': 1,
+        'value': trimmed,
+        'operationId': _operationId(),
+      });
+    } catch (_) {}
+  }
+
+  Widget _buildInoChatDesktopView(
+    BuildContext context,
+    Map node,
+    List<Map> children,
+    int depth,
+  ) {
+    Map? sideNode;
+    Map? mainNode;
+    final rootKey = node['key'] as String? ?? '';
+    if (rootKey == 'ino-workspace') {
+      for (final c in children) {
+        final k = c['key'] as String? ?? '';
+        if (k == 'ino-side' || k == 'side') sideNode = c;
+        if (k == 'ino-main' || k == 'root') mainNode = c;
+      }
+    } else {
+      mainNode = node;
+    }
+
+    // 1. Parse sidebar sessions & New Session button
+    VoidCallback? onNewSession;
+    final pinnedSessions = <_InoSessionNavItem>[];
+    final todaySessions = <_InoSessionNavItem>[];
+    var currentGroup = 'Pinned';
+    var activeConversationId = 'main';
+
+    if (sideNode != null) {
+      for (final sc
+          in (sideNode['children'] as List? ?? const []).whereType<Map>()) {
+        final sk = sc['key'] as String? ?? '';
+        if (sc['kind'] == 4 && sk.endsWith('.0')) {
+          for (final sub
+              in (sc['children'] as List? ?? const []).whereType<Map>()) {
+            if (sub['kind'] == 1 && (sub['action'] as String? ?? '') == 'new') {
+              onNewSession = _dispatchButton(context, sub);
+            }
+          }
+        } else if (sc['kind'] == 12) {
+          final divLabel = (sc['text'] as String? ?? '').toUpperCase();
+          currentGroup = divLabel.contains('TODAY') ? 'Today' : 'Pinned';
+        } else if (sc['kind'] == 4) {
+          final meta = _tryParseUiMeta(sc['detail']);
+          if (meta?['_ui'] == 'navitem') {
+            final label =
+                meta!['label'] as String? ?? sc['text'] as String? ?? '';
+            final iconSlug = meta['icon'] as String? ?? 'message-square';
+            final selected = meta['selected'] == true;
+            final badge = meta['badge'] as String?;
+            final scChildren = (sc['children'] as List? ?? const [])
+                .whereType<Map>()
+                .toList();
+            final actChild =
+                _findChildByKeySuffix(scChildren, '.act') ??
+                (scChildren.isNotEmpty ? scChildren.first : null);
+            final navItem = _InoSessionNavItem(
+              key: sk,
+              label: label,
+              icon: uiIcon(iconSlug) ?? LucideIcons.messageSquare,
+              selected: selected,
+              badge: badge,
+              onTap: actChild != null
+                  ? _dispatchButton(context, actChild)
+                  : () => unawaited(_submitToInoComposer('/scenario $sk')),
+            );
+            if (currentGroup == 'Today') {
+              todaySessions.add(navItem);
+            } else {
+              pinnedSessions.add(navItem);
+            }
+          }
+        } else if (sc['kind'] == 9) {
+          final entries = (sc['children'] as List? ?? const [])
+              .whereType<Map>()
+              .toList();
+          if (entries.isNotEmpty) {
+            final ek = entries.first['key'] as String? ?? '';
+            final dot = ek.lastIndexOf('.');
+            if (dot >= 0 && dot + 1 < ek.length) {
+              activeConversationId = ek.substring(dot + 1);
+            }
+          }
+        }
+      }
+    }
+
+    onNewSession ??= enabled
+        ? () => unawaited(_submitToInoComposer('/new'))
+        : null;
+
+    // 2. Parse main conversation header, cards, docked waiting banner, and turns
+    var sessionTitle = 'New chat';
+    var statusText = 'Ready';
+    var isListening = false;
+    String? connectedDb;
+    final parsedCards = <_InoParsedCard>[];
+    final parsedTurns = <_InoParsedTurn>[];
+    VoidCallback? onConfirmWaiting;
+    VoidCallback? onDismissWaiting;
+
+    if (mainNode != null) {
+      final mainChildren = (mainNode['children'] as List? ?? const [])
+          .whereType<Map>()
+          .toList();
+      String? pendingCardKind;
+      String? pendingCardStatus;
+      String? pendingCardTitle;
+      String? pendingCardUri;
+
+      for (var i = 0; i < mainChildren.length; i++) {
+        final mc = mainChildren[i];
+        if (i == 0 && mc['kind'] == 4) {
+          sessionTitle = (mc['text'] as String?)?.isNotEmpty == true
+              ? mc['text'] as String
+              : 'New chat';
+          final hdrChildren = (mc['children'] as List? ?? const [])
+              .whereType<Map>()
+              .toList();
+          if (hdrChildren.isNotEmpty && hdrChildren[0]['kind'] == 3) {
+            for (final pill
+                in (hdrChildren[0]['children'] as List? ?? const [])
+                    .whereType<Map>()) {
+              final pt = pill['text'] as String? ?? '';
+              final pi = pill['icon'] as String? ?? '';
+              if (pt == 'Listening') isListening = true;
+              if (pi == 'database') connectedDb = pt;
+            }
+          }
+          if (hdrChildren.length > 1 && hdrChildren[1]['kind'] == 0) {
+            statusText = hdrChildren[1]['text'] as String? ?? statusText;
+          }
+          continue;
+        }
+
+        if (mc['kind'] == 0) {
+          final rawText = mc['text'] as String? ?? '';
+          final match = RegExp(
+            r'^\[([^:]+):([^\]]+)\]\s+(.+?)\s+\((neuron://[^|\s]+)',
+          ).firstMatch(rawText);
+          if (match != null) {
+            pendingCardKind = match.group(1)!;
+            pendingCardStatus = match.group(2)!;
+            pendingCardTitle = match.group(3)!;
+            pendingCardUri = match.group(4)!;
+          }
+          continue;
+        }
+
+        if (mc['kind'] == 4) {
+          final meta = _tryParseUiMeta(mc['detail']);
+          final uiKind = meta?['_ui'] as String? ?? '';
+          final cardText = mc['text'] as String? ?? '';
+
+          if (uiKind == 'surface' && cardText.startsWith('Waiting on you:')) {
+            final surfaceChildren = (mc['children'] as List? ?? const [])
+                .whereType<Map>()
+                .toList();
+            if (surfaceChildren.isNotEmpty && surfaceChildren[0]['kind'] == 3) {
+              for (final btn
+                  in (surfaceChildren[0]['children'] as List? ?? const [])
+                      .whereType<Map>()) {
+                if (btn['kind'] == 1) {
+                  final bt = btn['text'] as String? ?? '';
+                  if (bt.startsWith('Confirm')) {
+                    onConfirmWaiting = _dispatchButton(context, btn);
+                  } else if (bt.startsWith('Dismiss')) {
+                    onDismissWaiting = _dispatchButton(context, btn);
+                  }
+                }
+              }
+            }
+            continue;
+          }
+
+          if (uiKind == 'surface' &&
+              (meta?['kind'] as String? ?? '') == 'elevated') {
+            final turnChildren = (mc['children'] as List? ?? const [])
+                .whereType<Map>()
+                .toList();
+            var routeHint = meta?['subtitle'] as String? ?? 'agent';
+            String? recalledBadge;
+            if (turnChildren.isNotEmpty && turnChildren[0]['kind'] == 3) {
+              final pills = (turnChildren[0]['children'] as List? ?? const [])
+                  .whereType<Map>()
+                  .toList();
+              if (pills.length > 1) {
+                routeHint = pills[1]['text'] as String? ?? routeHint;
+              }
+              if (pills.length > 2) {
+                recalledBadge = pills[2]['text'] as String?;
+              }
+            }
+            final userMsg = turnChildren.length > 1
+                ? (turnChildren[1]['text'] as String? ?? cardText)
+                : cardText;
+            final replyMsg = turnChildren.length > 2
+                ? (turnChildren[2]['text'] as String? ?? '')
+                : '';
+            parsedTurns.add(
+              _InoParsedTurn(
+                userMessage: userMsg,
+                reply: replyMsg,
+                routeHint: routeHint,
+                recalledBadge: recalledBadge,
+              ),
+            );
+            continue;
+          }
+
+          if (const {
+            'approval',
+            'choice',
+            'draft',
+            'secret',
+            'record',
+            'datatable',
+            'chart',
+            'webbrowser',
+            'neuronRef',
+          }.contains(uiKind)) {
+            final k = pendingCardKind ?? uiKind;
+            final st =
+                pendingCardStatus ??
+                (meta?['state'] as String?) ??
+                (meta?['sent'] == true || meta?['saved'] == true
+                    ? 'approved'
+                    : 'ready');
+            final isWaiting =
+                st.toLowerCase() == 'pending' &&
+                const {
+                  'approval',
+                  'choice',
+                  'draft',
+                  'secret',
+                  'app-install',
+                }.contains(k.toLowerCase());
+            parsedCards.add(
+              _InoParsedCard(
+                key: mc['key'] as String? ?? 'card-$i',
+                kind: k,
+                status: st,
+                title: pendingCardTitle ?? cardText,
+                sourceUri: pendingCardUri,
+                isWaiting: isWaiting,
+                widget: _node(context, mc, depth + 1),
+              ),
+            );
+            pendingCardKind = null;
+            pendingCardStatus = null;
+            pendingCardTitle = null;
+            pendingCardUri = null;
+          }
+        }
+      }
+    }
+
+    return _InoChatDesktopWorkspace(
+      activeConversationId: activeConversationId,
+      sessionTitle: sessionTitle,
+      statusText: statusText,
+      isListening: isListening,
+      connectedDb: connectedDb,
+      pinnedSessions: pinnedSessions,
+      todaySessions: todaySessions,
+      cards: parsedCards,
+      turns: parsedTurns,
+      markdown: markdown,
+      onNewSession: onNewSession,
+      onConfirmWaiting: onConfirmWaiting,
+      onDismissWaiting: onDismissWaiting,
+      onSubmitPrompt: (prompt) => unawaited(_submitToInoComposer(prompt)),
+      onOpenApp: (targetApp) {
+        if (onActivate != null) {
+          onActivate!({
+            'kind': 'os_uri',
+            'uri': 'os://window/open?app=$targetApp',
+            'host': 'window',
+            'target': 'open',
+            'query': {'app': targetApp},
+          });
+        }
+      },
     );
   }
 
@@ -2403,9 +2761,7 @@ class _InteractiveWasmBrowserFrameState
     if (kIsWeb) {
       final base = Uri.base;
       final isLocalOrEmpty =
-          raw.isEmpty ||
-          raw.contains('localhost') ||
-          raw.contains('127.0.0.1');
+          raw.isEmpty || raw.contains('localhost') || raw.contains('127.0.0.1');
       if (isLocalOrEmpty && (base.scheme == 'http' || base.scheme == 'https')) {
         final studioPath = _appId == 'filmcraft'
             ? '/artcraft/filmcraft/index.html'
@@ -2551,6 +2907,1466 @@ class _InteractiveWasmBrowserFrameState
           ),
         );
       },
+    );
+  }
+}
+
+class _InoSessionNavItem {
+  const _InoSessionNavItem({
+    required this.key,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    this.badge,
+    this.onTap,
+  });
+
+  final String key;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final String? badge;
+  final VoidCallback? onTap;
+}
+
+class _InoParsedCard {
+  const _InoParsedCard({
+    required this.key,
+    required this.kind,
+    required this.status,
+    required this.title,
+    required this.isWaiting,
+    required this.widget,
+    this.sourceUri,
+  });
+
+  final String key;
+  final String kind;
+  final String status;
+  final String title;
+  final String? sourceUri;
+  final bool isWaiting;
+  final Widget widget;
+}
+
+class _InoParsedTurn {
+  const _InoParsedTurn({
+    required this.userMessage,
+    required this.reply,
+    required this.routeHint,
+    this.recalledBadge,
+  });
+
+  final String userMessage;
+  final String reply;
+  final String routeHint;
+  final String? recalledBadge;
+
+  (String?, String?) get attachedResource {
+    final match = RegExp(
+      r'Explain and summarize\s+([^\(\n]+?)\s*\((neuron://[^\)\s]+)\)',
+      caseSensitive: false,
+    ).firstMatch(userMessage);
+    if (match != null) {
+      return (match.group(1)!.trim(), match.group(2)!.trim());
+    }
+    final atMatch = RegExp(r'^@([^\s]+)\s+\((neuron://[^\)\s]+)\)')
+        .firstMatch(userMessage);
+    if (atMatch != null) {
+      return (atMatch.group(1)!.trim(), atMatch.group(2)!.trim());
+    }
+    return (null, null);
+  }
+
+  String get cleanUserMessage {
+    final idx = userMessage.indexOf('\n\n[File Preview]\n');
+    return idx >= 0 ? userMessage.substring(0, idx).trim() : userMessage;
+  }
+
+  String? get routedAppId {
+    if (routeHint.startsWith('routed:')) {
+      final rest = routeHint.substring('routed:'.length);
+      final dot = rest.indexOf('.');
+      final app = dot > 0 ? rest.substring(0, dot) : rest;
+      if (const {
+        'photocraft',
+        'filmcraft',
+        'settings',
+        'files',
+      }.contains(app)) {
+        return app;
+      }
+    }
+    return null;
+  }
+
+  String get routedAppLabel => switch (routedAppId) {
+    'photocraft' => 'PhotoCraft Studio',
+    'filmcraft' => 'FilmCraft Studio',
+    'settings' => 'Settings',
+    'files' => 'Files',
+    _ => 'App',
+  };
+}
+
+class _InoResourceSpec {
+  const _InoResourceSpec({
+    required this.name,
+    required this.uri,
+    required this.meta,
+    required this.icon,
+    this.preview,
+  });
+
+  final String name;
+  final String uri;
+  final String meta;
+  final IconData icon;
+  final String? preview;
+}
+
+class _InoChatDesktopWorkspace extends StatefulWidget {
+  const _InoChatDesktopWorkspace({
+    required this.activeConversationId,
+    required this.sessionTitle,
+    required this.statusText,
+    required this.isListening,
+    required this.connectedDb,
+    required this.pinnedSessions,
+    required this.todaySessions,
+    required this.cards,
+    required this.turns,
+    required this.markdown,
+    required this.onSubmitPrompt,
+    required this.onOpenApp,
+    this.onNewSession,
+    this.onConfirmWaiting,
+    this.onDismissWaiting,
+  });
+
+  final String activeConversationId;
+  final String sessionTitle;
+  final String statusText;
+  final bool isListening;
+  final String? connectedDb;
+  final List<_InoSessionNavItem> pinnedSessions;
+  final List<_InoSessionNavItem> todaySessions;
+  final List<_InoParsedCard> cards;
+  final List<_InoParsedTurn> turns;
+  final Widget Function(String) markdown;
+  final ValueChanged<String> onSubmitPrompt;
+  final ValueChanged<String> onOpenApp;
+  final VoidCallback? onNewSession;
+  final VoidCallback? onConfirmWaiting;
+  final VoidCallback? onDismissWaiting;
+
+  @override
+  State<_InoChatDesktopWorkspace> createState() =>
+      _InoChatDesktopWorkspaceState();
+}
+
+class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  bool _sidebarOpen = true;
+  bool _showSlashMenu = false;
+  bool _showResourceMenu = false;
+  _InoResourceSpec? _attachedResource;
+
+  static const List<_InoResourceSpec> _workspaceResources = [
+    _InoResourceSpec(
+      name: 'Nordlys_MSA_v3.pdf',
+      uri: 'neuron://owner/local-disk.files/contracts/nordlys-msa-v3.pdf',
+      meta: 'PDF · 420 KB · Contracts',
+      icon: LucideIcons.fileText,
+      preview: 'Master Services Agreement v3 — Nordlys Enterprise AS.\nRenewal Date: 15 Nov 2026.\nAnnual Contract Value: 480,000 NOK.\nSLA Tier: 99.95% Enterprise Support.',
+    ),
+    _InoResourceSpec(
+      name: 'architecture-notes.md',
+      uri: 'neuron://owner/local-disk.files/architecture-notes.md',
+      meta: 'Markdown · 4.2 KB · Workspace Disk',
+      icon: LucideIcons.fileCode,
+      preview: '# IntoChat OS Architecture\n- DigitalBrain Orleans Silo manages stateful neurons.\n- Cross-app handoffs pass canonical neuron:// URIs.\n- LFP cards settle directly in the conversation stream.',
+    ),
+    _InoResourceSpec(
+      name: 'Q4_Pipeline_Opportunities.csv',
+      uri: 'neuron://owner/local-disk.files/finance/q4-pipeline.csv',
+      meta: 'CSV · 18 KB · Finance',
+      icon: LucideIcons.table,
+      preview: 'Opportunity,Account,Stage,Amount\nHavbris pilot,Havbris AS,Proposal,€240000\nDepot software phase 2,Acme Logistics,Negotiation,€186000\nFjordline renewal,Fjordline,Contract,€96000',
+    ),
+    _InoResourceSpec(
+      name: 'portrait.png',
+      uri: 'neuron://owner/local-disk.files/media/portrait.png',
+      meta: 'PNG · 512×512 · PhotoCraft Ready',
+      icon: LucideIcons.image,
+    ),
+  ];
+
+  static const List<(String cmd, String title, String subtitle, IconData icon)>
+  _slashCommands = [
+    (
+      '/scenario q4-renewal',
+      'Nordlys Q4 Renewal',
+      'Loads waiting ApprovalCard + Email DraftCard',
+      LucideIcons.sparkles,
+    ),
+    (
+      '/scenario morning-brief',
+      'Morning Brief',
+      'Loads daily brief + waiting Circle ChoiceCard',
+      LucideIcons.sun,
+    ),
+    (
+      '/scenario invoice-check',
+      'Tripletex Invoice Check',
+      'Loads zero-leakage Secure Vault SecretCard',
+      LucideIcons.keyRound,
+    ),
+    (
+      'SELECT opportunity, account, stage, amount FROM opportunities',
+      'Visualize Pipeline SQL',
+      'Renders live DataTable + Bar/Pie Chart from Postgres',
+      LucideIcons.chartColumn,
+    ),
+    (
+      '/scenario first-run',
+      'Ino Setup · First Run',
+      'Guided 3-step capability checklist',
+      LucideIcons.compass,
+    ),
+    (
+      '/new',
+      'New Conversation',
+      'Start a clean Ino session',
+      LucideIcons.squarePen,
+    ),
+    (
+      '/clear',
+      'Clear Session',
+      'Clear turns and cards in active session',
+      LucideIcons.trash2,
+    ),
+  ];
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _sendCurrentText([String? overrideText]) {
+    final raw = (overrideText ?? _controller.text).trim();
+    final res = _attachedResource;
+    if (raw.isEmpty && res == null) return;
+
+    String payload;
+    if (res != null) {
+      final promptPart = raw.isEmpty
+          ? 'Explain and summarize ${res.name} (${res.uri})'
+          : 'Explain and summarize ${res.name} (${res.uri}) — $raw';
+      payload = res.preview != null && res.preview!.isNotEmpty
+          ? '$promptPart\n\n[File Preview]\n${res.preview}'
+          : promptPart;
+    } else {
+      payload = raw;
+    }
+
+    setState(() {
+      if (overrideText == null) _controller.clear();
+      _attachedResource = null;
+      _showSlashMenu = false;
+      _showResourceMenu = false;
+    });
+    widget.onSubmitPrompt(payload);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    final waitingCard = widget.cards
+        .where((card) => card.isWaiting)
+        .firstOrNull;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final canShowSidebar = constraints.maxWidth >= 680 && _sidebarOpen;
+        return Container(
+          color: c.surfaceCard,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (canShowSidebar) _buildArcSidebar(c, waitingCard),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildConversationHeader(
+                      c,
+                      waitingCard: waitingCard,
+                      showSidebarToggle: !canShowSidebar,
+                    ),
+                    Expanded(
+                      child: widget.turns.isEmpty && widget.cards.isEmpty
+                          ? _buildEmptyState(c)
+                          : _buildConversationStream(c),
+                    ),
+                    _buildBottomComposer(c, waitingCard),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ---------- 1. Left Session Sidebar (248px) ----------
+
+  Widget _buildArcSidebar(IcColors c, _InoParsedCard? waitingCard) {
+    final presetIds = const {
+      'q4-renewal',
+      'morning-brief',
+      'invoice-check',
+      'first-run',
+    };
+    final isCustomSession = !presetIds.contains(widget.activeConversationId);
+
+    return Container(
+      width: 248,
+      decoration: BoxDecoration(
+        color: c.surfaceSunk,
+        border: Border(right: BorderSide(color: c.borderHairline)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _NewSessionInlineBtn(onTap: widget.onNewSession),
+                ),
+                const SizedBox(width: 6),
+                _IconBtn(
+                  icon: LucideIcons.panelLeftClose,
+                  tooltip: 'Hide sidebar',
+                  onTap: () => setState(() => _sidebarOpen = false),
+                ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              children: [
+                const _SidebarSectionTitle(label: 'Pinned'),
+                for (final item in widget.pinnedSessions)
+                  _SidebarSessionRow(item: item, onTap: item.onTap),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 8,
+                  ),
+                  child: Divider(height: 1, color: c.borderHairline),
+                ),
+                _SidebarSectionTitle(
+                  label: 'Today',
+                  trailingLabel: widget.turns.isNotEmpty ? 'Clear' : null,
+                  onTrailingTap: widget.turns.isNotEmpty
+                      ? () => widget.onSubmitPrompt('/clear')
+                      : null,
+                ),
+                if (isCustomSession)
+                  _SidebarSessionRow(
+                    item: _InoSessionNavItem(
+                      key: widget.activeConversationId,
+                      label: widget.sessionTitle,
+                      icon: widget.sessionTitle.startsWith('File ·')
+                          ? LucideIcons.fileText
+                          : LucideIcons.messageSquare,
+                      selected: true,
+                      badge: waitingCard != null
+                          ? 'Needs you'
+                          : (widget.turns.isNotEmpty
+                                ? '${widget.turns.length}'
+                                : null),
+                    ),
+                    onTap: () {},
+                  ),
+                for (final item in widget.todaySessions)
+                  _SidebarSessionRow(item: item, onTap: item.onTap),
+              ],
+            ),
+          ),
+
+          // Footer status bar
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: c.borderHairline)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: widget.isListening ? c.working : c.done,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.statusText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IcType.text(11.5, color: c.textMuted, tnum: true),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- 2. 52px Conversation Header ----------
+
+  Widget _buildConversationHeader(
+    IcColors c, {
+    required _InoParsedCard? waitingCard,
+    required bool showSidebarToggle,
+  }) {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: c.borderHairline)),
+      ),
+      child: Row(
+        children: [
+          if (showSidebarToggle) ...[
+            _IconBtn(
+              icon: LucideIcons.panelLeft,
+              tooltip: 'Show sidebar',
+              onTap: () => setState(() => _sidebarOpen = true),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Icon(
+            widget.sessionTitle.startsWith('File ·')
+                ? LucideIcons.fileText
+                : LucideIcons.sparkles,
+            size: 15,
+            color: c.accent,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              widget.sessionTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: IcType.text(
+                14,
+                weight: FontWeight.w600,
+                color: c.textStrong,
+              ),
+            ),
+          ),
+          if (waitingCard != null) ...[
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: c.accentTint,
+                borderRadius: BorderRadius.circular(IcRadius.sm),
+                border: Border.all(color: c.accent.withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.hand, size: 12, color: c.accent),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Needs your response',
+                    style: IcType.text(
+                      11.5,
+                      weight: FontWeight.w600,
+                      color: c.accent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (widget.connectedDb != null) ...[
+            const SizedBox(width: 8),
+            TagPill(
+              label: widget.connectedDb!,
+              tone: TagTone.accent,
+              icon: LucideIcons.database,
+            ),
+          ],
+          const Spacer(),
+          _IconBtn(
+            icon: LucideIcons.pin,
+            tooltip: 'Pin session',
+            onTap: () => widget.onSubmitPrompt('/pin'),
+          ),
+          const SizedBox(width: 4),
+          _IconBtn(
+            icon: LucideIcons.plus,
+            tooltip: 'New session',
+            onTap: widget.onNewSession,
+          ),
+          const SizedBox(width: 4),
+          _IconBtn(
+            icon: LucideIcons.slidersHorizontal,
+            tooltip: 'AI & Model Settings',
+            onTap: () => widget.onOpenApp('settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- 3. Empty State ("What can I do for you?") ----------
+
+  Widget _buildEmptyState(IcColors c) {
+    final suggestions = [
+      (
+        title: 'Nordlys Q4 Renewal · Waiting Approval',
+        subtitle: 'Review Salesforce close date & Kari Holm email draft',
+        prompt: '/scenario q4-renewal',
+        icon: LucideIcons.hand,
+      ),
+      (
+        title: 'Visualize Pipeline Opportunities',
+        subtitle: 'Query PostgreSQL and render interactive Table + Chart',
+        prompt: 'SELECT opportunity, account, stage, amount FROM opportunities',
+        icon: LucideIcons.chartColumn,
+      ),
+      (
+        title: 'Ask Ino about Nordlys_MSA_v3.pdf',
+        subtitle: 'Attach contract from Files and extract key renewal terms',
+        prompt: 'Explain and summarize Nordlys_MSA_v3.pdf (neuron://owner/local-disk.files/contracts/nordlys-msa-v3.pdf)\n\n[File Preview]\nMaster Services Agreement v3 — Nordlys Enterprise AS.\nRenewal Date: 15 Nov 2026.\nAnnual Contract Value: 480,000 NOK.',
+        icon: LucideIcons.fileText,
+      ),
+      (
+        title: 'Remove Background in PhotoCraft',
+        subtitle: 'Run layer.removeBackground and open WASM Studio',
+        prompt: 'Remove background from portrait.png',
+        icon: LucideIcons.image,
+      ),
+    ];
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: c.accentTint,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: c.accent.withValues(alpha: 0.25)),
+                ),
+                child: Icon(LucideIcons.sparkles, size: 22, color: c.accent),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'What can I do for you?',
+                style: IcType.text(
+                  20,
+                  weight: FontWeight.w600,
+                  color: c.textStrong,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Chat with your local model, @attach a file from Files, query Postgres tables & charts, or respond to notifications in chat.',
+                textAlign: TextAlign.center,
+                style: IcType.text(13, color: c.textMuted, height: 1.4),
+              ),
+              const SizedBox(height: 22),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final s in suggestions)
+                    SizedBox(
+                      width: 295,
+                      child: _SuggestionPromptCard(
+                        icon: s.icon,
+                        title: s.title,
+                        subtitle: s.subtitle,
+                        onTap: () => widget.onSubmitPrompt(s.prompt),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------- 4. Unified Conversation Stream (Messages + Inline Apps & Cards) ----------
+
+  Widget _buildConversationStream(IcColors c) {
+    final hasTurns = widget.turns.isNotEmpty;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 20),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 18,
+              children: [
+                for (var i = 0; i < widget.turns.length; i++) ...[
+                  _buildUserTurnBubble(c, widget.turns[i]),
+                  _buildAssistantTurnBlock(
+                    c,
+                    widget.turns[i],
+                    inlineCards: i == widget.turns.length - 1
+                        ? widget.cards
+                        : const <_InoParsedCard>[],
+                  ),
+                ],
+                if (!hasTurns)
+                  for (final card in widget.cards)
+                    _buildInlineCardMessage(c, card),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInlineCardMessage(IcColors c, _InoParsedCard card) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          margin: const EdgeInsets.only(top: 2),
+          decoration: BoxDecoration(
+            color: c.accentTint,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: c.accent.withValues(alpha: 0.25)),
+          ),
+          child: Icon(LucideIcons.sparkles, size: 13, color: c.accent),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: card.widget),
+      ],
+    );
+  }
+
+  Widget _buildUserTurnBubble(IcColors c, _InoParsedTurn turn) {
+    final (resName, resUri) = turn.attachedResource;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 540),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (resName != null && resUri != null) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: c.surfaceSunk,
+                  borderRadius: BorderRadius.circular(IcRadius.sm),
+                  border: Border.all(color: c.borderInput),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.fileText, size: 13, color: c.accent),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        resName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: IcType.text(
+                          12,
+                          weight: FontWeight.w600,
+                          color: c.textStrong,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        resUri,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: IcType.mono(10.5, color: c.textMuted),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: c.accentTint,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: c.accent.withValues(alpha: 0.25)),
+              ),
+              child: SelectableText(
+                turn.cleanUserMessage,
+                style: IcType.text(13.5, color: c.textStrong, height: 1.45),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssistantTurnBlock(
+    IcColors c,
+    _InoParsedTurn turn, {
+    List<_InoParsedCard> inlineCards = const [],
+  }) {
+    final targetApp = turn.routedAppId;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          margin: const EdgeInsets.only(top: 2),
+          decoration: BoxDecoration(
+            color: c.accentTint,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: c.accent.withValues(alpha: 0.25)),
+          ),
+          child: Icon(LucideIcons.sparkles, size: 13, color: c.accent),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              widget.markdown(turn.reply),
+              if (inlineCards.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (var i = 0; i < inlineCards.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 12),
+                  inlineCards[i].widget,
+                ],
+              ],
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    turn.routeHint,
+                    style: IcType.mono(11, color: c.textMuted),
+                  ),
+                  if (turn.recalledBadge != null &&
+                      turn.recalledBadge!.isNotEmpty)
+                    TagPill(
+                      label: turn.recalledBadge!,
+                      tone: TagTone.done,
+                      icon: LucideIcons.brain,
+                    ),
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: turn.reply));
+                      showKitToast(context, 'Copied reply');
+                    },
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Icon(
+                        LucideIcons.copy,
+                        size: 12,
+                        color: c.textMuted,
+                      ),
+                    ),
+                  ),
+                  if (targetApp != null)
+                    Btn(
+                      label: 'Open ${turn.routedAppLabel}',
+                      icon: LucideIcons.externalLink,
+                      small: true,
+                      onTap: () => widget.onOpenApp(targetApp),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------- 6. Interactive Bottom Composer (@Resource + /Slash + Input) ----------
+
+  Widget _buildBottomComposer(IcColors c, _InoParsedCard? waitingCard) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_showResourceMenu) _buildResourcePickerPopover(c),
+              if (_showSlashMenu) _buildSlashPickerPopover(c),
+              if (_attachedResource != null) _buildAttachedResourceBar(c),
+              Container(
+                padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+                decoration: BoxDecoration(
+                  color: c.surfaceSunk,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: c.borderInput),
+                ),
+                child: Row(
+                  children: [
+                    _IconBtn(
+                      icon: LucideIcons.atSign,
+                      tooltip: 'Attach file or resource (@)',
+                      active: _showResourceMenu || _attachedResource != null,
+                      onTap: () => setState(() {
+                        _showResourceMenu = !_showResourceMenu;
+                        _showSlashMenu = false;
+                      }),
+                    ),
+                    const SizedBox(width: 4),
+                    _IconBtn(
+                      icon: LucideIcons.slash,
+                      tooltip: 'Scenarios & commands (/)',
+                      active: _showSlashMenu,
+                      onTap: () => setState(() {
+                        _showSlashMenu = !_showSlashMenu;
+                        _showResourceMenu = false;
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: KeyboardListener(
+                        focusNode: FocusNode(),
+                        onKeyEvent: (event) {
+                          if (event is KeyDownEvent &&
+                              event.logicalKey == LogicalKeyboardKey.enter &&
+                              !HardwareKeyboard.instance.isShiftPressed) {
+                            if (_controller.text.trim().isEmpty &&
+                                _attachedResource == null &&
+                                waitingCard != null &&
+                                widget.onConfirmWaiting != null) {
+                              widget.onConfirmWaiting!();
+                            }
+                          } else if (event is KeyDownEvent &&
+                              event.logicalKey == LogicalKeyboardKey.escape &&
+                              waitingCard != null &&
+                              widget.onDismissWaiting != null) {
+                            widget.onDismissWaiting!();
+                          }
+                        },
+                        child: TextField(
+                          key: const ValueKey('ino-composer-input'),
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _sendCurrentText(),
+                          onChanged: (val) {
+                            if (val == '/') {
+                              setState(() {
+                                _showSlashMenu = true;
+                                _showResourceMenu = false;
+                              });
+                            } else if (val == '@') {
+                              setState(() {
+                                _showResourceMenu = true;
+                                _showSlashMenu = false;
+                              });
+                            }
+                          },
+                          style: IcType.text(13.5, color: c.textStrong),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            hintText: _attachedResource != null
+                                ? 'Ask Ino about ${_attachedResource!.name}, or pick a verb above…'
+                                : 'Message Ino, @attach a file, or /scenario…',
+                            hintStyle: IcType.text(13.5, color: c.textMuted),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      key: const ValueKey('ino-composer-send'),
+                      onTap: _sendCurrentText,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: c.accent,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Icon(
+                            LucideIcons.arrowUp,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttachedResourceBar(IcColors c) {
+    final res = _attachedResource!;
+    final verbs = [
+      ('Summarise', 'Summarise key points and action items'),
+      ('Explain', 'Explain the structure and context'),
+      ('Extract table', 'Extract structured rows as a table'),
+      ('Draft reply', 'Draft a stakeholder reply referencing this file'),
+    ];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: c.surfaceSunk,
+        borderRadius: BorderRadius.circular(IcRadius.card),
+        border: Border.all(color: c.accent.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(res.icon, size: 15, color: c.accent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      res.name,
+                      style: IcType.text(
+                        12.5,
+                        weight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
+                    ),
+                    Text(
+                      '${res.meta} · ${res.uri}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IcType.mono(11, color: c.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              _IconBtn(
+                icon: LucideIcons.x,
+                tooltip: 'Detach resource',
+                onTap: () => setState(() => _attachedResource = null),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final (label, instruction) in verbs)
+                Btn(
+                  label: label,
+                  icon: LucideIcons.sparkles,
+                  small: true,
+                  onTap: () => _sendCurrentText(instruction),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResourcePickerPopover(IcColors c) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: BorderRadius.circular(IcRadius.card),
+        border: Border.all(color: c.borderInput),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+            child: Row(
+              children: [
+                Icon(LucideIcons.folderSearch, size: 13, color: c.accent),
+                const SizedBox(width: 6),
+                Text(
+                  'Attach Workspace Resource (neuron://)',
+                  style: IcType.text(
+                    11.5,
+                    weight: FontWeight.w600,
+                    color: c.textMuted,
+                  ),
+                ),
+                const Spacer(),
+                Btn(
+                  label: 'Browse in Files',
+                  icon: LucideIcons.externalLink,
+                  small: true,
+                  onTap: () {
+                    setState(() => _showResourceMenu = false);
+                    widget.onOpenApp('files');
+                  },
+                ),
+              ],
+            ),
+          ),
+          for (final res in _workspaceResources)
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _attachedResource = res;
+                  _showResourceMenu = false;
+                  if (_controller.text == '@') _controller.clear();
+                });
+                _focusNode.requestFocus();
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(IcRadius.sm),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(res.icon, size: 14, color: c.accent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          res.name,
+                          style: IcType.text(
+                            12.5,
+                            weight: FontWeight.w600,
+                            color: c.textStrong,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        res.meta,
+                        style: IcType.text(11.5, color: c.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSlashPickerPopover(IcColors c) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: BorderRadius.circular(IcRadius.card),
+        border: Border.all(color: c.borderInput),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+            child: Text(
+              'Scenarios & Slash Commands',
+              style: IcType.text(
+                11.5,
+                weight: FontWeight.w600,
+                color: c.textMuted,
+              ),
+            ),
+          ),
+          for (final (cmd, title, sub, icon) in _slashCommands)
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _showSlashMenu = false;
+                  if (_controller.text == '/') _controller.clear();
+                });
+                widget.onSubmitPrompt(cmd);
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 14, color: c.accent),
+                      const SizedBox(width: 8),
+                      Text(
+                        title,
+                        style: IcType.text(
+                          12.5,
+                          weight: FontWeight.w600,
+                          color: c.textStrong,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          sub,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: IcType.text(11.5, color: c.textMuted),
+                        ),
+                      ),
+                      Text(cmd, style: IcType.mono(10.5, color: c.textMuted)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconBtn extends StatelessWidget {
+  const _IconBtn({
+    required this.icon,
+    required this.tooltip,
+    this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: onTap != null
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: active ? c.accentTint : Colors.transparent,
+              borderRadius: BorderRadius.circular(IcRadius.xs),
+            ),
+            child: Icon(icon, size: 14, color: active ? c.accent : c.textMuted),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarSectionTitle extends StatelessWidget {
+  const _SidebarSectionTitle({
+    required this.label,
+    this.trailingLabel,
+    this.onTrailingTap,
+  });
+
+  final String label;
+  final String? trailingLabel;
+  final VoidCallback? onTrailingTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: IcType.text(11, weight: FontWeight.w600, color: c.textMuted),
+          ),
+          const Spacer(),
+          if (trailingLabel != null && onTrailingTap != null)
+            GestureDetector(
+              onTap: onTrailingTap,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Text(
+                  trailingLabel!,
+                  style: IcType.text(11, color: c.textMuted),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSessionRow extends StatelessWidget {
+  const _SidebarSessionRow({required this.item, this.onTap});
+
+  final _InoSessionNavItem item;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    final isWaitingBadge = item.badge == 'Needs you';
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          height: 32,
+          margin: const EdgeInsets.symmetric(vertical: 1),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: item.selected ? c.surfaceElevated : Colors.transparent,
+            borderRadius: BorderRadius.circular(IcRadius.sm),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                item.icon,
+                size: 13.5,
+                color: item.selected ? c.accent : c.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IcType.text(
+                    12.5,
+                    weight: item.selected ? FontWeight.w600 : FontWeight.w400,
+                    color: item.selected ? c.textStrong : c.textBody,
+                  ),
+                ),
+              ),
+              if (isWaitingBadge)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.accentTint,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.hand, size: 10.5, color: c.accent),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Wait',
+                        style: IcType.text(
+                          10,
+                          weight: FontWeight.w600,
+                          color: c.accent,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (item.badge != null && item.badge!.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.surfaceCard,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: c.borderHairline),
+                  ),
+                  child: Text(
+                    item.badge!,
+                    style: IcType.text(
+                      10,
+                      weight: FontWeight.w600,
+                      color: c.textMuted,
+                      tnum: true,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewSessionInlineBtn extends StatelessWidget {
+  const _NewSessionInlineBtn({this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Icon(LucideIcons.plus, size: 13.5, color: c.textMuted),
+              const SizedBox(width: 8),
+              Text(
+                'New session',
+                style: IcType.text(
+                  12.5,
+                  weight: FontWeight.w500,
+                  color: c.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionPromptCard extends StatelessWidget {
+  const _SuggestionPromptCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: c.surfaceSunk,
+            borderRadius: BorderRadius.circular(IcRadius.card),
+            border: Border.all(color: c.borderHairline),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: c.accentTint,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 14, color: c.accent),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IcType.text(
+                        12.5,
+                        weight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: IcType.text(11.5, color: c.textMuted, height: 1.3),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

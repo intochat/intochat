@@ -48,8 +48,8 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
         : widget.part.uri;
     if (kIsWeb) {
       final base = Uri.base;
-      final lower =
-          '${widget.part.name} ${widget.part.title} $url'.toLowerCase();
+      final lower = '${widget.part.name} ${widget.part.title} $url'
+          .toLowerCase();
       final isFilm =
           lower.contains('filmcraft') ||
           lower.contains('videocraft') ||

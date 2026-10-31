@@ -76,7 +76,7 @@ internal static class FilesScreen
             selected is not null
                 ? Ui.CopyButton("copy-display-path", FilesCopy.CopyDisplayPath, DisplayPath(state, selected))
                 : Button("copy-display-path", FilesCopy.CopyDisplayPath, "copy-display-path", false, UiStyle.Ghost),
-            Button("ask-ino-toolbar", FilesCopy.AskInoAboutFile, "ask-ino", one, UiStyle.Primary, icon: "sparkles"),
+            Button("ask-ino-toolbar", FilesCopy.AskInoAboutFile, "ask-ino", one || state.Connection is not null || state.Items.Length > 0, UiStyle.Primary, icon: "sparkles"),
             Button("download", FilesCopy.Download, "download", file && selected!.Item.Flags.HasFlag(ItemFlags.Read), UiStyle.Link, icon: "download"),
             Button("delete", FilesCopy.Delete, "delete", one && selected!.Item.Flags.HasFlag(ItemFlags.Trash), UiStyle.Danger, icon: "trash-2"),
         ]);
