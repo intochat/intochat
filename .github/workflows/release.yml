@@ -100,7 +100,7 @@ jobs:
             -p:PublishProfile=Container \
             -p:EnableSdkContainerSupport=true \
             -p:CodeGraphRefresh=false \
-            "-p:ContainerImageTags=\"${VERSION};latest\""
+            -p:ContainerImageTags="${VERSION}%3Blatest"
 
       - name: Publish UI image
         env:
@@ -117,12 +117,15 @@ jobs:
         with:
           repository: intochat/modules
           path: modules
+          token: ${{ secrets.DEPLOYMENT_VALUES_TOKEN || github.token }}
 
       # Built from the same commit as the kernel, so its contracts match the brains that run its sessions.
       - name: Publish sandbox image
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          mkdir -p modules/.nuget-local
+          cp ../nuget/*.nupkg artifacts/*.nupkg modules/.nuget-local/
           docker build -f modules/src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
             -t ghcr.io/intochat/os-sandbox:${VERSION} \
             -t ghcr.io/intochat/os-sandbox:latest modules

@@ -933,6 +933,20 @@ internal sealed partial class AppNeuron(
         next.Presentation = null;
     }
 
+    public async Task<AppSnapshot> SaveRuntimeState(string stateJson, long expectedRevision)
+    {
+        ArgumentNullException.ThrowIfNull(stateJson);
+        if (expectedRevision < Snapshot.RuntimeStateRevision)
+        {
+            return Describe(Snapshot);
+        }
+        var next = Snapshot.Clone();
+        next.RuntimeStateJson = stateJson;
+        next.RuntimeStateRevision = expectedRevision + 1;
+        await Save(next, new AppChanged(Name(), next.Version, next.Status));
+        return Describe(next);
+    }
+
     private Task Persist(AppState next)
         => next.ProgramRevision == Snapshot.ProgramRevision
             ? Save(next, new AppChanged(Name(), next.Version, next.Status))
@@ -957,6 +971,8 @@ internal sealed partial class AppNeuron(
         state.Installation,
         state.Presentation,
         state.ProgramRevision,
-        state.MigrationTarget);
+        state.MigrationTarget,
+        state.RuntimeStateJson,
+        state.RuntimeStateRevision);
 }
 

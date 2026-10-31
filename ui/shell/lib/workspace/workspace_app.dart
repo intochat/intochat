@@ -392,20 +392,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         if (receiver == null) {
           throw StateError('This root has no navigation receiver.');
         }
-        if (app case final String targetApp) {
-          if (action['operation'] case final String operation) {
-            unawaited(
-              client
-                  .requestApp(
-                    brain,
-                    targetApp,
-                    operation,
-                    action['input'] as String? ?? '',
-                  )
-                  .catchError((Object _) => ''),
-            );
-          }
-        }
         await client.requestApp(
           brain,
           receiver,

@@ -25,4 +25,6 @@ public sealed record AppSnapshot(
     AppInstallReceipt? Installation = null,
     AppPresentation? Presentation = null,
     long ProgramRevision = 0,
-    string? MigrationTarget = null);
+    string? MigrationTarget = null,
+    string? RuntimeStateJson = null,
+    long RuntimeStateRevision = 0);

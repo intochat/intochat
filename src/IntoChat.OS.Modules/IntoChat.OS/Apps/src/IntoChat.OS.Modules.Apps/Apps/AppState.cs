@@ -55,6 +55,8 @@ public sealed class AppState
     [Id(38)] public StringEntry[] FileEntries { get; set; } = [];
     [Id(39)] public StringEntry[] SettingEntries { get; set; } = [];
     [Id(40)] public StringEntry[] ConnectionEntries { get; set; } = [];
+    [Id(41)] public string? RuntimeStateJson { get; set; }
+    [Id(42)] public long RuntimeStateRevision { get; set; }
 
     // The maps as callers read and replace them. Each read is a copy: change a map by assigning a new one.
     [IgnoreDataMember]
@@ -127,6 +129,8 @@ public sealed class AppState
         MigrationSource = MigrationSource,
         MigrationTarget = MigrationTarget,
         MigrationRequests = [.. MigrationRequests],
+        RuntimeStateJson = RuntimeStateJson,
+        RuntimeStateRevision = RuntimeStateRevision,
     };
 }
 

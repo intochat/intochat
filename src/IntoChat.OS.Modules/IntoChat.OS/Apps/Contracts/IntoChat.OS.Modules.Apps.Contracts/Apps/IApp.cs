@@ -9,6 +9,7 @@ namespace IntoChat.OS.Modules.Apps;
 public interface IApp
 {
     [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<AppSnapshot> Read();
+    Task<AppSnapshot> SaveRuntimeState(string stateJson, long expectedRevision);
     Task<AppSnapshot> Present(long expectedProgramRevision, Presentation presentation);
     Task<AppSnapshot> FailPresentation(long expectedProgramRevision, string error);
     Task<AppSnapshot> WriteBlackboard(long expectedProgramRevision, Dictionary<string, string> values);

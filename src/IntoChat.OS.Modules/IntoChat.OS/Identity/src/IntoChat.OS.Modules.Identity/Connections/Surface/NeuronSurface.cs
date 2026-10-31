@@ -134,9 +134,32 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
             .ToDictionary(entry => entry.Name, StringComparer.Ordinal);
 
     private BrainType Entry(IReadOnlyDictionary<string, BrainType> neurons, string name)
-        => !Allowed(name) ? throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list.")
-            : neurons.TryGetValue(name, out var entry) ? entry
-            : throw new ArgumentException($"{name} is not a neuron type of this brain. Pass the full type name from neurons_list.");
+    {
+        if (neurons.TryGetValue(name, out var exact))
+        {
+            if (!Allowed(exact.Name)) { throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list."); }
+            return exact;
+        }
+
+        var match = neurons.Values.FirstOrDefault(entry =>
+            string.Equals(entry.Alias, name, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase) ||
+            entry.Name.EndsWith("." + name, StringComparison.OrdinalIgnoreCase) ||
+            (entry.Name.StartsWith("I", StringComparison.Ordinal) && entry.Name[1..].Equals(name, StringComparison.OrdinalIgnoreCase)));
+
+        if (match is not null)
+        {
+            if (!Allowed(match.Name)) { throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list."); }
+            return match;
+        }
+
+        throw new ArgumentException($"{name} is not a neuron type of this brain. Pass the contract alias or full type name.");
+    }
+
+
+
+
+
 
     private async Task<Type> Contract(string name, CancellationToken ct)
         => LoadedContracts.Find(Entry(await Neurons(ct).ConfigureAwait(false), name).Name);
