@@ -29,6 +29,8 @@ public sealed class BrainScene : DigitalBrain.App
     public const string SceneName = "graph";
     public const double ZoomCap = 4;
     public const double ZoomStep = 1.5;
+    public const int MaxTrailSteps = 10;
+    public const string GoldTrailColor = "#FFB800";
     private const double Radius = 240;
     private const int MaxNeurons = 1024;
 
@@ -56,12 +58,41 @@ public sealed class BrainScene : DigitalBrain.App
 
     public static double NextZoom(double zoom) => Math.Min(ZoomCap, (zoom <= 0 ? 1 : zoom) * ZoomStep);
 
+    public static double TrailOpacity(int step)
+        => step < 0 || step >= MaxTrailSteps
+            ? 0.0
+            : Math.Max(0.0, Math.Round(1.0 - (step * 0.10), 2));
+
     // Neurons sit on a circle. A synapse is a path between the two. A delivery adds a repeating particle along that path.
     public static SceneDefinition Compose(
         IReadOnlyList<BrainInstance> neurons,
         IReadOnlyList<ObservedSynapse> synapses,
         SignalDelivery? live,
         double zoom)
+        => ComposeCore(
+            neurons,
+            synapses,
+            live is null ? [] : [live],
+            zoom,
+            useGoldTrail: false);
+
+    // 10-step gold trail: newest delivery at index 0 (100% opacity) fading by 10% per step down to step 9 (10% opacity).
+    public static SceneDefinition ComposeTrail(
+        IReadOnlyList<BrainInstance> neurons,
+        IReadOnlyList<ObservedSynapse> synapses,
+        IReadOnlyList<SignalDelivery> trail,
+        double zoom)
+    {
+        ArgumentNullException.ThrowIfNull(trail);
+        return ComposeCore(neurons, synapses, trail, zoom, useGoldTrail: true);
+    }
+
+    private static SceneDefinition ComposeCore(
+        IReadOnlyList<BrainInstance> neurons,
+        IReadOnlyList<ObservedSynapse> synapses,
+        IReadOnlyList<SignalDelivery> trail,
+        double zoom,
+        bool useGoldTrail)
     {
         ArgumentNullException.ThrowIfNull(neurons);
         ArgumentNullException.ThrowIfNull(synapses);
@@ -107,12 +138,35 @@ public sealed class BrainScene : DigitalBrain.App
                 ["tap"]));
         }
         var edge = 0;
+        var activeSteps = Math.Min(trail.Count, MaxTrailSteps);
         foreach (var synapse in synapses.OrderBy(row => row.From, StringComparer.Ordinal).ThenBy(row => row.To, StringComparer.Ordinal).ThenBy(row => row.Signal, StringComparer.Ordinal))
         {
             if (!at.TryGetValue(synapse.From, out var from) || !at.TryGetValue(synapse.To, out var to)) { continue; }
             if (nodes.Count >= FlameVocabulary.MaxNodes - 1) { break; }
-            var lit = live is not null
-                && live.From == synapse.From && live.To == synapse.To && live.Signal == synapse.Signal;
+            var matchedStep = -1;
+            for (var step = 0; step < activeSteps; step++)
+            {
+                var item = trail[step];
+                if (item.From == synapse.From && item.To == synapse.To && item.Signal == synapse.Signal)
+                {
+                    matchedStep = step;
+                    break;
+                }
+            }
+
+            var lit = matchedStep >= 0;
+            var parameters = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["count"] = "12",
+                ["speed"] = "0.6",
+                ["color"] = useGoldTrail ? GoldTrailColor : "#5EEAD4",
+            };
+            if (useGoldTrail && lit)
+            {
+                parameters["step"] = matchedStep.ToString(CultureInfo.InvariantCulture);
+                parameters["opacity"] = TrailOpacity(matchedStep).ToString("0.0#", CultureInfo.InvariantCulture);
+            }
+
             SceneNode[] children = lit
                 ?
                 [
@@ -121,12 +175,7 @@ public sealed class BrainScene : DigitalBrain.App
                         "particles",
                         new Transform(from.X, from.Y),
                         null,
-                        new Dictionary<string, string>(StringComparer.Ordinal)
-                        {
-                            ["count"] = "12",
-                            ["speed"] = "0.6",
-                            ["color"] = "#5EEAD4",
-                        },
+                        parameters,
                         [],
                         [
                             new Tween("x", from.X, to.X, 900, "linear", true),
@@ -135,15 +184,23 @@ public sealed class BrainScene : DigitalBrain.App
                         []),
                 ]
                 : [];
+            var pathParameters = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["d"] = string.Create(CultureInfo.InvariantCulture, $"M {from.X:0.###} {from.Y:0.###} L {to.X:0.###} {to.Y:0.###}"),
+            };
+            if (useGoldTrail && lit)
+            {
+                pathParameters["color"] = GoldTrailColor;
+                pathParameters["step"] = matchedStep.ToString(CultureInfo.InvariantCulture);
+                pathParameters["opacity"] = TrailOpacity(matchedStep).ToString("0.0#", CultureInfo.InvariantCulture);
+            }
+
             nodes.Add(new SceneNode(
                 "e" + edge.ToString(CultureInfo.InvariantCulture),
                 "path",
                 new Transform(),
                 null,
-                new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["d"] = string.Create(CultureInfo.InvariantCulture, $"M {from.X:0.###} {from.Y:0.###} L {to.X:0.###} {to.Y:0.###}"),
-                },
+                pathParameters,
                 children,
                 [],
                 []));
@@ -172,3 +229,10 @@ public sealed class BrainScene : DigitalBrain.App
 
 [DigitalBrain.Signal("apps.brain-opened")]
 public sealed record BrainSceneOpen : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("apps.synaptic-pulse")]
+public sealed record SynapticPulse(
+    string SourceId,
+    string TargetId,
+    string SignalName,
+    DateTimeOffset Timestamp) : DigitalBrain.Signal;

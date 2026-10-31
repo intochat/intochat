@@ -13,7 +13,17 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neuron<UserSettingsState>,
             Theme = string.IsNullOrWhiteSpace(theme) ? State.Theme : theme.Trim(),
             DefaultModel = string.IsNullOrWhiteSpace(defaultModel) ? State.DefaultModel : defaultModel.Trim(),
         };
-        await Save(next, new UserSettingsChanged(next.DisplayName, next.Theme, next.DefaultModel, next.StylePreset, next.BarLayout));
+        await Save(next, new UserSettingsChanged(
+            next.DisplayName,
+            next.Theme,
+            next.DefaultModel,
+            next.StylePreset,
+            next.BarLayout,
+            next.ThemeMode,
+            next.DesktopTone,
+            next.Language,
+            next.TimeZone,
+            next.DateFormat));
         return next;
     }
 
@@ -24,7 +34,46 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neuron<UserSettingsState>,
             StylePreset = string.IsNullOrWhiteSpace(stylePreset) ? State.StylePreset : stylePreset.Trim(),
             BarLayout = string.IsNullOrWhiteSpace(barLayout) ? State.BarLayout : barLayout.Trim(),
         };
-        await Save(next, new UserSettingsChanged(next.DisplayName, next.Theme, next.DefaultModel, next.StylePreset, next.BarLayout));
+        await Save(next, new UserSettingsChanged(
+            next.DisplayName,
+            next.Theme,
+            next.DefaultModel,
+            next.StylePreset,
+            next.BarLayout,
+            next.ThemeMode,
+            next.DesktopTone,
+            next.Language,
+            next.TimeZone,
+            next.DateFormat));
+        return next;
+    }
+
+    public async Task<UserSettingsState> SetPreferences(
+        string? themeMode = null,
+        string? desktopTone = null,
+        string? language = null,
+        string? timeZone = null,
+        string? dateFormat = null)
+    {
+        var next = State with
+        {
+            ThemeMode = string.IsNullOrWhiteSpace(themeMode) ? State.ThemeMode : themeMode.Trim(),
+            DesktopTone = string.IsNullOrWhiteSpace(desktopTone) ? State.DesktopTone : desktopTone.Trim(),
+            Language = string.IsNullOrWhiteSpace(language) ? State.Language : language.Trim(),
+            TimeZone = string.IsNullOrWhiteSpace(timeZone) ? State.TimeZone : timeZone.Trim(),
+            DateFormat = string.IsNullOrWhiteSpace(dateFormat) ? State.DateFormat : dateFormat.Trim(),
+        };
+        await Save(next, new UserSettingsChanged(
+            next.DisplayName,
+            next.Theme,
+            next.DefaultModel,
+            next.StylePreset,
+            next.BarLayout,
+            next.ThemeMode,
+            next.DesktopTone,
+            next.Language,
+            next.TimeZone,
+            next.DateFormat));
         return next;
     }
 
@@ -45,7 +94,17 @@ public sealed class UserSettingsNeuron : DigitalBrain.Neuron<UserSettingsState>,
         }
 
         var next = State with { Variables = [.. variables] };
-        await Save(next, new UserSettingsChanged(next.DisplayName, next.Theme, next.DefaultModel, next.StylePreset, next.BarLayout));
+        await Save(next, new UserSettingsChanged(
+            next.DisplayName,
+            next.Theme,
+            next.DefaultModel,
+            next.StylePreset,
+            next.BarLayout,
+            next.ThemeMode,
+            next.DesktopTone,
+            next.Language,
+            next.TimeZone,
+            next.DateFormat));
         return next;
     }
 }

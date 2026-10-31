@@ -92,15 +92,21 @@ internal sealed class BrainSceneHost(
         {
             CallerContextStamper.Stamp(caller);
             var observer = services.GetRequiredService<IBrainObserver>();
+            var trail = new List<SignalDelivery>(BrainScene.MaxTrailSteps);
             await foreach (var delivery in observer.Deliveries(CancellationToken.None))
             {
                 CallerContextStamper.Stamp(caller);
+                trail.Insert(0, delivery);
+                if (trail.Count > BrainScene.MaxTrailSteps)
+                {
+                    trail.RemoveRange(BrainScene.MaxTrailSteps, trail.Count - BrainScene.MaxTrailSteps);
+                }
                 var neurons = new List<BrainInstance>();
                 await foreach (var instance in observer.Instances(null, CancellationToken.None)) { neurons.Add(instance); }
                 var synapses = await observer.Synapses(CancellationToken.None);
                 var scene = SiloNeurons.Get<IScene>(services, IScene.Key(brain, "brain", BrainScene.SceneName));
                 var zoom = (await scene.Read()).Definition.Camera.Zoom;
-                await SetAsync(brain, caller, BrainScene.Compose(neurons, synapses, delivery, zoom), CancellationToken.None);
+                await SetAsync(brain, caller, BrainScene.ComposeTrail(neurons, synapses, trail, zoom), CancellationToken.None);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)

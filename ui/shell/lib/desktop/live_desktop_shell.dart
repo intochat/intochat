@@ -836,33 +836,30 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                             'resource': 'app.${spec.appId}',
                           });
                         },
-                        child: spec.appId == 'gallery'
-                            ? const UiGalleryScreen()
-                            : NeuronView(
-                                key: ValueKey(
-                                  'viewport:${spec.viewportRef['name']}:${_windowStates[spec.windowId]?.reloadEpoch ?? 0}',
-                                ),
-                                kind: spec.viewportRef['kind'] as String,
-                                name: spec.viewportRef['name'] as String,
-                                load: widget.load,
-                                watch: widget.watch,
-                                onAction: widget.onAction,
-                                onActivate: (activation) {
-                                  if (activation['kind'] == 'os_uri') {
-                                    final uriStr = '${activation['uri'] ?? ''}';
-                                    final sheet =
-                                        DesktopSystemModalSheet.parseUri(
-                                          uriStr,
-                                        );
-                                    if (sheet != DesktopSystemSheetKind.none) {
-                                      setState(() => _systemSheet = sheet);
-                                      return;
-                                    }
-                                    if (uriStr.contains('settings')) {
-                                      _launchOrFocusApp(
-                                        'settings',
-                                        windows,
-                                        dockButtons,
+                        child: NeuronView(
+                          key: ValueKey(
+                            'viewport:${spec.viewportRef['name']}:${_windowStates[spec.windowId]?.reloadEpoch ?? 0}',
+                          ),
+                          kind: spec.viewportRef['kind'] as String,
+                          name: spec.viewportRef['name'] as String,
+                          load: widget.load,
+                          watch: widget.watch,
+                          onAction: widget.onAction,
+                          onActivate: (activation) {
+                            if (activation['kind'] == 'os_uri') {
+                              final uriStr = '${activation['uri'] ?? ''}';
+                              final sheet = DesktopSystemModalSheet.parseUri(
+                                uriStr,
+                              );
+                              if (sheet != DesktopSystemSheetKind.none) {
+                                setState(() => _systemSheet = sheet);
+                                return;
+                              }
+                              if (uriStr.contains('settings')) {
+                                _launchOrFocusApp(
+                                  'settings',
+                                  windows,
+                                  dockButtons,
                                       );
                                       return;
                                     }

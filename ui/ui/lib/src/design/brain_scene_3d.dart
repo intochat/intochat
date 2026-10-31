@@ -48,12 +48,21 @@ class BrainSynapse3D {
     required this.toId,
     this.signalLabel,
     this.active = false,
+    this.trailStep,
   });
+
+  static const int maxTrailSteps = 10;
+  static const Color goldTrailColor = Color(0xFFFFB800);
+
+  static double goldTrailOpacity(int step) => step < 0 || step >= maxTrailSteps
+      ? 0.0
+      : (1.0 - step * 0.10).clamp(0.0, 1.0);
 
   final String fromId;
   final String toId;
   final String? signalLabel;
   final bool active;
+  final int? trailStep;
 }
 
 /// Interactive 3D DigitalBrain Neural Graph canvas with theme-aware 3D aesthetics:
@@ -710,7 +719,19 @@ class _BrainScenePainter extends CustomPainter {
           hoveredId == syn.fromId ||
           hoveredId == syn.toId;
 
-      final lineColor = (syn.active || isHighlighted)
+      final hasGoldTrail =
+          syn.trailStep != null &&
+          syn.trailStep! >= 0 &&
+          syn.trailStep! < BrainSynapse3D.maxTrailSteps;
+      final trailAlpha = hasGoldTrail
+          ? BrainSynapse3D.goldTrailOpacity(syn.trailStep!)
+          : 1.0;
+
+      final lineColor = hasGoldTrail
+          ? BrainSynapse3D.goldTrailColor.withValues(
+              alpha: trailAlpha * depthAlpha,
+            )
+          : (syn.active || isHighlighted)
           ? colors.accent.withValues(
               alpha: (isHighlighted ? 0.68 : 0.38) * depthAlpha,
             )
@@ -733,10 +754,11 @@ class _BrainScenePainter extends CustomPainter {
         Paint()
           ..color = lineColor
           ..style = PaintingStyle.stroke
-          ..strokeWidth = (isHighlighted ? 2.0 : 1.2) * from.scale,
+          ..strokeWidth =
+              ((isHighlighted || hasGoldTrail) ? 2.0 : 1.2) * from.scale,
       );
 
-      if (syn.active) {
+      if ((syn.active || hasGoldTrail) && trailAlpha > 0) {
         final t = (pulsePhase + syn.fromId.hashCode * 0.17) % 1.0;
         final invT = 1 - t;
         final px =
@@ -748,18 +770,25 @@ class _BrainScenePainter extends CustomPainter {
             2 * invT * t * mid.dy +
             t * t * to.screen.dy;
         final pulsePos = Offset(px, py);
+        final pulseColor = hasGoldTrail
+            ? BrainSynapse3D.goldTrailColor
+            : colors.accent;
 
         canvas.drawCircle(
           pulsePos,
           5.5 * from.scale,
           Paint()
-            ..color = colors.accent.withValues(alpha: 0.35 * depthAlpha)
+            ..color = pulseColor.withValues(
+              alpha: 0.45 * trailAlpha * depthAlpha,
+            )
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
         canvas.drawCircle(
           pulsePos,
           2.6 * from.scale,
-          Paint()..color = colors.surfaceInk.withValues(alpha: 0.95),
+          Paint()
+            ..color = (hasGoldTrail ? pulseColor : colors.surfaceInk)
+                .withValues(alpha: 0.95 * trailAlpha),
         );
       }
     }

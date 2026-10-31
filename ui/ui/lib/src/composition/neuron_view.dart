@@ -557,7 +557,8 @@ class _NeuronViewState extends State<NeuronView> {
         final root = data['root'];
         if (root is! Map) return const SizedBox.shrink();
         if (widget.kind == 'view' &&
-            widget.name.endsWith('/apps/gallery/view')) {
+            widget.name.endsWith('/apps/gallery/view') &&
+            (root['children'] is! List || (root['children'] as List).isEmpty)) {
           return const UiGalleryScreen();
         }
         return _ImmutableView(

@@ -531,12 +531,14 @@ internal sealed class CompiledAppsHost(
                 {
                     "photocraft" => "PhotoCraft",
                     "filmcraft" => "FilmCraft",
+                    "settings" => "Settings",
                     _ => targetApp,
                 };
                 var displayIcon = targetApp switch
                 {
                     "photocraft" => "image",
                     "filmcraft" => "film",
+                    "settings" => "settings",
                     _ => "grid",
                 };
                 appCard = new ChatAppCard(targetApp, displayTitle, displayIcon, true);
@@ -620,6 +622,14 @@ internal sealed class CompiledAppsHost(
         if (targetType == typeof(FilmCraftRunCommand)) { return new FilmCraftRunCommand(unquoted); }
         if (targetType == typeof(FilmCraftExport)) { return new FilmCraftExport(unquoted); }
         if (targetType == typeof(FilmCraftSwitchMode)) { return new FilmCraftSwitchMode(unquoted); }
+        if (targetType == typeof(SettingsOpen)) { return new SettingsOpen(unquoted); }
+        if (targetType == typeof(SettingsRead)) { return new SettingsRead(); }
+        if (targetType == typeof(SettingsNavigate)) { return new SettingsNavigate(unquoted); }
+        if (targetType == typeof(SettingsGoBack)) { return new SettingsGoBack(); }
+        if (targetType == typeof(SettingsRefreshConnections)) { return new SettingsRefreshConnections(unquoted); }
+        if (targetType == typeof(SettingsSideloadList)) { return new SettingsSideloadList(); }
+        if (targetType == typeof(SettingsSideloadInstall)) { return new SettingsSideloadInstall(unquoted); }
+        if (targetType == typeof(SettingsSideloadAddGit)) { return new SettingsSideloadAddGit(unquoted); }
         return null;
     }
 

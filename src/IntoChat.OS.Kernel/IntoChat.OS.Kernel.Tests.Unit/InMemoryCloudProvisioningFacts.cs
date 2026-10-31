@@ -61,4 +61,42 @@ public sealed class InMemoryCloudProvisioningFacts
             directory.Delete(true);
         }
     }
+
+    [Fact]
+    public async Task FullOperatingSystemCompositionProvisionsAgainstAspireCloudWithLocalDockerBindings()
+    {
+        var directory = Directory.CreateTempSubdirectory();
+        try
+        {
+            var configPath = Path.Combine(directory.FullName, "test.json");
+            await File.WriteAllTextAsync(configPath, ConfigJson, TestContext.Current.CancellationToken);
+            var cloud = new AspireCloud(localHost: "127.0.0.1", basePort: 19090, autoSeedVaultSecrets: true);
+            var output = new StringWriter();
+            var error = new StringWriter();
+
+            var code = await AzureInstaller.Run(
+                ["install", "--env", "test", "--config", configPath],
+                cloud,
+                OperatingSystemModules.Modules,
+                output,
+                error,
+                TestContext.Current.CancellationToken);
+
+            Assert.True(code == 0, error.ToString());
+            var sandbox = Assert.Single(cloud.LocalContainers);
+            Assert.Equal("intochat-test-sandbox", sandbox.Name);
+            Assert.Equal("intochat.azurecr.io/sandbox:1.0.0", sandbox.Image);
+            Assert.Equal(19090, sandbox.HostPort);
+            Assert.Equal(8080, sandbox.TargetPort);
+            Assert.Equal(25, sandbox.MaxSessions);
+
+            var resolved = cloud.ResolvedEnvironment;
+            Assert.Contains(resolved, pair => pair.Key.EndsWith("SessionPoolEndpoint", StringComparison.Ordinal) && pair.Value == "http://127.0.0.1:19090/");
+            Assert.True(resolved.TryGetValue(ManifestEnvironment.IntegrationSecretVariable("csharp", "RunTokenKey"), out var runToken) && !string.IsNullOrEmpty(runToken));
+        }
+        finally
+        {
+            directory.Delete(true);
+        }
+    }
 }

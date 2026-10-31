@@ -10,8 +10,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using OsMember = IntoChat.OS.Framework.Modules.Platform.Identity.Member;
-using OsRole = IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole;
 
 namespace IntoChat.OS.Authority.Identity;
 
@@ -73,22 +71,13 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
 
     private static async Task SignedInAsync(Member member, HttpContext http)
     {
-        var handlers = http.RequestServices.GetServices<IntoChat.OS.Framework.Modules.Platform.Identity.ISignInHandler>().ToArray();
+        var handlers = http.RequestServices.GetServices<ISignInHandler>().ToArray();
         if (handlers.Length == 0) { return; }
-        var os = new OsMember
-        {
-            PrincipalId = member.PrincipalId,
-            AccountId = member.AccountId,
-            BrainId = member.BrainId,
-            Role = (OsRole)(int)member.Role,
-            DisplayName = member.DisplayName,
-            JoinedAt = member.JoinedAt,
-        };
-        CallerContextStamper.Stamp(AccountSession.ForMember(os));
-        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(IntoChat.OS.Framework.Modules.Platform.Identity.ISignInHandler));
+        CallerContextStamper.Stamp(CapabilityCallers.Of(member.PrincipalId, member.AccountId, member.BrainId));
+        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ISignInHandler));
         foreach (var handler in handlers)
         {
-            try { await handler.SignedIn(os, http.RequestAborted); }
+            try { await handler.SignedIn(member, http.RequestAborted); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Sign-in handler {Handler} failed for {Principal}", handler.GetType().Name, member.PrincipalId); }
         }

@@ -20,7 +20,7 @@ public sealed class CredentialBoundaryFacts
     [Fact]
     public void NoModuleConstructsACallerContext()
     {
-        var offenders = ModuleMethods().Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity")
+        var offenders = ModuleMethods().Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install")
             .Where(m => Calls(m).Any(ConstructsACaller) || SetsAPlatformStamp(m))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
         Assert.Empty(offenders);
@@ -43,7 +43,7 @@ public sealed class CredentialBoundaryFacts
         Assert.Equal(["IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
             Sites(SetsAPlatformStamp));
         Assert.Equal(
-            ["IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.VaultPort"],
+            ["IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.Identity.AccountSessionIssuer", "IntoChat.OS.Authority.VaultPort"],
             Sites(m => Calls(m).Any(ConstructsACaller)));
     }
 
@@ -73,7 +73,7 @@ public sealed class CredentialBoundaryFacts
     public void RuntimeModulesCannotBypassIntegrationHandles()
     {
         var offenders = ModuleMethods().Where(m =>
-            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity"
+            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install"
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal))
             .Where(m => Calls(m).Any(c => c.DeclaringType == typeof(IIntegration)

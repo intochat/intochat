@@ -88,4 +88,39 @@ public sealed class BrainSceneFacts
         Assert.Equal(BrainScene.ZoomCap, BrainScene.NextZoom(3));
         Assert.Equal(BrainScene.ZoomCap, BrainScene.NextZoom(BrainScene.ZoomCap));
     }
+
+    [Fact]
+    public void TenStepGoldTrailFadesByTenPercentPerStepAndCapsAtTen()
+    {
+        Assert.Equal(1.0, BrainScene.TrailOpacity(0));
+        Assert.Equal(0.9, BrainScene.TrailOpacity(1));
+        Assert.Equal(0.5, BrainScene.TrailOpacity(5));
+        Assert.Equal(0.1, BrainScene.TrailOpacity(9));
+        Assert.Equal(0.0, BrainScene.TrailOpacity(10));
+        Assert.Equal(0.0, BrainScene.TrailOpacity(-1));
+
+        var neurons = Enumerable.Range(0, 12)
+            .Select(i => new BrainInstance("n", $"ada/n/node-{i}", DateTimeOffset.UnixEpoch, null))
+            .ToArray();
+        var synapses = Enumerable.Range(0, 11)
+            .Select(i => new ObservedSynapse(neurons[i].Key, neurons[i + 1].Key, $"sig-{i}"))
+            .ToArray();
+        var trail = synapses
+            .Select((s, idx) => new SignalDelivery(s.From, s.To, s.Signal, idx + 1))
+            .ToArray();
+
+        var scene = BrainScene.ComposeTrail(neurons, synapses, trail, 1.0);
+        var litPaths = scene.Nodes
+            .Where(n => n.Type == "path" && n.Children.Length > 0)
+            .ToArray();
+
+        Assert.Equal(BrainScene.MaxTrailSteps, litPaths.Length);
+        var newest = litPaths.Single(p => p.Parameters["step"] == "0");
+        Assert.Equal(BrainScene.GoldTrailColor, newest.Parameters["color"]);
+        Assert.Equal("1.0", newest.Parameters["opacity"]);
+
+        var oldest = litPaths.Single(p => p.Parameters["step"] == "9");
+        Assert.Equal(BrainScene.GoldTrailColor, oldest.Parameters["color"]);
+        Assert.Equal("0.1", oldest.Parameters["opacity"]);
+    }
 }

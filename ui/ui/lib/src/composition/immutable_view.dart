@@ -797,6 +797,7 @@ class _ImmutableView extends StatelessWidget {
               toId: '${s['toId'] ?? ''}',
               signalLabel: s['signalType'] as String?,
               active: s['active'] != false,
+              trailStep: (s['trailStep'] as num?)?.toInt(),
             ),
         ];
         final nodeButtons = children.where((ch) => ch['kind'] == 1).toList();
