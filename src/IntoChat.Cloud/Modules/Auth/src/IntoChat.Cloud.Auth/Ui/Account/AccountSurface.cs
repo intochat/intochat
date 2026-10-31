@@ -48,7 +48,7 @@ public sealed class AccountState
 }
 
 // The Settings Account tab mounts this neuron at account/view/surface (09-04). A lobby visitor is refused.
-[Neuron("view")]
+[Neuron("account.surface")]
 internal sealed class AccountSurfaceNeuron(IAccountAuth auth, ILocalizer localizer, TimeProvider clock) : Neuron<AccountState>
 {
     public const string Type = "view";
