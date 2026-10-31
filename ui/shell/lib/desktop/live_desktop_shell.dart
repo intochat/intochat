@@ -860,19 +860,19 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                   'settings',
                                   windows,
                                   dockButtons,
-                                      );
-                                      return;
-                                    }
-                                  }
-                                  widget.onActivate({
-                                    'brainId': widget.brain,
-                                    ...activation,
-                                  });
-                                },
-                                scenes: widget.scenes,
-                                entries: widget.entries,
-                                localPreferences: widget.localPreferences,
-                              ),
+                                );
+                                return;
+                              }
+                            }
+                            widget.onActivate({
+                              'brainId': widget.brain,
+                              ...activation,
+                            });
+                          },
+                          scenes: widget.scenes,
+                          entries: widget.entries,
+                          localPreferences: widget.localPreferences,
+                        ),
                       ),
                   ],
                 ),

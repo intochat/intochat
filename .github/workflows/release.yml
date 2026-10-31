@@ -12,6 +12,7 @@ permissions:
   contents: write
   packages: write
   checks: read
+  actions: read
 
 env:
   DOTNET_NOLOGO: 'true'
