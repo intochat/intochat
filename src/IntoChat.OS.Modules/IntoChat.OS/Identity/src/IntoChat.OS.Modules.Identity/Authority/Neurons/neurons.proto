@@ -2,11 +2,12 @@ syntax = "proto3";
 package intochat.os;
 option csharp_namespace = "IntoChat.OS.Authority.Neurons.Proto";
 
-// The two operations the OS has: call a neuron contract, watch a source's signals.
+// The operations the OS has: call a neuron contract, watch a source's signals, read a neuron's inspectable state.
 // Payloads are JSON with the HTTP surface's web defaults; the C# contracts are the schema.
 service Neurons {
   rpc Call (CallRequest) returns (CallReply);
   rpc Watch (WatchRequest) returns (stream SignalEnvelope);
+  rpc ReadState (NeuronStateRequest) returns (NeuronStateReply);
 }
 
 message CallRequest {
@@ -39,4 +40,14 @@ message SignalEnvelope {
   int64 sequence = 4;       // retained sequence, 0 for a live signal
   bytes payload = 5;        // JSON of the signal
   int64 server_time_ms = 6; // unix ms when the envelope was written; the client measures delivery with it
+}
+
+message NeuronStateRequest {
+  string brain_id = 1;
+  string contract = 2;
+  string key = 3;
+}
+
+message NeuronStateReply {
+  bytes state_json = 1;
 }

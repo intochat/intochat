@@ -100,3 +100,30 @@ final $typed_data.Uint8List signalEnvelopeDescriptor = $convert.base64Decode(
     'R0eXBlEhwKCXB1Ymxpc2hlchgDIAEoCVIJcHVibGlzaGVyEhoKCHNlcXVlbmNlGAQgASgDUghz'
     'ZXF1ZW5jZRIYCgdwYXlsb2FkGAUgASgMUgdwYXlsb2FkEiQKDnNlcnZlcl90aW1lX21zGAYgAS'
     'gDUgxzZXJ2ZXJUaW1lTXM=');
+
+@$core.Deprecated('Use neuronStateRequestDescriptor instead')
+const NeuronStateRequest$json = {
+  '1': 'NeuronStateRequest',
+  '2': [
+    {'1': 'brain_id', '3': 1, '4': 1, '5': 9, '10': 'brainId'},
+    {'1': 'contract', '3': 2, '4': 1, '5': 9, '10': 'contract'},
+    {'1': 'key', '3': 3, '4': 1, '5': 9, '10': 'key'},
+  ],
+};
+
+/// Descriptor for `NeuronStateRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List neuronStateRequestDescriptor = $convert.base64Decode(
+    'ChJOZXVyb25TdGF0ZVJlcXVlc3QSGQoIYnJhaW5faWQYASABKAlSB2JyYWluSWQSGgoIY29udH'
+    'JhY3QYAiABKAlSCGNvbnRyYWN0EhAKA2tleRgDIAEoCVIDa2V5');
+
+@$core.Deprecated('Use neuronStateReplyDescriptor instead')
+const NeuronStateReply$json = {
+  '1': 'NeuronStateReply',
+  '2': [
+    {'1': 'state_json', '3': 1, '4': 1, '5': 12, '10': 'stateJson'},
+  ],
+};
+
+/// Descriptor for `NeuronStateReply`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List neuronStateReplyDescriptor = $convert.base64Decode(
+    'ChBOZXVyb25TdGF0ZVJlcGx5Eh0KCnN0YXRlX2pzb24YASABKAxSCXN0YXRlSnNvbg==');

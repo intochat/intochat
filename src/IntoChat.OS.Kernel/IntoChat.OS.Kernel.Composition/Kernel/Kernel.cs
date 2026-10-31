@@ -84,6 +84,12 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
         return grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, type)).Retire(key).WaitAsync(cancellationToken);
     }
 
+    public async Task<System.Text.Json.JsonElement?> State(NeuronId id, CancellationToken cancellationToken = default)
+    {
+        var host = grains.GetGrain<DigitalBrain.Runtime.Orleans.Hosting.INeuronHost>(id.ToString());
+        return await host.InspectState(cancellationToken).ConfigureAwait(false);
+    }
+
     public Task<Feature[]> Features(string brain, CancellationToken cancellationToken = default)
         => TypeTable(brain).Features().WaitAsync(cancellationToken);
 

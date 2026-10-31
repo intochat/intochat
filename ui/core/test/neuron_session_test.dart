@@ -28,6 +28,15 @@ final class SessionService extends rpc.NeuronsServiceBase {
     watches.add(request);
     yield rpc.SignalEnvelope();
   }
+
+  @override
+  Future<rpc.NeuronStateReply> readState(
+    ServiceCall call,
+    rpc.NeuronStateRequest request,
+  ) async {
+    received.add(Map.of(call.clientMetadata ?? {}));
+    return rpc.NeuronStateReply();
+  }
 }
 
 void main() {

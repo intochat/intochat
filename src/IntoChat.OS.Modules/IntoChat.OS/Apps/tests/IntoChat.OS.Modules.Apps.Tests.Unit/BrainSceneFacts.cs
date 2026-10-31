@@ -20,6 +20,9 @@ public sealed class BrainSceneFacts
         Assert.Equal(["n0", "n1", "e0"], scene.Nodes.Select(node => node.Id).ToArray());
         Assert.All(scene.Nodes.Take(2), node => Assert.Equal("sphere", node.Type));
         Assert.Equal("hub", scene.Nodes[0].Parameters["icon"]);
+        Assert.Equal("apps.app2", scene.Nodes[0].Parameters["neuronType"]);
+        Assert.Equal("ada/apps.app2/apps/notes", scene.Nodes[0].Parameters["neuronKey"]);
+        Assert.Equal("ada/apps.app2/apps/notes", scene.Nodes[0].Parameters["neuronId"]);
         Assert.Contains("tap", scene.Nodes[0].Inputs);
         Assert.Equal("path", scene.Nodes[2].Type);
         Assert.StartsWith("M ", scene.Nodes[2].Parameters["d"], StringComparison.Ordinal);

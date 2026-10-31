@@ -14,12 +14,13 @@ public static class PlainNeuronContracts
             && (type.IsDefined(typeof(DefaultNeuronTypeAttribute), inherit: false) || IsConnection(type));
     }
 
-    // A contract every connection neuron may implement (IConnection, ILegacyStorage): it names no neuron type, the
+    // A contract every connection neuron may implement (IConnection, IStorage): it names no neuron type, the
     // connection key "{brain}/connection/{connector}/{id}" does.
     public static bool IsConnection(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        return type.IsInterface && type.IsDefined(typeof(ConnectionContractAttribute), inherit: false);
+        return type.IsInterface && (type.IsDefined(typeof(ConnectionContractAttribute), inherit: false)
+            || string.Equals(type.GetCustomAttribute<NeuronAliasAttribute>()?.Alias, "storage", StringComparison.Ordinal));
     }
 
     // The connector a canonical connection key names, or null.

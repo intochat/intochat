@@ -35,4 +35,24 @@ public sealed class AppStateJsonFacts
         Assert.Equal(request, Assert.Single(read.RequestRetention).Request);
         Assert.Equal(state.LastActivity, read.LastActivity);
     }
+
+    [Fact]
+    public void RuntimeStateSurvivesJsonRoundTrip()
+    {
+        var state = new AppState
+        {
+            RuntimeStateJson = "{\"count\":42,\"text\":\"hello\"}",
+            RuntimeStateRevision = 7
+        };
+
+        var json = JsonSerializer.Serialize(state, DigitalBrain.Invocation.RuntimeProtocol.Json);
+        var read = JsonSerializer.Deserialize<AppState>(json, DigitalBrain.Invocation.RuntimeProtocol.Json)!;
+
+        Assert.Equal("{\"count\":42,\"text\":\"hello\"}", read.RuntimeStateJson);
+        Assert.Equal(7, read.RuntimeStateRevision);
+
+        var cloned = state.Clone();
+        Assert.Equal("{\"count\":42,\"text\":\"hello\"}", cloned.RuntimeStateJson);
+        Assert.Equal(7, cloned.RuntimeStateRevision);
+    }
 }

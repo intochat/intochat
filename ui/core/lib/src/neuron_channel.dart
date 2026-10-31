@@ -42,7 +42,7 @@ final class WatchSourceSpec {
   final List<String> types;
 }
 
-/// The two operations the OS has: call a contract, watch a source. [NeuronChannel] carries them
+/// The operations the OS has: call a contract, watch a source, read inspectable state. [NeuronChannel] carries them
 /// over gRPC(-Web); a test supplies its own link.
 abstract interface class NeuronLink {
   Future<Map<String, dynamic>?> call(
@@ -52,11 +52,17 @@ abstract interface class NeuronLink {
     String method,
     List<Object?> arguments,
   );
+  Future<dynamic> readState(
+    String brainId,
+    String contract,
+    String key, {
+    Duration? timeout,
+  });
   Stream<NeuronSignal> watch(String brainId, List<WatchSourceSpec> sources);
   Future<void> shutdown();
 }
 
-/// The two operations over one gRPC(-Web) connection.
+/// The operations over one gRPC(-Web) connection.
 final class NeuronChannel implements NeuronLink {
   NeuronChannel(
     Uri baseUri, {
@@ -119,6 +125,26 @@ final class NeuronChannel implements NeuronLink {
     if (reply.result.isEmpty) return null;
     final decoded = jsonDecode(utf8.decode(reply.result));
     return decoded is Map<String, dynamic> ? decoded : {'value': decoded};
+  }
+
+  /// Reads a neuron's inspectable state; null when empty or not implemented.
+  @override
+  Future<dynamic> readState(
+    String brainId,
+    String contract,
+    String key, {
+    Duration? timeout,
+  }) async {
+    final reply = await _client.readState(
+      pb.NeuronStateRequest(
+        brainId: brainId,
+        contract: contract,
+        key: key,
+      ),
+      options: callOptions(timeout: timeout),
+    );
+    if (reply.stateJson.isEmpty) return null;
+    return jsonDecode(utf8.decode(reply.stateJson));
   }
 
   /// The sources' signals: each one's retained last signal first, then live ones.

@@ -127,6 +127,13 @@ class RecordingLink implements NeuronLink {
     List<Object?> arguments,
   ) async => null;
   @override
+  Future<dynamic> readState(
+    String brainId,
+    String contract,
+    String key, {
+    Duration? timeout,
+  }) async => null;
+  @override
   Future<void> shutdown() async {
     await events.close();
   }

@@ -6,7 +6,7 @@ namespace IntoChat.OS.Integrations;
 // Locations are opaque to callers: a Windows path, a Drive file id. The empty location is the storage itself, whose
 // children are Roots. Each module enforces its own confinement.
 // A plain contract every storage connection implements (06-08): the connection key names its neuron type.
-[DigitalBrain.Contracts.NeuronAlias("storage"), IntoChat.OS.Runtime.ConnectionContract]
+[Obsolete("Use IStorage from DigitalBrain.Capabilities.Storage instead."), IntoChat.OS.Runtime.ConnectionContract]
 public interface ILegacyStorage
 {
     [Description("The top-level folders this storage offers.")]

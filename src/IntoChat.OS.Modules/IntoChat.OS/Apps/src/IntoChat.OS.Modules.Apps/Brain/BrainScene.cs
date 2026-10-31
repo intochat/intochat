@@ -132,7 +132,14 @@ public sealed class BrainScene : DigitalBrain.App
                 "sphere",
                 new Transform(x, y),
                 null,
-                new Dictionary<string, string>(StringComparer.Ordinal) { ["icon"] = "hub", ["title"] = label },
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["icon"] = "hub",
+                    ["title"] = label,
+                    ["neuronId"] = PlaceId(neuron),
+                    ["neuronKey"] = neuron.Key,
+                    ["neuronType"] = neuron.Type,
+                },
                 [],
                 [],
                 ["tap"]));

@@ -16,7 +16,7 @@ using CallRequest = IntoChat.OS.Authority.Neurons.Proto.CallRequest;
 
 namespace IntoChat.OS.Authority.Neurons;
 
-// The gRPC edge of the two operations every caller has: neurons_call and brain.On<T>. The brain
+// The gRPC edge of the operations every caller has: neurons_call, brain.On<T>, and neuron state inspection. The brain
 // rides in the message, so each call decides access the way a /brains/{brainId} route does.
 internal sealed class NeuronsService(NeuronSurface surface, IBrainObserver kernel, ILogger<NeuronsService> logger, IServiceProvider services)
     : Proto.Neurons.NeuronsBase
@@ -38,6 +38,26 @@ internal sealed class NeuronsService(NeuronSurface surface, IBrainObserver kerne
             var arguments = request.Arguments.IsEmpty ? "[]" : request.Arguments.ToStringUtf8();
             var result = await surface.Call(request.Contract, request.Key, request.Method, arguments, context.CancellationToken);
             return new CallReply { Result = result is { } json ? ByteString.CopyFromUtf8(json.GetRawText()) : ByteString.Empty };
+        }
+        catch (Exception error) when (error is not RpcException and not OperationCanceledException) { throw BrainCall.Translate(error, logger); }
+    }
+
+    public override async Task<NeuronStateReply> ReadState(NeuronStateRequest request, ServerCallContext context)
+    {
+        CallerContextStamper.Stamp(await BrainCall.Enter(context, request.BrainId));
+        try
+        {
+            var id = await surface.PlainId(request.Contract, request.Key, context.CancellationToken);
+            if (id is null)
+            {
+                return new NeuronStateReply { StateJson = ByteString.Empty };
+            }
+
+            var state = await kernel.State(id.Value, context.CancellationToken);
+            return new NeuronStateReply
+            {
+                StateJson = state is { } json ? ByteString.CopyFromUtf8(json.GetRawText()) : ByteString.Empty
+            };
         }
         catch (Exception error) when (error is not RpcException and not OperationCanceledException) { throw BrainCall.Translate(error, logger); }
     }

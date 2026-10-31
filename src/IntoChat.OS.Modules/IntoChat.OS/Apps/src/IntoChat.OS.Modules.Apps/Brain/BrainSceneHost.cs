@@ -41,7 +41,7 @@ internal sealed class BrainSceneHost(
                 if (signal.Kind != "tap" || signal.Name != IScene.Key(publisher.Brain.Value, "brain", BrainScene.SceneName))
                 { return Task.CompletedTask; }
                 if (!CallerContextStamper.TryGet(out var caller) || caller.BrainId != publisher.Brain.Value) { return Task.CompletedTask; }
-                _ = ZoomAsync(publisher.Brain.Value, caller, token);
+                _ = ZoomAsync(publisher.Brain.Value, caller, signal.NodeId, token);
                 return Task.CompletedTask;
             });
         }
@@ -113,14 +113,21 @@ internal sealed class BrainSceneHost(
         { logger.LogWarning(error, "The brain scene for {Brain} stopped following deliveries.", brain); }
     }
 
-    private async Task ZoomAsync(string brain, CapabilityCaller caller, CancellationToken cancellationToken)
+    private async Task ZoomAsync(string brain, CapabilityCaller caller, string? nodeId, CancellationToken cancellationToken)
     {
         try
         {
             CallerContextStamper.Stamp(caller);
             var scene = SiloNeurons.Get<IScene>(services, IScene.Key(brain, "brain", BrainScene.SceneName));
             var state = await scene.Read();
-            var definition = state.Definition with { Camera = state.Definition.Camera with { Zoom = BrainScene.NextZoom(state.Definition.Camera.Zoom) } };
+            var node = !string.IsNullOrEmpty(nodeId)
+                ? state.Definition.Nodes.FirstOrDefault(n => n.Id == nodeId)
+                : null;
+            var nextZoom = BrainScene.NextZoom(state.Definition.Camera.Zoom);
+            var camera = node is not null
+                ? new SceneCamera(node.Transform.X, node.Transform.Y, nextZoom)
+                : state.Definition.Camera with { Zoom = nextZoom };
+            var definition = state.Definition with { Camera = camera };
             await SetAsync(brain, caller, definition, cancellationToken);
         }
         catch (Exception error) when (error is not OperationCanceledException)

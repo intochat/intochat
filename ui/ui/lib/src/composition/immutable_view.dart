@@ -2557,6 +2557,7 @@ class _InteractiveBrainSceneBoxState extends State<_InteractiveBrainSceneBox> {
       widget.zoomTargetId ??
       widget.initialSelectedId ??
       (widget.nodes.isNotEmpty ? widget.nodes.first.id : null);
+  bool _showInspector = false;
   late bool _nodeSelectedOrPaused =
       widget.pauseRotation ||
       widget.zoomTargetId != null ||
@@ -2667,7 +2668,25 @@ class _InteractiveBrainSceneBoxState extends State<_InteractiveBrainSceneBox> {
                     tone: TagTone.accent,
                     icon: LucideIcons.zap,
                   ),
-                  const SizedBox(width: 6),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  Btn(
+                    key: ValueKey('brain3d-inspect-state-${selectedNode.id}'),
+                    label: _showInspector ? 'Hide State' : 'Inspect State',
+                    small: true,
+                    primary: _showInspector,
+                    icon: LucideIcons.scanLine,
+                    onTap: () {
+                      setState(() {
+                        _showInspector = !_showInspector;
+                      });
+                    },
+                  ),
                   Btn(
                     key: ValueKey('brain3d-copy-uri-${selectedNode.id}'),
                     label: 'Copy URI',
@@ -2689,6 +2708,48 @@ class _InteractiveBrainSceneBoxState extends State<_InteractiveBrainSceneBox> {
                 Text(
                   selectedNode.subtitle!,
                   style: IcType.text(12, color: c.textBody),
+                ),
+              ],
+              if (_showInspector) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: c.surfaceCard,
+                    borderRadius: BorderRadius.circular(IcRadius.sm),
+                    border: Border.all(color: c.borderHairline),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(LucideIcons.terminal, size: 14, color: c.accent),
+                          const SizedBox(width: 6),
+                          Text(
+                            'LIVE NEURON STATE',
+                            style: IcType.text(11, weight: FontWeight.w700, color: c.accent),
+                          ),
+                          const Spacer(),
+                          TagPill(label: 'IInspectableNeuron', tone: TagTone.accent),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: c.surfaceSunk,
+                          borderRadius: BorderRadius.circular(IcRadius.sm),
+                        ),
+                        child: SelectableText(
+                          '{\n  "neuron": "${selectedNode.neuronUri}",\n  "type": "${selectedNode.moduleId}",\n  "status": "active",\n  "signalsPerMin": ${selectedNode.signalsPerMin}\n}',
+                          style: IcType.code(11.5, color: c.textStrong),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
               if (widget.nodes.length > 1) ...[

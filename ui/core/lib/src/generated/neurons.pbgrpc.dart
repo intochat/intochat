@@ -20,7 +20,7 @@ import 'neurons.pb.dart' as $0;
 
 export 'neurons.pb.dart';
 
-/// The two operations the OS has: call a neuron contract, watch a source's signals.
+/// The operations the OS has: call a neuron contract, watch a source's signals, read a neuron's inspectable state.
 /// Payloads are JSON with the HTTP surface's web defaults; the C# contracts are the schema.
 @$pb.GrpcServiceName('intochat.os.Neurons')
 class NeuronsClient extends $grpc.Client {
@@ -49,6 +49,13 @@ class NeuronsClient extends $grpc.Client {
         options: options);
   }
 
+  $grpc.ResponseFuture<$0.NeuronStateReply> readState(
+    $0.NeuronStateRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$readState, request, options: options);
+  }
+
   // method descriptors
 
   static final _$call = $grpc.ClientMethod<$0.CallRequest, $0.CallReply>(
@@ -59,6 +66,11 @@ class NeuronsClient extends $grpc.Client {
       '/intochat.os.Neurons/Watch',
       ($0.WatchRequest value) => value.writeToBuffer(),
       $0.SignalEnvelope.fromBuffer);
+  static final _$readState =
+      $grpc.ClientMethod<$0.NeuronStateRequest, $0.NeuronStateReply>(
+          '/intochat.os.Neurons/ReadState',
+          ($0.NeuronStateRequest value) => value.writeToBuffer(),
+          $0.NeuronStateReply.fromBuffer);
 }
 
 @$pb.GrpcServiceName('intochat.os.Neurons')
@@ -80,6 +92,14 @@ abstract class NeuronsServiceBase extends $grpc.Service {
         true,
         ($core.List<$core.int> value) => $0.WatchRequest.fromBuffer(value),
         ($0.SignalEnvelope value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.NeuronStateRequest, $0.NeuronStateReply>(
+        'ReadState',
+        readState_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.NeuronStateRequest.fromBuffer(value),
+        ($0.NeuronStateReply value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.CallReply> call_Pre(
@@ -97,4 +117,12 @@ abstract class NeuronsServiceBase extends $grpc.Service {
 
   $async.Stream<$0.SignalEnvelope> watch(
       $grpc.ServiceCall call, $0.WatchRequest request);
+
+  $async.Future<$0.NeuronStateReply> readState_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.NeuronStateRequest> $request) async {
+    return readState($call, await $request);
+  }
+
+  $async.Future<$0.NeuronStateReply> readState(
+      $grpc.ServiceCall call, $0.NeuronStateRequest request);
 }

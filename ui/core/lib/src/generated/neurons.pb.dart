@@ -436,6 +436,145 @@ class SignalEnvelope extends $pb.GeneratedMessage {
   void clearServerTimeMs() => $_clearField(6);
 }
 
+class NeuronStateRequest extends $pb.GeneratedMessage {
+  factory NeuronStateRequest({
+    $core.String? brainId,
+    $core.String? contract,
+    $core.String? key,
+  }) {
+    final result = NeuronStateRequest._();
+    if (brainId != null) result.brainId = brainId;
+    if (contract != null) result.contract = contract;
+    if (key != null) result.key = key;
+    return result;
+  }
+
+  NeuronStateRequest._();
+
+  factory NeuronStateRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NeuronStateRequest()..mergeFromBuffer(data, registry);
+  factory NeuronStateRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NeuronStateRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NeuronStateRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'intochat.os'),
+      createEmptyInstance: NeuronStateRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'brainId')
+    ..aOS(2, _omitFieldNames ? '' : 'contract')
+    ..aOS(3, _omitFieldNames ? '' : 'key')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NeuronStateRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NeuronStateRequest copyWith(void Function(NeuronStateRequest) updates) =>
+      super.copyWith((message) => updates(message as NeuronStateRequest))
+          as NeuronStateRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use NeuronStateRequest() / NeuronStateRequest.new instead')
+  static NeuronStateRequest create() => NeuronStateRequest._();
+  static $pb.GeneratedMessage $_createMessage() => NeuronStateRequest._();
+  @$core.override
+  NeuronStateRequest createEmptyInstance() => NeuronStateRequest._();
+  @$core.pragma('dart2js:noInline')
+  static NeuronStateRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<NeuronStateRequest>(
+          NeuronStateRequest.$_createMessage);
+  static NeuronStateRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get brainId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set brainId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasBrainId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearBrainId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get contract => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set contract($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasContract() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearContract() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get key => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set key($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasKey() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearKey() => $_clearField(3);
+}
+
+class NeuronStateReply extends $pb.GeneratedMessage {
+  factory NeuronStateReply({
+    $core.List<$core.int>? stateJson,
+  }) {
+    final result = NeuronStateReply._();
+    if (stateJson != null) result.stateJson = stateJson;
+    return result;
+  }
+
+  NeuronStateReply._();
+
+  factory NeuronStateReply.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NeuronStateReply()..mergeFromBuffer(data, registry);
+  factory NeuronStateReply.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NeuronStateReply()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NeuronStateReply',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'intochat.os'),
+      createEmptyInstance: NeuronStateReply.$_createMessage)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'stateJson', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NeuronStateReply clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NeuronStateReply copyWith(void Function(NeuronStateReply) updates) =>
+      super.copyWith((message) => updates(message as NeuronStateReply))
+          as NeuronStateReply;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use NeuronStateReply() / NeuronStateReply.new instead')
+  static NeuronStateReply create() => NeuronStateReply._();
+  static $pb.GeneratedMessage $_createMessage() => NeuronStateReply._();
+  @$core.override
+  NeuronStateReply createEmptyInstance() => NeuronStateReply._();
+  @$core.pragma('dart2js:noInline')
+  static NeuronStateReply getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<NeuronStateReply>(
+          NeuronStateReply.$_createMessage);
+  static NeuronStateReply? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get stateJson => $_getN(0);
+  @$pb.TagNumber(1)
+  set stateJson($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStateJson() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStateJson() => $_clearField(1);
+}
+
 const $core.bool _omitFieldNames =
     $core.bool.fromEnvironment('protobuf.omit_field_names');
 const $core.bool _omitMessageNames =
