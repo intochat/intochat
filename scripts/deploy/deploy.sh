@@ -114,10 +114,11 @@ render_config() {
   principal="$(az account get-access-token --resource https://management.azure.com/ --query accessToken -o tsv \
     | python3 -c 'import base64,json,sys; p=sys.stdin.read().strip().split(".")[1]; print(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))).get("oid",""))')"
   [[ -n "$subscription" && -n "$principal" ]] || { echo 'deploy: could not read the signed-in Azure subscription and principal.' >&2; exit 1; }
-  jq --arg sub "$subscription" --arg principal "$principal" --arg group "$group" --arg registry "$registry" --arg server "$server" --arg tag "$image_tag" \
+  jq --arg sub "$subscription" --arg principal "$principal" --arg group "$group" --arg registry "$registry" --arg server "$server" --arg tag "$image_tag" --arg sandbox "$server/os-sandbox:$image_tag" \
     '{subscription: $sub, location: .location, prefix: .prefix, env: .env, resourceGroup: $group,
       osImage: ($server + "/os:" + $tag), names: {registry: $registry}, registryServer: $server,
-      registry: {enabled: true, sku: "Basic"}, installerPrincipalId: $principal, modules: (.modules // {})}
+      registry: {enabled: true, sku: "Basic"}, installerPrincipalId: $principal,
+      modules: ((.modules // {}) | .csharp = ((.csharp // {}) + {sandboxImage: (.csharp.sandboxImage // $sandbox)}))}
      + (with_entries(select(.key | IN("cpu", "memory", "storageQuotaGb", "postgres"))))' "$input" > "$work/install.json"
 }
 render_config
