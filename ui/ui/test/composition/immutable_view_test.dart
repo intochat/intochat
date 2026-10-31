@@ -415,7 +415,9 @@ void main() {
 
       // Tapping Inspect State reveals the live state inspector card
       expect(find.text('LIVE NEURON STATE'), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('brain3d-inspect-state-creator')));
+      await tester.tap(
+        find.byKey(const ValueKey('brain3d-inspect-state-creator')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('LIVE NEURON STATE'), findsOneWidget);
       expect(find.text('IInspectableNeuron'), findsOneWidget);

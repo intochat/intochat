@@ -2729,10 +2729,17 @@ class _InteractiveBrainSceneBoxState extends State<_InteractiveBrainSceneBox> {
                           const SizedBox(width: 6),
                           Text(
                             'LIVE NEURON STATE',
-                            style: IcType.text(11, weight: FontWeight.w700, color: c.accent),
+                            style: IcType.text(
+                              11,
+                              weight: FontWeight.w700,
+                              color: c.accent,
+                            ),
                           ),
                           const Spacer(),
-                          TagPill(label: 'IInspectableNeuron', tone: TagTone.accent),
+                          TagPill(
+                            label: 'IInspectableNeuron',
+                            tone: TagTone.accent,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),

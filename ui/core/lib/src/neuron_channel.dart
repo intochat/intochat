@@ -136,11 +136,7 @@ final class NeuronChannel implements NeuronLink {
     Duration? timeout,
   }) async {
     final reply = await _client.readState(
-      pb.NeuronStateRequest(
-        brainId: brainId,
-        contract: contract,
-        key: key,
-      ),
+      pb.NeuronStateRequest(brainId: brainId, contract: contract, key: key),
       options: callOptions(timeout: timeout),
     );
     if (reply.stateJson.isEmpty) return null;
