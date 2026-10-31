@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework;
@@ -21,8 +22,9 @@ namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>
 /// Hosts compiled <see cref="DigitalBrain.App"/> classes declared in <see cref="AppsModule"/> (<see cref="InoApp"/>,
-/// <see cref="GalleryApp"/>, <see cref="CreatorApp"/>, <see cref="PostApp"/>, <see cref="PhotoCraftApp"/>, and <see cref="FilmCraftApp"/>) in-process on the silo,
-/// publishing their <see cref="IView"/> trees, <see cref="Presentation"/>s, and Ino's interactive <see cref="IChat"/> + <see cref="IComposer"/>.
+/// <see cref="SettingsApp"/>, <see cref="GalleryApp"/>, <see cref="CreatorApp"/>, <see cref="PostApp"/>, <see cref="PhotoCraftApp"/>,
+/// and <see cref="FilmCraftApp"/>) in-process on the silo, publishing their <see cref="IView"/> trees,
+/// <see cref="Presentation"/>s, and Ino's interactive <see cref="IChat"/> + <see cref="IComposer"/>.
 /// </summary>
 internal sealed class CompiledAppsHost(
     IServiceProvider services,
@@ -37,6 +39,7 @@ internal sealed class CompiledAppsHost(
     private static readonly (string Name, Type AppType, AppBundle Bundle)[] Hosted =
     [
         ("ino", typeof(InoApp), InoApp.Bundle),
+        ("settings", typeof(SettingsApp), SettingsApp.Bundle),
         ("gallery", typeof(GalleryApp), GalleryApp.Bundle),
         ("creator", typeof(CreatorApp), CreatorApp.Bundle),
         ("post", typeof(PostApp), PostApp.Bundle),
@@ -48,18 +51,29 @@ internal sealed class CompiledAppsHost(
         Hosted.ToDictionary(item => item.Name, StringComparer.Ordinal);
 
     private readonly ConcurrentDictionary<(string Brain, string Name), HostedRuntime> _runtimes = new();
+    private readonly ConcurrentDictionary<string, byte> _ensuredBrains = new(StringComparer.Ordinal);
+
+    private void TriggerEnsureAll(string brain)
+    {
+        if (!string.IsNullOrWhiteSpace(brain) && _ensuredBrains.TryAdd(brain, 0))
+        {
+            _ = Task.Run(() => EnsureAllAsync(brain), CancellationToken.None);
+        }
+    }
 
     public async Task Execute(CancellationToken cancellationToken)
     {
         _ = await listeners.Listen<Activated>(nameof(CompiledAppsHost), (publisher, _, _) =>
         {
             var brain = publisher.Brain.Value;
+            _ensuredBrains.TryAdd(brain, 0);
             _ = Task.Run(() => EnsureAllAsync(brain), CancellationToken.None);
             return Task.CompletedTask;
         });
 
         _ = await listeners.Listen<AppRequested>(nameof(CompiledAppsHost), (publisher, signal, token) =>
         {
+            TriggerEnsureAll(publisher.Brain.Value);
             if (!publisher.Key.StartsWith("apps/", StringComparison.Ordinal)) { return Task.CompletedTask; }
             var appName = publisher.Key["apps/".Length..];
             if (!HostedByName.ContainsKey(appName)) { return Task.CompletedTask; }
@@ -69,6 +83,7 @@ internal sealed class CompiledAppsHost(
 
         _ = await listeners.Listen<ComposerSubmitted>(nameof(CompiledAppsHost), (publisher, signal, token) =>
         {
+            TriggerEnsureAll(publisher.Brain.Value);
             if (publisher.Key != "apps/ino/composer") { return Task.CompletedTask; }
             _ = Task.Run(() => HandleComposerSubmittedAsync(publisher.Brain.Value, signal, token), CancellationToken.None);
             return Task.CompletedTask;
@@ -76,6 +91,7 @@ internal sealed class CompiledAppsHost(
 
         _ = await listeners.Listen<ViewAction>(nameof(CompiledAppsHost), (publisher, signal, token) =>
         {
+            TriggerEnsureAll(publisher.Brain.Value);
             if (!publisher.Key.StartsWith("apps/", StringComparison.Ordinal)) { return Task.CompletedTask; }
             var rest = publisher.Key["apps/".Length..];
             var slash = rest.IndexOf('/', StringComparison.Ordinal);
@@ -86,7 +102,7 @@ internal sealed class CompiledAppsHost(
             return Task.CompletedTask;
         });
 
-        _ = Task.Run(() => EnsureAllAsync("owner"), CancellationToken.None);
+        TriggerEnsureAll("owner");
         cancellationToken.ThrowIfCancellationRequested();
     }
 
@@ -115,17 +131,16 @@ internal sealed class CompiledAppsHost(
                 var snapshot = await app.Read();
                 if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
                 {
-                    await app.Import(runtime.Bundle);
+                    await app.Import(runtime.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), runtime.Name, runtime.Bundle.Version));
                     snapshot = await app.Read();
                 }
                 else if (snapshot.Manifest.Operations.Length < runtime.Bundle.Manifest.Operations.Length)
                 {
-                    await app.Replace(runtime.Bundle);
+                    await app.Replace(runtime.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), runtime.Name, runtime.Bundle.Version));
                     snapshot = await app.Read();
                 }
 
-                var mainView = SiloNeurons.Get<IView>(services, runtime.AppKey + "/view");
-                if (!runtime.Presented || await mainView.Read() is null)
+                if (!runtime.Presented)
                 {
                     await PublishViewsAndPresentationAsync(runtime, app, snapshot);
                 }
@@ -159,12 +174,12 @@ internal sealed class CompiledAppsHost(
                 var snapshot = await app.Read();
                 if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
                 {
-                    await app.Import(runtime.Bundle);
+                    await app.Import(runtime.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), runtime.Name, runtime.Bundle.Version));
                     snapshot = await app.Read();
                 }
                 else if (snapshot.Manifest.Operations.Length < runtime.Bundle.Manifest.Operations.Length)
                 {
-                    await app.Replace(runtime.Bundle);
+                    await app.Replace(runtime.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), runtime.Name, runtime.Bundle.Version));
                     snapshot = await app.Read();
                 }
 
@@ -237,7 +252,7 @@ internal sealed class CompiledAppsHost(
                 var snapshot = await app.Read();
                 if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
                 {
-                    await app.Import(runtime.Bundle);
+                    await app.Import(runtime.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), runtime.Name, runtime.Bundle.Version));
                     snapshot = await app.Read();
                 }
 
@@ -282,7 +297,7 @@ internal sealed class CompiledAppsHost(
         if (string.IsNullOrWhiteSpace(signal.Action)) { return; }
         var parts = signal.Action.Split(':', 2, StringSplitOptions.TrimEntries);
         var operation = parts[0];
-        var rawArg = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+        var rawArg = parts.Length > 1 ? parts[1] : string.Empty;
         await HandleAppRequestedAsync(
             brain,
             appName,
@@ -298,10 +313,20 @@ internal sealed class CompiledAppsHost(
             var instance = definition.Create(_ => null);
             instance.AttachNeuronResolver((contractType, neuronKey) =>
             {
-                var fullKey = neuronKey.Contains('/', StringComparison.Ordinal)
+                var fullKey = neuronKey.StartsWith(key.Brain + "/", StringComparison.Ordinal)
                     ? neuronKey
                     : $"{key.Brain}/{neuronKey}";
-                return SiloNeurons.Get(services, contractType, fullKey);
+
+                if (contractType.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is not null)
+                {
+                    return SiloNeurons.Get(services, contractType, fullKey);
+                }
+
+                var alias = contractType.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
+                    ?? throw new InvalidOperationException($"Contract {contractType.Name} has neither DefaultNeuronType nor NeuronAlias.");
+                var sep = fullKey.IndexOf('/', StringComparison.Ordinal);
+                var id = new NeuronId(new BrainId(fullKey[..sep]), alias, fullKey[(sep + 1)..]);
+                return SiloNeurons.Get(services, contractType, id);
             });
             return new HostedRuntime
             {
@@ -577,7 +602,7 @@ internal sealed class CompiledAppsHost(
         var targetType = parameter.ParameterType;
         if (targetType == typeof(string))
         {
-            return string.IsNullOrEmpty(input) ? null : input;
+            return string.IsNullOrEmpty(input) ? null : Uri.UnescapeDataString(input);
         }
         if (string.IsNullOrWhiteSpace(input))
         {
@@ -590,9 +615,12 @@ internal sealed class CompiledAppsHost(
             return JsonSerializer.Deserialize(trimmed, targetType, Json);
         }
 
-        var unquoted = trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"'
-            ? trimmed[1..^1]
-            : trimmed;
+        var segs = trimmed.Split(':').Select(Uri.UnescapeDataString).ToArray();
+        var unescaped = Uri.UnescapeDataString(trimmed);
+        var unquoted = unescaped.Length >= 2 && unescaped[0] == '"' && unescaped[^1] == '"'
+            ? unescaped[1..^1]
+            : unescaped;
+
         if (targetType == typeof(InoOpen)) { return new InoOpen(unquoted); }
         if (targetType == typeof(InoSend)) { return new InoSend(unquoted); }
         if (targetType == typeof(InoConnectDb)) { return new InoConnectDb(unquoted); }
@@ -600,9 +628,9 @@ internal sealed class CompiledAppsHost(
         if (targetType == typeof(InoApproveCard)) { return new InoApproveCard(unquoted, true); }
         if (targetType == typeof(InoMake)) { return new InoMake(unquoted); }
         if (targetType == typeof(GalleryOpen)) { return new GalleryOpen(unquoted); }
-        if (targetType == typeof(GalleryFilter)) { return new GalleryFilter(unquoted); }
+        if (targetType == typeof(GalleryFilter)) { return new GalleryFilter(segs.ElementAtOrDefault(0), segs.ElementAtOrDefault(1)); }
         if (targetType == typeof(GallerySelect)) { return new GallerySelect(unquoted); }
-        if (targetType == typeof(GallerySwitchIdentity)) { return new GallerySwitchIdentity(unquoted); }
+        if (targetType == typeof(GallerySwitchIdentity)) { return new GallerySwitchIdentity(segs.ElementAtOrDefault(0), segs.ElementAtOrDefault(1)); }
         if (targetType == typeof(DesktopNarrow)) { return new DesktopNarrow(unquoted); }
         if (targetType == typeof(DesktopAutoArrange)) { return new DesktopAutoArrange(); }
         if (targetType == typeof(DesktopPinApp)) { return new DesktopPinApp(unquoted, true); }
@@ -624,7 +652,27 @@ internal sealed class CompiledAppsHost(
         if (targetType == typeof(FilmCraftSwitchMode)) { return new FilmCraftSwitchMode(unquoted); }
         if (targetType == typeof(SettingsOpen)) { return new SettingsOpen(unquoted); }
         if (targetType == typeof(SettingsRead)) { return new SettingsRead(); }
-        if (targetType == typeof(SettingsNavigate)) { return new SettingsNavigate(unquoted); }
+        if (targetType == typeof(SettingsNavigate))
+        {
+            return new SettingsNavigate(
+                segs.ElementAtOrDefault(0),
+                segs.ElementAtOrDefault(1),
+                segs.ElementAtOrDefault(2));
+        }
+        if (targetType == typeof(SettingsSavePreferences))
+        {
+            return new SettingsSavePreferences(
+                DisplayName: segs.ElementAtOrDefault(0),
+                Theme: segs.ElementAtOrDefault(1),
+                DefaultModel: segs.ElementAtOrDefault(2),
+                StylePreset: segs.ElementAtOrDefault(3),
+                BarLayout: segs.ElementAtOrDefault(4),
+                ThemeMode: segs.ElementAtOrDefault(5),
+                DesktopTone: segs.ElementAtOrDefault(6),
+                Language: segs.ElementAtOrDefault(7),
+                TimeZone: segs.ElementAtOrDefault(8),
+                DateFormat: segs.ElementAtOrDefault(9));
+        }
         if (targetType == typeof(SettingsGoBack)) { return new SettingsGoBack(); }
         if (targetType == typeof(SettingsRefreshConnections)) { return new SettingsRefreshConnections(unquoted); }
         if (targetType == typeof(SettingsSideloadList)) { return new SettingsSideloadList(); }

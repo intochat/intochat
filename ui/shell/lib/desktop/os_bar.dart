@@ -5,7 +5,7 @@ import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'smart_desktop.dart';
 
-const double kOsBarHeight = 36.0;
+const double kOsBarHeight = 48.0;
 
 /// Adaptive `36px` OS bar supporting `Floating Glass Bar`, `Classic Bottom Bar`,
 /// `Split Top + Dock`, and `Compact Pill` with live app indicators, working
@@ -22,11 +22,13 @@ class OsBar extends StatelessWidget {
     this.focusedAppId = 'ino',
     this.paletteOpen = false,
     this.showingDesktop = false,
+    this.spatialCanvas = false,
     this.notifications = 2,
     this.tokensToday = 14800,
     this.connected = true,
     this.onTogglePalette,
     this.onToggleShowDesktop,
+    this.onToggleSpatialCanvas,
     this.onCycleStylePreset,
     this.onLaunchApp,
     this.onSecondaryTapApp,
@@ -45,11 +47,13 @@ class OsBar extends StatelessWidget {
   final String? focusedAppId;
   final bool paletteOpen;
   final bool showingDesktop;
+  final bool spatialCanvas;
   final int notifications;
   final int tokensToday;
   final bool connected;
   final VoidCallback? onTogglePalette;
   final VoidCallback? onToggleShowDesktop;
+  final VoidCallback? onToggleSpatialCanvas;
   final VoidCallback? onCycleStylePreset;
   final ValueChanged<String>? onLaunchApp;
   final void Function(String appId, Offset globalPos)? onSecondaryTapApp;
@@ -109,6 +113,36 @@ class OsBar extends StatelessWidget {
                             11.5,
                             weight: FontWeight.w600,
                             color: showingDesktop ? c.textStrong : c.textBody,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (onToggleSpatialCanvas != null) ...[
+                  const SizedBox(width: 4),
+                  _BarButton(
+                    key: const ValueKey('os-bar-spatial-toggle'),
+                    tooltip: spatialCanvas
+                        ? 'Switch to Classic Desktop'
+                        : 'Switch to Experimental Spatial Canvas',
+                    selected: spatialCanvas,
+                    onTap: onToggleSpatialCanvas!,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          spatialCanvas ? LucideIcons.layoutGrid : LucideIcons.compass,
+                          size: 14,
+                          color: spatialCanvas ? c.accent : c.textBody,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          spatialCanvas ? 'Spatial' : 'Desktop',
+                          style: IcType.text(
+                            11.5,
+                            weight: FontWeight.w600,
+                            color: spatialCanvas ? c.textStrong : c.textBody,
                           ),
                         ),
                       ],
@@ -255,8 +289,8 @@ class _DockAppItemState extends State<_DockAppItem> {
             onSecondaryTapDown: widget.onSecondaryTapDown,
             child: AnimatedContainer(
               duration: IcMotion.fast,
-              width: 28,
-              height: 28,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
                 color: widget.isFocused
                     ? c.accentTint
@@ -278,7 +312,7 @@ class _DockAppItemState extends State<_DockAppItem> {
                       appId: widget.spec.id,
                       icon: widget.spec.icon,
                       accentHex: widget.spec.accentHex,
-                      size: 20,
+                      size: 22,
                     ),
                   ),
                   if (widget.isWorking)
@@ -497,8 +531,8 @@ class _BarButtonState extends State<_BarButton> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: IcMotion.fast,
-          height: 28,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: widget.selected
                 ? c.accentTint

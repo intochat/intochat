@@ -90,7 +90,7 @@ internal sealed partial class AppNeuron
     }
 
     internal static UiNode MapView(View view, string? brainId = null)
-        => Ui.Column("view", [Ui.Text("title", view.Title), MapNode("root", view.Root, brainId)]);
+        => view.Root is Column { Extents.Count: > 0 } ? MapNode("view", view.Root, brainId) : Ui.Column("view", [Ui.Text("title", view.Title), MapNode("root", view.Root, brainId)]);
 
     internal static UiNode MapNode(string key, Node node, string? brainId = null) => node switch
     {

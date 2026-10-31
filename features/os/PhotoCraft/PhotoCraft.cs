@@ -116,15 +116,19 @@ public static class PhotoCraft
     {
         var revision = long.Parse(brain.Setting("ProgramRevision") ?? "1", CultureInfo.InvariantCulture);
         var publisher = new ViewPublisher(Surface(brain), revision);
+        var resolvedUrl = string.IsNullOrWhiteSpace(webUrl) ? "http://localhost:18082" : webUrl;
         await publisher.Publish(ViewUi.Column(
             "photocraft",
             [
                 ViewUi.Text("status", status),
-                ViewUi.Text("browser", webUrl),
+                ViewUi.Card(
+                    "browser",
+                    resolvedUrl,
+                    detail: $"{{\"_ui\":\"webbrowser\",\"url\":\"{resolvedUrl}\",\"title\":\"PhotoCraft WASM Studio\",\"height\":0,\"executionMode\":\"wasm-ui\"}}"),
                 ViewUi.Text("settled", settledRunId),
                 ViewUi.Text("preview", previewDataUrl),
             ],
-            extents: [40, 520, 0, 0]));
+            extents: [24, 0, 2, 2]));
         await brain.Get<IApp>(Key(brain)).Present(
             revision,
             new(

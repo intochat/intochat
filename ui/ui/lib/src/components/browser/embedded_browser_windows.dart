@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_windows/webview_windows.dart';
 
 // One native environment per process; each window has its own marked CDP page.
@@ -22,15 +23,70 @@ Future<int> _defaultEnvironmentFactory() async {
   final port = socket.port;
   await socket.close();
   final profile = await Directory.systemTemp.createTemp('intochat-os-browser-');
-  await WebviewController.initializeEnvironment(
-    userDataPath: profile.path,
-    additionalArguments:
-        '--remote-debugging-port=$port '
-        '--remote-debugging-address=127.0.0.1 --disable-background-networking '
-        '--disable-features=ServiceWorker --force-webrtc-ip-handling-policy=disable_non_proxied_udp '
-        '--proxy-server=http://127.0.0.1:9 --proxy-bypass-list=<-loopback>',
-  );
+  try {
+    await WebviewController.initializeEnvironment(
+      userDataPath: profile.path,
+      additionalArguments:
+          '--remote-debugging-port=$port '
+          '--remote-debugging-address=127.0.0.1 --disable-background-networking '
+          '--disable-features=ServiceWorker --force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+    );
+  } on PlatformException catch (e) {
+    if (e.code != 'environment_already_initialized') rethrow;
+  }
   return port;
+}
+
+Future<bool> _isLoopbackPortOpen(int port) async {
+  try {
+    final socket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      port,
+      timeout: const Duration(milliseconds: 200),
+    );
+    await socket.close();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<String> _resolveDirectUrl(String rawUri) async {
+  final trimmed = rawUri.trim();
+  if (trimmed.isEmpty) return trimmed;
+  final lower = trimmed.toLowerCase();
+  final isLocal = lower.contains('localhost') || lower.contains('127.0.0.1');
+  if (!isLocal) return trimmed;
+
+  final isFilmCraft =
+      lower.contains('18083') ||
+      lower.contains('18111') ||
+      lower.contains('filmcraft') ||
+      lower.contains('videocraft');
+  final isPhotoCraft =
+      lower.contains('18082') ||
+      lower.contains('18110') ||
+      lower.contains('photocraft');
+
+  if (isFilmCraft) {
+    for (final port in const [18111, 18083]) {
+      if (await _isLoopbackPortOpen(port)) {
+        return 'http://localhost:$port/';
+      }
+    }
+    return 'https://os.test.intochat.io/artcraft/filmcraft/index.html';
+  }
+
+  if (isPhotoCraft) {
+    for (final port in const [18110, 18082]) {
+      if (await _isLoopbackPortOpen(port)) {
+        return 'http://localhost:$port/';
+      }
+    }
+    return 'https://os.test.intochat.io/artcraft/photocraft/index.html';
+  }
+
+  return trimmed;
 }
 
 class EmbeddedBrowser extends StatefulWidget {
@@ -70,6 +126,26 @@ class _EmbeddedBrowserState extends State<EmbeddedBrowser> {
     if (_supported) unawaited(_initialize());
   }
 
+  @override
+  void didUpdateWidget(EmbeddedBrowser oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final controller = _controller;
+    if (_ready &&
+        !_controllerDisposed &&
+        controller != null &&
+        widget.onConnect == null &&
+        widget.uri.isNotEmpty &&
+        widget.uri != oldWidget.uri) {
+      unawaited(
+        _resolveDirectUrl(widget.uri).then((resolved) {
+          if (mounted && !_controllerDisposed) {
+            return controller.loadUrl(resolved);
+          }
+        }),
+      );
+    }
+  }
+
   Future<void> _initialize() async {
     try {
       final port = await (_environment ??= environmentFactory());
@@ -82,7 +158,10 @@ class _EmbeddedBrowserState extends State<EmbeddedBrowser> {
         return;
       }
       await controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
-      await controller.loadUrl('about:blank#intochat-os-$_session');
+      final initialUrl = widget.onConnect == null && widget.uri.isNotEmpty
+          ? await _resolveDirectUrl(widget.uri)
+          : 'about:blank#intochat-os-$_session';
+      await controller.loadUrl(initialUrl);
       if (!mounted) return;
       setState(() => _ready = true);
       _connected = true;

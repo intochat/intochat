@@ -1,11 +1,11 @@
-import 'dart:async';
 import 'dart:ui';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
-const double kDesktopTitleBarHeight = 38.0;
+import 'unified_app_header.dart';
+
+const double kDesktopTitleBarHeight = kUnifiedAppHeaderHeight;
 
 class DesktopWindowState extends ChangeNotifier {
   DesktopWindowState({
@@ -169,6 +169,7 @@ class WindowFrame extends StatefulWidget {
     this.onHardRestartSandbox,
     this.onSwitchExecutionMode,
     this.onInspectSandbox,
+    this.onOpenAppSettings,
     this.executionMode,
   });
 
@@ -191,6 +192,7 @@ class WindowFrame extends StatefulWidget {
   final VoidCallback? onHardRestartSandbox;
   final ValueChanged<String>? onSwitchExecutionMode;
   final VoidCallback? onInspectSandbox;
+  final VoidCallback? onOpenAppSettings;
   final String? executionMode;
 
   static final Map<int, bool> _lastZoom = {};
@@ -200,7 +202,7 @@ class WindowFrame extends StatefulWidget {
 }
 
 class _WindowFrameState extends State<WindowFrame> {
-  bool _settingsOpen = false;
+  bool _menuOpen = false;
 
   void _handlePin() {
     widget.window.togglePinned();
@@ -226,11 +228,15 @@ class _WindowFrameState extends State<WindowFrame> {
   void _handleSelectExecutionMode(String mode) {
     widget.window.setExecutionMode(mode);
     widget.onSwitchExecutionMode?.call(mode);
-    setState(() => _settingsOpen = false);
+    if (mounted) {
+      showKitToast(
+        context,
+        'Switched execution mode to ${DesktopWindowState.formatExecutionMode(mode)}',
+      );
+    }
   }
 
   void _handleInspectSandbox() {
-    setState(() => _settingsOpen = false);
     widget.onInspectSandbox?.call();
   }
 
@@ -246,61 +252,37 @@ class _WindowFrameState extends State<WindowFrame> {
         final effectivePinned = widget.isPinned || w.isPinned;
         final effectiveMode = widget.executionMode ?? w.executionMode;
 
-        final innerContent = Stack(
-          clipBehavior: Clip.none,
+        final innerContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _TitleBar(
-                  window: w,
-                  focused: widget.focused,
-                  zoomed: zoomed,
-                  canMove: !widget.forceZoom,
-                  desk: widget.desk,
-                  onFocus: widget.onFocus,
-                  onClose: widget.onClose,
-                  onMinimize: widget.onMinimize,
-                  onToggleZoom: widget.onToggleZoom ?? w.toggleZoom,
-                  onNewTab: widget.onNewTab,
-                  onFavourite: widget.onFavourite,
-                  isFavourite: widget.isFavourite,
-                  onPin: _handlePin,
-                  isPinned: effectivePinned,
-                  onReload: _handleReload,
-                  onHardRestartSandbox: _handleHardRestartSandbox,
-                  settingsOpen: _settingsOpen,
-                  onToggleSettings: () =>
-                      setState(() => _settingsOpen = !_settingsOpen),
-                ),
-                if (widget.tabs.length > 1) _WindowTabStrip(tabs: widget.tabs),
-                Expanded(
-                  child: Listener(
-                    behavior: HitTestBehavior.translucent,
-                    onPointerDown: (_) {
-                      if (!widget.focused) widget.onFocus?.call();
-                    },
-                    child: RepaintBoundary(child: widget.child),
-                  ),
-                ),
-              ],
+            UnifiedAppHeader(
+              window: w,
+              focused: widget.focused,
+              zoomed: zoomed,
+              canMove: !widget.forceZoom,
+              desk: widget.desk,
+              onFocus: widget.onFocus,
+              onClose: widget.onClose,
+              onMinimize: widget.onMinimize,
+              onToggleZoom: widget.onToggleZoom ?? w.toggleZoom,
+              onPin: _handlePin,
+              isPinned: effectivePinned,
+              onReload: _handleReload,
+              onHardRestartSandbox: _handleHardRestartSandbox,
+              menuOpen: _menuOpen,
+              onToggleMenu: () => setState(() => _menuOpen = !_menuOpen),
+              tabs: widget.tabs,
             ),
-            if (_settingsOpen)
-              Positioned(
-                top: kDesktopTitleBarHeight + 6,
-                right: 12,
-                width: 268,
-                child: _WindowSettingsPopover(
-                  window: w,
-                  executionMode: effectiveMode,
-                  onSelectMode: _handleSelectExecutionMode,
-                  onResetSandbox: () {
-                    setState(() => _settingsOpen = false);
-                    _handleHardRestartSandbox();
-                  },
-                  onInspectSandbox: _handleInspectSandbox,
-                ),
+            Expanded(
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (_) {
+                  if (!widget.focused) widget.onFocus?.call();
+                  if (_menuOpen) setState(() => _menuOpen = false);
+                },
+                child: RepaintBoundary(child: widget.child),
               ),
+            ),
           ],
         );
 
@@ -336,13 +318,52 @@ class _WindowFrameState extends State<WindowFrame> {
         );
 
         final body = RepaintBoundary(
-          child: zoomed
-              ? frame
-              : _ResizeHandles(
-                  window: w,
-                  onFocus: widget.onFocus,
-                  child: frame,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: zoomed
+                    ? frame
+                    : _ResizeHandles(
+                        window: w,
+                        onFocus: widget.onFocus,
+                        child: frame,
+                      ),
+              ),
+              if (_menuOpen)
+                Positioned(
+                  left: 10,
+                  top: kUnifiedAppHeaderHeight + 4,
+                  width: 320,
+                  child: AppTestingMenuPopover(
+                    window: w,
+                    executionMode: effectiveMode,
+                    onSelectMode: (m) {
+                      _handleSelectExecutionMode(m);
+                      setState(() => _menuOpen = false);
+                    },
+                    onReload: () {
+                      _handleReload();
+                      setState(() => _menuOpen = false);
+                    },
+                    onResetSandbox: () {
+                      _handleHardRestartSandbox();
+                      setState(() => _menuOpen = false);
+                    },
+                    onInspectSandbox: () {
+                      _handleInspectSandbox();
+                      setState(() => _menuOpen = false);
+                    },
+                    onOpenAppSettings: widget.onOpenAppSettings != null
+                        ? () {
+                            setState(() => _menuOpen = false);
+                            widget.onOpenAppSettings!();
+                          }
+                        : null,
+                  ),
                 ),
+            ],
+          ),
         );
 
         final rect = zoomed ? Offset.zero & widget.desk : w.bounds;
@@ -360,638 +381,6 @@ class _WindowFrameState extends State<WindowFrame> {
           child: body,
         );
       },
-    );
-  }
-}
-
-class _TitleBar extends StatefulWidget {
-  const _TitleBar({
-    required this.window,
-    required this.focused,
-    required this.zoomed,
-    required this.canMove,
-    required this.desk,
-    required this.onToggleZoom,
-    required this.onPin,
-    required this.isPinned,
-    required this.onReload,
-    required this.onHardRestartSandbox,
-    required this.settingsOpen,
-    required this.onToggleSettings,
-    this.onFocus,
-    this.onClose,
-    this.onMinimize,
-    this.onNewTab,
-    this.onFavourite,
-    this.isFavourite = false,
-  });
-
-  final DesktopWindowState window;
-  final bool focused;
-  final bool zoomed;
-  final bool canMove;
-  final Size desk;
-  final VoidCallback? onFocus;
-  final VoidCallback? onClose;
-  final VoidCallback? onMinimize;
-  final VoidCallback onToggleZoom;
-  final VoidCallback? onNewTab;
-  final VoidCallback? onFavourite;
-  final bool isFavourite;
-  final VoidCallback onPin;
-  final bool isPinned;
-  final VoidCallback onReload;
-  final VoidCallback onHardRestartSandbox;
-  final bool settingsOpen;
-  final VoidCallback onToggleSettings;
-
-  @override
-  State<_TitleBar> createState() => _TitleBarState();
-}
-
-class _TitleBarState extends State<_TitleBar> {
-  bool _hoverControls = false;
-  DateTime _lastDown = DateTime(0);
-  Offset _lastPos = Offset.zero;
-
-  void _onDown(PointerDownEvent e) {
-    final now = DateTime.now();
-    final quick = now.difference(_lastDown) < const Duration(milliseconds: 350);
-    final near = (e.position - _lastPos).distance < 6;
-    _lastDown = now;
-    _lastPos = e.position;
-    if (quick && near && !_hoverControls) {
-      _lastDown = DateTime(0);
-      widget.onToggleZoom();
-    } else {
-      widget.onFocus?.call();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    final w = widget.window;
-    return Listener(
-      onPointerDown: _onDown,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: widget.canMove ? (_) => widget.onFocus?.call() : null,
-        onPanUpdate: widget.canMove
-            ? (d) => w.moveBy(d.delta, widget.desk)
-            : null,
-        child: Container(
-          height: kDesktopTitleBarHeight,
-          decoration: BoxDecoration(
-            color: widget.focused ? c.titleBarFocused : c.titleBarBlurred,
-            border: Border(bottom: BorderSide(color: c.borderHairline)),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: MouseRegion(
-                  onEnter: (_) => setState(() => _hoverControls = true),
-                  onExit: (_) => setState(() => _hoverControls = false),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _Light(
-                        color: c.error,
-                        active: widget.focused || _hoverControls,
-                        glyph: LucideIcons.x,
-                        showGlyph: _hoverControls,
-                        label: 'Close',
-                        onTap: widget.onClose ?? () {},
-                      ),
-                      const SizedBox(width: 8),
-                      _Light(
-                        color: c.working,
-                        active: widget.focused || _hoverControls,
-                        glyph: LucideIcons.minus,
-                        showGlyph: _hoverControls,
-                        label: 'Minimise',
-                        onTap:
-                            widget.onMinimize ??
-                            () => w.setMinimized(!w.minimized),
-                      ),
-                      const SizedBox(width: 8),
-                      _Light(
-                        color: c.done,
-                        active: widget.focused || _hoverControls,
-                        glyph: widget.zoomed
-                            ? LucideIcons.minimize2
-                            : LucideIcons.maximize2,
-                        showGlyph: _hoverControls,
-                        label: 'Zoom',
-                        onTap: widget.onToggleZoom,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 120),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IcAppIcon(appId: w.appId, accentHex: w.accentHex, size: 18),
-                    const SizedBox(width: 7),
-                    Flexible(
-                      child: Text(
-                        w.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: IcType.text(
-                          13,
-                          weight: FontWeight.w600,
-                          color: widget.focused ? c.textStrong : c.textMuted,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    TagPill(label: w.neuronUri, tone: TagTone.neutral),
-                    if (w.sandboxStatusBadge != null) ...[
-                      const SizedBox(width: 6),
-                      TagPill(
-                        key: ValueKey('window-sandbox-badge-${w.id}'),
-                        label: w.sandboxStatusBadge!,
-                        tone: TagTone.accent,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: MouseRegion(
-                  onEnter: (_) => setState(() => _hoverControls = true),
-                  onExit: (_) => setState(() => _hoverControls = false),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (widget.onFavourite != null)
-                        _TitleActionButton(
-                          icon: LucideIcons.star,
-                          tooltip: widget.isFavourite
-                              ? 'Remove from favourites'
-                              : 'Add to favourites',
-                          active: widget.isFavourite,
-                          onTap: widget.onFavourite!,
-                        ),
-                      _TitleActionButton(
-                        key: ValueKey('window-pin-btn-${w.id}'),
-                        icon: widget.isPinned
-                            ? LucideIcons.pin
-                            : LucideIcons.pinOff,
-                        tooltip: widget.isPinned
-                            ? 'Unpin window (always on top)'
-                            : 'Pin window (always on top & lock in Auto-Arrange)',
-                        active: widget.isPinned,
-                        onTap: widget.onPin,
-                      ),
-                      _ReloadHoldActionButton(
-                        key: ValueKey('window-reload-btn-${w.id}'),
-                        onShortTap: widget.onReload,
-                        onLongHoldOrSecondary: widget.onHardRestartSandbox,
-                      ),
-                      _TitleActionButton(
-                        key: ValueKey('window-settings-btn-${w.id}'),
-                        icon: LucideIcons.slidersHorizontal,
-                        tooltip: 'Execution mode & sandbox settings',
-                        active: widget.settingsOpen,
-                        onTap: widget.onToggleSettings,
-                      ),
-                      if (widget.onNewTab != null)
-                        _TitleActionButton(
-                          icon: LucideIcons.plus,
-                          tooltip: 'New tab',
-                          onTap: widget.onNewTab!,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReloadHoldActionButton extends StatefulWidget {
-  const _ReloadHoldActionButton({
-    super.key,
-    required this.onShortTap,
-    required this.onLongHoldOrSecondary,
-  });
-
-  final VoidCallback onShortTap;
-  final VoidCallback onLongHoldOrSecondary;
-
-  @override
-  State<_ReloadHoldActionButton> createState() =>
-      _ReloadHoldActionButtonState();
-}
-
-class _ReloadHoldActionButtonState extends State<_ReloadHoldActionButton> {
-  static const Duration _holdThreshold = Duration(milliseconds: 500);
-
-  bool _hover = false;
-  bool _holding = false;
-  bool _longPressFired = false;
-  Timer? _holdTimer;
-
-  @override
-  void dispose() {
-    _holdTimer?.cancel();
-    super.dispose();
-  }
-
-  void _handlePointerDown(PointerDownEvent event) {
-    if (event.buttons == kSecondaryMouseButton) {
-      _holdTimer?.cancel();
-      _longPressFired = true;
-      widget.onLongHoldOrSecondary();
-      return;
-    }
-    _longPressFired = false;
-    setState(() => _holding = true);
-    _holdTimer?.cancel();
-    _holdTimer = Timer(_holdThreshold, () {
-      _longPressFired = true;
-      if (mounted) {
-        setState(() => _holding = false);
-      }
-      widget.onLongHoldOrSecondary();
-    });
-  }
-
-  void _handlePointerUp(PointerUpEvent event) {
-    final wasLong = _longPressFired;
-    _holdTimer?.cancel();
-    _holdTimer = null;
-    if (mounted && _holding) {
-      setState(() => _holding = false);
-    }
-    if (!wasLong && event.buttons != kSecondaryMouseButton) {
-      widget.onShortTap();
-    }
-  }
-
-  void _handlePointerCancel(PointerCancelEvent event) {
-    _holdTimer?.cancel();
-    _holdTimer = null;
-    if (mounted && _holding) {
-      setState(() => _holding = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    return Tooltip(
-      message: 'Reload view (Hold >500ms to hard-restart sandbox)',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: _handlePointerDown,
-          onPointerUp: _handlePointerUp,
-          onPointerCancel: _handlePointerCancel,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {},
-            child: Container(
-              width: 26,
-              height: 26,
-              margin: const EdgeInsets.only(left: 4),
-              decoration: BoxDecoration(
-                color: _holding
-                    ? c.accentTint
-                    : (_hover ? c.surfaceSunk : Colors.transparent),
-                borderRadius: BorderRadius.circular(IcRadius.xs),
-              ),
-              child: Icon(
-                LucideIcons.rotateCw,
-                size: 13.5,
-                color: _holding
-                    ? c.accent
-                    : (_hover ? c.textStrong : c.textMuted),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WindowSettingsPopover extends StatelessWidget {
-  const _WindowSettingsPopover({
-    required this.window,
-    required this.executionMode,
-    required this.onSelectMode,
-    required this.onResetSandbox,
-    required this.onInspectSandbox,
-  });
-
-  final DesktopWindowState window;
-  final String executionMode;
-  final ValueChanged<String> onSelectMode;
-  final VoidCallback onResetSandbox;
-  final VoidCallback onInspectSandbox;
-
-  static const _modes = <(String id, String label, IconData icon)>[
-    ('wasm-ui', 'WASM Web UI', LucideIcons.globe),
-    ('mcp', 'MCP Server', LucideIcons.plug),
-    ('native-linux', 'Native Linux CLI', LucideIcons.terminal),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    return IcAcrylicBox(
-      key: ValueKey('window-settings-popover-${window.id}'),
-      padding: const EdgeInsets.all(14),
-      borderRadius: BorderRadius.circular(IcRadius.card),
-      shadows: IcShadow.xl(c),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.slidersHorizontal, size: 14, color: c.accent),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  'EXECUTION MODE',
-                  style: IcType.text(
-                    11,
-                    weight: FontWeight.w700,
-                    color: c.textMuted,
-                  ),
-                ),
-              ),
-              TagPill(
-                label: DesktopWindowState.formatExecutionMode(executionMode),
-                tone: TagTone.accent,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (final (id, label, icon) in _modes)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: GestureDetector(
-                key: ValueKey('exec-mode-$id'),
-                onTap: () => onSelectMode(id),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: executionMode == id
-                          ? c.accentTint
-                          : c.surfaceSunk.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(IcRadius.xs),
-                      border: Border.all(
-                        color: executionMode == id
-                            ? c.accent
-                            : c.borderHairline,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          icon,
-                          size: 13.5,
-                          color: executionMode == id ? c.accent : c.textMuted,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            label,
-                            style: IcType.text(
-                              12.5,
-                              weight: executionMode == id
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                              color: executionMode == id
-                                  ? c.textStrong
-                                  : c.textBody,
-                            ),
-                          ),
-                        ),
-                        if (executionMode == id)
-                          Icon(LucideIcons.check, size: 13, color: c.accent),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          const SizedBox(height: 8),
-          Divider(height: 1, color: c.borderHairline),
-          const SizedBox(height: 8),
-          Text(
-            'ISOLATED SANDBOX',
-            style: IcType.text(
-              10.5,
-              weight: FontWeight.w700,
-              color: c.textMuted,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Btn(
-                  key: const ValueKey('window-sandbox-reset-btn'),
-                  label: 'Reset Sandbox',
-                  small: true,
-                  icon: LucideIcons.rotateCcw,
-                  onTap: onResetSandbox,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Btn(
-                  key: const ValueKey('window-sandbox-inspect-btn'),
-                  label: 'Inspect in 3D Creator',
-                  small: true,
-                  primary: true,
-                  icon: LucideIcons.brainCircuit,
-                  onTap: onInspectSandbox,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TitleActionButton extends StatefulWidget {
-  const _TitleActionButton({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.active = false,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  final bool active;
-
-  @override
-  State<_TitleActionButton> createState() => _TitleActionButtonState();
-}
-
-class _TitleActionButtonState extends State<_TitleActionButton> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: Container(
-            width: 26,
-            height: 26,
-            margin: const EdgeInsets.only(left: 4),
-            decoration: BoxDecoration(
-              color: widget.active
-                  ? c.accentTint
-                  : (_hover ? c.surfaceSunk : Colors.transparent),
-              borderRadius: BorderRadius.circular(IcRadius.xs),
-            ),
-            child: Icon(
-              widget.icon,
-              size: 13.5,
-              color: widget.active
-                  ? c.accent
-                  : (_hover ? c.textStrong : c.textMuted),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WindowTabStrip extends StatelessWidget {
-  const _WindowTabStrip({required this.tabs});
-
-  final List<DesktopTabSpec> tabs;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    return Container(
-      height: 32,
-      decoration: BoxDecoration(
-        color: c.surfaceSunk.withValues(alpha: 0.72),
-        border: Border(bottom: BorderSide(color: c.borderHairline)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: tabs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 4),
-        itemBuilder: (context, index) {
-          final tab = tabs[index];
-          return GestureDetector(
-            onTap: tab.onTap,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: tab.selected ? c.surfaceCard : Colors.transparent,
-                  borderRadius: BorderRadius.circular(IcRadius.xs),
-                  border: tab.selected
-                      ? Border.all(color: c.borderHairline)
-                      : null,
-                ),
-                child: Text(
-                  tab.label,
-                  style: IcType.text(
-                    12,
-                    weight: tab.selected ? FontWeight.w600 : FontWeight.w500,
-                    color: tab.selected ? c.textStrong : c.textMuted,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _Light extends StatelessWidget {
-  const _Light({
-    required this.color,
-    required this.active,
-    required this.glyph,
-    required this.showGlyph,
-    required this.label,
-    required this.onTap,
-  });
-
-  final Color color;
-  final bool active;
-  final IconData glyph;
-  final bool showGlyph;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    return Semantics(
-      button: true,
-      label: label,
-      child: GestureDetector(
-        onTap: onTap,
-        onDoubleTap: () {},
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: active ? color : c.borderInput,
-              shape: BoxShape.circle,
-            ),
-            child: showGlyph
-                ? Icon(glyph, size: 8, color: const Color(0xB317140F))
-                : null,
-          ),
-        ),
-      ),
     );
   }
 }

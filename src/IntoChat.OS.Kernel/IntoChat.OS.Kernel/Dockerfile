@@ -22,7 +22,6 @@ FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
 WORKDIR /src
 
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
-COPY framework/ ./framework/
 COPY src/ ./src/
 
 RUN dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \

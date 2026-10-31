@@ -5,6 +5,9 @@
 # Context is the pub workspace root (app/); shell needs its core and ui siblings.
 # No public SDK image tracks current Flutter releases, so the build stage installs the
 # pinned SDK from the official release archive; the layer caches until the pin moves.
+FROM ghcr.io/intochat/os-artcraft-photocraft-web:d7d5c6069c8f AS photocraft_web
+FROM ghcr.io/intochat/os-artcraft-filmcraft-web:7b6c13447228 AS filmcraft_web
+
 FROM debian:bookworm-slim AS build
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl git unzip xz-utils \
@@ -32,3 +35,6 @@ COPY shell/nginx/default.conf.template /etc/nginx/templates/default.conf.templat
 COPY shell/nginx/19-validate-kernel.sh /docker-entrypoint.d/19-validate-kernel.sh
 RUN chmod +x /docker-entrypoint.d/19-validate-kernel.sh
 COPY --from=build /workspace/shell/build/web /usr/share/nginx/html
+COPY --from=photocraft_web /usr/share/nginx/html /usr/share/nginx/html/artcraft/photocraft
+COPY --from=filmcraft_web /usr/share/nginx/html /usr/share/nginx/html/artcraft/filmcraft
+

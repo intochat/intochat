@@ -54,13 +54,17 @@ public static class FilmCraftView
         var appKey = brain.Setting("App")!;
         var revision = long.Parse(brain.Setting("ProgramRevision") ?? "1", CultureInfo.InvariantCulture);
         var publisher = new ViewPublisher(brain.Get<IView>(appKey + "/view"), revision);
+        var resolvedUrl = string.IsNullOrWhiteSpace(webUrl) ? "http://localhost:18083" : webUrl;
         await publisher.Publish(ViewUi.Column(
             "filmcraft",
             [
                 ViewUi.Text("status", status),
-                ViewUi.Text("browser", webUrl ?? "http://localhost:18083"),
+                ViewUi.Card(
+                    "browser",
+                    resolvedUrl,
+                    detail: $"{{\"_ui\":\"webbrowser\",\"url\":\"{resolvedUrl}\",\"title\":\"FilmCraft WASM Studio\",\"height\":0,\"executionMode\":\"wasm-ui\"}}"),
             ],
-            extents: [40, 520]));
+            extents: [24, 0]));
         await brain.Get<IApp>(appKey).Present(
             revision,
             new(

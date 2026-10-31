@@ -2060,8 +2060,54 @@ class _ImmutableView extends StatelessWidget {
     );
   }
 
+  static String _extractStudioUrl(Map node, String fallbackUrl) {
+    final detail = node['detail'];
+    if (detail is String && detail.contains('"_ui":"webbrowser"')) {
+      final meta = _tryParseUiMeta(detail);
+      final u = meta?['url'] as String?;
+      if (u != null && u.trim().isNotEmpty) return u.trim();
+    }
+    if (node['key'] == 'browser' && node['text'] is String) {
+      final t = (node['text'] as String).trim();
+      if (t.startsWith('http://') || t.startsWith('https://')) return t;
+    }
+    final children = node['children'];
+    if (children is List) {
+      for (final c in children) {
+        if (c is Map) {
+          final found = _extractStudioUrl(c, '');
+          if (found.isNotEmpty) return found;
+        }
+      }
+    }
+    return fallbackUrl;
+  }
+
   @override
-  Widget build(BuildContext context) => _node(context, root, 0);
+  Widget build(BuildContext context) {
+    if ((name.endsWith('/apps/photocraft/view') ||
+            name.endsWith('/apps/filmcraft/view')) &&
+        root['key'] != 'app-body') {
+      final isFilm = name.endsWith('/apps/filmcraft/view');
+      final defaultUrl = isFilm
+          ? 'http://localhost:18083'
+          : 'http://localhost:18082';
+      final defaultTitle = isFilm
+          ? 'FilmCraft WASM Studio'
+          : 'PhotoCraft WASM Studio';
+      final url = _extractStudioUrl(root, defaultUrl);
+      return SizedBox.expand(
+        child: _InteractiveWasmBrowserFrame(
+          key: ValueKey('studio-wasm-frame-$name'),
+          title: defaultTitle,
+          url: url,
+          executionMode: 'wasm-ui',
+          height: 0,
+        ),
+      );
+    }
+    return _node(context, root, 0);
+  }
 }
 
 class _ImmutableFieldBox extends StatefulWidget {
@@ -2314,6 +2360,7 @@ class _InteractiveBrainSceneBoxState extends State<_InteractiveBrainSceneBox> {
 
 class _InteractiveWasmBrowserFrame extends StatefulWidget {
   const _InteractiveWasmBrowserFrame({
+    super.key,
     required this.title,
     required this.url,
     required this.executionMode,
@@ -2343,11 +2390,35 @@ class _InteractiveWasmBrowserFrameState
   String get _appId {
     final lower = '${widget.title} ${widget.url}'.toLowerCase();
     if (lower.contains('18083') ||
+        lower.contains('18111') ||
         lower.contains('filmcraft') ||
         lower.contains('videocraft')) {
       return 'filmcraft';
     }
     return 'photocraft';
+  }
+
+  String get _resolvedUrl {
+    final raw = widget.url.trim();
+    if (kIsWeb) {
+      final base = Uri.base;
+      final isLocalOrEmpty =
+          raw.isEmpty ||
+          raw.contains('localhost') ||
+          raw.contains('127.0.0.1');
+      if (isLocalOrEmpty && (base.scheme == 'http' || base.scheme == 'https')) {
+        final studioPath = _appId == 'filmcraft'
+            ? '/artcraft/filmcraft/index.html'
+            : '/artcraft/photocraft/index.html';
+        if (base.host != 'localhost' && base.host != '127.0.0.1') {
+          return '${base.origin}$studioPath';
+        }
+        return _appId == 'filmcraft'
+            ? 'http://localhost:18111/'
+            : 'http://localhost:18110/';
+      }
+    }
+    return raw;
   }
 
   String get _formattedMode {
@@ -2369,171 +2440,117 @@ class _InteractiveWasmBrowserFrameState
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
-    return IcAcrylicBox(
-      key: ValueKey('wasm-browser-frame-${widget.url}'),
-      padding: const EdgeInsets.all(14),
-      borderRadius: BorderRadius.circular(IcRadius.card),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    final resolvedUrl = _resolvedUrl;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boundedHeight = constraints.hasBoundedHeight;
+        final fallbackHeight = widget.height > 0 ? widget.height : 520.0;
+        final browserViewport = Container(
+          key: ValueKey('webbrowser-viewport-$_reloadSession'),
+          height: boundedHeight ? null : fallbackHeight,
+          width: double.infinity,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: c.surfaceSunk,
+            borderRadius: BorderRadius.circular(IcRadius.sm),
+            border: Border.all(color: c.borderInput),
+          ),
+          child: EmbeddedBrowser(
+            key: ValueKey('embedded-wasm-$resolvedUrl-$_reloadSession'),
+            uri: resolvedUrl,
+            onConnect: null,
+            onDisconnect: null,
+          ),
+        );
+
+        return IcAcrylicBox(
+          key: ValueKey('wasm-browser-frame-${widget.url}'),
+          padding: const EdgeInsets.all(8),
+          borderRadius: BorderRadius.circular(IcRadius.card),
+          child: Column(
+            mainAxisSize: boundedHeight ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              IcAppIcon(appId: _appId, size: 24),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              Row(
+                children: [
+                  IcAppIcon(appId: _appId, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
                       widget.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: IcType.text(
-                        13.5,
+                        13,
                         weight: FontWeight.w700,
                         color: c.textStrong,
                       ),
                     ),
-                    if (widget.subtitle != null && widget.subtitle!.isNotEmpty)
-                      Text(
-                        widget.subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: IcType.text(11.5, color: c.textMuted),
-                      ),
-                  ],
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: widget.url));
-                  showKitToast(context, 'Copied ${widget.url}');
-                },
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: TagPill(
-                    key: const ValueKey('webbrowser-url-pill'),
-                    label: widget.url,
-                    tone: TagTone.neutral,
-                    icon: LucideIcons.globe,
                   ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              TagPill(
-                key: const ValueKey('webbrowser-mode-badge'),
-                label: _formattedMode,
-                tone: TagTone.accent,
-                icon: LucideIcons.cpu,
-              ),
-              const SizedBox(width: 6),
-              Tooltip(
-                message: 'Reload WASM Studio',
-                child: GestureDetector(
-                  key: const ValueKey('webbrowser-reload-btn'),
-                  onTap: _triggerReload,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: c.surfaceSunk,
-                        borderRadius: BorderRadius.circular(IcRadius.xs),
-                        border: Border.all(color: c.borderHairline),
-                      ),
-                      child: Icon(
-                        LucideIcons.rotateCw,
-                        size: 13.5,
-                        color: c.textStrong,
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: widget.url));
+                      showKitToast(context, 'Copied ${widget.url}');
+                    },
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: TagPill(
+                        key: const ValueKey('webbrowser-url-pill'),
+                        label: widget.url,
+                        tone: TagTone.neutral,
+                        icon: LucideIcons.globe,
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            key: ValueKey('webbrowser-viewport-$_reloadSession'),
-            height: widget.height,
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: c.surfaceSunk,
-              borderRadius: BorderRadius.circular(IcRadius.sm),
-              border: Border.all(color: c.borderInput),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(LucideIcons.sparkles, size: 15, color: c.accent),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Embedded WASM Studio Viewport · ${widget.url}',
-                        style: IcType.code(12, color: c.textStrong),
-                      ),
-                    ),
-                    TagPill(
-                      label: 'Session #${_reloadSession + 1}',
-                      tone: TagTone.done,
-                      icon: LucideIcons.circleCheck,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: c.surfaceCard,
-                      borderRadius: BorderRadius.circular(IcRadius.xs),
-                      border: Border.all(color: c.borderHairline),
-                    ),
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IcAppIcon(appId: _appId, size: 36),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${widget.title} · Interactive Canvas Ready',
-                          style: IcType.text(
-                            13.5,
-                            weight: FontWeight.w600,
+                  const SizedBox(width: 6),
+                  TagPill(
+                    key: const ValueKey('webbrowser-mode-badge'),
+                    label: _formattedMode,
+                    tone: TagTone.accent,
+                    icon: LucideIcons.cpu,
+                  ),
+                  const SizedBox(width: 6),
+                  TagPill(
+                    label: 'Session #${_reloadSession + 1}',
+                    tone: TagTone.done,
+                    icon: LucideIcons.circleCheck,
+                  ),
+                  const SizedBox(width: 6),
+                  Tooltip(
+                    message: 'Reload WASM Studio',
+                    child: GestureDetector(
+                      key: const ValueKey('webbrowser-reload-btn'),
+                      onTap: _triggerReload,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: c.surfaceSunk,
+                            borderRadius: BorderRadius.circular(IcRadius.xs),
+                            border: Border.all(color: c.borderHairline),
+                          ),
+                          child: Icon(
+                            LucideIcons.rotateCw,
+                            size: 13,
                             color: c.textStrong,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Connected to ${widget.url} ($_formattedMode)',
-                          style: IcType.text(
-                            12,
-                            color: c.textMuted,
-                            tnum: true,
-                          ),
-                        ),
-                        if (widget.children.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: widget.children,
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (boundedHeight)
+                Expanded(child: browserViewport)
+              else
+                browserViewport,
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

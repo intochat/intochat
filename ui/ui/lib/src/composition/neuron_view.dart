@@ -24,6 +24,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
@@ -37,6 +38,9 @@ import '../chat/chat_run_link.dart';
 import '../chat/ui_chat_transcript.dart';
 import '../components/kit/ui_kit_button.dart';
 import '../chat/ui_composer.dart';
+import '../components/browser/embedded_browser_stub.dart'
+    if (dart.library.io) '../components/browser/embedded_browser_windows.dart'
+    if (dart.library.js_interop) '../components/browser/embedded_browser_web.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
 import '../components/expander/ui_expander.dart';
@@ -516,7 +520,11 @@ class _NeuronViewState extends State<NeuronView> {
         animateChanges: _animateSceneChanges,
       );
     }
-    if (_data == null) {
+    final isStudioView =
+        widget.kind == 'view' &&
+        (widget.name.endsWith('/apps/photocraft/view') ||
+            widget.name.endsWith('/apps/filmcraft/view'));
+    if (_data == null && !isStudioView) {
       return _ComponentReadState(
         state: WindowState(
           _error == null ? WindowStatus.loading : WindowStatus.failed,
@@ -524,8 +532,10 @@ class _NeuronViewState extends State<NeuronView> {
         onRetry: _error == null ? null : _reload,
       );
     }
-    final data = _data!;
+    final data = _data ?? const <String, dynamic>{};
     if (widget.ancestors.isEmpty &&
+        !isStudioView &&
+        !widget.name.endsWith('/apps/gallery/view') &&
         (data['version'] ?? data['revision']) == 0) {
       return Center(
         child: Semantics(
@@ -554,8 +564,11 @@ class _NeuronViewState extends State<NeuronView> {
     switch (widget.kind) {
       case 'view':
       case 'confirmation':
-        final root = data['root'];
-        if (root is! Map) return const SizedBox.shrink();
+        final rawRoot = data['root'];
+        if (rawRoot is! Map && !isStudioView) return const SizedBox.shrink();
+        final root = rawRoot is Map
+            ? rawRoot
+            : <String, dynamic>{'key': 'view', 'kind': 2, 'children': const []};
         if (widget.kind == 'view' &&
             widget.name.endsWith('/apps/gallery/view') &&
             (root['children'] is! List || (root['children'] as List).isEmpty)) {
@@ -578,6 +591,18 @@ class _NeuronViewState extends State<NeuronView> {
       case 'viewport':
         final root = data['root'];
         if (root is Map && root['kind'] is String && root['name'] is String) {
+          final targetName = root['name'] as String;
+          if (targetName.endsWith('/apps/photocraft/main') ||
+              targetName.endsWith('/apps/filmcraft/main')) {
+            final viewRef = <String, dynamic>{
+              'kind': 'view',
+              'name': targetName.replaceFirst(RegExp(r'/main$'), '/view'),
+            };
+            return UiMotion(
+              contentKey: 'view:${viewRef['name']}',
+              child: _child(viewRef),
+            );
+          }
           return UiMotion(
             contentKey: '${root['kind']}:${root['name']}',
             child: _child(root),

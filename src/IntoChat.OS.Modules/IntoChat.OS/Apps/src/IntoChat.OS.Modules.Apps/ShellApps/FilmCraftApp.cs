@@ -8,7 +8,7 @@ Open-source Premiere-compatible non-linear video editor (timeline tracks, razor 
 with dual execution:
 1. Native Linux CLI mode (filmcraft-cli / craft-cli exec | render | export) for fast headless/cloud timeline processing.
 2. MCP Server mode (IArtCraftStudio + IMcpServer at {brain}/mcp/filmcraft) for agentic timeline tool calls.
-3. Optional WASM Web UI mode for interactive browser timeline editing.
+3. Interactive WASM Web UI mode for full-card browser timeline editing.
 */
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.ArtCraft;
@@ -58,13 +58,13 @@ public sealed record FilmCraftAppState(
     string McpEndpointUri = "neuron://local/mcp/filmcraft")
 {
     public FilmCraftAppState() : this(
-        "native-linux",
+        "wasm-ui",
         "/work/nordlys-launch.fcproj",
         "/work/nordlys-launch.cut.mp4",
         "timeline.razor",
-        "Ready · Native Linux Timeline Engine (filmcraft-cli)",
+        "Ready · FilmCraft Studio",
         "filmcraft-cli exec /work/nordlys-launch.fcproj --cmd timeline.razor --params '{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}' --out /work/nordlys-launch.cut.mp4",
-        "FilmCraft tools connected (Native Linux CLI + MCP).",
+        "FilmCraft tools connected.",
         [
             "V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)",
             "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)",
@@ -93,10 +93,10 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
         "1.1.0",
         new AppManifest(
             Title: "FilmCraft",
-            Description: "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with Dual Execution: Native Linux CLI (filmcraft-cli) and MCP Server.",
+            Description: "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.",
             Operations:
             [
-                new("open", "Connect FilmCraft studio (Native Linux CLI + MCP) and load a sequence."),
+                new("open", "Connect FilmCraft studio and load a sequence."),
                 new("edit", "Edit a video sequence from natural language (razor split, ripple trim, Lumetri color, export)."),
                 new("run-command", "Execute a FilmCraft timeline command ID via Native Linux CLI or MCP."),
                 new("export", "Render and export the active video sequence to H.264 MP4."),
@@ -215,139 +215,19 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
         });
     }
 
-    public View RenderSide() => new(
-        "Sequence Tracks & Engine",
-        new Column(
-        [
-            new Surface(
-                [
-                    new Row(
-                    [
-                        new TagPill("FilmCraft Studio", "accent", "film"),
-                        new TagPill(State.ExecutionMode, State.ExecutionMode == "native-linux" ? "ok" : "info", "cpu"),
-                    ]) { Gap = 6 },
-                    new Text(State.ActiveSequence) { Mono = true, Tabular = true },
-                    new Text($"Out: {State.OutputFile}") { Tone = "muted", Mono = true, Tabular = true },
-                ],
-                Kind: SurfaceKind.Acrylic,
-                Title: "VideoCraft / FilmCraft Engine"),
-            new Divider("EXECUTION MODE"),
-            new Button(
-                "Native Linux CLI (Fast / Cloud)",
-                new ButtonAction("apps/filmcraft", "switch-mode", ["native-linux"]),
-                Tone: State.ExecutionMode == "native-linux" ? ButtonTone.Accent : ButtonTone.Neutral)
-            {
-                Small = true,
-                Icon = "terminal",
-            },
-            new Button(
-                "MCP Server (Agent Tools)",
-                new ButtonAction("apps/filmcraft", "switch-mode", ["mcp"]),
-                Tone: State.ExecutionMode == "mcp" ? ButtonTone.Accent : ButtonTone.Neutral)
-            {
-                Small = true,
-                Icon = "plug",
-            },
-            new Button(
-                "WASM Web UI (Interactive)",
-                new ButtonAction("apps/filmcraft", "switch-mode", ["wasm-ui"]),
-                Tone: State.ExecutionMode == "wasm-ui" ? ButtonTone.Accent : ButtonTone.Neutral)
-            {
-                Small = true,
-                Icon = "globe",
-            },
-            new Divider("TIMELINE TRACKS"),
-            new Collection(State.Tracks.Select((track, idx) =>
-                new Entry($"track-{idx + 1}", track, "Armed")).ToArray()),
-        ])
-        { Gap = 8 });
+    public View? RenderSide() => null;
 
     public View Render() => new(
         "FilmCraft",
         new Column(
         [
-            new Surface(
-                [
-                    new Row(
-                    [
-                        new TagPill("FilmCraft 1.1 (VideoCraft)", "accent", "film"),
-                        new TagPill($"Mode: {FormatModeLabel(State.ExecutionMode)}", "ok", "cpu"),
-                        new TagPill($"Cmd: {State.LastCommandId}", "neutral", "scissors"),
-                        new TagPill(State.McpEndpointUri, "info", "network"),
-                    ]) { Gap = 8 },
-                    new Text(State.Status) { Tabular = true },
-                    new Row(
-                    [
-                        new Button(
-                            "Razor Split (00:03:12)",
-                            new ButtonAction("apps/filmcraft", "run-command", ["timeline.razor"]),
-                            Tone: ButtonTone.Accent)
-                        {
-                            Small = true,
-                            Icon = "scissors",
-                        },
-                        new Button(
-                            "Ripple Trim (-24f)",
-                            new ButtonAction("apps/filmcraft", "run-command", ["timeline.rippleTrim"]))
-                        {
-                            Small = true,
-                            Icon = "sliders-horizontal",
-                        },
-                        new Button(
-                            "Lumetri Auto Grade",
-                            new ButtonAction("apps/filmcraft", "run-command", ["color.lumetri.auto"]))
-                        {
-                            Small = true,
-                            Icon = "palette",
-                        },
-                        new Button(
-                            "Export 1080p60 MP4",
-                            new ButtonAction("apps/filmcraft", "export", ["h264-1080p60"]))
-                        {
-                            Small = true,
-                            Icon = "download",
-                        },
-                    ]) { Gap = 8 },
-                ],
-                Kind: SurfaceKind.Acrylic,
-                Title: "FilmCraft (VideoCraft) · Native Linux CLI & MCP Non-Linear Video Studio"),
-            new SplitPane(
-                Leading: new Surface(
-                    [
-                        new Heading(State.LastCommandTitle, Level: 3, Subtitle: $"{State.ActiveSequence} -> {State.OutputFile}"),
-                        UI.WebBrowser(State.WebUrl ?? "http://localhost:18083", "FilmCraft WASM Studio", "filmcraft-wasm", 520, State.ExecutionMode),
-                        new Divider("NATIVE LINUX CLI / TIMELINE ENGINE INVOCATION"),
-                        new Surface(
-                            [
-                                new Text(State.LastCliInvocation) { Mono = true, Tabular = true },
-                            ],
-                            Kind: SurfaceKind.Recessed),
-                        new Collection(State.Tracks.Select((track, idx) =>
-                            new Entry($"tl-{idx + 1}", track, "Timeline Track")).ToArray()),
-                    ],
-                    Kind: SurfaceKind.Elevated,
-                    Title: "Program Monitor & Non-Linear Timeline",
-                    Subtitle: $"Driven via {FormatModeLabel(State.ExecutionMode)}"),
-                Trailing: new Surface(
-                    [
-                        new RecordCardNode(
-                            "Timeline Engine Telemetry",
-                            State.LastCommandId,
-                            [
-                                new RecordFieldNode("Execution Mode", FormatModeLabel(State.ExecutionMode)),
-                                new RecordFieldNode("Sequence", State.ActiveSequence),
-                                new RecordFieldNode("Rendered Output", State.OutputFile),
-                                new RecordFieldNode("MCP Neuron", State.McpEndpointUri),
-                                new RecordFieldNode("WASM Endpoint", State.WebUrl ?? "disabled (headless)"),
-                            ],
-                            Subtitle: State.Status),
-                    ],
-                    Kind: SurfaceKind.Acrylic,
-                    Title: "Sequence Inspector"),
-                LeadingExtent: 480,
-                Gap: 16),
+            new Text($"{State.Status} · {State.ActiveSequence} -> {State.OutputFile}") { Tone = "muted", Tabular = true },
+            UI.WebBrowser(State.WebUrl ?? "http://localhost:18083", "FilmCraft WASM Studio", "filmcraft-wasm", 0, State.ExecutionMode),
         ])
-        { Gap = 14 });
+        {
+            Gap = 4,
+            Extents = [24, 0],
+        });
 
     [DigitalBrain.Scenario("FilmCraft executes timeline razor split in Native Linux CLI mode and exports MP4 in MCP mode")]
     public async Task VerifyFilmCraftDualModeAndTimelineScenario()

@@ -7,7 +7,7 @@ Operations: open, edit, remove-background, run-command, switch-mode
 Open-source Photoshop-compatible layered image editor (PSD, layers, alpha masks, adjustments) with dual execution:
 1. Native Linux CLI mode (photocraft-cli / craft-cli run | serve) for fast headless/cloud execution without WASM overhead.
 2. MCP Server mode (IArtCraftStudio + IMcpServer at {brain}/mcp/photocraft) for multi-step agentic tool workflows.
-3. Optional WASM Web UI mode when interactive canvas editing is desired.
+3. Interactive WASM Web UI mode for full-card canvas editing.
 */
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.ArtCraft;
@@ -66,14 +66,14 @@ public sealed record PhotoCraftAppState(
     string McpEndpointUri = "neuron://local/mcp/photocraft")
 {
     public PhotoCraftAppState() : this(
-        "native-linux",
+        "wasm-ui",
         "/work/portrait.png",
         "/work/portrait.nobg.png",
         "layer.removeBackground",
-        "Ready · Native Linux Engine (photocraft-cli)",
+        "Ready · PhotoCraft Studio",
         "photocraft-cli run /work/portrait.png --cmd layer.removeBackground --params '{\"featherPx\":1,\"output\":\"layer-mask\"}' --out /work/portrait.nobg.png --format png",
         ArtCraftEngineRunner.CyanPreviewPngDataUrl,
-        "PhotoCraft tools connected (Native Linux CLI + MCP).",
+        "PhotoCraft tools connected.",
         [
             "Subject Layer (100% · Normal)",
             "Background Layer (Locked · 100%)",
@@ -102,10 +102,10 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
         "1.1.0",
         new AppManifest(
             Title: "PhotoCraft",
-            Description: "Photoshop-compatible image studio with Dual Execution: Native Linux CLI (photocraft-cli) for fast/cloud headless edits and MCP Server for agent tool workflows.",
+            Description: "Photoshop-compatible image studio with full-card WASM Web UI, Native Linux CLI (photocraft-cli), and MCP Server.",
             Operations:
             [
-                new("open", "Connect PhotoCraft studio (Native Linux CLI + MCP) and open or inspect a document."),
+                new("open", "Connect PhotoCraft studio and open or inspect a document."),
                 new("edit", "Edit an image from natural language (e.g. remove background, select subject, desaturate, gradient)."),
                 new("remove-background", "Run AI background removal (layer.removeBackground) on the active or specified image."),
                 new("run-command", "Execute a PhotoCraft engine command ID directly via Native Linux CLI or MCP."),
@@ -219,158 +219,19 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
         });
     }
 
-    public View RenderSide() => new(
-        "PhotoCraft Layers & Engine",
-        new Column(
-        [
-            new Surface(
-                [
-                    new Row(
-                    [
-                        new TagPill("PhotoCraft Studio", "accent", "image"),
-                        new TagPill(State.ExecutionMode, State.ExecutionMode == "native-linux" ? "ok" : "info", "cpu"),
-                    ]) { Gap = 6 },
-                    new Text(State.ActiveDocument) { Mono = true, Tabular = true },
-                    new Text($"Output: {State.OutputDocument}") { Tone = "muted", Mono = true, Tabular = true },
-                ],
-                Kind: SurfaceKind.Acrylic,
-                Title: "Execution Backend"),
-            new Divider("EXECUTION MODE"),
-            new Button(
-                "Native Linux CLI (Fast / Cloud)",
-                new ButtonAction("apps/photocraft", "switch-mode", ["native-linux"]),
-                Tone: State.ExecutionMode == "native-linux" ? ButtonTone.Accent : ButtonTone.Neutral)
-            {
-                Small = true,
-                Icon = "terminal",
-            },
-            new Button(
-                "MCP Server (Agent Tools)",
-                new ButtonAction("apps/photocraft", "switch-mode", ["mcp"]),
-                Tone: State.ExecutionMode == "mcp" ? ButtonTone.Accent : ButtonTone.Neutral)
-            {
-                Small = true,
-                Icon = "plug",
-            },
-            new Button(
-                "WASM Web UI (Interactive)",
-                new ButtonAction("apps/photocraft", "switch-mode", ["wasm-ui"]),
-                Tone: State.ExecutionMode == "wasm-ui" ? ButtonTone.Accent : ButtonTone.Neutral)
-            {
-                Small = true,
-                Icon = "globe",
-            },
-            new Divider("DOCUMENT LAYERS"),
-            new Collection(State.Layers.Select((layer, idx) =>
-                new Entry($"layer-{idx + 1}", layer, idx == 0 ? "Active" : "Visible")).ToArray()),
-        ])
-        { Gap = 8 });
+    public View? RenderSide() => null;
 
     public View Render() => new(
         "PhotoCraft",
         new Column(
         [
-            new Surface(
-                [
-                    new Row(
-                    [
-                        new TagPill("PhotoCraft 1.1", "accent", "image"),
-                        new TagPill($"Mode: {FormatModeLabel(State.ExecutionMode)}", "ok", "cpu"),
-                        new TagPill($"Cmd: {State.LastCommandId}", "neutral", "wand-sparkles"),
-                        new TagPill(State.McpEndpointUri, "info", "network"),
-                    ]) { Gap = 8 },
-                    new Text(State.Status) { Tabular = true },
-                    new Row(
-                    [
-                        new Button(
-                            "Remove Background",
-                            new ButtonAction("apps/photocraft", "remove-background", [State.ActiveDocument]),
-                            Tone: ButtonTone.Accent)
-                        {
-                            Small = true,
-                            Icon = "wand-sparkles",
-                        },
-                        new Button(
-                            "Select Subject",
-                            new ButtonAction("apps/photocraft", "run-command", ["select.subject"]))
-                        {
-                            Small = true,
-                            Icon = "scan",
-                        },
-                        new Button(
-                            "Desaturate",
-                            new ButtonAction("apps/photocraft", "run-command", ["image.adjustments.desaturate"]))
-                        {
-                            Small = true,
-                            Icon = "contrast",
-                        },
-                        new Button(
-                            "512x512 Gradient",
-                            new ButtonAction("apps/photocraft", "edit", ["make a 512x512 image with a blue-to-orange gradient"]))
-                        {
-                            Small = true,
-                            Icon = "palette",
-                        },
-                    ]) { Gap = 8 },
-                ],
-                Kind: SurfaceKind.Acrylic,
-                Title: "PhotoCraft · Native Linux CLI & MCP Image Studio"),
-            new SplitPane(
-                Leading: new Surface(
-                    [
-                        new Heading(State.LastCommandTitle, Level: 3, Subtitle: $"{State.ActiveDocument} -> {State.OutputDocument}"),
-                        UI.WebBrowser(State.WebUrl ?? "http://localhost:18082", "PhotoCraft WASM Studio", "photocraft-wasm", 520, State.ExecutionMode),
-                        new Text($"Preview Data URL: {State.PreviewDataUrl[..Math.Min(64, State.PreviewDataUrl.Length)]}...") { Mono = true, Tone = "muted" },
-                        new Divider("NATIVE LINUX CLI / ENGINE INVOCATION"),
-                        new Surface(
-                            [
-                                new Text(State.LastCliInvocation) { Mono = true, Tabular = true },
-                            ],
-                            Kind: SurfaceKind.Recessed),
-                        new Row(
-                        [
-                            new TextField(
-                                "edit-prompt",
-                                string.Empty,
-                                "Ask PhotoCraft (e.g. 'remove background from portrait.png', 'desaturate photo.jpg')...")
-                            {
-                                OnSubmit = new ButtonAction("apps/photocraft", "edit", ["remove background from portrait.png"]),
-                            },
-                            new Button(
-                                "Run Edit",
-                                new ButtonAction("apps/photocraft", "edit", ["remove background from portrait.png"]),
-                                Tone: ButtonTone.Accent)
-                            {
-                                Icon = "play",
-                            },
-                        ]) { Gap = 8 },
-                    ],
-                    Kind: SurfaceKind.Elevated,
-                    Title: "Canvas & Headless Engine Output",
-                    Subtitle: $"Rendered via {FormatModeLabel(State.ExecutionMode)}"),
-                Trailing: new Surface(
-                    [
-                        new RecordCardNode(
-                            "Engine Execution Telemetry",
-                            State.LastCommandId,
-                            [
-                                new RecordFieldNode("Execution Mode", FormatModeLabel(State.ExecutionMode)),
-                                new RecordFieldNode("Input File", State.ActiveDocument),
-                                new RecordFieldNode("Output File", State.OutputDocument),
-                                new RecordFieldNode("MCP Neuron", State.McpEndpointUri),
-                                new RecordFieldNode("WASM Endpoint", State.WebUrl ?? "disabled (headless)"),
-                            ],
-                            Subtitle: State.Status),
-                        new Divider("EDIT HISTORY"),
-                        new Collection(State.History.Select(h =>
-                            new Entry(h.Id, $"{h.Title} [{h.ExecutionMode}]", $"{h.CommandId} -> {h.OutputDocument}")).ToArray()),
-                    ],
-                    Kind: SurfaceKind.Acrylic,
-                    Title: "Inspector & Pipeline History"),
-                LeadingExtent: 480,
-                Gap: 16),
+            new Text($"{State.Status} · {State.ActiveDocument} -> {State.OutputDocument}") { Tone = "muted", Tabular = true },
+            UI.WebBrowser(State.WebUrl ?? "http://localhost:18082", "PhotoCraft WASM Studio", "photocraft-wasm", 0, State.ExecutionMode),
         ])
-        { Gap = 14 });
+        {
+            Gap = 4,
+            Extents = [24, 0],
+        });
 
     [DigitalBrain.Scenario("PhotoCraft executes background removal in Native Linux CLI mode and switches to MCP mode")]
     public async Task VerifyPhotoCraftDualModeAndBackgroundRemovalScenario()

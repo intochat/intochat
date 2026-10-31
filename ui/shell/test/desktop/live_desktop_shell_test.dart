@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 import 'package:intochat_os_flutter_shell/desktop/os_bar.dart';
 import 'package:intochat_os_flutter_shell/desktop/smart_desktop.dart';
+import 'package:intochat_os_flutter_shell/desktop/spatial_app_canvas.dart';
 import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
@@ -545,6 +546,182 @@ void main() {
           .toList();
       expect(framesAfterPin.last.window.id, 2);
       expect(framesAfterPin.last.window.isPinned, isTrue);
+    },
+  );
+
+  testWidgets(
+    'SpatialAppCanvas toggle in OsBar switches to infinite canvas, displays cards with UnifiedAppHeader, and supports Smart Sort',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final actions = <Map<String, dynamic>>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.dark('fluent-acrylic'),
+          builder: (context, child) => IcTheme(
+            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: LiveDesktopShell(
+              brain: 'brain-1',
+              name: 'brain-1/apps/desktop/view',
+              load: (kind, name) async {
+                if (name == 'brain-1/apps/desktop/view') {
+                  return buildSampleDesktopTree();
+                }
+                return {
+                  'generation': 1,
+                  'root': {
+                    'kind': 2,
+                    'key': 'app-body',
+                    'children': [
+                      {'kind': 6, 'key': 'txt', 'text': 'Viewport: $name'},
+                    ],
+                  },
+                };
+              },
+              watch: (kind, name) => const Stream.empty(),
+              onAction: (event) async => actions.add(event),
+              onActivate: (_) {},
+              stylePreset: IcStylePreset.fluentAcrylic,
+              barLayout: BarLayout.floatingGlass,
+              paletteOpen: false,
+              onTogglePalette: () {},
+              onSelectPreset: (_) {},
+              onCycleBarLayout: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Initially in Classic Desktop mode
+      expect(find.byType(SpatialAppCanvas), findsNothing);
+      expect(find.byType(WindowFrame), findsNWidgets(2));
+
+      // 1. Toggle to Experimental Spatial Canvas via OsBar toggle
+      await tester.tap(find.byKey(const ValueKey('os-bar-spatial-toggle')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byType(SpatialAppCanvas), findsOneWidget);
+      expect(find.byType(WindowFrame), findsNothing);
+      expect(find.byKey(const ValueKey('spatial-card-pos-w-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('spatial-card-pos-w-2')), findsOneWidget);
+
+      // 2. Canvas HUD controls are available
+      expect(find.byKey(const ValueKey('canvas-smart-sort-btn')), findsOneWidget);
+      expect(find.byKey(const ValueKey('canvas-zoom-in')), findsOneWidget);
+      expect(find.byKey(const ValueKey('canvas-zoom-out')), findsOneWidget);
+      expect(find.byKey(const ValueKey('canvas-reset-camera')), findsOneWidget);
+
+      // 3. Trigger Smart Sort
+      await tester.tap(find.byKey(const ValueKey('canvas-smart-sort-btn')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      // 4. Toggle back to Classic Desktop
+      await tester.tap(find.byKey(const ValueKey('os-bar-spatial-toggle')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byType(SpatialAppCanvas), findsNothing);
+      expect(find.byType(WindowFrame), findsNWidgets(2));
+    },
+  );
+
+  testWidgets(
+    'Clicking App settings in dock menu or window titlebar opens Settings window and navigates to app settings section',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final actions = <Map<String, dynamic>>[];
+      final activations = <Map<String, dynamic>>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.dark('fluent-acrylic'),
+          builder: (context, child) => IcTheme(
+            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: LiveDesktopShell(
+              brain: 'brain-1',
+              name: 'brain-1/apps/desktop/view',
+              load: (kind, name) async {
+                if (name == 'brain-1/apps/desktop/view') {
+                  return buildSampleDesktopTree();
+                }
+                return {
+                  'generation': 1,
+                  'root': {
+                    'kind': 2,
+                    'key': 'app-body',
+                    'children': [
+                      {'kind': 0, 'key': 'txt', 'text': 'Viewport: $name'},
+                    ],
+                  },
+                };
+              },
+              watch: (kind, name) => const Stream.empty(),
+              onAction: (event) async => actions.add(event),
+              onActivate: (action) => activations.add(action),
+              stylePreset: IcStylePreset.fluentAcrylic,
+              barLayout: BarLayout.floatingGlass,
+              paletteOpen: false,
+              onTogglePalette: () {},
+              onSelectPreset: (_) {},
+              onCycleBarLayout: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byType(WindowFrame), findsNWidgets(2));
+
+      // Right-click on PhotoCraft in the dock and click "App settings…"
+      await tester.tap(
+        find.byKey(const ValueKey('dock-item-photocraft')),
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pump();
+      expect(find.byKey(const ValueKey('dock-menu-settings')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('dock-menu-settings')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Settings window opens immediately and navigates to apps:photocraft
+      expect(find.byType(WindowFrame), findsNWidgets(3));
+      expect(find.text('Viewport: brain-1/apps/settings/view'), findsOneWidget);
+      expect(
+        actions.any(
+          (a) =>
+              a['name'] == 'brain-1/apps/settings/view' &&
+              a['action'] == 'navigate:apps:photocraft',
+        ),
+        isTrue,
+      );
+
+      // Clicking PhotoCraft on the dock opens the PhotoCraft window
+      await tester.tap(find.byKey(const ValueKey('dock-item-photocraft')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byType(WindowFrame), findsNWidgets(4));
+      expect(
+        find.text('Viewport: brain-1/apps/photocraft/view'),
+        findsOneWidget,
+      );
     },
   );
 }
