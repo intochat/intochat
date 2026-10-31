@@ -13,6 +13,7 @@ permissions:
   packages: write
   checks: read
   actions: read
+  issues: write
 
 env:
   DOTNET_NOLOGO: 'true'
@@ -40,7 +41,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ok="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '[.check_runs[]|select(.name=="ci")|.conclusion]|index("success")')"
+          ok="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '[.check_runs[]|select(.name=="ci" or .name=="ci / ci")|.conclusion]|index("success")')"
           [ "${ok}" != "null" ] && [ -n "${ok}" ] || { echo "::error::ci has not succeeded for this commit"; exit 1; }
 
       # Must stay first: nothing is logged in, packed or pushed for a mismatched tag.
@@ -66,9 +67,9 @@ jobs:
         run: |
           version="v$(tr -d '[:space:]' < VERSION)"
           mkdir -p ../nuget
-          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
+          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
+          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx

@@ -132,7 +132,9 @@ class OsBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          spatialCanvas ? LucideIcons.layoutGrid : LucideIcons.compass,
+                          spatialCanvas
+                              ? LucideIcons.layoutGrid
+                              : LucideIcons.compass,
                           size: 14,
                           color: spatialCanvas ? c.accent : c.textBody,
                         ),

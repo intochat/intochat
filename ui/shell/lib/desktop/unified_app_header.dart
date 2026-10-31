@@ -1,4 +1,5 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
@@ -172,14 +173,13 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
               ),
               if (w.sandboxStatusBadge != null) ...[
                 const SizedBox(width: 6),
-                TagPill(
-                  label: w.sandboxStatusBadge!,
-                  tone: TagTone.accent,
-                ),
+                TagPill(label: w.sandboxStatusBadge!, tone: TagTone.accent),
               ],
               const SizedBox(width: 4),
               Icon(
-                widget.menuOpen ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                widget.menuOpen
+                    ? LucideIcons.chevronUp
+                    : LucideIcons.chevronDown,
                 size: 13,
                 color: widget.focused ? c.textMuted : c.textSubtle,
               ),
@@ -205,7 +205,10 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
                 child: GestureDetector(
                   onTap: t.onTap,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: t.selected ? c.surfaceSunk : Colors.transparent,
                       borderRadius: BorderRadius.circular(IcRadius.pill),
@@ -251,7 +254,9 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
         // 2. Pin Button
         _HeaderActionButton(
           key: ValueKey('window-pin-btn-${w.id}'),
-          tooltip: effectivePinned ? 'Unpin from canvas' : 'Pin to canvas (locks location)',
+          tooltip: effectivePinned
+              ? 'Unpin from canvas'
+              : 'Pin to canvas (locks location)',
           icon: effectivePinned ? LucideIcons.pinOff : LucideIcons.pin,
           active: effectivePinned,
           color: effectivePinned ? c.accent : c.textMuted,
@@ -318,7 +323,9 @@ class _HeaderActionButtonState extends State<_HeaderActionButton> {
     Widget iconWidget = Icon(
       widget.icon,
       size: 14.5,
-      color: widget.active ? widget.color : (_hover ? c.textStrong : widget.color),
+      color: widget.active
+          ? widget.color
+          : (_hover ? c.textStrong : widget.color),
     );
 
     if (widget.spinAnimation != null) {
@@ -345,7 +352,9 @@ class _HeaderActionButtonState extends State<_HeaderActionButton> {
             decoration: BoxDecoration(
               color: widget.active
                   ? widget.color.withValues(alpha: 0.14)
-                  : (_hover ? (widget.hoverColor ?? c.surfaceSunk) : Colors.transparent),
+                  : (_hover
+                        ? (widget.hoverColor ?? c.surfaceSunk)
+                        : Colors.transparent),
               borderRadius: BorderRadius.circular(IcRadius.button),
             ),
             child: iconWidget,
@@ -401,7 +410,11 @@ class AppTestingMenuPopover extends StatelessWidget {
           // App Title + URI
           Row(
             children: [
-              IcAppIcon(appId: window.appId, accentHex: window.accentHex, size: 24),
+              IcAppIcon(
+                appId: window.appId,
+                accentHex: window.accentHex,
+                size: 24,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -409,7 +422,11 @@ class AppTestingMenuPopover extends StatelessWidget {
                   children: [
                     Text(
                       window.title,
-                      style: IcType.text(13, weight: FontWeight.w700, color: c.textStrong),
+                      style: IcType.text(
+                        13,
+                        weight: FontWeight.w700,
+                        color: c.textStrong,
+                      ),
                     ),
                     Text(
                       window.neuronUri,
@@ -431,7 +448,11 @@ class AppTestingMenuPopover extends StatelessWidget {
           // Execution Mode Switcher
           Text(
             'EXECUTION MODE',
-            style: IcType.text(10.5, weight: FontWeight.w700, color: c.textMuted),
+            style: IcType.text(
+              10.5,
+              weight: FontWeight.w700,
+              color: c.textMuted,
+            ),
           ),
           const SizedBox(height: 6),
           for (final (id, label, icon) in _modes)
@@ -443,25 +464,40 @@ class AppTestingMenuPopover extends StatelessWidget {
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                      color: executionMode == id ? c.accentTint : c.surfaceSunk.withValues(alpha: 0.55),
+                      color: executionMode == id
+                          ? c.accentTint
+                          : c.surfaceSunk.withValues(alpha: 0.55),
                       borderRadius: BorderRadius.circular(IcRadius.xs),
                       border: Border.all(
-                        color: executionMode == id ? c.accent : c.borderHairline,
+                        color: executionMode == id
+                            ? c.accent
+                            : c.borderHairline,
                       ),
                     ),
                     child: Row(
                       children: [
-                        Icon(icon, size: 13, color: executionMode == id ? c.accent : c.textMuted),
+                        Icon(
+                          icon,
+                          size: 13,
+                          color: executionMode == id ? c.accent : c.textMuted,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             label,
                             style: IcType.text(
                               12,
-                              weight: executionMode == id ? FontWeight.w600 : FontWeight.w500,
-                              color: executionMode == id ? c.textStrong : c.textBody,
+                              weight: executionMode == id
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              color: executionMode == id
+                                  ? c.textStrong
+                                  : c.textBody,
                             ),
                           ),
                         ),
@@ -480,7 +516,11 @@ class AppTestingMenuPopover extends StatelessWidget {
           // Testing & Sandbox Actions
           Text(
             'TESTING & SANDBOX CONTROLS',
-            style: IcType.text(10.5, weight: FontWeight.w700, color: c.textMuted),
+            style: IcType.text(
+              10.5,
+              weight: FontWeight.w700,
+              color: c.textMuted,
+            ),
           ),
           const SizedBox(height: 6),
           Row(

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,10 +10,22 @@ import 'window_frame.dart';
 
 /// Semantic region sectors for Smart Sort clustering on the Spatial Canvas.
 enum CanvasSector {
-  intelligence(name: 'Intelligence', center: Offset(-520, -320), color: Color(0xFF3D7EFF)),
+  intelligence(
+    name: 'Intelligence',
+    center: Offset(-520, -320),
+    color: Color(0xFF3D7EFF),
+  ),
   studio(name: 'Studio', center: Offset(520, -320), color: Color(0xFFFF5D8F)),
-  workspace(name: 'Workspace & System', center: Offset(-520, 360), color: Color(0xFFF6B73C)),
-  social(name: 'Social & Reach', center: Offset(520, 360), color: Color(0xFFA855F7));
+  workspace(
+    name: 'Workspace & System',
+    center: Offset(-520, 360),
+    color: Color(0xFFF6B73C),
+  ),
+  social(
+    name: 'Social & Reach',
+    center: Offset(520, 360),
+    color: Color(0xFFA855F7),
+  );
 
   const CanvasSector({
     required this.name,
@@ -27,8 +40,15 @@ enum CanvasSector {
   static CanvasSector sectorForApp(String appId) {
     return switch (appId.toLowerCase()) {
       'ino' || 'memory' || 'ai' || 'assistant' => CanvasSector.intelligence,
-      'creator' || 'photocraft' || 'filmcraft' || 'gallery' => CanvasSector.studio,
-      'files' || 'calculator' || 'settings' || 'usage' || 'connections' => CanvasSector.workspace,
+      'creator' ||
+      'photocraft' ||
+      'filmcraft' ||
+      'gallery' => CanvasSector.studio,
+      'files' ||
+      'calculator' ||
+      'settings' ||
+      'usage' ||
+      'connections' => CanvasSector.workspace,
       _ => CanvasSector.social,
     };
   }
@@ -128,7 +148,9 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
   /// Organizes all unpinned windows into their semantic sectors (Intelligence, Studio, Workspace, Social).
   /// Strictly keeps pinned windows at their current coordinates.
   void smartSort(Size viewportSize) {
-    final activeIds = widget.windows.where((id) => widget.windowStates[id] != null).toList();
+    final activeIds = widget.windows
+        .where((id) => widget.windowStates[id] != null)
+        .toList();
     if (activeIds.isEmpty) return;
 
     final sectorGroups = <CanvasSector, List<String>>{
@@ -152,7 +174,10 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
     }
 
     // Layout each sector
-    final centerOrigin = Offset(viewportSize.width / 2, viewportSize.height / 2);
+    final centerOrigin = Offset(
+      viewportSize.width / 2,
+      viewportSize.height / 2,
+    );
 
     for (final sector in CanvasSector.values) {
       final ids = sectorGroups[sector]!;
@@ -196,7 +221,8 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is PointerScrollEvent) {
       // Zoom with Ctrl + Scroll or Trackpad pinch
-      final isControlPressed = HardwareKeyboard.instance.isControlPressed ||
+      final isControlPressed =
+          HardwareKeyboard.instance.isControlPressed ||
           HardwareKeyboard.instance.isMetaPressed;
       if (isControlPressed) {
         final zoomDelta = event.scrollDelta.dy < 0 ? 1.12 : 0.89;
@@ -335,7 +361,9 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
         child: Container(
           decoration: BoxDecoration(
             color: c.surfaceCard.withValues(alpha: c.isGlass ? 0.88 : 0.98),
-            borderRadius: BorderRadius.circular(IcRadius.card * _zoom.clamp(0.6, 1.0)),
+            borderRadius: BorderRadius.circular(
+              IcRadius.card * _zoom.clamp(0.6, 1.0),
+            ),
             border: Border.all(
               color: w.isPinned
                   ? c.accent
@@ -374,7 +402,8 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
                     onToggleZoom: () => widget.onToggleZoom(winId),
                     onPin: () => widget.onPinWindow(winId),
                     onReload: () => widget.onReloadWindow(winId),
-                    onHardRestartSandbox: () => widget.onHardRestartWindow(winId),
+                    onHardRestartSandbox: () =>
+                        widget.onHardRestartWindow(winId),
                     onMoveDelta: (delta) {
                       final worldDelta = delta / _zoom;
                       w.setBounds(w.bounds.shift(worldDelta));
@@ -386,7 +415,7 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
                     child: isLOD
                         ? _buildLODPreview(w, c)
                         : (widget.windowBuilders[winId]?.call(context) ??
-                            const SizedBox.shrink()),
+                              const SizedBox.shrink()),
                   ),
                 ],
               ),
@@ -443,7 +472,11 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
           const SizedBox(height: 8),
           Text(
             w.title,
-            style: IcType.text(14, weight: FontWeight.w700, color: c.textStrong),
+            style: IcType.text(
+              14,
+              weight: FontWeight.w700,
+              color: c.textStrong,
+            ),
           ),
           const SizedBox(height: 4),
           TagPill(
@@ -478,7 +511,10 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
             key: const ValueKey('canvas-zoom-out'),
             icon: LucideIcons.zoomOut,
             tooltip: 'Zoom out (Ctrl+Wheel)',
-            onTap: () => _zoomBy(0.85, Offset(viewportSize.width / 2, viewportSize.height / 2)),
+            onTap: () => _zoomBy(
+              0.85,
+              Offset(viewportSize.width / 2, viewportSize.height / 2),
+            ),
           ),
           const SizedBox(width: 2),
 
@@ -492,7 +528,12 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text(
                   '${(_zoom * 100).round()}%',
-                  style: IcType.text(11.5, weight: FontWeight.w600, color: c.textStrong, tnum: true),
+                  style: IcType.text(
+                    11.5,
+                    weight: FontWeight.w600,
+                    color: c.textStrong,
+                    tnum: true,
+                  ),
                 ),
               ),
             ),
@@ -504,7 +545,10 @@ class SpatialAppCanvasState extends State<SpatialAppCanvas>
             key: const ValueKey('canvas-zoom-in'),
             icon: LucideIcons.zoomIn,
             tooltip: 'Zoom in (Ctrl+Wheel)',
-            onTap: () => _zoomBy(1.15, Offset(viewportSize.width / 2, viewportSize.height / 2)),
+            onTap: () => _zoomBy(
+              1.15,
+              Offset(viewportSize.width / 2, viewportSize.height / 2),
+            ),
           ),
           const SizedBox(width: 6),
 
@@ -576,7 +620,8 @@ class _NeuronSynapticBackground extends StatefulWidget {
   final bool isDark;
 
   @override
-  State<_NeuronSynapticBackground> createState() => _NeuronSynapticBackgroundState();
+  State<_NeuronSynapticBackground> createState() =>
+      _NeuronSynapticBackgroundState();
 }
 
 class _NeuronSynapticBackgroundState extends State<_NeuronSynapticBackground>
@@ -663,7 +708,12 @@ class _SynapticCanvasPainter extends CustomPainter {
       final base = nodes[i];
       final driftAngle = time * 2 * math.pi + (i * 0.7);
       final driftDist = 18.0 * math.sin(time * 2 * math.pi + i);
-      final worldPos = base + Offset(math.cos(driftAngle) * driftDist, math.sin(driftAngle) * driftDist);
+      final worldPos =
+          base +
+          Offset(
+            math.cos(driftAngle) * driftDist,
+            math.sin(driftAngle) * driftDist,
+          );
       final screenPos = center + (worldPos * zoom) + cameraOffset;
       animatedNodes.add(screenPos);
     }
@@ -679,13 +729,18 @@ class _SynapticCanvasPainter extends CustomPainter {
         final dist = (animatedNodes[i] - animatedNodes[j]).distance;
         final scaledThreshold = maxDistance * zoom;
         if (dist < scaledThreshold) {
-          final alpha = (1.0 - (dist / scaledThreshold)) * (isDark ? 0.22 : 0.12);
+          final alpha =
+              (1.0 - (dist / scaledThreshold)) * (isDark ? 0.22 : 0.12);
           linePaint.color = accent.withValues(alpha: alpha);
           canvas.drawLine(animatedNodes[i], animatedNodes[j], linePaint);
 
           // Electrical pulse along the synapse
           final pulseT = (time * 1.5 + (i + j) * 0.2) % 1.0;
-          final pulsePos = Offset.lerp(animatedNodes[i], animatedNodes[j], pulseT)!;
+          final pulsePos = Offset.lerp(
+            animatedNodes[i],
+            animatedNodes[j],
+            pulseT,
+          )!;
           final pulsePaint = Paint()
             ..color = glow.withValues(alpha: alpha * 2.2)
             ..style = PaintingStyle.fill;

@@ -611,11 +611,20 @@ void main() {
 
       expect(find.byType(SpatialAppCanvas), findsOneWidget);
       expect(find.byType(WindowFrame), findsNothing);
-      expect(find.byKey(const ValueKey('spatial-card-pos-w-1')), findsOneWidget);
-      expect(find.byKey(const ValueKey('spatial-card-pos-w-2')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('spatial-card-pos-w-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('spatial-card-pos-w-2')),
+        findsOneWidget,
+      );
 
       // 2. Canvas HUD controls are available
-      expect(find.byKey(const ValueKey('canvas-smart-sort-btn')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('canvas-smart-sort-btn')),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('canvas-zoom-in')), findsOneWidget);
       expect(find.byKey(const ValueKey('canvas-zoom-out')), findsOneWidget);
       expect(find.byKey(const ValueKey('canvas-reset-camera')), findsOneWidget);
