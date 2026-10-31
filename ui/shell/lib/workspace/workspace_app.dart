@@ -402,7 +402,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                     operation,
                     action['input'] as String? ?? '',
                   )
-                  .catchError((Object _) {}),
+                  .catchError((Object _) => ''),
             );
           }
         }

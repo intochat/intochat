@@ -766,7 +766,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       widget.onActivate({
         'kind': 'settings',
         'brainId': widget.brain,
-        if (settingsSection != null) 'tab': settingsSection,
+        'tab': ?settingsSection,
       });
       return;
     }
