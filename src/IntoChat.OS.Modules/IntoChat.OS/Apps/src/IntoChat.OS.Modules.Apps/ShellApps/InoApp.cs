@@ -5,13 +5,15 @@ Shipped: true
 Operations: open, send, approve-card, connect-db, query-db, new, new-conversation, voice, make
 
 The brain's personal assistant. Connects to MemoryNeuron (IMemory), UserSettingsNeuron (IUserSettings),
-and Postgres connections to maintain context across conversations, route intents, query databases, and render LFP cards.
+Files VFS (IFilesVfsService), DecisionMaker (IDecisionMaker), and Postgres connections to maintain context
+across conversations, route intents, inspect/write workspace files, query databases, and render LFP cards.
 */
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models.Ollama;
+using IntoChat.OS.Modules.Apps.Contracts.Tasks;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 
@@ -97,14 +99,11 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 {
     public IDecisionMaker? DecisionMaker { get; set; }
 
+    public IFilesVfsService? FilesVfs { get; set; }
 
-    private static readonly (string Id, string Title, string Group, string Icon, string? Badge)[] ArcSessions =
-    [
-        ("q4-renewal", "Nordlys Q4 Renewal", "Pinned", "sparkles", "Needs you"),
-        ("morning-brief", "Morning Brief", "Pinned", "sun", "3"),
-        ("invoice-check", "Tripletex Invoice Check", "Today", "key-round", "Vault"),
-        ("first-run", "Ino Setup · First Run", "Today", "compass", null),
-    ];
+    public IKnowledgeStore? KnowledgeStore { get; set; }
+
+    public ITaskEngine? TaskEngine { get; set; }
 
     public static DigitalBrain.AppManifest Manifest { get; } = new(
         "ino",
@@ -174,34 +173,70 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             return;
         }
 
-        var decision = await DecideIntentAsync(text);
+        var decision = await InoIntentRouter.DecideIntentAsync(text, DecisionMaker, TryGetApp, TryGetAppStore);
         switch (decision.Choice)
         {
             case "app.install":
-                EmitAppInstallLinkCard(text);
+                Set(InoViewRenderer.BuildAppInstallLinkState(State, text));
                 return;
             case "connection.string":
                 await ConnectDb(new InoConnectDb(text, "main"));
                 return;
             case "photocraft":
-                await HandleStudioRequestAsync("photocraft", text, settings, recalled, memory);
+                Set(await InoStudioHandler.ExecuteAsync(
+                    State,
+                    "photocraft",
+                    text,
+                    settings,
+                    recalled,
+                    memory,
+                    KnowledgeStore,
+                    FilesVfs,
+                    TryGetArtCraftStudio(),
+                    TryGetMcpServer,
+                    TryGetApp,
+                    (err, reason) => Swallow(err, reason)));
                 return;
             case "filmcraft":
-                await HandleStudioRequestAsync("filmcraft", text, settings, recalled, memory);
+                Set(await InoStudioHandler.ExecuteAsync(
+                    State,
+                    "filmcraft",
+                    text,
+                    settings,
+                    recalled,
+                    memory,
+                    KnowledgeStore,
+                    FilesVfs,
+                    TryGetArtCraftStudio(),
+                    TryGetMcpServer,
+                    TryGetApp,
+                    (err, reason) => Swallow(err, reason)));
                 return;
             case "chart.mutation":
-                await ApplyChartMutationOrFilterAsync(text, settings, memory);
+                Set(await InoDatabaseChartHandler.ApplyChartMutationOrFilterAsync(State, text, settings, memory));
                 return;
             case "chart.question":
-                await AnswerChartQuestionAsync(text, settings, recalled, memory);
+                Set(await InoDatabaseChartHandler.AnswerChartQuestionAsync(
+                    State,
+                    text,
+                    settings,
+                    recalled,
+                    memory,
+                    (prompt, chart, table) => TryGenerateReplyAsync(prompt, settings, recalled, chart, table)));
                 return;
             case "database.query":
                 await QueryDb(new InoQueryDb(text));
                 return;
             case "settings.navigate":
-                if (LooksLikeSettingsNavigationRequest(text, out var settingsSection, out var settingsSubPage, out var settingsSheet, out var requiresSettingsApproval))
+                if (InoSettingsHandler.TryResolveSettingsNavigation(
+                    text,
+                    out var settingsSection,
+                    out var settingsSubPage,
+                    out var settingsSheet,
+                    out var requiresSettingsApproval))
                 {
-                    await HandleSettingsNavigationRequestAsync(
+                    Set(await InoSettingsHandler.ExecuteAsync(
+                        State,
                         text,
                         settingsSection,
                         settingsSubPage,
@@ -209,14 +244,24 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                         requiresSettingsApproval,
                         settings,
                         recalled,
-                        memory);
+                        memory,
+                        TryGetApp,
+                        (err, reason) => Swallow(err, reason)));
                     return;
                 }
                 break;
             case "file.resource":
-                if (LooksLikeFileOrResourceRequest(text, out var resFileName, out var resUri, out var resPreview, out var cleanPrompt))
+                if (InoFilesHandler.TryParseFileIntent(text, out var fileIntent))
                 {
-                    await HandleFileOrResourceRequestAsync(cleanPrompt, resFileName, resUri, resPreview, settings, recalled, memory);
+                    Set(await InoFilesHandler.ExecuteAsync(
+                        State,
+                        fileIntent,
+                        FilesVfs,
+                        settings,
+                        recalled,
+                        memory,
+                        KnowledgeStore,
+                        prompt => TryGenerateReplyAsync(prompt, settings, recalled)));
                     return;
                 }
                 break;
@@ -230,12 +275,31 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             : string.Empty;
         var activeChart = State.ActiveCards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
         var activeTable = State.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Rows is { Length: > 0 });
+
+        var isCapabilityInquiry = InoCapabilityCatalog.IsCapabilityOrMetaInquiry(text);
+        var liveCapabilityContext = isCapabilityInquiry
+            ? await InoCapabilityCatalog.BuildLiveCapabilityContextAsync(
+                TryGetApp,
+                TryGetAppStore,
+                FilesVfs,
+                memory,
+                KnowledgeStore,
+                TaskEngine,
+                State.ConnectedDatabase,
+                settings.DefaultModel)
+            : null;
+
         var generated = string.IsNullOrWhiteSpace(request.EffectiveMessage)
             ? null
-            : await TryGenerateReplyAsync(text, settings, recalled, activeChart, activeTable);
-        var reply = generated is { Length: > 0 }
-            ? $"Ino ({settings.DefaultModel}): {generated}{contextSummary}"
-            : $"Ino ({settings.DefaultModel}): Answered '{text}'{contextSummary}";
+            : await TryGenerateReplyAsync(text, settings, recalled, activeChart, activeTable, liveCapabilityContext);
+
+        var reply = isCapabilityInquiry && !string.IsNullOrWhiteSpace(liveCapabilityContext)
+            ? (generated is { Length: > 0 }
+                ? $"Ino ({settings.DefaultModel}): {generated}\n\n{liveCapabilityContext}{contextSummary}"
+                : $"Ino ({settings.DefaultModel}): Here is what I can do across your IntoChat OS brain:\n\n{liveCapabilityContext}{contextSummary}")
+            : (generated is { Length: > 0 }
+                ? $"Ino ({settings.DefaultModel}): {generated}{contextSummary}"
+                : $"Ino ({settings.DefaultModel}): Answered '{text}'{contextSummary}");
 
         if (memory is not null)
         {
@@ -318,252 +382,30 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 return;
             case "scenario":
             case "session":
-                LoadScenarioSession(string.IsNullOrWhiteSpace(arg) ? "q4-renewal" : arg.ToLowerInvariant(), settings);
+                Set(InoViewRenderer.BuildScenarioSessionState(string.IsNullOrWhiteSpace(arg) ? "q4-renewal" : arg.ToLowerInvariant(), settings));
                 return;
             default:
                 Set(State with
                 {
                     Status = $"Executed /{cmd}",
-                    Turns = [.. State.Turns, new InoTurn(rawCommand, $"Commands: `/scenario q4-renewal|morning-brief|invoice-check|first-run`, `/new`, `/rename <title>`, `/pin`, `/model <id>`, `/clear`.", $"slash:{cmd}", 0)],
+                    Turns = [.. State.Turns, new InoTurn(rawCommand, "Commands: `/scenario q4-renewal|morning-brief|invoice-check|first-run`, `/new`, `/rename <title>`, `/pin`, `/model <id>`, `/clear`.", $"slash:{cmd}", 0)],
                 });
                 return;
         }
-    }
-
-    private void LoadScenarioSession(string scenarioId, UserSettingsState settings)
-    {
-        switch (scenarioId)
-        {
-            case "morning-brief":
-                Set(new InoAppState(
-                    "morning-brief",
-                    "Morning Brief",
-                    $"Scenario: Morning Brief ({settings.DefaultModel})",
-                    "idle",
-                    [
-                        new InoTurn(
-                            "Prepare my Morning Brief for Nordlys AS",
-                            "Good morning! You have **3 meetings**, **2 Q4 renewals** (€426,000 pipeline), and **1 overdue invoice** in Tripletex.",
-                            "scenario:morning-brief",
-                            2),
-                    ],
-                    [
-                        new InoCard(
-                            "choice-brief",
-                            "choice",
-                            "Which Nordlys workspace should receive the Q4 renewal brief?",
-                            "Select a target Circle (1..2) or press Enter.",
-                            "neuron://local/circles/nordlys",
-                            "pending",
-                            "neuron://local/apps/ino#choice-brief"),
-                    ]));
-                break;
-
-            case "invoice-check":
-                Set(new InoAppState(
-                    "invoice-check",
-                    "Tripletex Invoice Check",
-                    "Waiting on Secure Vault credential",
-                    "idle",
-                    [
-                        new InoTurn(
-                            "Check overdue Q4 invoices in Tripletex",
-                            "I need your **Tripletex Session Token** to read the Q4 ledger. Enter it in the **Secure Vault** window so it never touches the LLM.",
-                            "vault:secret",
-                            0),
-                    ],
-                    [
-                        new InoCard(
-                            "secret-tripletex",
-                            "secret",
-                            "Tripletex Session Token",
-                            "Zero-leakage credential request · Encrypted in neuron://local/vault/secrets",
-                            "neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN",
-                            "pending",
-                            "neuron://local/apps/ino#secret-tripletex"),
-                    ]));
-                break;
-
-            case "first-run":
-                Set(new InoAppState(
-                    "first-run",
-                    "Ino Setup · First Run",
-                    "Guided onboarding · 3 steps",
-                    "idle",
-                    [
-                        new InoTurn(
-                            "/scenario first-run",
-                            "Welcome to **IntoChat OS**! Let's verify your default AI model (`" + settings.DefaultModel + "`), connect your **Files** vault (`neuron://local/storage.files`), and seal API keys in **Secure**.",
-                            "onboarding:setup",
-                            0),
-                    ],
-                    [
-                        new InoCard(
-                            "setup-record",
-                            "record",
-                            "IntoChat OS First-Run Checklist",
-                            "All 3 local brain capabilities online",
-                            "neuron://local/os.settings/settings",
-                            "ready",
-                            "neuron://local/apps/ino#setup-record"),
-                    ]));
-                break;
-
-            default:
-                Set(new InoAppState(
-                    "q4-renewal",
-                    "Nordlys Q4 Renewal",
-                    "Waiting for approval · CloseDate -> 15 Nov 2026",
-                    "idle",
-                    [
-                        new InoTurn(
-                            "Check Kari Holm's email and update Nordlys Q4 close date to 15 Nov 2026",
-                            "Kari Holm confirmed moving the **Nordlys Q4 Enterprise** renewal (`480,000 NOK`) to **15 Nov 2026**. Please approve the Salesforce update below.",
-                            $"agent:{settings.DefaultModel}",
-                            1),
-                    ],
-                    [
-                        new InoCard(
-                            "card-1",
-                            "approval",
-                            "Update close date on Nordlys Q4 renewal to 15 Nov 2026?",
-                            "Ino matched Kari Holm's email to your open Salesforce opportunity (480,000 NOK).",
-                            "neuron://local/os.confirmations/inbox",
-                            "pending",
-                            "neuron://local/apps/ino#card-1"),
-                        new InoCard(
-                            "draft-1",
-                            "draft",
-                            "Nordlys Q4 Enterprise Renewal — 15 Nov confirmation",
-                            "Hi Kari, Confirmed: we updated the Q4 renewal close date to 15 Nov 2026 (480,000 NOK).",
-                            "neuron://local/apps/ino#draft-1",
-                            "pending",
-                            "neuron://local/apps/ino#draft-1"),
-                    ]));
-                break;
-        }
-    }
-
-    private void EmitAppInstallLinkCard(string text)
-    {
-        var cardId = $"install-{State.ActiveCards.Length + 1}";
-        var card = new InoCard(
-            cardId,
-            "app-install",
-            "Tripletex Accounting Sync (v1.4.0)",
-            "Verified Smart App from Nordlys Digital · Requests read access to Files & Postgres.",
-            "neuron://local/apps/tripletex-sync",
-            "pending",
-            $"neuron://local/apps/ino#{cardId}");
-        var turns = State.Turns.Append(new InoTurn(
-            text,
-            "Detected a Smart App install link (`nordlys/tripletex-sync`). Review its manifest and capability permissions below before installing.",
-            "store:install-link",
-            0)).ToArray();
-        Set(State with
-        {
-            Title = "Install Tripletex Accounting Sync",
-            Status = "Waiting for Smart App capability review",
-            Turns = turns,
-            Cards = [.. State.ActiveCards, card],
-        });
     }
 
     [DigitalBrain.On]
     public async Task ConnectDb(InoConnectDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var raw = string.IsNullOrWhiteSpace(request.ConnectionString)
-            ? "Host=localhost;Port=5432;Database=supabase;Username=postgres"
-            : request.ConnectionString.Trim();
-        var alias = string.IsNullOrWhiteSpace(request.Alias) ? "main" : request.Alias.Trim();
-        var dbName = ParseDatabaseName(raw);
-        var hostName = ParseHostName(raw);
-        var descriptor = $"{alias}:{hostName}/{dbName}";
-        if (TryGetMemory() is { } memory)
-        {
-            await memory.RememberFact("database", $"Connected PostgreSQL database '{descriptor}' at neuron://local/postgres/{alias}", importance: 9);
-            await memory.CaptureEpisode("ino.db", $"Connected database {descriptor}", importance: 7);
-        }
-
-        var cardId = $"db-{State.ActiveCards.Length + 1}";
-        var card = new InoCard(
-            cardId,
-            "db-connection",
-            $"PostgreSQL Connected: {dbName} ({hostName})",
-            $"Connection sealed in neuron://local/postgres/{alias}. Ready for read-only SQL, tables, and chart visualizations.",
-            $"neuron://local/postgres/{alias}",
-            "connected",
-            $"neuron://local/apps/ino#{cardId}");
-        var turns = State.Turns.Append(new InoTurn(
-            $"Connect database ({hostName}/{dbName})",
-            $"Connected to PostgreSQL database '{dbName}' on '{hostName}' (neuron://local/postgres/{alias}). Ask me to query or visualize any table or chart.",
-            $"postgres:{alias}",
-            0)).ToArray();
-
-        Set(State with
-        {
-            ConnectedDatabase = descriptor,
-            Status = $"Connected DB: {descriptor} (neuron://local/postgres/{alias})",
-            Turns = turns,
-            Cards = [.. State.ActiveCards, card],
-        });
+        Set(await InoDatabaseChartHandler.ConnectDbAsync(State, request, TryGetMemory(), KnowledgeStore));
     }
 
     [DigitalBrain.On]
     public async Task QueryDb(InoQueryDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var sql = string.IsNullOrWhiteSpace(request.Sql)
-            ? "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5"
-            : request.Sql.Trim();
-        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase)
-            ? "supabase:supabase/postgres"
-            : State.ConnectedDatabase;
-
-        var (chartTitle, columns, rows, chartKind, chartPoints, summary) = ExecuteDatasetQuery(sql, database);
-        if (TryGetMemory() is { } memory)
-        {
-            await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {rows.Length} | Chart: {chartTitle}", importance: 6);
-        }
-
-        var tableCardId = $"table-{State.ActiveCards.Length + 1}";
-        var tableCard = new InoCard(
-            tableCardId,
-            "table",
-            $"{chartTitle} — Table ({rows.Length} rows from {database})",
-            summary,
-            "neuron://local/postgres/main#query-result",
-            "ready",
-            $"neuron://local/apps/ino#{tableCardId}",
-            columns,
-            rows);
-
-        var chartCardId = $"chart-{State.ActiveCards.Length + 2}";
-        var chartCard = new InoCard(
-            chartCardId,
-            "chart",
-            chartTitle,
-            $"Live {chartKind} chart ({chartPoints.Length} series points) from {database}.",
-            "neuron://local/apps/ino/chart",
-            "ready",
-            $"neuron://local/apps/ino#{chartCardId}",
-            ChartKind: chartKind,
-            ChartPoints: chartPoints);
-
-        var nextTurns = State.Turns.Append(new InoTurn(
-            sql,
-            $"{summary} Rendered interactive UI Table ({rows.Length} rows) and {chartKind} Chart ('{chartTitle}', {chartPoints.Length} points) from neuron://local/postgres/main.",
-            "postgres:query",
-            0)).ToArray();
-
-        Set(State with
-        {
-            ConnectedDatabase = database,
-            Status = $"Visualized {rows.Length} row(s) & {chartPoints.Length} chart point(s) from {database}",
-            Turns = nextTurns,
-            Cards = [.. State.ActiveCards, tableCard, chartCard],
-        });
+        Set(await InoDatabaseChartHandler.QueryDbAsync(State, request, TryGetMemory()));
     }
 
     [DigitalBrain.On]
@@ -652,215 +494,9 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         Set(State with { Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
     }
 
-    public View RenderSide() => new(
-        "Chats",
-        new Column(
-        [
-            new Surface(
-                [
-                    new Row(
-                    [
-                        new TagPill("Ino · Arc Sidebar", "accent", "sparkles"),
-                        new TagPill($"{State.Turns.Length} turn(s)", "neutral"),
-                    ]) { Gap = 6 },
-                    new Text(State.Status) { Tone = "muted", Tabular = true },
-                    new Button("+ New Session", new ButtonAction("apps/ino", "new", []), Tone: ButtonTone.Accent) { Small = true, Icon = "plus" },
-                ],
-                Kind: SurfaceKind.Acrylic,
-                Title: State.Title),
-            new Divider("PINNED SESSIONS"),
-            .. ArcSessions.Where(s => s.Group == "Pinned").Select(s => (Node)Ui.NavItem(
-                $"arc-{s.Id}",
-                s.Title,
-                s.Icon,
-                $"send:/scenario {s.Id}",
-                selected: State.ConversationId == s.Id,
-                badge: s.Badge)),
-            new Divider("TODAY"),
-            .. ArcSessions.Where(s => s.Group == "Today").Select(s => (Node)Ui.NavItem(
-                $"arc-{s.Id}",
-                s.Title,
-                s.Icon,
-                $"send:/scenario {s.Id}",
-                selected: State.ConversationId == s.Id,
-                badge: s.Badge)),
-            new Collection([new Entry(State.ConversationId, State.Title, $"{State.Turns.Length} turn(s)")]),
-        ])
-        { Gap = 8 });
+    public View RenderSide() => InoViewRenderer.RenderSide(State);
 
-    public View Render()
-    {
-        var waitingCard = State.ActiveCards.FirstOrDefault(c => c.IsWaiting);
-        return new(
-            "Ino",
-            new Column(
-            [
-                new Surface(
-                    [
-                        new Row(
-                        [
-                            new TagPill("Ino Assistant", "accent", "bot"),
-                            new TagPill(State.VoiceStatus == "recording" ? "Listening" : "Ready", State.VoiceStatus == "recording" ? "working" : "ok"),
-                            .. State.ConnectedDatabase is { Length: > 0 } db ? new Node[] { new TagPill(db, "info", "database") } : [],
-                            .. waitingCard is not null ? new Node[] { new TagPill("Waiting on you · Docked below", "warn", "hand") } : [],
-                        ]) { Gap = 8 },
-                        new Text(State.Status) { Tabular = true },
-                    ],
-                    Kind: SurfaceKind.Acrylic,
-                    Title: State.Title),
-                .. State.ActiveCards.SelectMany(RenderCardNodes),
-                .. waitingCard is not null ? new Node[] { RenderDockedPromptBanner(waitingCard) } : [],
-                .. State.Turns.Select((turn, i) => (Node)new Surface(
-                    [
-                        new Row(
-                        [
-                            new TagPill($"Turn {i + 1}", "neutral"),
-                            new TagPill(turn.RouteHint, "accent"),
-                            .. turn.RecalledCount > 0 ? new Node[] { new TagPill($"{turn.RecalledCount} memory hit(s)", "ok", "brain") } : [],
-                        ]) { Gap = 6 },
-                        new Heading(turn.UserMessage, Level: 3),
-                        new Text(turn.Reply),
-                    ],
-                    Kind: SurfaceKind.Elevated,
-                    Title: turn.UserMessage,
-                    Subtitle: turn.RouteHint)),
-            ])
-            { Gap = 12 });
-    }
-
-    private static Node RenderDockedPromptBanner(InoCard card) => new Surface(
-        [
-            new Row(
-            [
-                new TagPill("Docked Waiting Card", "warn", "keyboard"),
-                new Text($"Waiting on you · Docked below · Keyboard: ↵ Approve/Confirm · Esc Deny/Skip · {card.Title}") { Tone = "strong", Tabular = true },
-                new Button("Confirm (↵)", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]), Tone: ButtonTone.Accent) { Small = true, Icon = "check" },
-                new Button("Dismiss (Esc)", new ButtonAction("apps/ino", "approve-card", [card.Id, "false"])) { Small = true, Style = "ghost" },
-            ]) { Gap = 8 },
-        ],
-        Kind: SurfaceKind.Elevated,
-        Title: $"Waiting on you: {card.Title}");
-
-    private static IEnumerable<Node> RenderCardNodes(InoCard card)
-    {
-        yield return new Text($"[{card.Kind}:{card.Status}] {card.Title} ({card.SourceNeuronUri} | scope:{card.EffectiveScopeUri})") { Tone = "muted", Mono = true, Tabular = true };
-        if (card.Kind == "approval")
-        {
-            yield return new ApprovalCardNode(
-                card.Id,
-                card.Title,
-                $"{card.Summary} (scope:{card.EffectiveScopeUri})",
-                [
-                    new ApprovalRowNode("Status", "pending", card.Status),
-                    new ApprovalRowNode("Source Neuron", "local", card.SourceNeuronUri),
-                    new ApprovalRowNode("Scope URI", "ino", card.EffectiveScopeUri),
-                ],
-                SystemName: "Ino",
-                Status: card.Status,
-                OnApprove: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]) : null,
-                OnReject: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]) : null,
-                SourceNeuronUri: card.SourceNeuronUri);
-        }
-        else if (card.Kind == "choice")
-        {
-            yield return new ChoiceCardNode(
-                card.Id,
-                card.Title,
-                [
-                    new ChoiceOptionNode("Nordlys Enterprise (Primary)", "neuron://local/circles/enterprise", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"])),
-                    new ChoiceOptionNode("Executive Board Circle", "neuron://local/circles/board", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"])),
-                ],
-                PickedIndex: card.Status == "approved" ? 0 : null);
-        }
-        else if (card.Kind == "draft")
-        {
-            yield return new DraftCardNode(
-                card.Id,
-                "email",
-                "Astrid Lindqvist <astrid@nordlys.no>",
-                "Kari Holm <kari@nordlys.no>",
-                card.Summary,
-                Subject: card.Title,
-                Status: card.Status == "approved" ? "sent" : card.Status,
-                OnSend: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]) : null,
-                OnDiscard: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]) : null);
-        }
-        else if (card.Kind == "secret")
-        {
-            yield return new SecretCardNode(
-                card.Title,
-                card.Summary,
-                SavedIn: "Secure Vault · neuron://local/vault/secrets",
-                Status: card.Status == "approved" ? "saved" : card.Status,
-                OnEnter: new ButtonAction("os://window/secure", "os://window/secure", []),
-                OnSkip: new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]));
-        }
-        else if (card.Kind == "app-install")
-        {
-            yield return new RecordCardNode(
-                "Smart App Manifest",
-                card.Title,
-                [
-                    new RecordFieldNode("Publisher", "Nordlys Digital (Verified)"),
-                    new RecordFieldNode("Capabilities", "Files (read), Postgres (read)"),
-                    new RecordFieldNode("Status", card.Status),
-                ],
-                Subtitle: card.Summary,
-                LinkLabel: "Review & Install",
-                OnOpen: new ButtonAction("os://sheet/install", "os://sheet/install", []));
-        }
-        else if (card.Kind == "table" && card.Columns is { Length: > 0 } cols && card.Rows is { Length: > 0 } rows)
-        {
-            yield return new DataTable(
-                card.Title,
-                cols,
-                rows.Select(r => (IReadOnlyList<string>)r).ToArray(),
-                SourceNeuronUri: card.SourceNeuronUri,
-                From: "Postgres");
-        }
-        else if (card.Kind == "chart" && card.ChartPoints is { Length: > 0 } points)
-        {
-            yield return new Chart(
-                card.ChartKind ?? "bar",
-                card.Title,
-                points.Select(pt => new ChartPointNode(pt.Label, pt.Value)).ToArray(),
-                SeriesName: "Current",
-                SourceNeuronUri: card.SourceNeuronUri,
-                From: "Postgres",
-                Prefix: "€");
-        }
-        else if (card.Kind is "photocraft" or "filmcraft")
-        {
-            var targetApp = card.Kind;
-            var label = targetApp == "photocraft" ? "Open PhotoCraft Studio" : "Open FilmCraft Studio";
-            yield return new RecordCardNode(
-                targetApp == "photocraft" ? "PhotoCraft · Image Studio" : "FilmCraft · Video Studio",
-                card.Title,
-                [
-                    new RecordFieldNode("Status", card.Status),
-                    new RecordFieldNode("Studio Neuron", card.SourceNeuronUri),
-                    new RecordFieldNode("Scope", card.EffectiveScopeUri),
-                ],
-                Subtitle: card.Summary,
-                LinkLabel: label,
-                OnOpen: new ButtonAction($"apps/{targetApp}", "open", []));
-            yield return new WebBrowser(targetApp == "photocraft" ? "http://localhost:18082" : "http://localhost:18083", card.Title, $"{card.Id}-studio", 420, "wasm-ui");
-        }
-        else
-        {
-            yield return new RecordCardNode(
-                card.Kind,
-                card.Title,
-                [
-                    new RecordFieldNode("Status", card.Status),
-                    new RecordFieldNode("Neuron URI", card.SourceNeuronUri),
-                    new RecordFieldNode("Scope", card.EffectiveScopeUri),
-                ],
-                Subtitle: card.Summary,
-                LinkLabel: card.Kind == "file" ? "Open in Files" : "Open Neuron",
-                OnOpen: card.Kind == "file" ? new ButtonAction("apps/files", "open", []) : null);
-        }
-    }
+    public View Render() => InoViewRenderer.Render(State);
 
     [DigitalBrain.Scenario("Sending a message recalls memory, captures an episode, and updates transcript")]
     public async Task VerifyMemoryAndConversationScenario()
@@ -908,924 +544,13 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         }
     }
 
-    internal static bool LooksLikeFileOrResourceRequest(
-        string text,
-        out string fileName,
-        out string resourceUri,
-        out string? previewSnippet,
-        out string cleanPrompt)
-    {
-        fileName = string.Empty;
-        resourceUri = string.Empty;
-        previewSnippet = null;
-        cleanPrompt = text;
-
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
-
-        const string previewMarker = "\n\n[File Preview]\n";
-        var markerIdx = text.IndexOf(previewMarker, StringComparison.Ordinal);
-        if (markerIdx >= 0)
-        {
-            cleanPrompt = text[..markerIdx].Trim();
-            previewSnippet = text[(markerIdx + previewMarker.Length)..].Trim();
-        }
-
-        var isFileHandoff = cleanPrompt.StartsWith("Explain and summarize ", StringComparison.OrdinalIgnoreCase)
-            || cleanPrompt.Contains(".files/", StringComparison.OrdinalIgnoreCase)
-            || cleanPrompt.StartsWith("@", StringComparison.Ordinal)
-            || markerIdx >= 0;
-
-        if (!isFileHandoff)
-        {
-            return false;
-        }
-
-        var uriStart = cleanPrompt.IndexOf("neuron://", StringComparison.OrdinalIgnoreCase);
-        if (uriStart >= 0)
-        {
-            var end = cleanPrompt.IndexOfAny([' ', ')', '\r', '\n', ']'], uriStart);
-            resourceUri = end > uriStart ? cleanPrompt[uriStart..end] : cleanPrompt[uriStart..];
-        }
-        else
-        {
-            resourceUri = "neuron://owner/local-disk.files/workspace";
-        }
-
-        if (cleanPrompt.StartsWith("Explain and summarize ", StringComparison.OrdinalIgnoreCase) && uriStart > "Explain and summarize ".Length)
-        {
-            fileName = cleanPrompt["Explain and summarize ".Length..uriStart].Trim(' ', '(', ')', ':');
-        }
-        else if (cleanPrompt.StartsWith("@", StringComparison.Ordinal))
-        {
-            var space = cleanPrompt.IndexOf(' ');
-            fileName = (space > 1 ? cleanPrompt[1..space] : cleanPrompt[1..]).Trim();
-        }
-
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            var slash = resourceUri.LastIndexOf('/');
-            fileName = slash >= 0 && slash + 1 < resourceUri.Length ? resourceUri[(slash + 1)..] : "resource";
-        }
-
-        return true;
-    }
-
-    private async Task HandleFileOrResourceRequestAsync(
-        string cleanPrompt,
-        string fileName,
-        string resourceUri,
-        string? previewSnippet,
-        UserSettingsState settings,
-        MemoryRecallHit[] recalled,
-        IMemory? memory)
-    {
-        var promptForModel = string.IsNullOrWhiteSpace(previewSnippet)
-            ? cleanPrompt
-            : $"{cleanPrompt}\n\nFile contents:\n{previewSnippet}";
-        var generated = await TryGenerateReplyAsync(promptForModel, settings, recalled);
-
-        string reply;
-        if (!string.IsNullOrWhiteSpace(generated))
-        {
-            reply = $"Ino ({settings.DefaultModel}): {generated}\n\n- **Resource**: `{fileName}` (`{resourceUri}`)";
-        }
-        else if (!string.IsNullOrWhiteSpace(previewSnippet))
-        {
-            var lines = previewSnippet.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var previewExcerpt = string.Join("\n", lines.Take(6).Select(l => $"> {l}"));
-            reply =
-                $"Ino ({settings.DefaultModel}): Analyzed **{fileName}** (`{resourceUri}`) — {lines.Length} non-empty line(s), {previewSnippet.Length} chars.\n\n"
-                + $"{previewExcerpt}\n\n"
-                + "**Suggested actions:** Ask me to *extract a table*, *draft a reply*, or *rewrite key sections* from this file.";
-        }
-        else
-        {
-            reply =
-                $"Ino ({settings.DefaultModel}): Attached **{fileName}** (`{resourceUri}`) from **Files**.\n\n"
-                + "- **Source URI**: `" + resourceUri + "`\n"
-                + "- **Ready for**: Summarization, key takeaway extraction, table conversion, or cross-app workflow routing.";
-        }
-
-        if (memory is not null)
-        {
-            await memory.CaptureEpisode("ino.file", $"File: {fileName} ({resourceUri}) | Prompt: {cleanPrompt}", importance: 7);
-        }
-
-        var turnsCount = State.Turns.Length + 1;
-        var cardId = $"file-{turnsCount}";
-        var summaryText = !string.IsNullOrWhiteSpace(previewSnippet)
-            ? (previewSnippet.Length <= 180 ? previewSnippet : previewSnippet[..180] + "…")
-            : $"Workspace file resource attached from Files ({resourceUri})";
-        var fileCard = new InoCard(
-            cardId,
-            "file",
-            fileName,
-            summaryText,
-            resourceUri,
-            "ready",
-            $"neuron://local/apps/ino#{cardId}");
-
-        var nextTitle = State.Turns.Length == 0 || State.Title == "New chat"
-            ? $"File · {fileName}"
-            : State.Title;
-        var nextTurns = State.Turns.Append(new InoTurn(cleanPrompt, reply, "routed:files.resource", recalled.Length)).ToArray();
-
-        Set(State with
-        {
-            Title = nextTitle,
-            Status = $"Attached {fileName} ({resourceUri})",
-            Turns = nextTurns,
-            Cards = [.. State.ActiveCards, fileCard],
-        });
-    }
-
-    private async Task<DecisionResult> DecideIntentAsync(string text)
-    {
-        var decisionMaker = DecisionMaker;
-        if (decisionMaker is not null)
-        {
-            string[] candidates = ["photocraft", "filmcraft", "chart.mutation", "chart.question", "database.query", "settings.navigate", "file.resource", "connection.string", "app.install", "general.chat"];
-            var decision = await decisionMaker.DecideAsync(new DecisionContext(text, candidates, Mode: DecisionMode.Reactive));
-            if (decision.Confidence < 0.8 || decision.Choice == "general.chat")
-            {
-                if (LooksLikeSettingsNavigationRequest(text, out _, out _, out _, out _))
-                {
-                    return new("settings.navigate", 0.95, DecisionMode.Reactive);
-                }
-                return new("general.chat", decision.Confidence, DecisionMode.Reactive);
-            }
-            return decision;
-        }
-
-        if (text.Contains("intochat.app/a/", StringComparison.OrdinalIgnoreCase))
-        {
-            return new("app.install", 1.0, DecisionMode.Reactive);
-        }
-
-        if (LooksLikeConnectionString(text))
-        {
-            return new("connection.string", 1.0, DecisionMode.Reactive);
-        }
-
-        if (LooksLikePhotoCraftRequest(text))
-        {
-            return new("photocraft", 1.0, DecisionMode.Reactive);
-        }
-
-        if (LooksLikeFilmCraftRequest(text))
-        {
-            return new("filmcraft", 1.0, DecisionMode.Reactive);
-        }
-
-        if (LooksLikeChartMutationOrFilter(text))
-        {
-            return new("chart.mutation", 1.0, DecisionMode.Reactive);
-        }
-
-        if (LooksLikeChartQuestion(text))
-        {
-            return new("chart.question", 1.0, DecisionMode.Reactive);
-        }
-
-        if (LooksLikeDatabaseQuery(text) || LooksLikeVisualizationRequest(text))
-        {
-            return new("database.query", 1.0, DecisionMode.Reactive);
-        }
-
-        if (LooksLikeSettingsNavigationRequest(text, out _, out _, out _, out _))
-        {
-            return new("settings.navigate", 1.0, DecisionMode.Reactive);
-        }
-
-        if (LooksLikeFileOrResourceRequest(text, out _, out _, out _, out _))
-        {
-            return new("file.resource", 1.0, DecisionMode.Reactive);
-        }
-
-        return new("general.chat", 0.5, DecisionMode.Reactive);
-    }
-
-    internal static bool LooksLikePhotoCraftRequest(string text)
-    {
-        if (text.Contains("photocraft", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("remove background", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("remove-background", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("background removal", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("select subject", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("select sky", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("desaturate", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("layer.removeBackground", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("layer.newFillLayer.gradient", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var mentionsImage = text.Contains("photo", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("image", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("picture", StringComparison.OrdinalIgnoreCase)
-            || text.Contains(".png", StringComparison.OrdinalIgnoreCase)
-            || text.Contains(".jpg", StringComparison.OrdinalIgnoreCase)
-            || text.Contains(".psd", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("512x512", StringComparison.OrdinalIgnoreCase);
-
-        return mentionsImage && (
-            text.Contains("gradient", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("cutout", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("grayscale", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("flip", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("rotate", StringComparison.OrdinalIgnoreCase));
-    }
-
-    internal static bool LooksLikeFilmCraftRequest(string text)
-        => text.Contains("filmcraft", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("videocraft", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("razor split", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("split timeline", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("cut timeline", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("ripple trim", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("trim video", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("lumetri", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("timeline.razor", StringComparison.OrdinalIgnoreCase);
-
-    internal static bool LooksLikeSettingsNavigationRequest(
-        string text,
-        out string section,
-        out string? subPage,
-        out string? sheet,
-        out bool requiresApproval)
-    {
-        section = "general";
-        subPage = null;
-        sheet = null;
-        requiresApproval = false;
-
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
-
-        var isDestructive = text.Contains("revoke", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("delete account", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("clear memory", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("clear ino memory", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("wipe memory", StringComparison.OrdinalIgnoreCase);
-
-        if (isDestructive)
-        {
-            requiresApproval = true;
-            if (text.Contains("key", StringComparison.OrdinalIgnoreCase))
-            {
-                section = "keys";
-                return true;
-            }
-            if (text.Contains("memory", StringComparison.OrdinalIgnoreCase))
-            {
-                section = "files";
-                subPage = "memory";
-                return true;
-            }
-            if (text.Contains("account", StringComparison.OrdinalIgnoreCase))
-            {
-                section = "danger";
-                sheet = "delete-account";
-                return true;
-            }
-        }
-
-        if (text.Contains("local ollama", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("ollama server", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("local server", StringComparison.OrdinalIgnoreCase)
-            || (text.Contains("ollama", StringComparison.OrdinalIgnoreCase)
-                && (text.Contains("where", StringComparison.OrdinalIgnoreCase)
-                    || text.Contains("set up", StringComparison.OrdinalIgnoreCase)
-                    || text.Contains("setup", StringComparison.OrdinalIgnoreCase)
-                    || text.Contains("configure", StringComparison.OrdinalIgnoreCase)
-                    || text.Contains("settings", StringComparison.OrdinalIgnoreCase))))
-        {
-            section = "models";
-            subPage = "local-server";
-            return true;
-        }
-
-        var mentionsConnectionIntent = text.Contains("connection", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("sheet", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("oauth", StringComparison.OrdinalIgnoreCase)
-            || (text.Contains("connect", StringComparison.OrdinalIgnoreCase) && text.Contains("settings", StringComparison.OrdinalIgnoreCase));
-
-        if (mentionsConnectionIntent)
-        {
-            section = "connections";
-            if (text.Contains("google drive", StringComparison.OrdinalIgnoreCase) || text.Contains("google_drive", StringComparison.OrdinalIgnoreCase))
-            {
-                subPage = "google_drive";
-                if (text.Contains("sheet", StringComparison.OrdinalIgnoreCase)) { sheet = "google_drive"; }
-                return true;
-            }
-            if (text.Contains("github", StringComparison.OrdinalIgnoreCase))
-            {
-                subPage = "github";
-                if (text.Contains("sheet", StringComparison.OrdinalIgnoreCase)) { sheet = "github"; }
-                return true;
-            }
-            if (text.Contains("slack", StringComparison.OrdinalIgnoreCase))
-            {
-                subPage = "slack";
-                if (text.Contains("sheet", StringComparison.OrdinalIgnoreCase)) { sheet = "slack"; }
-                return true;
-            }
-            if (text.Contains("notion", StringComparison.OrdinalIgnoreCase))
-            {
-                subPage = "notion";
-                if (text.Contains("sheet", StringComparison.OrdinalIgnoreCase)) { sheet = "notion"; }
-                return true;
-            }
-        }
-
-        var mentionsSettingsNav = text.Contains("settings", StringComparison.OrdinalIgnoreCase)
-            || text.StartsWith("where do i ", StringComparison.OrdinalIgnoreCase)
-            || text.StartsWith("open settings", StringComparison.OrdinalIgnoreCase)
-            || text.StartsWith("navigate to settings", StringComparison.OrdinalIgnoreCase);
-
-        if (!mentionsSettingsNav)
-        {
-            return false;
-        }
-
-        if (text.Contains("memory", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "files";
-            subPage = "memory";
-            return true;
-        }
-        if (text.Contains("file", StringComparison.OrdinalIgnoreCase) || text.Contains("storage", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "files";
-            return true;
-        }
-        if (text.Contains("key", StringComparison.OrdinalIgnoreCase) && !text.Contains("keyboard", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "keys";
-            return true;
-        }
-        if (text.Contains("variable", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "variables";
-            return true;
-        }
-        if (text.Contains("model", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "models";
-            return true;
-        }
-        if (text.Contains("connection", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "connections";
-            return true;
-        }
-        if (text.Contains("billing", StringComparison.OrdinalIgnoreCase) || text.Contains("subscription", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "billing";
-            return true;
-        }
-        if (text.Contains("team", StringComparison.OrdinalIgnoreCase) || text.Contains("member", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "team";
-            return true;
-        }
-        if (text.Contains("notification", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "notifications";
-            return true;
-        }
-        if (text.Contains("keyboard", StringComparison.OrdinalIgnoreCase) || text.Contains("shortcut", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "keyboard";
-            return true;
-        }
-        if (text.Contains("desktop", StringComparison.OrdinalIgnoreCase) || text.Contains("wallpaper", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "desktop";
-            return true;
-        }
-        if (text.Contains("danger", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "danger";
-            return true;
-        }
-        if (text.Contains("app", StringComparison.OrdinalIgnoreCase))
-        {
-            section = "apps";
-            return true;
-        }
-
-        return text.StartsWith("open settings", StringComparison.OrdinalIgnoreCase)
-            || text.StartsWith("navigate to settings", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private async Task HandleSettingsNavigationRequestAsync(
-        string text,
-        string section,
-        string? subPage,
-        string? sheet,
-        bool requiresApproval,
-        UserSettingsState settings,
-        MemoryRecallHit[] recalled,
-        IMemory? memory)
-    {
-        var routeArg = string.IsNullOrWhiteSpace(sheet)
-            ? (string.IsNullOrWhiteSpace(subPage) ? section : $"{section}:{subPage}")
-            : $"{section}:{subPage ?? string.Empty}:{sheet}";
-
-        try
-        {
-            await Get<IApp>("apps/settings").Request("navigate", routeArg);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "Settings app neuron is optional when running InoApp in standalone unit tests.");
-        }
-
-        var routeHint = $"routed:settings.navigate:{routeArg}";
-        var targetLabel = string.IsNullOrWhiteSpace(subPage)
-            ? section
-            : $"{section} / {subPage}";
-        var reply = requiresApproval
-            ? $"Ino ({settings.DefaultModel}): Opened **Settings → {targetLabel}** (`neuron://local/apps/settings`). Please review and approve the destructive settings change below before I apply it."
-            : $"Ino ({settings.DefaultModel}): Navigated **Settings** to **{targetLabel}** (`neuron://local/apps/settings` · `{routeArg}`).";
-
-        if (memory is not null)
-        {
-            await memory.CaptureEpisode("ino.settings", $"User: {text} | Route: {routeHint}", importance: 6);
-        }
-
-        var turnsCount = State.Turns.Length + 1;
-        var cards = State.ActiveCards;
-        if (requiresApproval)
-        {
-            var cardId = $"card-{turnsCount}";
-            cards =
-            [
-                .. cards,
-                new InoCard(
-                    cardId,
-                    "approval",
-                    $"Confirm settings action: {text}",
-                    $"Target: Settings → {targetLabel} ({routeArg}). Requires explicit LFP confirmation.",
-                    "neuron://local/os.settings/settings",
-                    "pending",
-                    $"neuron://local/apps/ino#{cardId}"),
-            ];
-        }
-        else
-        {
-            var cardId = $"settings-{turnsCount}";
-            cards =
-            [
-                .. cards,
-                new InoCard(
-                    cardId,
-                    "settings",
-                    $"Settings · {targetLabel}",
-                    $"Autonomous Settings co-pilot navigated to {routeArg}.",
-                    "neuron://local/apps/settings",
-                    "ready",
-                    $"neuron://local/apps/ino#{cardId}"),
-            ];
-        }
-
-        var title = State.Turns.Length == 0
-            ? (text.Length <= 52 ? text : text[..52])
-            : State.Title;
-        var nextTurns = State.Turns.Append(new InoTurn(text, reply, routeHint, recalled.Length)).ToArray();
-
-        Set(State with
-        {
-            Title = title,
-            Status = routeHint,
-            Turns = nextTurns,
-            Cards = cards,
-        });
-    }
-
-    private async Task HandleStudioRequestAsync(
-        string studioApp,
-        string text,
-        UserSettingsState settings,
-        MemoryRecallHit[] recalled,
-        IMemory? memory)
-    {
-        var requestedMode = text.Contains("mcp", StringComparison.OrdinalIgnoreCase)
-            ? "mcp"
-            : text.Contains("wasm", StringComparison.OrdinalIgnoreCase)
-                ? "wasm-ui"
-                : "native-linux";
-
-        var result = studioApp == "photocraft"
-            ? await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
-                text,
-                explicitParamsJson: null,
-                currentDocument: null,
-                requestedMode,
-                TryGetArtCraftStudio(),
-                TryGetMcpServer,
-                (err, reason) => Swallow(err, reason))
-            : await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
-                text,
-                explicitParamsJson: null,
-                currentSequence: null,
-                requestedMode,
-                TryGetArtCraftStudio(),
-                TryGetMcpServer,
-                (err, reason) => Swallow(err, reason));
-
-        try
-        {
-            await Get<IApp>($"apps/{studioApp}").Request("edit", text);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, $"{studioApp} app neuron is optional when running InoApp in standalone unit tests.");
-        }
-
-        var turnsCount = State.Turns.Length + 1;
-        var cardId = $"studio-{turnsCount}";
-        var studioCard = new InoCard(
-            cardId,
-            studioApp,
-            $"{result.CommandTitle} [{result.ExecutionMode}]",
-            $"{result.Summary} · CLI: {result.CliInvocation}",
-            $"neuron://local/apps/{studioApp}",
-            "completed",
-            $"neuron://local/apps/ino#{cardId}");
-
-        var routeHint = $"routed:{studioApp}.{result.CommandId}";
-        var reply =
-            $"Ino ({settings.DefaultModel}): {result.Summary}\n\n"
-            + $"- **Command**: `{result.CommandId}` ({result.CommandTitle})\n"
-            + $"- **Execution Mode**: `{result.ExecutionMode}` (`{result.CliInvocation}`)\n"
-            + $"- **Output Artifact**: `{result.OutputDocument}`\n"
-            + $"- **Layers / Tracks**: {string.Join(", ", result.LayersOrTracks)}";
-
-        if (memory is not null)
-        {
-            await memory.CaptureEpisode($"ino.{studioApp}", $"User: {text} | Cmd: {result.CommandId} | Out: {result.OutputDocument}", importance: 7);
-        }
-
-        var title = State.Turns.Length == 0
-            ? (text.Length <= 52 ? text : text[..52])
-            : State.Title;
-        var nextTurns = State.Turns.Append(new InoTurn(text, reply, routeHint, recalled.Length)).ToArray();
-
-        Set(State with
-        {
-            Title = title,
-            Status = $"{result.CommandTitle} ({result.ExecutionMode}) -> {result.OutputDocument}",
-            Turns = nextTurns,
-            Cards = [.. State.ActiveCards, studioCard],
-        });
-    }
-
-    private async Task ApplyChartMutationOrFilterAsync(string text, UserSettingsState settings, IMemory? memory)
-    {
-        var cards = State.ActiveCards;
-        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase)
-            ? "supabase:supabase/postgres"
-            : State.ConnectedDatabase;
-        var chartCard = cards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
-        var tableCard = cards.LastOrDefault(c => c.Kind == "table" && c.Rows is { Length: > 0 });
-
-        if (chartCard is null || tableCard is null)
-        {
-            var (chartTitle, columns, rows, defaultKind, chartPoints, summary) = ExecuteDatasetQuery(
-                "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5",
-                database);
-            tableCard = new InoCard(
-                $"table-{cards.Length + 1}",
-                "table",
-                $"{chartTitle} — Table ({rows.Length} rows from {database})",
-                summary,
-                "neuron://local/postgres/main#query-result",
-                "ready",
-                $"neuron://local/apps/ino#table-{cards.Length + 1}",
-                columns,
-                rows);
-            chartCard = new InoCard(
-                $"chart-{cards.Length + 2}",
-                "chart",
-                chartTitle,
-                $"Live {defaultKind} chart ({chartPoints.Length} series points) from {database}.",
-                "neuron://local/apps/ino/chart",
-                "ready",
-                $"neuron://local/apps/ino#chart-{cards.Length + 2}",
-                ChartKind: defaultKind,
-                ChartPoints: chartPoints);
-            cards = [.. cards, tableCard, chartCard];
-        }
-
-        string reply;
-        if (text.Contains("filter", StringComparison.OrdinalIgnoreCase))
-        {
-            var (baseTitle, baseCols, baseRows, _, basePoints, _) = ExecuteDatasetQuery("SELECT * FROM opportunities", database);
-            var filterTerm = ExtractFilterTerm(text);
-            if (string.IsNullOrWhiteSpace(filterTerm) || text.Contains("clear", StringComparison.OrdinalIgnoreCase) || text.Contains("all", StringComparison.OrdinalIgnoreCase))
-            {
-                tableCard = tableCard with { Title = $"{baseTitle} — Table ({baseRows.Length} rows)", Rows = baseRows };
-                chartCard = chartCard with { ChartPoints = basePoints };
-                reply = $"Ino ({settings.DefaultModel}): Cleared filters on **{baseTitle}** — showing all {baseRows.Length} rows and chart points.";
-            }
-            else
-            {
-                var matchingIndices = baseRows
-                    .Select((r, idx) => (Row: r, Index: idx))
-                    .Where(item => item.Row.Any(cell => cell.Contains(filterTerm, StringComparison.OrdinalIgnoreCase)))
-                    .ToArray();
-                var filteredRows = matchingIndices.Length > 0 ? matchingIndices.Select(x => x.Row).ToArray() : baseRows;
-                var filteredPoints = matchingIndices.Length > 0 ? matchingIndices.Select(x => basePoints[x.Index]).ToArray() : basePoints;
-                tableCard = tableCard with
-                {
-                    Title = $"{baseTitle} — Filtered by '{filterTerm}' ({filteredRows.Length} rows)",
-                    Columns = baseCols,
-                    Rows = filteredRows,
-                };
-                chartCard = chartCard with
-                {
-                    Title = $"{baseTitle} ({filterTerm})",
-                    ChartPoints = filteredPoints,
-                };
-                reply = $"Ino ({settings.DefaultModel}): Filtered table and chart to **{filterTerm}** ({filteredRows.Length} matching row(s): {string.Join(", ", filteredPoints.Select(p => $"{p.Label} (€{p.Value:N0})"))})";
-            }
-        }
-        else
-        {
-            var nextKind = text.Contains("pie", StringComparison.OrdinalIgnoreCase)
-                ? "pie"
-                : text.Contains("line", StringComparison.OrdinalIgnoreCase)
-                    ? "line"
-                    : "bar";
-            chartCard = chartCard with
-            {
-                ChartKind = nextKind,
-                Summary = $"Live {nextKind} chart ({chartCard.ChartPoints?.Length ?? 0} series points) from {database}.",
-            };
-            reply = $"Ino ({settings.DefaultModel}): Switched **{chartCard.Title}** to a **{nextKind}** chart with {chartCard.ChartPoints?.Length ?? 0} data points.";
-        }
-
-        var updatedCards = cards
-            .Select(c => c.Id == tableCard.Id ? tableCard : c.Id == chartCard.Id ? chartCard : c)
-            .ToArray();
-        if (memory is not null)
-        {
-            await memory.CaptureEpisode("ino.chart-mutate", $"User: {text} | Reply: {reply}", importance: 6);
-        }
-
-        var nextTurns = State.Turns.Append(new InoTurn(text, reply, "chart:qa", 0)).ToArray();
-        Set(State with
-        {
-            ConnectedDatabase = database,
-            Status = $"Updated visualization ({chartCard.Title} · {chartCard.ChartKind})",
-            Turns = nextTurns,
-            Cards = updatedCards,
-        });
-    }
-
-    private static string ExtractFilterTerm(string text)
-    {
-        foreach (var candidate in new[] { "Proposal", "Negotiation", "Contract", "Discovery", "Havbris", "Acme", "Fjordline", "Nordkapp", "Lofoten", "Oslo", "Bergen", "Stavanger" })
-        {
-            if (text.Contains(candidate, StringComparison.OrdinalIgnoreCase))
-            {
-                return candidate;
-            }
-        }
-        var idx = text.LastIndexOf("to ", StringComparison.OrdinalIgnoreCase);
-        if (idx >= 0 && idx + 3 < text.Length)
-        {
-            return text[(idx + 3)..].Trim(' ', '.', '?', '!', '"', '\'');
-        }
-        return string.Empty;
-    }
-
-    private static bool LooksLikeChartMutationOrFilter(string text)
-        => ((text.Contains("switch", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("change", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("convert", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("make it", StringComparison.OrdinalIgnoreCase))
-            && (text.Contains("pie", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("line", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("bar", StringComparison.OrdinalIgnoreCase))
-            && text.Contains("chart", StringComparison.OrdinalIgnoreCase))
-        || (text.Contains("filter", StringComparison.OrdinalIgnoreCase)
-            && (text.Contains("table", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("chart", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("Proposal", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("Negotiation", StringComparison.OrdinalIgnoreCase)));
-
-    private async Task AnswerChartQuestionAsync(string text, UserSettingsState settings, MemoryRecallHit[] recalled, IMemory? memory)
-    {
-        var cards = State.ActiveCards;
-        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase)
-            ? "supabase:supabase/postgres"
-            : State.ConnectedDatabase;
-        var chartCard = cards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
-        var tableCard = cards.LastOrDefault(c => c.Kind == "table" && c.Rows is { Length: > 0 });
-
-        if (chartCard is null || tableCard is null)
-        {
-            var (chartTitle, columns, rows, chartKind, chartPoints, summary) = ExecuteDatasetQuery(
-                "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5",
-                database);
-            var tableCardId = $"table-{cards.Length + 1}";
-            tableCard = new InoCard(
-                tableCardId,
-                "table",
-                $"{chartTitle} — Table ({rows.Length} rows from {database})",
-                summary,
-                "neuron://local/postgres/main#query-result",
-                "ready",
-                $"neuron://local/apps/ino#{tableCardId}",
-                columns,
-                rows);
-            var chartCardId = $"chart-{cards.Length + 2}";
-            chartCard = new InoCard(
-                chartCardId,
-                "chart",
-                chartTitle,
-                $"Live {chartKind} chart ({chartPoints.Length} series points) from {database}.",
-                "neuron://local/apps/ino/chart",
-                "ready",
-                $"neuron://local/apps/ino#{chartCardId}",
-                ChartKind: chartKind,
-                ChartPoints: chartPoints);
-            cards = [.. cards, tableCard, chartCard];
-        }
-
-        var topPoints = (chartCard.ChartPoints ?? [])
-            .OrderByDescending(p => p.Value)
-            .Take(3)
-            .Select((p, idx) => $"{idx + 1}. **{p.Label}** (€{p.Value:N0})")
-            .ToArray();
-        var topSummary = $"Top 3 on **{chartCard.Title}**: {string.Join(", ", topPoints)}.";
-
-        var generated = await TryGenerateReplyAsync(text, settings, recalled, chartCard, tableCard);
-        var reply = generated is { Length: > 0 }
-            ? (generated.Contains(chartCard.ChartPoints![0].Label, StringComparison.OrdinalIgnoreCase)
-                ? $"Ino ({settings.DefaultModel}): {generated}"
-                : $"Ino ({settings.DefaultModel}): {generated}\n\n{topSummary}")
-            : $"Ino ({settings.DefaultModel}): {topSummary}";
-
-        if (memory is not null)
-        {
-            await memory.CaptureEpisode("ino.chart-qa", $"Question: {text} | Answer: {topSummary}", importance: 6);
-        }
-
-        var title = State.Turns.Length == 0
-            ? (text.Length <= 52 ? text : text[..52])
-            : State.Title;
-        var nextTurns = State.Turns.Append(new InoTurn(text, reply, "chart:qa", recalled.Length)).ToArray();
-        Set(State with
-        {
-            ConnectedDatabase = database,
-            Title = title,
-            Status = $"Answered chart question ({chartCard.Title})",
-            Turns = nextTurns,
-            Cards = cards,
-        });
-    }
-
-    private static bool LooksLikeConnectionString(string text)
-        => text.Contains("Host=", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("Server=", StringComparison.OrdinalIgnoreCase)
-            || text.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
-            || text.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase);
-
-    private static bool LooksLikeChartQuestion(string text)
-        => (text.Contains("chart", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("table", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("top 3", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("top three", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("highest", StringComparison.OrdinalIgnoreCase))
-            && (text.Contains("what", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("which", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("top", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("see", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("summarize", StringComparison.OrdinalIgnoreCase)
-                || text.EndsWith('?'));
-
-    private static bool LooksLikeDatabaseQuery(string text)
-        => text.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("query database", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("from postgres", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("from supabase", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("from opportunities", StringComparison.OrdinalIgnoreCase);
-
-    private static bool LooksLikeVisualizationRequest(string text)
-        => text.Contains("visualize", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("show me a chart", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("show chart", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("show table", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("table and chart", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("chart and table", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("plot ", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("opportunities", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("customer accounts", StringComparison.OrdinalIgnoreCase);
-
-    private static string ParseDatabaseName(string connectionString)
-    {
-        if (connectionString.StartsWith("postgres", StringComparison.OrdinalIgnoreCase)
-            && Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
-        {
-            var path = uri.AbsolutePath.Trim('/');
-            return string.IsNullOrWhiteSpace(path) ? "nordlys" : path;
-        }
-
-        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var kv = part.Split('=', 2, StringSplitOptions.TrimEntries);
-            if (kv.Length == 2 && (kv[0].Equals("Database", StringComparison.OrdinalIgnoreCase) || kv[0].Equals("Initial Catalog", StringComparison.OrdinalIgnoreCase)))
-            {
-                return kv[1];
-            }
-        }
-        return "nordlys";
-    }
-
-    private static string ParseHostName(string connectionString)
-    {
-        if (connectionString.StartsWith("postgres", StringComparison.OrdinalIgnoreCase)
-            && Uri.TryCreate(connectionString, UriKind.Absolute, out var uri)
-            && !string.IsNullOrWhiteSpace(uri.Host))
-        {
-            return uri.Host;
-        }
-
-        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var kv = part.Split('=', 2, StringSplitOptions.TrimEntries);
-            if (kv.Length == 2 && (kv[0].Equals("Host", StringComparison.OrdinalIgnoreCase) || kv[0].Equals("Server", StringComparison.OrdinalIgnoreCase)))
-            {
-                return kv[1];
-            }
-        }
-        return "localhost";
-    }
-
-    private static (string ChartTitle, string[] Columns, string[][] Rows, string ChartKind, InoChartPoint[] ChartPoints, string Summary) ExecuteDatasetQuery(string sql, string database)
-    {
-        var chartKind = sql.Contains("pie", StringComparison.OrdinalIgnoreCase)
-            ? "pie"
-            : sql.Contains("line", StringComparison.OrdinalIgnoreCase)
-                ? "line"
-                : "bar";
-
-        if (sql.Contains("customer", StringComparison.OrdinalIgnoreCase) || (sql.Contains("account", StringComparison.OrdinalIgnoreCase) && !sql.Contains("opportunit", StringComparison.OrdinalIgnoreCase)))
-        {
-            string[] cols = ["Account", "City", "Owner", "AnnualRevenue"];
-            string[][] rows =
-            [
-                ["Acme Logistics", "Oslo", "Maja Berg", "€312,000"],
-                ["Havbris AS", "Bergen", "Jeff Tilley", "€240,000"],
-                ["Fjordline", "Stavanger", "Erik Nilsen", "€192,000"],
-                ["Nordkapp Shipping", "Tromsø", "Maja Berg", "€148,500"],
-            ];
-            InoChartPoint[] points =
-            [
-                new("pt-1", "Acme Logistics", 312000),
-                new("pt-2", "Havbris AS", 240000),
-                new("pt-3", "Fjordline", 192000),
-                new("pt-4", "Nordkapp Shipping", 148500),
-            ];
-            return ("Customer Accounts by Annual Revenue", cols, rows, chartKind, points, $"Queried 4 customer account(s) totaling €892,500 from {database}.");
-        }
-
-        string[] defaultCols = ["Opportunity", "Account", "Stage", "Amount"];
-        string[][] defaultRows =
-        [
-            ["Havbris pilot", "Havbris AS", "Proposal", "€240,000"],
-            ["Depot software, phase 2", "Acme Logistics", "Negotiation", "€186,000"],
-            ["Fjordline renewal", "Fjordline", "Contract", "€96,000"],
-            ["Nordkapp second region", "Nordkapp Shipping", "Discovery", "€74,500"],
-            ["Cold-chain sensors", "Lofoten Seafood", "Proposal", "€31,200"],
-        ];
-        InoChartPoint[] defaultPoints =
-        [
-            new("pt-1", "Havbris pilot", 240000),
-            new("pt-2", "Depot software, phase 2", 186000),
-            new("pt-3", "Fjordline renewal", 96000),
-            new("pt-4", "Nordkapp second region", 74500),
-            new("pt-5", "Cold-chain sensors", 31200),
-        ];
-        return ("Pipeline Opportunities by Amount", defaultCols, defaultRows, chartKind, defaultPoints, $"Queried 5 opportunity row(s) totaling €627,700 from {database}.");
-    }
-
     private async Task<string?> TryGenerateReplyAsync(
         string text,
         UserSettingsState settings,
         MemoryRecallHit[] recalled,
         InoCard? activeChart = null,
-        InoCard? activeTable = null)
+        InoCard? activeTable = null,
+        string? liveCapabilityContext = null)
     {
         try
         {
@@ -1838,12 +563,16 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 ? $" Visible UI Table '{activeTable.Title}' columns [{string.Join(", ", cols)}], rows: "
                   + string.Join("; ", rows.Select(r => string.Join(" | ", r))) + "."
                 : string.Empty;
+            var capabilityContext = !string.IsNullOrWhiteSpace(liveCapabilityContext)
+                ? $" Live Installed Brain Capabilities:\n{liveCapabilityContext}\n"
+                : string.Empty;
             var systemPrompt =
                 $"You are Ino, the personal AI assistant of IntoChat OS (user: {settings.DisplayName}, model: {settings.DefaultModel}). "
                 + (recalled.Length > 0 ? $"Recalled memory: {string.Join("; ", recalled.Select(r => r.Text))}. " : string.Empty)
                 + chartContext
                 + tableContext
-                + " Answer concisely and accurately using the visible chart and table data when asked.";
+                + capabilityContext
+                + " Answer concisely and accurately using the live brain capabilities, visible chart, and table data when asked.";
             var messages = new List<AiMessage>
             {
                 new("system", [new AiText(systemPrompt)]),
@@ -1867,6 +596,32 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Local model IQwen35 is optional when running InoApp in unit tests without Ollama.");
+            return null;
+        }
+    }
+
+    private IApp? TryGetApp(string appKey)
+    {
+        try
+        {
+            return Get<IApp>(appKey);
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, $"App neuron '{appKey}' is optional when running InoApp in standalone unit tests.");
+            return null;
+        }
+    }
+
+    private IAppStore? TryGetAppStore()
+    {
+        try
+        {
+            return Get<IAppStore>("store");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "AppStoreNeuron is optional when running InoApp in standalone unit tests.");
             return null;
         }
     }

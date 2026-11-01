@@ -13,14 +13,19 @@ internal static class HostCaller
     public static async Task<CapabilityCaller?> ForBrain(IServiceProvider services, string brain)
     {
         if (CallerContextStamper.TryGet(out var caller) && caller.BrainId == brain) { return caller; }
+        if (string.IsNullOrWhiteSpace(brain)) { return null; }
+        var fallback = CapabilityCallers.Of(brain, brain, brain);
+        CallerContextStamper.Stamp(fallback);
         if (services.GetService<ICapabilityBroker>() is { } broker)
         {
             var directory = await broker.Identity();
             if (await directory.OwnerOfBrain(brain) is { } account)
             {
-                return CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain);
+                var ownerCaller = CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain);
+                CallerContextStamper.Stamp(ownerCaller);
+                return ownerCaller;
             }
         }
-        return string.IsNullOrWhiteSpace(brain) ? null : CapabilityCallers.Of(brain, brain, brain);
+        return fallback;
     }
 }

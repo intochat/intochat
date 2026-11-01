@@ -84,31 +84,40 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
     public async Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct)
     {
-        var summaries = await Requests(brain).ListConnections().WaitAsync(ct).ConfigureAwait(false);
-        var list = summaries.OrderBy(summary => summary.Order).Select(ToConnection).ToList();
-        var localKey = LocalDiskConnectionKey(brain);
-        if (!list.Any(item => string.Equals(item.Key, localKey, StringComparison.Ordinal)))
+        var hadCaller = CallerContextStamper.TryGet(out var previous);
+        CallerContextStamper.Stamp(CapabilityCallers.Of(brain.Value, brain.Value, brain.Value));
+        try
         {
-            try
+            var summaries = await Requests(brain).ListConnections().WaitAsync(ct).ConfigureAwait(false);
+            var list = summaries.OrderBy(summary => summary.Order).Select(ToConnection).ToList();
+            var localKey = LocalDiskConnectionKey(brain);
+            if (!list.Any(item => string.Equals(item.Key, localKey, StringComparison.Ordinal)))
             {
-                var localDisk = SiloNeurons.Get<StorageV1>(plain, LocalDiskId(brain));
-                var roots = await localDisk.Roots(ct).WaitAsync(ct).ConfigureAwait(false);
-                if (roots.Count > 0)
+                try
                 {
-                    list.Add(new BrainConnection(
-                        localKey,
-                        Environment.MachineName,
-                        true,
-                        [Capability.Storage.V1],
-                        ConnectionStorage.Root(localKey)));
+                    var localDisk = SiloNeurons.Get<StorageV1>(plain, LocalDiskId(brain));
+                    var roots = await localDisk.Roots(ct).WaitAsync(ct).ConfigureAwait(false);
+                    if (roots.Count > 0)
+                    {
+                        list.Add(new BrainConnection(
+                            localKey,
+                            Environment.MachineName,
+                            true,
+                            [Capability.Storage.V1],
+                            ConnectionStorage.Root(localKey)));
+                    }
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    _logger.LogDebug(error, "LocalDisk module is optional in isolated test hosts for {Brain}", brain.Value);
                 }
             }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                _logger.LogDebug(error, "LocalDisk module is optional in isolated test hosts for {Brain}", brain.Value);
-            }
+            return list;
         }
-        return list;
+        finally
+        {
+            if (hadCaller && previous is not null) { CallerContextStamper.Stamp(previous); }
+        }
     }
 
     public Task<TCapability> Bind<TCapability>(BrainId brain, string key, string callerApp, CancellationToken ct) where TCapability : class
@@ -179,19 +188,28 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     // Dedupes on the brain's pending requests: one pending request of a module providing the capability is enough.
     public async Task RequestConnection(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct)
     {
-        var requests = Requests(brain);
-        var kinds = (await requests.ListKinds().WaitAsync(ct).ConfigureAwait(false)).Select(kind => kind.Id).ToList();
-        var hosted = services.GetService<ConnectionNeuronTypes>();
-        var candidates = kinds.Where(kind => hosted?.ProvidesOf(kind).Any(provided => provided.Satisfies(capability)) == true).ToList();
-        if (candidates.Count == 0)
+        var hadCaller = CallerContextStamper.TryGet(out var previous);
+        CallerContextStamper.Stamp(CapabilityCallers.Of(brain.Value, brain.Value, brain.Value));
+        try
         {
-            _logger.LogInformation("{App} needs {Capability} in brain {Brain}; no module offered here provides it", callerApp, capability, brain.Value);
-            return;
+            var requests = Requests(brain);
+            var kinds = (await requests.ListKinds().WaitAsync(ct).ConfigureAwait(false)).Select(kind => kind.Id).ToList();
+            var hosted = services.GetService<ConnectionNeuronTypes>();
+            var candidates = kinds.Where(kind => hosted?.ProvidesOf(kind).Any(provided => provided.Satisfies(capability)) == true).ToList();
+            if (candidates.Count == 0)
+            {
+                _logger.LogInformation("{App} needs {Capability} in brain {Brain}; no module offered here provides it", callerApp, capability, brain.Value);
+                return;
+            }
+            var pending = await requests.ListPending().WaitAsync(ct).ConfigureAwait(false);
+            if (pending.Any(request => candidates.Contains(request.Kind, StringComparer.Ordinal))) { return; }
+            var request = await requests.Request(candidates[0]).WaitAsync(ct).ConfigureAwait(false);
+            _logger.LogInformation("{App} needs {Capability} in brain {Brain}: requested a {Kind} connection ({Request})", callerApp, capability, brain.Value, request.Kind, request.Id);
         }
-        var pending = await requests.ListPending().WaitAsync(ct).ConfigureAwait(false);
-        if (pending.Any(request => candidates.Contains(request.Kind, StringComparer.Ordinal))) { return; }
-        var request = await requests.Request(candidates[0]).WaitAsync(ct).ConfigureAwait(false);
-        _logger.LogInformation("{App} needs {Capability} in brain {Brain}: requested a {Kind} connection ({Request})", callerApp, capability, brain.Value, request.Kind, request.Id);
+        finally
+        {
+            if (hadCaller && previous is not null) { CallerContextStamper.Stamp(previous); }
+        }
     }
 
     private IConnectionRequests Requests(BrainId brain) => SiloNeurons.Get<IConnectionRequests>(plain, IConnectionRequests.Key(brain.Value));

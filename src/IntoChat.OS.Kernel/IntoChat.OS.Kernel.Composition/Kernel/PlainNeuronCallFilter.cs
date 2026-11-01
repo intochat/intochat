@@ -26,8 +26,10 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
 
         if (IsPlumbing(call)) { await context.Invoke(); return; }
 
+        var fromClusterGrain = context.SourceId is { } source && !source.Type.ToString()!.StartsWith("sys.client", StringComparison.Ordinal);
         if (!CallerContextStamper.TryGet(out var caller) || caller is null)
         {
+            if (fromClusterGrain) { await context.Invoke(); return; }
             logger.LogWarning("Access denied: unstamped call to plain neuron {Contract}.{Method}", call.Contract, call.Method);
             throw new UnauthorizedAccessException($"Unstamped calls are not authorized for plain neuron {call.Contract}.{call.Method}");
         }
@@ -37,8 +39,7 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
         // from inside the cluster, keeps its provenance, so an unclassified ([Internal]) operation passes for it (06-08: the
         // fast-path writer completes a plain app's synapse after the person's request returned).
         var (scope, isPublic) = Classify(caller, id, call);
-        var internalCall = Orleans.Runtime.RequestContext.Get(CallerContextStamper.ModuleCallKey) is true
-            || context.SourceId is { } source && !source.Type.ToString()!.StartsWith("sys.client", StringComparison.Ordinal);
+        var internalCall = Orleans.Runtime.RequestContext.Get(CallerContextStamper.ModuleCallKey) is true || fromClusterGrain;
         if (scope is null && !isPublic && internalCall) { await context.Invoke(); return; }
         await Authorize(filter, logger, caller, id, call);
         Orleans.Runtime.RequestContext.Set(CallerContextStamper.ModuleCallKey, true);
@@ -84,7 +85,10 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
     // Module plumbing: a contract no edge can name, because it is not public or is [Internal] as a whole (the script catalog and the
     // neuron surface leave such contracts out, CompiledTypes).
     private static bool IsPlumbing(RuntimeInvocation call)
-        => KernelInvocationSink.ContractOf(call.Contract) is { } contract && (!contract.IsVisible || contract.IsDefined(typeof(InternalAttribute), inherit: false));
+        => call.Contract is "runtime.session"
+            || Policy(call) is InternalAttribute
+            || (KernelInvocationSink.ContractOf(call.Contract) is { } contract
+                && (!contract.IsVisible || contract.IsDefined(typeof(InternalAttribute), inherit: false)));
 
     // The method's access attribute wins over its contract's; null is the owner rule.
     private static AccessAttribute? Policy(RuntimeInvocation call) => Policies.GetOrAdd((call.Contract, call.Method, call.Arguments.Length), static key =>

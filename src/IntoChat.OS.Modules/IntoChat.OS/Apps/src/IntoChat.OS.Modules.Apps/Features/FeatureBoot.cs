@@ -50,6 +50,10 @@ internal sealed class FeatureBoot(
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
+            if (await HostCaller.ForBrain(plain, brainId) is { } caller)
+            {
+                CallerContextStamper.Stamp(caller);
+            }
             await _loaded;
             await SiloNeurons.Get<IFeatureReconciler>(plain, IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken);
         }

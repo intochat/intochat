@@ -55,6 +55,10 @@ internal sealed class BrainSceneHost(
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
+            if (await HostCaller.ForBrain(services, brain) is { } caller)
+            {
+                CallerContextStamper.Stamp(caller);
+            }
             var app = SiloNeurons.Get<IApp>(services, IApp.Key(brain, "brain"));
             if ((await app.Read()).Manifest is { Title.Length: > 0 }) { return; }
             await app.Import(BrainScene.Bundle);

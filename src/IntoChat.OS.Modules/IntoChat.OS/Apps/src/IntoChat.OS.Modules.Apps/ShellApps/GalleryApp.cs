@@ -897,7 +897,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
         new Button("Warm Mica", new ButtonAction("gallery", "switch-identity", ["fluent-warm-mica", "floating-glass"]), Tone: State.StylePreset == "fluent-warm-mica" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sun" },
         new Button("Linear Carbon", new ButtonAction("gallery", "switch-identity", ["linear-carbon", "classic-bottom"]), Tone: State.StylePreset == "linear-carbon" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "terminal" },
         new Button("Nordic Tactical", new ButtonAction("gallery", "switch-identity", ["nordic-tactical", "split-top-dock"]), Tone: State.StylePreset == "nordic-tactical" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "shield" },
-    ]) { Gap = 8 };
+    ])
+    { Gap = 8 };
 
     private Node RenderCatalogGridSection(GalleryCatalogEntry[] visible)
     {
@@ -956,7 +957,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
             [
                 new Progress($"Loading {selected.Title}…", 0.65, Detail: selected.NeuronContract),
                 new InfoBar($"Streaming {selected.NeuronContract}", $"Awaiting grain projection from {selected.SourceNeuronUri}…", Tone: "info"),
-            ]) { Gap = 12 };
+            ])
+            { Gap = 12 };
         }
 
         if (State.KnobState == "empty")
@@ -987,7 +989,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                         Ui.StatCard("theme-shader", "3D Brain Shader", State.StylePreset, "60 FPS", BadgeTone.Done, "brain-circuit"),
                     ],
                     Gap: 10),
-            ]) { Gap = 12 },
+            ])
+            { Gap = 12 },
 
             "typography" => new Column(
             [
@@ -999,7 +1002,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                     new TagPill("Inter SemiBold 600", "accent", "type"),
                     new TagPill("InterDisplay Bold 700 (tnum)", "done", "sparkles"),
                 ]) { Gap = 8 },
-            ]) { Gap = 10 },
+            ])
+            { Gap = 10 },
 
             "iconography" => new Grid(
                 3,
@@ -1084,7 +1088,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                     },
                 ]) { Gap = 10 },
                 new Text($"Height: {(State.KnobSmall ? "30px (Small)" : "36px (Standard)")} · Enabled: {enabled} · Pulses fired: {State.SignalPulseCount}") { Tone = "muted", Tabular = true },
-            ]) { Gap = 12 },
+            ])
+            { Gap = 12 },
 
             "inputs" => new Column(
             [
@@ -1093,7 +1098,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                     OnSubmit = new ButtonAction("gallery", "select", ["pulse"]),
                 },
                 new NeuronRef("ino", "neuron://nordlys/apps.ino/main"),
-            ]) { Gap = 12 },
+            ])
+            { Gap = 12 },
 
             "switch" => new Row(
             [
@@ -1110,7 +1116,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                     Icon = "lock",
                     Small = true,
                 },
-            ]) { Gap = 12 },
+            ])
+            { Gap = 12 },
 
             "select" => new Select(
                 "Active Reasoning Model",
@@ -1129,7 +1136,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                 new TagPill("DONE BADGE", "done", "check"),
                 new TagPill("WORKING BADGE", "working", "activity"),
                 new TagPill("ERROR BADGE", "error", "triangle-alert"),
-            ]) { Gap = 8 },
+            ])
+            { Gap = 8 },
 
             "progress-infobar" => new Column(
             [
@@ -1145,7 +1153,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                         _ => "info",
                     },
                     Action: new Button("Pulse Gate", new ButtonAction("gallery", "select", ["pulse"]), Tone: ButtonTone.Accent) { Small = true, Icon = "zap" }),
-            ]) { Gap = 12 },
+            ])
+            { Gap = 12 },
 
             "app-shell" => Ui.AppShell(
                 "gallery-shell-preview",
@@ -1154,17 +1163,20 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                     Ui.NavItem("nav-1", "Overview", "layout-grid", "select:shell:overview", selected: State.ShellNav == "overview"),
                     Ui.NavItem("nav-2", "Signals", "radio", "select:shell:signals", selected: State.ShellNav == "signals", badge: $"{14 + State.SignalPulseCount}"),
                     Ui.NavItem("nav-3", "Contracts", "cpu", "select:shell:contracts", selected: State.ShellNav == "contracts"),
-                ]) { Gap = 6 },
+                ])
+                { Gap = 6 },
                 body: new Column(
                 [
                     Ui.StatCard("stat-1", "Active Signals / min", $"{142 + State.SignalPulseCount}", "+18.4%", badgeTone, "zap"),
                     new Text($"Active AppShell pane: {State.ShellNav.ToUpperInvariant()}") { Tone = "muted", Tabular = true },
-                ]) { Gap = 10 },
+                ])
+                { Gap = 10 },
                 toolbar: new Row(
                 [
                     new TagPill("DigitalBrain.UI AppShell", "accent", "panel-left"),
                     new TagPill($"Pane: {State.ShellNav}", "done"),
-                ]) { Gap = 8 }),
+                ])
+                { Gap = 8 }),
 
             "stat-card" => new Grid(
                 3,
@@ -1189,7 +1201,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                         new Text($"Active tab pane: {State.ShellNav} (tnum {1024 + State.SignalPulseCount} signals/s)") { Tone = "strong", Tabular = true },
                     ],
                     Kind: SurfaceKind.Recessed),
-            ]) { Gap = 12 },
+            ])
+            { Gap = 12 },
 
             "approval-card" => new ApprovalCardNode(
                 "card-gallery-1",
@@ -1382,7 +1395,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                 new NeuronRef("files", "neuron://owner/drive.files/projects/context.md"),
                 new NeuronRef("table", "neuron://local/postgres/main#query-result"),
                 new NeuronRef("view", "neuron://local/apps/gallery/view"),
-            ]) { Gap = 10 },
+            ])
+            { Gap = 10 },
 
             _ => new RecordCardNode(
                 selected.Category,
