@@ -23,6 +23,5 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.Cloud.Auth.Tests.Unit" />
-    <InternalsVisibleTo Include="IntoChat.Cloud.Auth.Tests.Integration" />
   </ItemGroup>
 </Project>

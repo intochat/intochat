@@ -20,11 +20,53 @@ public sealed class CredentialBoundaryFacts
     [Fact]
     public void NoModuleConstructsACallerContext()
     {
-        var offenders = ModuleMethods().Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install")
+        string[] allowed =
+        [
+            "IntoChat.OS.Modules.Apps.AppNeuron",
+            "IntoChat.OS.Modules.Apps.HostCaller",
+        ];
+        var offenders = ModuleMethods()
+            .Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install")
+            .Where(m => !allowed.Contains(Outermost(m.DeclaringType!).FullName))
             .Where(m => Calls(m).Any(ConstructsACaller) || SetsAPlatformStamp(m))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
         Assert.Empty(offenders);
     }
+
+    [Fact]
+    public void OnlyApprovedSitesConstructCallerContext()
+    {
+        string[] approved =
+        [
+            "IntoChat.OS.Authority.Identity.AccountSession",
+            "IntoChat.OS.Authority.Identity.AccountSessionIssuer",
+            "IntoChat.OS.Authority.VaultPort",
+            "IntoChat.OS.Modules.Apps.AppNeuron",
+            "IntoChat.OS.Modules.Apps.HostCaller",
+        ];
+        var sites = ModuleMethods().Where(m => Calls(m).Any(ConstructsACaller))
+            .Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order().ToArray();
+        Assert.Equal(approved, sites);
+    }
+
+    [Fact]
+    public void NoProductionMethodDirectlyConstructsCapabilityCallerOutsideFactory()
+    {
+        var offenders = ProductionArchitecture.Assemblies
+            .Where(a => a.GetName().Name != "IntoChat.OS.Framework" && a.GetName().Name != "IntoChat.OS.Modules.Microsoft.CSharp")
+            .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
+            .Where(t => t != typeof(CapabilityCallers))
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                .Cast<MethodBase>().Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)))
+            .Where(m => Calls(m).Any(DirectlyConstructsCaller))
+            .Select(m => m.DeclaringType!.FullName + "." + m.Name).Distinct().Order().ToArray();
+        Assert.Empty(offenders);
+    }
+
+    private static bool DirectlyConstructsCaller(MethodBase called)
+        => called.DeclaringType == typeof(CapabilityCaller)
+            && called.IsConstructor
+            && (called.GetParameters().Length != 1 || called.GetParameters()[0].ParameterType != typeof(CapabilityCaller));
 
     // A platform stamp is any CapabilityCaller whose Kind or StampedBy is set to Platform, by an object
     // initializer or by a with-expression. The OAuth callback stamps the owner recorded at login and

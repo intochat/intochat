@@ -322,6 +322,7 @@ internal sealed partial class AppNeuron
                 kind = record.ObjectLabel,
                 title = record.Name,
                 subtitle = record.Subtitle,
+                linkLabel = record.LinkLabel,
                 status = "ready",
                 statusTone = "accent",
                 sourceApp = record.ObjectLabel,
@@ -500,6 +501,7 @@ internal sealed partial class AppNeuron
         new
         {
             _ui = "statcard",
+            id = NonEmpty(stat.Key, key),
             label = stat.Label,
             value = stat.Value,
             delta = stat.Delta,

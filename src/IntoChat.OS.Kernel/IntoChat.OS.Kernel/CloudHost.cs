@@ -13,6 +13,7 @@ using IntoChat.Cloud.Lobby;
 using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Organisations;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Http;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -95,7 +96,7 @@ public sealed class CloudLicenseCheck : ILicenseCheck
 
 internal sealed class KernelAuthHost : IAuthHostSeam
 {
-    internal static readonly CapabilityCaller Module = new(AuthModule.Id, AuthModule.Id, "system", AuthModule.Id);
+    internal static readonly CapabilityCaller Module = CapabilityCallers.Of(AuthModule.Id, AuthModule.Id, "system", CallerKind.App, AuthModule.Id);
 
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
@@ -110,7 +111,7 @@ internal sealed class KernelAuthHost : IAuthHostSeam
 
 internal sealed class KernelOrganisationHost : IOrganisationHost
 {
-    private static readonly CapabilityCaller Module = new(OrganisationsModule.Id, OrganisationsModule.Id, "system", OrganisationsModule.Id);
+    private static readonly CapabilityCaller Module = CapabilityCallers.Of(OrganisationsModule.Id, OrganisationsModule.Id, "system", CallerKind.App, OrganisationsModule.Id);
 
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
@@ -131,7 +132,7 @@ internal sealed class KernelOrganisationHost : IOrganisationHost
 
 internal sealed class KernelMailHost : IMailHost
 {
-    private static readonly CapabilityCaller Module = new(MailModule.Id, MailModule.Id, "system", MailModule.Id);
+    private static readonly CapabilityCaller Module = CapabilityCallers.Of(MailModule.Id, MailModule.Id, "system", CallerKind.App, MailModule.Id);
 
     public IDisposable StampModule() => RuntimeCallerContext.Stamp(Module);
 }
@@ -155,7 +156,7 @@ internal sealed class SecretLobbyTokenKey(IServiceProvider services) : ILobbyTok
     private byte[] Read()
     {
         var secrets = services.GetRequiredKeyedService<ISecrets>(Capability.Secrets.V1Id);
-        using var stamp = RuntimeCallerContext.Stamp(new CapabilityCaller(LobbyModule.Id, LobbyModule.Id, "system", LobbyModule.Id));
+        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(LobbyModule.Id, LobbyModule.Id, "system", CallerKind.App, LobbyModule.Id));
         var reference = secrets.Named(LobbyModule.TokenSecret).GetAwaiter().GetResult();
         if (reference.Status != SecretStatus.Set)
         {

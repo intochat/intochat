@@ -8,6 +8,7 @@ The brain's personal assistant. Connects to MemoryNeuron (IMemory), UserSettings
 and Postgres connections to maintain context across conversations, route intents, query databases, and render LFP cards.
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models.Ollama;
@@ -94,6 +95,9 @@ public sealed record InoAppState(
 [DigitalBrain.App("ino", Accent = "#3D7EFF", Category = "Intelligence")]
 public sealed class InoApp : DigitalBrain.App<InoAppState>
 {
+    public IDecisionMaker? DecisionMaker { get; set; }
+
+
     private static readonly (string Id, string Title, string Group, string Icon, string? Badge)[] ArcSessions =
     [
         ("q4-renewal", "Nordlys Q4 Renewal", "Pinned", "sparkles", "Needs you"),
@@ -170,66 +174,52 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             return;
         }
 
-        if (text.Contains("intochat.app/a/", StringComparison.OrdinalIgnoreCase))
+        var decision = await DecideIntentAsync(text);
+        switch (decision.Choice)
         {
-            EmitAppInstallLinkCard(text);
-            return;
-        }
-
-        if (LooksLikeConnectionString(text))
-        {
-            await ConnectDb(new InoConnectDb(text, "main"));
-            return;
-        }
-
-        if (LooksLikePhotoCraftRequest(text))
-        {
-            await HandleStudioRequestAsync("photocraft", text, settings, recalled, memory);
-            return;
-        }
-
-        if (LooksLikeFilmCraftRequest(text))
-        {
-            await HandleStudioRequestAsync("filmcraft", text, settings, recalled, memory);
-            return;
-        }
-
-        if (LooksLikeChartMutationOrFilter(text))
-        {
-            await ApplyChartMutationOrFilterAsync(text, settings, memory);
-            return;
-        }
-
-        if (LooksLikeChartQuestion(text))
-        {
-            await AnswerChartQuestionAsync(text, settings, recalled, memory);
-            return;
-        }
-
-        if (LooksLikeDatabaseQuery(text) || LooksLikeVisualizationRequest(text))
-        {
-            await QueryDb(new InoQueryDb(text));
-            return;
-        }
-
-        if (LooksLikeSettingsNavigationRequest(text, out var settingsSection, out var settingsSubPage, out var settingsSheet, out var requiresSettingsApproval))
-        {
-            await HandleSettingsNavigationRequestAsync(
-                text,
-                settingsSection,
-                settingsSubPage,
-                settingsSheet,
-                requiresSettingsApproval,
-                settings,
-                recalled,
-                memory);
-            return;
-        }
-
-        if (LooksLikeFileOrResourceRequest(text, out var resFileName, out var resUri, out var resPreview, out var cleanPrompt))
-        {
-            await HandleFileOrResourceRequestAsync(cleanPrompt, resFileName, resUri, resPreview, settings, recalled, memory);
-            return;
+            case "app.install":
+                EmitAppInstallLinkCard(text);
+                return;
+            case "connection.string":
+                await ConnectDb(new InoConnectDb(text, "main"));
+                return;
+            case "photocraft":
+                await HandleStudioRequestAsync("photocraft", text, settings, recalled, memory);
+                return;
+            case "filmcraft":
+                await HandleStudioRequestAsync("filmcraft", text, settings, recalled, memory);
+                return;
+            case "chart.mutation":
+                await ApplyChartMutationOrFilterAsync(text, settings, memory);
+                return;
+            case "chart.question":
+                await AnswerChartQuestionAsync(text, settings, recalled, memory);
+                return;
+            case "database.query":
+                await QueryDb(new InoQueryDb(text));
+                return;
+            case "settings.navigate":
+                if (LooksLikeSettingsNavigationRequest(text, out var settingsSection, out var settingsSubPage, out var settingsSheet, out var requiresSettingsApproval))
+                {
+                    await HandleSettingsNavigationRequestAsync(
+                        text,
+                        settingsSection,
+                        settingsSubPage,
+                        settingsSheet,
+                        requiresSettingsApproval,
+                        settings,
+                        recalled,
+                        memory);
+                    return;
+                }
+                break;
+            case "file.resource":
+                if (LooksLikeFileOrResourceRequest(text, out var resFileName, out var resUri, out var resPreview, out var cleanPrompt))
+                {
+                    await HandleFileOrResourceRequestAsync(cleanPrompt, resFileName, resUri, resPreview, settings, recalled, memory);
+                    return;
+                }
+                break;
         }
 
         var routeHint = text.StartsWith("open ", StringComparison.OrdinalIgnoreCase)
@@ -1050,6 +1040,72 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Turns = nextTurns,
             Cards = [.. State.ActiveCards, fileCard],
         });
+    }
+
+    private async Task<DecisionResult> DecideIntentAsync(string text)
+    {
+        var decisionMaker = DecisionMaker;
+        if (decisionMaker is not null)
+        {
+            string[] candidates = ["photocraft", "filmcraft", "chart.mutation", "chart.question", "database.query", "settings.navigate", "file.resource", "connection.string", "app.install", "general.chat"];
+            var decision = await decisionMaker.DecideAsync(new DecisionContext(text, candidates, Mode: DecisionMode.Reactive));
+            if (decision.Confidence < 0.8 || decision.Choice == "general.chat")
+            {
+                if (LooksLikeSettingsNavigationRequest(text, out _, out _, out _, out _))
+                {
+                    return new("settings.navigate", 0.95, DecisionMode.Reactive);
+                }
+                return new("general.chat", decision.Confidence, DecisionMode.Reactive);
+            }
+            return decision;
+        }
+
+        if (text.Contains("intochat.app/a/", StringComparison.OrdinalIgnoreCase))
+        {
+            return new("app.install", 1.0, DecisionMode.Reactive);
+        }
+
+        if (LooksLikeConnectionString(text))
+        {
+            return new("connection.string", 1.0, DecisionMode.Reactive);
+        }
+
+        if (LooksLikePhotoCraftRequest(text))
+        {
+            return new("photocraft", 1.0, DecisionMode.Reactive);
+        }
+
+        if (LooksLikeFilmCraftRequest(text))
+        {
+            return new("filmcraft", 1.0, DecisionMode.Reactive);
+        }
+
+        if (LooksLikeChartMutationOrFilter(text))
+        {
+            return new("chart.mutation", 1.0, DecisionMode.Reactive);
+        }
+
+        if (LooksLikeChartQuestion(text))
+        {
+            return new("chart.question", 1.0, DecisionMode.Reactive);
+        }
+
+        if (LooksLikeDatabaseQuery(text) || LooksLikeVisualizationRequest(text))
+        {
+            return new("database.query", 1.0, DecisionMode.Reactive);
+        }
+
+        if (LooksLikeSettingsNavigationRequest(text, out _, out _, out _, out _))
+        {
+            return new("settings.navigate", 1.0, DecisionMode.Reactive);
+        }
+
+        if (LooksLikeFileOrResourceRequest(text, out _, out _, out _, out _))
+        {
+            return new("file.resource", 1.0, DecisionMode.Reactive);
+        }
+
+        return new("general.chat", 0.5, DecisionMode.Reactive);
     }
 
     internal static bool LooksLikePhotoCraftRequest(string text)

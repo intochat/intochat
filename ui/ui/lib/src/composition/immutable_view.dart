@@ -101,6 +101,18 @@ class _ImmutableView extends StatelessWidget {
               'query': const {'app': 'ino'},
             });
           }
+          if (action.startsWith('switch-identity:') &&
+              localPreferences != null) {
+            final parts = action.split(':');
+            if (parts.length > 1 && parts[1].isNotEmpty) {
+              unawaited(
+                localPreferences!.write(
+                  PreferenceStore.localTheme,
+                  Uri.decodeComponent(parts[1]),
+                ),
+              );
+            }
+          }
           unawaited(
             dispatch({
               'kind': 'view',
@@ -230,40 +242,31 @@ class _ImmutableView extends StatelessWidget {
         final actChild =
             _findChildByKeySuffix(children, '.act') ??
             (children.isNotEmpty ? children.first : null);
-        return Row(
-          children: [
-            Expanded(
-              child: Btn(
-                label: label,
-                primary: selected,
-                small: true,
-                icon: iconSlug != null ? uiIcon(iconSlug) : null,
-                onTap: actChild != null
-                    ? _dispatchButton(context, actChild)
-                    : null,
-              ),
-            ),
-            if (badge != null && badge.isNotEmpty) ...[
-              const SizedBox(width: 6),
-              TagPill(
-                label: badge,
-                tone: selected ? TagTone.accent : TagTone.neutral,
-              ),
-            ],
-          ],
+        return _StudioNavRailItem(
+          label: label,
+          icon: iconSlug != null ? uiIcon(iconSlug) : null,
+          selected: selected,
+          badge: badge,
+          onTap: actChild != null ? _dispatchButton(context, actChild) : null,
         );
 
       case 'statcard':
+        final statId = meta['id'] as String? ?? '';
         final label = meta['label'] as String? ?? text;
         final value = meta['value'] as String? ?? '0';
         final delta = meta['delta'] as String?;
         final iconSlug = meta['icon'] as String?;
+        final appIconId = statId.startsWith('ico-')
+            ? statId.substring(4)
+            : (iconSlug != null && iconSlug.startsWith('app:')
+                  ? iconSlug.substring(4)
+                  : null);
         final tagTone = switch ((meta['tone'] as String? ?? 'neutral')
             .toLowerCase()) {
           'accent' => TagTone.accent,
-          'done' => TagTone.done,
-          'working' => TagTone.working,
-          'error' => TagTone.error,
+          'done' || 'ok' || 'success' => TagTone.done,
+          'working' || 'warn' || 'warning' => TagTone.working,
+          'error' || 'danger' => TagTone.error,
           _ => TagTone.neutral,
         };
         final ic = IcTheme.of(context);
@@ -276,7 +279,10 @@ class _ImmutableView extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  if (iconSlug != null && uiIcon(iconSlug) != null) ...[
+                  if (appIconId != null && appIconId.isNotEmpty) ...[
+                    IcAppIcon(appId: appIconId, size: 32),
+                    const SizedBox(width: 10),
+                  ] else if (iconSlug != null && uiIcon(iconSlug) != null) ...[
                     Icon(uiIcon(iconSlug), size: 14, color: ic.textMuted),
                     const SizedBox(width: 6),
                   ],
@@ -302,7 +308,7 @@ class _ImmutableView extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: IcType.text(
-                  22,
+                  20,
                   weight: FontWeight.w700,
                   color: ic.textStrong,
                   tnum: true,
@@ -316,49 +322,114 @@ class _ImmutableView extends StatelessWidget {
         final cols = ((meta['columns'] as num?)?.toInt() ?? 2).clamp(1, 12);
         final gap = (meta['gap'] as num?)?.toDouble() ?? 12.0;
         if (widgets.isEmpty) return const SizedBox.shrink();
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: gap,
-          children: [
-            for (var i = 0; i < widgets.length; i += cols)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: gap,
-                children: [
-                  for (var col = 0; col < cols; col++)
-                    Expanded(
-                      child: i + col < widgets.length
-                          ? widgets[i + col]
-                          : const SizedBox.shrink(),
-                    ),
-                ],
-              ),
-          ],
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final effectiveCols = constraints.maxWidth < 560
+                ? 1
+                : (constraints.maxWidth < 860 && cols > 2 ? 2 : cols);
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: gap,
+              children: [
+                for (var i = 0; i < widgets.length; i += effectiveCols)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: gap,
+                    children: [
+                      for (var col = 0; col < effectiveCols; col++)
+                        Expanded(
+                          child: i + col < widgets.length
+                              ? widgets[i + col]
+                              : const SizedBox.shrink(),
+                        ),
+                    ],
+                  ),
+              ],
+            );
+          },
         );
 
       case 'surface':
         final surfaceKind = meta['kind'] as String? ?? 'acrylic';
+        final subtitle = meta['subtitle'] as String?;
         final gap = (meta['gap'] as num?)?.toDouble() ?? 12.0;
         final pad = (meta['padding'] as num?)?.toDouble() ?? 16.0;
+        final inspectBtn = children.where((ch) {
+          if (ch['kind'] != 1) return false;
+          final act = ch['action'] as String? ?? '';
+          final lbl = ch['text'] as String? ?? '';
+          return act.startsWith('select:') && lbl.startsWith('Inspect ');
+        }).firstOrNull;
+        final firstBadgeIcon = children
+            .where((ch) => ch['kind'] == 10 && ch['icon'] is String)
+            .map((ch) => ch['icon'] as String)
+            .firstOrNull;
+        final headerAppId = text.startsWith('UI Gallery')
+            ? 'gallery'
+            : (text.startsWith('Creator Studio')
+                  ? 'creator'
+                  : (text.startsWith('DigitalBrain Profile') ? 'post' : null));
         final inner = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: gap,
           children: [
-            if (text.isNotEmpty)
-              Text(
-                text,
-                style: UiType.displayStyle(
-                  15,
-                  weight: FontWeight.w600,
-                  color: c.strong,
-                ),
+            if (text.isNotEmpty || (subtitle != null && subtitle.isNotEmpty))
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (headerAppId != null) ...[
+                    IcAppIcon(appId: headerAppId, size: 36),
+                    const SizedBox(width: 12),
+                  ] else if (inspectBtn != null &&
+                      firstBadgeIcon != null &&
+                      uiIcon(firstBadgeIcon) != null) ...[
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: IcTheme.of(context).accentTint,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(
+                        uiIcon(firstBadgeIcon),
+                        size: 16,
+                        color: IcTheme.of(context).accent,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (text.isNotEmpty)
+                          Text(
+                            text,
+                            style: UiType.displayStyle(
+                              15,
+                              weight: FontWeight.w600,
+                              color: c.strong,
+                            ),
+                          ),
+                        if (subtitle != null && subtitle.isNotEmpty) ...[
+                          if (text.isNotEmpty) const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: UiType.textStyle(12, color: c.muted),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ...widgets,
           ],
         );
-        return surfaceKind == 'recessed'
+        final surfaceWidget = surfaceKind == 'recessed'
             ? Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(pad),
@@ -371,18 +442,70 @@ class _ImmutableView extends StatelessWidget {
               )
             : SizedBox(
                 width: double.infinity,
-                child: UiKitSurface(padding: EdgeInsets.all(pad), child: inner),
+                child: UiKitSurface(
+                  padding: EdgeInsets.all(pad),
+                  color: surfaceKind == 'elevated' ? c.elevated : null,
+                  shadows: surfaceKind == 'elevated' ? UiShadows.md(c) : null,
+                  borderColor: surfaceKind == 'elevated'
+                      ? c.accent.withValues(alpha: 0.28)
+                      : null,
+                  child: inner,
+                ),
               );
+        if (inspectBtn != null) {
+          final onTapInspect = _dispatchButton(context, inspectBtn);
+          if (onTapInspect != null) {
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onTapInspect,
+                child: surfaceWidget,
+              ),
+            );
+          }
+        }
+        return surfaceWidget;
 
       case 'textfield':
         final fieldName = meta['name'] as String? ?? '';
+        final hideLabel = const {
+          'gallery-search',
+          'settings-search',
+          'search',
+          'prompt',
+        }.contains(fieldName);
+        final submitChild = _findChildByKeySuffix(children, '.submit');
         return _ImmutableFieldBox(
-          label: fieldName,
+          label: hideLabel ? '' : fieldName,
           value: meta['value'] as String? ?? '',
           placeholder: meta['placeholder'] as String? ?? fieldName,
           secret: meta['secret'] == true,
           enabled: enabled,
           onSubmit: _childAction(context, children, '.submit'),
+          onSubmittedValue: enabled && submitChild != null
+              ? (typedValue) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  final rawAction = submitChild['action'] as String? ?? '';
+                  String resolvedAction = rawAction;
+                  if (rawAction.startsWith('filter:')) {
+                    final segs = rawAction.split(':');
+                    final cat = segs.length > 1 ? segs[1] : 'all';
+                    resolvedAction =
+                        'filter:$cat:${Uri.encodeComponent(typedValue.trim())}';
+                  }
+                  unawaited(
+                    dispatch({
+                      'kind': 'view',
+                      'name': name,
+                      'revision': generation,
+                      'field': submitChild['key'],
+                      'action': resolvedAction,
+                      'operationId': _operationId(),
+                    }).catchError((Object _) {}),
+                  );
+                }
+              : null,
         );
 
       case 'switch':
@@ -465,20 +588,36 @@ class _ImmutableView extends StatelessWidget {
         );
 
       case 'infobar':
-        final severity = switch (meta['tone'] as String? ?? 'info') {
-          'danger' => 'error',
-          'warning' => 'warning',
-          'success' => 'success',
+        final toneRaw = (meta['tone'] as String? ?? 'info').toLowerCase();
+        final severity = switch (toneRaw) {
+          'danger' || 'error' => 'error',
+          'warning' || 'warn' => 'warning',
+          'success' || 'done' || 'ok' => 'success',
           _ => 'info',
         };
+        final infoTitle = meta['title'] as String? ?? text;
+        final infoBody = meta['body'] as String? ?? '';
+        final actionChild = _findChildByKeySuffix(children, '.action');
+        if (severity == 'error' && actionChild != null) {
+          final actLabel = actionChild['text'] as String? ?? 'Retry';
+          return ErrorLine(
+            error: InoError(
+              'info-error',
+              LucideIcons.triangleAlert,
+              infoBody.isNotEmpty ? '$infoTitle — $infoBody' : infoTitle,
+              action: actLabel,
+            ),
+            onAction: _dispatchButton(context, actionChild),
+          );
+        }
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             UiInfoBar(
               severity: severity,
-              title: meta['title'] as String? ?? text,
-              body: meta['body'] as String? ?? '',
+              title: infoTitle,
+              body: infoBody,
             ),
             if (widgets.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -573,39 +712,75 @@ class _ImmutableView extends StatelessWidget {
         );
 
       case 'approval':
+        final approvalId = meta['id'] as String? ?? '';
         final verb = meta['verb'] as String? ?? 'Execute';
         final target = meta['target'] as String? ?? text;
         final sourceApp = meta['sourceApp'] as String? ?? 'Ino';
         final sourceUri = meta['sourceNeuronUri'] as String?;
         final scopeUri = meta['scopeUri'] as String?;
+        final rawRows = (meta['rows'] as List? ?? const [])
+            .whereType<Map>()
+            .toList();
+        final stateRaw = (meta['state'] as String? ?? 'pending').toLowerCase();
+        if (approvalId.startsWith('change')) {
+          final changeState = switch (stateRaw) {
+            'approved' || 'applied' || 'settled' || 'done' =>
+              ChangeState.applied,
+            'rejected' || 'denied' || 'cancelled' => ChangeState.cancelled,
+            _ => ChangeState.pending,
+          };
+          return ChangePreviewCard(
+            source: _cardSource(context, sourceApp),
+            data: ChangeData(
+              objectLabel: verb,
+              name: scopeUri ?? target,
+              subtitle: meta['rememberHint'] as String?,
+              systemName: sourceApp,
+              fields: [
+                for (final r in rawRows)
+                  ChangeField(
+                    label: '${r['key'] ?? ''}',
+                    oldValue: r['oldValue'] as String?,
+                    newValue: '${r['value'] ?? ''}',
+                  ),
+              ],
+            ),
+            state: changeState,
+            onApply: _childAction(context, children, '.approve'),
+            onCancel: _childAction(context, children, '.reject'),
+          );
+        }
         final rows = [
-          for (final r in (meta['rows'] as List? ?? const []).whereType<Map>())
+          for (final r in rawRows)
             ApprovalRow(
               label: '${r['key'] ?? ''}',
-              oldValue: 'current',
+              oldValue: (r['oldValue'] as String?)?.isNotEmpty == true
+                  ? r['oldValue'] as String
+                  : 'current',
               newValue: '${r['value'] ?? ''}',
+              amount: r['amount'] as String?,
             ),
-          if (sourceUri != null && sourceUri.isNotEmpty)
+          if (sourceUri != null && sourceUri.isNotEmpty && rawRows.isEmpty)
             ApprovalRow(
               label: 'source',
               oldValue: 'neuron',
               newValue: sourceUri,
             ),
-          if (scopeUri != null && scopeUri.isNotEmpty)
-            ApprovalRow(label: 'scope', oldValue: 'policy', newValue: scopeUri),
         ];
-        final approvalState = switch ((meta['state'] as String? ?? 'pending')
-            .toLowerCase()) {
+        final approvalState = switch (stateRaw) {
           'approved' || 'settled' || 'done' => ApprovalState.approved,
           'rejected' || 'denied' => ApprovalState.rejected,
           'saving' => ApprovalState.saving,
           'error' => ApprovalState.error,
           _ => ApprovalState.pending,
         };
+        final fullTitle = target.isNotEmpty && target != verb
+            ? '$verb $target'.trim()
+            : verb;
         return ApprovalCard(
           source: _cardSource(context, sourceApp),
           data: ApprovalData(
-            title: '$verb $target'.trim(),
+            title: fullTitle,
             summary:
                 (meta['rememberHint'] as String?) ??
                 (scopeUri ?? 'Requires explicit confirmation'),
@@ -667,21 +842,129 @@ class _ImmutableView extends StatelessWidget {
         );
 
       case 'record':
+        final recordKind = meta['kind'] as String? ?? 'Record';
+        final recordTitle = meta['title'] as String? ?? text;
+        final recordSubtitle = meta['subtitle'] as String?;
+        final linkLabel = meta['linkLabel'] as String?;
+        final rawFields = (meta['fields'] as List? ?? const [])
+            .whereType<Map>()
+            .toList();
+        final openAction = _childAction(context, children, '.open');
+        if (recordKind == 'Smart App Manifest') {
+          final isInstalled = (linkLabel ?? '').toLowerCase() == 'installed';
+          var handle = 'nordlys/app';
+          var version = 'v1.4.0';
+          for (final f in rawFields) {
+            final k = '${f['key'] ?? ''}'.toLowerCase();
+            final v = '${f['value'] ?? ''}';
+            if (k.contains('contract') || k.contains('handle')) {
+              handle = v;
+            } else if (k.contains('version') || k.contains('gate')) {
+              version = v;
+            }
+          }
+          return AppInstallCard(
+            source: _cardSource(context, 'IntoChat Hub'),
+            data: AppInstallData(
+              name: recordTitle,
+              handle: handle,
+              publisher: 'IntoChat DigitalBrain',
+              version: version,
+              summary: recordSubtitle ?? 'Compiled Smart App',
+              icon: const IcAppIcon(appId: 'datavisualizer', size: 44),
+            ),
+            state: isInstalled
+                ? AppInstallState.installed
+                : AppInstallState.pending,
+            onReview: openAction,
+            onDismiss: openAction,
+            onOpen: openAction,
+          );
+        }
+        if (recordKind == 'Episodic Memory') {
+          final isSaved = (linkLabel ?? '').toLowerCase() == 'saved';
+          return RememberCard(
+            source: _cardSource(context, 'Episodic Memory'),
+            data: RememberData(
+              text: recordTitle,
+              kind: recordSubtitle ?? 'MemoryNeuron · Semantic Recall',
+            ),
+            state: isSaved ? RememberState.saved : RememberState.pending,
+            onSave: openAction,
+            onSkip: openAction,
+          );
+        }
+        if (recordKind == 'Files Vault') {
+          var size = '412 KB';
+          var note = 'Updated close date and attached ledger table.';
+          for (final f in rawFields) {
+            final k = '${f['key'] ?? ''}'.toLowerCase();
+            final v = '${f['value'] ?? ''}';
+            if (k == 'size') size = v;
+            if (k == 'note' || k == 'path') note = v;
+          }
+          final fileRef = FileRef(
+            name: recordTitle,
+            path: 'neuron://nordlys/storage.files/$recordTitle',
+            icon: LucideIcons.fileCheck,
+            size: size,
+            where: recordSubtitle ?? '30 Projects › Nordlys AS',
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            spacing: 10,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FileChip(file: fileRef, onTap: openAction),
+                  const FileChip(
+                    file: FileRef(
+                      name: 'nordlys-arr-2026.csv',
+                      path: 'neuron://nordlys/storage.files/nordlys-arr-2026.csv',
+                      icon: LucideIcons.fileSpreadsheet,
+                      size: '48 KB',
+                      where: '30 Projects › Nordlys AS',
+                    ),
+                  ),
+                ],
+              ),
+              FileCard(
+                source: _cardSource(context, 'Files Vault'),
+                data: FileCardData(
+                  file: fileRef,
+                  note: note,
+                ),
+                state: FileCardState.saved,
+                onOpen: openAction,
+                onReveal: openAction,
+              ),
+            ],
+          );
+        }
         final sourceApp = meta['sourceApp'] as String? ?? 'DigitalBrain';
         return RecordCard(
           source: _cardSource(context, sourceApp),
           data: RecordData(
-            objectLabel: meta['kind'] as String? ?? 'Record',
-            name: meta['title'] as String? ?? text,
-            subtitle: meta['subtitle'] as String?,
+            objectLabel: recordKind,
+            name: recordTitle,
+            subtitle: recordSubtitle,
             fields: [
-              for (final f
-                  in (meta['fields'] as List? ?? const []).whereType<Map>())
-                RecordField('${f['key'] ?? ''}', '${f['value'] ?? ''}'),
+              for (final f in rawFields)
+                RecordField(
+                  '${f['key'] ?? ''}',
+                  '${f['value'] ?? ''}',
+                  warn: '${f['value'] ?? ''}'.toLowerCase().contains('ago') ||
+                      '${f['value'] ?? ''}'.toLowerCase().contains('overdue'),
+                ),
             ],
-            linkLabel: 'Open in $sourceApp',
+            linkLabel: linkLabel != null && linkLabel.isNotEmpty
+                ? linkLabel
+                : 'Open in $sourceApp',
           ),
-          onOpen: _childAction(context, children, '.open'),
+          onOpen: openAction,
         );
 
       case 'secret':
@@ -1053,15 +1336,103 @@ class _ImmutableView extends StatelessWidget {
           );
           break;
         }
+        if (node['kind'] == 3 &&
+            node['key'] == 'view' &&
+            children.length == 2 &&
+            children[0]['key'] == 'side' &&
+            children[1]['key'] == 'root') {
+          final c = UiColors.of(context);
+          final sideWidth =
+              switch ((node['extents'] as List?)?.elementAtOrNull(0)) {
+                final num w when w > 1 => w.toDouble(),
+                _ => 260.0,
+              };
+          content = LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 720) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 14,
+                    children: [widgets[0], widgets[1]],
+                  ),
+                );
+              }
+              return Container(
+                color: c.page,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      width: sideWidth,
+                      decoration: BoxDecoration(
+                        color: c.recessed,
+                        border: Border(right: BorderSide(color: c.hairline)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: widgets[0],
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+                        child: widgets[1],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+          break;
+        }
         if (node['kind'] == 3 && node['key'] == 'breadcrumbs') {
           content = _buildWinUiBreadcrumbBar(context, children, widgets);
           break;
         }
         if (node['kind'] == 3 &&
-            const {'toolbar', 'navigation'}.contains(node['key'])) {
+            children.length == 2 &&
+            extents.length == 2 &&
+            extents[0] is num &&
+            (extents[0] as num) >= 400 &&
+            (extents[1] as num? ?? 0) == 0) {
+          final splitGap = (node['gap'] as num? ?? 14).toDouble().clamp(0.0, 32.0);
+          final trailingWidth = (extents[0] as num) >= 500 ? 284.0 : 360.0;
+          content = LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 760) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: splitGap,
+                  children: [widgets[0], widgets[1]],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: widgets[0]),
+                  SizedBox(width: splitGap),
+                  SizedBox(width: trailingWidth, child: widgets[1]),
+                ],
+              );
+            },
+          );
+          break;
+        }
+        if (node['kind'] == 3 &&
+            (const {'toolbar', 'navigation'}.contains(node['key']) ||
+                ((node['extents'] as List? ?? const []).isEmpty &&
+                    children.isNotEmpty &&
+                    children.every(
+                      (ch) => ch['kind'] == 1 || ch['kind'] == 10,
+                    )))) {
+          final rowGap = (node['gap'] as num? ?? 6).toDouble().clamp(0.0, 32.0);
           content = Wrap(
-            spacing: 6,
-            runSpacing: 6,
+            spacing: rowGap,
+            runSpacing: rowGap,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: widgets,
           );
@@ -1157,11 +1528,29 @@ class _ImmutableView extends StatelessWidget {
           row: (i) => _node(context, children[i], depth + 1),
         );
       case 10:
-        content = ViewBadge(
-          text: text,
-          tone: node['tone'],
-          icon: node['icon'] is String ? node['icon'] as String : null,
-        );
+        final pillMeta = _tryParseUiMeta(node['detail']);
+        if (pillMeta != null && pillMeta['_ui'] == 'tagpill') {
+          final pillTone = switch ((pillMeta['tone'] as String? ?? 'neutral')
+              .toLowerCase()) {
+            'accent' => TagTone.accent,
+            'done' || 'ok' || 'success' => TagTone.done,
+            'working' || 'warn' || 'warning' => TagTone.working,
+            'error' || 'danger' => TagTone.error,
+            _ => TagTone.neutral,
+          };
+          final iconSlug = node['icon'] is String ? node['icon'] as String : null;
+          content = TagPill(
+            label: text,
+            tone: pillTone,
+            icon: iconSlug != null ? uiIcon(iconSlug) : null,
+          );
+        } else {
+          content = ViewBadge(
+            text: text,
+            tone: node['tone'],
+            icon: node['icon'] is String ? node['icon'] as String : null,
+          );
+        }
       case 11:
         content = ViewAvatar(initials: text);
       case 12:
@@ -2476,6 +2865,7 @@ class _ImmutableFieldBox extends StatefulWidget {
     required this.secret,
     required this.enabled,
     this.onSubmit,
+    this.onSubmittedValue,
   });
 
   final String label;
@@ -2484,6 +2874,7 @@ class _ImmutableFieldBox extends StatefulWidget {
   final bool secret;
   final bool enabled;
   final VoidCallback? onSubmit;
+  final ValueChanged<String>? onSubmittedValue;
 
   @override
   State<_ImmutableFieldBox> createState() => _ImmutableFieldBoxState();
@@ -2518,7 +2909,11 @@ class _ImmutableFieldBoxState extends State<_ImmutableFieldBox> {
     focusNode: _focus,
     secret: widget.secret,
     enabled: widget.enabled,
-    onSubmitted: widget.onSubmit != null ? (_) => widget.onSubmit!() : null,
+    onSubmitted: widget.onSubmittedValue != null
+        ? (val) => widget.onSubmittedValue!(val)
+        : widget.onSubmit != null
+        ? (_) => widget.onSubmit!()
+        : null,
   );
 }
 
@@ -4431,6 +4826,106 @@ class _SuggestionPromptCard extends StatelessWidget {
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StudioNavRailItem extends StatefulWidget {
+  const _StudioNavRailItem({
+    required this.label,
+    required this.selected,
+    this.icon,
+    this.badge,
+    this.onTap,
+  });
+
+  final String label;
+  final IconData? icon;
+  final bool selected;
+  final String? badge;
+  final VoidCallback? onTap;
+
+  @override
+  State<_StudioNavRailItem> createState() => _StudioNavRailItemState();
+}
+
+class _StudioNavRailItemState extends State<_StudioNavRailItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    return MouseRegion(
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 110),
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: widget.selected
+                ? c.accentTint
+                : (_hovered ? c.surfaceCard : Colors.transparent),
+            borderRadius: BorderRadius.circular(IcRadius.sm),
+            border: Border.all(
+              color: widget.selected
+                  ? c.accent.withValues(alpha: 0.35)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            children: [
+              if (widget.icon != null) ...[
+                Icon(
+                  widget.icon,
+                  size: 14,
+                  color: widget.selected ? c.accent : c.textMuted,
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IcType.text(
+                    12.5,
+                    weight: widget.selected ? FontWeight.w600 : FontWeight.w500,
+                    color: widget.selected ? c.textStrong : c.textBody,
+                  ),
+                ),
+              ),
+              if (widget.badge != null && widget.badge!.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: widget.selected ? c.surfaceCard : c.surfaceSunk,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: c.borderHairline),
+                  ),
+                  child: Text(
+                    widget.badge!,
+                    style: IcType.text(
+                      10,
+                      weight: FontWeight.w600,
+                      color: widget.selected ? c.accent : c.textMuted,
+                      tnum: true,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

@@ -49,17 +49,21 @@ internal sealed partial class FilesWorkspaceNeuron
             await View("side").Publish(new(files.Revision, version, screen.Side));
             await View("main").Publish(new(files.Revision, version, main));
             await View("full").Publish(new(files.Revision, version, full));
+            await View("view").Publish(new(files.Revision, version, full));
         }
         catch (InvalidOperationException)
         {
             var maxPublished = Math.Max(
                 (await View("side").Read())?.Version ?? 0L,
-                Math.Max((await View("main").Read())?.Version ?? 0L, (await View("full").Read())?.Version ?? 0L));
+                Math.Max(
+                    Math.Max((await View("main").Read())?.Version ?? 0L, (await View("full").Read())?.Version ?? 0L),
+                    (await View("view").Read())?.Version ?? 0L));
             var bumpedVersion = Math.Max(version, maxPublished) + 1L;
             await Save(State with { ViewVersion = bumpedVersion }, new FilesWorkspaceChanged(files.Revision));
             await View("side").Publish(new(files.Revision, bumpedVersion, screen.Side));
             await View("main").Publish(new(files.Revision, bumpedVersion, main));
             await View("full").Publish(new(files.Revision, bumpedVersion, full));
+            await View("view").Publish(new(files.Revision, bumpedVersion, full));
         }
     }
 

@@ -6,6 +6,5 @@
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
   </ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Client.Orleans.Tests.Integration" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" /></ItemGroup>
 </Project>

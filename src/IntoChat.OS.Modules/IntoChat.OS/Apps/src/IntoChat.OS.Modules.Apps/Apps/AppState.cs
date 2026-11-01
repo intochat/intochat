@@ -13,11 +13,6 @@ public sealed class AppState
 {
     [Id(0)] public AppManifest? Manifest { get; set; }
     [Id(1)] public string Spec { get; set; } = "";
-    // Files, settings and connections are entry arrays; the dictionaries are the older stored form, read once and
-    // then superseded by the next write (the Files, Settings and Connections views below prefer the arrays).
-    [Id(2), LegacyShape] public Dictionary<string, string>? LegacyFiles { get; set; }
-    [Id(3), LegacyShape] public Dictionary<string, string>? LegacySettings { get; set; }
-    [Id(4), LegacyShape] public Dictionary<string, string>? LegacyConnections { get; set; }
     [Id(5)] public string Version { get; set; } = "0.0.0";
     [Id(6)] public AppStatus Status { get; set; }
     [Id(7)] public string[] Activity { get; set; } = [];
@@ -62,22 +57,22 @@ public sealed class AppState
     [IgnoreDataMember]
     public IReadOnlyDictionary<string, string> Files
     {
-        get => StringEntry.ToMap(FileEntries, LegacyFiles);
-        set { FileEntries = StringEntry.From(value); LegacyFiles = null; }
+        get => StringEntry.ToMap(FileEntries);
+        set => FileEntries = StringEntry.From(value);
     }
 
     [IgnoreDataMember]
     public IReadOnlyDictionary<string, string> Settings
     {
-        get => StringEntry.ToMap(SettingEntries, LegacySettings);
-        set { SettingEntries = StringEntry.From(value); LegacySettings = null; }
+        get => StringEntry.ToMap(SettingEntries);
+        set => SettingEntries = StringEntry.From(value);
     }
 
     [IgnoreDataMember]
     public IReadOnlyDictionary<string, string> Connections
     {
-        get => StringEntry.ToMap(ConnectionEntries, LegacyConnections);
-        set { ConnectionEntries = StringEntry.From(value); LegacyConnections = null; }
+        get => StringEntry.ToMap(ConnectionEntries);
+        set => ConnectionEntries = StringEntry.From(value);
     }
 
     public void PutFile(string path, string source) => Files = With(Files, path, source);
@@ -94,9 +89,6 @@ public sealed class AppState
     {
         Manifest = Manifest,
         Spec = Spec,
-        LegacyFiles = LegacyFiles is null ? null : new(LegacyFiles, StringComparer.Ordinal),
-        LegacySettings = LegacySettings is null ? null : new(LegacySettings, StringComparer.Ordinal),
-        LegacyConnections = LegacyConnections is null ? null : new(LegacyConnections, StringComparer.Ordinal),
         FileEntries = [.. FileEntries],
         SettingEntries = [.. SettingEntries],
         ConnectionEntries = [.. ConnectionEntries],
@@ -140,15 +132,14 @@ public sealed record AppVersionRecord(
     [property: Id(1)] DateTimeOffset SavedAt,
     [property: Id(2)] AppManifest Manifest,
     [property: Id(3)] string Spec,
-    [property: Id(4), LegacyShape] Dictionary<string, string>? LegacyFiles,
     [property: Id(5)] StringEntry[] FileEntries)
 {
     // Internal, so the record's one public constructor is the one JSON reads it with (06-08: the plain app's state).
     internal AppVersionRecord(string version, DateTimeOffset savedAt, AppManifest manifest, string spec, IEnumerable<KeyValuePair<string, string>> files)
-        : this(version, savedAt, manifest, spec, null, StringEntry.From(files)) { }
+        : this(version, savedAt, manifest, spec, StringEntry.From(files)) { }
 
     [IgnoreDataMember]
-    public IReadOnlyDictionary<string, string> Files => StringEntry.ToMap(FileEntries, LegacyFiles);
+    public IReadOnlyDictionary<string, string> Files => StringEntry.ToMap(FileEntries);
 }
 
 [GenerateSerializer, Alias("apps.release-record")]

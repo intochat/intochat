@@ -26,6 +26,7 @@ using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Kernel.Composition.Tests.Integration.Apps;
@@ -43,6 +44,7 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
     public async Task DesktopSettingsGalleryPhotoCraftAndFilmCraftLifecycleRunsOnSilo()
     {
         var brain = fixture.NewBrain("shell");
+        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
         var settingsNeuron = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
         var profileNeuron = SiloNeurons.Get<IProfile>(fixture.Services, $"{brain}/profile");
 
@@ -173,6 +175,7 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
     public async Task CreatorStudioWorkflowInspectsAspireTelemetryAndVerifiesBddScenariosOnSilo()
     {
         var brain = fixture.NewBrain("creator");
+        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
 
         // 1. Seed live error logs and distributed traces in AspireNeuron on the real silo (SelfImproveFacts).
         var aspire = SiloNeurons.Get<IAspire>(fixture.Services, $"{brain}/aspire");
@@ -247,6 +250,7 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
     public async Task AllShippedAppsPassExecutableBddScenariosAndPersistReportsInBddNeuronOnSilo()
     {
         var brain = fixture.NewBrain("bddsuite");
+        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
         var ct = TestContext.Current.CancellationToken;
 
         var reports = new[]
@@ -280,6 +284,7 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
     public async Task InoChatMemoryLoopDatabaseQueryStudioRoutingAndSecretPromptRunOnSilo()
     {
         var brain = fixture.NewBrain("ino");
+        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
         var memory = SiloNeurons.Get<IMemory>(fixture.Services, $"{brain}/memory");
         var settings = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
 
@@ -522,6 +527,8 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
                 services =>
                 {
                     services.AddSingleton<ICapabilityConnections>(_connections);
+                    services.TryAddSingleton<ICallFilter, CallFilter>();
+                    services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainNeuronCallFilter>());
                 });
 
             _host = await factory.Start(

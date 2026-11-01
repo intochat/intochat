@@ -372,27 +372,55 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         return Task.CompletedTask;
     }
 
-    public View RenderSide() => new(
-        "3D Brain & Telemetry",
-        new Column(
-        [
-            new Surface(
-                [
-                    new Row(
+    public View RenderSide()
+    {
+        var activeTarget = string.IsNullOrWhiteSpace(State.TargetApp) ? "scratch" : State.TargetApp;
+        var navNeurons = new (string Id, string Label, string Icon, string Badge)[]
+        {
+            ("creator", "Creator Loop", "sparkles", "48/m"),
+            ("bdd", "BDD Scenario Gate", "circle-check", State.Promoted ? "PASS" : "READY"),
+            ("aspire", "Aspire Telemetry", "activity", $"{State.ActiveResources.Length}"),
+            ("memory", "MemoryNeuron", "brain", "32/m"),
+            ($"app.{activeTarget}", $"App: {activeTarget}", "code", $"v{State.CurrentVersion}"),
+        };
+
+        return new(
+            "3D Brain & Telemetry",
+            new Column(
+            [
+                new Grid(
+                    2,
                     [
-                        new TagPill($"3D Scene Nodes: {State.SceneNodeCount}", "accent", "cpu"),
-                        new TagPill($"{State.ActiveResources.Length} resource(s)", "ok", "activity"),
-                    ]) { Gap = 6 },
-                    new Text($"3D Scene Nodes: {State.SceneNodeCount}") { Tabular = true },
-                ],
-                Kind: SurfaceKind.Acrylic,
-                Title: "Aspire Telemetry"),
-            new Collection(State.ActiveResources.Select((res, i) =>
-                new Entry($"res-{i + 1}", res, "Active")).ToArray()),
-            new Collection(State.DiagnosedErrors.Select((err, i) =>
-                new Entry($"err-{i + 1}", "Telemetry Diagnostic", err)).ToArray()),
-        ])
-        { Gap = 10 });
+                        Ui.StatCard("creator-nodes", "3D Scene Nodes", $"{State.SceneNodeCount}", "Live", BadgeTone.Accent, "cpu"),
+                        Ui.StatCard("creator-res", "Active Resources", $"{State.ActiveResources.Length}", State.DiagnosedErrors.Length == 0 ? "Healthy" : $"{State.DiagnosedErrors.Length} err", State.DiagnosedErrors.Length == 0 ? BadgeTone.Done : BadgeTone.Error, "activity"),
+                    ],
+                    Gap: 8),
+                new Surface(
+                    [
+                        new Row(
+                        [
+                            new TagPill($"3D Scene Nodes: {State.SceneNodeCount}", "accent", "cpu"),
+                            new TagPill($"{State.ActiveResources.Length} resource(s)", "ok", "activity"),
+                        ]) { Gap = 6 },
+                        new Text($"3D Scene Nodes: {State.SceneNodeCount}") { Tabular = true },
+                    ],
+                    Kind: SurfaceKind.Acrylic,
+                    Title: "Aspire Telemetry"),
+                new Divider("3D BRAIN NEURONS"),
+                .. navNeurons.Select(n => (Node)Ui.NavItem(
+                    $"nav-neuron-{n.Id}",
+                    n.Label,
+                    n.Icon,
+                    $"inspect:{n.Id}",
+                    selected: string.Equals(State.SelectedNodeId, n.Id, StringComparison.OrdinalIgnoreCase),
+                    badge: n.Badge)),
+                new Collection(State.ActiveResources.Select((res, i) =>
+                    new Entry($"res-{i + 1}", res, "Active")).ToArray()),
+                new Collection(State.DiagnosedErrors.Select((err, i) =>
+                    new Entry($"err-{i + 1}", "Telemetry Diagnostic", err)).ToArray()),
+            ])
+            { Gap = 8 });
+    }
 
     public View Render()
     {

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 namespace IntoChat.OS.ServiceDefaults;
@@ -36,6 +37,7 @@ public static class TelemetryExportBarrier
             { return Results.Unauthorized(); }
 
             var traces = app.Services.GetService<TracerProvider>();
+            var meters = app.Services.GetService<MeterProvider>();
             var logs = app.Services.GetServices<LoggerProvider>().ToArray();
             if (traces is null || logs.Length == 0) { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
             var marker = Guid.NewGuid();
@@ -51,6 +53,8 @@ public static class TelemetryExportBarrier
             try
             {
                 if (!traces.ForceFlush(FlushTimeoutMilliseconds)) { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
+                var remainingMeters = FlushTimeoutMilliseconds - (int)elapsed.ElapsedMilliseconds;
+                if (remainingMeters <= 0 || meters?.ForceFlush(remainingMeters) == false) { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
                 foreach (var provider in logs)
                 {
                     var remaining = FlushTimeoutMilliseconds - (int)elapsed.ElapsedMilliseconds;

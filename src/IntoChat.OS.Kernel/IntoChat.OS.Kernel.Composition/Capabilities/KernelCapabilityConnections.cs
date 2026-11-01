@@ -7,6 +7,8 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -138,7 +140,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
         var (owner, connector, connectionId) = ConnectionKeys.Parse(key);
         if (owner != brain.Value && !SdkCapabilitySharing.IsConnectionBoundToFriend(
-            new CapabilityCaller($"app:{callerApp}", owner, brain.Value, callerApp), key))
+            CapabilityCallers.Of($"app:{callerApp}", owner, brain.Value, CallerKind.App, callerApp), key))
         {
             throw new ArgumentException("The connection belongs to another brain.", nameof(key));
         }

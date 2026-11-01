@@ -71,6 +71,7 @@ final class RendererRegistry {
     'person',
     'chart',
     'scene',
+    'graph',
     'table',
     'webbrowser',
     'surface',

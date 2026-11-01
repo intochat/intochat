@@ -127,6 +127,31 @@ public sealed class SideloadFacts : IDisposable
     }
 
     [Fact]
+    public async Task SideloadAppRequiringCapabilitiesFailsWithoutConsentAndSucceedsWithConsent()
+    {
+        var requires = new AppRequirements(SemanticTypes: ["person.profile"]);
+        WriteAppWithRequirements("secure-notes", "static class Note { }\n", requires);
+        var calls = new List<string>();
+        var installer = Installer(calls);
+
+        var rejected = await installer.Install("secure-notes", CancellationToken.None);
+        Assert.False(rejected.Ok);
+        Assert.Contains("Consent required", rejected.Message, StringComparison.Ordinal);
+        Assert.Empty(calls);
+
+        var wrongConsent = await installer.Install("secure-notes", "wrong-consent-digest", CancellationToken.None);
+        Assert.False(wrongConsent.Ok);
+        Assert.Contains("Consent required", wrongConsent.Message, StringComparison.Ordinal);
+        Assert.Empty(calls);
+
+        var validConsent = AppConsent.Of(requires);
+        var accepted = await installer.Install("secure-notes", validConsent, CancellationToken.None);
+        Assert.True(accepted.Ok);
+        Assert.Equal("Installed secure-notes.", accepted.Message);
+        Assert.Equal(["sideload/secure-notes"], calls);
+    }
+
+    [Fact]
     public async Task SettingsPresentsTheListTheInstallAndTheClone()
     {
         WriteApp("notes", "static class Note { }\n");
@@ -172,6 +197,13 @@ public sealed class SideloadFacts : IDisposable
     {
         var folder = Directory.CreateDirectory(Path.Combine(_root, name));
         File.WriteAllText(Path.Combine(folder.FullName, "app.cs"), Declaration(name));
+        File.WriteAllText(Path.Combine(folder.FullName, "note.cs"), source);
+    }
+
+    private void WriteAppWithRequirements(string name, string source, AppRequirements requires)
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(_root, name));
+        File.WriteAllText(Path.Combine(folder.FullName, "app.cs"), AppDeclaration.Write(new(name, "1.0.0", new AppManifest("SecureNotes", "Notes.", [], [], [], Requires: requires), "")));
         File.WriteAllText(Path.Combine(folder.FullName, "note.cs"), source);
     }
 

@@ -1,6 +1,7 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -17,9 +18,9 @@ internal static class HostCaller
             var directory = await broker.Identity();
             if (await directory.OwnerOfBrain(brain) is { } account)
             {
-                return new CapabilityCaller(account.OwnerPrincipalId, account.AccountId, brain);
+                return CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain);
             }
         }
-        return string.IsNullOrWhiteSpace(brain) ? null : new CapabilityCaller(brain, brain, brain);
+        return string.IsNullOrWhiteSpace(brain) ? null : CapabilityCallers.Of(brain, brain, brain);
     }
 }

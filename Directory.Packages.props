@@ -163,8 +163,8 @@
     <PackageVersion Include="IntoChat.OS.Framework" Version="0.10.0" />
     <PackageVersion Include="IntoChat.OS.Kernel" Version="0.10.0" />
     <PackageVersion Include="IntoChat.OS.Kernel.Composition" Version="0.10.0" />
-    <PackageVersion Include="IntoChat.OS.Modules.AI" Version="0.10.0" />
-    <PackageVersion Include="IntoChat.OS.Modules.AI.Contracts" Version="0.10.0" />
+    <PackageVersion Include="IntoChat.OS.Modules.AI" Version="0.10.3" />
+    <PackageVersion Include="IntoChat.OS.Modules.AI.Contracts" Version="0.10.3" />
     <PackageVersion Include="IntoChat.OS.Modules.Apps" Version="0.10.0" />
     <PackageVersion Include="IntoChat.OS.Modules.Apps.Contracts" Version="0.10.0" />
     <PackageVersion Include="IntoChat.OS.Modules.ArtCraft" Version="0.10.0" />

@@ -43,6 +43,8 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<AppInstaller>();
         services.TryAddSingleton<SideloadInstaller>();
         services.TryAddSingleton<AppWorkQueue>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Apps.Contracts.Tasks.ITaskEngine, IntoChat.OS.Modules.Apps.Tasks.TaskEngine>();
+        services.TryAddSingleton<IntoChat.OS.Modules.Apps.Contracts.Testing.ITestVerificationService, IntoChat.OS.Modules.Apps.Testing.TestVerificationService>();
         services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
         services.TryAddSingleton(ReactionExamples.Create);

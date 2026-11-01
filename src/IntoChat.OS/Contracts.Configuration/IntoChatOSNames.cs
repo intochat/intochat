@@ -10,8 +10,6 @@ public static class IntoChatOSNames
     public const string Reminders = "reminders";
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
-    // Nothing registers this store. The name remains so old configuration that names it is still a known key.
-    public const string LegacyClusterGrainStorage = "cluster.legacy";
     public const string PlatformGrainStorage = "platform";
     // Pinned equal to DigitalBrain.Runtime.Orleans.IntoChatOSNames (and Topology.ToConfigValue()) by TopologyKeysMatchRuntimeFacts.
     // Kept because their consumers (ServiceDefaults, AppHost, Aspire hosting, module installers) stay Orleans-free (03-13).

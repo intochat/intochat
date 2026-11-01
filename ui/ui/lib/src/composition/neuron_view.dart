@@ -1,4 +1,5 @@
 import '../components/button/ui_neuron_select.dart';
+import '../components/graph/ui_graph.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../components/button/ui_neuron_button.dart';
 import '../components/kit/ui_kit_field.dart';
@@ -9,6 +10,7 @@ import '../design/app_tile.dart';
 import '../design/brain_scene_3d.dart';
 import '../design/cards/cards.dart';
 import '../design/controls.dart';
+import '../design/copy/ino_copy.dart';
 import '../controls/ic_breadcrumb_bar.dart';
 import '../controls/ic_files_finder_view.dart';
 import '../design/tokens.dart';
@@ -1152,6 +1154,10 @@ class _NeuronViewState extends State<NeuronView> {
           ),
           onToggle: enabled ? () => _act('expander', 'toggle') : null,
           children: children,
+        );
+      case 'graph':
+        return UiGraph(
+          part: UiGraphPart.fromMetadata(definition),
         );
       default:
         return _FallbackRenderer(kind: widget.kind);

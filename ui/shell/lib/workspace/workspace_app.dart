@@ -485,14 +485,11 @@ class _WorkspaceAppState extends State<WorkspaceApp>
           final brain = await client.createWorkspace();
           if (mounted) await _selectBrain(brain);
         case 'gallery':
-          navigator.push(
-            MaterialPageRoute<void>(
-              builder: (_) => Scaffold(
-                appBar: AppBar(title: const Text('IntoChat UI Gallery')),
-                body: const UiGalleryScreen(),
-              ),
-            ),
-          );
+          await _activate({
+            'kind': 'workspace',
+            'application': 'gallery',
+            'operation': 'open',
+          });
         case 'palette':
           setState(() => _paletteOpen = !_paletteOpen);
         case 'smart-desktop':
@@ -505,17 +502,13 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                   barLayout: _barLayout,
                   onLaunchApp: (appId) {
                     navigator.pop();
-                    if (appId == 'gallery') {
-                      unawaited(_tool('gallery'));
-                    } else {
-                      unawaited(
-                        _activate({
-                          'kind': 'workspace',
-                          'application': appId,
-                          'operation': 'open',
-                        }),
-                      );
-                    }
+                    unawaited(
+                      _activate({
+                        'kind': 'workspace',
+                        'application': appId,
+                        'operation': 'open',
+                      }),
+                    );
                   },
                   onOpenPalette: () {
                     navigator.pop();
@@ -553,7 +546,9 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     'spatial-glass' => IcStylePreset.spatialGlass,
     'cyber-synaptic' => IcStylePreset.cyberSynaptic,
     'warm-paper' || 'paper' || 'light' => IcStylePreset.warmPaper,
+    'fluent-warm-mica' => IcStylePreset.fluentWarmMica,
     'linear-carbon' => IcStylePreset.linearCarbon,
+    'nordic-tactical' => IcStylePreset.nordicTactical,
     _ => IcStylePreset.fluentAcrylic,
   };
 
@@ -765,9 +760,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                 CommandPalette(
                   onClose: () => setState(() => _paletteOpen = false),
                   onLaunchApp: (appId) {
-                    if (appId == 'gallery' && !_isDesktopRoot) {
-                      unawaited(_tool('gallery'));
-                    } else if (appId == 'settings') {
+                    if (appId == 'settings') {
                       unawaited(_activate({'kind': 'settings'}));
                     } else {
                       unawaited(

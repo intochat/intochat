@@ -4,6 +4,7 @@ namespace IntoChat.OS.Integrations;
 
 // The 0.6 storage contract preserved for binary compatibility with 0.10.0 published module assemblies.
 [EditorBrowsable(EditorBrowsableState.Never)]
+[Obsolete("The 0.6 storage contract preserved for binary compatibility with 0.10.0 published module assemblies.")]
 public interface ILegacyStorage
 {
     [Description("The top-level folders this storage offers.")]
@@ -20,6 +21,7 @@ public interface ILegacyStorage
 }
 
 [EditorBrowsable(EditorBrowsableState.Never)]
+[Obsolete("The 0.6 storage contract preserved for binary compatibility with 0.10.0 published module assemblies.")]
 public sealed record StorageEntry(
     string Location,
     string Name,

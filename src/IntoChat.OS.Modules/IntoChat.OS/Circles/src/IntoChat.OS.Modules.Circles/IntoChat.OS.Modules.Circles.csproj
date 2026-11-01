@@ -6,7 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Circles.Tests.Unit" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Circles.Tests.Integration" />
     <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.Circles.Contracts/IntoChat.OS.Modules.Circles.Contracts.csproj" />
     <!-- R124/T26-13: a circle brain's room is loaded, and an app shared into it, through the Apps module's FeatureLoader. -->
     <ProjectReference Include="../../../Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />

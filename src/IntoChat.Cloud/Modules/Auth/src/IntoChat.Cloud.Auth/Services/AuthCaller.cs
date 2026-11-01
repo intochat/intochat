@@ -17,6 +17,15 @@ internal static class AuthCaller
             throw new UnauthorizedAccessException("This route needs a signed-in caller.");
         }
 
-        return new CapabilityCaller(principal, user.FindFirst(SessionClaims.Account)?.Value ?? "", user.FindFirst(SessionClaims.Brain)?.Value ?? "");
+        return CapabilityCallers.Of(principal, user.FindFirst(SessionClaims.Account)?.Value ?? "", user.FindFirst(SessionClaims.Brain)?.Value ?? "");
+    }
+}
+
+internal static class CapabilityCallers
+{
+    public static CapabilityCaller Of(string principalId, string accountId, string brainId, string? appId = null, string? conversationId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
+        return new(principalId, accountId, brainId, appId, conversationId);
     }
 }

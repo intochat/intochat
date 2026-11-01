@@ -16,6 +16,7 @@ using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
+using IntoChat.OS.Modules.AI.Decision;
 using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -43,8 +44,8 @@ internal sealed class CompiledAppsHost(
         ("gallery", typeof(GalleryApp), GalleryApp.Bundle),
         ("creator", typeof(CreatorApp), CreatorApp.Bundle),
         ("post", typeof(PostApp), PostApp.Bundle),
-        ("photocraft", typeof(PhotoCraftApp), PhotoCraftApp.HostedBundle),
-        ("filmcraft", typeof(FilmCraftApp), FilmCraftApp.HostedBundle),
+        ("photocraft", typeof(PhotoCraftApp), PhotoCraftApp.Bundle),
+        ("filmcraft", typeof(FilmCraftApp), FilmCraftApp.Bundle),
     ];
 
     private static readonly IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName =
@@ -311,6 +312,10 @@ internal sealed class CompiledAppsHost(
             var spec = HostedByName[key.Name];
             var definition = new AppDefinition(spec.AppType);
             var instance = definition.Create(_ => null);
+            if (instance is InoApp ino)
+            {
+                ino.DecisionMaker = services.GetService(typeof(IDecisionMaker)) as IDecisionMaker;
+            }
             instance.AttachNeuronResolver((contractType, neuronKey) =>
             {
                 var fullKey = neuronKey.StartsWith(key.Brain + "/", StringComparison.Ordinal)
@@ -374,7 +379,7 @@ internal sealed class CompiledAppsHost(
             }
             else if (sideView is not null)
             {
-                var sideWidth = runtime.Instance is CreatorApp ? 340d : 236d;
+                var sideWidth = runtime.Instance is CreatorApp ? 340d : runtime.Instance is GalleryApp ? 268d : 236d;
                 mainTree = Ui.Row(
                     "view",
                     [
@@ -403,7 +408,9 @@ internal sealed class CompiledAppsHost(
             Main: new UiChildRef(UIVocabulary.ViewType, runtime.AppKey + "/view"),
             Views: [new PresentationView("full", new UiChildRef(UIVocabulary.ViewType, runtime.AppKey + "/view"))]);
         var previousCaller = CallerContextStamper.TryGet(out var existingCaller) ? existingCaller : null;
-        var appCaller = (previousCaller ?? new DigitalBrain.Capabilities.CapabilityCaller(runtime.Brain, runtime.Brain, runtime.Brain)) with
+        var baseCaller = previousCaller ?? await HostCaller.ForBrain(services, runtime.Brain);
+        if (baseCaller is null) { return; }
+        var appCaller = baseCaller with
         {
             AppId = runtime.AppKey,
         };

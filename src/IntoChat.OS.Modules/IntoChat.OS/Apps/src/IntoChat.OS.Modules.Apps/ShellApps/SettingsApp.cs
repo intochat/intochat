@@ -46,7 +46,7 @@ public sealed record SettingsReconcilePreferences : DigitalBrain.Signal;
 public sealed record SettingsSideloadList : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.sideload-install")]
-public sealed record SettingsSideloadInstall(string? Name = null) : DigitalBrain.Signal;
+public sealed record SettingsSideloadInstall(string? Name = null, string? Consent = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.sideload-add-git")]
 public sealed record SettingsSideloadAddGit(string? Url = null) : DigitalBrain.Signal;
@@ -461,7 +461,7 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
         ArgumentNullException.ThrowIfNull(request);
         var view = sideload is null
             ? new View("Sideload", new Text(string.IsNullOrWhiteSpace(request.Name) ? "Name an app." : request.Name))
-            : await sideload.Install(request.Name, CancellationToken.None);
+            : await sideload.Install(request.Name, request.Consent, CancellationToken.None);
         Update(State with { Title = view.Title, OverrideBody = view.Root });
     }
 

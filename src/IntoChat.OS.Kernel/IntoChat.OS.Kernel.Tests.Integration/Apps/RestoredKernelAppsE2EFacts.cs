@@ -12,6 +12,8 @@ using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Modules.AI;
@@ -42,6 +44,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
     public async Task CompiledAppsHostPublishesViewsChatAndCrossAppStudioRoutingThroughSiloSignals()
     {
         var brain = fixture.NewBrain("hosted");
+        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
         var settings = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
         await settings.SetProfile("Ada Lovelace", "dark", "qwen3.5:4b");
 
@@ -296,8 +299,8 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
 
             public Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-            public Task<CallDecision?> Authorize(CapabilityCaller caller, CallRequest request, CancellationToken cancellationToken)
-                => Task.FromResult<CallDecision?>(new CallDecision { Allowed = true });
+            public Task<DigitalBrain.Capabilities.Identity.CallDecision?> Authorize(CapabilityCaller caller, DigitalBrain.Capabilities.Identity.CallRequest request, CancellationToken cancellationToken)
+                => Task.FromResult<DigitalBrain.Capabilities.Identity.CallDecision?>(new DigitalBrain.Capabilities.Identity.CallDecision { Allowed = true });
 
             public Task<IReadOnlyList<Grant>> ListGrants(string brainScopeId, CancellationToken cancellationToken)
                 => Task.FromResult<IReadOnlyList<Grant>>([]);

@@ -97,7 +97,7 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
         Category = "Studio",
     };
 
-    internal static AppBundle HostedBundle { get; } = new(
+    public static AppBundle Bundle { get; } = new(
         "photocraft",
         "1.1.0",
         new AppManifest(

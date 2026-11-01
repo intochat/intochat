@@ -315,7 +315,8 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         var hadPrevious = CallerContextStamper.TryGet(out var previous);
         var baseCaller = hadPrevious && previous is not null && previous.BrainId == Id.Brain.Value
             ? previous
-            : await HostCaller.ForBrain(Context.Services, Id.Brain.Value) ?? new CapabilityCaller(Id.Brain.Value, Id.Brain.Value, Id.Brain.Value);
+            : await HostCaller.ForBrain(Context.Services, Id.Brain.Value);
+        if (baseCaller is null) { return; }
         CallerContextStamper.Stamp(baseCaller with { AppId = AppKey });
         try
         {

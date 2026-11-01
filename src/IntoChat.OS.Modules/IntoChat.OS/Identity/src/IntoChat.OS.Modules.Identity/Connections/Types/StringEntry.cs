@@ -11,6 +11,14 @@ public sealed record StringEntry([property: Id(0)] string Key, [property: Id(1)]
     public static StringEntry[] From(IEnumerable<KeyValuePair<string, string>> map)
         => [.. map.Select(pair => new StringEntry(pair.Key, pair.Value))];
 
+    // The canonical conversion from entry array to map.
+    public static Dictionary<string, string> ToMap(StringEntry[]? entries)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (entries is { Length: > 0 }) { foreach (var entry in entries) { map[entry.Key] = entry.Value; } }
+        return map;
+    }
+
     // The array wins; a legacy dictionary read from older stored bytes is the fallback until the next write.
     public static Dictionary<string, string> ToMap(StringEntry[]? entries, IReadOnlyDictionary<string, string>? legacy)
     {

@@ -106,10 +106,32 @@ public sealed class PostApp(IPresenter? presenter = null) : DigitalBrain.App<Pos
             $"Updated profile @{profile.Handle}"));
     }
 
+    public View RenderSide() => new(
+        "Circles & Pinned",
+        new Column(
+        [
+            Ui.StatCard("post-handle-stat", $"@{State.Handle}", $"{State.Posts.Length}", "Published", BadgeTone.Accent, "send"),
+            new Divider("CIRCLES"),
+            Ui.NavItem("circle-public", "Public Feed", "globe", "open", selected: true, badge: $"{State.Posts.Count(p => p.Circle == "public")}"),
+            Ui.NavItem("circle-friends", "Friends Circle", "users", "open", selected: false, badge: $"{State.Posts.Count(p => p.Circle == "friends")}"),
+            Ui.NavItem("circle-nordlys", "Nordlys Workspace", "shield-check", "open", selected: false, badge: $"{State.Posts.Count(p => p.Circle != "public" && p.Circle != "friends")}"),
+            new Divider("PINNED APPS"),
+            .. State.PinnedApps.Select(app => (Node)Ui.NavItem($"pin-{app}", app, $"app:{app}", "open", selected: false, badge: "Pinned")),
+        ])
+        { Gap = 6 });
+
     public View Render()
     {
         var items = new List<Node>
         {
+            new Grid(
+                3,
+                [
+                    Ui.StatCard("kpi-post-total", "Total Posts", $"{State.Posts.Length}", $"@{State.Handle}", BadgeTone.Accent, "send"),
+                    Ui.StatCard("kpi-post-pinned", "Pinned Apps", $"{State.PinnedApps.Length}", "Active", BadgeTone.Done, "pin"),
+                    Ui.StatCard("kpi-post-circles", "Active Circles", $"{Math.Max(1, State.Posts.Select(p => p.Circle).Distinct(StringComparer.OrdinalIgnoreCase).Count())}", "Scoped", BadgeTone.Accent, "shield-check"),
+                ],
+                Gap: 10),
             new Surface(
                 [
                     new Heading($"@{State.Handle}", Level: 2, Subtitle: State.Bio),
@@ -147,7 +169,7 @@ public sealed class PostApp(IPresenter? presenter = null) : DigitalBrain.App<Pos
         Set(next);
         if (presenter is not null)
         {
-            Present(presenter.Present, static () => null, Render);
+            Present(presenter.Present, RenderSide, Render);
         }
     }
 

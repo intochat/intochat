@@ -900,8 +900,8 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Container(
-                      width: 276,
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      constraints: const BoxConstraints(minWidth: 248, maxWidth: 280),
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
                       decoration: BoxDecoration(
                         color: c.surfaceCard,
                         borderRadius: BorderRadius.circular(IcRadius.card),

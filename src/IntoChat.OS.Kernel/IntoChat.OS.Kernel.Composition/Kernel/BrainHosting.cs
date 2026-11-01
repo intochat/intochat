@@ -31,13 +31,15 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<DigitalBrain.Capabilities.Storage.IStorageWriteIdentity, Confirmations.StorageWriteIdentity>();
         silo.Services.TryAddSingleton<DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer, DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer>();
         DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(silo.Services, typeof(DigitalBrain.Confirmation.ConfirmationRequested).Assembly);
-        // Stored pre-alias bytes still name pre-0.7.0 namespaces.
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<Orleans.Serialization.ITypeConverter, LegacyTypeNames>());
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         SiloNeurons.AuthorizeStreams(silo.Services, static (services, id, call) =>
         {
-            if (services.GetService<ICallFilter>() is not { } filter || !CallerContextStamper.TryGet(out var caller))
+            if (services.GetService<ICallFilter>() is not { } filter)
             { return Task.CompletedTask; }
+            if (!CallerContextStamper.TryGet(out var caller))
+            {
+                throw new UnauthorizedAccessException($"Unstamped streaming calls are not authorized for plain neuron {call.Contract}.{call.Method}");
+            }
             var logger = services.GetService<Microsoft.Extensions.Logging.ILogger<PlainNeuronCallFilter>>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<PlainNeuronCallFilter>.Instance;
             return PlainNeuronCallFilter.Authorize(filter, logger, caller, id, call);

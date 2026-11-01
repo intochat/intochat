@@ -15,9 +15,6 @@ internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExch
     public Uri CallbackUri(string connectorId, HttpRequest? request = null)
         => new(Origin(request), $"integrations/{Uri.EscapeDataString(connectorId)}/oauth/callback");
 
-    public Uri LegacyCallbackUri(string connectorId, HttpRequest? request = null)
-        => new(Origin(request), $"connections/oauth/{Uri.EscapeDataString(connectorId)}/callback");
-
     private Uri Origin(HttpRequest? request)
         => options.Value.PublicOrigin
             ?? (request is { Host.HasValue: true } && !string.IsNullOrWhiteSpace(request.Scheme)

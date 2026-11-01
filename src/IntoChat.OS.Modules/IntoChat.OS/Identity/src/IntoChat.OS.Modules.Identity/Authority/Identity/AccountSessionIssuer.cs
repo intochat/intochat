@@ -64,7 +64,7 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
     }
 
     // AppId is the module id ModuleDeclarations checks. Auth's manifest grants Issue, End and Validate.
-    private static readonly CapabilityCaller AuthModuleCaller = new("auth", "auth", "system", "auth");
+    private static readonly CapabilityCaller AuthModuleCaller = CapabilityCallers.Of("auth", "auth", "system", CallerKind.App, "auth");
 
     private static DateTimeOffset Expires(SessionRequest request)
         => DateTimeOffset.UtcNow + (request.Lifetime is { } lifetime && lifetime > TimeSpan.Zero ? lifetime : TimeSpan.FromDays(14));

@@ -63,7 +63,7 @@ internal sealed class BrainNeuron(IEnumerable<ICreationHandler> creation, ILogge
 
 // The kernel grains' way into the brain neuron (06-08; it replaces the grain's IKernelAnnouncer): one-way and unstamped, since the
 // brain neuron's own first write is registered through the same directory that announces it.
-[DigitalBrain.Contracts.NeuronAlias("kernel.announcer"), DigitalBrain.Contracts.DefaultNeuronType(IBrain.Type)]
+[DigitalBrain.Contracts.NeuronAlias("kernel.announcer"), DigitalBrain.Contracts.DefaultNeuronType(IBrain.Type), DigitalBrain.Access.Internal]
 public interface IBrainAnnouncer
 {
     [DigitalBrain.OneWayCall] Task InstanceCreated(string type, string key);

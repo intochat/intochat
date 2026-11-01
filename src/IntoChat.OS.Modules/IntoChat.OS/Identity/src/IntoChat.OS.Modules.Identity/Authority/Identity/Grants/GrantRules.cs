@@ -14,9 +14,16 @@ namespace IntoChat.OS.Authority.Identity.Grants;
 // indistinguishable from a missing one.
 public static class GrantRules
 {
-    private static readonly string[] ForbiddenAppTargets =
-    [
+    private static readonly HashSet<string> ForbiddenTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
         "identity.vault",
+        "vault",
+        "secrets",
+        "oauth-exchange",
+    };
+
+    private static readonly HashSet<string> ForbiddenInterfaces = new(StringComparer.OrdinalIgnoreCase)
+    {
         "IVault",
         "ISecretValueSource",
         "VaultSecretValueSource",
@@ -26,20 +33,15 @@ public static class GrantRules
         "SecretSealer",
         "OAuthTokenExchange",
         "IOAuthTokenExchange",
-    ];
+    };
 
-    private static readonly string[] ForbiddenAppOperations =
-    [
-        "IVault.",
-        "ISecretValueSource.",
-        "IBrainSecretSealer.",
-        "ISecretSealer.",
-        "IOAuthTokenExchange.",
+    private static readonly HashSet<string> ForbiddenMethods = new(StringComparer.OrdinalIgnoreCase)
+    {
         "ExportFor",
         "AcceptGrant",
         "OpenSecret",
         "CurrentValues",
-    ];
+    };
 
     // Zero-token auth enforcement: sandbox and app callers can never read raw OAuth credentials or unsealed secrets directly.
     public static CallDecision? EvaluateZeroTokenGuard(CallRequest request)
@@ -54,27 +56,45 @@ public static class GrantRules
 
         var target = request.TargetNeuron ?? "";
         var operation = request.Operation ?? "";
-        foreach (var forbiddenTarget in ForbiddenAppTargets)
+        if (IsForbiddenTarget(target))
         {
-            if (target.Contains(forbiddenTarget, StringComparison.OrdinalIgnoreCase))
-            {
-                return CallDecision.Deny(
-                    CallDenial.UntrustedCaller,
-                    "Zero-token auth enforcement: sandbox and app callers cannot access raw credentials or unsealed secrets directly; use ICapabilityBroker and ConnectionNeuron.UseCredentialAsync.");
-            }
+            return CallDecision.Deny(
+                CallDenial.UntrustedCaller,
+                "Zero-token auth enforcement: sandbox and app callers cannot access raw credentials or unsealed secrets directly; use ICapabilityBroker and ConnectionNeuron.UseCredentialAsync.");
         }
 
-        foreach (var forbiddenOp in ForbiddenAppOperations)
+        if (IsForbiddenOperation(operation))
         {
-            if (operation.Contains(forbiddenOp, StringComparison.OrdinalIgnoreCase))
-            {
-                return CallDecision.Deny(
-                    CallDenial.UntrustedCaller,
-                    "Zero-token auth enforcement: sandbox and app callers cannot invoke raw secret or credential operations directly; use ICapabilityBroker and ConnectionNeuron.UseCredentialAsync.");
-            }
+            return CallDecision.Deny(
+                CallDenial.UntrustedCaller,
+                "Zero-token auth enforcement: sandbox and app callers cannot invoke raw secret or credential operations directly; use ICapabilityBroker and ConnectionNeuron.UseCredentialAsync.");
         }
 
         return null;
+    }
+
+    private static bool IsForbiddenTarget(string target)
+    {
+        if (string.IsNullOrWhiteSpace(target)) { return false; }
+        if (ForbiddenTypes.Contains(target) || ForbiddenInterfaces.Contains(target)) { return true; }
+        var segments = target.Split('/');
+        foreach (var segment in segments)
+        {
+            if (ForbiddenTypes.Contains(segment) || ForbiddenInterfaces.Contains(segment)) { return true; }
+        }
+        return false;
+    }
+
+    private static bool IsForbiddenOperation(string operation)
+    {
+        if (string.IsNullOrWhiteSpace(operation)) { return false; }
+        if (ForbiddenMethods.Contains(operation) || ForbiddenInterfaces.Contains(operation)) { return true; }
+        var dotSegments = operation.Split('.');
+        foreach (var segment in dotSegments)
+        {
+            if (ForbiddenInterfaces.Contains(segment) || ForbiddenMethods.Contains(segment)) { return true; }
+        }
+        return false;
     }
 
     public static CallDecision? Evaluate(CallRequest request, Member? member, IReadOnlyList<Grant> grants)
@@ -106,9 +126,19 @@ public static class GrantRules
 
         if (request.SemanticTypeIds.Length == 0)
         {
-            return SdkCapabilitySharing.IsConnectionBoundToFriend(caller, request.TargetNeuron)
-                ? CallDecision.Allow()
-                : null;
+            if (SdkCapabilitySharing.IsConnectionBoundToFriend(caller, request.TargetNeuron))
+            {
+                return CallDecision.Allow();
+            }
+            if (AppOf(caller) is { } app && request.TargetNeuron is { } target
+                && (string.Equals(target, app, StringComparison.Ordinal)
+                    || target.StartsWith(app + "/", StringComparison.Ordinal)
+                    || target.EndsWith("/" + app, StringComparison.Ordinal)
+                    || target.Contains("/" + app + "/", StringComparison.Ordinal)))
+            {
+                return CallDecision.Allow();
+            }
+            return CallDecision.Deny(CallDenial.MissingGrant, $"App '{caller.AppId}' requires a valid grant or binding to access '{request.TargetNeuron}'.");
         }
 
         foreach (var semanticTypeId in request.SemanticTypeIds)

@@ -121,24 +121,50 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         return Task.CompletedTask;
     }
 
-    public View RenderSide() => new(
-        "Launcher",
-        new Collection(
-        [
-            new Entry("ino", "Ino Assistant", "neuron://local/apps/ino"),
-            new Entry("files", "Files", "neuron://local/apps/files"),
-            new Entry("photocraft", "PhotoCraft", "neuron://local/apps/photocraft"),
-            new Entry("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft"),
-            new Entry("gallery", "UI Gallery", "neuron://local/apps/gallery"),
-            new Entry("creator", "Creator 3D Loop", "neuron://local/apps/creator"),
-            new Entry("post", "Post", "neuron://local/apps/post"),
-            new Entry("settings", "Settings", "neuron://local/apps/settings"),
-        ]));
+    public View RenderSide()
+    {
+        var apps = new (string Id, string Title, string Uri, string Icon)[]
+        {
+            ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles"),
+            ("files", "Files", "neuron://local/apps/files", "folder"),
+            ("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "image"),
+            ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film"),
+            ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid"),
+            ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu"),
+            ("post", "Post", "neuron://local/apps/post", "send"),
+            ("settings", "Settings", "neuron://local/apps/settings", "settings"),
+        };
+        var pinned = State.PinnedApps ?? ["ino", "creator"];
+
+        return new(
+            "Launcher",
+            new Column(
+            [
+                new Divider("PINNED & SHELL APPS"),
+                .. apps.Select(a => (Node)Ui.NavItem(
+                    $"launch-{a.Id}",
+                    a.Title,
+                    a.Icon,
+                    $"pin:{a.Id}",
+                    selected: pinned.Contains(a.Id, StringComparer.OrdinalIgnoreCase),
+                    badge: pinned.Contains(a.Id, StringComparer.OrdinalIgnoreCase) ? "PIN" : null)),
+                new Collection(apps.Select(a => new Entry(a.Id, a.Title, a.Uri)).ToArray()),
+            ])
+            { Gap = 6 });
+    }
 
     public View Render() => new(
         "Desktop",
         new Column(
         [
+            new Grid(
+                3,
+                [
+                    Ui.StatCard("desk-neurons", "Active Neurons", $"{State.ActiveNeurons}", "3D Graph", BadgeTone.Done, "cpu"),
+                    Ui.StatCard("desk-pinned", "Pinned Sticky-Notes", $"{State.PinnedApps.Length}", "Locked", BadgeTone.Accent, "pin"),
+                    Ui.StatCard("desk-preset", "Theme Preset", State.StylePreset, State.BarLayout, BadgeTone.Accent, "palette"),
+                ],
+                Gap: 10),
             new Surface(
                 [
                     new Row(

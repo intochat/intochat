@@ -67,11 +67,17 @@ public static partial class AIHostingExtensions
         {
             var repository = RepositoryRoot() ?? throw new InvalidOperationException(
                 "WithDefaultSystemOne<ILocalJev>() builds the adapter from the repository; run the AppHost from inside it or use IJev.");
+            var adapterPath = Path.Combine(repository, SystemOneAdapterDirectory);
+            if (!Directory.Exists(adapterPath))
+            {
+                var candidate = Path.GetFullPath(Path.Combine(repository, "..", "modules", SystemOneAdapterDirectory));
+                if (Directory.Exists(candidate)) { adapterPath = candidate; }
+            }
             var backing = _backing ?? throw new InvalidOperationException("A local System One needs its Ollama model.");
             var ollama = backing.Resource.Parent;
 
             return brain.ApplicationBuilder
-                .AddDockerfile(SystemOneResourceName, Path.Combine(repository, SystemOneAdapterDirectory))
+                .AddDockerfile(SystemOneResourceName, adapterPath)
                 .WithHttpEndpoint(targetPort: 8000, name: "http")
                 .WithHttpHealthCheck("/health")
                 .WithEnvironment("OPENAI_BASE_URL", ReferenceExpression.Create($"{ollama.UriExpression}/v1"))

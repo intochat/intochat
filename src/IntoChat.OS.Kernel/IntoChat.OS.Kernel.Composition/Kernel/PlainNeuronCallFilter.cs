@@ -21,12 +21,16 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
 
     public async Task Invoke(IIncomingGrainCallContext context)
     {
-        if (context.Grain is not INeuronHost || !CallerContextStamper.TryGet(out var caller)
-            || context.Request.GetArgumentCount() == 0 || context.Request.GetArgument(0) is not RuntimeInvocation call)
+        if (context.Grain is not INeuronHost || context.Request.GetArgumentCount() == 0 || context.Request.GetArgument(0) is not RuntimeInvocation call)
         { await context.Invoke(); return; }
-        // A module-internal contract (ISharedCardReader, or a public one marked [Internal] as a whole such as the connection index,
-        // 06-08) is plumbing no edge can name, as a grain's own non-INeuron interface was: the module authorizes before it calls.
+
         if (IsPlumbing(call)) { await context.Invoke(); return; }
+
+        if (!CallerContextStamper.TryGet(out var caller) || caller is null)
+        {
+            logger.LogWarning("Access denied: unstamped call to plain neuron {Contract}.{Method}", call.Contract, call.Method);
+            throw new UnauthorizedAccessException($"Unstamped calls are not authorized for plain neuron {call.Contract}.{call.Method}");
+        }
 
         var id = DigitalBrain.NeuronId.Parse(context.TargetId.Key.ToString()!);
         // As for grains (NeuronCallFilter): a module service calling through an injected client after leaving a turn, or any call

@@ -5,6 +5,8 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing.Conformance;
 using DigitalBrain.Testing.Conformance.Identity;
 using DigitalBrain.Testing.Conformance.Secrets;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority;
@@ -14,7 +16,7 @@ internal sealed class RuntimeCallerScope : CallerScope
     public override IDisposable As(CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return RuntimeCallerContext.Stamp(new CapabilityCaller(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.AppId, caller.ConversationId));
+        return RuntimeCallerContext.Stamp(CapabilityCallers.Of(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.Kind, caller.AppId, caller.ConversationId));
     }
 }
 

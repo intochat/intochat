@@ -33,7 +33,7 @@ internal sealed partial class AppNeuron
         if (await directory.OwnerOfBrain(brain) is not { } account) { return; }
         // Host install runs with the caller removed. Membership changes require the brain owner.
         // AppId stays empty: the directory accepts the owner, and a platform sentinel is not the owner.
-        using var owner = RuntimeCallerContext.Stamp(new CapabilityCaller(account.OwnerPrincipalId, account.AccountId, brain));
+        using var owner = RuntimeCallerContext.Stamp(CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain));
         await directory.EnsureMember(new Member
         {
             PrincipalId = AppPrincipal.Id(Key),
@@ -53,7 +53,7 @@ internal sealed partial class AppNeuron
         var directory = await broker.Identity();
         if (await directory.OwnerOfBrain(brain) is not { } account) { return; }
         if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
-        using var owner = RuntimeCallerContext.Stamp(new CapabilityCaller(account.OwnerPrincipalId, account.AccountId, brain));
+        using var owner = RuntimeCallerContext.Stamp(CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain));
         await directory.RemovePrincipalMember(brain, principal);
     }
 }

@@ -25,6 +25,7 @@ sealed class UiPart {
       UiWebBrowserPart.kindName => UiWebBrowserPart.fromMetadata(metadata),
       UiExpanderPart.kindName => UiExpanderPart.fromMetadata(metadata),
       UiFormPart.kindName => UiFormPart.fromMetadata(metadata),
+      UiGraphPart.kindName => UiGraphPart.fromMetadata(metadata),
       _ => null,
     };
   }
@@ -616,3 +617,132 @@ final class FirstRunState {
     );
   }
 }
+
+final class UiGraphNode {
+  const UiGraphNode({
+    required this.id,
+    required this.label,
+    required this.type,
+    this.weight = 1.0,
+    this.properties = const {},
+  });
+
+  final String id;
+  final String label;
+  final String type;
+  final double weight;
+  final Map<String, String> properties;
+
+  factory UiGraphNode.fromJson(Map<String, dynamic> json) => UiGraphNode(
+    id: json['id'] as String? ?? '',
+    label: json['label'] as String? ?? '',
+    type: json['type'] as String? ?? 'concept',
+    weight: (json['weight'] as num?)?.toDouble() ?? 1.0,
+    properties: json['properties'] is Map
+        ? (json['properties'] as Map).map(
+            (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+          )
+        : const {},
+  );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'label': label,
+    'type': type,
+    'weight': weight,
+    'properties': properties,
+  };
+}
+
+final class UiGraphEdge {
+  const UiGraphEdge({
+    required this.id,
+    required this.source,
+    required this.target,
+    required this.relationship,
+    this.weight = 1.0,
+    this.properties = const {},
+  });
+
+  final String id;
+  final String source;
+  final String target;
+  final String relationship;
+  final double weight;
+  final Map<String, String> properties;
+
+  factory UiGraphEdge.fromJson(Map<String, dynamic> json) => UiGraphEdge(
+    id: json['id'] as String? ?? '',
+    source: json['source'] as String? ?? '',
+    target: json['target'] as String? ?? '',
+    relationship: json['relationship'] as String? ?? 'relates_to',
+    weight: (json['weight'] as num?)?.toDouble() ?? 1.0,
+    properties: json['properties'] is Map
+        ? (json['properties'] as Map).map(
+            (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+          )
+        : const {},
+  );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'source': source,
+    'target': target,
+    'relationship': relationship,
+    'weight': weight,
+    'properties': properties,
+  };
+}
+
+final class UiGraphPart extends UiPart {
+  const UiGraphPart({
+    this.title = 'Knowledge Graph',
+    this.nodes = const [],
+    this.edges = const [],
+  });
+
+  static const kindName = 'graph';
+
+  final String title;
+  final List<UiGraphNode> nodes;
+  final List<UiGraphEdge> edges;
+
+  @override
+  String get kind => kindName;
+
+  @override
+  String get copyText => '$title (${nodes.length} nodes, ${edges.length} edges)';
+
+  factory UiGraphPart.fromMetadata(Map<String, dynamic> metadata) {
+    final rawNodes = metadata['nodes'];
+    final nodes = rawNodes is List
+        ? rawNodes
+            .whereType<Map>()
+            .map((n) => UiGraphNode.fromJson(Map<String, dynamic>.from(n)))
+            .toList(growable: false)
+        : const <UiGraphNode>[];
+
+    final rawEdges = metadata['edges'];
+    final edges = rawEdges is List
+        ? rawEdges
+            .whereType<Map>()
+            .map((e) => UiGraphEdge.fromJson(Map<String, dynamic>.from(e)))
+            .toList(growable: false)
+        : const <UiGraphEdge>[];
+
+    return UiGraphPart(
+      title: metadata['title'] as String? ?? 'Knowledge Graph',
+      nodes: nodes,
+      edges: edges,
+    );
+  }
+
+  @override
+  Map<String, Object?> toMetadata() => {
+    'kind': kindName,
+    'title': title,
+    'nodes': [for (final node in nodes) node.toJson()],
+    'edges': [for (final edge in edges) edge.toJson()],
+  };
+}
+

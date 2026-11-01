@@ -47,7 +47,10 @@ public sealed class SideloadInstaller
         return rows;
     }
 
-    public async Task<SideloadInstallResult> Install(string? name, CancellationToken cancellationToken)
+    public Task<SideloadInstallResult> Install(string? name, CancellationToken cancellationToken)
+        => Install(name, consent: null, cancellationToken);
+
+    public async Task<SideloadInstallResult> Install(string? name, string? consent, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(name)) { return SideloadInstallResult.Fail("Name an app."); }
         await _catalog.RescanSideload().WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -57,7 +60,18 @@ public sealed class SideloadInstaller
         if (bundle is null) { return SideloadInstallResult.Fail(failure?.Reason ?? $"{name} is not in the apps directory."); }
         try { await _catalog.AcceptSideload(bundle).WaitAsync(cancellationToken).ConfigureAwait(false); }
         catch (InvalidOperationException error) { return SideloadInstallResult.Fail(error.Message); }
-        var outcome = await _install(new InstallRequest(new AppRef(FeatureCatalog.SideloadOwner, name), AppConsent.Of(bundle.Manifest.Requires), Guid.NewGuid()), cancellationToken)
+
+        var requires = bundle.Manifest.Requires ?? new AppRequirements();
+        if (!AppConsent.IsEmpty(requires))
+        {
+            var expected = AppConsent.Of(requires);
+            if (string.IsNullOrEmpty(consent) || !string.Equals(consent, expected, StringComparison.Ordinal))
+            {
+                return SideloadInstallResult.Fail($"Consent required: {name} requests capabilities that require human approval.");
+            }
+        }
+
+        var outcome = await _install(new InstallRequest(new AppRef(FeatureCatalog.SideloadOwner, name), consent ?? AppConsent.Of(requires), Guid.NewGuid()), cancellationToken)
             .ConfigureAwait(false);
         return outcome.Ok
             ? SideloadInstallResult.Done(outcome.InstalledName is { Length: > 0 } installed ? $"Installed {installed}." : $"Installed {name}.")

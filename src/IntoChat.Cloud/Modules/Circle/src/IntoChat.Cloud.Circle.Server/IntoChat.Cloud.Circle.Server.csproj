@@ -14,6 +14,5 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.Cloud.Circle.Server.Tests.Unit" />
-    <InternalsVisibleTo Include="IntoChat.Cloud.Circle.Server.Tests.Integration" />
   </ItemGroup>
 </Project>

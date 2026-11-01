@@ -42,7 +42,7 @@ void main() {
     ]) {
       expect(RendererRegistry.uiEntry(kind).isFallback, isFalse, reason: kind);
     }
-    expect(RendererRegistry.uiFallbackKinds.length, 10);
+    expect(RendererRegistry.uiFallbackKinds.length, 9);
   });
 
   test('unknown kind renders the fallback, never a blank', () {

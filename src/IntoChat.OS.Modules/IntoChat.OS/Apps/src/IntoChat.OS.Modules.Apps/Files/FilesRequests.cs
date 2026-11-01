@@ -44,7 +44,10 @@ internal static class FilesRequests
 
     public static Presentation Presentation(string appKey)
         => new(new Sphere("icon.svg", []), Side: new(UIVocabulary.ViewType, appKey + "/side"), Main: new(UIVocabulary.ViewType, appKey + "/main"),
-            Views: [new("full", new(UIVocabulary.ViewType, appKey + "/full"))]);
+            Views: [
+                new("full", new(UIVocabulary.ViewType, appKey + "/full")),
+                new("view", new(UIVocabulary.ViewType, appKey + "/full")),
+            ]);
 
     public static async Task<string?> Forward(IFilesWorkspace workspace, AppRequested request, CancellationToken ct)
     {

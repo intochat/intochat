@@ -87,7 +87,7 @@ internal static class PersistedStateRules
     }
 
     // Members that still store a concrete collection. There is no JSON pin: this set is the list, it does not grow,
-    // and a member leaves it only when its stored shape becomes an array. [LegacyShape] members are exempt above.
+    // and a member leaves it only when its stored shape becomes an array.
     internal static readonly HashSet<string> UnmigratedConcreteCollections = new(StringComparer.Ordinal)
     {
         "IntoChat.OS.Modules.AI.Embeddings.VectorEntry.Payload",

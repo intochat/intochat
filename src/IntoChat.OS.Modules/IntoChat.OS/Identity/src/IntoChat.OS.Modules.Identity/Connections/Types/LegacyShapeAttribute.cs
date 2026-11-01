@@ -1,9 +1,9 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
+using System.ComponentModel;
 
 namespace IntoChat.OS.Connections;
 
-// Marks a persisted member kept only so older stored bytes still deserialise. It keeps its original Id; the type
-// converts it to the current array shape on read and never writes it again. Exempt from the persisted-collection rule.
+// Preserved for binary compatibility with external module packages (e.g. IntoChat.OS.Modules.Microsoft.CSharp).
+// In-tree state models no longer use this attribute.
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class LegacyShapeAttribute : Attribute;

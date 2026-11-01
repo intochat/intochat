@@ -88,7 +88,7 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
         Category = "Studio",
     };
 
-    internal static AppBundle HostedBundle { get; } = new(
+    public static AppBundle Bundle { get; } = new(
         "filmcraft",
         "1.1.0",
         new AppManifest(

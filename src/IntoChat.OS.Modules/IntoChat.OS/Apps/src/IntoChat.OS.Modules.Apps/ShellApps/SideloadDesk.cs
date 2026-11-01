@@ -11,9 +11,12 @@ public sealed class SideloadDesk(SideloadInstaller installer)
         return new View("Sideload", new Collection([.. rows.Select(row => new Entry(row.Name, row.Title, row.Installed ? "installed" : "not installed"))]));
     }
 
-    public async Task<View> Install(string? name, CancellationToken cancellationToken)
+    public Task<View> Install(string? name, CancellationToken cancellationToken)
+        => Install(name, consent: null, cancellationToken);
+
+    public async Task<View> Install(string? name, string? consent, CancellationToken cancellationToken)
     {
-        var result = await installer.Install(name, cancellationToken).ConfigureAwait(false);
+        var result = await installer.Install(name, consent, cancellationToken).ConfigureAwait(false);
         return new View("Sideload", new Text(result.Message));
     }
 
