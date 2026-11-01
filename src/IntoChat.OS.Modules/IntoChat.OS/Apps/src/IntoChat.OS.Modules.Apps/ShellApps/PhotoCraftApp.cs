@@ -86,6 +86,8 @@ public sealed record PhotoCraftAppState(
 [DigitalBrain.App("photocraft", Accent = "#06B6D4", Category = "Studio")]
 public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
 {
+    public IFilesVfsService? FilesVfs { get; set; }
+
     public static DigitalBrain.AppManifest Manifest { get; } = new(
         "photocraft",
         "PhotoCraft",
@@ -102,7 +104,7 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
         "1.1.0",
         new AppManifest(
             Title: "PhotoCraft",
-            Description: "Photoshop-compatible image studio with full-card WASM Web UI, Native Linux CLI (photocraft-cli), and MCP Server.",
+            Description: "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
             Operations:
             [
                 new("open", "Connect PhotoCraft studio and open or inspect a document."),
@@ -134,6 +136,36 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
             : request.Document.Trim();
         var webUrl = State.WebUrl;
         var mcpUri = State.McpEndpointUri;
+
+        if (FilesVfs is not null)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(request.Document))
+                {
+                    if (await FilesVfs.ResolveFileAsync(request.Document.Trim()) is { } resolvedExplicit)
+                    {
+                        doc = resolvedExplicit.VfsPath;
+                    }
+                }
+                else if (await FilesVfs.ResolveFileAsync(doc) is { } resolvedCurrent)
+                {
+                    doc = resolvedCurrent.VfsPath;
+                }
+                else if (string.Equals(doc, "/work/portrait.png", StringComparison.OrdinalIgnoreCase))
+                {
+                    var files = await FilesVfs.ListFilesAsync();
+                    if (files.FirstOrDefault(f => ArtCraftEngineRunner.IsImageExtension(f.Name)) is { } firstImage)
+                    {
+                        doc = firstImage.VfsPath;
+                    }
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "Files VFS resolution is optional when opening PhotoCraft.");
+            }
+        }
 
         if (TryGetArtCraftStudio() is { } studio)
         {
@@ -266,7 +298,21 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
             mode,
             TryGetArtCraftStudio(),
             TryGetMcpServer,
-            (err, reason) => Swallow(err, reason));
+            (err, reason) => Swallow(err, reason),
+            FilesVfs);
+
+        if (!result.IsValidCommand)
+        {
+            Set(State with
+            {
+                ExecutionMode = result.ExecutionMode,
+                LastCommandId = result.CommandId,
+                LastCommandTitle = result.CommandTitle,
+                LastCliInvocation = string.Empty,
+                Status = result.Summary,
+            });
+            return;
+        }
 
         var entry = new PhotoCraftHistoryEntry(
             $"edit-{State.History.Length + 1}",

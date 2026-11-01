@@ -77,6 +77,8 @@ public sealed record FilmCraftAppState(
 [DigitalBrain.App("filmcraft", Accent = "#8B5CF6", Category = "Studio")]
 public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
 {
+    public IFilesVfsService? FilesVfs { get; set; }
+
     public static DigitalBrain.AppManifest Manifest { get; } = new(
         "filmcraft",
         "FilmCraft",
@@ -125,6 +127,36 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
             : request.Sequence.Trim();
         var webUrl = State.WebUrl;
         var mcpUri = State.McpEndpointUri;
+
+        if (FilesVfs is not null)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(request.Sequence))
+                {
+                    if (await FilesVfs.ResolveFileAsync(request.Sequence.Trim()) is { } resolvedExplicit)
+                    {
+                        seq = resolvedExplicit.VfsPath;
+                    }
+                }
+                else if (await FilesVfs.ResolveFileAsync(seq) is { } resolvedCurrent)
+                {
+                    seq = resolvedCurrent.VfsPath;
+                }
+                else if (string.Equals(seq, "/work/nordlys-launch.fcproj", StringComparison.OrdinalIgnoreCase))
+                {
+                    var files = await FilesVfs.ListFilesAsync();
+                    if (files.FirstOrDefault(f => ArtCraftEngineRunner.IsVideoExtension(f.Name)) is { } firstVideo)
+                    {
+                        seq = firstVideo.VfsPath;
+                    }
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "Files VFS resolution is optional when opening FilmCraft.");
+            }
+        }
 
         if (TryGetArtCraftStudio() is { } studio)
         {
@@ -260,7 +292,21 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
             mode,
             TryGetArtCraftStudio(),
             TryGetMcpServer,
-            (err, reason) => Swallow(err, reason));
+            (err, reason) => Swallow(err, reason),
+            FilesVfs);
+
+        if (!result.IsValidCommand)
+        {
+            Set(State with
+            {
+                ExecutionMode = result.ExecutionMode,
+                LastCommandId = result.CommandId,
+                LastCommandTitle = result.CommandTitle,
+                LastCliInvocation = string.Empty,
+                Status = result.Summary,
+            });
+            return;
+        }
 
         Set(State with
         {

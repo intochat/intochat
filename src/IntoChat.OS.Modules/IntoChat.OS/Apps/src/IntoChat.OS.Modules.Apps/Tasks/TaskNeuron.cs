@@ -102,19 +102,20 @@ public sealed class TaskNeuron : Neuron<TaskState>, ITaskNeuron
         var nextTaskStatus = State.Status;
         DateTimeOffset? completedAt = State.CompletedAt;
 
-        if (newStatus == TaskStepStatus.Running && (nextTaskStatus == TaskStatus.Pending || nextTaskStatus == TaskStatus.RolledBack))
-        {
-            nextTaskStatus = TaskStatus.Running;
-        }
-        else if (newStatus == TaskStepStatus.Failed)
+        if (newStatus == TaskStepStatus.Failed)
         {
             nextTaskStatus = TaskStatus.Failed;
             completedAt = now;
         }
-        else if (nextSteps.All(s => s.Status == TaskStepStatus.Completed))
+        else if (nextSteps.Length > 0 && nextSteps.All(s => s.Status == TaskStepStatus.Completed))
         {
             nextTaskStatus = TaskStatus.Completed;
             completedAt = now;
+        }
+        else if ((newStatus == TaskStepStatus.Running || newStatus == TaskStepStatus.Completed)
+                 && (nextTaskStatus == TaskStatus.Pending || nextTaskStatus == TaskStatus.RolledBack))
+        {
+            nextTaskStatus = TaskStatus.Running;
         }
 
         var next = new TaskState

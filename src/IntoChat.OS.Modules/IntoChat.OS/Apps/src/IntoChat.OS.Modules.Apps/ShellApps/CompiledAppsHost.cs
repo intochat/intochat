@@ -6,6 +6,9 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Decision;
+using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.Apps.Contracts.Tasks;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chart;
@@ -16,7 +19,6 @@ using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
-using IntoChat.OS.Modules.AI.Decision;
 using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -52,6 +54,7 @@ internal sealed class CompiledAppsHost(
         Hosted.ToDictionary(item => item.Name, StringComparer.Ordinal);
 
     private readonly ConcurrentDictionary<(string Brain, string Name), HostedRuntime> _runtimes = new();
+    private readonly ConcurrentDictionary<string, IFilesVfsService> _vfsByBrain = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _ensuredBrains = new(StringComparer.Ordinal);
 
     private void TriggerEnsureAll(string brain)
@@ -77,6 +80,11 @@ internal sealed class CompiledAppsHost(
             TriggerEnsureAll(publisher.Brain.Value);
             if (!publisher.Key.StartsWith("apps/", StringComparison.Ordinal)) { return Task.CompletedTask; }
             var appName = publisher.Key["apps/".Length..];
+            if (appName == "desktop")
+            {
+                _ = Task.Run(() => EnsureDesktopViewAsync(publisher.Brain.Value), CancellationToken.None);
+                return Task.CompletedTask;
+            }
             if (!HostedByName.ContainsKey(appName)) { return Task.CompletedTask; }
             _ = Task.Run(() => HandleAppRequestedAsync(publisher.Brain.Value, appName, signal, token), CancellationToken.None);
             return Task.CompletedTask;
@@ -112,6 +120,117 @@ internal sealed class CompiledAppsHost(
         foreach (var (name, _, _) in Hosted)
         {
             await EnsureAppAsync(brain, name);
+        }
+
+        if (brain == "owner")
+        {
+            await EnsureDesktopViewAsync(brain);
+        }
+    }
+
+    private async Task EnsureDesktopViewAsync(string brain)
+    {
+        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        try
+        {
+            if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain)
+            {
+                CallerContextStamper.Stamp(caller);
+            }
+
+            var view = SiloNeurons.Get<IView>(services, $"{brain}/apps/desktop/view");
+            var current = await view.Read();
+            if (current?.Root is not null)
+            {
+                return;
+            }
+
+            var initialWindows = new (string WinId, string AppId, string Title)[]
+            {
+                ("w-1", "files", "Files"),
+                ("w-2", "photocraft", "PhotoCraft"),
+                ("w-3", "ino", "Ino"),
+            };
+
+            foreach (var (winId, appId, _) in initialWindows)
+            {
+                var viewport = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Viewport.IViewport>(services, $"{brain}/apps/desktop/window/{winId}");
+                var currentVp = await viewport.Read();
+                var targetRef = new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef(appId, $"{brain}/apps/{appId}", "full", "");
+                if (currentVp.Target != targetRef)
+                {
+                    await viewport.Set(targetRef, currentVp.Revision);
+                }
+            }
+
+            UiNode BuildWindowFrame(string winId, string appId, string title)
+            {
+                UiNode[] chromeButtons =
+                [
+                    Ui.Button($"focus-{winId}", title, $"focus:{winId}", style: UiStyle.Ghost),
+                    Ui.IconButton($"newtab-{winId}", "plus", "New tab", $"newtab:{winId}"),
+                    Ui.IconButton($"star-{winId}", "star", "Add to favourites", $"favourite:{winId}"),
+                    .. appId == "ino" ? Array.Empty<UiNode>() : [Ui.IconButton($"pin-{winId}", "pin", "Pin", $"pin:{appId}")],
+                    Ui.IconButton($"close-{winId}", "x", "Close tab", $"close:{winId}/0"),
+                ];
+                return Ui.Column(
+                    $"frame-{winId}",
+                    [
+                        Ui.Row(
+                            $"chrome-{winId}",
+                            chromeButtons,
+                            gap: 4,
+                            extents: [0, .. chromeButtons.Skip(1).Select(_ => 32.0)]),
+                        Ui.Tabs($"tabs-{winId}", [Ui.Tab($"tab-{winId}-0", title, $"tab:{winId}/0", true)]),
+                        Ui.Reference($"content-{winId}", new(UIVocabulary.ViewportType, $"{brain}/apps/desktop/window/{winId}")),
+                    ],
+                    gap: 0,
+                    extents: [40, 38, 0]);
+            }
+
+            var windows = Ui.Column(
+                "windows",
+                [
+                    Ui.Row(
+                        "windows-0",
+                        [.. initialWindows.Select(w => BuildWindowFrame(w.WinId, w.AppId, w.Title))]),
+                ],
+                extents: [0]);
+
+            var dock = Ui.Row(
+                "dock",
+                [
+                    Ui.Row(
+                        "apps",
+                        [
+                            Ui.Button("dock-ino", "Ino", "open:ino", style: UiStyle.Primary, icon: "ino"),
+                            Ui.Button("dock-files", "Files", "open:files", style: UiStyle.Ghost),
+                            Ui.Button("dock-photocraft", "PhotoCraft", "open:photocraft", style: UiStyle.Ghost),
+                            Ui.Button("dock-filmcraft", "FilmCraft", "open:filmcraft", style: UiStyle.Ghost),
+                            Ui.Button("dock-creator", "Creator", "open:creator", style: UiStyle.Ghost),
+                            Ui.Button("dock-gallery", "Gallery", "open:gallery", style: UiStyle.Ghost),
+                            Ui.Button("dock-post", "Post", "open:post", style: UiStyle.Ghost),
+                            Ui.Button("dock-settings", "Settings", "open:settings", style: UiStyle.Ghost),
+                            Ui.IconButton("newtab", "plus", "New tab", "newtab"),
+                        ],
+                        gap: 4),
+                    Ui.Row(
+                        "right",
+                        [
+                            Ui.Text("usage", "Usage"),
+                            Ui.Button("avatar", "You", "open:circle"),
+                            Ui.Button("more-settings", "Settings", "settings"),
+                        ],
+                        gap: 4),
+                ],
+                extents: [0, 360]);
+
+            var desktopRoot = Ui.Column("desktop", [windows, dock], extents: [0, 68]);
+            await view.Publish(new UiView(1L, 1L, desktopRoot));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            logger.LogWarning(error, "Initial desktop view seed for {Brain} did not complete.", brain);
         }
     }
 
@@ -194,11 +313,23 @@ internal sealed class CompiledAppsHost(
                 await PublishViewsAndPresentationAsync(runtime, app, snapshot);
                 await app.Progress("idle", $"{runtime.Bundle.Manifest.Title}: {request.Operation}");
 
-                if (appName == "ino" && request.InstanceOrLastTurnTargetsStudio(out var studioApp, out var studioPrompt))
+                if (appName == "ino"
+                    && request.Operation == "send"
+                    && runtime.Instance is InoApp inoRuntime
+                    && inoRuntime.State.Turns is { Length: > 0 } inoTurns)
                 {
-                    _ = Task.Run(
-                        () => HandleAppRequestedAsync(brain, studioApp, new AppRequested("edit", studioPrompt, Guid.NewGuid()), CancellationToken.None),
-                        CancellationToken.None);
+                    var latestTurn = inoTurns[^1];
+                    string? studioApp = latestTurn.RouteHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
+                        ? "photocraft"
+                        : latestTurn.RouteHint.StartsWith("routed:filmcraft.", StringComparison.Ordinal)
+                            ? "filmcraft"
+                            : null;
+                    if (studioApp is not null)
+                    {
+                        _ = Task.Run(
+                            () => HandleAppRequestedAsync(brain, studioApp, new AppRequested("edit", latestTurn.UserMessage, Guid.NewGuid()), CancellationToken.None),
+                            CancellationToken.None);
+                    }
                 }
 
                 if (appName == "ino" && request.Operation == "open")
@@ -312,9 +443,21 @@ internal sealed class CompiledAppsHost(
             var spec = HostedByName[key.Name];
             var definition = new AppDefinition(spec.AppType);
             var instance = definition.Create(_ => null);
+            var vfs = _vfsByBrain.GetOrAdd(key.Brain, b => WorkspaceFilesService.ForBrain(services, b));
             if (instance is InoApp ino)
             {
                 ino.DecisionMaker = services.GetService(typeof(IDecisionMaker)) as IDecisionMaker;
+                ino.FilesVfs = vfs;
+                ino.KnowledgeStore = services.GetService(typeof(IKnowledgeStore)) as IKnowledgeStore;
+                ino.TaskEngine = services.GetService(typeof(ITaskEngine)) as ITaskEngine;
+            }
+            else if (instance is PhotoCraftApp photoCraft)
+            {
+                photoCraft.FilesVfs = vfs;
+            }
+            else if (instance is FilmCraftApp filmCraft)
+            {
+                filmCraft.FilesVfs = vfs;
             }
             instance.AttachNeuronResolver((contractType, neuronKey) =>
             {
@@ -561,6 +704,7 @@ internal sealed class CompiledAppsHost(
                     "photocraft" => "PhotoCraft",
                     "filmcraft" => "FilmCraft",
                     "settings" => "Settings",
+                    "files" => "Files",
                     _ => targetApp,
                 };
                 var displayIcon = targetApp switch
@@ -568,6 +712,7 @@ internal sealed class CompiledAppsHost(
                     "photocraft" => "image",
                     "filmcraft" => "film",
                     "settings" => "settings",
+                    "files" => "folder",
                     _ => "grid",
                 };
                 appCard = new ChatAppCard(targetApp, displayTitle, displayIcon, true);
@@ -700,35 +845,6 @@ internal sealed class CompiledAppsHost(
         public required App Instance { get; init; }
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public bool Presented { get; set; }
-    }
-}
-
-file static class AppRequestedExtensions
-{
-    public static bool InstanceOrLastTurnTargetsStudio(this AppRequested request, out string studioApp, out string studioPrompt)
-    {
-        studioApp = string.Empty;
-        studioPrompt = string.Empty;
-        if (request.Operation != "send" || string.IsNullOrWhiteSpace(request.Input))
-        {
-            return false;
-        }
-
-        if (InoApp.LooksLikePhotoCraftRequest(request.Input))
-        {
-            studioApp = "photocraft";
-            studioPrompt = request.Input;
-            return true;
-        }
-
-        if (InoApp.LooksLikeFilmCraftRequest(request.Input))
-        {
-            studioApp = "filmcraft";
-            studioPrompt = request.Input;
-            return true;
-        }
-
-        return false;
     }
 }
 

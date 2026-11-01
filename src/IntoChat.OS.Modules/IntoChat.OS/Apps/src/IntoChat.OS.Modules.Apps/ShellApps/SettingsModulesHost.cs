@@ -28,6 +28,10 @@ internal sealed class SettingsModulesHost(
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
+            if (await HostCaller.ForBrain(services, brain) is { } caller)
+            {
+                CallerContextStamper.Stamp(caller);
+            }
             var text = SiloNeurons.Get<IText>(services, IApp.Key(brain, "settings") + "/modules-json");
             await text.Set(InstalledModules.Json());
         }

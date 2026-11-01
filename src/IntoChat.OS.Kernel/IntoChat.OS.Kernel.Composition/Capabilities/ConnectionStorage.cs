@@ -1,5 +1,7 @@
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
 
@@ -80,17 +82,31 @@ public sealed class ConnectionStorage(
         var transport = uploads ?? _remote as IStorageUpload ?? throw new Unsupported(plan.TargetFolder);
         var primitive = Local(plan);
         var id = await Authorized(primitive, () => Typed(() => transport.BeginUpload(primitive, ct)), ct).ConfigureAwait(false);
-        return new RemoteWriteStream(transport, id, Bound);
+        return new RemoteWriteStream(this, transport, id, Bound);
     }
 
     private Task<T> Authorized<T>(WritePlan plan, Func<Task<T>> send, CancellationToken ct)
         => authorizer is not null && connectionKey is not null ? authorizer.Invoke(connectionKey, plan, send, ct) : send();
 
-    private static async Task<T> Typed<T>(Func<Task<T>> call)
+    private async Task<T> Typed<T>(Func<Task<T>> call)
     {
+        var hadCaller = CallerContextStamper.TryGet(out var current);
+        var restamped = false;
+        if (connectionKey is { Length: > 0 } && (!hadCaller || current is null || current.Kind == CallerKind.App))
+        {
+            var slash = connectionKey.IndexOf('/', StringComparison.Ordinal);
+            var owner = slash > 0 ? connectionKey[..slash] : connectionKey;
+            var brain = current?.BrainId is { Length: > 0 } b ? b : owner;
+            CallerContextStamper.Stamp(CapabilityCallers.Of(owner, owner, brain));
+            restamped = true;
+        }
         try { return await call().ConfigureAwait(false); }
         catch (Exception error) when (error is not StorageException && StorageErrors.FromMessage(error.Message) is { } typed)
         { throw typed; }
+        finally
+        {
+            if (restamped && hadCaller && current is not null) { CallerContextStamper.Stamp(current); }
+        }
     }
 
     private sealed class RemoteReadStream(ConnectionStorage storage, ItemId item, long offset, long? length, CancellationToken opened) : Stream
@@ -124,16 +140,17 @@ public sealed class ConnectionStorage(
 
     private sealed class RemoteWriteStream : StorageWriteStream
     {
+        private readonly ConnectionStorage _storage;
         private readonly IStorageUpload _transport;
         private readonly string _id;
         private readonly Func<ItemId, ItemId> _bind;
-        public RemoteWriteStream(IStorageUpload transport, string id, Func<ItemId, ItemId> bind) : base(new UploadStream(transport, id))
-        { _transport = transport; _id = id; _bind = bind; }
-        protected override async Task<ItemId> CommitCore(CancellationToken ct) => _bind(await Typed(() => _transport.CommitUpload(_id, Content.Position, ct)).ConfigureAwait(false));
-        protected override Task AbortCore(CancellationToken ct) => _transport.AbortUpload(_id, ct);
+        public RemoteWriteStream(ConnectionStorage storage, IStorageUpload transport, string id, Func<ItemId, ItemId> bind) : base(new UploadStream(storage, transport, id))
+        { _storage = storage; _transport = transport; _id = id; _bind = bind; }
+        protected override async Task<ItemId> CommitCore(CancellationToken ct) => _bind(await _storage.Typed(() => _transport.CommitUpload(_id, Content.Position, ct)).ConfigureAwait(false));
+        protected override Task AbortCore(CancellationToken ct) => _storage.Typed(async () => { await _transport.AbortUpload(_id, ct).ConfigureAwait(false); return true; });
     }
 
-    private sealed class UploadStream(IStorageUpload transport, string id) : Stream
+    private sealed class UploadStream(ConnectionStorage storage, IStorageUpload transport, string id) : Stream
     {
         private long _position;
         public override bool CanRead => false;
@@ -146,7 +163,8 @@ public sealed class ConnectionStorage(
             while (buffer.Length > 0)
             {
                 var count = Math.Min(buffer.Length, StorageUploadSessions.ChunkSize);
-                await transport.AppendUpload(id, _position, buffer[..count].ToArray(), cancellationToken).ConfigureAwait(false);
+                var chunk = buffer[..count].ToArray();
+                await storage.Typed(async () => { await transport.AppendUpload(id, _position, chunk, cancellationToken).ConfigureAwait(false); return true; }).ConfigureAwait(false);
                 _position += count;
                 buffer = buffer[count..];
             }
