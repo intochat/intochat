@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 namespace IntoChat.OS.Framework.Modules.Platform.Identity;
 
 public enum MemberRole

@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Connections.Platform.Identity;

@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;

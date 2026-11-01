@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
