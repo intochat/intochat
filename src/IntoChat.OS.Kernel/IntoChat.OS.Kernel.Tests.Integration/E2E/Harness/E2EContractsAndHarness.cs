@@ -1,49 +1,48 @@
 #pragma warning disable xUnit1051
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.AI.Context;
+using IntoChat.OS.Modules.AI.Decision;
+using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.Apps.Contracts.Testing;
+using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
 
-#region F14: Execution Context Subsystem Contracts & In-Memory Double
-
-public sealed record ContextSlice(string Name, string Content, string[] Tags);
-
-public interface IExecutionContext
-{
-    string ExecutionId { get; }
-    CapabilityCaller Caller { get; }
-    IReadOnlyDictionary<string, string> Environment { get; }
-    IReadOnlyList<ContextSlice> Slices { get; }
-    CancellationToken CancellationToken { get; }
-    Task<TResult> WithSliceAsync<TResult>(ContextSlice slice, Func<Task<TResult>> action);
-}
+#region F14: Execution Context Subsystem In-Memory Double
 
 public sealed class InMemoryExecutionContext : IExecutionContext
 {
-    private readonly List<ContextSlice> _slices;
+    private readonly AsyncLocal<ImmutableList<ContextSlice>?> _currentSlices = new();
+    private readonly ImmutableList<ContextSlice> _rootSlices;
     private readonly Dictionary<string, string> _environment;
 
     public InMemoryExecutionContext(
         string executionId,
-        CapabilityCaller caller,
+        CapabilityCaller? caller,
         IDictionary<string, string>? environment = null,
         IEnumerable<ContextSlice>? initialSlices = null,
         CancellationToken cancellationToken = default)
     {
         ExecutionId = executionId ?? Guid.NewGuid().ToString("N");
-        Caller = caller ?? throw new ArgumentNullException(nameof(caller));
+        Caller = caller;
         _environment = environment != null
             ? new Dictionary<string, string>(environment, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        _slices = initialSlices != null ? [.. initialSlices] : [];
+        _rootSlices = initialSlices != null ? [.. initialSlices] : [];
+        _currentSlices.Value = _rootSlices;
         CancellationToken = cancellationToken;
     }
 
     public string ExecutionId { get; }
-    public CapabilityCaller Caller { get; }
+    public CapabilityCaller? Caller { get; }
     public IReadOnlyDictionary<string, string> Environment => _environment;
-    public IReadOnlyList<ContextSlice> Slices => _slices.AsReadOnly();
+    public IReadOnlyList<ContextSlice> Slices => _currentSlices.Value ?? _rootSlices;
     public CancellationToken CancellationToken { get; }
 
     public async Task<TResult> WithSliceAsync<TResult>(ContextSlice slice, Func<Task<TResult>> action)
@@ -51,34 +50,22 @@ public sealed class InMemoryExecutionContext : IExecutionContext
         ArgumentNullException.ThrowIfNull(slice);
         ArgumentNullException.ThrowIfNull(action);
 
-        _slices.Add(slice);
+        var prev = _currentSlices.Value ?? _rootSlices;
+        _currentSlices.Value = prev.Add(slice);
         try
         {
             return await action().ConfigureAwait(false);
         }
         finally
         {
-            _slices.Remove(slice);
+            _currentSlices.Value = prev;
         }
     }
 }
 
 #endregion
 
-#region F15: Decision Maker Subsystem Contracts & In-Memory Double
-
-public sealed record ReactivePrompt(string Intent, IReadOnlyDictionary<string, string> Parameters, string Context = "");
-public sealed record FastDecision(string Choice, double Confidence, IReadOnlyDictionary<string, double> Probabilities);
-
-public sealed record DeliberateGoal(string Objective, string[] Constraints, int MaxIterations = 5);
-public sealed record GoalRun(bool Succeeded, int StepsExecuted, string[] TraceLogs);
-public sealed record DeliberateDecision(string Plan, GoalRun Outcome);
-
-public interface IDecisionMaker
-{
-    Task<FastDecision> DecideReactiveAsync(ReactivePrompt prompt, CancellationToken ct = default);
-    Task<DeliberateDecision> DecideDeliberateAsync(DeliberateGoal goal, CancellationToken ct = default);
-}
+#region F15: Decision Maker Subsystem In-Memory Double
 
 public sealed class InMemoryDecisionMaker : IDecisionMaker
 {
@@ -107,12 +94,13 @@ public sealed class InMemoryDecisionMaker : IDecisionMaker
             return Task.FromResult(matched);
         }
 
+        var defaultChoice = prompt.CandidateOperations.Length > 0 ? prompt.CandidateOperations[0] : "execute_default";
         var defaultDecision = new FastDecision(
-            Choice: "execute_default",
+            Choice: defaultChoice,
             Confidence: 0.95,
             Probabilities: new Dictionary<string, double>
             {
-                ["execute_default"] = 0.95,
+                [defaultChoice] = 0.95,
                 ["defer"] = 0.05
             });
 
@@ -125,35 +113,47 @@ public sealed class InMemoryDecisionMaker : IDecisionMaker
         ct.ThrowIfCancellationRequested();
 
         _auditTrail.Add($"Deliberate:{goal.Objective}");
-        var logs = new[]
+        var steps = new[]
         {
-            $"Deconstructed objective: {goal.Objective}",
-            $"Assessed {goal.Constraints.Length} constraints",
-            "Synthesized multi-step execution plan"
+            new GoalStep("kernel", "deconstruct", null, goal.Objective, "Objective deconstructed", null, 1.0),
+            new GoalStep("kernel", "assess", null, $"Capabilities: {goal.AvailableCapabilities?.Length ?? 0}", "Capabilities assessed", null, 1.0),
+            new GoalStep("kernel", "synthesize", null, null, "Plan synthesized", null, 1.0)
         };
 
-        var outcome = new GoalRun(Succeeded: true, StepsExecuted: 3, TraceLogs: logs);
+        var outcome = new GoalRun(goal.Objective, steps, $"Synthesized plan for: {goal.Objective}");
         var decision = new DeliberateDecision($"Plan for: {goal.Objective}", outcome);
         return Task.FromResult(decision);
+    }
+
+    public async Task<DecisionResult> DecideAsync(DecisionContext context, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ct.ThrowIfCancellationRequested();
+
+        if (context.Mode == DecisionMode.Deliberate)
+        {
+            var deliberate = await DecideDeliberateAsync(new DeliberateGoal(context.Intent, [.. context.Candidates], context.MaxSteps), ct).ConfigureAwait(false);
+            return new DecisionResult(
+                Choice: deliberate.Plan,
+                Confidence: 1.0,
+                ModeUsed: DecisionMode.Deliberate,
+                Plan: deliberate.Plan,
+                Outcome: deliberate.Outcome);
+        }
+
+        var reactivePrompt = new ReactivePrompt(context.Intent, [.. context.Candidates], context.Metadata);
+        var fast = await DecideReactiveAsync(reactivePrompt, ct).ConfigureAwait(false);
+        return new DecisionResult(
+            Choice: fast.Choice,
+            Confidence: fast.Confidence,
+            ModeUsed: DecisionMode.Reactive,
+            Probabilities: fast.Probabilities);
     }
 }
 
 #endregion
 
-#region F16: Knowledge Store & Graph Memory Contracts & In-Memory Double
-
-public sealed record KnowledgeNode(string Id, string Label, string Type, IReadOnlyDictionary<string, string> Properties);
-public sealed record KnowledgeEdge(string SourceId, string TargetId, string Relation, double Weight);
-public sealed record KnowledgeGraphView(IReadOnlyList<KnowledgeNode> Nodes, IReadOnlyList<KnowledgeEdge> Edges);
-public sealed record KnowledgeRecallHit(KnowledgeNode Node, double RelevanceScore);
-
-public interface IKnowledgeStore
-{
-    Task RecordNodeAsync(KnowledgeNode node, CancellationToken ct = default);
-    Task RecordEdgeAsync(KnowledgeEdge edge, CancellationToken ct = default);
-    Task<KnowledgeGraphView> QueryGraphAsync(string rootId, int depth = 2, CancellationToken ct = default);
-    Task<IReadOnlyList<KnowledgeRecallHit>> SemanticSearchAsync(string query, int limit = 10, CancellationToken ct = default);
-}
+#region F16: Knowledge Store & Graph Memory In-Memory Double
 
 public sealed class InMemoryKnowledgeStore : IKnowledgeStore
 {
@@ -168,6 +168,22 @@ public sealed class InMemoryKnowledgeStore : IKnowledgeStore
         return Task.CompletedTask;
     }
 
+    public Task<KnowledgeNode?> GetAsync(string id, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ct.ThrowIfCancellationRequested();
+        _nodes.TryGetValue(id, out var node);
+        return Task.FromResult<KnowledgeNode?>(node);
+    }
+
+    public Task DeleteNodeAsync(string id, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ct.ThrowIfCancellationRequested();
+        _nodes.TryRemove(id, out _);
+        return Task.CompletedTask;
+    }
+
     public Task RecordEdgeAsync(KnowledgeEdge edge, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(edge);
@@ -176,10 +192,40 @@ public sealed class InMemoryKnowledgeStore : IKnowledgeStore
         return Task.CompletedTask;
     }
 
-    public Task<KnowledgeGraphView> QueryGraphAsync(string rootId, int depth = 2, CancellationToken ct = default)
+    public Task<IReadOnlyList<KnowledgeEdge>> QueryEdgesAsync(string nodeId, EdgeDirection direction = EdgeDirection.Both, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(rootId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
         ct.ThrowIfCancellationRequested();
+
+        var query = _edges.Where(e => direction switch
+        {
+            EdgeDirection.Outgoing => string.Equals(e.SourceId, nodeId, StringComparison.OrdinalIgnoreCase),
+            EdgeDirection.Incoming => string.Equals(e.TargetId, nodeId, StringComparison.OrdinalIgnoreCase),
+            _ => string.Equals(e.SourceId, nodeId, StringComparison.OrdinalIgnoreCase) || string.Equals(e.TargetId, nodeId, StringComparison.OrdinalIgnoreCase)
+        }).ToList();
+
+        return Task.FromResult<IReadOnlyList<KnowledgeEdge>>(query);
+    }
+
+    public Task DeleteEdgeAsync(string sourceId, string targetId, string relation, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
+    public Task<KnowledgeGraphView> GetGraphViewAsync(string? rootId = null, int depth = 2, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(rootId))
+        {
+            return Task.FromResult(new KnowledgeGraphView(_nodes.Values.ToList(), _edges.Distinct().ToList()));
+        }
+
+        if (!_nodes.ContainsKey(rootId))
+        {
+            return Task.FromResult(new KnowledgeGraphView([], [], rootId));
+        }
 
         var visitedNodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { rootId };
         var activeNodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { rootId };
@@ -214,8 +260,11 @@ public sealed class InMemoryKnowledgeStore : IKnowledgeStore
         }
 
         var matchedNodes = _nodes.Values.Where(n => visitedNodes.Contains(n.Id)).ToList();
-        return Task.FromResult(new KnowledgeGraphView(matchedNodes, collectedEdges.Distinct().ToList()));
+        return Task.FromResult(new KnowledgeGraphView(matchedNodes, collectedEdges.Distinct().ToList(), rootId));
     }
+
+    public Task<KnowledgeGraphView> QueryGraphAsync(string rootId, int depth = 2, CancellationToken ct = default)
+        => GetGraphViewAsync(rootId, depth, ct);
 
     public Task<IReadOnlyList<KnowledgeRecallHit>> SemanticSearchAsync(string query, int limit = 10, CancellationToken ct = default)
     {
@@ -248,24 +297,7 @@ public sealed class InMemoryKnowledgeStore : IKnowledgeStore
 
 #endregion
 
-#region F17: Task Engine for Self-Improvement Contracts & In-Memory Double
-
-public enum AgentTaskStatus { Pending, InProgress, Succeeded, Failed, RolledBack }
-public enum TaskStepStatus { Pending, Running, Passed, Failed, Skipped }
-
-public sealed record TaskStep(string Id, string Description, TaskStepStatus Status, string? Output, string? Error);
-public sealed record AgentTask(string Id, string Title, string Objective, AgentTaskStatus Status, TaskStep[] Steps, DateTimeOffset CreatedAt);
-public sealed record CreateTaskRequest(string Title, string Objective, string[] StepDescriptions);
-public sealed record TaskVerificationResult(bool IsValid, string[] FailedAssertions, string Logs);
-
-public interface ITaskEngine
-{
-    Task<AgentTask> CreateTaskAsync(CreateTaskRequest request, CancellationToken ct = default);
-    Task<AgentTask> UpdateStepStatusAsync(string taskId, string stepId, TaskStepStatus status, string? error = null, CancellationToken ct = default);
-    Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken ct = default);
-    Task<IReadOnlyList<AgentTask>> ListTasksAsync(string? ownerPrincipalId = null, CancellationToken ct = default);
-    Task<TaskVerificationResult> VerifyTaskAsync(string taskId, CancellationToken ct = default);
-}
+#region F17: Task Engine for Self-Improvement In-Memory Double
 
 public sealed class InMemoryTaskEngine : ITaskEngine
 {
@@ -277,18 +309,34 @@ public sealed class InMemoryTaskEngine : ITaskEngine
         ct.ThrowIfCancellationRequested();
 
         var id = "task_" + Guid.NewGuid().ToString("N")[..8];
-        var steps = request.StepDescriptions.Select((desc, idx) =>
-            new TaskStep($"step_{idx + 1}", desc, TaskStepStatus.Pending, null, null)).ToArray();
+        var steps = request.Steps.Select((stepDef, idx) =>
+            new TaskStep(
+                Index: idx,
+                Title: stepDef.Title,
+                Description: stepDef.Description,
+                Capability: stepDef.Capability,
+                Status: TaskStepStatus.Pending,
+                RollbackCapability: stepDef.RollbackCapability,
+                Output: null,
+                StartedAt: null,
+                CompletedAt: null)).ToArray();
 
-        var task = new AgentTask(id, request.Title, request.Objective, AgentTaskStatus.Pending, steps, DateTimeOffset.UtcNow);
+        var task = new AgentTask(
+            TaskId: id,
+            Title: request.Title,
+            Description: request.Description,
+            Owner: request.Owner,
+            Status: TaskStatus.Pending,
+            Steps: steps,
+            CreatedAt: DateTimeOffset.UtcNow);
+
         _tasks[id] = task;
         return Task.FromResult(task);
     }
 
-    public Task<AgentTask> UpdateStepStatusAsync(string taskId, string stepId, TaskStepStatus status, string? error = null, CancellationToken ct = default)
+    public Task<AgentTask> AdvanceTaskStepAsync(string taskId, int stepIndex, TaskStepStatus newStatus, string? output = null, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(stepId);
         ct.ThrowIfCancellationRequested();
 
         if (!_tasks.TryGetValue(taskId, out var existing))
@@ -298,9 +346,15 @@ public sealed class InMemoryTaskEngine : ITaskEngine
 
         var newSteps = existing.Steps.Select(step =>
         {
-            if (string.Equals(step.Id, stepId, StringComparison.OrdinalIgnoreCase))
+            if (step.Index == stepIndex)
             {
-                return step with { Status = status, Error = error, Output = status == TaskStepStatus.Passed ? "Step completed successfully" : null };
+                return step with
+                {
+                    Status = newStatus,
+                    Output = output ?? (newStatus == TaskStepStatus.Completed ? "Step completed successfully" : null),
+                    CompletedAt = newStatus is TaskStepStatus.Completed or TaskStepStatus.Failed ? DateTimeOffset.UtcNow : step.CompletedAt,
+                    StartedAt = step.StartedAt ?? DateTimeOffset.UtcNow
+                };
             }
             return step;
         }).ToArray();
@@ -308,18 +362,23 @@ public sealed class InMemoryTaskEngine : ITaskEngine
         var overallStatus = existing.Status;
         if (newSteps.Any(s => s.Status == TaskStepStatus.Failed))
         {
-            overallStatus = AgentTaskStatus.Failed;
+            overallStatus = TaskStatus.Failed;
         }
-        else if (newSteps.All(s => s.Status == TaskStepStatus.Passed))
+        else if (newSteps.Length > 0 && newSteps.All(s => s.Status == TaskStepStatus.Completed))
         {
-            overallStatus = AgentTaskStatus.Succeeded;
+            overallStatus = TaskStatus.Completed;
         }
-        else if (newSteps.Any(s => s.Status == TaskStepStatus.Running || s.Status == TaskStepStatus.Passed))
+        else if (newSteps.Any(s => s.Status == TaskStepStatus.Running || s.Status == TaskStepStatus.Completed))
         {
-            overallStatus = AgentTaskStatus.InProgress;
+            overallStatus = TaskStatus.Running;
         }
 
-        var updated = existing with { Steps = newSteps, Status = overallStatus };
+        var updated = existing with
+        {
+            Steps = newSteps,
+            Status = overallStatus,
+            CompletedAt = overallStatus is TaskStatus.Completed or TaskStatus.Failed ? DateTimeOffset.UtcNow : existing.CompletedAt
+        };
         _tasks[taskId] = updated;
         return Task.FromResult(updated);
     }
@@ -333,11 +392,82 @@ public sealed class InMemoryTaskEngine : ITaskEngine
         return Task.FromResult(task);
     }
 
-    public Task<IReadOnlyList<AgentTask>> ListTasksAsync(string? ownerPrincipalId = null, CancellationToken ct = default)
+    public Task<IReadOnlyList<AgentTask>> ListTasksAsync(string? owner = null, TaskStatus? status = null, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var all = _tasks.Values.OrderByDescending(t => t.CreatedAt).ToList();
+        var query = _tasks.Values.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(owner))
+        {
+            query = query.Where(t => string.Equals(t.Owner, owner, StringComparison.OrdinalIgnoreCase));
+        }
+        if (status.HasValue)
+        {
+            query = query.Where(t => t.Status == status.Value);
+        }
+        var all = query.OrderByDescending(t => t.CreatedAt).ToList();
         return Task.FromResult<IReadOnlyList<AgentTask>>(all);
+    }
+
+    public Task<AgentTask> RollbackTaskAsync(string taskId, int toStepIndex, string reason, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+        ct.ThrowIfCancellationRequested();
+
+        if (!_tasks.TryGetValue(taskId, out var existing))
+        {
+            throw new KeyNotFoundException($"Task '{taskId}' not found.");
+        }
+
+        var rolledBack = existing with
+        {
+            Status = TaskStatus.RolledBack,
+            RollbackReason = reason
+        };
+        _tasks[taskId] = rolledBack;
+        return Task.FromResult(rolledBack);
+    }
+
+    public Task<AgentTask> CancelTaskAsync(string taskId, string reason, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+        ct.ThrowIfCancellationRequested();
+
+        if (!_tasks.TryGetValue(taskId, out var existing))
+        {
+            throw new KeyNotFoundException($"Task '{taskId}' not found.");
+        }
+
+        var cancelled = existing with
+        {
+            Status = TaskStatus.Cancelled,
+            RollbackReason = reason
+        };
+        _tasks[taskId] = cancelled;
+        return Task.FromResult(cancelled);
+    }
+
+    public Task<TaskVerificationResult> VerifyTaskStepAsync(string taskId, int stepIndex, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+        ct.ThrowIfCancellationRequested();
+
+        if (!_tasks.TryGetValue(taskId, out var task))
+        {
+            return Task.FromResult(new TaskVerificationResult(false, "Task missing", [$"Task '{taskId}' missing"]));
+        }
+
+        var step = task.Steps.FirstOrDefault(s => s.Index == stepIndex);
+        if (step == null)
+        {
+            return Task.FromResult(new TaskVerificationResult(false, $"Step {stepIndex} missing", [$"Step {stepIndex} not found in task '{taskId}'"]));
+        }
+
+        if (step.Status != TaskStepStatus.Completed)
+        {
+            return Task.FromResult(new TaskVerificationResult(false, $"Step {stepIndex} not completed", [$"Step {stepIndex} status is {step.Status}"]));
+        }
+
+        return Task.FromResult(new TaskVerificationResult(true, $"Step {stepIndex} verified successfully"));
     }
 
     public Task<TaskVerificationResult> VerifyTaskAsync(string taskId, CancellationToken ct = default)
@@ -347,59 +477,70 @@ public sealed class InMemoryTaskEngine : ITaskEngine
 
         if (!_tasks.TryGetValue(taskId, out var task))
         {
-            return Task.FromResult(new TaskVerificationResult(false, [$"Task '{taskId}' missing"], "Verification failed"));
+            return Task.FromResult(new TaskVerificationResult(false, "Verification failed", [$"Task '{taskId}' missing"]));
         }
 
         var failures = new List<string>();
         foreach (var step in task.Steps)
         {
-            if (step.Status != TaskStepStatus.Passed)
+            if (step.Status != TaskStepStatus.Completed)
             {
-                failures.Add($"Step '{step.Id}' [{step.Description}] did not pass (status: {step.Status})");
+                failures.Add($"Step '{step.Index}' [{step.Title}] did not pass (status: {step.Status})");
             }
         }
 
-        var isValid = failures.Count == 0 && task.Status == AgentTaskStatus.Succeeded;
-        return Task.FromResult(new TaskVerificationResult(isValid, [.. failures], $"Verified {task.Steps.Length} steps."));
+        var isPassed = failures.Count == 0 && task.Status == TaskStatus.Completed;
+        return Task.FromResult(new TaskVerificationResult(isPassed, $"Verified {task.Steps.Length} steps.", [.. failures]));
     }
 }
 
 #endregion
 
-#region F20: Reusable Testing Framework for Agent Verification
-
-public sealed record TestExecutionRequest(string TargetTier, string? FeatureFilter = null);
-public sealed record TestExecutionResult(bool AllPassed, int TotalExecuted, int PassedCount, int FailedCount, IReadOnlyList<string> Failures);
-
-public interface ITestVerificationService
-{
-    Task<TestExecutionResult> RunTargetedAsync(TestExecutionRequest request, CancellationToken ct = default);
-    Task<bool> VerifyMilestoneAsync(string milestoneId, CancellationToken ct = default);
-}
+#region F20: Reusable Testing Framework for Agent Verification In-Memory Double
 
 public sealed class InMemoryTestVerificationService : ITestVerificationService
 {
-    public Task<TestExecutionResult> RunTargetedAsync(TestExecutionRequest request, CancellationToken ct = default)
+    public Task<TestExecutionResult> RunTargetedSuiteAsync(TestExecutionRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ct.ThrowIfCancellationRequested();
+        cancellationToken.ThrowIfCancellationRequested();
 
         var result = new TestExecutionResult(
-            AllPassed: true,
-            TotalExecuted: 10,
-            PassedCount: 10,
-            FailedCount: 0,
+            Success: true,
+            Total: 10,
+            Passed: 10,
+            Failed: 0,
+            Skipped: 0,
+            DurationMs: 42,
+            Summary: "All tests executed successfully.",
             Failures: []);
 
         return Task.FromResult(result);
     }
 
-    public Task<bool> VerifyMilestoneAsync(string milestoneId, CancellationToken ct = default)
+    public Task<IReadOnlyList<TestResultSummary>> GetHistoricalRunsAsync(string testSuiteId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(milestoneId);
-        ct.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(testSuiteId);
+        if (string.IsNullOrWhiteSpace(testSuiteId))
+        {
+            throw new ArgumentException("TestSuiteId cannot be empty or whitespace.", nameof(testSuiteId));
+        }
+        cancellationToken.ThrowIfCancellationRequested();
 
-        return Task.FromResult(true);
+        var list = new List<TestResultSummary>
+        {
+            new TestResultSummary(
+                RunId: "run_1",
+                SuiteName: testSuiteId,
+                ExecutedAt: DateTimeOffset.UtcNow,
+                Success: true,
+                Total: 10,
+                Passed: 10,
+                Failed: 0,
+                DurationMs: 42)
+        };
+
+        return Task.FromResult<IReadOnlyList<TestResultSummary>>(list);
     }
 }
 

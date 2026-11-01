@@ -12,11 +12,20 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
+using IntoChat.OS.Modules.AI.Context;
+using IntoChat.OS.Modules.AI.Decision;
+using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.Apps.Contracts.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
+using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
+using InMemoryKnowledgeStore = IntoChat.OS.Kernel.Tests.Integration.E2E.Harness.InMemoryKnowledgeStore;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
 
@@ -63,13 +72,13 @@ public sealed class Tier4_RealWorldScenariosFacts
         // Step 2: Formulate improvement goal via Deliberate Decision Maker
         var goal = new DeliberateGoal("Optimize kernel signal dispatch latency", ["zero-allocation-hotpath", "preserve-ordering"]);
         var plan = await decisionMaker.DecideDeliberateAsync(goal);
-        Assert.True(plan.Outcome.Succeeded);
-        Assert.NotEmpty(plan.Outcome.TraceLogs);
+        Assert.NotEmpty(plan.Outcome.Steps);
 
         // Step 3: Enqueue task in Task Engine with sub-steps derived from plan
-        var taskReq = new CreateTaskRequest("Kernel Latency Optimization", plan.Plan, plan.Outcome.TraceLogs);
+        var steps = plan.Outcome.Steps.Select(s => new TaskStepDefinition(s.Method, s.Result ?? s.Method, "kernel")).ToArray();
+        var taskReq = new CreateTaskRequest("Kernel Latency Optimization", plan.Plan, "admin", steps);
         var agentTask = await taskEngine.CreateTaskAsync(taskReq);
-        Assert.Equal(AgentTaskStatus.Pending, agentTask.Status);
+        Assert.Equal(TaskStatus.Pending, agentTask.Status);
         Assert.Equal(3, agentTask.Steps.Length);
 
         // Step 4: Execute within context slices, recording performance telemetry
@@ -81,21 +90,21 @@ public sealed class Tier4_RealWorldScenariosFacts
             telemetryBarrier.RecordMetric("benchmark.candidate.latency_ms", 4.1);
 
             // Step 5: Mark step 1 & 2 as passed
-            await taskEngine.UpdateStepStatusAsync(agentTask.Id, "step_1", TaskStepStatus.Passed);
-            await taskEngine.UpdateStepStatusAsync(agentTask.Id, "step_2", TaskStepStatus.Passed);
+            await taskEngine.AdvanceTaskStepAsync(agentTask.TaskId, 0, TaskStepStatus.Completed);
+            await taskEngine.AdvanceTaskStepAsync(agentTask.TaskId, 1, TaskStepStatus.Completed);
             return true;
         });
 
         // Step 6: Automated regression test verification
-        var testResult = await verificationService.RunTargetedAsync(new TestExecutionRequest("Tier1_FeatureCoverage", "F1"));
-        Assert.True(testResult.AllPassed);
+        var testResult = await verificationService.RunTargetedSuiteAsync(new TestExecutionRequest("Tier1_FeatureCoverage", "F1"));
+        Assert.True(testResult.Success);
 
         // Step 7: Finalize remaining task step and verify complete task resolution
-        var finalTask = await taskEngine.UpdateStepStatusAsync(agentTask.Id, "step_3", TaskStepStatus.Passed);
-        Assert.Equal(AgentTaskStatus.Succeeded, finalTask.Status);
+        var finalTask = await taskEngine.AdvanceTaskStepAsync(agentTask.TaskId, 2, TaskStepStatus.Completed);
+        Assert.Equal(TaskStatus.Completed, finalTask.Status);
 
-        var taskVerification = await taskEngine.VerifyTaskAsync(agentTask.Id);
-        Assert.True(taskVerification.IsValid);
+        var taskVerification = await taskEngine.VerifyTaskAsync(agentTask.TaskId);
+        Assert.True(taskVerification.Passed);
 
         // Step 8: Telemetry barrier flush
         await telemetryBarrier.FlushAsync();
@@ -284,8 +293,8 @@ public sealed class Tier4_RealWorldScenariosFacts
 
         var decision = await dm.DecideDeliberateAsync(goal);
         Assert.NotNull(decision);
-        Assert.True(decision.Outcome.Succeeded);
-        Assert.Equal(3, decision.Outcome.StepsExecuted);
+        Assert.Equal(3, decision.Outcome.Steps.Length);
+        Assert.All(decision.Outcome.Steps, s => Assert.Null(s.Error));
 
         // Step 5: Verify deliberate execution trace
         Assert.Contains(dm.AuditTrail, trail => trail.Contains("Optimize media ingestion route"));
@@ -310,15 +319,20 @@ public sealed class Tier4_RealWorldScenariosFacts
         var task = await taskEngine.CreateTaskAsync(new CreateTaskRequest(
             "Primary Node Health Check",
             "Detect and recover from unresponsive cluster node",
-            ["ping_primary", "trigger_failover", "verify_standby"]));
+            "admin",
+            [
+                new TaskStepDefinition("s1", "ping_primary", "kernel"),
+                new TaskStepDefinition("s2", "trigger_failover", "kernel"),
+                new TaskStepDefinition("s3", "verify_standby", "kernel")
+            ]));
 
         // Step 3: Step 1 fails due to injected timeout
-        var failedTask = await taskEngine.UpdateStepStatusAsync(task.Id, "step_1", TaskStepStatus.Failed, "Connection timed out after 5000ms");
-        Assert.Equal(AgentTaskStatus.Failed, failedTask.Status);
+        var failedTask = await taskEngine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Failed, "Connection timed out after 5000ms");
+        Assert.Equal(TaskStatus.Failed, failedTask.Status);
         telemetryBarrier.RecordMetric("node.failures.injected", 1.0);
 
         // Step 4: Decision Maker resolves failover strategy via reactive rule
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("node_unresponsive", new Dictionary<string, string>
+        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("node_unresponsive", ["failover_to_standby"], new Dictionary<string, string>
         {
             ["failed_node"] = "primary-01"
         }));
@@ -330,11 +344,15 @@ public sealed class Tier4_RealWorldScenariosFacts
         var recoveryTask = await taskEngine.CreateTaskAsync(new CreateTaskRequest(
             "Execute Failover",
             "Promote standby node",
-            ["route_traffic_standby", "verify_quorum"]));
+            "admin",
+            [
+                new TaskStepDefinition("r1", "route_traffic_standby", "kernel"),
+                new TaskStepDefinition("r2", "verify_quorum", "kernel")
+            ]));
 
-        await taskEngine.UpdateStepStatusAsync(recoveryTask.Id, "step_1", TaskStepStatus.Passed);
-        var completedRecovery = await taskEngine.UpdateStepStatusAsync(recoveryTask.Id, "step_2", TaskStepStatus.Passed);
-        Assert.Equal(AgentTaskStatus.Succeeded, completedRecovery.Status);
+        await taskEngine.AdvanceTaskStepAsync(recoveryTask.TaskId, 0, TaskStepStatus.Completed);
+        var completedRecovery = await taskEngine.AdvanceTaskStepAsync(recoveryTask.TaskId, 1, TaskStepStatus.Completed);
+        Assert.Equal(TaskStatus.Completed, completedRecovery.Status);
 
         telemetryBarrier.RecordMetric("node.failover.succeeded", 1.0);
 

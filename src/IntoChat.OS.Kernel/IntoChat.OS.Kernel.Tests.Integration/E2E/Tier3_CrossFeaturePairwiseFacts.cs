@@ -13,11 +13,20 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
+using IntoChat.OS.Modules.AI.Context;
+using IntoChat.OS.Modules.AI.Decision;
+using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.Apps.Contracts.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
+using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
+using InMemoryKnowledgeStore = IntoChat.OS.Kernel.Tests.Integration.E2E.Harness.InMemoryKnowledgeStore;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
 
@@ -95,7 +104,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
             {
                 throw new InvalidOperationException("Caller context lacks verified provenance");
             }
-            return await dm.DecideReactiveAsync(new ReactivePrompt("execute_critical", new Dictionary<string, string>()));
+            return await dm.DecideReactiveAsync(new ReactivePrompt("execute_critical", ["execute_critical"]));
         }
         await Assert.ThrowsAsync<InvalidOperationException>(UnauthenticatedCall);
 
@@ -103,13 +112,13 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
         var trustedCaller = CapabilityCallers.Of("agent-kernel", "acc-admin", "brain-primary", CallerKind.User);
         Assert.True(CallerContextStamper.IsTrusted(trustedCaller));
 
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("execute_critical", new Dictionary<string, string>
+        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("execute_critical", ["execute_critical"], new Dictionary<string, string>
         {
             ["caller"] = trustedCaller.PrincipalId
         }));
 
         Assert.NotNull(decision);
-        Assert.Equal("execute_default", decision.Choice);
+        Assert.Equal("execute_critical", decision.Choice);
         Assert.True(decision.Confidence > 0.9);
     }
 
@@ -132,8 +141,8 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
 
         var plan = await dm.DecideDeliberateAsync(goal);
         Assert.NotNull(plan);
-        Assert.True(plan.Outcome.Succeeded);
-        Assert.Equal(3, plan.Outcome.StepsExecuted);
+        Assert.Equal(3, plan.Outcome.Steps.Length);
+        Assert.All(plan.Outcome.Steps, s => Assert.Null(s.Error));
         Assert.Contains("Deliberate:Optimize database routing based on graph memory", dm.AuditTrail);
     }
 
@@ -147,23 +156,23 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
         var verifier = new InMemoryTestVerificationService();
 
         // 1. Enqueue self-improvement task
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Run Unit Benchmarks", "Improve latency", ["run_tests", "record_metric"]));
-        Assert.Equal(AgentTaskStatus.Pending, task.Status);
+        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Run Unit Benchmarks", "Improve latency", "admin", [new TaskStepDefinition("s1", "run_tests", "kernel"), new TaskStepDefinition("s2", "record_metric", "kernel")]));
+        Assert.Equal(TaskStatus.Pending, task.Status);
 
         // 2. Automated verification execution
-        var testResult = await verifier.RunTargetedAsync(new TestExecutionRequest("Tier1_FeatureCoverage", "F1"));
-        Assert.True(testResult.AllPassed);
+        var testResult = await verifier.RunTargetedSuiteAsync(new TestExecutionRequest("Tier1_FeatureCoverage", "F1"));
+        Assert.True(testResult.Success);
 
         // 3. Update task steps based on test pass
-        var t1 = await engine.UpdateStepStatusAsync(task.Id, "step_1", TaskStepStatus.Passed);
-        Assert.Equal(AgentTaskStatus.InProgress, t1.Status);
+        var t1 = await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed);
+        Assert.Equal(TaskStatus.Running, t1.Status);
 
-        var t2 = await engine.UpdateStepStatusAsync(task.Id, "step_2", TaskStepStatus.Passed);
-        Assert.Equal(AgentTaskStatus.Succeeded, t2.Status);
+        var t2 = await engine.AdvanceTaskStepAsync(task.TaskId, 1, TaskStepStatus.Completed);
+        Assert.Equal(TaskStatus.Completed, t2.Status);
 
         // 4. Verify overall task completion
-        var verification = await engine.VerifyTaskAsync(task.Id);
-        Assert.True(verification.IsValid);
+        var verification = await engine.VerifyTaskAsync(task.TaskId);
+        Assert.True(verification.Passed);
     }
 
     [Fact]
@@ -173,7 +182,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     {
         // F3 (Confirmations) + F17 (Canonical Task Engine)
         var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Database Migration", "Apply schema", ["await_confirmation", "apply_sql"]));
+        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Database Migration", "Apply schema", "admin", [new TaskStepDefinition("s1", "await_confirmation", "kernel"), new TaskStepDefinition("s2", "apply_sql", "kernel")]));
 
         var tcs = new TaskCompletionSource<ConfirmationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -181,7 +190,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
         var confirmTask = Task.Run(async () =>
         {
             await Task.Yield();
-            tcs.TrySetResult(new ConfirmationResult(task.Id, ConfirmationOutcome.Approved, ConfirmationDenyReason.None, Skipped: false));
+            tcs.TrySetResult(new ConfirmationResult(task.TaskId, ConfirmationOutcome.Approved, ConfirmationDenyReason.None, Skipped: false));
         });
 
         var confirmation = await tcs.Task;
@@ -191,9 +200,9 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
         Assert.True(confirmation.Approved);
 
         // Once confirmed, steps advance to Succeeded
-        await engine.UpdateStepStatusAsync(task.Id, "step_1", TaskStepStatus.Passed);
-        var finalTask = await engine.UpdateStepStatusAsync(task.Id, "step_2", TaskStepStatus.Passed);
-        Assert.Equal(AgentTaskStatus.Succeeded, finalTask.Status);
+        await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed);
+        var finalTask = await engine.AdvanceTaskStepAsync(task.TaskId, 1, TaskStepStatus.Completed);
+        Assert.Equal(TaskStatus.Completed, finalTask.Status);
     }
 
     [Fact]
@@ -376,24 +385,25 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
         var goal = new DeliberateGoal("Scale cluster worker pool", ["min_instances=3", "max_instances=10"]);
         var decision = await dm.DecideDeliberateAsync(goal);
         Assert.NotNull(decision);
-        Assert.NotEmpty(decision.Outcome.TraceLogs);
+        Assert.NotEmpty(decision.Outcome.Steps);
 
         // Convert decision trace into subtasks
-        var taskReq = new CreateTaskRequest("Scale Workers Task", decision.Plan, decision.Outcome.TraceLogs);
+        var steps = decision.Outcome.Steps.Select(s => new TaskStepDefinition(s.Method, s.Result ?? s.Method, "kernel")).ToArray();
+        var taskReq = new CreateTaskRequest("Scale Workers Task", decision.Plan, "admin", steps);
         var task = await engine.CreateTaskAsync(taskReq);
 
-        Assert.Equal(AgentTaskStatus.Pending, task.Status);
-        Assert.Equal(decision.Outcome.TraceLogs.Length, task.Steps.Length);
+        Assert.Equal(TaskStatus.Pending, task.Status);
+        Assert.Equal(decision.Outcome.Steps.Length, task.Steps.Length);
 
         // Complete each subtask step
         for (int i = 0; i < task.Steps.Length; i++)
         {
-            await engine.UpdateStepStatusAsync(task.Id, task.Steps[i].Id, TaskStepStatus.Passed);
+            await engine.AdvanceTaskStepAsync(task.TaskId, i, TaskStepStatus.Completed);
         }
 
-        var completed = await engine.GetTaskAsync(task.Id);
+        var completed = await engine.GetTaskAsync(task.TaskId);
         Assert.NotNull(completed);
-        Assert.Equal(AgentTaskStatus.Succeeded, completed.Status);
+        Assert.Equal(TaskStatus.Completed, completed.Status);
     }
 
     [Fact]
@@ -405,8 +415,8 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
         var store = new InMemoryKnowledgeStore();
         var verifier = new InMemoryTestVerificationService();
 
-        var testRun = await verifier.RunTargetedAsync(new TestExecutionRequest("Tier2_BoundaryCorner"));
-        Assert.True(testRun.AllPassed);
+        var testRun = await verifier.RunTargetedSuiteAsync(new TestExecutionRequest("Tier2_BoundaryCorner"));
+        Assert.True(testRun.Success);
 
         var runNode = new KnowledgeNode(
             "run_001",
@@ -414,8 +424,8 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
             "TestResult",
             new Dictionary<string, string>
             {
-                ["PassedCount"] = testRun.PassedCount.ToString(),
-                ["AllPassed"] = testRun.AllPassed.ToString()
+                ["PassedCount"] = testRun.Passed.ToString(),
+                ["AllPassed"] = testRun.Success.ToString()
             });
 
         await store.RecordNodeAsync(runNode);

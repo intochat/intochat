@@ -14,11 +14,20 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
+using IntoChat.OS.Modules.AI.Context;
+using IntoChat.OS.Modules.AI.Decision;
+using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.Apps.Contracts.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
+using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
+using InMemoryKnowledgeStore = IntoChat.OS.Kernel.Tests.Integration.E2E.Harness.InMemoryKnowledgeStore;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
 
@@ -873,7 +882,7 @@ public sealed class Tier1_FeatureCoverageFacts
         var ctx = new InMemoryExecutionContext("exec_001", caller, env);
 
         Assert.Equal("exec_001", ctx.ExecutionId);
-        Assert.Equal("usr_ctx", ctx.Caller.PrincipalId);
+        Assert.Equal("usr_ctx", ctx.Caller!.PrincipalId);
         Assert.Equal("us-east-1", ctx.Environment["REGION"]);
         Assert.Empty(ctx.Slices);
     }
@@ -948,11 +957,11 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F15_01_DecideReactiveAsync_ReturnsHighConfidenceFastDecision()
     {
         var dm = new InMemoryDecisionMaker();
-        var prompt = new ReactivePrompt("route_chat", new Dictionary<string, string> { ["tone"] = "casual" });
+        var prompt = new ReactivePrompt("route_chat", ["route_chat", "fallback"], new Dictionary<string, string> { ["tone"] = "casual" });
 
         var decision = await dm.DecideReactiveAsync(prompt);
         Assert.NotNull(decision);
-        Assert.Equal("execute_default", decision.Choice);
+        Assert.Equal("route_chat", decision.Choice);
         Assert.True(decision.Confidence >= 0.9);
         Assert.Contains("Reactive:route_chat", dm.AuditTrail);
     }
@@ -965,7 +974,7 @@ public sealed class Tier1_FeatureCoverageFacts
         var dm = new InMemoryDecisionMaker();
         dm.RegisterReactiveRule("stream_audio", "codec_opus", 0.99);
 
-        var prompt = new ReactivePrompt("stream_audio", new Dictionary<string, string>());
+        var prompt = new ReactivePrompt("stream_audio", ["stream_audio"]);
         var decision = await dm.DecideReactiveAsync(prompt);
 
         Assert.Equal("codec_opus", decision.Choice);
@@ -983,8 +992,8 @@ public sealed class Tier1_FeatureCoverageFacts
         var decision = await dm.DecideDeliberateAsync(goal);
         Assert.NotNull(decision);
         Assert.Contains("Refactor storage hierarchy", decision.Plan);
-        Assert.True(decision.Outcome.Succeeded);
-        Assert.Equal(3, decision.Outcome.StepsExecuted);
+        Assert.Equal(3, decision.Outcome.Steps.Length);
+        Assert.All(decision.Outcome.Steps, s => Assert.Null(s.Error));
         Assert.Contains("Deliberate:Refactor storage hierarchy", dm.AuditTrail);
     }
 
@@ -994,7 +1003,7 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F15_04_DecisionMaker_AuditTrail_MaintainsSequence()
     {
         var dm = new InMemoryDecisionMaker();
-        await dm.DecideReactiveAsync(new ReactivePrompt("step1", new Dictionary<string, string>()));
+        await dm.DecideReactiveAsync(new ReactivePrompt("step1", ["step1"]));
         await dm.DecideDeliberateAsync(new DeliberateGoal("step2", []));
 
         Assert.Equal(2, dm.AuditTrail.Count);
@@ -1012,7 +1021,7 @@ public sealed class Tier1_FeatureCoverageFacts
         cts.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            dm.DecideReactiveAsync(new ReactivePrompt("op", new Dictionary<string, string>()), cts.Token));
+            dm.DecideReactiveAsync(new ReactivePrompt("op", ["op"]), cts.Token));
     }
 
     #endregion
@@ -1112,11 +1121,11 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F17_01_CreateTaskAsync_InitializesStepsInPendingState()
     {
         var engine = new InMemoryTaskEngine();
-        var req = new CreateTaskRequest("Upgrade Subsystems", "Execute M4 unification", ["Define context", "Unify decision maker"]);
+        var req = new CreateTaskRequest("Upgrade Subsystems", "Execute M4 unification", "admin", [new TaskStepDefinition("s1", "Define context", "kernel"), new TaskStepDefinition("s2", "Unify decision maker", "kernel")]);
 
         var task = await engine.CreateTaskAsync(req);
-        Assert.NotNull(task.Id);
-        Assert.Equal(AgentTaskStatus.Pending, task.Status);
+        Assert.NotNull(task.TaskId);
+        Assert.Equal(TaskStatus.Pending, task.Status);
         Assert.Equal(2, task.Steps.Length);
         Assert.All(task.Steps, s => Assert.Equal(TaskStepStatus.Pending, s.Status));
     }
@@ -1127,13 +1136,13 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F17_02_UpdateStepStatusAsync_AdvancesTaskToInProgressAndSucceeded()
     {
         var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Self-Test", "Run suite", ["step 1", "step 2"]));
+        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Self-Test", "Run suite", "admin", [new TaskStepDefinition("s1", "step 1", "kernel"), new TaskStepDefinition("s2", "step 2", "kernel")]));
 
-        var t1 = await engine.UpdateStepStatusAsync(task.Id, "step_1", TaskStepStatus.Passed);
-        Assert.Equal(AgentTaskStatus.InProgress, t1.Status);
+        var t1 = await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed);
+        Assert.Equal(TaskStatus.Running, t1.Status);
 
-        var t2 = await engine.UpdateStepStatusAsync(task.Id, "step_2", TaskStepStatus.Passed);
-        Assert.Equal(AgentTaskStatus.Succeeded, t2.Status);
+        var t2 = await engine.AdvanceTaskStepAsync(task.TaskId, 1, TaskStepStatus.Completed);
+        Assert.Equal(TaskStatus.Completed, t2.Status);
     }
 
     [Fact]
@@ -1142,11 +1151,11 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F17_03_UpdateStepStatusAsync_FailsTaskOnStepFailure()
     {
         var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Deploy", "Deploy cluster", ["provision", "migrate"]));
+        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Deploy", "Deploy cluster", "admin", [new TaskStepDefinition("s1", "provision", "kernel"), new TaskStepDefinition("s2", "migrate", "kernel")]));
 
-        var failedTask = await engine.UpdateStepStatusAsync(task.Id, "step_1", TaskStepStatus.Failed, "Resource limit exceeded");
-        Assert.Equal(AgentTaskStatus.Failed, failedTask.Status);
-        Assert.Equal("Resource limit exceeded", failedTask.Steps[0].Error);
+        var failedTask = await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Failed, "Resource limit exceeded");
+        Assert.Equal(TaskStatus.Failed, failedTask.Status);
+        Assert.Equal("Resource limit exceeded", failedTask.Steps[0].Output);
     }
 
     [Fact]
@@ -1155,8 +1164,8 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F17_04_ListTasksAsync_ReturnsCreatedTasksDescending()
     {
         var engine = new InMemoryTaskEngine();
-        await engine.CreateTaskAsync(new CreateTaskRequest("T1", "Obj 1", ["s1"]));
-        await engine.CreateTaskAsync(new CreateTaskRequest("T2", "Obj 2", ["s2"]));
+        await engine.CreateTaskAsync(new CreateTaskRequest("T1", "Obj 1", "admin", [new TaskStepDefinition("s1", "s1", "kernel")]));
+        await engine.CreateTaskAsync(new CreateTaskRequest("T2", "Obj 2", "admin", [new TaskStepDefinition("s2", "s2", "kernel")]));
 
         var list = await engine.ListTasksAsync();
         Assert.Equal(2, list.Count);
@@ -1168,14 +1177,14 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F17_05_VerifyTaskAsync_ValidatesSuccessfulCompletion()
     {
         var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Build Verification", "Verify code", ["Compile", "Run Tests"]));
+        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Build Verification", "Verify code", "admin", [new TaskStepDefinition("s1", "Compile", "kernel"), new TaskStepDefinition("s2", "Run Tests", "kernel")]));
 
-        await engine.UpdateStepStatusAsync(task.Id, "step_1", TaskStepStatus.Passed);
-        await engine.UpdateStepStatusAsync(task.Id, "step_2", TaskStepStatus.Passed);
+        await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed);
+        await engine.AdvanceTaskStepAsync(task.TaskId, 1, TaskStepStatus.Completed);
 
-        var verification = await engine.VerifyTaskAsync(task.Id);
-        Assert.True(verification.IsValid);
-        Assert.Empty(verification.FailedAssertions);
+        var verification = await engine.VerifyTaskAsync(task.TaskId);
+        Assert.True(verification.Passed);
+        Assert.True(verification.Violations is null || verification.Violations.Length == 0);
     }
 
     #endregion
@@ -1303,11 +1312,11 @@ public sealed class Tier1_FeatureCoverageFacts
         var svc = new InMemoryTestVerificationService();
         var req = new TestExecutionRequest("Tier1_FeatureCoverage", "F1");
 
-        var result = await svc.RunTargetedAsync(req);
-        Assert.True(result.AllPassed);
-        Assert.Equal(10, result.TotalExecuted);
-        Assert.Equal(10, result.PassedCount);
-        Assert.Equal(0, result.FailedCount);
+        var result = await svc.RunTargetedSuiteAsync(req);
+        Assert.True(result.Success);
+        Assert.Equal(10, result.Total);
+        Assert.Equal(10, result.Passed);
+        Assert.Equal(0, result.Failed);
     }
 
     [Fact]
@@ -1316,8 +1325,10 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F20_02_TestVerificationService_VerifiesMilestones()
     {
         var svc = new InMemoryTestVerificationService();
-        var approved = await svc.VerifyMilestoneAsync("M1");
-        Assert.True(approved);
+        var runs = await svc.GetHistoricalRunsAsync("M1");
+        Assert.NotNull(runs);
+        Assert.NotEmpty(runs);
+        Assert.True(runs[0].Success);
     }
 
     [Fact]
@@ -1326,7 +1337,7 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F20_03_TestExecutionResult_EncapsulatesFailureLogs()
     {
         var svc = new InMemoryTestVerificationService();
-        var result = await svc.RunTargetedAsync(new TestExecutionRequest("Tier2_BoundaryCorner"));
+        var result = await svc.RunTargetedSuiteAsync(new TestExecutionRequest("Tier2_BoundaryCorner"));
         Assert.Empty(result.Failures);
     }
 
@@ -1336,8 +1347,8 @@ public sealed class Tier1_FeatureCoverageFacts
     public void F20_04_TestExecutionRequest_InitializesWithDefaults()
     {
         var req = new TestExecutionRequest("Tier3_CrossFeature");
-        Assert.Equal("Tier3_CrossFeature", req.TargetTier);
-        Assert.Null(req.FeatureFilter);
+        Assert.Equal("Tier3_CrossFeature", req.SuiteName);
+        Assert.Null(req.Filter);
     }
 
     [Fact]
@@ -1346,7 +1357,7 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F20_05_VerifyMilestoneAsync_ThrowsOnEmptyMilestoneId()
     {
         var svc = new InMemoryTestVerificationService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.VerifyMilestoneAsync(""));
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.GetHistoricalRunsAsync(""));
     }
 
     #endregion

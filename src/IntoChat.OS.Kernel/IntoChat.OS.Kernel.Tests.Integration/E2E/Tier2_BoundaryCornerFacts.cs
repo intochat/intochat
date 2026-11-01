@@ -14,11 +14,20 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
+using IntoChat.OS.Modules.AI.Context;
+using IntoChat.OS.Modules.AI.Decision;
+using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.Apps.Contracts.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
+using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
+using InMemoryKnowledgeStore = IntoChat.OS.Kernel.Tests.Integration.E2E.Harness.InMemoryKnowledgeStore;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
 
@@ -922,7 +931,7 @@ public sealed class Tier2_BoundaryCornerFacts
         var dm = new InMemoryDecisionMaker();
         dm.RegisterReactiveRule("uncertain_op", "risky_choice", 0.0);
 
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("uncertain_op", new Dictionary<string, string>()));
+        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("uncertain_op", ["risky_choice"]));
         Assert.Equal("risky_choice", decision.Choice);
         Assert.Equal(0.0, decision.Confidence);
     }
@@ -935,7 +944,7 @@ public sealed class Tier2_BoundaryCornerFacts
         var dm = new InMemoryDecisionMaker();
         dm.RegisterReactiveRule("certain_op", "safe_choice", 1.0);
 
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("certain_op", new Dictionary<string, string>()));
+        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("certain_op", ["safe_choice"]));
         Assert.Equal("safe_choice", decision.Choice);
         Assert.Equal(1.0, decision.Confidence);
     }
@@ -949,7 +958,7 @@ public sealed class Tier2_BoundaryCornerFacts
         var goal = new DeliberateGoal("Freeform goal", []);
 
         var decision = await dm.DecideDeliberateAsync(goal);
-        Assert.True(decision.Outcome.Succeeded);
+        Assert.NotEmpty(decision.Outcome.Steps);
     }
 
     [Fact]
@@ -962,7 +971,7 @@ public sealed class Tier2_BoundaryCornerFacts
         var goal = new DeliberateGoal("Constrained goal", constraints);
 
         var decision = await dm.DecideDeliberateAsync(goal);
-        Assert.True(decision.Outcome.Succeeded);
+        Assert.NotEmpty(decision.Outcome.Steps);
     }
 
     [Fact]
@@ -974,7 +983,7 @@ public sealed class Tier2_BoundaryCornerFacts
         dm.RegisterReactiveRule("intent", "first", 0.5);
         dm.RegisterReactiveRule("intent", "second", 0.99);
 
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("intent", new Dictionary<string, string>()));
+        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("intent", ["first", "second"]));
         Assert.Equal("second", decision.Choice);
         Assert.Equal(0.99, decision.Confidence);
     }
@@ -1066,10 +1075,10 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F17_B01_CreateTaskAsync_ZeroSteps_CreatesValidPendingTask()
     {
         var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Empty Task", "Nothing", []));
+        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Empty Task", "Nothing", "admin", []));
 
-        Assert.NotNull(task.Id);
-        Assert.Equal(AgentTaskStatus.Pending, task.Status);
+        Assert.NotNull(task.TaskId);
+        Assert.Equal(TaskStatus.Pending, task.Status);
         Assert.Empty(task.Steps);
     }
 
@@ -1079,8 +1088,8 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F17_B02_TaskEngine_ManySteps_HandlesFiftySteps()
     {
         var engine = new InMemoryTaskEngine();
-        var steps = Enumerable.Range(1, 50).Select(i => $"step description {i}").ToArray();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Long Task", "Multi step", steps));
+        var steps = Enumerable.Range(1, 50).Select(i => new TaskStepDefinition($"step_{i}", $"step description {i}", "kernel")).ToArray();
+        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Long Task", "Multi step", "admin", steps));
 
         Assert.Equal(50, task.Steps.Length);
     }
@@ -1091,9 +1100,9 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F17_B03_UpdateStepStatusAsync_UnknownStepId_DoesNotAlterOtherSteps()
     {
         var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Task", "Obj", ["s1", "s2"]));
+        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Task", "Obj", "admin", [new TaskStepDefinition("s1", "s1", "kernel"), new TaskStepDefinition("s2", "s2", "kernel")]));
 
-        var updated = await engine.UpdateStepStatusAsync(task.Id, "non_existent_step", TaskStepStatus.Passed);
+        var updated = await engine.AdvanceTaskStepAsync(task.TaskId, 999, TaskStepStatus.Completed);
         Assert.All(updated.Steps, s => Assert.Equal(TaskStepStatus.Pending, s.Status));
     }
 
@@ -1104,7 +1113,7 @@ public sealed class Tier2_BoundaryCornerFacts
     {
         var engine = new InMemoryTaskEngine();
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            engine.UpdateStepStatusAsync("non_existent_task", "step_1", TaskStepStatus.Passed));
+            engine.AdvanceTaskStepAsync("non_existent_task", 0, TaskStepStatus.Completed));
     }
 
     [Fact]
@@ -1114,8 +1123,8 @@ public sealed class Tier2_BoundaryCornerFacts
     {
         var engine = new InMemoryTaskEngine();
         var result = await engine.VerifyTaskAsync("missing_task_id");
-        Assert.False(result.IsValid);
-        Assert.NotEmpty(result.FailedAssertions);
+        Assert.False(result.Passed);
+        Assert.NotEmpty(result.Violations!);
     }
 
     #endregion
@@ -1241,8 +1250,8 @@ public sealed class Tier2_BoundaryCornerFacts
     {
         var svc = new InMemoryTestVerificationService();
         var req = new TestExecutionRequest("Tier1", "");
-        var res = await svc.RunTargetedAsync(req);
-        Assert.True(res.AllPassed);
+        var res = await svc.RunTargetedSuiteAsync(req);
+        Assert.True(res.Success);
     }
 
     [Fact]
@@ -1251,7 +1260,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F20_B02_RunTargetedAsync_NullRequest_ThrowsArgumentNullException()
     {
         var svc = new InMemoryTestVerificationService();
-        await Assert.ThrowsAsync<ArgumentNullException>(() => svc.RunTargetedAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => svc.RunTargetedSuiteAsync(null!));
     }
 
     [Fact]
@@ -1260,8 +1269,10 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F20_B03_VerifyMilestoneAsync_ValidMilestone_ReturnsTrue()
     {
         var svc = new InMemoryTestVerificationService();
-        var res = await svc.VerifyMilestoneAsync("M6");
-        Assert.True(res);
+        var res = await svc.GetHistoricalRunsAsync("M6");
+        Assert.NotNull(res);
+        Assert.NotEmpty(res);
+        Assert.True(res[0].Success);
     }
 
     [Fact]
@@ -1270,7 +1281,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F20_B04_VerifyMilestoneAsync_NullMilestone_ThrowsArgumentException()
     {
         var svc = new InMemoryTestVerificationService();
-        await Assert.ThrowsAsync<ArgumentNullException>(() => svc.VerifyMilestoneAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => svc.GetHistoricalRunsAsync(null!));
     }
 
     [Fact]
@@ -1279,7 +1290,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F20_B05_VerifyMilestoneAsync_WhitespaceMilestone_ThrowsArgumentException()
     {
         var svc = new InMemoryTestVerificationService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.VerifyMilestoneAsync("   "));
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.GetHistoricalRunsAsync("   "));
     }
 
     #endregion
