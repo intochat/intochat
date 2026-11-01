@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using Microsoft.AspNetCore.Http;
@@ -10,22 +11,20 @@ internal static class AuthCaller
     public static CapabilityCaller Require(HttpContext http)
     {
         ArgumentNullException.ThrowIfNull(http);
-        var user = http.User;
+        return Create(http.User);
+    }
+
+    public static CapabilityCaller Create(ClaimsPrincipal user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
         if (user.Identity?.IsAuthenticated != true
             || user.FindFirst(SessionClaims.Principal)?.Value is not { Length: > 0 } principal)
         {
             throw new UnauthorizedAccessException("This route needs a signed-in caller.");
         }
 
-        return CapabilityCallers.Of(principal, user.FindFirst(SessionClaims.Account)?.Value ?? "", user.FindFirst(SessionClaims.Brain)?.Value ?? "");
-    }
-}
-
-internal static class CapabilityCallers
-{
-    public static CapabilityCaller Of(string principalId, string accountId, string brainId, string? appId = null, string? conversationId = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
-        return new(principalId, accountId, brainId, appId, conversationId);
+        var account = user.FindFirst(SessionClaims.Account)?.Value is { Length: > 0 } a ? a : principal;
+        var brain = user.FindFirst(SessionClaims.Brain)?.Value is { Length: > 0 } b ? b : account;
+        return new CapabilityCaller(principal, account, brain);
     }
 }

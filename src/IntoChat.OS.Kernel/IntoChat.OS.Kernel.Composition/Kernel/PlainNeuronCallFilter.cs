@@ -13,8 +13,8 @@ namespace IntoChat.OS.Kernel.Composition;
 // Transitional (06-04; until 06-08 moves access to the runtime): the os access policy NeuronCallFilter applies to grain neurons,
 // applied to calls into plain neurons on the runtime's host grains. An edge-stamped caller reaches a plain neuron only when the
 // policy allows it, exactly as it would reach the grain the neuron replaced: the owner rule (the neuron's brain must be the
-// caller's) unless the contract is module-internal or or method declares [Public], [Internal], [Shared] or [PerAccount]. Unstamped calls (silo
-// services, timers, runtime plumbing without a caller) pass, as they do for grains.
+// caller's) unless the contract is module-internal or method declares [Public], [Internal], [Shared] or [PerAccount]. Capability stamps
+// are mandatory on neuron calls; unstamped calls are rejected (fail-closed) with UnauthorizedAccessException.
 internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeuronCallFilter> logger) : IIncomingGrainCallFilter
 {
     private static readonly ConcurrentDictionary<(string Contract, string Method, int Arity), AccessAttribute?> Policies = new();

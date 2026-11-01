@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>Script-visible identity and connection contracts: account requests, storage, confirmations.</Description>
+    <Description>Contracts for IntoChat identity and credential management.</Description>
     <RootNamespace>IntoChat.OS.Integrations</RootNamespace>
   </PropertyGroup>
   <ItemGroup>

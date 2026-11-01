@@ -24,6 +24,7 @@ public sealed class CredentialBoundaryFacts
         [
             "IntoChat.OS.Modules.Apps.AppNeuron",
             "IntoChat.OS.Modules.Apps.HostCaller",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
         ];
         var offenders = ModuleMethods()
             .Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install")
@@ -43,6 +44,7 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Authority.VaultPort",
             "IntoChat.OS.Modules.Apps.AppNeuron",
             "IntoChat.OS.Modules.Apps.HostCaller",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
         ];
         var sites = ModuleMethods().Where(m => Calls(m).Any(ConstructsACaller))
             .Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order().ToArray();
@@ -53,7 +55,7 @@ public sealed class CredentialBoundaryFacts
     public void NoProductionMethodDirectlyConstructsCapabilityCallerOutsideFactory()
     {
         var offenders = ProductionArchitecture.Assemblies
-            .Where(a => a.GetName().Name != "IntoChat.OS.Framework" && a.GetName().Name != "IntoChat.OS.Modules.Microsoft.CSharp")
+            .Where(a => a.GetName().Name != "IntoChat.OS.Framework")
             .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .Where(t => t != typeof(CapabilityCallers))
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)

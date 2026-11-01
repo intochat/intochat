@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Inference;
@@ -112,10 +111,13 @@ internal static class PersistedStateRules
         "IntoChat.OS.Modules.Flutter.Table.TableState.Rows",
         "IntoChat.OS.Modules.Flutter.Tabs.TabsState.Tabs",
         "IntoChat.OS.Modules.Flutter.Tree.TreeState.Nodes",
+        "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState.LegacyAssignmentRevisions",
+        "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState.LegacyInitialized",
+        "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.ProgramAssignment.LegacySettings",
     };
 
     internal static IEnumerable<string> ConcreteCollectionMembers(Type type) => Members(type)
-        .Where(member => !member.IsDefined(typeof(LegacyShapeAttribute)) && ContainsConcreteCollection(ContractRules.MemberType(member)))
+        .Where(member => ContainsConcreteCollection(ContractRules.MemberType(member)))
         .Select(member => $"{type.FullName}.{member.Name}");
 
     private static readonly Type[] ConcreteCollections =
