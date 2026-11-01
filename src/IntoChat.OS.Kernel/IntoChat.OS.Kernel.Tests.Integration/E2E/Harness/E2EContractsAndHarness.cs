@@ -9,50 +9,18 @@ using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.AI.SystemOne;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
-using IntoChat.OS.Modules.Apps.Contracts.Testing;
-using IntoChat.OS.Modules.Apps.Tasks;
-using IntoChat.OS.Modules.Apps.Testing;
+using IntoChat.OS.Modules.AI.Tasks;
+using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
-using ProdKnowledgeStore = IntoChat.OS.Modules.AI.Memory.InMemoryKnowledgeStore;
-using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
+using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
-
-#region F14: Execution Context Subsystem (Delegates to Production IntoChat.OS.Modules.AI.Context.ExecutionContext)
-
-public sealed class InMemoryExecutionContext(
-    string? executionId,
-    CapabilityCaller? caller,
-    IDictionary<string, string>? environment = null,
-    IEnumerable<ContextSlice>? initialSlices = null,
-    CancellationToken cancellationToken = default) : IExecutionContext
-{
-    private readonly ExecutionContext _inner = new(
-        executionId,
-        caller,
-        environment is not null ? new Dictionary<string, string>(environment, StringComparer.OrdinalIgnoreCase) : null,
-        initialSlices,
-        cancellationToken);
-
-    public string ExecutionId => _inner.ExecutionId;
-    public CapabilityCaller? Caller => _inner.Caller;
-    public IReadOnlyDictionary<string, string> Environment => _inner.Environment;
-    public IReadOnlyList<ContextSlice> Slices => _inner.Slices;
-    public CancellationToken CancellationToken => _inner.CancellationToken;
-
-    public Task<TResult> WithSliceAsync<TResult>(ContextSlice slice, Func<Task<TResult>> action)
-        => _inner.WithSliceAsync(slice, action);
-}
-
-#endregion
 
 #region F15: Decision Maker Subsystem (Delegates to Production IntoChat.OS.Modules.AI.Decision.DecisionMaker)
 
@@ -187,72 +155,6 @@ public sealed class InMemoryDecisionMaker : IDecisionMaker
             };
             return Task.FromResult(new GoalRun(goal, steps, $"Synthesized plan for: {goal}"));
         }
-    }
-}
-
-#endregion
-
-#region F16: Knowledge Store & Graph Memory (Delegates to Production IntoChat.OS.Modules.AI.Memory.InMemoryKnowledgeStore)
-
-public sealed class InMemoryKnowledgeStore : IKnowledgeStore
-{
-    private readonly ProdKnowledgeStore _inner = new();
-
-    public Task RecordNodeAsync(KnowledgeNode node, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(node);
-        ct.ThrowIfCancellationRequested();
-        return _inner.RecordNodeAsync(node, ct);
-    }
-
-    public Task<KnowledgeNode?> GetAsync(string id, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        ct.ThrowIfCancellationRequested();
-        return _inner.GetAsync(id, ct);
-    }
-
-    public Task DeleteNodeAsync(string id, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        ct.ThrowIfCancellationRequested();
-        return _inner.DeleteNodeAsync(id, ct);
-    }
-
-    public Task RecordEdgeAsync(KnowledgeEdge edge, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(edge);
-        ct.ThrowIfCancellationRequested();
-        return _inner.RecordEdgeAsync(edge, ct);
-    }
-
-    public Task<IReadOnlyList<KnowledgeEdge>> QueryEdgesAsync(string nodeId, EdgeDirection direction = EdgeDirection.Both, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
-        ct.ThrowIfCancellationRequested();
-        return _inner.QueryEdgesAsync(nodeId, direction, ct);
-    }
-
-    public Task DeleteEdgeAsync(string sourceId, string targetId, string relation, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        return _inner.DeleteEdgeAsync(sourceId, targetId, relation, ct);
-    }
-
-    public Task<KnowledgeGraphView> GetGraphViewAsync(string? rootId = null, int depth = 2, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        return _inner.GetGraphViewAsync(rootId, depth, ct);
-    }
-
-    public Task<KnowledgeGraphView> QueryGraphAsync(string rootId, int depth = 2, CancellationToken ct = default)
-        => GetGraphViewAsync(rootId, depth, ct);
-
-    public Task<IReadOnlyList<KnowledgeRecallHit>> SemanticSearchAsync(string query, int limit = 10, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(query);
-        ct.ThrowIfCancellationRequested();
-        return _inner.SemanticSearchAsync(query, limit, ct);
     }
 }
 
@@ -413,9 +315,10 @@ public sealed class InMemoryTestVerificationService : ITestVerificationService
     {
         private readonly ConcurrentDictionary<string, List<TestResultSummary>> _history = new(StringComparer.OrdinalIgnoreCase);
 
-        public Task<TestExecutionResult> RunTargetedSuiteAsync(TestExecutionRequest request)
+        public Task<TestExecutionResult> RunTargetedSuiteAsync(TestExecutionRequest request, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(request);
+            cancellationToken.ThrowIfCancellationRequested();
             var result = new TestExecutionResult(
                 Success: true,
                 Total: 10,
@@ -442,9 +345,10 @@ public sealed class InMemoryTestVerificationService : ITestVerificationService
             return Task.FromResult(result);
         }
 
-        public Task<IReadOnlyList<TestResultSummary>> GetHistoricalRunsAsync(string testSuiteId)
+        public Task<IReadOnlyList<TestResultSummary>> GetHistoricalRunsAsync(string testSuiteId, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(testSuiteId);
+            cancellationToken.ThrowIfCancellationRequested();
             if (_history.TryGetValue(testSuiteId, out var existing) && existing.Count > 0)
             {
                 lock (existing)

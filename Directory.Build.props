@@ -18,6 +18,12 @@
          runs prebuilt test modules from that tree. -->
     <UseArtifactsOutput>true</UseArtifactsOutput>
   </PropertyGroup>
+  <ItemGroup Condition="$(MSBuildProjectName.StartsWith('IntoChat.OS')) And '$(MSBuildProjectName)' != 'IntoChat.OS.Contracts.Configuration' And '$(MSBuildProjectName)' != 'IntoChat.OS.Contracts.Compute' And '$(MSBuildProjectName)' != 'IntoChat.OS.ServiceDefaults' And !$(MSBuildProjectName.Contains('Generator')) And !$(MSBuildProjectName.Contains('Desktop')) And !$(MSBuildProjectName.Contains('LocalSetup'))">
+    <Using Include="DigitalBrain.Capabilities.CallerKind" Alias="CallerKind" />
+    <Using Include="DigitalBrain.Capabilities.TrustedEdge" Alias="TrustedEdge" />
+    <Using Include="DigitalBrain.Capabilities.CapabilityCallers" Alias="CapabilityCallers" />
+    <Using Include="DigitalBrain.Capabilities.AppPrincipal" Alias="AppPrincipal" />
+  </ItemGroup>
   <!-- GitHub Actions sets CI=true. Keep solution builds portable (no -r on .slnx). -->
   <PropertyGroup Condition="'$(CI)' == 'true'">
     <RuntimeIdentifier></RuntimeIdentifier>

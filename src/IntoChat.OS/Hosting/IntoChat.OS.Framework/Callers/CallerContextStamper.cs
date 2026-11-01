@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework.Compute;
-using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
 
@@ -18,6 +17,12 @@ public static class CallerContextStamper
 
     public static CapabilityCaller Stamp(CapabilityCaller context)
     {
+        _ = StampScope(context);
+        return context;
+    }
+
+    public static IDisposable StampScope(CapabilityCaller context)
+    {
         ArgumentNullException.ThrowIfNull(context);
         if (!IsTrusted(context))
         {
@@ -25,14 +30,13 @@ public static class CallerContextStamper
                 $"Caller kind {context.Kind} cannot be stamped by {context.StampedBy}.");
         }
 
-        // Stamp restores on dispose. The edge keeps the caller for the rest of the call, so the restore is not taken.
-        _ = RuntimeCallerContext.Stamp(context);
+        var scope = RuntimeCallerContext.Stamp(context);
         if (TraceContext.Current is null)
         {
             var origin = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(context.BrainId), "edge", "request");
             TraceContext.Enter(TraceContext.Begin(context.AccountId, context.BrainId, origin));
         }
-        return context;
+        return scope;
     }
 
     public static bool TryGet([NotNullWhen(true)] out CapabilityCaller? context)

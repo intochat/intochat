@@ -709,6 +709,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         }
 
         var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var preludeTree = CSharpSyntaxTree.ParseText("global using System;\nglobal using System.Collections.Generic;\nglobal using System.Linq;\nglobal using System.Threading;\nglobal using System.Threading.Tasks;\nglobal using DigitalBrain;\nglobal using DigitalBrain.UI;\n", parseOptions);
         var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
         var syntaxErrors = syntaxTree.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -720,34 +721,31 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         }
 
         var references = new List<MetadataReference>();
-        foreach (var assembly in new[]
+        var coreAssemblies = new[]
         {
             typeof(object).Assembly,
             typeof(Enumerable).Assembly,
             typeof(Task).Assembly,
             typeof(DigitalBrain.App).Assembly,
             typeof(View).Assembly,
-        }.Distinct())
+        };
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic)
+            .Concat(coreAssemblies)
+            .Where(a => !string.IsNullOrWhiteSpace(a.Location))
+            .DistinctBy(a => a.GetName().Name, StringComparer.OrdinalIgnoreCase))
         {
-            if (!string.IsNullOrWhiteSpace(assembly.Location))
-            {
-                references.Add(MetadataReference.CreateFromFile(assembly.Location));
-            }
-        }
-
-        if (AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "System.Runtime") is { Location.Length: > 0 } sysRuntime)
-        {
-            references.Add(MetadataReference.CreateFromFile(sysRuntime.Location));
+            references.Add(MetadataReference.CreateFromFile(assembly.Location));
         }
 
         var compilation = CSharpCompilation.Create(
             "CreatorInMemorySandbox",
-            [syntaxTree],
+            [preludeTree, syntaxTree],
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        _ = compilation.GetDeclarationDiagnostics();
-        return (true, []);
+        var semanticErrors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d.Id}: {d.GetMessage(CultureInfo.InvariantCulture)}").ToArray();
+        return (semanticErrors.Length == 0, semanticErrors);
     }
 
     private static string NormalizeLanguage(string? language)
@@ -857,7 +855,10 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             using DigitalBrain;
             using DigitalBrain.UI;
 
-            {{diagnosticComment}}public sealed record {{pascal}}State(int Count = 0, string Status = "Ready");
+            {{diagnosticComment}}public sealed record {{pascal}}State(int Count, string Status)
+            {
+                public {{pascal}}State() : this(0, "Ready") { }
+            }
 
             [App("{{target}}")]
             public sealed class {{pascal}}App : App<{{pascal}}State>

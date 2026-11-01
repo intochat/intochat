@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using IntoChat.OS.Modules.Apps.Contracts.Testing;
-using IntoChat.OS.Modules.Apps.Testing;
+using IntoChat.OS.Modules.AI.Testing;
+
 using Orleans;
 using Xunit;
 
@@ -20,7 +20,7 @@ public sealed class PersistedStateChallengerFacts
     [Fact]
     public void TestVerificationState_IsNotSuppressedInUnmigratedConcreteCollections()
     {
-        Assert.DoesNotContain("IntoChat.OS.Modules.Apps.Testing.TestVerificationState.Runs",
+        Assert.DoesNotContain("IntoChat.OS.Modules.AI.Testing.TestVerificationState.Runs",
             PersistedStateRules.UnmigratedConcreteCollections);
         Assert.All(PersistedStateRules.UnmigratedConcreteCollections,
             entry => Assert.DoesNotContain("TestVerification", entry));

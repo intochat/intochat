@@ -18,15 +18,15 @@ using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
-using IntoChat.OS.Modules.Apps.Contracts.Testing;
+using IntoChat.OS.Modules.AI.Tasks;
+using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
-using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
-using InMemoryKnowledgeStore = IntoChat.OS.Kernel.Tests.Integration.E2E.Harness.InMemoryKnowledgeStore;
+using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
+using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
 
@@ -67,7 +67,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
         // F1 (Ephemeral Signals) + F14 (Canonical Execution Context)
         var caller = CapabilityCallers.Of("usr_tf01", "acc_1", "brain_1", CallerKind.User);
         var env = new Dictionary<string, string> { ["REGION"] = "us-west-2", ["SPAN_ID"] = "span_901" };
-        var ctx = new InMemoryExecutionContext("exec_tf01", caller, env);
+        var ctx = new ExecutionContext("exec_tf01", caller, env);
 
         var signal = new AppActivity("app-calc", "computing", "calculating route");
         var slice = new ContextSlice("CalculationSpan", signal.Detail, ["compute", "routing"]);
@@ -358,7 +358,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     {
         // F14 (Canonical Execution Context) + F21 (Telemetry Verification & Flush Barrier)
         var caller = CapabilityCallers.Of("agent-telemetry", "acc-1", "brain-1", CallerKind.User);
-        var ctx = new InMemoryExecutionContext("exec_tf12", caller);
+        var ctx = new ExecutionContext("exec_tf12", caller);
         var barrier = new TelemetryFlushBarrier();
 
         var slice = new ContextSlice("TelemetrySlice", "recording metrics", ["metrics"]);

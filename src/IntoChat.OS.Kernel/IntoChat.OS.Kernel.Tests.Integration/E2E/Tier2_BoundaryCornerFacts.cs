@@ -19,15 +19,15 @@ using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
-using IntoChat.OS.Modules.Apps.Contracts.Testing;
+using IntoChat.OS.Modules.AI.Tasks;
+using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
-using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
-using InMemoryKnowledgeStore = IntoChat.OS.Kernel.Tests.Integration.E2E.Harness.InMemoryKnowledgeStore;
+using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
+using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
 
@@ -838,7 +838,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F14_B01_DeeplyNestedWithSliceAsync_UnwindsAllSlicesCorrectly()
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
-        var ctx = new InMemoryExecutionContext("exec-deep", caller);
+        var ctx = new ExecutionContext("exec-deep", caller);
 
         async Task RecurseAsync(int current, int max)
         {
@@ -862,7 +862,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F14_B02_ContextSlice_OneMegabyteContent_PreservesVerbatim()
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
-        var ctx = new InMemoryExecutionContext("exec-large", caller);
+        var ctx = new ExecutionContext("exec-large", caller);
         var huge = new string('A', 1_048_576);
         var slice = new ContextSlice("MegaSlice", huge, ["huge"]);
 
@@ -877,7 +877,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public void F14_B03_ExecutionContext_MissingEnvironmentKey_ThrowsKeyNotFound()
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
-        var ctx = new InMemoryExecutionContext("exec-env", caller);
+        var ctx = new ExecutionContext("exec-env", caller);
         Assert.Throws<KeyNotFoundException>(() => _ = ctx.Environment["MISSING_KEY"]);
     }
 
@@ -889,7 +889,7 @@ public sealed class Tier2_BoundaryCornerFacts
         var caller = CapabilityCallers.Of("u", "a", "b");
         var s1 = new ContextSlice("Slice", "first", []);
         var s2 = new ContextSlice("Slice", "second", []);
-        var ctx = new InMemoryExecutionContext("exec-dup", caller, initialSlices: [s1, s2]);
+        var ctx = new ExecutionContext("exec-dup", caller, initialSlices: [s1, s2]);
 
         Assert.Equal(2, ctx.Slices.Count);
     }
@@ -900,8 +900,8 @@ public sealed class Tier2_BoundaryCornerFacts
     public async Task F14_B05_ExecutionContext_ConcurrentSliceAccess_IsolatedPerContext()
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
-        var ctx1 = new InMemoryExecutionContext("ctx-1", caller);
-        var ctx2 = new InMemoryExecutionContext("ctx-2", caller);
+        var ctx1 = new ExecutionContext("ctx-1", caller);
+        var ctx2 = new ExecutionContext("ctx-2", caller);
 
         var t1 = ctx1.WithSliceAsync(new ContextSlice("S1", "C1", []), async () =>
         {

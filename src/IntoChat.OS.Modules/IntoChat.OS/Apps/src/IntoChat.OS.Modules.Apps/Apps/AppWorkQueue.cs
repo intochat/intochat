@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.AI.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

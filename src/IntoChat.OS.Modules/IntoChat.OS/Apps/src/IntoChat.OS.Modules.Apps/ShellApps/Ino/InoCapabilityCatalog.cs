@@ -1,6 +1,6 @@
 using System.Text;
 using IntoChat.OS.Modules.AI.Memory;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.AI.Tasks;
 
 namespace IntoChat.OS.Modules.Apps;
 

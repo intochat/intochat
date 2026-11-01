@@ -7,7 +7,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Runtime;
+
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -376,7 +376,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             : resolvedBroker;
 
         var hadPrevious = CallerContextStamper.TryGet(out var previous);
-        var stamped = false;
+        IDisposable? stampScope = null;
         if (_services is not null)
         {
             try
@@ -386,8 +386,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                     : await HostCaller.ForBrain(_services, BrainId).ConfigureAwait(false);
                 if (baseCaller is not null)
                 {
-                    CallerContextStamper.Stamp(baseCaller with { AppId = filesAppKey });
-                    stamped = true;
+                    stampScope = CallerContextStamper.StampScope(baseCaller with { AppId = filesAppKey });
+
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -402,15 +402,15 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         }
         finally
         {
-            if (stamped)
+            stampScope?.Dispose();
             {
-                if (hadPrevious && previous is not null)
+                _ = previous;
                 {
-                    CallerContextStamper.Stamp(previous);
+                    _ = previous;
                 }
-                else
+                _ = hadPrevious;
                 {
-                    RequestContext.Remove(CallerContextStamper.RequestContextKey);
+                    _ = 0;
                 }
             }
         }

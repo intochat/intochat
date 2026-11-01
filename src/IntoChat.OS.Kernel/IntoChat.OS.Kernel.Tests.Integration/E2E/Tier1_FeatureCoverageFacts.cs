@@ -19,15 +19,15 @@ using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
-using IntoChat.OS.Modules.Apps.Contracts.Testing;
+using IntoChat.OS.Modules.AI.Tasks;
+using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
-using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
-using InMemoryKnowledgeStore = IntoChat.OS.Kernel.Tests.Integration.E2E.Harness.InMemoryKnowledgeStore;
+using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
+using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
 
@@ -879,7 +879,7 @@ public sealed class Tier1_FeatureCoverageFacts
     {
         var caller = CapabilityCallers.Of("usr_ctx", "acc_1", "brain_1", CallerKind.User);
         var env = new Dictionary<string, string> { ["REGION"] = "us-east-1", ["TIER"] = "prod" };
-        var ctx = new InMemoryExecutionContext("exec_001", caller, env);
+        var ctx = new ExecutionContext("exec_001", caller, env);
 
         Assert.Equal("exec_001", ctx.ExecutionId);
         Assert.Equal("usr_ctx", ctx.Caller!.PrincipalId);
@@ -894,7 +894,7 @@ public sealed class Tier1_FeatureCoverageFacts
     {
         var caller = CapabilityCallers.Of("usr_1", "acc_1", "brain_1", CallerKind.User);
         var env = new Dictionary<string, string> { ["apiKey"] = "secret123" };
-        var ctx = new InMemoryExecutionContext("exec_002", caller, env);
+        var ctx = new ExecutionContext("exec_002", caller, env);
 
         Assert.Equal("secret123", ctx.Environment["APIKEY"]);
     }
@@ -905,7 +905,7 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F14_03_ExecutionContext_WithSliceAsync_PushesAndPopsSlice()
     {
         var caller = CapabilityCallers.Of("usr_1", "acc_1", "brain_1", CallerKind.User);
-        var ctx = new InMemoryExecutionContext("exec_003", caller);
+        var ctx = new ExecutionContext("exec_003", caller);
         var slice = new ContextSlice("UserPrompt", "Explain Orleans clustering", ["prompt", "user"]);
 
         var sliceObservedInside = false;
@@ -926,7 +926,7 @@ public sealed class Tier1_FeatureCoverageFacts
     public async Task F14_04_ExecutionContext_WithSliceAsync_PopsSliceOnException()
     {
         var caller = CapabilityCallers.Of("usr_1", "acc_1", "brain_1", CallerKind.User);
-        var ctx = new InMemoryExecutionContext("exec_004", caller);
+        var ctx = new ExecutionContext("exec_004", caller);
         var slice = new ContextSlice("Faulty", "will throw", []);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -942,7 +942,7 @@ public sealed class Tier1_FeatureCoverageFacts
     {
         using var cts = new CancellationTokenSource();
         var caller = CapabilityCallers.Of("usr_1", "acc_1", "brain_1", CallerKind.User);
-        var ctx = new InMemoryExecutionContext("exec_005", caller, cancellationToken: cts.Token);
+        var ctx = new ExecutionContext("exec_005", caller, cancellationToken: cts.Token);
 
         Assert.Equal(cts.Token, ctx.CancellationToken);
     }

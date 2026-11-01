@@ -17,15 +17,15 @@ using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
-using IntoChat.OS.Modules.Apps.Contracts.Testing;
+using IntoChat.OS.Modules.AI.Tasks;
+using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
-using TaskStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.Apps.Contracts.Tasks.TaskStepStatus;
-using InMemoryKnowledgeStore = IntoChat.OS.Kernel.Tests.Integration.E2E.Harness.InMemoryKnowledgeStore;
+using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
+using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
+using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
 
@@ -58,7 +58,7 @@ public sealed class Tier4_RealWorldScenariosFacts
         var agentCaller = CapabilityCallers.Of("agent-optimizer-01", "account-system", "brain-primary", CallerKind.User);
         Assert.True(CallerContextStamper.IsTrusted(agentCaller));
 
-        var ctx = new InMemoryExecutionContext("exec_self_improve_01", agentCaller, new Dictionary<string, string>
+        var ctx = new ExecutionContext("exec_self_improve_01", agentCaller, new Dictionary<string, string>
         {
             ["CYCLE"] = "14",
             ["TARGET_MODULE"] = "IntoChat.OS.Kernel"
@@ -307,7 +307,7 @@ public sealed class Tier4_RealWorldScenariosFacts
     {
         // Step 1: Initialize components and execution context
         var caller = CapabilityCallers.Of("watchdog_agent", "acc_infra", "brain_core", CallerKind.User);
-        var ctx = new InMemoryExecutionContext("exec_fault_recovery", caller);
+        var ctx = new ExecutionContext("exec_fault_recovery", caller);
         var dm = new InMemoryDecisionMaker();
         var taskEngine = new InMemoryTaskEngine();
         var telemetryBarrier = new TelemetryFlushBarrier();

@@ -8,7 +8,7 @@ using DigitalBrain.UI;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chart;

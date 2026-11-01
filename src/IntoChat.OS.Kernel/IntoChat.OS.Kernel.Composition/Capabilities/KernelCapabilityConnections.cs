@@ -84,8 +84,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
     public async Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct)
     {
-        var hadCaller = CallerContextStamper.TryGet(out var previous);
-        CallerContextStamper.Stamp(CapabilityCallers.Of(brain.Value, brain.Value, brain.Value));
+
+        using var stampScope = CallerContextStamper.StampScope(CapabilityCallers.Of(brain.Value, brain.Value, brain.Value));
         try
         {
             var summaries = await Requests(brain).ListConnections().WaitAsync(ct).ConfigureAwait(false);
@@ -116,7 +116,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
         }
         finally
         {
-            if (hadCaller && previous is not null) { CallerContextStamper.Stamp(previous); }
+            stampScope.Dispose();
         }
     }
 
@@ -188,8 +188,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     // Dedupes on the brain's pending requests: one pending request of a module providing the capability is enough.
     public async Task RequestConnection(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct)
     {
-        var hadCaller = CallerContextStamper.TryGet(out var previous);
-        CallerContextStamper.Stamp(CapabilityCallers.Of(brain.Value, brain.Value, brain.Value));
+
+        using var stampScope = CallerContextStamper.StampScope(CapabilityCallers.Of(brain.Value, brain.Value, brain.Value));
         try
         {
             var requests = Requests(brain);
@@ -208,7 +208,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
         }
         finally
         {
-            if (hadCaller && previous is not null) { CallerContextStamper.Stamp(previous); }
+            stampScope.Dispose();
         }
     }
 

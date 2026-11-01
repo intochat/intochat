@@ -13,7 +13,7 @@ using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models.Ollama;
-using IntoChat.OS.Modules.Apps.Contracts.Tasks;
+using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 

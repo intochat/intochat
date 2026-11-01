@@ -91,21 +91,21 @@ public sealed class ConnectionStorage(
     private async Task<T> Typed<T>(Func<Task<T>> call)
     {
         var hadCaller = CallerContextStamper.TryGet(out var current);
-        var restamped = false;
+        IDisposable? stampScope = null;
         if (connectionKey is { Length: > 0 } && (!hadCaller || current is null || current.Kind == CallerKind.App))
         {
             var slash = connectionKey.IndexOf('/', StringComparison.Ordinal);
             var owner = slash > 0 ? connectionKey[..slash] : connectionKey;
             var brain = current?.BrainId is { Length: > 0 } b ? b : owner;
-            CallerContextStamper.Stamp(CapabilityCallers.Of(owner, owner, brain));
-            restamped = true;
+            stampScope = CallerContextStamper.StampScope(CapabilityCallers.Of(owner, owner, brain));
+
         }
         try { return await call().ConfigureAwait(false); }
         catch (Exception error) when (error is not StorageException && StorageErrors.FromMessage(error.Message) is { } typed)
         { throw typed; }
         finally
         {
-            if (restamped && hadCaller && current is not null) { CallerContextStamper.Stamp(current); }
+            stampScope?.Dispose();
         }
     }
 

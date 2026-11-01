@@ -29,8 +29,8 @@ public sealed class AuthOptions
     public static bool IsOpenPostureOwner(IdentityPosture? posture, CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return posture == IdentityPosture.Open && caller.Kind == IntoChat.OS.Framework.Modules.CallerKind.User
-            && caller.StampedBy != IntoChat.OS.Framework.Modules.TrustedEdge.AppProxy
+        return posture == IdentityPosture.Open && caller.Kind == CallerKind.User
+            && caller.StampedBy != TrustedEdge.AppProxy
             && caller.PrincipalId == OpenOwner && caller.AccountId == OpenOwner;
     }
     public string? Username { get; set; }
