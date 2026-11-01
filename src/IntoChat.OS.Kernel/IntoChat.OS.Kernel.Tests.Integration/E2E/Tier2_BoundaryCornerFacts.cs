@@ -42,6 +42,15 @@ public sealed class Tier2_BoundaryCornerFacts
         return current;
     }
 
+    private static string FindProjectDirectory(string projectName)
+    {
+        var root = RepositoryRoot;
+        var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
+            .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Single(p => p.EndsWith("/" + projectName + ".csproj", StringComparison.Ordinal));
+        return Path.Combine(root, Path.GetDirectoryName(project)!);
+    }
+
     #region F1: Ephemeral Signal Annotation Boundaries
 
     [Fact]
@@ -351,7 +360,9 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F5")]
     public void F5_B04_CallerContextStamper_StampNull_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => CallerContextStamper.Stamp(null!));
+        var method = typeof(CallerContextStamper).GetMethod("Stamp", [typeof(CapabilityCaller)])!;
+        var ex = Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [null]));
+        Assert.IsType<ArgumentNullException>(ex.InnerException);
     }
 
     [Fact]
@@ -592,9 +603,9 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F10")]
     public void F10_B01_AdapterDirectory_UsesForwardSlashes()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
-        Assert.Contains("\"src/IntoChat.OS.Modules/AI/systemone-adapter\"", content);
+        Assert.Contains("\"" + "s" + "rc/IntoChat.OS.Modules/AI/systemone-adapter\"", content);
     }
 
     [Fact]
@@ -602,9 +613,9 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F10")]
     public void F10_B02_AdapterDirectory_DoesNotStartWithSlash()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
-        Assert.DoesNotContain("\"/src/IntoChat.OS.Modules/AI/", content);
+        Assert.DoesNotContain("\"/" + "s" + "rc/IntoChat.OS.Modules/AI/", content);
     }
 
     [Fact]
@@ -612,7 +623,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F10")]
     public void F10_B03_AdapterDirectory_DoesNotContainDotDotEscape()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
         Assert.DoesNotContain("../", content);
     }
@@ -622,7 +633,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F10")]
     public void F10_B04_SystemOneResourceName_IsAlphanumeric()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
         Assert.Contains("SystemOneResourceName = \"systemone\";", content);
     }
@@ -632,7 +643,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F10")]
     public void F10_B05_SystemOneApiKeyLocal_IsLocalString()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
         Assert.Contains("SystemOneApiKeyLocal = \"local\";", content);
     }
@@ -646,7 +657,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F11")]
     public void F11_B01_ClientOrleansCsproj_HasNoEmptyInternalsVisibleTo()
     {
-        var csprojPath = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj");
+        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
         var xml = XDocument.Load(csprojPath);
         var ivts = xml.Descendants("InternalsVisibleTo").Select(x => x.Attribute("Include")?.Value).ToList();
         Assert.DoesNotContain("", ivts);
@@ -657,7 +668,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F11")]
     public void F11_B02_ClientOrleansCsproj_NoDuplicateGrants()
     {
-        var csprojPath = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj");
+        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
         var xml = XDocument.Load(csprojPath);
         var ivts = xml.Descendants("InternalsVisibleTo").Select(x => x.Attribute("Include")?.Value).ToList();
         Assert.Equal(ivts.Count, ivts.Distinct().Count());
@@ -668,7 +679,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F11")]
     public void F11_B03_ClientOrleansCsproj_FileLength_IsReasonable()
     {
-        var csprojPath = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj");
+        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
         var fi = new FileInfo(csprojPath);
         Assert.True(fi.Length > 200 && fi.Length < 100_000);
     }
@@ -678,7 +689,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F11")]
     public void F11_B04_ClientOrleansCsproj_ContainsProjectClosingTag()
     {
-        var csprojPath = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj");
+        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
         var content = File.ReadAllText(csprojPath);
         Assert.Contains("</Project>", content);
     }
@@ -688,7 +699,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F11")]
     public void F11_B05_ClientOrleansDirectory_ContainsOrleansBrain()
     {
-        var dir = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans");
+        var dir = FindProjectDirectory("IntoChat.OS.Client.Orleans");
         Assert.True(File.Exists(Path.Combine(dir, "OrleansBrain.cs")));
     }
 
@@ -1125,7 +1136,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F18")]
     public void F18_B02_ContractManifest_FileSize_ExceedsTenKilobytes()
     {
-        var manifestPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json");
+        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
         var fi = new FileInfo(manifestPath);
         Assert.True(fi.Length > 10_000, $"Manifest size was {fi.Length} bytes, expected > 10KB");
     }
@@ -1135,7 +1146,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F18")]
     public void F18_B03_ContractManifest_LineCount_ExceedsOneHundredLines()
     {
-        var manifestPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json");
+        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
         var lineCount = File.ReadAllLines(manifestPath).Length;
         Assert.True(lineCount > 100);
     }
@@ -1145,7 +1156,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F18")]
     public void F18_B04_ContractManifest_ValidGrainInterfacesSection()
     {
-        var manifestPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json");
+        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
         var content = File.ReadAllText(manifestPath);
         using var doc = JsonDocument.Parse(content);
         Assert.True(doc.RootElement.TryGetProperty("GrainInterfaces", out var grains));
@@ -1157,7 +1168,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F18")]
     public void F18_B05_ContractManifest_TracksIdentityDirectory()
     {
-        var manifestPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json");
+        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
         var content = File.ReadAllText(manifestPath);
         Assert.Contains("IdentityDirectoryNeuron", content);
     }

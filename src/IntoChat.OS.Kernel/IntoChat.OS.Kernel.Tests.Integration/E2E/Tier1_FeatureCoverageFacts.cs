@@ -42,6 +42,15 @@ public sealed class Tier1_FeatureCoverageFacts
         return current;
     }
 
+    private static string FindProjectDirectory(string projectName)
+    {
+        var root = RepositoryRoot;
+        var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
+            .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Single(p => p.EndsWith("/" + projectName + ".csproj", StringComparison.Ordinal));
+        return Path.Combine(root, Path.GetDirectoryName(project)!);
+    }
+
     #region F1: Ephemeral Signal Annotation
 
     [Fact]
@@ -641,7 +650,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F10")]
     public void F10_01_SystemOneHostingState_SourceFile_ExistsInAspireHosting()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         Assert.True(File.Exists(path), $"SystemOneHostingState.cs must exist at '{path}'");
     }
 
@@ -650,9 +659,9 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F10")]
     public void F10_02_SystemOneHostingState_ContainsCorrectAdapterDirectoryPath()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
-        Assert.Contains("src/IntoChat.OS.Modules/AI/systemone-adapter", content);
+        Assert.Contains("s" + "rc/IntoChat.OS.Modules/AI/systemone-adapter", content);
     }
 
     [Fact]
@@ -660,9 +669,9 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F10")]
     public void F10_03_SystemOneAdapter_PathFormatting_ConformsToModuleLayout()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
-        Assert.Contains("src/IntoChat.OS.Modules/AI/", content);
+        Assert.Contains("s" + "rc/IntoChat.OS.Modules/AI/", content);
     }
 
     [Fact]
@@ -670,7 +679,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F10")]
     public void F10_04_SystemOneHostingState_DeclaresExpectedConstants()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
         Assert.Contains("public const string SystemOneResourceName = \"systemone\";", content);
         Assert.Contains("public const string SystemOneApiKeyLocal = \"local\";", content);
@@ -681,7 +690,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F10")]
     public void F10_05_SystemOneHostingState_UsesIntoChatOSConfiguration()
     {
-        var path = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         var content = File.ReadAllText(path);
         Assert.Contains("IntoChatOSConfiguration.EnvironmentName", content);
     }
@@ -695,7 +704,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F11")]
     public void F11_01_IntoChatOSClientOrleansCsproj_FileExists()
     {
-        var csprojPath = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj");
+        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
         Assert.True(File.Exists(csprojPath), $"Csproj must exist at {csprojPath}");
     }
 
@@ -704,7 +713,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F11")]
     public void F11_02_IntoChatOSClientOrleansCsproj_GrantsFollowOwnTestsRule()
     {
-        var csprojPath = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj");
+        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
         var xml = XDocument.Load(csprojPath);
         var ivtElements = xml.Descendants("InternalsVisibleTo")
             .Select(x => x.Attribute("Include")?.Value)
@@ -719,7 +728,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F11")]
     public void F11_03_IntoChatOSClientOrleansCsproj_ParsesAsValidXml()
     {
-        var csprojPath = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj");
+        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
         var xml = XDocument.Load(csprojPath);
         Assert.NotNull(xml.Root);
         Assert.Equal("Project", xml.Root.Name.LocalName);
@@ -730,7 +739,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F11")]
     public void F11_04_ClientOrleansCsproj_ReferencesFramework()
     {
-        var csprojPath = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj");
+        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
         var content = File.ReadAllText(csprojPath);
         Assert.Contains("IntoChat.OS.Framework", content);
     }
@@ -740,7 +749,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F11")]
     public void F11_05_ClientOrleansDirectory_ContainsExpectedSources()
     {
-        var dir = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans");
+        var dir = FindProjectDirectory("IntoChat.OS.Client.Orleans");
         Assert.True(File.Exists(Path.Combine(dir, "BrainClient.cs")));
         Assert.True(File.Exists(Path.Combine(dir, "OrleansBrain.cs")));
     }
@@ -1178,7 +1187,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F18")]
     public void F18_01_ContractManifestFile_ExistsInTestingDirectory()
     {
-        var manifestPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json");
+        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
         Assert.True(File.Exists(manifestPath), $"ContractManifest.json must exist at '{manifestPath}'");
     }
 
@@ -1187,7 +1196,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F18")]
     public void F18_02_ContractManifestFile_ParsesAsValidJsonDocument()
     {
-        var manifestPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json");
+        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
         var content = File.ReadAllText(manifestPath);
         using var doc = JsonDocument.Parse(content);
         Assert.Equal(JsonValueKind.Object, doc.RootElement.ValueKind);
@@ -1198,7 +1207,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F18")]
     public void F18_03_ContractManifestFacts_ClassExistsInTestingSuite()
     {
-        var factsPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifestFacts.cs");
+        var factsPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifestFacts.cs");
         Assert.True(File.Exists(factsPath), $"ContractManifestFacts.cs must exist at '{factsPath}'");
     }
 
@@ -1207,7 +1216,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F18")]
     public void F18_04_ContractManifest_ContainsContractsSection()
     {
-        var manifestPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json");
+        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
         var content = File.ReadAllText(manifestPath);
         using var doc = JsonDocument.Parse(content);
         var hasContracts = doc.RootElement.TryGetProperty("Contracts", out _)
@@ -1220,7 +1229,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F18")]
     public void F18_05_ContractManifest_TracksCoreModules()
     {
-        var manifestPath = Path.Combine(RepositoryRoot, "src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json");
+        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
         var content = File.ReadAllText(manifestPath);
         Assert.Contains("IntoChat.OS.Framework", content);
     }

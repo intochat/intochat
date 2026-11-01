@@ -1,6 +1,7 @@
 #pragma warning disable xUnit1051, IDE0062, IDE0200
 using System.Diagnostics;
 using System.Text.Json;
+using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -38,6 +39,15 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
             current = parent.FullName;
         }
         return current;
+    }
+
+    private static string FindProjectDirectory(string projectName)
+    {
+        var root = RepositoryRoot;
+        var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
+            .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Single(p => p.EndsWith("/" + projectName + ".csproj", StringComparison.Ordinal));
+        return Path.Combine(root, Path.GetDirectoryName(project)!);
     }
 
     [Fact]
@@ -301,7 +311,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     public void TF10_SystemOneHosting_WithKernelContracts_MaintainsCleanSeparation()
     {
         // F10 (Fix SystemOne Hosting Path) + F13 (Retire Legacy Shims & Forwards)
-        var hostingFile = Path.Combine(RepositoryRoot, "src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/AI/Configuration/SystemOneHostingState.cs");
+        var hostingFile = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
         Assert.True(File.Exists(hostingFile), $"SystemOneHostingState.cs must exist at '{hostingFile}'");
 
         var kernelAssembly = typeof(IntoChat.OS.Kernel.CloudHost).Assembly;
