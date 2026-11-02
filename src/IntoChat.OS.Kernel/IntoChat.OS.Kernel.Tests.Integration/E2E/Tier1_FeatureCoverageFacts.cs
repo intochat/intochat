@@ -412,7 +412,7 @@ public sealed class Tier1_FeatureCoverageFacts
         var humanCaller = CapabilityCallers.Of("user_1", "acc_1", "brain_1", CallerKind.User);
         Assert.False(CallerContextStamper.IsModelOriginated(humanCaller));
 
-        var modelCaller = CapabilityCallers.Of("asst_1", "acc_1", "brain_1", CallerKind.Assistant, conversationId: "conv_42");
+        var modelCaller = CapabilityCallers.Of("asst_1", "acc_1", "brain_1", CallerKind.Agent, conversationId: "conv_42");
         Assert.True(CallerContextStamper.IsModelOriginated(modelCaller));
     }
 

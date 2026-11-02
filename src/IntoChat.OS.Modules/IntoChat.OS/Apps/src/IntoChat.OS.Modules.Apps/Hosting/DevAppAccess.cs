@@ -18,7 +18,7 @@ internal sealed class DevAppGate(IConfiguration configuration)
 
     internal void Rotate()
     {
-        var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration);
+        var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible);
         Secret = DevAppAccess.Rotate(Path.Combine(home.Path, "dev-token"));
     }
 

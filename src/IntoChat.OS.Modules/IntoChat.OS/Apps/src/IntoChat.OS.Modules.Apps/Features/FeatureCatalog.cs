@@ -58,7 +58,7 @@ public sealed class FeatureCatalog
             var configuration = services.GetService<MicrosoftSdk.Extensions.Configuration.IConfiguration>();
             var configured = configuration?["IntoChatOS:Apps:SideloadDirectory"];
             if (!string.IsNullOrWhiteSpace(configured)) { return new SideloadDirectory(System.IO.Path.GetFullPath(configured)); }
-            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration);
+            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible);
             return new SideloadDirectory(home.Apps);
         }
         catch (Exception error) when (error is InvalidOperationException or IOException)
@@ -71,7 +71,7 @@ public sealed class FeatureCatalog
         try
         {
             var configuration = services.GetService<MicrosoftSdk.Extensions.Configuration.IConfiguration>();
-            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration);
+            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible);
             return new FeatureDirectory(System.IO.Path.Combine(home.Path, "dev-apps"), writable: true);
         }
         catch (Exception error) when (error is InvalidOperationException or IOException)
@@ -242,7 +242,7 @@ public sealed class FeatureCatalog
                 await side.Adopt(_git, File.ReadAllText(file).Trim(), CancellationToken.None);
                 File.Delete(file);
             }
-            catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException or IntoChat.OS.Runtime.Storage.Confinement.ConfinementDenied)
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException or DigitalBrain.Capabilities.Storage.Confinement.ConfinementDenied)
             { _ = error.Message; }
         }
     }

@@ -1,6 +1,5 @@
 using DigitalBrain.Runtime.Orleans;
 using OsNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
-using RuntimeNames = DigitalBrain.Runtime.Orleans.IntoChatOSNames;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -11,15 +10,16 @@ public sealed class TopologyKeysMatchRuntimeFacts
     [Fact]
     public void TheOsTopologyNamesAreTheRuntimeNames()
     {
-        Assert.Equal(RuntimeNames.TopologyKey, OsNames.TopologyKey);
-        Assert.Equal(RuntimeNames.HomeKey, OsNames.HomeKey);
-        Assert.Equal(RuntimeNames.BindKey, OsNames.BindKey);
-        Assert.Equal(RuntimeNames.CloudStorageKey, OsNames.CloudStorageConfigurationKey);
-        Assert.Equal(RuntimeNames.CloudKeyVaultKey, OsNames.CloudKeyVaultConfigurationKey);
-        Assert.Equal(RuntimeNames.MasterKeyKey, OsNames.MasterKeyConfigurationKey);
-        Assert.Equal(RuntimeNames.PlatformGrainStorage, OsNames.PlatformGrainStorage);
-        Assert.Equal(RuntimeNames.ClusterGrainStorage, OsNames.ClusterGrainStorage);
-        Assert.Equal(RuntimeNames.GrainStateContainer, OsNames.GrainStateContainer);
+        var runtime = RuntimeOptions.IntoChatCompatible;
+        Assert.Equal(OsNames.TopologyKey, runtime.TopologyKey);
+        Assert.Equal(OsNames.HomeKey, runtime.HomeKey);
+        Assert.Equal(OsNames.BindKey, runtime.BindKey);
+        Assert.Equal(OsNames.CloudStorageConfigurationKey, runtime.CloudStorageKey);
+        Assert.Equal(OsNames.CloudKeyVaultConfigurationKey, runtime.CloudKeyVaultKey);
+        Assert.Equal(OsNames.MasterKeyConfigurationKey, runtime.MasterKeyKey);
+        Assert.Equal(OsNames.PlatformGrainStorage, runtime.PlatformGrainStorage);
+        Assert.Equal(OsNames.ClusterGrainStorage, runtime.ClusterGrainStorage);
+        Assert.Equal(OsNames.GrainStateContainer, runtime.GrainStateContainer);
     }
 
     [Fact]

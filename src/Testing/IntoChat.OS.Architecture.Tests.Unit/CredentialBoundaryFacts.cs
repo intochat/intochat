@@ -63,7 +63,8 @@ public sealed class CredentialBoundaryFacts
         var offenders = ProductionArchitecture.Assemblies
             .Where(a => a.GetName().Name != "IntoChat.OS.Framework")
             .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
-            .Where(t => t != typeof(CapabilityCallers))
+            // CapabilityCaller.App (DigitalBrain 0.12) is the record's own factory, like CapabilityCallers.
+            .Where(t => t != typeof(CapabilityCallers) && t != typeof(CapabilityCaller))
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
                 .Cast<MethodBase>().Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)))
             .Where(m => Calls(m).Any(DirectlyConstructsCaller))

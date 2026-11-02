@@ -24,7 +24,7 @@ internal static class SceneAccess
         var admitted = caller.Kind switch
         {
             CallerKind.Platform => true,
-            CallerKind.User or CallerKind.Assistant => SameBrain(caller, key),
+            CallerKind.User or CallerKind.Agent => SameBrain(caller, key),
             CallerKind.App => !IsSpace(key) && SameBrain(caller, key) && string.Equals(caller.AppId, AppOf(key), StringComparison.Ordinal),
             _ => false,
         };

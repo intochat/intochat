@@ -114,7 +114,7 @@ public static class GrantRules
             return null;
         }
 
-        if (caller.Kind is CallerKind.User or CallerKind.Assistant
+        if (caller.Kind is CallerKind.User or CallerKind.Agent
             && (member is null || member.PrincipalId != caller.PrincipalId || member.AccountId != caller.AccountId || member.BrainId != caller.BrainId))
         {
             return CallDecision.Deny(CallDenial.OutsideWorkspace, "The principal is not a member of this account and brain.");

@@ -34,7 +34,7 @@ public sealed class ConfirmationRuntimeFacts
     {
         var (neuron, context) = await Start();
         await neuron.Begin(Plan("p-agent"), "app.files");
-        using (Stamp(CapabilityCallers.Of("agent", "ada", Brain, CallerKind.Assistant))) { await neuron.Resolve("p-agent", true); }
+        using (Stamp(CapabilityCallers.Of("agent", "ada", Brain, CallerKind.Agent))) { await neuron.Resolve("p-agent", true); }
 
         var result = await neuron.Result("p-agent");
         Assert.Equal((ConfirmationOutcome.Denied, ConfirmationDenyReason.SelfApproval), (result!.Outcome, result.Reason));

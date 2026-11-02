@@ -73,7 +73,7 @@ internal sealed class SettingsSideloadHost(
         var configuration = services.GetService<MicrosoftSdk.Extensions.Configuration.IConfiguration>();
         var configured = configuration?["IntoChatOS:Apps:SideloadDirectory"];
         if (!string.IsNullOrWhiteSpace(configured)) { return System.IO.Path.GetFullPath(configured); }
-        try { return DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration).Apps; }
+        try { return DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible).Apps; }
         catch (Exception error) when (error is InvalidOperationException or IOException) { return null; }
     }
 }
