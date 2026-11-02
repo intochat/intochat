@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gpt_markdown/gpt_markdown.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../components/image/ui_image.dart';
 import '../design/controls.dart';
 import '../design/tokens.dart';
 import 'ic_breadcrumb_bar.dart';
@@ -75,6 +79,8 @@ class IcFilesFinderView extends StatefulWidget {
     this.previewNote,
     this.previewImageWidget,
     this.previewAppCard,
+    this.previewUrl,
+    this.previewKind,
     this.statusTitle,
     this.statusBody,
     this.noticeText,
@@ -130,6 +136,8 @@ class IcFilesFinderView extends StatefulWidget {
   final String? previewNote;
   final Widget? previewImageWidget;
   final Widget? previewAppCard;
+  final String? previewUrl;
+  final String? previewKind;
   final String? statusTitle;
   final String? statusBody;
   final String? noticeText;
@@ -229,7 +237,8 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
             (_hasSelection ||
                 widget.previewText != null ||
                 widget.previewImageWidget != null ||
-                widget.previewAppCard != null);
+                widget.previewAppCard != null ||
+                widget.previewUrl != null);
 
         return ColoredBox(
           color: c.surfacePage,
@@ -1397,47 +1406,7 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
             const SizedBox(height: 12),
             widget.previewAppCard!,
           ],
-          if (widget.previewImageWidget != null) ...[
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(IcRadius.sm),
-              child: widget.previewImageWidget!,
-            ),
-          ],
-          if (widget.previewText != null && widget.previewText!.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Text(
-              'PREVIEW',
-              style: IcType.text(
-                10.5,
-                weight: FontWeight.w700,
-                color: c.textMuted,
-              ).copyWith(letterSpacing: 0.6),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 280),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: c.surfaceCard,
-                borderRadius: BorderRadius.circular(IcRadius.sm),
-                border: Border.all(color: c.borderInput),
-              ),
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  widget.previewText!,
-                  style: IcType.mono(11.5, color: c.textBody, height: 1.45),
-                ),
-              ),
-            ),
-            if (widget.previewNote != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                widget.previewNote!,
-                style: IcType.text(11, color: c.textMuted),
-              ),
-            ],
-          ],
+          _buildQuickViewPreviewContent(c, title),
         ],
       ),
     );
@@ -1515,6 +1484,563 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
             rightQuota,
             style: IcType.text(12, color: c.textMuted, tnum: true),
           ),
+        ],
+      ),
+    );
+  }
+
+  String _effectiveKind(String fileName) {
+    if (widget.previewKind != null && widget.previewKind!.isNotEmpty) {
+      return widget.previewKind!.toLowerCase();
+    }
+    final dot = fileName.lastIndexOf('.');
+    final ext = dot >= 0 ? fileName.substring(dot + 1).toLowerCase() : '';
+    return switch (ext) {
+      'png' ||
+      'jpg' ||
+      'jpeg' ||
+      'gif' ||
+      'webp' ||
+      'svg' ||
+      'bmp' ||
+      'ico' ||
+      'avif' ||
+      'tiff' ||
+      'tif' =>
+        'image',
+      'mp3' || 'wav' || 'ogg' || 'flac' || 'm4a' || 'aac' || 'wma' => 'audio',
+      'mp4' || 'webm' || 'mov' || 'mkv' || 'avi' || 'm4v' => 'video',
+      'pdf' => 'pdf',
+      'md' || 'markdown' => 'markdown',
+      'cs' ||
+      'dart' ||
+      'ts' ||
+      'js' ||
+      'py' ||
+      'json' ||
+      'yaml' ||
+      'yml' ||
+      'xml' ||
+      'html' ||
+      'htm' ||
+      'css' ||
+      'scss' ||
+      'sql' ||
+      'sh' ||
+      'ps1' ||
+      'bat' ||
+      'rs' ||
+      'go' ||
+      'java' ||
+      'cpp' ||
+      'c' ||
+      'h' ||
+      'env' ||
+      'ini' ||
+      'conf' =>
+        'code',
+      _ => 'text',
+    };
+  }
+
+  Widget _buildQuickViewPreviewContent(IcColors c, String title) {
+    final kind = _effectiveKind(title);
+    final dot = title.lastIndexOf('.');
+    final ext = dot >= 0 ? title.substring(dot + 1).toUpperCase() : '';
+
+    if (kind == 'audio') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: _FinderAudioPreviewCard(
+          name: title,
+          url: widget.previewUrl,
+          colors: c,
+        ),
+      );
+    }
+
+    if (kind == 'video') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: _FinderVideoPreviewCard(
+          name: title,
+          url: widget.previewUrl,
+          colors: c,
+        ),
+      );
+    }
+
+    if (kind == 'pdf') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: _FinderPdfPreviewCard(
+          name: title,
+          url: widget.previewUrl,
+          colors: c,
+        ),
+      );
+    }
+
+    if (kind == 'image') {
+      if (widget.previewImageWidget != null) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(IcRadius.sm),
+            child: widget.previewImageWidget!,
+          ),
+        );
+      }
+      if (widget.previewUrl != null && widget.previewUrl!.isNotEmpty) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(IcRadius.sm),
+            child: UiImage.network(url: widget.previewUrl!, caption: ''),
+          ),
+        );
+      }
+    }
+
+    if (kind == 'markdown' &&
+        widget.previewText != null &&
+        widget.previewText!.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 14),
+          Text(
+            'MARKDOWN PREVIEW',
+            style: IcType.text(
+              10.5,
+              weight: FontWeight.w700,
+              color: c.textMuted,
+            ).copyWith(letterSpacing: 0.6),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 280),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: c.surfaceCard,
+              borderRadius: BorderRadius.circular(IcRadius.sm),
+              border: Border.all(color: c.borderInput),
+            ),
+            child: SingleChildScrollView(
+              child: GptMarkdown(
+                widget.previewText!,
+                style: IcType.text(12, color: c.textBody, height: 1.45),
+              ),
+            ),
+          ),
+          if (widget.previewNote != null) ...[
+            const SizedBox(height: 4),
+            Text(widget.previewNote!, style: IcType.text(11, color: c.textMuted)),
+          ],
+        ],
+      );
+    }
+
+    if (kind == 'code' &&
+        widget.previewText != null &&
+        widget.previewText!.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 14),
+          Text(
+            ext.isNotEmpty ? 'CODE PREVIEW ($ext)' : 'CODE PREVIEW',
+            style: IcType.text(
+              10.5,
+              weight: FontWeight.w700,
+              color: c.textMuted,
+            ).copyWith(letterSpacing: 0.6),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 280),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: c.surfaceCard,
+              borderRadius: BorderRadius.circular(IcRadius.sm),
+              border: Border.all(color: c.borderInput),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  widget.previewText!,
+                  style: IcType.mono(11.5, color: c.textBody, height: 1.45),
+                ),
+              ),
+            ),
+          ),
+          if (widget.previewNote != null) ...[
+            const SizedBox(height: 4),
+            Text(widget.previewNote!, style: IcType.text(11, color: c.textMuted)),
+          ],
+        ],
+      );
+    }
+
+    if (widget.previewText != null && widget.previewText!.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 14),
+          Text(
+            'PREVIEW',
+            style: IcType.text(
+              10.5,
+              weight: FontWeight.w700,
+              color: c.textMuted,
+            ).copyWith(letterSpacing: 0.6),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 280),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: c.surfaceCard,
+              borderRadius: BorderRadius.circular(IcRadius.sm),
+              border: Border.all(color: c.borderInput),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                widget.previewText!,
+                style: IcType.mono(11.5, color: c.textBody, height: 1.45),
+              ),
+            ),
+          ),
+          if (widget.previewNote != null) ...[
+            const SizedBox(height: 4),
+            Text(widget.previewNote!, style: IcType.text(11, color: c.textMuted)),
+          ],
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+}
+
+Uri? _resolveFinderContentUri(String? rawUrl) {
+  if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+  final trimmed = rawUrl.trim();
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed != null &&
+      parsed.host.isNotEmpty &&
+      const {'http', 'https'}.contains(parsed.scheme)) {
+    return parsed;
+  }
+  if (trimmed.startsWith('/')) {
+    try {
+      final base = IntoChatOSHostEnv.requireUiBaseUri();
+      return base.resolve(trimmed);
+    } catch (_) {
+      return Uri.tryParse('http://127.0.0.1:5000$trimmed');
+    }
+  }
+  return null;
+}
+
+class _FinderAudioPreviewCard extends StatefulWidget {
+  const _FinderAudioPreviewCard({
+    required this.name,
+    required this.url,
+    required this.colors,
+  });
+
+  final String name;
+  final String? url;
+  final IcColors colors;
+
+  @override
+  State<_FinderAudioPreviewCard> createState() => _FinderAudioPreviewCardState();
+}
+
+class _FinderAudioPreviewCardState extends State<_FinderAudioPreviewCard> {
+  bool _isPlaying = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.colors;
+    final dot = widget.name.lastIndexOf('.');
+    final ext = dot >= 0 ? widget.name.substring(dot + 1).toUpperCase() : 'AUDIO';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: BorderRadius.circular(IcRadius.sm),
+        border: Border.all(color: c.borderInput),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: c.accentTint,
+                  borderRadius: BorderRadius.circular(IcRadius.xs),
+                ),
+                child: Icon(LucideIcons.fileAudio, size: 20, color: c.accent),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IcType.text(12.5, weight: FontWeight.w600, color: c.textStrong),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$ext Audio Track',
+                      style: IcType.text(11, color: c.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  setState(() => _isPlaying = !_isPlaying);
+                  if (widget.url != null) {
+                    final uri = _resolveFinderContentUri(widget.url);
+                    if (uri != null) {
+                      launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  }
+                },
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: c.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _isPlaying ? LucideIcons.pause : LucideIcons.play,
+                    size: 16,
+                    color: c.onAccent,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: _isPlaying ? 0.35 : 0.0,
+                    backgroundColor: c.borderHairline,
+                    valueColor: AlwaysStoppedAnimation(c.accent),
+                    minHeight: 4,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _isPlaying ? 'Playing' : 'Ready',
+                style: IcType.mono(10.5, color: c.textMuted),
+              ),
+            ],
+          ),
+          if (widget.url != null) ...[
+            const SizedBox(height: 10),
+            Btn(
+              label: 'Open in Media Player',
+              icon: LucideIcons.externalLink,
+              small: true,
+              onTap: () {
+                final uri = _resolveFinderContentUri(widget.url);
+                if (uri != null) {
+                  launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FinderVideoPreviewCard extends StatelessWidget {
+  const _FinderVideoPreviewCard({
+    required this.name,
+    required this.url,
+    required this.colors,
+  });
+
+  final String name;
+  final String? url;
+  final IcColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final dot = name.lastIndexOf('.');
+    final ext = dot >= 0 ? name.substring(dot + 1).toUpperCase() : 'VIDEO';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: BorderRadius.circular(IcRadius.sm),
+        border: Border.all(color: c.borderInput),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.85),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(IcRadius.sm)),
+              ),
+              child: Center(
+                child: GestureDetector(
+                  onTap: () {
+                    final uri = _resolveFinderContentUri(url);
+                    if (uri != null) {
+                      launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: c.accent.withValues(alpha: 0.9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(LucideIcons.play, size: 22, color: c.onAccent),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IcType.text(12.5, weight: FontWeight.w600, color: c.textStrong),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$ext Video Stream',
+                  style: IcType.text(11, color: c.textMuted),
+                ),
+                if (url != null) ...[
+                  const SizedBox(height: 8),
+                  Btn(
+                    label: 'Play Video',
+                    icon: LucideIcons.externalLink,
+                    small: true,
+                    primary: true,
+                    onTap: () {
+                      final uri = _resolveFinderContentUri(url);
+                      if (uri != null) {
+                        launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FinderPdfPreviewCard extends StatelessWidget {
+  const _FinderPdfPreviewCard({
+    required this.name,
+    required this.url,
+    required this.colors,
+  });
+
+  final String name;
+  final String? url;
+  final IcColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: c.surfaceCard,
+        borderRadius: BorderRadius.circular(IcRadius.sm),
+        border: Border.all(color: c.borderInput),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(IcRadius.xs),
+                ),
+                child: const Icon(LucideIcons.fileSpreadsheet, size: 20, color: Colors.red),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IcType.text(12.5, weight: FontWeight.w600, color: c.textStrong),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'PDF Document',
+                      style: IcType.text(11, color: c.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (url != null) ...[
+            const SizedBox(height: 10),
+            Btn(
+              label: 'Open Document',
+              icon: LucideIcons.fileSpreadsheet,
+              small: true,
+              primary: true,
+              onTap: () {
+                final uri = _resolveFinderContentUri(url);
+                if (uri != null) {
+                  launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+          ],
         ],
       ),
     );

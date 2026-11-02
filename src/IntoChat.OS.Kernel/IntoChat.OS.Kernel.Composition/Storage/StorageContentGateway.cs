@@ -78,8 +78,12 @@ internal sealed class StorageContentGateway(
 
     private static readonly HashSet<string> InlineTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "image/png", "image/jpeg", "image/gif", "image/webp", "text/plain",
+        "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml", "image/bmp", "image/x-icon", "image/avif",
+        "audio/mpeg", "audio/wav", "audio/ogg", "audio/aac", "audio/flac", "audio/mp4", "audio/x-m4a",
+        "video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-matroska",
+        "text/plain", "application/pdf"
     };
+
 
     private readonly Microsoft.AspNetCore.DataProtection.IDataProtector _tickets = protection.CreateProtector(UploadTicket.Purpose);
 

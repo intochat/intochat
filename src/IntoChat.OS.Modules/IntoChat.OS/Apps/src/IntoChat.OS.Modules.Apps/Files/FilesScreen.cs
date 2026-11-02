@@ -153,7 +153,7 @@ internal static class FilesScreen
         var main = narrow && previewOpen && preview is not null
             ? Ui.Column("files-main", [Ui.Button("back-files", FilesCopy.BackToFiles, Act("back-files")), preview])
             : Ui.Column("files-main", [.. chrome, preview is null ? list : Ui.Row("browse-split", [list, preview], extents: [1, 360])]);
-        return new(side, main, files, state.PreviewUrl);
+        return new(side, main, files, state.PreviewUrl is { } previewUrl && FilesApp.IsImage(state.Selected?.Item.Name ?? "") ? previewUrl : null);
     }
 
     private static UiNode BuildItemList(FilesState state, string rev, int pageOffset)
@@ -474,11 +474,49 @@ internal static class FilesScreen
         }
         else if (state.PreviewUrl is { } url)
         {
-            children.Add(Ui.Column("preview", [Ui.Text("preview-url", url), Ui.Reference("preview-image", new(IntoChat.OS.Modules.Flutter.UIVocabulary.ImageType, appKey + "/preview"))]));
+            var fileName = selected?.Item.Name ?? "";
+            if (FilesApp.IsAudio(fileName))
+            {
+                children.Add(Ui.Column("preview", [
+                    Ui.Text("preview-url", url),
+                    Ui.Text("preview-kind", "audio"),
+                    Ui.Card("preview-audio", fileName, url)
+                ]));
+            }
+            else if (FilesApp.IsVideo(fileName))
+            {
+                children.Add(Ui.Column("preview", [
+                    Ui.Text("preview-url", url),
+                    Ui.Text("preview-kind", "video"),
+                    Ui.Card("preview-video", fileName, url)
+                ]));
+            }
+            else if (FilesApp.IsPdf(fileName))
+            {
+                children.Add(Ui.Column("preview", [
+                    Ui.Text("preview-url", url),
+                    Ui.Text("preview-kind", "pdf"),
+                    Ui.Card("preview-pdf", fileName, url)
+                ]));
+            }
+            else
+            {
+                children.Add(Ui.Column("preview", [
+                    Ui.Text("preview-url", url),
+                    Ui.Text("preview-kind", "image"),
+                    Ui.Reference("preview-image", new(IntoChat.OS.Modules.Flutter.UIVocabulary.ImageType, appKey + "/preview"))
+                ]));
+            }
         }
         else if (state.Preview is { } text)
         {
-            var previewNodes = new List<UiNode> { Ui.Text("preview-text", text) };
+            var fileName = selected?.Item.Name ?? "";
+            var kind = FilesApp.IsMarkdown(fileName) ? "markdown" : (FilesApp.IsCode(fileName) ? "code" : "text");
+            var previewNodes = new List<UiNode>
+            {
+                Ui.Text("preview-text", text),
+                Ui.Text("preview-kind", kind)
+            };
             if (state.PreviewNote is { } note) { previewNodes.Add(Ui.Text("preview-note", note)); }
             children.Add(Ui.Column("preview", [.. previewNodes]));
         }

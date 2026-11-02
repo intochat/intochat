@@ -242,4 +242,116 @@ void main() {
       expect(askedIno, isTrue);
     },
   );
+
+  testWidgets(
+    'IcFilesFinderView renders audio, video, pdf, and code preview cards in inspector',
+    (tester) async {
+      // 1. Audio preview
+      await tester.pumpWidget(
+        MaterialApp(
+          home: IcTheme(
+            colors: IcColors.dark,
+            child: Scaffold(
+              body: SizedBox(
+                width: 1180,
+                height: 680,
+                child: IcFilesFinderView(
+                  storages: const [],
+                  breadcrumbs: const [],
+                  items: const [],
+                  selectedName: 'track.mp3',
+                  selectedMeta: 'MP3 file · 3.5 MB',
+                  previewUrl: '/brains/b1/storage/local/items/i1/content',
+                  previewKind: 'audio',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('track.mp3'), findsWidgets);
+      expect(find.text('MP3 Audio Track'), findsOneWidget);
+      expect(find.text('Open in Media Player'), findsOneWidget);
+
+      // 2. Video preview
+      await tester.pumpWidget(
+        MaterialApp(
+          home: IcTheme(
+            colors: IcColors.dark,
+            child: Scaffold(
+              body: SizedBox(
+                width: 1180,
+                height: 680,
+                child: IcFilesFinderView(
+                  storages: const [],
+                  breadcrumbs: const [],
+                  items: const [],
+                  selectedName: 'screencast.mp4',
+                  selectedMeta: 'MP4 file · 12.0 MB',
+                  previewUrl: '/brains/b1/storage/local/items/i2/content',
+                  previewKind: 'video',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('screencast.mp4'), findsWidgets);
+      expect(find.text('MP4 Video Stream'), findsOneWidget);
+      expect(find.text('Play Video'), findsOneWidget);
+
+      // 3. PDF preview
+      await tester.pumpWidget(
+        MaterialApp(
+          home: IcTheme(
+            colors: IcColors.dark,
+            child: Scaffold(
+              body: SizedBox(
+                width: 1180,
+                height: 680,
+                child: IcFilesFinderView(
+                  storages: const [],
+                  breadcrumbs: const [],
+                  items: const [],
+                  selectedName: 'document.pdf',
+                  selectedMeta: 'PDF file · 1.2 MB',
+                  previewUrl: '/brains/b1/storage/local/items/i3/content',
+                  previewKind: 'pdf',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('document.pdf'), findsWidgets);
+      expect(find.text('PDF Document'), findsOneWidget);
+      expect(find.text('Open Document'), findsOneWidget);
+
+      // 4. Code preview
+      await tester.pumpWidget(
+        MaterialApp(
+          home: IcTheme(
+            colors: IcColors.dark,
+            child: Scaffold(
+              body: SizedBox(
+                width: 1180,
+                height: 680,
+                child: IcFilesFinderView(
+                  storages: const [],
+                  breadcrumbs: const [],
+                  items: const [],
+                  selectedName: 'program.cs',
+                  selectedMeta: 'CS file · 500 B',
+                  previewText: 'Console.WriteLine("Hello World");',
+                  previewKind: 'code',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('CODE PREVIEW (CS)'), findsOneWidget);
+      expect(find.text('Console.WriteLine("Hello World");'), findsOneWidget);
+    },
+  );
 }

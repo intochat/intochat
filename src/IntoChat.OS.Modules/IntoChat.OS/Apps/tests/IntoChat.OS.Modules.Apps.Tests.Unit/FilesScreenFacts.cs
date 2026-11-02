@@ -377,6 +377,93 @@ public sealed class FilesPreviewFacts
     }
 }
 
+public sealed class FilesMediaPreviewFacts
+{
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task AudioFileProducesAudioPreviewNodeAndStreamUrl()
+    {
+        var storage = new InMemoryStorage();
+        var file = storage.AddFile(storage.Root, "podcast.mp3", [1, 2, 3]);
+        var app = Harness.App(storage);
+        await app.Browse(new("a", storage.Root), Ct);
+        await app.Select(new(new("a", await storage.Stat(file, Ct))), Ct);
+
+        Assert.NotNull(app.Snapshot.PreviewUrl);
+        Assert.Null(app.Snapshot.Preview);
+        Assert.EndsWith("/content", app.Snapshot.PreviewUrl, StringComparison.Ordinal);
+
+        var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
+        var allNodes = Walk.Nodes(screen.Main).ToArray();
+        var keys = allNodes.Select(n => n.Key).ToArray();
+        Assert.Contains("preview-audio", keys, StringComparer.Ordinal);
+        var kindNode = allNodes.FirstOrDefault(n => n.Key == "preview-kind");
+        Assert.NotNull(kindNode);
+        Assert.Equal("audio", kindNode.Text);
+    }
+
+    [Fact]
+    public async Task VideoFileProducesVideoPreviewNodeAndStreamUrl()
+    {
+        var storage = new InMemoryStorage();
+        var file = storage.AddFile(storage.Root, "screencast.mp4", [1, 2, 3]);
+        var app = Harness.App(storage);
+        await app.Browse(new("a", storage.Root), Ct);
+        await app.Select(new(new("a", await storage.Stat(file, Ct))), Ct);
+
+        Assert.NotNull(app.Snapshot.PreviewUrl);
+        Assert.Null(app.Snapshot.Preview);
+
+        var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
+        var allNodes = Walk.Nodes(screen.Main).ToArray();
+        var keys = allNodes.Select(n => n.Key).ToArray();
+        Assert.Contains("preview-video", keys, StringComparer.Ordinal);
+        var kindNode = allNodes.FirstOrDefault(n => n.Key == "preview-kind");
+        Assert.NotNull(kindNode);
+        Assert.Equal("video", kindNode.Text);
+    }
+
+    [Fact]
+    public async Task PdfFileProducesPdfPreviewNodeAndStreamUrl()
+    {
+        var storage = new InMemoryStorage();
+        var file = storage.AddFile(storage.Root, "report.pdf", [1, 2, 3]);
+        var app = Harness.App(storage);
+        await app.Browse(new("a", storage.Root), Ct);
+        await app.Select(new(new("a", await storage.Stat(file, Ct))), Ct);
+
+        Assert.NotNull(app.Snapshot.PreviewUrl);
+        Assert.Null(app.Snapshot.Preview);
+
+        var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
+        var allNodes = Walk.Nodes(screen.Main).ToArray();
+        var keys = allNodes.Select(n => n.Key).ToArray();
+        Assert.Contains("preview-pdf", keys, StringComparer.Ordinal);
+        var kindNode = allNodes.FirstOrDefault(n => n.Key == "preview-kind");
+        Assert.NotNull(kindNode);
+        Assert.Equal("pdf", kindNode.Text);
+    }
+
+    [Fact]
+    public async Task SvgAndAvifImagesProduceImagePreview()
+    {
+        var storage = new InMemoryStorage();
+        var svg = storage.AddFile(storage.Root, "icon.svg", "<svg></svg>"u8);
+        var app = Harness.App(storage);
+        await app.Browse(new("a", storage.Root), Ct);
+        await app.Select(new(new("a", await storage.Stat(svg, Ct))), Ct);
+
+        Assert.NotNull(app.Snapshot.PreviewUrl);
+        Assert.Null(app.Snapshot.Preview);
+
+        var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
+        var allNodes = Walk.Nodes(screen.Main).ToArray();
+        var keys = allNodes.Select(n => n.Key).ToArray();
+        Assert.Contains("preview-image", keys, StringComparer.Ordinal);
+    }
+}
+
 file static class Harness
 {
     public static FilesApp App(IStorage storage) => new(new Broker([new("a", "A", storage)]), new("owner"), new());

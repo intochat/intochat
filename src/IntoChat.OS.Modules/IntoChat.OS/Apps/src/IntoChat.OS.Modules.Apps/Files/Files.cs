@@ -442,6 +442,11 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
                 : Snapshot with { Preview = null, PreviewUrl = url, PreviewApp = null, PreviewNote = null, DownloadUrl = url, Message = null });
             return;
         }
+        if (IsAudio(item.Name) || IsVideo(item.Name) || IsPdf(item.Name))
+        {
+            Set(Snapshot with { Preview = null, PreviewUrl = url, PreviewApp = null, PreviewNote = null, DownloadUrl = url, Message = null });
+            return;
+        }
         if (!IsText(item.Name))
         {
             Set(Snapshot with { Preview = FilesCopy.PreviewUnavailable, PreviewUrl = null, PreviewApp = null, PreviewNote = null, DownloadUrl = url });
@@ -512,27 +517,98 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             _ => (FilesCopy.ListFailed, FilesCopy.NothingChanged, "error"),
         };
 
-    private static bool IsImage(string name)
+    internal static bool IsImage(string name)
     {
         var extension = Path.GetExtension(name);
         return extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".webp", StringComparison.OrdinalIgnoreCase);
+            || extension.Equals(".webp", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".svg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".ico", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".avif", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".tiff", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".tif", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsText(string name)
+    internal static bool IsAudio(string name)
+    {
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".wav", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".ogg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".flac", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".aac", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".wma", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsVideo(string name)
+    {
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".webm", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mkv", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".avi", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".m4v", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsPdf(string name)
+    {
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsMarkdown(string name)
+    {
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".md", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".markdown", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsCode(string name)
+    {
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".cs", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".dart", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".js", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".py", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".yml", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".xml", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".css", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".scss", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".sql", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".sh", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".ps1", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".rs", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".go", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".java", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".cpp", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".c", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".h", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsText(string name)
     {
         var extension = Path.GetExtension(name);
         return extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".md", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
+            || IsMarkdown(name)
+            || IsCode(name)
             || extension.Equals(".csv", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".tsv", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".log", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".xml", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".cs", StringComparison.OrdinalIgnoreCase);
+            || extension.Equals(".env", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".ini", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".conf", StringComparison.OrdinalIgnoreCase);
     }
 
     private const long TenMegabytes = 10L * 1024 * 1024;

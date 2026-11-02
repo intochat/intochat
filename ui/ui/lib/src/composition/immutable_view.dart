@@ -1752,6 +1752,8 @@ class _ImmutableView extends StatelessWidget {
     String? previewNote;
     Widget? previewImageWidget;
     Widget? previewAppCard;
+    String? previewUrl;
+    String? previewKind;
 
     String activeWhereLabel() {
       final folderCrumbs = breadcrumbs
@@ -1921,6 +1923,10 @@ class _ImmutableView extends StatelessWidget {
               previewText = pc['text'] as String?;
             } else if (pk == 'preview-note') {
               previewNote = pc['text'] as String?;
+            } else if (pk == 'preview-url') {
+              previewUrl = pc['text'] as String?;
+            } else if (pk == 'preview-kind') {
+              previewKind = pc['text'] as String?;
             } else if (pk == 'preview-image') {
               previewImageWidget = _node(context, pc, depth + 3);
             }
@@ -2136,6 +2142,8 @@ class _ImmutableView extends StatelessWidget {
       previewNote: previewNote,
       previewImageWidget: previewImageWidget,
       previewAppCard: previewAppCard,
+      previewUrl: previewUrl,
+      previewKind: previewKind,
     );
   }
 

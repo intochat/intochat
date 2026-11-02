@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
@@ -13,7 +15,7 @@ final class UiImage extends StatelessWidget {
     required this.caption,
   }) : url = null;
 
-  /// Loads [url] over http/https; any other scheme or an empty url shows the
+  /// Loads [url] over http/https or relative path; any empty url shows the
   /// caption only.
   const UiImage.network({
     super.key,
@@ -26,12 +28,23 @@ final class UiImage extends StatelessWidget {
   final String caption;
 
   Uri? get _remote {
-    final uri = Uri.tryParse(url ?? '');
-    return uri != null &&
-            uri.host.isNotEmpty &&
-            const {'http', 'https'}.contains(uri.scheme)
-        ? uri
-        : null;
+    final raw = url?.trim() ?? '';
+    if (raw.isEmpty) return null;
+    final uri = Uri.tryParse(raw);
+    if (uri != null &&
+        uri.host.isNotEmpty &&
+        const {'http', 'https'}.contains(uri.scheme)) {
+      return uri;
+    }
+    if (raw.startsWith('/')) {
+      try {
+        final base = IntoChatOSHostEnv.requireUiBaseUri();
+        return base.resolve(raw);
+      } catch (_) {
+        return Uri.tryParse('http://127.0.0.1:5000$raw');
+      }
+    }
+    return null;
   }
 
   @override
@@ -39,6 +52,9 @@ final class UiImage extends StatelessWidget {
     final c = UiColors.of(context);
     final type = UiType.of(context);
     final remote = _remote;
+    final isSvg = (url?.toLowerCase().contains('.svg') ?? false) ||
+        (remote?.path.toLowerCase().endsWith('.svg') ?? false);
+
     Widget loading(BuildContext context, Widget child, int? frame, bool sync) =>
         sync || frame != null
         ? child
@@ -55,22 +71,42 @@ final class UiImage extends StatelessWidget {
             child: Text('Image failed to load', style: type.bodyMuted),
           ),
         );
-    final image = bytes != null
-        ? Image.memory(
-            bytes!,
-            fit: BoxFit.cover,
-            frameBuilder: loading,
-            errorBuilder: failed,
-          )
-        : remote != null
-        ? Image.network(
-            remote.toString(),
-            fit: BoxFit.cover,
-            semanticLabel: caption.isEmpty ? null : caption,
-            frameBuilder: loading,
-            errorBuilder: failed,
-          )
-        : null;
+
+    Widget? image;
+    if (isSvg) {
+      if (bytes != null) {
+        image = SvgPicture.memory(
+          bytes!,
+          fit: BoxFit.contain,
+        );
+      } else if (remote != null) {
+        image = SvgPicture.network(
+          remote.toString(),
+          fit: BoxFit.contain,
+          placeholderBuilder: (ctx) => const Padding(
+            key: Key('ui_image_loading'),
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        );
+      }
+    } else if (bytes != null) {
+      image = Image.memory(
+        bytes!,
+        fit: BoxFit.cover,
+        frameBuilder: loading,
+        errorBuilder: failed,
+      );
+    } else if (remote != null) {
+      image = Image.network(
+        remote.toString(),
+        fit: BoxFit.cover,
+        semanticLabel: caption.isEmpty ? null : caption,
+        frameBuilder: loading,
+        errorBuilder: failed,
+      );
+    }
+
     return DecoratedBox(
       key: Key('ui_image_$caption'),
       decoration: BoxDecoration(
