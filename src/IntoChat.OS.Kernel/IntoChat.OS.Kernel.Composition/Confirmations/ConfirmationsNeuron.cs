@@ -28,6 +28,7 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
 {
     private const string ExpiryTimer = "confirmation-expiry";
     private const int PendingLimit = 20;
+    private const int MaxEntries = 50;
 
     private TimeProvider Clock => Context.Time;
 
@@ -55,7 +56,7 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
         var request = new ConfirmationRequested(plan.Id, plan with { Expiry = expiry }, requester, policy, Clock.GetUtcNow() + expiry);
         var asks = ConfirmationRules.Asks(policy, plan);
         var result = asks ? null : new ConfirmationResult(plan.Id, ConfirmationOutcome.Approved, ConfirmationDenyReason.None, true);
-        var next = State with { Revision = State.Revision + 1, Entries = [.. State.Entries, new ConfirmationEntry(request, result)] };
+        var next = State with { Revision = State.Revision + 1, Entries = BoundEntries([.. State.Entries, new ConfirmationEntry(request, result)]) };
         await Save(next, asks ? request : ConfirmationAudit.Record(request, result!, null, Clock.GetUtcNow()));
         Schedule();
     }
@@ -145,8 +146,21 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
         var result = new ConfirmationResult(planId, outcome, reason, false);
         var entries = State.Entries.ToArray();
         entries[index] = entry with { Result = result };
-        await Save(State with { Revision = State.Revision + 1, Entries = entries }, ConfirmationAudit.Record(entry.Request, result, approver, Clock.GetUtcNow()));
+        await Save(State with { Revision = State.Revision + 1, Entries = BoundEntries(entries) }, ConfirmationAudit.Record(entry.Request, result, approver, Clock.GetUtcNow()));
         Schedule();
+    }
+
+    private static ConfirmationEntry[] BoundEntries(ConfirmationEntry[] entries)
+    {
+        if (entries.Length <= MaxEntries) { return entries; }
+        var pending = entries.Where(e => e.Result is null).ToList();
+        var completed = entries.Where(e => e.Result is not null).ToList();
+        var allowedCompleted = Math.Max(0, MaxEntries - pending.Count);
+        var keptPlanIds = new HashSet<string>(
+            (completed.Count > allowedCompleted ? completed.TakeLast(allowedCompleted) : completed)
+                .Select(e => e.Request.PlanId),
+            StringComparer.Ordinal);
+        return entries.Where(e => e.Result is null || keptPlanIds.Contains(e.Request.PlanId)).ToArray();
     }
 
     private void Schedule()

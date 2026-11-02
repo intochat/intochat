@@ -143,6 +143,21 @@ public sealed class ConfirmationRuntimeFacts
         Assert.Equal(PrincipalKind.App, Audit(context).Approver!.Kind);
     }
 
+    [Fact]
+    public async Task CompletedEntriesAreBoundedToMaxEntries()
+    {
+        var (neuron, context) = await Start(ConfirmationPolicy.Never);
+        for (var i = 0; i < 60; i++)
+        {
+            await neuron.Begin(Plan($"p-{i}"), "app.files");
+        }
+
+        var state = (await context.MemoryState.Load<ConfirmationState>())!;
+        Assert.Equal(50, state.Entries.Length);
+        Assert.Equal("p-10", state.Entries[0].Request.PlanId);
+        Assert.Equal("p-59", state.Entries[^1].Request.PlanId);
+    }
+
     private static ConfirmationPlan Plan(string id)
         => new(id, ConfirmationAction.Delete, true, "Delete a.txt?", "This removes a.txt from Drive. You cannot undo this.", "Delete", "Keep", "a.txt");
 
