@@ -28,6 +28,26 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
 {
     private const string ExpiryTimer = "confirmation-expiry";
     private const int PendingLimit = 20;
+    private const int MaxResolvedEntries = 50;
+
+    private static ConfirmationEntry[] TrimEntries(IEnumerable<ConfirmationEntry> entries)
+    {
+        var list = entries.ToList();
+        var excess = list.Count(e => e.Result is not null) - MaxResolvedEntries;
+        if (excess <= 0) { return [.. list]; }
+        var trimmed = new List<ConfirmationEntry>(list.Count - excess);
+        var skipped = 0;
+        foreach (var entry in list)
+        {
+            if (entry.Result is not null && skipped < excess)
+            {
+                skipped++;
+                continue;
+            }
+            trimmed.Add(entry);
+        }
+        return [.. trimmed];
+    }
 
     private TimeProvider Clock => Context.Time;
 
@@ -55,7 +75,7 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
         var request = new ConfirmationRequested(plan.Id, plan with { Expiry = expiry }, requester, policy, Clock.GetUtcNow() + expiry);
         var asks = ConfirmationRules.Asks(policy, plan);
         var result = asks ? null : new ConfirmationResult(plan.Id, ConfirmationOutcome.Approved, ConfirmationDenyReason.None, true);
-        var next = State with { Revision = State.Revision + 1, Entries = [.. State.Entries, new ConfirmationEntry(request, result)] };
+        var next = State with { Revision = State.Revision + 1, Entries = TrimEntries([.. State.Entries, new ConfirmationEntry(request, result)]) };
         await Save(next, asks ? request : ConfirmationAudit.Record(request, result!, null, Clock.GetUtcNow()));
         Schedule();
     }
@@ -145,7 +165,7 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
         var result = new ConfirmationResult(planId, outcome, reason, false);
         var entries = State.Entries.ToArray();
         entries[index] = entry with { Result = result };
-        await Save(State with { Revision = State.Revision + 1, Entries = entries }, ConfirmationAudit.Record(entry.Request, result, approver, Clock.GetUtcNow()));
+        await Save(State with { Revision = State.Revision + 1, Entries = TrimEntries(entries) }, ConfirmationAudit.Record(entry.Request, result, approver, Clock.GetUtcNow()));
         Schedule();
     }
 

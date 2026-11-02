@@ -143,6 +143,26 @@ public sealed class ConfirmationRuntimeFacts
         Assert.Equal(PrincipalKind.App, Audit(context).Approver!.Kind);
     }
 
+    [Fact]
+    public async Task ResolvedConfirmations_AreTrimmed_WhenExceedingLimit()
+    {
+        var (neuron, context) = await Start();
+        using (Person())
+        {
+            for (var i = 1; i <= 60; i++)
+            {
+                var plan = new ConfirmationPlan($"p-{i}", ConfirmationAction.Delete, true, "Title", "Prompt", "A", "D", "t.txt");
+                await neuron.Begin(plan, "app.files");
+                await neuron.Resolve($"p-{i}", true);
+            }
+        }
+
+        var state = (await context.MemoryState.Load<ConfirmationState>())!;
+        Assert.True(state.Entries.Length <= 50, $"Expected at most 50 resolved entries, but found {state.Entries.Length}");
+        Assert.Contains(state.Entries, e => e.Request.PlanId == "p-60");
+        Assert.DoesNotContain(state.Entries, e => e.Request.PlanId == "p-1");
+    }
+
     private static ConfirmationPlan Plan(string id)
         => new(id, ConfirmationAction.Delete, true, "Delete a.txt?", "This removes a.txt from Drive. You cannot undo this.", "Delete", "Keep", "a.txt");
 
