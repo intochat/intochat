@@ -77,34 +77,6 @@ public sealed class EdgeGrantsCacheAdversarialFacts
     }
 
     [Fact]
-    public async Task ConcurrentLostUpdates_AtScale_100Threads()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var cache = EdgeGrantsCache.Current;
-        var brain = "stress-brain-lost-updates-100";
-        cache.Invalidate(brain);
-
-        const int concurrency = 100;
-        var ownerApp = $"{brain}/apps/owner";
-
-        var tasks = Enumerable.Range(0, concurrency).Select(i => Task.Run(() =>
-        {
-            var friendApp = $"{brain}/apps/friend-{i}";
-            cache.RegisterFriend(ownerApp, friendApp, $"scope.{i}");
-        }, ct));
-
-        await Task.WhenAll(tasks);
-
-        var grants = await cache.GetGrantsAsync(brain, ct);
-
-        var foundFriends = Enumerable.Range(0, concurrency)
-            .Count(i => cache.IsFriend(ownerApp, $"{brain}/apps/friend-{i}", $"scope.{i}"));
-
-        Assert.Equal(concurrency, foundFriends);
-        Assert.Equal(concurrency, grants.Count);
-    }
-
-    [Fact]
     public async Task ConcurrentHighLoad_MixedOperations_NoDeadlockOrCorruption()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -113,7 +85,6 @@ public sealed class EdgeGrantsCacheAdversarialFacts
         cache.Invalidate(brain);
 
         const int workerCount = 80;
-        var ownerApp = $"{brain}/apps/owner";
         using var startBarrier = new Barrier(workerCount);
 
         var tasks = Enumerable.Range(0, workerCount).Select(i => Task.Run(async () =>
@@ -123,25 +94,22 @@ public sealed class EdgeGrantsCacheAdversarialFacts
             var connKey = $"{brain}/connection/postgres/db-{i % 5}";
             var caller = CreateAppCaller(friendApp, brain);
 
-            switch (i % 5)
+            switch (i % 4)
             {
                 case 0:
-                    cache.RegisterFriend(ownerApp, friendApp, $"scope.{i}");
+                    cache.AddGrant(brain, Grant.Tuple($"brain:{brain}", $"app:{friendApp}", $"{brain}/apps/owner", $"scope.{i}"));
                     break;
                 case 1:
                     cache.BindFriendConnection(connKey, friendApp);
                     break;
                 case 2:
-                    _ = cache.IsFriend(ownerApp, friendApp, $"scope.{i}");
+                    _ = await cache.IsGrantedAsync(brain, caller, $"scope.{i}", $"{brain}/apps/owner", ct);
                     _ = await cache.IsConnectionBoundAsync(brain, caller, connKey, ct);
                     break;
                 case 3:
-                    _ = await cache.OwnersSharingWithAsync(friendApp, $"scope.{i}", ct);
-                    break;
-                case 4:
                     if (i % 2 == 0)
                     {
-                        cache.RevokeFriend(ownerApp, friendApp, $"scope.{i}");
+                        cache.RemoveGrant(brain, g => g.Scope == $"scope.{i}");
                     }
                     else
                     {
@@ -212,92 +180,6 @@ public sealed class EdgeGrantsCacheAdversarialFacts
         // 7. Connector-prefixed target with same brain MUST SUCCEED
         var sameNested = $"postgres/{alphaBrain}/connection/postgres/main";
         Assert.True(await cache.IsConnectionBoundAsync(alphaBrain, callerAlpha1, sameNested, ct));
-    }
-
-    [Fact]
-    public async Task CrossBrain_OwnersSharingWithAsync_ComprehensiveFiltering()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var cache = EdgeGrantsCache.Current;
-
-        var targetBrain = "brain-target-consumer";
-        var brainUs = "brain-us";
-        var brainEu = "brain-eu";
-        var brainAsia = "brain-asia";
-        var brainLatam = "brain-latam";
-        var brainAf = "brain-af";
-
-        cache.Invalidate(targetBrain);
-        cache.Invalidate(brainUs);
-        cache.Invalidate(brainEu);
-        cache.Invalidate(brainAsia);
-        cache.Invalidate(brainLatam);
-        cache.Invalidate(brainAf);
-
-        var consumerApp = $"{targetBrain}/apps/consumer";
-        var serviceUs = $"{brainUs}/apps/service-us";
-        var serviceEu = $"{brainEu}/apps/service-eu";
-        var serviceAsia = $"{brainAsia}/apps/service-asia";
-        var serviceLatam = $"{brainLatam}/apps/service-latam";
-        var serviceAf = $"{brainAf}/apps/service-af";
-
-        // 1. service-us shares "payments.read"
-        cache.RegisterFriend(serviceUs, consumerApp, "payments.read");
-
-        // 2. service-eu shares "*" (wildcard)
-        cache.RegisterFriend(serviceEu, consumerApp, "*");
-
-        // 3. service-asia shares different capability "analytics.write"
-        cache.RegisterFriend(serviceAsia, consumerApp, "analytics.write");
-
-        // 4. service-latam was registered but then revoked
-        cache.RegisterFriend(serviceLatam, consumerApp, "payments.read");
-        cache.RevokeFriend(serviceLatam, consumerApp, "payments.read");
-
-        // 5. service-af has an expired grant
-        var expiredGrant = new Grant
-        {
-            Id = $"friend:{serviceAf}:{consumerApp}:payments.read",
-            Owner = $"app:{serviceAf}",
-            Grantee = $"app:{consumerApp}",
-            Target = "payments.read",
-            Scope = "payments.read",
-            WorkspaceId = brainAf,
-            AppId = consumerApp,
-            SemanticTypeId = "payments.read",
-            Mode = GrantMode.Always,
-            GrantedAt = DateTimeOffset.UtcNow.AddHours(-2),
-            Expires = DateTimeOffset.UtcNow.AddHours(-1),
-        };
-        cache.AddGrant(brainAf, expiredGrant);
-
-        // 6. Self-sharing grant (consumerApp -> consumerApp)
-        cache.RegisterFriend(consumerApp, consumerApp, "payments.read");
-
-        // Query: payments.read
-        var paymentOwners = await cache.OwnersSharingWithAsync(consumerApp, "payments.read", ct);
-
-        Assert.Equal(2, paymentOwners.Count);
-        Assert.Contains(serviceUs, paymentOwners);
-        Assert.Contains(serviceEu, paymentOwners);
-        Assert.DoesNotContain(serviceAsia, paymentOwners);
-        Assert.DoesNotContain(serviceLatam, paymentOwners);
-        Assert.DoesNotContain(serviceAf, paymentOwners);
-        Assert.DoesNotContain(consumerApp, paymentOwners);
-
-        // Query: analytics.write
-        var analyticsOwners = await cache.OwnersSharingWithAsync(consumerApp, "analytics.write", ct);
-        Assert.Equal(2, analyticsOwners.Count);
-        Assert.Contains(serviceAsia, analyticsOwners);
-        Assert.Contains(serviceEu, analyticsOwners); // wildcard owner
-        Assert.DoesNotContain(serviceUs, analyticsOwners);
-
-        // Query with null scope: should return all active distinct external owners
-        var allOwners = await cache.OwnersSharingWithAsync(consumerApp, null, ct);
-        Assert.Equal(3, allOwners.Count);
-        Assert.Contains(serviceUs, allOwners);
-        Assert.Contains(serviceEu, allOwners);
-        Assert.Contains(serviceAsia, allOwners);
     }
 }
 

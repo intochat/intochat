@@ -217,7 +217,7 @@ public sealed class GrantRulesChallengerFacts
     public void NonEmptySemanticTypes_RequiresMatchingLiveGrant()
     {
         var caller = CreateAppCaller("local/apps/weather");
-        var target = "local/connection/weather/sensors";
+        var target = "test-brain/connection/weather/sensors";
 
         var request = new CallRequest
         {

@@ -23,12 +23,12 @@ public sealed class EdgeGrantsCacheUsersetFacts
         var grants = os.Get<IGrantsNeuron>(new NeuronId(new BrainId("vlad"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
 
         await contacts.Add("friends", new ContactEntry { Principal = "brain:bob" });
-        await grants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", "invoke"));
+        await grants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", GrantRelations.Run));
 
         var cache = new EdgeGrantsCache(services: os.Services, listeners: os.ClusterListeners, clock: TimeProvider.System);
         var bob = CapabilityCallers.Of(AppPrincipal.Id("gallery"), "bob-account", "bob", CallerKind.App, "gallery");
 
-        Assert.True(await cache.IsGrantedAsync("vlad", bob, "invoke", "vlad/apps/photocraft"));
+        Assert.True(await cache.IsGrantedAsync("vlad", bob, GrantRelations.Run, "vlad/apps/photocraft"));
     }
 
     [Fact]
@@ -42,16 +42,16 @@ public sealed class EdgeGrantsCacheUsersetFacts
         var grants = os.Get<IGrantsNeuron>(new NeuronId(new BrainId("vlad"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
 
         await contacts.Add("friends", new ContactEntry { Principal = "brain:bob" });
-        await grants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", "invoke"));
+        await grants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", GrantRelations.Run));
 
         var cache = new EdgeGrantsCache(services: os.Services, listeners: os.ClusterListeners, clock: TimeProvider.System);
         var bob = CapabilityCallers.Of(AppPrincipal.Id("gallery"), "bob-account", "bob", CallerKind.App, "gallery");
 
-        Assert.True(await cache.IsGrantedAsync("vlad", bob, "invoke", "vlad/apps/photocraft"));
+        Assert.True(await cache.IsGrantedAsync("vlad", bob, GrantRelations.Run, "vlad/apps/photocraft"));
 
         await contacts.Remove("friends", "brain:bob");
 
-        Assert.False(await cache.IsGrantedAsync("vlad", bob, "invoke", "vlad/apps/photocraft"));
+        Assert.False(await cache.IsGrantedAsync("vlad", bob, GrantRelations.Run, "vlad/apps/photocraft"));
     }
 
     [Fact]
@@ -67,12 +67,12 @@ public sealed class EdgeGrantsCacheUsersetFacts
         // bob adds vlad to bob's own "friends"
         await bobContacts.Add("friends", new ContactEntry { Principal = "brain:vlad" });
         // vlad has a grant to contacts/friends#member
-        await vladGrants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", "invoke"));
+        await vladGrants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", GrantRelations.Run));
 
         var cache = new EdgeGrantsCache(services: os.Services, listeners: os.ClusterListeners, clock: TimeProvider.System);
         var bob = CapabilityCallers.Of(AppPrincipal.Id("gallery"), "bob-account", "bob", CallerKind.App, "gallery");
 
         // bob is NOT in vlad's friends list, so must be false
-        Assert.False(await cache.IsGrantedAsync("vlad", bob, "invoke", "vlad/apps/photocraft"));
+        Assert.False(await cache.IsGrantedAsync("vlad", bob, GrantRelations.Run, "vlad/apps/photocraft"));
     }
 }

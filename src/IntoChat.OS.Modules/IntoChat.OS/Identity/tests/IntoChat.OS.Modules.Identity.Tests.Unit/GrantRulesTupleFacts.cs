@@ -24,7 +24,7 @@ public sealed class GrantRulesTupleFacts
 
     [Fact] public void UsersetGrantAllowsWhenPrincipalSetContainsIt()
     {
-        var grant = Grant.Tuple("brain:test-brain", "contacts/friends#member", "test-brain/apps/gallery", "invoke");
+        var grant = Grant.Tuple("brain:test-brain", "contacts/friends#member", "test-brain/apps/gallery", GrantRelations.Run);
         var set = PrincipalSet.For(App("photocraft")).With("contacts/friends#member");
         Assert.True(GrantRules.Evaluate(Req("test-brain/apps/gallery"), null, [grant], set)!.Allowed);
         Assert.False(GrantRules.Evaluate(Req("test-brain/apps/gallery"), null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
@@ -39,7 +39,7 @@ public sealed class GrantRulesTupleFacts
 
     [Fact] public void GrantToOtherAppDoesNotLeakThroughFriendship()
     {
-        var grant = Grant.Tuple("brain:test-brain", "app:ino", "test-brain/apps/files", "invoke");
+        var grant = Grant.Tuple("brain:test-brain", "app:ino", "test-brain/apps/files", GrantRelations.Run);
         Assert.False(GrantRules.Evaluate(Req("test-brain/apps/files"), null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
     }
 }
