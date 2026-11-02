@@ -172,7 +172,7 @@ public static class Desktop
     public static string SettingsActivation(string brainId, string? tab = null) => System.Text.Json.JsonSerializer.Serialize(
         new { kind = "workspace", brainId, application = "settings", operation = "open", input = tab ?? "general" });
 
-    // Arms More's Settings button with the settings activation (render and settings.cs both call it).
+    // Arms More's Settings button with the settings activation (render and the `settings` action both call it).
     public static async Task SetSettingsButton(IntoChatOSConnection brain)
     {
         var button = brain.Get<IButton>(SettingsButton(brain));
@@ -205,7 +205,7 @@ public static class Desktop
         return (opened, refused);
     }
 
-    // Window verbs change the durable workspace; restore.cs re-renders on the resulting WorkspaceChanged.
+    // Window verbs change the durable workspace; the restore watch re-renders on the resulting WorkspaceChanged.
     // A refusal (a cap reached) changes nothing and shows its toast; a stored change clears the toast.
     public static async Task Change(IntoChatOSConnection brain, Guid request, Func<WorkspaceState, Task<WindowChange>> change)
     {
@@ -244,7 +244,7 @@ public static class Desktop
             var current = await viewport.Read();
             if (current.Target != view) { await viewport.Set(view, current.Revision); }
         }
-        // Closed windows (and 0.1.3's per-view viewports) show nothing, even if an older render raced close.cs's own clear.
+        // Closed windows (and 0.1.3's per-view viewports) show nothing, even if an older render raced the close action's own clear.
         var open = model.Windows.Select(window => window.ViewportKey).ToHashSet(StringComparer.Ordinal);
         await foreach (var instance in brain.Kernel.Instances<IViewport>(brain.Stopping))
         {
@@ -278,7 +278,7 @@ public static class Desktop
 
     public static async Task Start(IntoChatOSConnection brain)
     {
-        // Present even if the first render fails: restore.cs re-renders on the next change.
+        // Present even if the first render fails: the restore watch re-renders on the next change.
         try { await Show(brain); }
         finally
         {
@@ -324,5 +324,24 @@ public sealed class DesktopApp : DigitalBrain.App
         if ((await Desktop.Narrow(brain).Read()).Markdown == input) return;
         await Desktop.Narrow(brain).Set(input);
         await Desktop.Show(brain);
+    }
+
+    protected override void Watches(WatchBuilder watch)
+    {
+        // Every durable workspace change re-renders the desktop: window verbs, shell activation and deep links all land
+        // there, and on restart the windows come back from that state.
+        watch.On<IWorkspace, IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged>("restore", at => IWorkspace.Key(at.Brain),
+            _ => Act("re-render", Desktop.Show));
+        // The view's own actions: windows, tabs, favourites, pins and the dock.
+        watch.On<IView, ViewAction>("view", at => at.App + "/view", clicked => Act(clicked.Action, brain => DesktopActions.Handle(brain, clicked)));
+    }
+
+    // One bad click must not end the subscription.
+    private static async Task Act(string what, Func<IntoChatOSConnection, Task> action)
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        try { await action(brain); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        { Console.Error.WriteLine("Desktop could not " + what + ": " + error.GetType().Name); }
     }
 }

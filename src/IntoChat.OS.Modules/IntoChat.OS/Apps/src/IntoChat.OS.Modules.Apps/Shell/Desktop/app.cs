@@ -3,14 +3,14 @@
 The v2 root: windows side by side above a dock (apps left; usage and profile right).
 On narrow screens the focused window fills the screen. One startup signal: the
 desktop's `start` request composes it from the workspace state and installed apps;
-start.cs alone handles it. The layout text "classic" keeps the v1 Workspace as the root.
+the `start` operation handles it. The layout text "classic" keeps the v1 Workspace as the root.
 
 ## Scenario: Starting shows the dock
 Invoking "start" publishes the desktop view with a dock row, Ino pinned first.
 
 ## Scenario: Windows side by side
 Clicking a dock app (`open:<app>`) adds its window beside the others; `focus:<window>` and
-`close:<window>/<tab>` act on one window; restore.cs re-renders on every workspace change, so a
+`close:<window>/<tab>` act on one window; the restore watch re-renders on every workspace change, so a
 restarted desktop shows the same windows and focus. Below 900 logical pixels the shell sends
 the `narrow` request (true; false when wider again) and only the focused window shows.
 
@@ -38,7 +38,7 @@ from an older button is translated by the shell to the same activation.
 
 ## Scenario: Classic layout
 More holds Settings (above) and Classic layout, a button
-whose activation hands the shell {kind: reconnect} with the `layout` request: layout-switch.cs
+whose activation hands the shell {kind: reconnect} with the `layout` request: the `layout` operation
 stores "classic" or "desktop" in the desktop's layout text and the shell connects again, so the
 next root is the v1 Workspace (or the desktop). Open views are the same workspace either way.
 */
@@ -46,7 +46,7 @@ using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "desktop";
-    public const string Version = "0.3.1";
+    public const string Version = "0.4.0";
     public static readonly AppManifest Manifest = new(
         Title: "Desktop", Description: "Your apps in windows, with a dock.",
         Operations: [new("start", "Compose the desktop from the open windows and installed apps."),
