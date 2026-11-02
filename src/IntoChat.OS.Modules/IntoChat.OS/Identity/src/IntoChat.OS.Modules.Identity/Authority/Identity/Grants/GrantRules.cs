@@ -96,7 +96,8 @@ public static class GrantRules
         return false;
     }
 
-    public static CallDecision? Evaluate(CallRequest request, Member? member, IReadOnlyList<Grant> grants, PrincipalSet principals)
+    // connectionBound: the caller's awaited answer; without one the cache is asked synchronously, which a grain turn must not do.
+    public static CallDecision? Evaluate(CallRequest request, Member? member, IReadOnlyList<Grant> grants, PrincipalSet principals, bool? connectionBound = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(principals);
@@ -129,7 +130,7 @@ public static class GrantRules
             return CallDecision.Deny(CallDenial.UntrustedCaller, "An app caller must identify its app, and its principal must be that app's.");
         }
 
-        if (request.SemanticTypeIds.Length == 0 && EdgeGrantsCache.Current.IsConnectionBound(caller, request.TargetNeuron))
+        if (request.SemanticTypeIds.Length == 0 && (connectionBound ?? EdgeGrantsCache.Current.IsConnectionBound(caller, request.TargetNeuron)))
         {
             return CallDecision.Allow();
         }
@@ -144,13 +145,15 @@ public static class GrantRules
         var ownPrefix2 = app.StartsWith($"{caller.BrainId}/apps/", StringComparison.Ordinal) ? app : null;
         var ownPrefix3 = app; // if app is already "local/apps/calculator"
 
-        bool isOwn = string.Equals(target, ownPrefix1, StringComparison.Ordinal)
-            || target.StartsWith(ownPrefix1 + "/", StringComparison.Ordinal)
-            || (ownPrefix2 is not null && (string.Equals(target, ownPrefix2, StringComparison.Ordinal) || target.StartsWith(ownPrefix2 + "/", StringComparison.Ordinal)))
-            || string.Equals(target, ownPrefix3, StringComparison.Ordinal)
-            || target.StartsWith(ownPrefix3 + "/", StringComparison.Ordinal);
+        bool IsOwn(string path) => string.Equals(path, ownPrefix1, StringComparison.Ordinal)
+            || path.StartsWith(ownPrefix1 + "/", StringComparison.Ordinal)
+            || (ownPrefix2 is not null && (string.Equals(path, ownPrefix2, StringComparison.Ordinal) || path.StartsWith(ownPrefix2 + "/", StringComparison.Ordinal)))
+            || string.Equals(path, ownPrefix3, StringComparison.Ordinal)
+            || path.StartsWith(ownPrefix3 + "/", StringComparison.Ordinal);
 
-        if (isOwn)
+        // A plain neuron's target is {type}/{brain}/{key}; the app owns it when {brain}/{key} lies under the app.
+        var typeEnd = target.IndexOf('/', StringComparison.Ordinal);
+        if (IsOwn(target) || typeEnd > 0 && IsOwn(target[(typeEnd + 1)..]))
         {
             return CallDecision.Allow();
         }

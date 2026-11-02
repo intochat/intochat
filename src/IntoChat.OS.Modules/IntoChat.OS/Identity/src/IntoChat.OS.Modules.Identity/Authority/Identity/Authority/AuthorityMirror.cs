@@ -20,14 +20,12 @@ internal sealed class AuthorityMirror
         _states[brainScopeId] = state;
     }
 
-    public bool TryDecide(CallRequest request, out CallDecision? decision)
+    public async Task<(bool Decided, CallDecision? Decision)> TryDecide(CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        decision = null;
         var scope = BrainScope.Create(request.Caller.AccountId, request.Caller.BrainId).Id;
-        if (!_states.TryGetValue(scope, out var state)) { return false; }
-        if (GrantRules.OnceToConsume(request, state.Grants).Count > 0) { return false; }
-        decision = BrainAuthorityDecisions.Decide(state, request);
-        return true;
+        if (!_states.TryGetValue(scope, out var state)) { return (false, null); }
+        if (GrantRules.OnceToConsume(request, state.Grants).Count > 0) { return (false, null); }
+        return (true, await BrainAuthorityDecisions.Decide(state, request));
     }
 }

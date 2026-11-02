@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using IntoChat.OS.Authority.Identity.Contacts;
@@ -25,6 +26,10 @@ public interface IEdgeGrantsCache
 public sealed class EdgeGrantsCache : IEdgeGrantsCache
 {
     public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(30);
+
+    // The authority reads the grants and contacts it decides from as the platform: under the caller being decided,
+    // those reads would be judged by the very grants they fetch. It reads inside the brain it reads from.
+    private static CapabilityCaller AuthorityReader(string brain) => CapabilityCallers.Platform("identity.grants", "system", brain);
     public static EdgeGrantsCache Current { get; set; } = new();
 
     private readonly Lock _sync = new();
@@ -89,6 +94,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         {
             try
             {
+                using var reader = RuntimeCallerContext.Stamp(AuthorityReader(brain));
                 var grantsNeuron = ResolveNeuron<IGrantsNeuron>(IGrantsNeuron.Key(brain));
                 if (grantsNeuron is not null)
                 {
@@ -137,6 +143,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         {
             try
             {
+                using var reader = RuntimeCallerContext.Stamp(AuthorityReader(ownerBrain));
                 var contactsNeuron = ResolveNeuron<IContactsNeuron>(IContactsNeuron.Key(ownerBrain));
                 if (contactsNeuron is not null)
                 {
@@ -265,6 +272,16 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         }
 
         return false;
+    }
+
+    // The target's brain answers first, then the caller's own. Grain turns await this one.
+    public async Task<bool> IsConnectionBoundAsync(CapabilityCaller caller, string? targetOrConnectionKey)
+    {
+        if (caller is null || string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
+        var targetBrain = ExtractBrain(targetOrConnectionKey);
+        if (await IsConnectionBoundAsync(targetBrain, caller, targetOrConnectionKey)) { return true; }
+        return !string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain, StringComparison.OrdinalIgnoreCase)
+            && await IsConnectionBoundAsync(caller.BrainId, caller, targetOrConnectionKey);
     }
 
     public bool IsConnectionBound(CapabilityCaller caller, string? targetOrConnectionKey)

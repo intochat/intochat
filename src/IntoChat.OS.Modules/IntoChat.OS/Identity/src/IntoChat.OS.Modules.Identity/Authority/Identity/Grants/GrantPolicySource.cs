@@ -34,7 +34,8 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
     // untouched one provisions it through the machine's signed ProvisionOwner (R59/R68), then decides again.
     private async ValueTask<CallDecision?> Decide(CallRequest request, CancellationToken cancellationToken)
     {
-        if (mirror.TryDecide(request, out var mirrored) && !Provisions(request, mirrored)) { return mirrored; }
+        var (decided, mirrored) = await mirror.TryDecide(request).WaitAsync(cancellationToken);
+        if (decided && !Provisions(request, mirrored)) { return mirrored; }
         var decision = await identity.Authorize(request).WaitAsync(cancellationToken);
         var caller = request.Caller;
         if (decision is not { Denial: CallDenial.OutsideWorkspace } || auth?.Value.Posture != IdentityPosture.Open

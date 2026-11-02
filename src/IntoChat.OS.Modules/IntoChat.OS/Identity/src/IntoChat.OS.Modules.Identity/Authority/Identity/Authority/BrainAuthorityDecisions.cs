@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
@@ -11,7 +12,8 @@ namespace IntoChat.OS.Authority.Identity.Authority;
 // from the authority that persists.
 internal static class BrainAuthorityDecisions
 {
-    public static CallDecision? Decide(BrainRow state, CallRequest request)
+    // Awaited, never blocked on: the expansion calls neurons, and a grain turn that blocks its scheduler on them deadlocks.
+    public static async Task<CallDecision?> Decide(BrainRow state, CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(request);
@@ -19,8 +21,10 @@ internal static class BrainAuthorityDecisions
         var circleMember = state.Kind == BrainKind.Circle && Member(state, caller.PersonId)?.AccountId == caller.AccountId;
         if (state.AccountId != caller.AccountId && !circleMember || state.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        var principals = EdgeGrantsCache.Current.ExpandAsync(GrantsBrainOf(request), caller).GetAwaiter().GetResult();
-        return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), state.Grants, principals);
+        var principals = await EdgeGrantsCache.Current.ExpandAsync(GrantsBrainOf(request), caller);
+        var connectionBound = caller.Kind == CallerKind.App && request.SemanticTypeIds.Length == 0 && GrantRules.AppOf(caller) is not null
+            && await EdgeGrantsCache.Current.IsConnectionBoundAsync(caller, request.TargetNeuron);
+        return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), state.Grants, principals, connectionBound);
     }
 
     // Grants are owner-declared, so the brain whose grants decide a call is the target's, falling back to the

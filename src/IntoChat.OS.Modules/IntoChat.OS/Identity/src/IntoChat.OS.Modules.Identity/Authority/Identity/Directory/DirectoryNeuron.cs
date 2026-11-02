@@ -222,7 +222,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(BrainAuthorityDecisions.GrantsBrainOf(request)));
         var durableGrants = await grantsNeuron.List();
         var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
-        var decision = BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request);
+        var decision = await BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request);
         if (decision is { Allowed: true })
         {
             var consumed = GrantRules.OnceToConsume(request, allGrants);
