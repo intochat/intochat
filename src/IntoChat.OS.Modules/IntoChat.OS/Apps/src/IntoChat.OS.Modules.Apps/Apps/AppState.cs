@@ -87,6 +87,18 @@ public sealed class AppState
         return copy;
     }
 
+    public bool HasReceipt(Guid operationId)
+    {
+        for (var i = 0; i < Receipts.Length; i++)
+        {
+            if (Receipts[i].OperationId == operationId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public AppState Clone() => new()
     {
         Manifest = Manifest,

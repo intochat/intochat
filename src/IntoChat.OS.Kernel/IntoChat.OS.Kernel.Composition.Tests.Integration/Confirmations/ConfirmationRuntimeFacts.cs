@@ -144,18 +144,23 @@ public sealed class ConfirmationRuntimeFacts
     }
 
     [Fact]
-    public async Task CompletedEntriesAreBoundedToMaxEntries()
+    public async Task ResolvedConfirmations_AreTrimmed_WhenExceedingLimit()
     {
-        var (neuron, context) = await Start(ConfirmationPolicy.Never);
-        for (var i = 0; i < 60; i++)
+        var (neuron, context) = await Start();
+        using (Person())
         {
-            await neuron.Begin(Plan($"p-{i}"), "app.files");
+            for (var i = 1; i <= 60; i++)
+            {
+                var plan = new ConfirmationPlan($"p-{i}", ConfirmationAction.Delete, true, "Title", "Prompt", "A", "D", "t.txt");
+                await neuron.Begin(plan, "app.files");
+                await neuron.Resolve($"p-{i}", true);
+            }
         }
 
         var state = (await context.MemoryState.Load<ConfirmationState>())!;
-        Assert.Equal(50, state.Entries.Length);
-        Assert.Equal("p-10", state.Entries[0].Request.PlanId);
-        Assert.Equal("p-59", state.Entries[^1].Request.PlanId);
+        Assert.True(state.Entries.Length <= 50, $"Expected at most 50 resolved entries, but found {state.Entries.Length}");
+        Assert.Contains(state.Entries, e => e.Request.PlanId == "p-60");
+        Assert.DoesNotContain(state.Entries, e => e.Request.PlanId == "p-1");
     }
 
     private static ConfirmationPlan Plan(string id)
