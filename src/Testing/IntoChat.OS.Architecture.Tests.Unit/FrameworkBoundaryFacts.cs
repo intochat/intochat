@@ -120,6 +120,7 @@ public sealed partial class FrameworkBoundaryFacts
         "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidation.cs",
         "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidationException.cs",
         "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationIssue.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationRules.cs",
     ];
 
     private static string[] OsFrameworkFiles()

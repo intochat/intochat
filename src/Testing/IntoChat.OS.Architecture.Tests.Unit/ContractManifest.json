@@ -203,6 +203,7 @@
     "DigitalBrain.Confirmation.ConfirmationRequested": "ConfirmationRequested",
     "DigitalBrain.Confirmation.ConfirmationResolved": "ConfirmationResolved",
     "DigitalBrain.Gap": "Gap",
+    "DigitalBrain.Rules.Rejected": "Rejected",
     "DigitalBrain.Signal": "Signal",
     "IntoChat.Files.FilesLocation": "FilesLocation",
     "IntoChat.Files.FilesMore": "FilesMore",

@@ -1,4 +1,4 @@
-// os-only: os helper over the module validation types; moves with them only once those are deleted.
+// os-only: moves with the Validation group; DigitalBrain.Modules.Validation.OptionRules replaces it once module packages stop binding here.
 using System.Text;
 
 namespace IntoChat.OS.Framework.Modules.Validation;
