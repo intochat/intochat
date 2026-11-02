@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Contracts;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
@@ -217,11 +218,35 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         await Commit(DropMember(State, brainScopeId, principalId), brainScopeId);
     }
 
+    // The authority reads and writes a brain's grants as the platform, as EdgeGrantsCache does. Under the caller being decided,
+    // the grants neuron's incoming filter would ask this directory again while it waits on the grants neuron: a call cycle that
+    // only the 30 s timeout ended, so every first call after a start failed (reconciler, compiled apps, brain scene).
+    private static CapabilityCaller AuthorityReader(string brain) => CapabilityCallers.Platform(IDirectoryStore.Type, "system", brain);
+
+    private Grants.IGrantsNeuron GrantsOf(string brain) => SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(brain));
+
+    private async Task<Grant[]> ReadGrants(string brain)
+    {
+        using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
+        return await GrantsOf(brain).List();
+    }
+
+    private async Task WriteGrant(string brain, Grant grant)
+    {
+        using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
+        await GrantsOf(brain).Grant(grant);
+    }
+
+    private async Task RevokeGrant(string brain, string grantId)
+    {
+        using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
+        await GrantsOf(brain).Revoke(grantId);
+    }
+
     public async Task<CallDecision?> Authorize(CallRequest request)
     {
         var brain = BrainOf(State, request.Caller.BrainId) ?? new BrainRow { BrainId = request.Caller.BrainId };
-        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(BrainAuthorityDecisions.GrantsBrainOf(request)));
-        var durableGrants = await grantsNeuron.List();
+        var durableGrants = await ReadGrants(BrainAuthorityDecisions.GrantsBrainOf(request));
         var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
         var decision = await BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request);
         if (decision is { Allowed: true })
@@ -232,7 +257,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
                 decision = decision with { ConsumesOnce = true };
                 foreach (var c in consumed)
                 {
-                    await grantsNeuron.Revoke(c.Id);
+                    await RevokeGrant(BrainAuthorityDecisions.GrantsBrainOf(request), c.Id);
                 }
                 var grants = brain.Grants.Where(grant => !consumed.Contains(grant)).ToArray();
                 await Commit(ReplaceBrain(State, brain with { Grants = grants }), brain.BrainId);
@@ -243,8 +268,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
 
     public async Task<Grant[]> ListGrants(string brainScopeId)
     {
-        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(brainScopeId));
-        var list = await grantsNeuron.List();
+        var list = await ReadGrants(brainScopeId);
         if (list.Length > 0) { return list; }
         return BrainOf(State, brainScopeId)?.Grants.Where(grant => !grant.Revoked).ToArray() ?? [];
     }
@@ -274,8 +298,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         }).Append(stored).ToArray();
         await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
 
-        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(caller.BrainId));
-        await grantsNeuron.Grant(stored);
+        await WriteGrant(caller.BrainId, stored);
         return stored;
     }
 
@@ -298,8 +321,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         }
         if (added.Count == 0) { return []; }
         await Commit(ReplaceBrain(State, brain with { Grants = [.. brain.Grants, .. added] }), brainScopeId);
-        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(brainScopeId));
-        foreach (var grant in added) { await grantsNeuron.Grant(grant); }
+        foreach (var grant in added) { await WriteGrant(brainScopeId, grant); }
         return [.. added];
     }
 
@@ -319,8 +341,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var grants = brain.Grants.Where(item => item.Id != grantId).ToArray();
         await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
 
-        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(caller.BrainId));
-        await grantsNeuron.Revoke(grantId);
+        await RevokeGrant(caller.BrainId, grantId);
     }
 
     [Obsolete("Use RevokeAsOwner with grantId")]
@@ -331,11 +352,10 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var grants = brain.Grants.Where(item => item.AppId != appId || item.SemanticTypeId != semanticTypeId || item.Mode != mode).ToArray();
         await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
 
-        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(caller.BrainId));
-        var activeGrants = await grantsNeuron.List();
+        var activeGrants = await ReadGrants(caller.BrainId);
         foreach (var item in activeGrants.Where(item => item.AppId == appId && item.SemanticTypeId == semanticTypeId && item.Mode == mode))
         {
-            await grantsNeuron.Revoke(item.Id);
+            await RevokeGrant(caller.BrainId, item.Id);
         }
     }
 
