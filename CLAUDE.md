@@ -8,7 +8,7 @@ OS and SDK documentation lives in the sibling public repository `E:/intochat/os.
 - Use codegraph for general structure when available.
 - Follow the existing neuron, signal, behavior and connector model. Propose new concepts, contract changes and module-shape changes before implementation.
 - Preserve per-brain ownership and kernel-stamped signal provenance. Do not derive authority from settings.
-- Contracts belong in src/IntoChat.OS and module Contracts assemblies; framework implementation belongs in Framework; platform authorities belong in Platform.
+- Contracts belong in src/IntoChat.OS and module Contracts assemblies; generic runtime implementation belongs in the DigitalBrain packages (sibling repository); OS-only hosting belongs in src/IntoChat.OS/Hosting/IntoChat.OS.Framework; platform authorities belong in the Identity module's Authority tree.
 - First-party app source and executable prompts live in features/{owner}/{App}. Inline app specifications and runtime prompts are source inputs and remain here.
 - Use shared module-owned testing infrastructure for engineering changes. Build individual projects on Windows rather than the solution.
 - Product assessment and documentation work does not authorize running tests or starting the product. Follow the user's requested verification scope.
