@@ -102,31 +102,34 @@ public sealed partial class FrameworkBoundaryFacts
     // Files whose DigitalBrain 0.12.0-preview.1 copies exist; the originals stay until external module packages stop binding to them.
     private static readonly string[] PendingMoveToDigitalBrain =
     [
-        "src/IntoChat.OS/Runtime/Watch/IInitialSignalWait.cs",
-        "src/IntoChat.OS/Runtime/Watch/ISelectiveWatch.cs",
-        "src/IntoChat.OS/Runtime/Watch/ISignalDelivery.cs",
-        "src/IntoChat.OS/Runtime/Watch/ISignalWatch.cs",
-        "src/IntoChat.OS/Runtime/Watch/Reaction.cs",
-        "src/IntoChat.OS/Runtime/Watch/SignalDeliveries.cs",
-        "src/IntoChat.OS/Runtime/Watch/SourceSet.cs",
-        "src/IntoChat.OS/Runtime/Watch/Sources.cs",
-        "src/IntoChat.OS/Runtime/Watch/WatchStream.cs",
-        "src/IntoChat.OS/Runtime/NeuronAddress.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Runtime/IWorkContinuation.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Storage/Confinement/ConfinementDenied.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Storage/Confinement/HardDenyList.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Storage/Confinement/PathConfinement.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/IModuleValidator.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidation.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidationException.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationIssue.cs",
-        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationRules.cs",
+        "Runtime/Watch/IInitialSignalWait.cs",
+        "Runtime/Watch/ISelectiveWatch.cs",
+        "Runtime/Watch/ISignalDelivery.cs",
+        "Runtime/Watch/ISignalWatch.cs",
+        "Runtime/Watch/Reaction.cs",
+        "Runtime/Watch/SignalDeliveries.cs",
+        "Runtime/Watch/SourceSet.cs",
+        "Runtime/Watch/Sources.cs",
+        "Runtime/Watch/WatchStream.cs",
+        "Runtime/NeuronAddress.cs",
+        "Hosting/IntoChat.OS.Framework/Runtime/IWorkContinuation.cs",
+        "Hosting/IntoChat.OS.Framework/Storage/Confinement/ConfinementDenied.cs",
+        "Hosting/IntoChat.OS.Framework/Storage/Confinement/HardDenyList.cs",
+        "Hosting/IntoChat.OS.Framework/Storage/Confinement/PathConfinement.cs",
+        "Hosting/IntoChat.OS.Framework/Modules/Validation/IModuleValidator.cs",
+        "Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidation.cs",
+        "Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidationException.cs",
+        "Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationIssue.cs",
+        "Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationRules.cs",
     ];
 
     private static string[] OsFrameworkFiles()
-        => new[] { "src/IntoChat.OS/Hosting/IntoChat.OS.Framework", "src/IntoChat.OS/Runtime" }
-            .SelectMany(folder => FilesUnder(Path.Combine(Repository.Root, folder), name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
-            .Select(Repository.Relative).ToArray();
+        => new[] { "Hosting/IntoChat.OS.Framework", "Runtime" }
+            .SelectMany(folder => FilesUnder(Path.Combine(ContractsDirectory, folder), name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
+            .Select(path => Path.GetRelativePath(ContractsDirectory, path).Replace(Path.DirectorySeparatorChar, '/')).ToArray();
+
+    // Entries and scanned paths are relative to the contracts project (IntoChat.OS) folder.
+    private static string ContractsDirectory => Repository.ProjectNamed("IntoChat.OS").Directory;
 
     // Generic code belongs in DigitalBrain; what stays in the os framework folders must touch an os-only type or say why it is os-only.
     [Fact]
@@ -138,7 +141,7 @@ public sealed partial class FrameworkBoundaryFacts
             .Where(path => !PendingMoveToDigitalBrain.Contains(path, StringComparer.OrdinalIgnoreCase))
             .Where(path =>
             {
-                var text = File.ReadAllText(Path.Combine(Repository.Root, path));
+                var text = File.ReadAllText(Path.Combine(ContractsDirectory, path));
                 return !OsOnlyMarkers.Any(marker => text.Contains(marker, StringComparison.Ordinal))
                     && !text.Split('\n').Any(line => line.TrimStart().StartsWith("// os-only: ", StringComparison.Ordinal) && line.Trim().Length > "// os-only: ".Length);
             })
@@ -149,7 +152,7 @@ public sealed partial class FrameworkBoundaryFacts
     [Fact]
     public void PendingMoveListNamesOnlyExistingFiles()
     {
-        var missing = PendingMoveToDigitalBrain.Where(path => !File.Exists(Path.Combine(Repository.Root, path))).ToArray();
+        var missing = PendingMoveToDigitalBrain.Where(path => !File.Exists(Path.Combine(ContractsDirectory, path))).ToArray();
         Assert.True(missing.Length == 0, "Remove deleted files from PendingMoveToDigitalBrain:\n" + string.Join('\n', missing));
     }
 
