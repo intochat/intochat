@@ -32,6 +32,8 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityC
     public Task<CallDecision?> Authorize(CallRequest request) => Directory.Authorize(request);
     public Task<Grant[]> ListGrants(string brainScopeId) => Directory.ListGrants(brainScopeId);
     public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => Directory.GrantAsOwner(caller, grant);
+    public Task RevokeAsOwner(CapabilityCaller caller, string grantId) => Directory.RevokeAsOwner(caller, grantId);
+    [Obsolete("Use RevokeAsOwner with grantId")]
     public Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
         => Directory.RevokeAsOwner(caller, appId, semanticTypeId, mode);
 }

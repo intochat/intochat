@@ -32,19 +32,7 @@ public sealed class CircleSharingRemediationFacts
 
         // Verify app reference grant is issued with expected Id and target
         var expectedAppGrantId = $"circle:{CircleBrain}:app:{appName}";
-        var appGrant = new Grant
-        {
-            Id = expectedAppGrantId,
-            Owner = $"brain:{SharerBrain}",
-            Grantee = $"brain:{CircleBrain}",
-            Target = $"{SharerBrain}/apps/{appName}",
-            Scope = "*",
-            WorkspaceId = SharerBrain,
-            AppId = appName,
-            SemanticTypeId = "*",
-            Mode = GrantMode.Always,
-            GrantedAt = DateTimeOffset.UtcNow,
-        };
+        var appGrant = Grant.Tuple($"brain:{SharerBrain}", $"brain:{CircleBrain}", $"{SharerBrain}/apps/{appName}", GrantRelations.Run) with { Id = expectedAppGrantId };
 
         Assert.Equal($"circle:{CircleBrain}:app:{appName}", appGrant.Id);
         Assert.Equal($"brain:{CircleBrain}", appGrant.Grantee);

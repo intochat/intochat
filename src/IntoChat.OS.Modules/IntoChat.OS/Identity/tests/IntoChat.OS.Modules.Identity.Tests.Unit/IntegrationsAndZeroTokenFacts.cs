@@ -251,23 +251,13 @@ public sealed class IntegrationsAndZeroTokenFacts
         EdgeGrantsCache.Current.Clear();
         try
         {
-            var ownerApp = "local/apps/ino";
             var friendApp = "local/apps/creator";
             var strangerApp = "local/apps/stranger";
             var connectionKey = ConnectionKeys.For("local", "github", "personal");
 
-            var ownerGrant = new Grant
-            {
-                WorkspaceId = "local",
-                AppId = ownerApp,
-                SemanticTypeId = "repo.contents",
-                TargetNeuronKey = connectionKey,
-                Mode = GrantMode.Always,
-                GrantedAt = DateTimeOffset.UtcNow,
-            };
-
-            EdgeGrantsCache.Current.RegisterFriend(ownerApp, friendApp, "repo.contents");
-            EdgeGrantsCache.Current.BindFriendConnection(connectionKey, friendApp);
+            var creatorGrant = Grant.Tuple("brain:local", $"app:{friendApp}", connectionKey, "repo.contents");
+            var boundGrant = Grant.Tuple("brain:local", $"app:{friendApp}", connectionKey, $"use-via:{friendApp}");
+            EdgeGrantsCache.Current.AddGrant("local", boundGrant);
 
             var friendCaller = CapabilityCallers.Of(AppPrincipal.Id(friendApp), "ada", "local", CallerKind.App, friendApp);
             var strangerCaller = CapabilityCallers.Of(AppPrincipal.Id(strangerApp), "ada", "local", CallerKind.App, strangerApp);
@@ -279,12 +269,12 @@ public sealed class IntegrationsAndZeroTokenFacts
                 Operation = "IGitHub.ReadRepo",
                 SemanticTypeIds = ["repo.contents"],
             };
-            var friendDecision = GrantRules.Evaluate(friendRequest, null, [ownerGrant]);
+            var friendDecision = GrantRules.Evaluate(friendRequest, null, [creatorGrant]);
             Assert.NotNull(friendDecision);
             Assert.True(friendDecision!.Allowed);
 
             var strangerRequest = friendRequest with { Caller = strangerCaller };
-            var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [ownerGrant]);
+            var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [creatorGrant]);
             Assert.NotNull(strangerDecision);
             Assert.False(strangerDecision!.Allowed);
 

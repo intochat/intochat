@@ -3,6 +3,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -161,7 +162,16 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     internal async Task Grant(string appKey, string[]? types, CapabilityCaller? caller, CancellationToken ct)
     {
         if (types is not { Length: > 0 }) { return; }
-        if (directory is null || caller is null) { throw new UnauthorizedAccessException(OwnerOnly); }
+        if (caller is null) { throw new UnauthorizedAccessException(OwnerOnly); }
+        if (plain?.GetService(typeof(IIdentityClient)) is IIdentityClient identityClient)
+        {
+            foreach (var type in types)
+            {
+                await identityClient.GrantAsOwner(caller, IntoChat.OS.Connections.Identity.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", $"{caller.BrainId}/apps/{appKey}", type));
+            }
+            return;
+        }
+        if (directory is null) { throw new UnauthorizedAccessException(OwnerOnly); }
         using var scope = RuntimeCallerContext.Stamp(caller);
         var grants = await directory.Grants(ct);
         foreach (var type in types)

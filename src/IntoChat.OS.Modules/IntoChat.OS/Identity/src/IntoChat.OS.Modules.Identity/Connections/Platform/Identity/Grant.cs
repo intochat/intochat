@@ -28,6 +28,7 @@ public sealed record Grant
 {
     public Grant() { }
 
+    [Obsolete("Use Grant.Tuple")]
     public Grant(string id, string owner, string grantee, string target, string scope, DateTimeOffset? expires = null, bool revoked = false)
     {
         Id = id;
@@ -71,6 +72,7 @@ public sealed record Grant
         DateTimeOffset? expires = null,
         bool delegable = false)
     {
+#pragma warning disable CS0618
         return new Grant(
             id: Guid.NewGuid().ToString("N"),
             owner: owner,
@@ -81,6 +83,7 @@ public sealed record Grant
         {
             Delegable = !GrantRelations.IsUseVia(relation) && delegable,
         };
+#pragma warning restore CS0618
     }
 
     public static Grant Normalize(Grant g)

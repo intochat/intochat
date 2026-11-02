@@ -39,6 +39,7 @@ internal interface IDirectoryStore
     Task<CallDecision?> Authorize(CallRequest request);
     Task<Grant[]> ListGrants(string brainScopeId);
     Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant);
+    Task RevokeAsOwner(CapabilityCaller caller, string grantId);
     Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
 }
 
@@ -251,12 +252,23 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     {
         var next = RequireOwner(State, caller);
         if (BrainOf(next, caller.BrainId) is null) { throw new InvalidOperationException("Initialize the brain authority before granting access."); }
-        ArgumentException.ThrowIfNullOrWhiteSpace(grant.AppId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(grant.SemanticTypeId);
-        var stored = grant with { WorkspaceId = caller.BrainId, GrantedAt = clock.GetUtcNow() };
+        var normalized = Grant.Normalize(grant);
+        ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Grantee);
+        ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Scope);
+        var stored = normalized with
+        {
+            Owner = string.IsNullOrEmpty(normalized.Owner) ? $"brain:{caller.BrainId}" : normalized.Owner,
+            WorkspaceId = caller.BrainId,
+            GrantedAt = clock.GetUtcNow(),
+        };
         var brain = BrainOf(next, caller.BrainId)!;
-        var grants = brain.Grants.Where(item => item.AppId != stored.AppId || item.SemanticTypeId != stored.SemanticTypeId
-            || item.Mode != stored.Mode || (item.Mode == GrantMode.ThisChat && item.ConversationId != stored.ConversationId)).Append(stored).ToArray();
+        var grants = brain.Grants.Where(item =>
+        {
+            var n = Grant.Normalize(item);
+            return n.Id != stored.Id && !(string.Equals(n.Grantee, stored.Grantee, StringComparison.Ordinal)
+                && string.Equals(n.Target, stored.Target, StringComparison.Ordinal)
+                && string.Equals(n.Scope, stored.Scope, StringComparison.Ordinal));
+        }).Append(stored).ToArray();
         await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
 
         var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(caller.BrainId));
@@ -264,6 +276,19 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         return stored;
     }
 
+    public async Task RevokeAsOwner(CapabilityCaller caller, string grantId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(grantId);
+        var next = RequireOwner(State, caller);
+        var brain = BrainOf(next, caller.BrainId)!;
+        var grants = brain.Grants.Where(item => item.Id != grantId).ToArray();
+        await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
+
+        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(caller.BrainId));
+        await grantsNeuron.Revoke(grantId);
+    }
+
+    [Obsolete("Use RevokeAsOwner with grantId")]
     public async Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
     {
         var next = RequireOwner(State, caller);

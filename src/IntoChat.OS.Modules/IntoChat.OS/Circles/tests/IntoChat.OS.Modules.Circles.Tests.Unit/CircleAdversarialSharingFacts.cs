@@ -88,37 +88,19 @@ public sealed class CircleAdversarialSharingFacts
         Assert.Equal("brain:circle-123", connGrantee);
 
         // Verify Grant can be constructed with these reference parameters without secrets
-        var appGrant = new Grant
-        {
-            Id = appGrantId,
-            Owner = $"brain:{sourceBrain}",
-            Grantee = appGrantee,
-            Target = appTarget,
-            Scope = "*",
-            WorkspaceId = sourceBrain,
-            AppId = appName,
-            SemanticTypeId = "*",
-            Mode = GrantMode.Always,
-            GrantedAt = DateTimeOffset.UtcNow,
-        };
-
-        var connGrant = new Grant
-        {
-            Id = connGrantId,
-            Owner = $"brain:{sourceBrain}",
-            Grantee = connGrantee,
-            Target = connectionKey,
-            Scope = "*",
-            WorkspaceId = sourceBrain,
-            AppId = appName,
-            SemanticTypeId = "*",
-            TargetNeuronKey = connectionKey,
-            Mode = GrantMode.Always,
-            GrantedAt = DateTimeOffset.UtcNow,
-        };
+        var appGrant = Grant.Tuple($"brain:{sourceBrain}", appGrantee, appTarget, GrantRelations.Run) with { Id = appGrantId };
+        var connGrant = Grant.Tuple($"brain:{sourceBrain}", connGrantee, connectionKey, $"use-via:{appName}") with { Id = connGrantId };
 
         Assert.Equal("circle:circle-123:app:gallery", appGrant.Id);
         Assert.Equal("circle:circle-123:conn:user-456/connection/postgres/db-1", connGrant.Id);
+
+        Assert.Equal($"brain:{circleBrain}", appGrant.Grantee);
+        Assert.Equal(GrantRelations.Run, appGrant.Scope);
+        Assert.True(appGrant.IsCanonical);
+
+        Assert.Equal($"brain:{circleBrain}", connGrant.Grantee);
+        Assert.Equal($"use-via:{appName}", connGrant.Scope);
+        Assert.True(connGrant.IsCanonical);
     }
 
     [Fact]

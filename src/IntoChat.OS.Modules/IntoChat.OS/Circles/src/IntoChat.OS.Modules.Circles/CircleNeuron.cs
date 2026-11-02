@@ -316,18 +316,13 @@ internal sealed class CircleNeuron(
         var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron>(plain, IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron.Key(source));
         await BrainActs.In(broker, source, async () =>
         {
-            await grantsNeuron.Grant(new IntoChat.OS.Connections.Identity.Grant
+            await grantsNeuron.Grant(IntoChat.OS.Connections.Identity.Grant.Tuple(
+                $"brain:{source}",
+                $"brain:{CircleBrain}",
+                IntoChat.OS.Modules.Apps.IApp.Key(source, appName),
+                IntoChat.OS.Connections.Identity.GrantRelations.Run) with
             {
                 Id = $"circle:{CircleBrain}:app:{appName}",
-                Owner = $"brain:{source}",
-                Grantee = $"brain:{CircleBrain}",
-                Target = IntoChat.OS.Modules.Apps.IApp.Key(source, appName),
-                Scope = "*",
-                WorkspaceId = source,
-                AppId = appName,
-                SemanticTypeId = "*",
-                Mode = IntoChat.OS.Connections.Identity.GrantMode.Always,
-                GrantedAt = DateTimeOffset.UtcNow,
             });
         });
 
@@ -342,19 +337,13 @@ internal sealed class CircleNeuron(
             var owned = ConnectionKeys.For(source, slot.Connector, id);
             await BrainActs.In(broker, source, async () =>
             {
-                await grantsNeuron.Grant(new IntoChat.OS.Connections.Identity.Grant
+                await grantsNeuron.Grant(IntoChat.OS.Connections.Identity.Grant.Tuple(
+                    $"brain:{source}",
+                    $"brain:{CircleBrain}",
+                    owned,
+                    $"use-via:{appName}") with
                 {
                     Id = $"circle:{CircleBrain}:conn:{owned}",
-                    Owner = $"brain:{source}",
-                    Grantee = $"brain:{CircleBrain}",
-                    Target = owned,
-                    Scope = "*",
-                    WorkspaceId = source,
-                    AppId = appName,
-                    SemanticTypeId = "*",
-                    TargetNeuronKey = owned,
-                    Mode = IntoChat.OS.Connections.Identity.GrantMode.Always,
-                    GrantedAt = DateTimeOffset.UtcNow,
                 });
             });
             slots[slot.Name] = owned;

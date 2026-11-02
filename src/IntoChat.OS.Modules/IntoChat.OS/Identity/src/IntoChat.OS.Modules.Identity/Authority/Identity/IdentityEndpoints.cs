@@ -45,14 +45,24 @@ internal static class IdentityEndpoints
             Results.Ok(await identity.ListGrants(BrainScope.Create(CallerContextStamper.Require().AccountId, brainId).Id).WaitAsync(ct)));
         grants.MapPost("", async (string brainId, Grant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>
         {
-            try { return Results.Ok(await identity.GrantAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, input).WaitAsync(ct)); }
+            try { return Results.Ok(await identity.GrantAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, Grant.Normalize(input)).WaitAsync(ct)); }
             catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
         grants.MapPost("/revoke", async (string brainId, RevokeGrant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>
         {
             try
             {
-                await identity.RevokeAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, input.AppId, input.SemanticTypeId, input.Mode).WaitAsync(ct);
+                var grantId = input.Id ?? input.GrantId;
+                if (!string.IsNullOrEmpty(grantId))
+                {
+                    await identity.RevokeAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, grantId).WaitAsync(ct);
+                }
+                else if (!string.IsNullOrEmpty(input.AppId) && !string.IsNullOrEmpty(input.SemanticTypeId))
+                {
+#pragma warning disable CS0618
+                    await identity.RevokeAsOwner(CallerContextStamper.Require() with { BrainId = brainId }, input.AppId, input.SemanticTypeId, input.Mode).WaitAsync(ct);
+#pragma warning restore CS0618
+                }
                 return Results.NoContent();
             }
             catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
@@ -168,6 +178,6 @@ internal static class IdentityEndpoints
     internal sealed record LoginRequest(string PrincipalId, string? Password = null);
     internal sealed record BrainSelection(string AccountId, string BrainId);
     internal sealed record RegisterRequest(string PrincipalId, string? Password = null, string? DisplayName = null);
-    internal sealed record RevokeGrant(string AppId, string SemanticTypeId, GrantMode Mode);
+    internal sealed record RevokeGrant(string? Id = null, string? GrantId = null, string? AppId = null, string? SemanticTypeId = null, GrantMode Mode = GrantMode.Always);
     internal sealed record BrainView(string Id, string Kind);
 }

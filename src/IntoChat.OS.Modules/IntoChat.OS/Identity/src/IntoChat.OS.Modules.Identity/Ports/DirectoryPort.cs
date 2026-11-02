@@ -119,17 +119,10 @@ public sealed class DirectoryPort(IIdentityClient identity) : IIdentityDirectory
         ArgumentNullException.ThrowIfNull(grant);
         try
         {
-            return ToGrant(await identity.GrantAsOwner(User(caller), new OsGrant
-            {
-                AppId = grant.AppId,
-                SemanticTypeId = grant.SemanticTypeId,
-                Mode = (OsGrantMode)(int)grant.Mode,
-                WorkspaceId = grant.WorkspaceId,
-                ConversationId = grant.ConversationId,
-                GrantedAt = grant.GrantedAt,
-                Revoked = grant.Revoked,
-                TargetNeuronKey = grant.TargetNeuronKey,
-            }).WaitAsync(cancellationToken).ConfigureAwait(false));
+            var owner = grant.WorkspaceId.Length > 0 ? grant.WorkspaceId : caller.BrainId;
+            var target = string.IsNullOrEmpty(grant.TargetNeuronKey) ? $"{caller.BrainId}/apps/{grant.AppId}" : grant.TargetNeuronKey;
+            var osGrant = OsGrant.Tuple($"brain:{owner}", $"app:{grant.AppId}", target, grant.SemanticTypeId);
+            return ToGrant(await identity.GrantAsOwner(User(caller), osGrant).WaitAsync(cancellationToken).ConfigureAwait(false));
         }
         catch (UnauthorizedAccessException) { return null; }
     }
@@ -139,7 +132,9 @@ public sealed class DirectoryPort(IIdentityClient identity) : IIdentityDirectory
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
+#pragma warning disable CS0618
             await identity.RevokeAsOwner(User(caller), appId, semanticTypeId, (OsGrantMode)(int)mode).WaitAsync(cancellationToken).ConfigureAwait(false);
+#pragma warning restore CS0618
             return true;
         }
         catch (UnauthorizedAccessException) { return false; }
@@ -194,15 +189,19 @@ public sealed class DirectoryPort(IIdentityClient identity) : IIdentityDirectory
 
     private static BrainProvision ToProvision(Os.BrainProvision provision) => new(ToMember(provision.Member)!, provision.NewBrain);
 
-    private static Grant ToGrant(OsGrant grant) => new()
+    private static Grant ToGrant(OsGrant grant)
     {
-        AppId = grant.AppId,
-        SemanticTypeId = grant.SemanticTypeId,
-        Mode = (GrantMode)(int)grant.Mode,
-        WorkspaceId = grant.WorkspaceId,
-        ConversationId = grant.ConversationId,
-        GrantedAt = grant.GrantedAt,
-        Revoked = grant.Revoked,
-        TargetNeuronKey = grant.TargetNeuronKey,
-    };
+        var n = OsGrant.Normalize(grant);
+        return new()
+        {
+            AppId = n.Grantee.StartsWith("app:", StringComparison.Ordinal) ? n.Grantee["app:".Length..] : n.Grantee,
+            SemanticTypeId = n.Scope,
+            Mode = (GrantMode)(int)n.Mode,
+            WorkspaceId = n.Owner.StartsWith("brain:", StringComparison.Ordinal) ? n.Owner["brain:".Length..] : n.Owner,
+            ConversationId = n.ConversationId,
+            GrantedAt = n.GrantedAt,
+            Revoked = n.Revoked,
+            TargetNeuronKey = n.Target,
+        };
+    }
 }

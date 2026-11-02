@@ -52,5 +52,8 @@ public interface IIdentityClient
 
     Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant);
 
+    Task RevokeAsOwner(CapabilityCaller caller, string grantId);
+
+    [Obsolete("Use RevokeAsOwner with grantId")]
     Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
 }
