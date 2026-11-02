@@ -72,7 +72,7 @@ internal sealed partial class AppNeuron(
 
     // The platform-wide Marketplace is still a grain outside every brain.
     private IMarketplace Marketplace => SiloNeurons.Get<IMarketplace>(Context.Services, IMarketplace.Key);
-    private const int MaxHistory = 20;
+    private const int MaxHistory = 5;
     private const int MaxActivity = 50;
     private const int MaxPayloadLength = 64 * 1024;
     private const int MaxReceipts = 64;
