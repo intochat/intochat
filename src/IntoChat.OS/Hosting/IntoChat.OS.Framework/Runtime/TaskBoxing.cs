@@ -1,4 +1,4 @@
-// os-only: os grain-call result boxing helper; the framework has no equivalent yet.
+// os-only: the framework has its own internal TaskBoxing with a different design (RuntimeInvocation-based); unified in phase 3
 using System.Collections.Concurrent;
 using System.Reflection;
 using IntoChat.OS.Framework.Modules;
