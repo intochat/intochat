@@ -207,24 +207,36 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         var instruction = string.IsNullOrWhiteSpace(request.Instruction) ? "Create clean App<TState>" : request.Instruction.Trim();
         var (resources, errors) = await ReadTelemetryAsync(null);
 
-        var source = SynthesizeAppSource(target, instruction, errors);
+        // The studio builds, compiles, installs and runs the app in the sandbox; its answer is the verdict.
+        // Without a model and sandbox, Creator shows an offline preview that is compiled here and never installed.
+        AppSnapshot? built = null;
         if (TryGetStudio() is { } studio)
         {
             try
             {
-                var built = await studio.Build($"{instruction} (target app: {target})");
-                if (built.Files.Count > 0)
-                {
-                    source = string.Join("\n\n", built.Files.Values);
-                }
+                built = await studio.Build($"{instruction} (target app: {target})");
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Swallow(error, "AppStudioNeuron requires a live model and sandbox; falling back to local template synthesis.");
+                Swallow(error, "AppStudioNeuron requires a live model and sandbox; showing an offline preview instead.");
             }
         }
 
-        var (compiled, diagnostics) = CompileInMemory(source);
+        string source;
+        bool compiled;
+        string[] diagnostics;
+        if (built is not null)
+        {
+            target = built.Name;
+            source = string.Join("\n\n", built.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).Select(file => file.Value));
+            compiled = built.Status == AppStatus.Live;
+            diagnostics = compiled ? [] : [.. built.Activity.TakeLast(5)];
+        }
+        else
+        {
+            source = SynthesizeAppSource(target, instruction, errors);
+            (compiled, diagnostics) = CompileInMemory(source);
+        }
         var lang = NormalizeLanguage(request.Language ?? State.BddLanguage);
         var steps = BuildLocalizedSteps(lang, target, instruction, compiled);
         var scenarioTitle = $"Self-improving verification for {target}: {instruction}";
@@ -262,7 +274,11 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         Set(State with
         {
             TargetApp = target,
-            Status = $"Promoted {target} v{nextVersion} (BDD passed: {report.Scenarios.Count}/{report.Scenarios.Count})",
+            Status = built is null
+                ? $"Offline preview of {target} v{nextVersion}: compiled {(compiled ? "clean" : "with errors")}, not installed (needs a model and the sandbox)"
+                : compiled
+                    ? $"Built {target} v{nextVersion}: live with {built.Manifest.Operations.Length} operation(s)"
+                    : $"Build of {target} needs attention: {diagnostics.LastOrDefault() ?? "see the app's activity"}",
             SceneNodeCount = scene.Nodes.Length,
             ActiveResources = resources,
             DiagnosedErrors = errors,

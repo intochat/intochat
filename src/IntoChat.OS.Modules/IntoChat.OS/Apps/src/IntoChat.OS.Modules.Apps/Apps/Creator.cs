@@ -128,10 +128,14 @@ internal sealed class Creator(
                 return;
             }
             // Manifest changes land with the files, inside the attempt check: a stale
-            // worker's manifest is discarded with its files.
+            // worker's manifest is discarded with its files. The code is the operation list;
+            // the Builder's and the authored lists only describe what the code has.
+            var derived = AppShape.Operations(files);
             var manifest = snapshot.Manifest with
             {
-                Operations = built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
+                Operations = derived.Length > 0
+                    ? AppShape.Merge(derived, (built.Operations ?? []).Concat(snapshot.Manifest.Operations))
+                    : built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
                 Settings = built.Settings is { Count: > 0 }
                         ? [.. built.Settings.Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))]
                         : snapshot.Manifest.Settings,

@@ -923,6 +923,8 @@ internal sealed partial class AppNeuron(
         ArgumentNullException.ThrowIfNull(stateJson);
         if (expectedRevision < Snapshot.RuntimeStateRevision)
         {
+            // The runner sees the revision it gets back and logs that its state was not kept.
+            ServiceProvider.GetRequiredService<ILogger<AppNeuron>>().LogWarning("App {App} ignored a state save at revision {Expected}; it holds revision {Current}", Key, expectedRevision, Snapshot.RuntimeStateRevision);
             return Describe(Snapshot);
         }
         var next = Snapshot.Clone();
