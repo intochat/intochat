@@ -105,6 +105,7 @@ public static class PlatformHosting
         Hosting.RuntimeManagementEndpoints.Map(endpoints);
         endpoints.MapSiloDiagnostics();
         endpoints.MapGrpcService<Neurons.NeuronsService>();
+        IntoChat.OS.Connections.Http.HandleRoutes.Map(endpoints);
         return endpoints;
     }
 
