@@ -1,4 +1,5 @@
 using System.Reflection;
+using DigitalBrain.Signals.Watch;
 using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
@@ -29,13 +30,7 @@ public sealed class VocabularyRingFacts
 
     private static readonly Dictionary<Type, string> Allowlist = new()
     {
-        [typeof(Sources)] = "A set of neurons for IIntoChatOS.On/React: names neurons through a delegate, never crosses the wire (spec 2026-10-10 synapse subscription contract).",
-        [typeof(ISignalDelivery)] = "Transitional runtime SPI (deleted Phase 4/6): a coalesce drain waits for queued in-process deliveries.",
-        [typeof(IInitialSignalWait)] = "Transitional runtime SPI (deleted Phase 4/6): optional capability the client connection implements.",
-        [typeof(WatchStream<>)] = "Transitional runtime SPI (deleted Phase 4/6): the one stream behind brain.On<T> both clients build.",
-        [typeof(SignalDeliveries)] = "Transitional runtime SPI (deleted Phase 4/6): skip bookkeeping for app filters; EditorBrowsable(Never).",
         [typeof(NeuronAliases)] = "A type's effective alias across [NeuronAlias] (DigitalBrain.Contracts) and the Orleans [Alias]; the Orleans half keeps it out of the core package (03-03).",
-        [typeof(ISelectiveWatch)] = "Optional watch. A behavior names one operation and the runtime does not start it for the others. Callers that only have ISignalWatch keep that filter.",
         [typeof(Trace)] = "The compute-cost record (alias brain.trace). Origin is a DigitalBrain.NeuronId. Signal traces are Activity.Current.",
     };
 
@@ -81,9 +76,9 @@ public sealed class VocabularyRingFacts
         Assert.Equal(
             [
                 "IntoChat.OS.Runtime.ConnectionContractAttribute",
-                "IntoChat.OS.Runtime.INeuronResolver", "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
+                "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
                 "IntoChat.OS.Runtime.IRuntimeBuilder",
-                "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.NeuronProxies", "IntoChat.OS.Runtime.PlainNeuronContracts"],
+                "IntoChat.OS.Runtime.NeuronProxies", "IntoChat.OS.Runtime.PlainNeuronContracts"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.State.IStateCodec", "DigitalBrain.State.StoredRecord", "DigitalBrain.State.WriteResult"],
@@ -101,9 +96,7 @@ public sealed class VocabularyRingFacts
             : type;
         static bool IsHandle(Type type) => typeof(IAsyncDisposable).IsAssignableFrom(type) || typeof(IDisposable).IsAssignableFrom(type);
         // The runtime SPI hands out scopes (a timer, a suppressed caller, an entered trace); contracts never do.
-        // The transitional client SPI (deleted Phase 4/6) hands out a suppression scope and an enumerator.
-        Type[] transitional = [typeof(IInitialSignalWait), typeof(WatchStream<>)];
-        var offenders = PublicTypes().Where(t => !IsRuntimeSpi(t) && !transitional.Contains(t))
+        var offenders = PublicTypes().Where(t => !IsRuntimeSpi(t))
             .Where(t => IsHandle(t)
                 || t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Any(m => IsHandle(Awaited(m.ReturnType))))
             .Select(t => t.FullName!).Order().ToArray();

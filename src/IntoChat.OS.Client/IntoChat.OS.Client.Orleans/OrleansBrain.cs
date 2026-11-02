@@ -1,6 +1,7 @@
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
 using IntoChat.OS;
+using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Client.Orleans;
 

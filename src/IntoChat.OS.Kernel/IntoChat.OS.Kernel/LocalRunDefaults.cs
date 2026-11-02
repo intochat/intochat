@@ -2,6 +2,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
+using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Kernel;
 

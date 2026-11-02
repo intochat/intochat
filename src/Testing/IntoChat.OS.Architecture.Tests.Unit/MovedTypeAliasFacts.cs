@@ -40,20 +40,13 @@ internal sealed record MovedTypes(string Old, string? Alias, bool Persisted)
     // Top-level types declared in the files that move (spec section 4.1), by CLR full name.
     private static readonly string[] Names =
     [
-        "IntoChat.OS.Runtime.Storage.Confinement.PathConfinement", "IntoChat.OS.Runtime.Storage.Confinement.PathFlavor",
-        "IntoChat.OS.Runtime.Storage.Confinement.HardDenyList", "IntoChat.OS.Runtime.Storage.Confinement.ConfinementDenied",
-        "IntoChat.OS.Runtime.Storage.Confinement.ConfinementReason",
         "IntoChat.OS.Framework.ISignalJournal", "IntoChat.OS.Framework.PartSignals", "IntoChat.OS.Framework.JournaledSignal",
         "IntoChat.OS.Framework.SignalJournal", "IntoChat.OS.Framework.MemorySignalJournal", "IntoChat.OS.Framework.MemorySignalJournalOptions",
         "IntoChat.OS.Framework.BrainAffinePlacement", "IntoChat.OS.Framework.BrainAffinePlacementAttribute", "IntoChat.OS.Framework.BrainAffinePlacementDirector",
         "IntoChat.OS.Framework.NeutralCallMapping", "IntoChat.OS.Framework.NeutralCallFilter", "IntoChat.OS.Framework.TaskBoxing",
-        "IntoChat.OS.Framework.IRevisioned`1", "IntoChat.OS.Framework.IWorkContinuation",
-        "IntoChat.OS.Framework.Modules.Validation.ValidationRules", "IntoChat.OS.Framework.Modules.Validation.ModuleValidation",
-        "IntoChat.OS.Framework.Modules.Validation.IModuleValidator`1", "IntoChat.OS.Framework.Modules.Validation.ModuleValidationException",
+        "IntoChat.OS.Framework.IRevisioned`1",
         "IntoChat.OS.Framework.Modules.OsModule",
-        "IntoChat.OS.IInitialSignalWait", "IntoChat.OS.ISelectiveWatch", "IntoChat.OS.ISignalDelivery", "IntoChat.OS.ISignalWatch",
-        "IntoChat.OS.Reaction", "IntoChat.OS.SignalDeliveries", "IntoChat.OS.SourceSet", "IntoChat.OS.Sources", "IntoChat.OS.WatchStream`1",
-        "IntoChat.OS.Runtime.NeuronAddress", "IntoChat.OS.Runtime.INeuronResolver", "IntoChat.OS.NeuronAliases", "IntoChat.OS.Runtime.NeuronProxies",
+        "IntoChat.OS.NeuronAliases", "IntoChat.OS.Runtime.NeuronProxies",
         "IntoChat.OS.State", "IntoChat.OS.Trace",
     ];
 

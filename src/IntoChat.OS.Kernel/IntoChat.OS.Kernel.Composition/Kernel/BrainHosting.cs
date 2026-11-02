@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
+using DigitalBrain;
 
 namespace IntoChat.OS.Kernel.Composition;
 
@@ -51,7 +52,7 @@ public static class BrainHosting
         silo.AddPlacementDirector<BrainAffinePlacement, BrainAffinePlacementDirector>();
         silo.Services.TryAddSingleton<ISignalJournal, MemorySignalJournal>();
         silo.Services.AddOptions<MemorySignalJournalOptions>();
-        silo.Services.TryAddSingleton<IntoChat.OS.Runtime.INeuronResolver, GrainNeuronResolver>();
+        silo.Services.TryAddSingleton<DigitalBrain.INeuronResolver, GrainNeuronResolver>();
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
         // AddDigitalBrainRuntime registers ClusterBrainObserver first. The product kernel replaces it: it sees

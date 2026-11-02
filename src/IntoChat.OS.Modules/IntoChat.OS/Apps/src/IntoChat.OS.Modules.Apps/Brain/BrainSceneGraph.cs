@@ -2,6 +2,7 @@ using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Graph;
 using IntoChat.OS.Modules.Flame.Scene;
+using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Modules.Apps;
 

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MicrosoftSdk = Microsoft;
+using DigitalBrain.Capabilities.Storage.Confinement;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -242,7 +243,7 @@ public sealed class FeatureCatalog
                 await side.Adopt(_git, File.ReadAllText(file).Trim(), CancellationToken.None);
                 File.Delete(file);
             }
-            catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException or IntoChat.OS.Runtime.Storage.Confinement.ConfinementDenied)
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException or DigitalBrain.Capabilities.Storage.Confinement.ConfinementDenied)
             { _ = error.Message; }
         }
     }

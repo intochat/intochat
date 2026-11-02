@@ -1,7 +1,7 @@
 // os-only: the os HTTP error body convention for module routes.
 using System.Text.Json;
-using IntoChat.OS.Framework.Modules.Validation;
 using Microsoft.AspNetCore.Http;
+using DigitalBrain.Modules.Validation;
 
 namespace IntoChat.OS.Framework.Modules.Http;
 

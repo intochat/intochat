@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.UserSecrets;
+using DigitalBrain.Signals.Watch;
 
 // The AppHost owns its deployment keys: the published ports, and the features folder it hands the OS
 // (the apps module's Features option, under IntoChatOSConfiguration.ModuleOptionsSection).

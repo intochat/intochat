@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using IntoChat.OS.Framework.Modules;
+using DigitalBrain;
 
 namespace IntoChat.OS.Framework;
 
@@ -24,5 +25,5 @@ public sealed record BrainScope(string Id, string Owner)
     // Brain, thread and run ids travel in routes and grain keys: 1-200 characters, no control
     // characters, no path separators and no ':'. A leading '@' is reserved for keys outside every
     // brain ("@platform/...").
-    public static bool IsValidId([NotNullWhen(true)] string? value) => IntoChat.OS.Runtime.NeuronAddress.IsBrainId(value);
+    public static bool IsValidId([NotNullWhen(true)] string? value) => DigitalBrain.NeuronAddress.IsBrainId(value);
 }

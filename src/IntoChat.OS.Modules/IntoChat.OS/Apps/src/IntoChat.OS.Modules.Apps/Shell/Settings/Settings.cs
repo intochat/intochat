@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.Flutter.Preferences;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Integrations;
+using DigitalBrain.Signals.Watch;
 
 // Durable view state ({app}/view-state), so a reconnect shows the same tab. ArchivedTake is the end of the archived page shown.
 public sealed record SettingsViewState(string Tab = "general", int ArchivedTake = SettingsView.ArchivedPage, bool ConfirmDelete = false, string? Toast = null);

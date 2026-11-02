@@ -1,4 +1,5 @@
 using IntoChat.OS.Framework.Modules;
+using DigitalBrain;
 
 namespace IntoChat.OS.Framework;
 
@@ -23,5 +24,5 @@ public static class BrainKey
 
     // The brain a key belongs to for access checks: the first '/'-segment, when it is a brain id.
     // A key with no '/' names nothing brain-scoped.
-    public static string? ScopeOf(string key) => IntoChat.OS.Runtime.NeuronAddress.ScopeOf(key);
+    public static string? ScopeOf(string key) => DigitalBrain.NeuronAddress.ScopeOf(key);
 }

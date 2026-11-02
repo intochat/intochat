@@ -1,3 +1,5 @@
+using DigitalBrain.Signals.Watch;
+
 namespace IntoChat.OS.Modules.Apps;
 
 // The Author and Builder system prompts. They live in code, next to the loop that sends them:

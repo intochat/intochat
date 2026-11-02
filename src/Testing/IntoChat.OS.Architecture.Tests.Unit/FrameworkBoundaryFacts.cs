@@ -102,25 +102,6 @@ public sealed partial class FrameworkBoundaryFacts
     // Files whose DigitalBrain 0.12.0-preview.1 copies exist; the originals stay until external module packages stop binding to them.
     private static readonly string[] PendingMoveToDigitalBrain =
     [
-        "Runtime/Watch/IInitialSignalWait.cs",
-        "Runtime/Watch/ISelectiveWatch.cs",
-        "Runtime/Watch/ISignalDelivery.cs",
-        "Runtime/Watch/ISignalWatch.cs",
-        "Runtime/Watch/Reaction.cs",
-        "Runtime/Watch/SignalDeliveries.cs",
-        "Runtime/Watch/SourceSet.cs",
-        "Runtime/Watch/Sources.cs",
-        "Runtime/Watch/WatchStream.cs",
-        "Runtime/NeuronAddress.cs",
-        "Hosting/IntoChat.OS.Framework/Runtime/IWorkContinuation.cs",
-        "Hosting/IntoChat.OS.Framework/Storage/Confinement/ConfinementDenied.cs",
-        "Hosting/IntoChat.OS.Framework/Storage/Confinement/HardDenyList.cs",
-        "Hosting/IntoChat.OS.Framework/Storage/Confinement/PathConfinement.cs",
-        "Hosting/IntoChat.OS.Framework/Modules/Validation/IModuleValidator.cs",
-        "Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidation.cs",
-        "Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidationException.cs",
-        "Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationIssue.cs",
-        "Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationRules.cs",
     ];
 
     private static string[] OsFrameworkFiles()

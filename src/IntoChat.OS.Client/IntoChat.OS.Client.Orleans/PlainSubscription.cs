@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Signalling;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Client.Orleans;
 

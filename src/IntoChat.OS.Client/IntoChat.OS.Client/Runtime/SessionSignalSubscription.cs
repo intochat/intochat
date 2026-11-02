@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Client.Runtime;
 

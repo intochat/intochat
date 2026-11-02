@@ -13,6 +13,7 @@ using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using CallRequest = IntoChat.OS.Authority.Neurons.Proto.CallRequest;
+using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Authority.Neurons;
 

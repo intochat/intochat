@@ -1,5 +1,6 @@
 using System.Reflection;
 using DigitalBrain.Contracts;
+using DigitalBrain;
 
 namespace IntoChat.OS.Runtime;
 

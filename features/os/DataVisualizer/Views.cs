@@ -13,6 +13,7 @@ using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Time.Reminders;
 using UI = DigitalBrain.UI.Ui;
 using ViewUi = IntoChat.OS.Modules.Flutter.Views.Ui;
+using DigitalBrain.Signals.Watch;
 
 // A view is a durable definition the synapses share: what to query, which columns are filters and
 // how often to run. Every declarative surface is derived from the registry, so composing is idempotent.

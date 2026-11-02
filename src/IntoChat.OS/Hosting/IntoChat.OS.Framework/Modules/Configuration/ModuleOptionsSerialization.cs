@@ -1,8 +1,8 @@
 // os-only: flattens os module options under IntoChatOS:Modules:{Name}:Options.
 using System.Reflection;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Validation;
 using Microsoft.Extensions.Configuration;
+using DigitalBrain.Modules.Validation;
 
 namespace IntoChat.OS.Framework.Modules.Configuration;
 

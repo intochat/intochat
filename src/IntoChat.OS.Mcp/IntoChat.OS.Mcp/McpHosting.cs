@@ -7,6 +7,7 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Mcp;
 

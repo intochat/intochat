@@ -2,6 +2,7 @@ using DigitalBrain.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Modules.Apps;
 
