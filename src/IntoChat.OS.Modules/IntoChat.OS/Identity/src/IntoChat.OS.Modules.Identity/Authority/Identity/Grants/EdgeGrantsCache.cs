@@ -94,7 +94,8 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     public async Task<bool> IsGrantedAsync(string brain, CapabilityCaller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default)
     {
         var grants = await GetGrantsAsync(brain, ct).ConfigureAwait(false);
-        return GrantRules.IsGranted(caller, semanticTypeId, grants, targetNeuron);
+        var principals = PrincipalSet.For(caller);
+        return GrantRules.IsGranted(semanticTypeId, targetNeuron ?? "", grants, principals, caller);
     }
 
     public async Task<bool> IsConnectionBoundAsync(string brain, CapabilityCaller caller, string targetOrConnectionKey, CancellationToken ct = default)

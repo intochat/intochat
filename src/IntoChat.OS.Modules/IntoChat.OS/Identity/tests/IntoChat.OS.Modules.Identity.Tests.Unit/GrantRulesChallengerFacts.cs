@@ -37,7 +37,7 @@ public sealed class GrantRulesChallengerFacts
                 SemanticTypeIds = [],
             };
 
-            var decision = GrantRules.Evaluate(request, null, []);
+            var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
             Assert.NotNull(decision);
             Assert.False(decision!.Allowed, $"Target '{target}' should have been denied for caller '{caller.AppId}'");
             Assert.Equal(CallDenial.MissingGrant, decision.Denial);
@@ -65,7 +65,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, []);
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(decision);
         Assert.True(decision!.Allowed, $"Target '{target}' should have been allowed for own app caller '{caller.AppId}'");
     }
@@ -87,7 +87,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, []);
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(decision);
         Assert.True(decision!.Allowed);
     }
@@ -124,7 +124,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, []);
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -159,7 +159,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, []);
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -206,7 +206,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, []);
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -228,7 +228,7 @@ public sealed class GrantRulesChallengerFacts
         };
 
         // 1. Without grants -> Denied
-        var noGrantDecision = GrantRules.Evaluate(request, null, []);
+        var noGrantDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(noGrantDecision);
         Assert.False(noGrantDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, noGrantDecision.Denial);
@@ -243,7 +243,7 @@ public sealed class GrantRulesChallengerFacts
             Mode = GrantMode.Always,
             GrantedAt = DateTimeOffset.UtcNow,
         };
-        var unrelatedDecision = GrantRules.Evaluate(request, null, [unrelatedGrant]);
+        var unrelatedDecision = GrantRules.Evaluate(request, null, [unrelatedGrant], PrincipalSet.For(request.Caller));
         Assert.NotNull(unrelatedDecision);
         Assert.False(unrelatedDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, unrelatedDecision.Denial);
@@ -259,7 +259,7 @@ public sealed class GrantRulesChallengerFacts
             Revoked = true,
             GrantedAt = DateTimeOffset.UtcNow,
         };
-        var revokedDecision = GrantRules.Evaluate(request, null, [revokedGrant]);
+        var revokedDecision = GrantRules.Evaluate(request, null, [revokedGrant], PrincipalSet.For(request.Caller));
         Assert.NotNull(revokedDecision);
         Assert.False(revokedDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, revokedDecision.Denial);
@@ -275,7 +275,7 @@ public sealed class GrantRulesChallengerFacts
             Revoked = false,
             GrantedAt = DateTimeOffset.UtcNow,
         };
-        var allowedDecision = GrantRules.Evaluate(request, null, [matchingGrant]);
+        var allowedDecision = GrantRules.Evaluate(request, null, [matchingGrant], PrincipalSet.For(request.Caller));
         Assert.NotNull(allowedDecision);
         Assert.True(allowedDecision!.Allowed);
     }
@@ -306,7 +306,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, []);
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(decision);
         // Fail-closed security requires that attacker app CANNOT access foreign victim app
         Assert.False(decision!.Allowed, $"Empirical Bug: foreign target '{victimTargetNeuron}' was allowed for app '{attackerAppKey}' because of substring matching target.Contains(app) in GrantRules.cs:137!");

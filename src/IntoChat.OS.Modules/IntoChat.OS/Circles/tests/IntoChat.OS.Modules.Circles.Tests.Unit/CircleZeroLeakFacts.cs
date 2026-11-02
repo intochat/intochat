@@ -52,7 +52,7 @@ public sealed class CircleZeroLeakFacts
             };
 
             // Cross-brain call evaluation: allowed through reference grant without possessing local assembly
-            var decision = GrantRules.Evaluate(request, null, []);
+            var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
             Assert.NotNull(decision);
             Assert.True(decision.Allowed, $"Cross-brain call to '{connectionKey}' should be allowed via reference grant.");
         }
@@ -134,7 +134,7 @@ public sealed class CircleZeroLeakFacts
                 SemanticTypeIds = [],
             };
 
-            var businessDecision = GrantRules.Evaluate(businessRequest, null, []);
+            var businessDecision = GrantRules.Evaluate(businessRequest, null, [], PrincipalSet.For(businessRequest.Caller));
             Assert.NotNull(businessDecision);
             Assert.True(businessDecision.Allowed);
         }
@@ -160,7 +160,7 @@ public sealed class CircleZeroLeakFacts
         };
 
         // Phase 1: Without grant, invocation is denied
-        var initialDecision = GrantRules.Evaluate(request, null, []);
+        var initialDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(initialDecision);
         Assert.False(initialDecision.Allowed);
         Assert.Equal(CallDenial.MissingGrant, initialDecision.Denial);
@@ -168,14 +168,14 @@ public sealed class CircleZeroLeakFacts
         // Phase 2: Grant is issued when shared into circle -> invocation succeeds
         EdgeGrantsCache.Current.BindFriendConnection(targetNeuron, circleAppId);
 
-        var activeDecision = GrantRules.Evaluate(request, null, []);
+        var activeDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(activeDecision);
         Assert.True(activeDecision.Allowed);
 
         // Phase 3: Circle grant is revoked (e.g., app unshared or circle deleted) -> invocation instantly severed
         EdgeGrantsCache.Current.UnbindFriendConnection(targetNeuron, circleAppId);
 
-        var revokedDecision = GrantRules.Evaluate(request, null, []);
+        var revokedDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
         Assert.NotNull(revokedDecision);
         Assert.False(revokedDecision.Allowed);
         Assert.Equal(CallDenial.MissingGrant, revokedDecision.Denial);

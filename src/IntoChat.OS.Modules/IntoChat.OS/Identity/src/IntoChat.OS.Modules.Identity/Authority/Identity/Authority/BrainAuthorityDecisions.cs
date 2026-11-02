@@ -19,7 +19,7 @@ internal static class BrainAuthorityDecisions
         var circleMember = state.Kind == BrainKind.Circle && Member(state, caller.PersonId)?.AccountId == caller.AccountId;
         if (state.AccountId != caller.AccountId && !circleMember || state.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), state.Grants);
+        return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), state.Grants, PrincipalSet.For(request.Caller));
     }
 
     private static Member? Member(BrainRow state, string principalId)
