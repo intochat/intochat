@@ -151,18 +151,18 @@
     <PackageVersion Include="IntoChat.Cloud.Mail.Contracts" Version="0.10.0" />
     <PackageVersion Include="IntoChat.Cloud.Organisations" Version="0.10.0" />
     <PackageVersion Include="IntoChat.Cloud.Organisations.Contracts" Version="0.10.0" />
-    <PackageVersion Include="IntoChat.OS" Version="0.10.1" />
+    <PackageVersion Include="IntoChat.OS" Version="0.11.0" />
     <PackageVersion Include="IntoChat.OS.Aspire.Client" Version="0.10.0" />
     <PackageVersion Include="IntoChat.OS.Aspire.Hosting" Version="0.10.0" />
     <PackageVersion Include="IntoChat.OS.Aspire.Server" Version="0.10.0" />
     <PackageVersion Include="IntoChat.OS.Cli" Version="0.10.0" />
-    <PackageVersion Include="IntoChat.OS.Client" Version="0.10.1" />
+    <PackageVersion Include="IntoChat.OS.Client" Version="0.11.0" />
 <!-- IntoChat.OS.Client.Orleans consolidated -->
-    <PackageVersion Include="IntoChat.OS.Contracts.Compute" Version="0.10.1" />
-    <PackageVersion Include="IntoChat.OS.Contracts.Configuration" Version="0.10.1" />
-    <PackageVersion Include="IntoChat.OS.Framework" Version="0.10.1" />
-    <PackageVersion Include="IntoChat.OS.Kernel" Version="0.10.1" />
-    <PackageVersion Include="IntoChat.OS.Kernel.Composition" Version="0.10.1" />
+    <PackageVersion Include="IntoChat.OS.Contracts.Compute" Version="0.11.0" />
+    <PackageVersion Include="IntoChat.OS.Contracts.Configuration" Version="0.11.0" />
+    <PackageVersion Include="IntoChat.OS.Framework" Version="0.11.0" />
+    <PackageVersion Include="IntoChat.OS.Kernel" Version="0.11.0" />
+    <PackageVersion Include="IntoChat.OS.Kernel.Composition" Version="0.11.0" />
     <PackageVersion Include="IntoChat.OS.Modules.AI" Version="0.11.0" />
     <PackageVersion Include="IntoChat.OS.Modules.AI.Contracts" Version="0.11.0" />
     <PackageVersion Include="IntoChat.OS.Modules.Apps" Version="0.11.0" />
@@ -207,6 +207,6 @@
     <PackageVersion Include="IntoChat.OS.Modules.Time" Version="0.11.0" />
     <PackageVersion Include="IntoChat.OS.Modules.Tools" Version="0.11.0" />
     <PackageVersion Include="IntoChat.OS.Modules.Tools.Contracts" Version="0.11.0" />
-    <PackageVersion Include="IntoChat.OS.ServiceDefaults" Version="0.10.1" />
+    <PackageVersion Include="IntoChat.OS.ServiceDefaults" Version="0.11.0" />
   </ItemGroup>
 </Project>
