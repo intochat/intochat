@@ -90,3 +90,23 @@ public static partial class Friends
         }
     }
 }
+
+
+[App("friends")]
+public sealed class FriendsApp : DigitalBrain.App
+{
+    [On("open")]
+    public async Task Open()
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        await Friends.Present(brain);
+    }
+
+    [On("post")]
+    public async Task Post(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) { return; }
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        await Friends.Post(brain, Guid.NewGuid(), input);
+    }
+}
