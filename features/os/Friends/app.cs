@@ -16,7 +16,7 @@ using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "friends";
-    public const string Version = "1.0.3";
+    public const string Version = "1.0.4";
     public static readonly AppManifest Manifest = new(
         Title: "Friends", Description: "People and posts from your circles.",
         Operations: [new("open", "Publish the Friends presentation."), new("post", "Post the input text to every circle you are in.")],

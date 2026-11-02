@@ -287,3 +287,42 @@ public static class Desktop
         }
     }
 }
+
+
+[App("desktop")]
+public sealed class DesktopApp : DigitalBrain.App
+{
+    [On("start")]
+    public async Task Start()
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        try { await Desktop.FirstRun(brain); } catch { }
+        try { await Desktop.Start(brain); } catch { }
+    }
+
+    [On("layout")]
+    public async Task Layout(string? input)
+    {
+        if (Desktop.ChosenLayout(input ?? "") is not { } layout) return;
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        await Desktop.Layout(brain).Set(layout);
+    }
+
+    [On("open")]
+    public async Task Open(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return;
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        await Desktop.Open(brain, Guid.NewGuid(), input);
+    }
+
+    [On("narrow")]
+    public async Task Narrow(string? input)
+    {
+        if (input is not ("true" or "false")) return;
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        if ((await Desktop.Narrow(brain).Read()).Markdown == input) return;
+        await Desktop.Narrow(brain).Set(input);
+        await Desktop.Show(brain);
+    }
+}

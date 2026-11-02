@@ -49,7 +49,7 @@ using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "calculator";
-    public const string Version = "1.3.0";
+    public const string Version = "1.3.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Calculator",
