@@ -29,6 +29,7 @@
     "IntoChat.OS.Authority.Identity.External.ExternalTicketUse": "identity.external-ticket-use; Jti=0, ExpiresAt=1",
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain (not generated); ",
     "IntoChat.OS.Authority.Identity.Grants.GrantsState": "identity.grants-state; Grants=0, Version=1",
+    "IntoChat.OS.Authority.Identity.Handles.HandleState": "identity.handle-state; BrainId=0, ClaimedAt=1",
     "IntoChat.OS.Authority.Identity.IPrincipalCredential": "identity.principal-credential-grain (not generated); ",
     "IntoChat.OS.Authority.Identity.Invitation": "identity.invitation; Code=0, AccountId=1, WorkspaceId=2, Role=3, Email=4, CreatedAt=5, Accepted=6, ExpiresAt=7, MachineId=8, MachineKeyThumbprint=9, AcceptedAt=10, IssuedBy=11, Kind=12, CodeHash=13",
     "IntoChat.OS.Authority.Identity.InvitationKind": "identity.invitation-kind; ",
