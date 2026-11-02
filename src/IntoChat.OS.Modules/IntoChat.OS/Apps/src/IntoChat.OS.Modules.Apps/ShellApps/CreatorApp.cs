@@ -155,7 +155,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
     public async Task Open(CreatorOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var scene = ComposeBrainGraph();
+        var scene = await ComposeBrainGraph();
         var (resources, errors) = await ReadTelemetryAsync(null);
         Set(State with
         {
@@ -182,7 +182,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             : State.SelectedNodeId;
         var telemetryFilter = isSceneNode ? null : requested;
 
-        var scene = ComposeBrainGraph(State.Promoted ? State.TargetApp : null);
+        var scene = await ComposeBrainGraph();
         var (resources, errors) = await ReadTelemetryAsync(telemetryFilter);
         var status = errors.Length == 0
             ? $"Inspecting neuron://{selectedNodeId} · No runtime errors detected in Aspire telemetry."
@@ -253,7 +253,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         {
             await bdd.Record(report);
         }
-        var scene = ComposeBrainGraph(target);
+        var scene = await ComposeBrainGraph();
 
         var existingSnapshots = (State.VersionSnapshots ?? []).ToList();
         if (existingSnapshots.Count == 0)
@@ -665,9 +665,10 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         }
 
         await Inspect(new CreatorInspect("OperatingSystem"));
-        if (State.SceneNodeCount == 0)
+        // The scene is the real brain graph; without the graph neuron (as in this scenario's fakes) it is empty, so the check is that Inspect ran.
+        if (!State.Status.StartsWith("Inspecting neuron://", StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Expected CreatorApp to compose a non-empty 3D BrainScene graph.");
+            throw new InvalidOperationException("Expected CreatorApp.Inspect to compose the 3D BrainScene graph and report it.");
         }
 
         await Inspect(new CreatorInspect("bdd"));
@@ -816,27 +817,22 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         return "1.1.0";
     }
 
-    private static SceneDefinition ComposeBrainGraph(string? promotedApp = null)
+    // The real brain graph at the brain level, or an empty scene when no graph neuron is hosted (unit tests, minimal hosts).
+    private async Task<SceneDefinition> ComposeBrainGraph()
     {
-        var neurons = new List<BrainInstance>
+        if (TryGetGraph() is { } graph)
         {
-            new("creator", "local/creator", DateTimeOffset.UtcNow, null),
-            new("bdd", "local/bdd", DateTimeOffset.UtcNow, null),
-            new("aspire", "local/aspire", DateTimeOffset.UtcNow, null),
-            new("ai.memory", "local/memory", DateTimeOffset.UtcNow, null),
-        };
-        var synapses = new List<ObservedSynapse>
-        {
-            new("local/creator", "local/bdd", "bdd.verified"),
-            new("local/creator", "local/aspire", "aspire.telemetry.changed"),
-        };
-        if (!string.IsNullOrWhiteSpace(promotedApp))
-        {
-            var key = $"local/apps/{promotedApp}";
-            neurons.Add(new($"app.{promotedApp}", key, DateTimeOffset.UtcNow, null));
-            synapses.Add(new("local/creator", key, "app.promoted"));
+            try
+            {
+                var snapshot = await graph.Snapshot(DigitalBrain.Graph.GraphLevel.Brain, null);
+                return BrainSceneGraph.Compose(snapshot, DigitalBrain.Graph.GraphLevel.Brain, null, [], 1.0);
+            }
+            catch (InvalidOperationException error)
+            {
+                Swallow(error, "The brain graph is unavailable; the Creator scene stays empty.");
+            }
         }
-        return BrainScene.Compose([.. neurons], [.. synapses], live: null, zoom: 1.0);
+        return BrainScene.Compose([], [], live: null, zoom: 1.0);
     }
 
     private async Task<(string[] Resources, string[] Errors)> ReadTelemetryAsync(string? resourceFilter)
@@ -884,6 +880,19 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                 public View Render() => new("{{target}}", new Text("Verified"));
             }
             """;
+    }
+
+    private DigitalBrain.Graph.IBrainGraph? TryGetGraph()
+    {
+        try
+        {
+            return Get<DigitalBrain.Graph.IBrainGraph>("default");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "The brain graph neuron is optional when running without the graph module registered.");
+            return null;
+        }
     }
 
     private IAspire? TryGetAspire()

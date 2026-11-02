@@ -71,7 +71,9 @@ public static class ServerHostingExtensions
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
             .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons))
             .Append(typeof(IntoChat.OS.Kernel.Composition.Confirmations.ConfirmationNeurons))
-            .Append(typeof(IntoChat.OS.Kernel.Composition.Storage.StorageContentModule)).Distinct()];
+            .Append(typeof(IntoChat.OS.Kernel.Composition.Storage.StorageContentModule))
+            // The brain graph projection (brain-graph-plan Phase 1) is hosted on every silo; it reads the kernel observer and nothing else.
+            .Append(typeof(DigitalBrain.Graph.GraphModule)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).
         builder.Services.AddSingleton(new IntoChat.OS.Connections.Platform.Connections.ConnectionNeuronTypes(neuronModules));
         // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both. The kernel's own

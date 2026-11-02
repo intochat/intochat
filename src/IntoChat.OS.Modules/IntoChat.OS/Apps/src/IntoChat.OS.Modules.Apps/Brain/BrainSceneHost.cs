@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Graph;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using IntoChat.OS.Framework;
@@ -19,6 +20,7 @@ internal sealed class BrainSceneHost(
 {
     private readonly Lock _gate = new();
     private readonly HashSet<string> _pumps = new(StringComparer.Ordinal);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (GraphLevel Level, string? Focus)> _views = new(StringComparer.Ordinal);
 
     public async Task Execute(CancellationToken cancellationToken)
     {
@@ -73,11 +75,8 @@ internal sealed class BrainSceneHost(
         {
             if (await HostCaller.ForBrain(services, brain) is not { } caller || caller.BrainId != brain) { return; }
             CallerContextStamper.Stamp(caller);
-            var observer = services.GetRequiredService<IBrainObserver>();
-            var neurons = new List<BrainInstance>();
-            await foreach (var instance in observer.Instances(null, cancellationToken)) { neurons.Add(instance); }
-            var synapses = await observer.Synapses(cancellationToken);
-            await SetAsync(brain, caller, BrainScene.Compose(neurons, synapses, null, 1), cancellationToken);
+            var view = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
+            await SetAsync(brain, caller, await ComposeAsync(brain, view, [], 1), cancellationToken);
             StartPump(brain, caller);
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -105,12 +104,10 @@ internal sealed class BrainSceneHost(
                 {
                     trail.RemoveRange(BrainScene.MaxTrailSteps, trail.Count - BrainScene.MaxTrailSteps);
                 }
-                var neurons = new List<BrainInstance>();
-                await foreach (var instance in observer.Instances(null, CancellationToken.None)) { neurons.Add(instance); }
-                var synapses = await observer.Synapses(CancellationToken.None);
                 var scene = SiloNeurons.Get<IScene>(services, IScene.Key(brain, "brain", BrainScene.SceneName));
                 var zoom = (await scene.Read()).Definition.Camera.Zoom;
-                await SetAsync(brain, caller, BrainScene.ComposeTrail(neurons, synapses, trail, zoom), CancellationToken.None);
+                var view = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
+                await SetAsync(brain, caller, await ComposeAsync(brain, view, trail, zoom), CancellationToken.None);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -127,6 +124,15 @@ internal sealed class BrainSceneHost(
             var node = !string.IsNullOrEmpty(nodeId)
                 ? state.Definition.Nodes.FirstOrDefault(n => n.Id == nodeId)
                 : null;
+            // A node that drills changes the level; the camera resets to the whole picture.
+            if (node is not null && node.Parameters.TryGetValue(BrainSceneGraph.DrillParameter, out var drill))
+            {
+                var current = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
+                var next = BrainSceneGraph.Next(drill, current.Level, current.Focus);
+                _views[brain] = next;
+                await SetAsync(brain, caller, await ComposeAsync(brain, next, [], 1), cancellationToken);
+                return;
+            }
             var nextZoom = BrainScene.NextZoom(state.Definition.Camera.Zoom);
             var camera = node is not null
                 ? new SceneCamera(node.Transform.X, node.Transform.Y, nextZoom)
@@ -136,6 +142,14 @@ internal sealed class BrainSceneHost(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogWarning(error, "The brain scene for {Brain} did not zoom.", brain); }
+    }
+
+    // The scene comes from the brain graph projection (one neuron per brain). The pump passes the live trail; a drill passes none.
+    private async Task<SceneDefinition> ComposeAsync(string brain, (GraphLevel Level, string? Focus) view, IReadOnlyList<SignalDelivery> trail, double zoom)
+    {
+        var graph = SiloNeurons.Get<IBrainGraph>(services, brain + "/default");
+        var snapshot = await graph.Snapshot(view.Level, view.Focus);
+        return BrainSceneGraph.Compose(snapshot, view.Level, view.Focus, trail, zoom);
     }
 
     private async Task SetAsync(string brain, CapabilityCaller caller, SceneDefinition definition, CancellationToken cancellationToken)

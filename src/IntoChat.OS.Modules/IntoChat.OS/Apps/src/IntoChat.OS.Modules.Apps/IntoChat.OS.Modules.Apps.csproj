@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="DigitalBrain.Capabilities.Storage" />
     <PackageReference Include="DigitalBrain.UI" />
+    <PackageReference Include="DigitalBrain.Graph" />
     <PackageReference Include="DigitalBrain.Apps.Packaging" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />
