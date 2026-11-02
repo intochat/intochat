@@ -9,13 +9,16 @@ namespace IntoChat.OS.Authority.Connections;
 
 // R146/R155 + R6.3: an app shared into another brain or a trusted friend app uses a shared connection only as the owner's
 // connection or SdkCapabilitySharing recorded it (IConnection.ShareWith the app's principal, its ShareInto alias, or friend pairing).
-internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClient identity) : IConnectionBindings
+internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClient identity, Authority.Identity.Grants.IEdgeGrantsCache? edgeCache = null) : IConnectionBindings
 {
+    private readonly Authority.Identity.Grants.IEdgeGrantsCache _edgeCache = edgeCache ?? Authority.Identity.Grants.EdgeGrantsCache.Current;
+
     public async ValueTask<bool> IsBound(CapabilityCaller caller, string connectionKey, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
         cancellationToken.ThrowIfCancellationRequested();
         if (caller.AppId is not { Length: > 0 } app) { return false; }
+        if (await _edgeCache.IsConnectionBoundAsync(caller.BrainId, caller, connectionKey, cancellationToken).ConfigureAwait(false)) { return true; }
         if (SdkCapabilitySharing.IsConnectionBoundToFriend(caller, connectionKey)) { return true; }
 
         var callerBrain = BrainScope.Create(caller.AccountId, caller.BrainId).Id;

@@ -182,8 +182,13 @@ internal sealed class ReactionExamples(
             {
                 if (!AppFiles.IsProgram(path) || source is null) { continue; }
                 var root = CSharpSyntaxTree.ParseText(source, Parse).GetCompilationUnitRoot();
-                var shared = ReactionShape.Shared(root);
-                var layout = ReactionShape.Layout(root);
+                var layout = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+                    .Any(method => (method.Identifier.ValueText == "Render" || method.ReturnType.ToString().Contains("View") || method.ReturnType.ToString().Contains("UiNode"))
+                                   && method.Modifiers.Any(SyntaxKind.StaticKeyword));
+                var hasReaction = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+                    .Any(method => method.AttributeLists.Any(al => al.Attributes.Any(attr => attr.Name.ToString().Contains("On"))))
+                    || root.Members.OfType<GlobalStatementSyntax>().Any();
+                var shared = !hasReaction;
                 if ((shared && !layout) || !seen.Add(source)) { continue; }
                 examples.Add(new(new(origin, path, Spec(manifest, path, root), source, behavior(path)), shared, layout));
             }
@@ -239,8 +244,9 @@ internal sealed class ReactionExamples(
     private static string Spec(AppManifest manifest, string path, CompilationUnitSyntax root)
     {
         var statements = root.Members.OfType<GlobalStatementSyntax>().ToArray();
-        var reaction = statements.FirstOrDefault(statement => statement.Statement is CommonForEachStatementSyntax or ExpressionStatementSyntax { Expression: AwaitExpressionSyntax });
-        var comments = new[] { root.GetFirstToken(includeZeroWidth: true), statements.FirstOrDefault()?.GetFirstToken() ?? default, reaction?.GetFirstToken() ?? default }
+        var onMethod = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .FirstOrDefault(m => m.AttributeLists.Any(al => al.Attributes.Any(attr => attr.Name.ToString().Contains("On"))));
+        var comments = new[] { root.GetFirstToken(includeZeroWidth: true), onMethod?.GetFirstToken() ?? default, statements.FirstOrDefault()?.GetFirstToken() ?? default }
             .Where(token => !token.IsKind(SyntaxKind.None))
             .SelectMany(token => token.LeadingTrivia)
             .Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia))

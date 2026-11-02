@@ -47,10 +47,10 @@ public sealed class CirclesFacts
     [Fact]
     public void ABindingIsAValueNamingTheSharersSlot()
     {
-        var binding = new CircleBinding("acct", "notes", "tables", "conn-1", Copy: true);
+        var binding = new CircleBinding("acct", "notes", "tables", "conn-1");
 
-        Assert.Equal(binding, new CircleBinding("acct", "notes", "tables", "conn-1", true));
-        Assert.NotEqual(binding, binding with { Copy = false });
+        Assert.Equal(binding, new CircleBinding("acct", "notes", "tables", "conn-1"));
+        Assert.NotEqual(binding, binding with { Slot = "other" });
     }
 
     [Fact]

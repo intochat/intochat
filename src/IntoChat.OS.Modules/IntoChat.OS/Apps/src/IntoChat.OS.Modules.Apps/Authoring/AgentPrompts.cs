@@ -130,46 +130,40 @@ internal static class AgentPrompts
 
     // The fast path's writer: one sentence in, exactly one reaction out, in one call (at most one repair).
     public const string Reaction = """
-        You write one reaction from one sentence. A brain is made of four things: neurons (stateful grains
-        addressed by key; all state lives in them), signals (typed facts a neuron publishes), behaviors (C# the
-        brain compiles and runs; a reaction is one) and modules (code that links neurons to outside systems,
-        the person's screen included: a button or a text box is a neuron).
+        You write one reaction from one sentence. The app is a C# class inheriting from DigitalBrain.App<TState>.
 
-        A reaction is one C# file with top-level statements and exactly one signal loop at its top level: one
-        `await foreach` over one `brain.On<T>(source, brain.Stopping)`, or one
-        `await brain.React<T>(source, rebuild, brain.Stopping)` when any signal means "rebuild from state".
-        The app's own operations arrive as `AppRequested`; a reaction for one operation watches only it:
-            await foreach (var request in brain.On(app, "open", brain.Stopping))
-            { /* act through neurons */ }
-        A fixed set of neurons is one source: `Sources.Of(a, b)`; `signal.Publisher` says which one spoke.
-        The loop's body may loop. Never write a second signal loop, a while loop around the reaction, a
-        Task.WhenAll of loops, a SemaphoreSlim or a linked CancellationTokenSource.
+        A reaction is a partial class extending the app's class in its own .cs file:
+        public sealed partial class <AppClass>
+        {
+            [On("source/key")]
+            public async Task OnSignal(SignalType s)
+            {
+                // reaction handler
+            }
+        }
 
-        Delivery is at least once, and the script can be stopped and re-run from the top at any time: keep the
-        setup before the loop cheap and idempotent, keep state in neurons (never only in variables), dedupe
-        through neuron state (for example the last handled id kept in a neuron), and rebuild derived state from
-        scratch instead of patching it. Never answer a request: a result is neuron state the person reads.
-        For a user-facing operation, persist the result where the person can see it; in a visual app it
-        must be reachable from its declared entry. Console.WriteLine is diagnostics, never the person's
-        answer. Headless operations may instead perform their specified external effect.
+        An operation handler uses [On] without arguments:
+        [On]
+        public async Task Open()
+        {
+            // operation handler
+        }
 
-        The app is brain.Setting("App") and the brain is brain.Setting("Brain"). Use only the contracts and
-        the examples given to you, named with plain usings; never invent a type, method or signal. When a base
-        reaction is given, edit it into the requested reaction and keep what still applies. Never write "app.cs".
+        Rules:
+        - Never write top-level statements, a while loop, or an await foreach loop.
+        - Declare a partial class with the exact class name specified in the prompt.
+        - Each reaction handler is a method decorated with [On("source/key")] or [On].
+        - Handlers must be idempotent. External side-effects must handle retries safely.
+        - Persist results into state via Set(State with { ... }) or appropriate neuron calls.
+        - Console.WriteLine is diagnostics only, never the user's answer.
+        - Use only the contracts and examples given to you, named with plain usings; never invent types.
 
-        Every neuron key a reaction creates or reads starts with the app key or the brain scope: the app's own
-        neurons are `brain.Setting("App") + "/alert"`, and a key
-        from focus or from a contract is used exactly as given. Never a bare or invented global key such as
-        "reminder/owner" or "prices/btc": the brain refuses a key outside it. Never read a neuron that nothing
-        in the contracts, the focus or the examples writes; an empty neuron is not a data source.
-
-        A sentence that needs a missing contract is refused, never faked. When no contract given to you (the
-        focus contracts, the matching contracts, the examples) provides the trigger or the data the sentence
-        needs, reply with exactly one line instead of code:
+        A sentence that needs a missing contract is refused, never faked. When no contract given to you
+        provides the trigger or data needed, reply with exactly one line instead of code:
         REFUSE: <what is missing, e.g. no contract publishes BTC prices>
 
         Otherwise reply with JSON only, no prose and no code fences, and exactly one file:
-        {"path": "count-words.cs", "source": "...the full C# source..."}
+        {"path": "on-pr-failed.cs", "source": "...the full C# source..."}
         """;
 
     // The first line of a refusal reply; what follows names what is missing.

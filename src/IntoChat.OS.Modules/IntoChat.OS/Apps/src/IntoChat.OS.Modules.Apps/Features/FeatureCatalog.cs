@@ -433,14 +433,11 @@ public sealed class FeatureCatalog
         return new(bundles, [.. failures], origins);
     }
 
-    // The same gate AppNeuron.Publish applies: the reaction shape always (it is syntax), the compile only
-    // where a sandbox can check.
+    // The same compile gate AppNeuron applies: compile when a sandbox can check.
     private static async Task RequireCompiles(string owner, AppBundle bundle, IScriptSandbox? sandbox)
     {
         var scripts = bundle.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-        if (ReactionShape.Check(scripts) is { Length: > 0 } shape)
-        { throw new InvalidOperationException($"{owner}/{bundle.Name} {bundle.Version} is not shaped as reactions: " + ReactionShape.Describe(shape)); }
         // Compiled as an installed app deploys it (its program files): app.cs is manifest and spec state, not code.
         scripts.Remove(AppFiles.DeclarationPath);
         if (scripts.Count == 0 || sandbox is null) { return; }

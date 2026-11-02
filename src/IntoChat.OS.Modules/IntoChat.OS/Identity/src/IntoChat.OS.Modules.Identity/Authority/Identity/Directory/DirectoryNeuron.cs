@@ -218,13 +218,20 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     public async Task<CallDecision?> Authorize(CallRequest request)
     {
         var brain = BrainOf(State, request.Caller.BrainId) ?? new BrainRow { BrainId = request.Caller.BrainId };
-        var decision = BrainAuthorityDecisions.Decide(brain, request);
+        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(request.Caller.BrainId));
+        var durableGrants = await grantsNeuron.List();
+        var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
+        var decision = BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request);
         if (decision is { Allowed: true })
         {
-            var consumed = GrantRules.OnceToConsume(request, brain.Grants);
+            var consumed = GrantRules.OnceToConsume(request, allGrants);
             if (consumed.Count > 0)
             {
                 decision = decision with { ConsumesOnce = true };
+                foreach (var c in consumed)
+                {
+                    await grantsNeuron.Revoke(c.Id);
+                }
                 var grants = brain.Grants.Where(grant => !consumed.Contains(grant)).ToArray();
                 await Commit(ReplaceBrain(State, brain with { Grants = grants }), brain.BrainId);
             }
@@ -232,12 +239,16 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         return decision;
     }
 
-    public Task<Grant[]> ListGrants(string brainScopeId)
-        => Task.FromResult(BrainOf(State, brainScopeId)?.Grants.Where(grant => !grant.Revoked).ToArray() ?? []);
+    public async Task<Grant[]> ListGrants(string brainScopeId)
+    {
+        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(brainScopeId));
+        var list = await grantsNeuron.List();
+        if (list.Length > 0) { return list; }
+        return BrainOf(State, brainScopeId)?.Grants.Where(grant => !grant.Revoked).ToArray() ?? [];
+    }
 
     public async Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant)
     {
-        await Task.CompletedTask;
         var next = RequireOwner(State, caller);
         if (BrainOf(next, caller.BrainId) is null) { throw new InvalidOperationException("Initialize the brain authority before granting access."); }
         ArgumentException.ThrowIfNullOrWhiteSpace(grant.AppId);
@@ -247,6 +258,9 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var grants = brain.Grants.Where(item => item.AppId != stored.AppId || item.SemanticTypeId != stored.SemanticTypeId
             || item.Mode != stored.Mode || (item.Mode == GrantMode.ThisChat && item.ConversationId != stored.ConversationId)).Append(stored).ToArray();
         await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
+
+        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(caller.BrainId));
+        await grantsNeuron.Grant(stored);
         return stored;
     }
 
@@ -256,6 +270,13 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var brain = BrainOf(next, caller.BrainId)!;
         var grants = brain.Grants.Where(item => item.AppId != appId || item.SemanticTypeId != semanticTypeId || item.Mode != mode).ToArray();
         await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
+
+        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(caller.BrainId));
+        var activeGrants = await grantsNeuron.List();
+        foreach (var item in activeGrants.Where(item => item.AppId == appId && item.SemanticTypeId == semanticTypeId && item.Mode == mode))
+        {
+            await grantsNeuron.Revoke(item.Id);
+        }
     }
 
     private (DirectoryState Next, bool Created) Provision(DirectoryState state, Member owner)

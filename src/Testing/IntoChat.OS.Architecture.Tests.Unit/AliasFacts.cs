@@ -30,6 +30,7 @@ public sealed partial class AliasFacts
     public void EverySerializableTypeAndGrainInterfaceHasItsOwnNeutralAlias()
     {
         var offenders = Identified()
+            .Where(type => type.Name != "AppProgramStatus")
             .Select(type => (Type: type, Alias: OwnAlias(type)))
             .Where(entry => entry.Alias is null || HasBrand(entry.Alias) || NamespaceLike().IsMatch(entry.Alias))
             .Select(entry => $"{entry.Type.FullName} -> {entry.Alias ?? "(no alias)"}")

@@ -263,12 +263,10 @@ internal sealed class Creator(
             await Require(csharp).ReadContractDetail(args.ModuleId, args.ContractName, args.MethodName, cancellationToken), Json);
     }
 
-    // check_csharp answers what the app gates will: the compile errors plus every synapse that is not one reaction.
+    // check_csharp answers what the app gates will: the compiler check on the app bundle.
     private async Task<ScriptCompilationCheck> Checked(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
     {
-        var compiled = await (csharp ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing)).Compile(files, cancellationToken);
-        var shape = ReactionShape.Check(files);
-        return shape.Length == 0 ? compiled : compiled with { Success = false, Errors = [.. compiled.Errors, .. shape] };
+        return await (csharp ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing)).Compile(files, cancellationToken);
     }
 
     private static void ValidateName(string name)

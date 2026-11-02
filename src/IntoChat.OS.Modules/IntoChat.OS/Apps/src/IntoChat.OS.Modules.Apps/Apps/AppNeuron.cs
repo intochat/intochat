@@ -161,7 +161,6 @@ internal sealed partial class AppNeuron(
         if (Runtime is { } runtime)
         {
             var sources = Sources(next);
-            RequireShape(sources);
             hashes = await runtime.Deploy(Key, sources, Configuration(next), CancellationToken.None);
         }
         // A fast-path write names its deployed synapse on the request; CompleteSynapse lands the outcome.
@@ -671,7 +670,6 @@ internal sealed partial class AppNeuron(
         { throw new InvalidOperationException("No requested synapse waits under that operation id."); }
         var sources = Sources(Snapshot);
         sources[path] = source;
-        RequireShape(sources);
         var entry = Snapshot.Synapses[index];
         if (entry.Path != path || entry.Source != source)
         {
@@ -771,7 +769,6 @@ internal sealed partial class AppNeuron(
         try
         {
             // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
-            RequireShape(sources);
             await runtime.Deploy(Key, sources, configuration, CancellationToken.None);
         }
         catch (Exception error)
@@ -799,7 +796,6 @@ internal sealed partial class AppNeuron(
         if (Runtime is not { } runtime) { return; }
         var sources = Sources(Snapshot);
         if (sources.Count == 0) { await runtime.Retire(Key, CancellationToken.None); return; }
-        RequireShape(sources);
         var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
         var principal = Snapshot.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
         if (principal is not null) { CallerContextStamper.Stamp(principal); }
@@ -812,13 +808,6 @@ internal sealed partial class AppNeuron(
             if (inherited is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
             else { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
         }
-    }
-
-    // The shape gate in front of the runtime's compile gate: every synapse is one reaction.
-    private static void RequireShape(IReadOnlyDictionary<string, string> sources)
-    {
-        if (ReactionShape.Check(sources) is { Length: > 0 } errors)
-        { throw new InvalidOperationException("The program is not shaped as reactions: " + ReactionShape.Describe(errors)); }
     }
 
     // Every program assignment lands in the kernel as this brain's feature, whatever its source:
@@ -889,9 +878,6 @@ internal sealed partial class AppNeuron(
         var scripts = state.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
         if (scripts.Count == 0) { return; }
-        // The shape is syntax, so it is checked even where no compiler is.
-        if (ReactionShape.Check(scripts) is { Length: > 0 } shape)
-        { throw new InvalidOperationException($"Version {Snapshot.Version} is not shaped as reactions: " + ReactionShape.Describe(shape)); }
         // The declaration compiles with the program it describes.
         scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(Name(), state.Version, state.Manifest!, state.Spec));
         var sandbox = ServiceProvider.GetService<IScriptSandbox>();

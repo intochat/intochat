@@ -10,6 +10,9 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.OpenRouter;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -34,6 +37,13 @@ internal sealed class ReactionWriter(
     IScriptSandbox? sandbox = null)
 {
     internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Apps.FastPath");
+
+    private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
+
+    internal ReactionWriter(IScriptSandbox? sandbox = null)
+        : this(null!, null!, null!, null!, null!, global::Microsoft.Extensions.Options.Options.Create(new AppsOptions()), TimeProvider.System, global::Microsoft.Extensions.Logging.Abstractions.NullLogger<ReactionWriter>.Instance, [], sandbox)
+    {
+    }
 
     private const int MaxAttempts = 2;
     private const int MaxErrors = 20;
@@ -81,7 +91,7 @@ internal sealed class ReactionWriter(
 
     private sealed record Outcome(string[] Errors, int Attempts, string? Base, string? Path, string? Hash = null, Dictionary<string, string>? Deployed = null);
 
-    private sealed record WrittenReaction(string? Path, string? Source);
+    internal sealed record WrittenReaction(string? Path, string? Source);
 
     private async Task Write(Job job, CancellationToken cancellationToken)
     {
@@ -315,8 +325,8 @@ internal sealed class ReactionWriter(
         return text;
     }
 
-    // The reply's one file, held to the shape first and then to the compiler with the app's shared classes.
-    private async Task<(WrittenReaction? Written, string[] Errors)> Gate(string reply, AppSnapshot snapshot, CancellationToken cancellationToken)
+    // The reply's one file, held to AST checks first and then to the compiler with the app's program files.
+    internal async Task<(WrittenReaction? Written, string[] Errors)> Gate(string reply, AppSnapshot snapshot, CancellationToken cancellationToken)
     {
         WrittenReaction written;
         try { written = Creator.Parse<WrittenReaction>(reply); }
@@ -324,7 +334,36 @@ internal sealed class ReactionWriter(
         { return (null, [$"The reply was not the JSON object {{\"path\": \"name.cs\", \"source\": \"...\"}}: {error.Message}"]); }
         if (PathError(written.Path) is { } wrongPath) { return (written, [wrongPath]); }
         if (string.IsNullOrWhiteSpace(written.Source)) { return (written, ["The reply's source is empty."]); }
-        if (ReactionShape.Check(written.Path!, written.Source) is { Length: > 0 } shape) { return (written, Format(shape)); }
+
+        // Local Roslyn AST validation:
+        var tree = CSharpSyntaxTree.ParseText(written.Source, Parse, cancellationToken: cancellationToken);
+        var syntaxErrors = tree.GetDiagnostics(cancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        if (syntaxErrors.Length > 0)
+        {
+            return (written, [.. syntaxErrors.Take(MaxErrors).Select(d =>
+                $"{written.Path}:{d.Location.GetLineSpan().StartLinePosition.Line + 1} {d.Id} {d.GetMessage(System.Globalization.CultureInfo.InvariantCulture)}")]);
+        }
+
+        var root = tree.GetCompilationUnitRoot(cancellationToken);
+        if (root.Members.OfType<GlobalStatementSyntax>().Any())
+        {
+            return (written, [$"{written.Path}: Top-level statements are not allowed; declare a partial class with [On(\"...\")] reaction methods."]);
+        }
+
+        var partialClasses = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Where(c => c.Modifiers.Any(SyntaxKind.PartialKeyword)).ToArray();
+        if (partialClasses.Length == 0)
+        {
+            return (written, [$"{written.Path}: The reaction must declare a partial class extending the app class."]);
+        }
+
+        var onMethods = partialClasses.SelectMany(c => c.Members.OfType<MethodDeclarationSyntax>())
+            .Where(m => m.AttributeLists.Any(al => al.Attributes.Any(a => a.Name.ToString().Contains("On")))).ToArray();
+        if (onMethods.Length == 0)
+        {
+            return (written, [$"{written.Path}: The reaction partial class must declare at least one method decorated with [On(\"...\")]."]);
+        }
+
         if (sandbox is null) { return (written, [AppAuthoringPolicy.SandboxMissing]); }
         var files = Shared(snapshot).ToDictionary(StringComparer.Ordinal);
         files[written.Path!] = written.Source;
@@ -374,12 +413,35 @@ internal sealed class ReactionWriter(
     private async Task<string[]> MatchesOf(string sentence, Task<BrainType[]> types, Task<float[]?> query, CancellationToken cancellationToken)
         => await Matches(sentence, await types, await query, cancellationToken);
 
+    internal static string FindAppClassName(AppSnapshot app)
+    {
+        foreach (var (path, source) in app.Files)
+        {
+            if (!path.EndsWith(".cs", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(source)) { continue; }
+            var root = CSharpSyntaxTree.ParseText(source, Parse).GetCompilationUnitRoot();
+            var appClass = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
+                .FirstOrDefault(c => c.AttributeLists.Any(al => al.Attributes.Any(a => a.Name.ToString() is "App" or "AppAttribute" || a.Name.ToString().Contains("App"))));
+            if (appClass is not null)
+            {
+                return appClass.Identifier.ValueText;
+            }
+        }
+        var raw = string.IsNullOrWhiteSpace(app.Manifest?.Title) ? "App" : app.Manifest.Title;
+        var pascal = string.Concat(raw.Split([' ', '-', '_', '.'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => char.ToUpperInvariant(w[0]) + (w.Length > 1 ? w[1..] : "")));
+        if (string.IsNullOrEmpty(pascal)) { return "App"; }
+        return pascal.EndsWith("App", StringComparison.Ordinal) ? pascal : pascal + "App";
+    }
+
     private string Prompt(Job job, AppSnapshot app, ReactionExample[] ranked, ReactionExample? basis, ReactionExample[] layouts,
         (string[] Focused, string[] Contracts) focus, string[] matching)
     {
         var manifest = app.Manifest;
         var text = new StringBuilder();
         text.AppendLine($"The app: {manifest.Title} ({job.AppKey}). {manifest.Description}");
+        var appClassName = FindAppClassName(app);
+        text.AppendLine($"The target application class to extend: public sealed partial class {appClassName}");
+        text.AppendLine("A reaction is a partial class extending this class with an [On(\"...\")] method handler (never top-level statements or loops).");
         if (manifest.Operations.Length > 0)
         {
             text.AppendLine("Its operations (each arrives as AppRequested):");
@@ -515,7 +577,7 @@ internal sealed class ReactionWriter(
     }
 
     private static IEnumerable<KeyValuePair<string, string>> Shared(AppSnapshot app)
-        => app.Files.Where(file => AppFiles.IsProgram(file.Key) && ReactionShape.IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal);
+        => app.Files.Where(file => AppFiles.IsProgram(file.Key)).OrderBy(file => file.Key, StringComparer.Ordinal);
 
     private async Task Report(IApp app, string state, string detail, CancellationToken cancellationToken)
     {

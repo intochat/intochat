@@ -105,16 +105,16 @@ public sealed class FeatureCatalogFacts : IDisposable
     }
 
     [Fact]
-    public async Task AFeatureWhoseSynapseIsNotOneReactionIsSkippedAndReportedEvenWithoutASandbox()
+    public async Task AFeatureThatDoesNotCompileIsSkippedAndReported()
     {
-        WriteEcho("await using var brain = await IntoChatOSClient.ConnectAsync(args);\nawait Task.Delay(Timeout.Infinite, brain.Stopping);\n");
+        WriteEcho(Uncompilable);
         WriteGreeter("os");
-        var catalog = Catalog();
+        var catalog = Catalog(new Sandbox(success: files => !files.Values.Any(source => source.Contains("not C#", StringComparison.Ordinal))));
 
         Assert.Equal([("os", "greeter")], (await catalog.Listings()).Select(listing => (listing.Publisher, listing.Name)));
         var failure = Assert.Single(await catalog.Failures());
         Assert.Equal(("intochat", "echo"), (failure.Owner, failure.Name));
-        Assert.Contains("intochat/echo 2.0.0 is not shaped as reactions", failure.Reason, StringComparison.Ordinal);
+        Assert.Contains("intochat/echo 2.0.0 does not compile", failure.Reason, StringComparison.Ordinal);
         Assert.Contains("echo.cs:1", failure.Reason, StringComparison.Ordinal);
     }
 

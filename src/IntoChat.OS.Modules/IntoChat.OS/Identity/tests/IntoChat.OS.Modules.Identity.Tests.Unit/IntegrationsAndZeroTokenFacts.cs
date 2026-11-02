@@ -19,6 +19,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority;
 
+[Collection("EdgeGrantsCache")]
 public sealed class IntegrationsAndZeroTokenFacts
 {
     [Fact]

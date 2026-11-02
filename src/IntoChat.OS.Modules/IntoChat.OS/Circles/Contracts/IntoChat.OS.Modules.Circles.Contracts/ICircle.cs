@@ -30,9 +30,9 @@ public interface ICircle : IntoChat.OS.Modules.Flutter.IUiEventHandler
     [Public] Task<CircleState> Accept();
     // Revokes membership and shared connections. The creator leaving deletes the circle.
     Task Remove(string accountId);
-    // R124/R132: installs the caller's own app into the circle brain (compile-gated Export, Origin = the sharer's app). The
-    // connections named in `connectionIds` are bound as the circle's own copies; every other bound slot stays the
-    // sharer's connection, reached only through the binding recorded on it (R134).
+    // R124/R132: shares the caller's app into the circle brain by reference grant.
+    // Connections named in `connectionIds` are shared by reference Grant on the owner's brain;
+    // zero credentials or assemblies leave the owner's brain.
     Task Share(string appName, string[] connectionIds);
     [DigitalBrain.CallTimeout(600_000)] Task<IntoChat.OS.Modules.Apps.AppSnapshot> BringPublication(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
     // 0 to MaxComputeSharePercent of the creator's budget; the platform's own 25% fee is fixed and not a setting.

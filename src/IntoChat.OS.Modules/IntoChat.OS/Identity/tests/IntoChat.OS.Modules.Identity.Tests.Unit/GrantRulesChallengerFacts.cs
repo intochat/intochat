@@ -8,6 +8,7 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority;
 
+[Collection("EdgeGrantsCache")]
 public sealed class GrantRulesChallengerFacts
 {
     private static CapabilityCaller CreateAppCaller(string appKey)

@@ -160,7 +160,7 @@ public sealed class InMemoryDecisionMaker : IDecisionMaker
 
 #endregion
 
-#region F17: Task Engine for Self-Improvement (Delegates to Production TaskEngine + TaskNeuron + TaskDirectoryGrain)
+#region F17: Task Engine for Self-Improvement (Delegates to Production TaskEngine + TaskNeuron + TaskDirectoryNeuron)
 
 public sealed class InMemoryTaskEngine : ITaskEngine, IAsyncDisposable
 {
@@ -172,7 +172,7 @@ public sealed class InMemoryTaskEngine : ITaskEngine, IAsyncDisposable
     {
         _os = TestOS.Local();
         _os.Register<TaskNeuron>();
-        _os.Register<TaskDirectoryGrain>();
+        _os.Register<TaskDirectoryNeuron>();
         _inner = new TaskEngine(
             taskId => _os.Get<ITaskNeuron>(new NeuronId(new BrainId("local"), "tasks.task", taskId)),
             () => _os.Get<ITaskDirectoryNeuron>(new NeuronId(new BrainId("local"), "tasks.directory", "default")));
@@ -239,6 +239,14 @@ public sealed class InMemoryTaskEngine : ITaskEngine, IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
         ct.ThrowIfCancellationRequested();
         return _inner.VerifyTaskStepAsync(taskId, stepIndex, ct);
+    }
+
+    public Task<AgentTask> ConfirmTaskStepAsync(string taskId, int stepIndex, string? confirmationToken = null, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+        ct.ThrowIfCancellationRequested();
+        EnsureExists(taskId);
+        return _inner.ConfirmTaskStepAsync(taskId, stepIndex, confirmationToken, ct);
     }
 
     public async Task<TaskVerificationResult> VerifyTaskAsync(string taskId, CancellationToken ct = default)

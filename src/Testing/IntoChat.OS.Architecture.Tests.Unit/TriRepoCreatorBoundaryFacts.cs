@@ -40,7 +40,7 @@ public sealed class TriRepoCreatorBoundaryFacts
         Assert.Equal(aiContracts, typeof(ITestVerificationNeuron).Assembly);
 
         Assert.Equal(aiImpl, typeof(TaskNeuron).Assembly);
-        Assert.Equal(aiImpl, typeof(TaskDirectoryGrain).Assembly);
+        Assert.Equal(aiImpl, typeof(TaskDirectoryNeuron).Assembly);
         Assert.Equal(aiImpl, typeof(TestVerificationService).Assembly);
         Assert.Equal(aiImpl, typeof(TestVerificationNeuron).Assembly);
 

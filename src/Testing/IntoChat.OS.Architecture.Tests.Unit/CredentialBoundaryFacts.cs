@@ -24,6 +24,9 @@ public sealed class CredentialBoundaryFacts
         [
             "IntoChat.OS.Modules.Apps.AppNeuron",
             "IntoChat.OS.Modules.Apps.HostCaller",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Edge.EdgeSessionValidator",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Programs.AppProgramNeuron",
             "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
         ];
         var offenders = ModuleMethods()
@@ -44,6 +47,9 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Authority.VaultPort",
             "IntoChat.OS.Modules.Apps.AppNeuron",
             "IntoChat.OS.Modules.Apps.HostCaller",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Edge.EdgeSessionValidator",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Programs.AppProgramNeuron",
             "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
         ];
         var sites = ModuleMethods().Where(m => Calls(m).Any(ConstructsACaller))

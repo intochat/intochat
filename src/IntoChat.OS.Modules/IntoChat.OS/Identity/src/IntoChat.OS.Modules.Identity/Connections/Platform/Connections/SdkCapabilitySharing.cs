@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities;
+using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework.Modules;
 
@@ -28,10 +29,6 @@ public static class SdkCapabilitySharing
 {
     public const string WildcardScope = "*";
 
-    private static readonly Lock Sync = new();
-    private static readonly List<FriendCapabilityShare> Shares = [];
-    private static readonly List<(string ConnectionKey, string FriendApp)> BoundFriendConnections = [];
-
     public static FriendCapabilityShare RegisterFriend(string ownerAppId, string friendAppId, string? capabilityOrScope = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerAppId);
@@ -40,13 +37,22 @@ public static class SdkCapabilitySharing
         var normalizedFriend = NormalizeAppId(friendAppId);
         var scope = string.IsNullOrWhiteSpace(capabilityOrScope) ? WildcardScope : capabilityOrScope.Trim();
         var share = new FriendCapabilityShare(normalizedOwner, normalizedFriend, scope, DateTimeOffset.UtcNow);
-        lock (Sync)
+
+        var brain = ExtractBrain(normalizedOwner);
+        var grant = new Grant
         {
-            Shares.RemoveAll(s => string.Equals(s.OwnerAppId, normalizedOwner, StringComparison.Ordinal)
-                && string.Equals(s.FriendAppId, normalizedFriend, StringComparison.Ordinal)
-                && string.Equals(s.Scope, scope, StringComparison.Ordinal));
-            Shares.Add(share);
-        }
+            Id = $"friend:{normalizedOwner}:{normalizedFriend}:{scope}",
+            Owner = $"app:{normalizedOwner}",
+            Grantee = $"app:{normalizedFriend}",
+            Target = scope,
+            Scope = scope,
+            WorkspaceId = brain,
+            AppId = normalizedFriend,
+            SemanticTypeId = scope,
+            Mode = GrantMode.Always,
+            GrantedAt = DateTimeOffset.UtcNow,
+        };
+        EdgeGrantsCache.Current.AddGrant(brain, grant);
         return share;
     }
 
@@ -55,18 +61,12 @@ public static class SdkCapabilitySharing
         if (string.IsNullOrWhiteSpace(ownerAppId) || string.IsNullOrWhiteSpace(friendAppId)) { return false; }
         var normalizedOwner = NormalizeAppId(ownerAppId);
         var normalizedFriend = NormalizeAppId(friendAppId);
-        lock (Sync)
-        {
-            if (string.IsNullOrWhiteSpace(capabilityOrScope))
-            {
-                return Shares.RemoveAll(s => string.Equals(s.OwnerAppId, normalizedOwner, StringComparison.Ordinal)
-                    && string.Equals(s.FriendAppId, normalizedFriend, StringComparison.Ordinal)) > 0;
-            }
-            var scope = capabilityOrScope.Trim();
-            return Shares.RemoveAll(s => string.Equals(s.OwnerAppId, normalizedOwner, StringComparison.Ordinal)
-                && string.Equals(s.FriendAppId, normalizedFriend, StringComparison.Ordinal)
-                && string.Equals(s.Scope, scope, StringComparison.Ordinal)) > 0;
-        }
+        var brain = ExtractBrain(normalizedOwner);
+        EdgeGrantsCache.Current.RemoveGrant(brain, g =>
+            (string.Equals(g.Owner, $"app:{normalizedOwner}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedOwner, StringComparison.Ordinal))
+            && (string.Equals(g.Grantee, $"app:{normalizedFriend}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal))
+            && (string.IsNullOrWhiteSpace(capabilityOrScope) || string.Equals(g.Scope, capabilityOrScope.Trim(), StringComparison.Ordinal)));
+        return true;
     }
 
     public static bool IsFriend(string ownerAppId, string friendAppId, string? capabilityOrScope = null)
@@ -76,40 +76,40 @@ public static class SdkCapabilitySharing
         var normalizedFriend = NormalizeAppId(friendAppId);
         if (string.Equals(normalizedOwner, normalizedFriend, StringComparison.Ordinal)) { return true; }
         var scope = capabilityOrScope?.Trim();
-        lock (Sync)
-        {
-            return Shares.Any(s => string.Equals(s.OwnerAppId, normalizedOwner, StringComparison.Ordinal)
-                && string.Equals(s.FriendAppId, normalizedFriend, StringComparison.Ordinal)
-                && (string.Equals(s.Scope, WildcardScope, StringComparison.Ordinal)
-                    || (!string.IsNullOrWhiteSpace(scope) && string.Equals(s.Scope, scope, StringComparison.Ordinal))));
-        }
+        var brain = ExtractBrain(normalizedOwner);
+        var grants = EdgeGrantsCache.Current.GetGrantsAsync(brain).GetAwaiter().GetResult();
+        return grants.Any(g => !g.Revoked
+            && (string.Equals(g.Owner, $"app:{normalizedOwner}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedOwner, StringComparison.Ordinal))
+            && (string.Equals(g.Grantee, $"app:{normalizedFriend}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal))
+            && (string.Equals(g.Scope, WildcardScope, StringComparison.Ordinal)
+                || (!string.IsNullOrWhiteSpace(scope) && string.Equals(g.Scope, scope, StringComparison.Ordinal))));
     }
 
     public static IReadOnlyList<FriendCapabilityShare> FriendsOf(string ownerAppId)
     {
         if (string.IsNullOrWhiteSpace(ownerAppId)) { return []; }
         var normalizedOwner = NormalizeAppId(ownerAppId);
-        lock (Sync)
-        {
-            return [.. Shares.Where(s => string.Equals(s.OwnerAppId, normalizedOwner, StringComparison.Ordinal))];
-        }
+        var brain = ExtractBrain(normalizedOwner);
+        var grants = EdgeGrantsCache.Current.GetGrantsAsync(brain).GetAwaiter().GetResult();
+        return grants
+            .Where(g => !g.Revoked && (string.Equals(g.Owner, $"app:{normalizedOwner}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedOwner, StringComparison.Ordinal)))
+            .Select(g => new FriendCapabilityShare(normalizedOwner, NormalizeAppId(g.Grantee), g.Scope, g.GrantedAt))
+            .ToArray();
     }
 
     public static IReadOnlyList<string> OwnersSharingWith(string friendAppId, string? capabilityOrScope = null)
     {
         if (string.IsNullOrWhiteSpace(friendAppId)) { return []; }
         var normalizedFriend = NormalizeAppId(friendAppId);
-        lock (Sync)
-        {
-            return
-            [
-                .. Shares
-                    .Where(s => string.Equals(s.FriendAppId, normalizedFriend, StringComparison.Ordinal)
-                        && (s.Scope == WildcardScope || string.IsNullOrWhiteSpace(capabilityOrScope) || string.Equals(s.Scope, capabilityOrScope.Trim(), StringComparison.Ordinal)))
-                    .Select(s => s.OwnerAppId)
-                    .Distinct(StringComparer.Ordinal)
-            ];
-        }
+        var brain = ExtractBrain(normalizedFriend);
+        var grants = EdgeGrantsCache.Current.GetGrantsAsync(brain).GetAwaiter().GetResult();
+        return grants
+            .Where(g => !g.Revoked
+                && (string.Equals(g.Grantee, $"app:{normalizedFriend}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal))
+                && (string.Equals(g.Scope, WildcardScope, StringComparison.Ordinal) || string.IsNullOrWhiteSpace(capabilityOrScope) || string.Equals(g.Scope, capabilityOrScope.Trim(), StringComparison.Ordinal)))
+            .Select(g => NormalizeAppId(g.Owner))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     public static void BindFriendConnection(string connectionKey, string friendAppId)
@@ -118,18 +118,22 @@ public static class SdkCapabilitySharing
         ArgumentException.ThrowIfNullOrWhiteSpace(friendAppId);
         var normalizedKey = StripNeuronPrefix(connectionKey);
         var normalizedFriend = NormalizeAppId(friendAppId);
-        var principalId = AppPrincipal.Id(normalizedFriend);
-        lock (Sync)
+        var brain = ExtractBrain(normalizedKey);
+        var grant = new Grant
         {
-            if (!BoundFriendConnections.Contains((normalizedKey, normalizedFriend)))
-            {
-                BoundFriendConnections.Add((normalizedKey, normalizedFriend));
-            }
-            if (!BoundFriendConnections.Contains((normalizedKey, principalId)))
-            {
-                BoundFriendConnections.Add((normalizedKey, principalId));
-            }
-        }
+            Id = $"binding:{normalizedKey}:{normalizedFriend}",
+            Owner = $"brain:{brain}",
+            Grantee = $"app:{normalizedFriend}",
+            Target = normalizedKey,
+            Scope = "*",
+            WorkspaceId = brain,
+            AppId = normalizedFriend,
+            SemanticTypeId = "*",
+            TargetNeuronKey = normalizedKey,
+            Mode = GrantMode.Always,
+            GrantedAt = DateTimeOffset.UtcNow,
+        };
+        EdgeGrantsCache.Current.AddGrant(brain, grant);
     }
 
     public static void UnbindFriendConnection(string connectionKey, string friendAppId)
@@ -137,38 +141,25 @@ public static class SdkCapabilitySharing
         if (string.IsNullOrWhiteSpace(connectionKey) || string.IsNullOrWhiteSpace(friendAppId)) { return; }
         var normalizedKey = StripNeuronPrefix(connectionKey);
         var normalizedFriend = NormalizeAppId(friendAppId);
-        var principalId = AppPrincipal.Id(normalizedFriend);
-        lock (Sync)
-        {
-            BoundFriendConnections.RemoveAll(b => string.Equals(b.ConnectionKey, normalizedKey, StringComparison.Ordinal)
-                && (string.Equals(b.FriendApp, normalizedFriend, StringComparison.Ordinal)
-                    || string.Equals(b.FriendApp, principalId, StringComparison.Ordinal)));
-        }
+        var brain = ExtractBrain(normalizedKey);
+        EdgeGrantsCache.Current.RemoveGrant(brain, g =>
+            (string.Equals(g.Target, normalizedKey, StringComparison.Ordinal) || string.Equals(g.TargetNeuronKey, normalizedKey, StringComparison.Ordinal))
+            && (string.Equals(g.Grantee, $"app:{normalizedFriend}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal)));
     }
 
     public static bool IsConnectionBoundToFriend(CapabilityCaller caller, string? targetOrConnectionKey)
     {
         if (caller is null || string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
-        var callerApp = caller.AppId is { Length: > 0 } app ? NormalizeAppId(app)
-            : AppPrincipal.AppKeyOf(caller.PrincipalId);
-        if (string.IsNullOrWhiteSpace(callerApp)) { return false; }
-
-        var candidate = StripNeuronPrefix(targetOrConnectionKey);
-        if (CheckBoundSet(candidate, callerApp)) { return true; }
-
-        var slash = candidate.IndexOf('/', StringComparison.Ordinal);
-        if (slash >= 0 && CheckBoundSet(candidate[(slash + 1)..], callerApp))
+        var targetBrain = ExtractBrain(targetOrConnectionKey);
+        if (EdgeGrantsCache.Current.IsConnectionBoundAsync(targetBrain, caller, targetOrConnectionKey).GetAwaiter().GetResult())
         {
             return true;
         }
-
-        lock (Sync)
+        if (!string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain, StringComparison.OrdinalIgnoreCase))
         {
-            return Shares.Any(s =>
-                string.Equals(s.FriendAppId, callerApp, StringComparison.Ordinal)
-                && (string.Equals(StripNeuronPrefix(s.Scope), candidate, StringComparison.Ordinal)
-                    || (slash >= 0 && string.Equals(StripNeuronPrefix(s.Scope), candidate[(slash + 1)..], StringComparison.Ordinal))));
+            return EdgeGrantsCache.Current.IsConnectionBoundAsync(caller.BrainId, caller, targetOrConnectionKey).GetAwaiter().GetResult();
         }
+        return false;
     }
 
     public static async Task ShareConnectionWithFriendAsync(IConnection connection, string ownerAppId, string friendAppId)
@@ -217,22 +208,16 @@ public static class SdkCapabilitySharing
 
     public static void ClearForTests()
     {
-        lock (Sync)
-        {
-            Shares.Clear();
-            BoundFriendConnections.Clear();
-        }
+        EdgeGrantsCache.Current.Clear();
     }
 
-    private static bool CheckBoundSet(string key, string callerApp)
+    private static string ExtractBrain(string keyOrApp)
     {
-        var principalId = AppPrincipal.Id(callerApp);
-        lock (Sync)
-        {
-            return BoundFriendConnections.Any(b => string.Equals(b.ConnectionKey, key, StringComparison.Ordinal)
-                && (string.Equals(b.FriendApp, callerApp, StringComparison.Ordinal)
-                    || string.Equals(b.FriendApp, principalId, StringComparison.Ordinal)));
-        }
+        var clean = StripNeuronPrefix(keyOrApp);
+        if (clean.StartsWith("app:", StringComparison.Ordinal)) { clean = clean["app:".Length..]; }
+        if (clean.StartsWith("brain:", StringComparison.Ordinal)) { clean = clean["brain:".Length..]; }
+        var slash = clean.IndexOf('/', StringComparison.Ordinal);
+        return slash > 0 ? clean[..slash] : "local";
     }
 
     private static string NormalizeAppId(string appId)

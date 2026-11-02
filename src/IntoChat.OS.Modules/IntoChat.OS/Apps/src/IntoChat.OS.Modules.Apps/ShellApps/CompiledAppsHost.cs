@@ -43,11 +43,6 @@ internal sealed class CompiledAppsHost(
     [
         ("ino", typeof(InoApp), InoApp.Bundle),
         ("settings", typeof(SettingsApp), SettingsApp.Bundle),
-        ("gallery", typeof(GalleryApp), GalleryApp.Bundle),
-        ("creator", typeof(CreatorApp), CreatorApp.Bundle),
-        ("post", typeof(PostApp), PostApp.Bundle),
-        ("photocraft", typeof(PhotoCraftApp), PhotoCraftApp.Bundle),
-        ("filmcraft", typeof(FilmCraftApp), FilmCraftApp.Bundle),
     ];
 
     private static readonly IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName =
@@ -106,7 +101,18 @@ internal sealed class CompiledAppsHost(
             var slash = rest.IndexOf('/', StringComparison.Ordinal);
             if (slash <= 0) { return Task.CompletedTask; }
             var appName = rest[..slash];
-            if (!HostedByName.ContainsKey(appName)) { return Task.CompletedTask; }
+            if (!HostedByName.ContainsKey(appName))
+            {
+                _ = Task.Run(async () =>
+                {
+                    var app = SiloNeurons.Get<IApp>(services, IApp.Key(publisher.Brain.Value, appName));
+                    var parts = signal.Action.Split(':', 2, StringSplitOptions.TrimEntries);
+                    var operation = parts[0];
+                    var rawArg = parts.Length > 1 ? parts[1] : string.Empty;
+                    await app.Request(operation, rawArg);
+                }, CancellationToken.None);
+                return Task.CompletedTask;
+            }
             _ = Task.Run(() => HandleViewActionAsync(publisher.Brain.Value, appName, signal, token), CancellationToken.None);
             return Task.CompletedTask;
         });
@@ -326,9 +332,16 @@ internal sealed class CompiledAppsHost(
                             : null;
                     if (studioApp is not null)
                     {
-                        _ = Task.Run(
-                            () => HandleAppRequestedAsync(brain, studioApp, new AppRequested("edit", latestTurn.UserMessage, Guid.NewGuid()), CancellationToken.None),
-                            CancellationToken.None);
+                        var prompt = latestTurn.UserMessage;
+                        _ = HostedByName.ContainsKey(studioApp)
+                            ? Task.Run(
+                                () => HandleAppRequestedAsync(brain, studioApp, new AppRequested("edit", prompt, Guid.NewGuid()), CancellationToken.None),
+                                CancellationToken.None)
+                            : Task.Run(async () =>
+                            {
+                                var app = SiloNeurons.Get<IApp>(services, IApp.Key(brain, studioApp));
+                                await app.Request("edit", prompt);
+                            }, CancellationToken.None);
                     }
                 }
 
@@ -415,7 +428,15 @@ internal sealed class CompiledAppsHost(
 
             if (syncStudioApp is not null && syncStudioPrompt is not null)
             {
-                await HandleAppRequestedAsync(brain, syncStudioApp, new AppRequested("edit", syncStudioPrompt, Guid.NewGuid()), ct);
+                if (HostedByName.ContainsKey(syncStudioApp))
+                {
+                    await HandleAppRequestedAsync(brain, syncStudioApp, new AppRequested("edit", syncStudioPrompt, Guid.NewGuid()), ct);
+                }
+                else
+                {
+                    var app = SiloNeurons.Get<IApp>(services, IApp.Key(brain, syncStudioApp));
+                    await app.Request("edit", syncStudioPrompt);
+                }
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -450,14 +471,6 @@ internal sealed class CompiledAppsHost(
                 ino.FilesVfs = vfs;
                 ino.KnowledgeStore = services.GetService(typeof(IKnowledgeStore)) as IKnowledgeStore;
                 ino.TaskEngine = services.GetService(typeof(ITaskEngine)) as ITaskEngine;
-            }
-            else if (instance is PhotoCraftApp photoCraft)
-            {
-                photoCraft.FilesVfs = vfs;
-            }
-            else if (instance is FilmCraftApp filmCraft)
-            {
-                filmCraft.FilesVfs = vfs;
             }
             instance.AttachNeuronResolver((contractType, neuronKey) =>
             {

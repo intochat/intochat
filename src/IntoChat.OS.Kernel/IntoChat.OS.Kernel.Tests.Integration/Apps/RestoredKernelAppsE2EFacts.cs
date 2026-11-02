@@ -75,18 +75,20 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
         Assert.True(chatState.Projection.Generation >= 1);
         Assert.True(chatState.Projection.Version >= 2);
 
-        var photoCraftView = await WaitUntilAsync(
-            async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/photocraft/view").Read(),
-            view => view?.Root is not null);
-        Assert.NotNull(photoCraftView?.Root);
+        var photoCraftApp = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/photocraft");
+        var photoSnapshot = await WaitUntilAsync(
+            async () => await photoCraftApp.Read(),
+            snap => snap is not null);
+        Assert.NotNull(photoSnapshot);
 
         await inoApp.Request("send", "Trim timeline clip in FilmCraft");
-        var filmCraftView = await WaitUntilAsync(
-            async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read(),
-            view => view?.Root is not null);
-        Assert.NotNull(filmCraftView?.Root);
+        var filmCraftApp = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/filmcraft");
+        var filmSnapshot = await WaitUntilAsync(
+            async () => await filmCraftApp.Read(),
+            snap => snap is not null);
+        Assert.NotNull(filmSnapshot);
 
-        // 3. Open Gallery, Creator, and Post via IApp.Request("open", "") on the silo and verify their IView projections.
+        // 3. Open Gallery, Creator, and Post via IApp.Request("open", "") on the silo and verify their app snapshots.
         foreach (var (appName, bundle) in new (string Name, AppBundle Bundle)[]
         {
             ("gallery", GalleryApp.Bundle),
@@ -98,12 +100,9 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
             if (string.IsNullOrWhiteSpace((await appNeuron.Read()).Manifest.Title)) { await appNeuron.Import(bundle); }
             await appNeuron.Request("open", "");
 
-            var view = await WaitUntilAsync(
-                async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/{appName}/view").Read(),
-                v => v?.Root is not null);
-            Assert.NotNull(view?.Root);
-
-            var snapshot = await appNeuron.Read();
+            var snapshot = await WaitUntilAsync(
+                async () => await appNeuron.Read(),
+                s => !string.IsNullOrWhiteSpace(s?.Manifest?.Title));
             Assert.False(string.IsNullOrWhiteSpace(snapshot.Manifest.Title));
         }
 
