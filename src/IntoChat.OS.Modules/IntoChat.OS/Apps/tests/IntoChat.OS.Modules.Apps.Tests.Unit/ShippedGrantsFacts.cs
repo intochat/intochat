@@ -27,6 +27,10 @@ public sealed class ShippedGrantsFacts
         => Assert.Contains(ShippedGrants.For("owner", "workspace"), grant => grant.Target == "ui.workspace/owner/main");
 
     [Fact]
+    public void Settings_reaches_the_brains_preferences()
+        => Assert.Contains(ShippedGrants.For("owner", "settings"), grant => grant.Target == "textfield/owner/settings/*");
+
+    [Fact]
     public void Other_apps_are_granted_nothing()
         => Assert.Empty(ShippedGrants.For("ada", "calculator"));
 }

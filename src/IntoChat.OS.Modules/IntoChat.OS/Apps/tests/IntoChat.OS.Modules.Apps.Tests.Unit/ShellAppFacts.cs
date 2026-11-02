@@ -64,8 +64,10 @@ public sealed class ShellAppFacts
         Assert.Equal("settings", bundle.Name);
         Assert.Contains("No modules are loaded.", bundle.Files["SettingsView.cs"], StringComparison.Ordinal);
         Assert.Contains("/apps-view", bundle.Files["Apps.cs"], StringComparison.Ordinal);
-        Assert.Contains("apps-connections.cs", bundle.Files.Keys);
-        Assert.DoesNotContain(bundle.Files.Keys, path => path.Equals("open.cs", StringComparison.Ordinal) && bundle.Files[path].Contains("Apps.Present", StringComparison.Ordinal));
+        // One [App] program serves the operations and watches both tabs; the Apps tab is never presented on its own.
+        Assert.Contains("[DigitalBrain.App(\"settings\")]", bundle.Files["SettingsProgram.cs"], StringComparison.Ordinal);
+        Assert.Contains("\"apps-view\"", bundle.Files["SettingsProgram.cs"], StringComparison.Ordinal);
+        Assert.DoesNotContain(bundle.Files.Values, source => source.Contains("Apps.Present(", StringComparison.Ordinal) && !source.Contains("public static Task Present", StringComparison.Ordinal));
         Assert.Equal("workspace", WorkspaceApp.Bundle.Name);
         Assert.Equal("desktop", DesktopApp.Bundle.Name);
         Assert.Contains("Apps", DesktopApp.Bundle.Files["DesktopLayout.cs"], StringComparison.Ordinal);

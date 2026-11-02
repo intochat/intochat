@@ -14,7 +14,7 @@ internal static class ShippedGrants
         "desktop" => Tuples(brain, app, [Workspace(brain), Apps(brain), Person(brain), Compute(brain),
             $"chat/{brain}/apps/ino/transcript", $"agent/{brain}/*", $"textfield/{brain}/settings/workspace/new-tab-app"]),
         "settings" => Tuples(brain, app, [Apps(brain), $"apps.store/{brain}/*", $"integrations.accounts/{brain}/*",
-            $"ai.models/{brain}/*", $"chat-index/{brain}/*"]),
+            $"ai.models/{brain}/*", $"chat-index/{brain}/*", $"textfield/{brain}/settings/*"]),
         _ => [],
     };
 
