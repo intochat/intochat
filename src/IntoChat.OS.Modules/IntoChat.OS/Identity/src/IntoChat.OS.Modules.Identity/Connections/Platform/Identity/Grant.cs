@@ -101,7 +101,7 @@ public sealed record Grant
             Grantee = g.Grantee.Length > 0
                 ? g.Grantee
                 : (g.AppId.StartsWith("app:", StringComparison.Ordinal) ? g.AppId : "app:" + g.AppId),
-            Target = g.Target.Length > 0 ? g.Target : (g.TargetNeuronKey ?? ""),
+            Target = g.Target.Length > 0 ? g.Target : (g.TargetNeuronKey ?? (g.WorkspaceId.Length > 0 ? g.WorkspaceId + "/*" : "")),
             Scope = g.Scope.Length > 0 ? g.Scope : g.SemanticTypeId,
         };
     }

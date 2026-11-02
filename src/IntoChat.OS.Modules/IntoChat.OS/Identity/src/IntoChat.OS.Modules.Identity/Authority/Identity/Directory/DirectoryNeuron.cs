@@ -219,7 +219,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     public async Task<CallDecision?> Authorize(CallRequest request)
     {
         var brain = BrainOf(State, request.Caller.BrainId) ?? new BrainRow { BrainId = request.Caller.BrainId };
-        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(request.Caller.BrainId));
+        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(BrainAuthorityDecisions.GrantsBrainOf(request)));
         var durableGrants = await grantsNeuron.List();
         var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
         var decision = BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request);
@@ -255,6 +255,8 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var normalized = Grant.Normalize(grant);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Grantee);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Scope);
+        if (normalized.Target.Length > 0 && !string.Equals(EdgeGrantsCache.ExtractBrain(normalized.Target), caller.BrainId, StringComparison.Ordinal))
+        { throw new UnauthorizedAccessException("A brain owner grants access only to neurons in that brain."); }
         var stored = normalized with
         {
             Owner = string.IsNullOrEmpty(normalized.Owner) ? $"brain:{caller.BrainId}" : normalized.Owner,

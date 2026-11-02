@@ -18,7 +18,6 @@ public interface IEdgeGrantsCache
     Task<PrincipalSet> ExpandAsync(string ownerBrain, CapabilityCaller caller);
     Task<bool> IsGrantedAsync(string brain, CapabilityCaller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default);
     Task<bool> IsConnectionBoundAsync(string brain, CapabilityCaller caller, string targetOrConnectionKey, CancellationToken ct = default);
-    Task<IReadOnlyList<string>> OwnersSharingWithAsync(string friendAppId, string? capabilityOrScope = null, CancellationToken ct = default);
     void Invalidate(string brain);
     void Clear();
 }
@@ -52,12 +51,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     private readonly IClusterListeners? _listeners;
     private readonly TimeProvider _clock;
 
-    private sealed record CachedGrantsEntry(Grant[] Grants, long Version, DateTimeOffset CachedAt)
-    {
-        public bool HasFriendGrants { get; } = Grants.Any(g =>
-            !string.IsNullOrWhiteSpace(g.Owner) &&
-            (!string.IsNullOrWhiteSpace(g.Grantee) || !string.IsNullOrWhiteSpace(g.AppId)));
-    }
+    private sealed record CachedGrantsEntry(Grant[] Grants, long Version, DateTimeOffset CachedAt);
 
     public EdgeGrantsCache(IServiceProvider? services = null, IClusterListeners? listeners = null, TimeProvider? clock = null)
     {
@@ -264,30 +258,13 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
 
         foreach (var target in targets)
         {
-            if (await IsGrantedAsync(ownerBrain, caller, "use-via:" + callerAppKey, target, ct).ConfigureAwait(false)
-                || await IsGrantedAsync(ownerBrain, caller, "*", target, ct).ConfigureAwait(false))
+            if (await IsGrantedAsync(ownerBrain, caller, "use-via:" + callerAppKey, target, ct).ConfigureAwait(false))
             {
                 return true;
             }
         }
 
         return false;
-    }
-
-    public bool IsFriend(string ownerAppId, string friendAppId, string? capabilityOrScope = null)
-    {
-        if (string.IsNullOrWhiteSpace(ownerAppId) || string.IsNullOrWhiteSpace(friendAppId)) { return false; }
-        var normalizedOwner = NormalizeAppId(ownerAppId);
-        var normalizedFriend = NormalizeAppId(friendAppId);
-        if (string.Equals(normalizedOwner, normalizedFriend, StringComparison.Ordinal)) { return true; }
-        var scope = capabilityOrScope?.Trim();
-        var brain = ExtractBrain(normalizedOwner);
-        var grants = GetGrantsAsync(brain).GetAwaiter().GetResult();
-        return grants.Any(g => !g.Revoked
-            && (string.Equals(g.Owner, $"app:{normalizedOwner}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedOwner, StringComparison.Ordinal))
-            && (string.Equals(g.Grantee, $"app:{normalizedFriend}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal))
-            && (string.Equals(g.Scope, "*", StringComparison.Ordinal)
-                || (!string.IsNullOrWhiteSpace(scope) && string.Equals(g.Scope, scope, StringComparison.Ordinal))));
     }
 
     public bool IsConnectionBound(CapabilityCaller caller, string? targetOrConnectionKey)
@@ -303,37 +280,6 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             return IsConnectionBoundAsync(caller.BrainId, caller, targetOrConnectionKey).GetAwaiter().GetResult();
         }
         return false;
-    }
-
-    public void RegisterFriend(string ownerAppId, string friendAppId, string? capabilityOrScope = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(ownerAppId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(friendAppId);
-        var normalizedOwner = NormalizeAppId(ownerAppId);
-        var normalizedFriend = NormalizeAppId(friendAppId);
-        var scope = string.IsNullOrWhiteSpace(capabilityOrScope) ? "*" : capabilityOrScope.Trim();
-
-        var brain = ExtractBrain(normalizedOwner);
-        var grant = Grant.Tuple($"app:{normalizedOwner}", $"app:{normalizedFriend}", scope, scope) with
-        {
-            Id = $"friend:{normalizedOwner}:{normalizedFriend}:{scope}",
-            AppId = normalizedFriend,
-            SemanticTypeId = scope,
-        };
-        AddGrant(brain, grant);
-    }
-
-    public bool RevokeFriend(string ownerAppId, string friendAppId, string? capabilityOrScope = null)
-    {
-        if (string.IsNullOrWhiteSpace(ownerAppId) || string.IsNullOrWhiteSpace(friendAppId)) { return false; }
-        var normalizedOwner = NormalizeAppId(ownerAppId);
-        var normalizedFriend = NormalizeAppId(friendAppId);
-        var brain = ExtractBrain(normalizedOwner);
-        RemoveGrant(brain, g =>
-            (string.Equals(g.Owner, $"app:{normalizedOwner}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedOwner, StringComparison.Ordinal))
-            && (string.Equals(g.Grantee, $"app:{normalizedFriend}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal))
-            && (string.IsNullOrWhiteSpace(capabilityOrScope) || string.Equals(g.Scope, capabilityOrScope.Trim(), StringComparison.Ordinal) || string.Equals(g.SemanticTypeId, capabilityOrScope.Trim(), StringComparison.Ordinal)));
-        return true;
     }
 
     public void BindFriendConnection(string connectionKey, string friendAppId)
@@ -359,82 +305,6 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         RemoveGrant(brain, g => string.Equals(g.Id, $"binding:{normalizedKey}:{normalizedFriend}", StringComparison.Ordinal)
             || ((string.Equals(g.Target, normalizedKey, StringComparison.Ordinal) || string.Equals(g.TargetNeuronKey, normalizedKey, StringComparison.Ordinal))
                 && (string.Equals(g.Grantee, $"app:{normalizedFriend}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal))));
-    }
-
-    public async Task<IReadOnlyList<string>> OwnersSharingWithAsync(string friendAppId, string? capabilityOrScope = null, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(friendAppId)) { return []; }
-        var normalizedFriend = NormalizeAppId(friendAppId);
-        if (string.IsNullOrWhiteSpace(normalizedFriend)) { return []; }
-
-        // Ensure friend's brain grants are cached
-        var friendBrain = ExtractBrain(normalizedFriend);
-        if (!string.IsNullOrWhiteSpace(friendBrain) && !string.Equals(friendBrain, "local", StringComparison.OrdinalIgnoreCase))
-        {
-            await GetGrantsAsync(friendBrain, ct).ConfigureAwait(false);
-        }
-        else
-        {
-            await GetGrantsAsync("local", ct).ConfigureAwait(false);
-        }
-
-        // If capabilityOrScope contains a connection/target brain, ensure that brain's grants are cached
-        if (!string.IsNullOrWhiteSpace(capabilityOrScope))
-        {
-            var targetBrain = ExtractBrain(capabilityOrScope);
-            if (!string.IsNullOrWhiteSpace(targetBrain)
-                && !string.Equals(targetBrain, "local", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(targetBrain, friendBrain, StringComparison.OrdinalIgnoreCase))
-            {
-                await GetGrantsAsync(targetBrain, ct).ConfigureAwait(false);
-            }
-        }
-
-        var friendGrantee = $"app:{normalizedFriend}";
-        var cleanScope = string.IsNullOrWhiteSpace(capabilityOrScope) ? null : StripNeuronPrefix(capabilityOrScope.Trim());
-        HashSet<string>? owners = null;
-        var now = _clock.GetUtcNow();
-
-        foreach (var entry in _cache.Values)
-        {
-            if (!entry.HasFriendGrants) { continue; }
-            if (_services is not null && (now - entry.CachedAt) >= Ttl) { continue; }
-
-            var grants = entry.Grants;
-            for (var i = 0; i < grants.Length; i++)
-            {
-                var g = grants[i];
-                if (g.Revoked) { continue; }
-                if (g.Expires is { } expires && expires <= now) { continue; }
-
-                var granteeMatches = string.Equals(g.Grantee, friendGrantee, StringComparison.Ordinal)
-                    || string.Equals(g.Grantee, normalizedFriend, StringComparison.Ordinal)
-                    || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal);
-                if (!granteeMatches) { continue; }
-
-                var grantScope = StripNeuronPrefix(g.Scope ?? "");
-                var scopeMatches = string.Equals(grantScope, "*", StringComparison.Ordinal)
-                    || cleanScope is null
-                    || string.Equals(grantScope, cleanScope, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(g.Target, cleanScope, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(g.TargetNeuronKey, cleanScope, StringComparison.OrdinalIgnoreCase);
-                if (!scopeMatches) { continue; }
-
-                if (string.IsNullOrWhiteSpace(g.Owner)) { continue; }
-                var owner = NormalizeAppId(g.Owner);
-                if (string.IsNullOrWhiteSpace(owner)
-                    || owner.StartsWith("brain:", StringComparison.Ordinal)
-                    || string.Equals(owner, normalizedFriend, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                owners ??= new HashSet<string>(StringComparer.Ordinal);
-                owners.Add(owner);
-            }
-        }
-
-        return owners is null || owners.Count == 0 ? [] : owners.ToArray();
     }
 
     private static string NormalizeAppId(string appId)

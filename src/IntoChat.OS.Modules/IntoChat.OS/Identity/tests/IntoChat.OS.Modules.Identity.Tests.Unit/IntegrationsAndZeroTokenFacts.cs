@@ -142,7 +142,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             TargetNeuron = "system/identity.vault/ada",
             Operation = "IVault.Resolve",
         };
-        var decision = GrantRules.Evaluate(vaultRequest, null, []);
+        var decision = GrantRules.Evaluate(vaultRequest, null, [], PrincipalSet.For(vaultRequest.Caller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -158,7 +158,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             TargetNeuron = "local/connection/github/personal",
             Operation = "IConnection.ExportFor",
         };
-        var exportDecision = GrantRules.Evaluate(exportRequest, null, []);
+        var exportDecision = GrantRules.Evaluate(exportRequest, null, [], PrincipalSet.For(exportRequest.Caller));
         Assert.NotNull(exportDecision);
         Assert.False(exportDecision!.Allowed);
 
@@ -269,12 +269,12 @@ public sealed class IntegrationsAndZeroTokenFacts
                 Operation = "IGitHub.ReadRepo",
                 SemanticTypeIds = ["repo.contents"],
             };
-            var friendDecision = GrantRules.Evaluate(friendRequest, null, [creatorGrant]);
+            var friendDecision = GrantRules.Evaluate(friendRequest, null, [creatorGrant], PrincipalSet.For(friendRequest.Caller));
             Assert.NotNull(friendDecision);
             Assert.True(friendDecision!.Allowed);
 
             var strangerRequest = friendRequest with { Caller = strangerCaller };
-            var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [creatorGrant]);
+            var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [creatorGrant], PrincipalSet.For(strangerRequest.Caller));
             Assert.NotNull(strangerDecision);
             Assert.False(strangerDecision!.Allowed);
 
@@ -306,7 +306,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             Operation = "Query",
             SemanticTypeIds = [],
         };
-        var foreignDecision = GrantRules.Evaluate(foreignCall, null, []);
+        var foreignDecision = GrantRules.Evaluate(foreignCall, null, [], PrincipalSet.For(foreignCall.Caller));
         Assert.NotNull(foreignDecision);
         Assert.False(foreignDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, foreignDecision.Denial);
@@ -319,7 +319,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             Operation = "Compute",
             SemanticTypeIds = [],
         };
-        var ownDecision = GrantRules.Evaluate(ownCall, null, []);
+        var ownDecision = GrantRules.Evaluate(ownCall, null, [], PrincipalSet.For(ownCall.Caller));
         Assert.NotNull(ownDecision);
         Assert.True(ownDecision!.Allowed);
 
@@ -331,7 +331,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             Operation = "Resolve",
             SemanticTypeIds = [],
         };
-        var vaultDecision = GrantRules.Evaluate(vaultCall, null, []);
+        var vaultDecision = GrantRules.Evaluate(vaultCall, null, [], PrincipalSet.For(vaultCall.Caller));
         Assert.NotNull(vaultDecision);
         Assert.False(vaultDecision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, vaultDecision.Denial);
@@ -343,7 +343,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             Operation = "IConnection.ExportFor",
             SemanticTypeIds = [],
         };
-        var exportDecision = GrantRules.Evaluate(exportCall, null, []);
+        var exportDecision = GrantRules.Evaluate(exportCall, null, [], PrincipalSet.For(exportCall.Caller));
         Assert.NotNull(exportDecision);
         Assert.False(exportDecision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, exportDecision.Denial);

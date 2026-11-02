@@ -10,7 +10,7 @@ using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "usage";
-    public const string Version = "0.1.2";
+    public const string Version = "0.1.3";
     public static readonly AppManifest Manifest = new(
         Title: "Usage", Description: "This brain's compute spending.",
         Operations: [new("open", "Read current usage."), new("refresh", "Refresh recorded usage.")],

@@ -3,6 +3,7 @@ using IntoChat.OS.Client;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
+using DigitalBrain;
 
 // Shared by every synapse of the circle room: the keys of the circle brain's own neurons and the transcript,
 // always rebuilt from the chat.
@@ -39,5 +40,58 @@ public static class Room
         var lines = await Chat(brain).Read(0);
         await brain.Get<IText>(Key(brain) + "/transcript").Set(lines.Length == 0 ? "No messages yet."
             : string.Join("\n", lines.OrderBy(line => line.Sequence).Select(line => line.Speaker + ": " + line.Text)));
+    }
+}
+
+[App("circleroom")]
+public sealed class CircleRoomApp : DigitalBrain.App
+{
+    [On("open")]
+    public async Task Open()
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        await Room.Compose(brain);
+        await Room.Project(brain);
+        var selected = (await brain.Get<IText>(Room.Key(brain) + "/navigation").Read()).Markdown;
+        if (!string.IsNullOrEmpty(selected)) await Room.ShowPublication(brain, PublicationUi.Decode<AppPublicationRef>(selected));
+    }
+
+    [On("publication")]
+    public async Task Publication(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return;
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        try { await Room.ShowPublication(brain, PublicationUi.Decode<AppPublicationRef>(input)); }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await Room.Status(brain, error.Message); }
+    }
+
+    [On("say")]
+    public async Task Say(string? input)
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        try
+        {
+            var text = input?.Trim() ?? "";
+            if (text.Length == 0) { throw new ArgumentException("There is nothing to say."); }
+            await Room.Chat(brain).Say(text, Guid.NewGuid().ToString());
+            await Room.Status(brain, "");
+        }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+        { await Room.Status(brain, error.Message); }
+    }
+
+    [On("share")]
+    public async Task Share(string? input)
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        try
+        {
+            var words = (input ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (words.Length == 0) { throw new ArgumentException("Name an app to share."); }
+            await brain.Get<ICircle>(ICircle.Key(Room.Circle(brain))).Share(words[0], words[1..]);
+            await Room.Status(brain, "Shared " + words[0] + ".");
+        }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+        { await Room.Status(brain, error.Message); }
     }
 }

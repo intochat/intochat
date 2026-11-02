@@ -9,7 +9,7 @@ using IntoChat.OS.Client;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Modules.Flutter.Views.Signals;
+// using Signals;
 using IntoChat.OS.Modules.Time.Reminders;
 using UI = DigitalBrain.UI.Ui;
 using ViewUi = IntoChat.OS.Modules.Flutter.Views.Ui;
@@ -41,7 +41,7 @@ public sealed record DataVisualizerState(
     }
 }
 
-[DigitalBrain.App("datavisualizer", Icon = "bar_chart", Category = "Analytics")]
+[DigitalBrain.App("datavisualizer")]
 public sealed class DataVisualizerScriptApp : DigitalBrain.App<DataVisualizerState>
 {
     [DigitalBrain.On("open")]
@@ -72,7 +72,7 @@ public sealed class DataVisualizerScriptApp : DigitalBrain.App<DataVisualizerSta
                 Kind: SurfaceKind.Elevated,
                 Title: "Data Visualizer",
                 Subtitle: $"{(State.Views ?? []).Length} active view(s)"),
-            new DataTable(
+            new DataTable("Data Table",
                 Columns: State.Columns ?? ["Column"],
                 Rows: State.Rows ?? []),
         ]));

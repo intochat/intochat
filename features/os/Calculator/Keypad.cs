@@ -16,7 +16,7 @@ public sealed record CalculatorState(
     }
 }
 
-[DigitalBrain.App("calculator", Icon = "calculator", Category = "Utilities")]
+[DigitalBrain.App("calculator")]
 public sealed class CalculatorScriptApp : DigitalBrain.App<CalculatorState>
 {
     [DigitalBrain.On("open")]
@@ -129,7 +129,7 @@ public static class Keypad
         if (expression.Length == 0) { return ""; }
         try
         {
-            var value = new DataTable().Compute(expression, null);
+            var value = new System.Data.DataTable().Compute(expression, null);
             return value is double number && !double.IsFinite(number) ? "Error" : Convert.ToString(value, CultureInfo.InvariantCulture) ?? "Error";
         }
         catch (Exception) { return "Error"; }

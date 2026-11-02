@@ -7,6 +7,7 @@ using IntoChat.OS.Modules.Flutter.Button;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Layout;
 using IntoChat.OS.Modules.Flutter.Text;
+using DigitalBrain;
 
 public static class Usage
 {
@@ -43,5 +44,23 @@ public static class Usage
         var layout = brain.Get<ILayout>(key + "/full");
         await layout.Set(new("column", [new("text", key + "/summary"), new("button", key + "/refresh")], Gap: 16, Extents: [0, 44]), (await layout.Read()).Revision);
         await brain.Get<IApp>(key).Present(long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture), new(Views: [new("full", new UiChildRef("layout", key + "/full"))]));
+    }
+}
+
+[App("usage")]
+public sealed class UsageApp : DigitalBrain.App
+{
+    [On("open")]
+    public async Task Open()
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        await Usage.Compose(brain);
+    }
+
+    [On("refresh")]
+    public async Task Refresh()
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        await Usage.Compose(brain);
     }
 }

@@ -103,7 +103,7 @@ using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "datavisualizer";
-    public const string Version = "1.1.15";
+    public const string Version = "1.1.16";
 
     public static readonly AppManifest Manifest = new(
         Title: "Data Visualizer",

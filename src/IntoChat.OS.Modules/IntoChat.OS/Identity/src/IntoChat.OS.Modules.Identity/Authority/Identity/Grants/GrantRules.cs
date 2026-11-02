@@ -157,7 +157,7 @@ public static class GrantRules
 
         if (request.SemanticTypeIds.Length == 0)
         {
-            if (IsGranted("invoke", request.TargetNeuron ?? "", grants, principals, caller))
+            if (IsGranted(GrantRelations.Run, request.TargetNeuron ?? "", grants, principals, caller))
             {
                 return CallDecision.Allow();
             }
@@ -173,57 +173,6 @@ public static class GrantRules
         }
 
         return CallDecision.Allow();
-    }
-
-    // Backward-compatibility overload for legacy test callers until Task 7.
-    public static CallDecision? Evaluate(CallRequest request, Member? member, IReadOnlyList<Grant> grants)
-    {
-        var caller = request.Caller;
-        var decision = Evaluate(request, member, grants, caller is not null ? PrincipalSet.For(caller) : new PrincipalSet([]));
-        if (decision is { Allowed: true })
-        {
-            return decision;
-        }
-
-        // Fallback for friend grants during transition to Task 7
-        if (caller is not null && AppOf(caller) is { } app && grants is not null)
-        {
-            if (request.SemanticTypeIds.Length == 0)
-            {
-                if (grants.Any(grant => !grant.Revoked
-                    && (EdgeGrantsCache.Current.IsFriend(grant.AppId, app, request.TargetNeuron)
-                        || (!string.IsNullOrWhiteSpace(grant.Owner) && EdgeGrantsCache.Current.IsFriend(grant.Owner, app, request.TargetNeuron)))
-                    && ModeSatisfied(grant, caller)))
-                {
-                    return CallDecision.Allow();
-                }
-            }
-            else
-            {
-                bool allSatisfied = true;
-                foreach (var semanticTypeId in request.SemanticTypeIds)
-                {
-                    bool typeGranted = grants.Any(grant => !grant.Revoked
-                        && (EdgeGrantsCache.Current.IsFriend(grant.AppId, app, semanticTypeId)
-                            || (!string.IsNullOrWhiteSpace(grant.Owner) && EdgeGrantsCache.Current.IsFriend(grant.Owner, app, semanticTypeId))
-                            || (!string.IsNullOrWhiteSpace(request.TargetNeuron) && EdgeGrantsCache.Current.IsFriend(grant.AppId, app, request.TargetNeuron)))
-                        && string.Equals(grant.SemanticTypeId, semanticTypeId, StringComparison.Ordinal)
-                        && (grant.TargetNeuronKey is null || string.Equals(grant.TargetNeuronKey, request.TargetNeuron, StringComparison.Ordinal))
-                        && ModeSatisfied(grant, caller));
-                    if (!typeGranted)
-                    {
-                        allSatisfied = false;
-                        break;
-                    }
-                }
-                if (allSatisfied)
-                {
-                    return CallDecision.Allow();
-                }
-            }
-        }
-
-        return decision;
     }
 
     // The one-time grants a successful app read just spent. An always grant is left in place; only
@@ -297,14 +246,19 @@ public static class GrantRules
                 continue;
             }
 
+            // Owner-declared: only the target brain's owner can grant access to its neurons.
+            if (!string.Equals(grant.Owner, "brain:" + EdgeGrantsCache.ExtractBrain(cleanTarget), StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             var grantTarget = grant.Target;
             if (grantTarget.StartsWith("neuron://", StringComparison.Ordinal))
             {
                 grantTarget = grantTarget["neuron://".Length..];
             }
 
-            bool targetMatches = string.IsNullOrEmpty(grantTarget)
-                || string.Equals(grantTarget, "*", StringComparison.Ordinal)
+            bool targetMatches = string.Equals(grantTarget, "*", StringComparison.Ordinal)
                 || string.Equals(grantTarget, cleanTarget, StringComparison.Ordinal)
                 || (grantTarget.EndsWith("/*", StringComparison.Ordinal) && cleanTarget.StartsWith(grantTarget.TrimEnd('*'), StringComparison.Ordinal));
 

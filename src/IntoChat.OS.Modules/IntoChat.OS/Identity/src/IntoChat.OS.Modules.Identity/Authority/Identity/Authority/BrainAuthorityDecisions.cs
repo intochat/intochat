@@ -19,9 +19,19 @@ internal static class BrainAuthorityDecisions
         var circleMember = state.Kind == BrainKind.Circle && Member(state, caller.PersonId)?.AccountId == caller.AccountId;
         if (state.AccountId != caller.AccountId && !circleMember || state.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        var targetBrain = EdgeGrantsCache.ExtractBrain(request.TargetNeuron);
-        var principals = EdgeGrantsCache.Current.ExpandAsync(targetBrain, caller).GetAwaiter().GetResult();
+        var principals = EdgeGrantsCache.Current.ExpandAsync(GrantsBrainOf(request), caller).GetAwaiter().GetResult();
         return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), state.Grants, principals);
+    }
+
+    // Grants are owner-declared, so the brain whose grants decide a call is the target's, falling back to the
+    // caller's own brain when the target names none.
+    internal static string GrantsBrainOf(CallRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var callerBrain = request.Caller?.BrainId ?? "";
+        if (string.IsNullOrWhiteSpace(request.TargetNeuron)) { return callerBrain; }
+        var brain = EdgeGrantsCache.ExtractBrain(request.TargetNeuron);
+        return string.Equals(brain, "local", StringComparison.Ordinal) && callerBrain.Length > 0 ? callerBrain : brain;
     }
 
     private static Member? Member(BrainRow state, string principalId)

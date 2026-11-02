@@ -46,7 +46,7 @@ using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "desktop";
-    public const string Version = "0.3.0";
+    public const string Version = "0.3.1";
     public static readonly AppManifest Manifest = new(
         Title: "Desktop", Description: "Your apps in windows, with a dock.",
         Operations: [new("start", "Compose the desktop from the open windows and installed apps."),

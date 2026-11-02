@@ -24,7 +24,7 @@ using IntoChat.OS.Modules.Apps;
 static class App
 {
     public const string Name = "circleroom";
-    public const string Version = "1.1.7";
+    public const string Version = "1.1.8";
 
     public static readonly AppManifest Manifest = new(
         Title: "Circle room",

@@ -7,8 +7,8 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Authority.Connections;
 
-// R146/R155 + R6.3: an app shared into another brain or a trusted friend app uses a shared connection only as the owner's
-// connection or EdgeGrantsCache recorded it (IConnection.ShareWith the app's principal, its ShareInto alias, or friend pairing).
+// R146/R155 + R6.3: an app shared into another brain uses a shared connection only as the owner's
+// connection or EdgeGrantsCache recorded it (IConnection.ShareWith the app's principal, or its ShareInto alias).
 internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClient identity, Authority.Identity.Grants.IEdgeGrantsCache? edgeCache = null) : IConnectionBindings
 {
     private readonly Authority.Identity.Grants.IEdgeGrantsCache _edgeCache = edgeCache ?? Authority.Identity.Grants.EdgeGrantsCache.Current;
@@ -34,17 +34,7 @@ internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClie
             var direct = BrainKey.BelongsTo(app, callerBrain)
                 ? await connection.IsSharedWith(AppPrincipal.Id(app))
                 : await connection.IsSharedInto(callerBrain, app);
-            if (direct) { return true; }
-
-            var owners = await _edgeCache.OwnersSharingWithAsync(app, connectionKey, cancellationToken).ConfigureAwait(false);
-            foreach (var ownerApp in owners)
-            {
-                if (await connection.IsSharedWith(AppPrincipal.Id(ownerApp)))
-                {
-                    return true;
-                }
-            }
-            return false;
+            return direct;
         }
         finally { if (stamped is not null) { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, stamped); } }
     }
