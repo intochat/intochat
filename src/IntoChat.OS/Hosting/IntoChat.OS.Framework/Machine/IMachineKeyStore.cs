@@ -1,3 +1,4 @@
+// os-only: os machine signing key custody (D-09, D-11); not a framework concern.
 namespace IntoChat.OS.Framework.Machine;
 
 // The machine's ECDsa P-256 key (D-09, D-11). Sign-only: the private key never leaves the store; only signatures

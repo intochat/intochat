@@ -1,3 +1,4 @@
+// os-only: the connection-binding seam of the os call filter (app calls across brains).
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;

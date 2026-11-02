@@ -1,3 +1,4 @@
+// os-only: os modules contributing topology profiles to the os host.
 using DigitalBrain.Runtime.Orleans;
 
 namespace IntoChat.OS.Framework.Modules;

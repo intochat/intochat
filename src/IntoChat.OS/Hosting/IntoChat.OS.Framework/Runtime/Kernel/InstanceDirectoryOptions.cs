@@ -1,3 +1,4 @@
+// os-only: os kernel instance directory compaction (ledger 38).
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;

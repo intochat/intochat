@@ -1,3 +1,4 @@
+// os-only: os MemberRole values (Owner, Member, App) of the Identity directory.
 using DigitalBrain.Capabilities;
 namespace IntoChat.OS.Framework.Modules.Platform.Identity;
 

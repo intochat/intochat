@@ -1,3 +1,4 @@
+// os-only: os per-person brain membership seam answered by Identity.
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;

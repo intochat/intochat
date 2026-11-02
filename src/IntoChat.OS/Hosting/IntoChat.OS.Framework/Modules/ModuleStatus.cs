@@ -1,3 +1,4 @@
+// os-only: os module activation status (licensing, enablement).
 namespace IntoChat.OS.Framework.Modules;
 
 public enum ModuleState { Active, Unlicensed, Disabled }

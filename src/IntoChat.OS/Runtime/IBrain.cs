@@ -1,3 +1,4 @@
+// os-only: the os brain neuron contract; creating a brain is the platform act.
 namespace IntoChat.OS;
 
 /// <summary>

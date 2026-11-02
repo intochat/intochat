@@ -1,3 +1,4 @@
+// os-only: os module price-list registration for metering.
 using IntoChat.OS.Contracts.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

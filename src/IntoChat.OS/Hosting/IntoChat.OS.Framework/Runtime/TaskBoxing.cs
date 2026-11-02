@@ -1,3 +1,4 @@
+// os-only: os grain-call result boxing helper; the framework has no equivalent yet.
 using System.Collections.Concurrent;
 using System.Reflection;
 using IntoChat.OS.Framework.Modules;

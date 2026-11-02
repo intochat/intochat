@@ -1,3 +1,4 @@
+// os-only: os module name on configuration, hosting and deployment channels.
 namespace IntoChat.OS.Framework.Modules;
 
 // A module's name on every channel: configuration sections, registration, hosting, deployment.

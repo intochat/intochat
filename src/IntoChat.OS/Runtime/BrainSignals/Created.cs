@@ -1,3 +1,4 @@
+// os-only: the os brain lifecycle signal published once by IBrain.Create.
 namespace IntoChat.OS;
 
 /// <summary>

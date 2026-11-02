@@ -1,3 +1,4 @@
+// os-only: os machine-id file under the IntoChatOS configuration section.
 using System.Text;
 
 namespace IntoChat.OS.Framework.Machine;

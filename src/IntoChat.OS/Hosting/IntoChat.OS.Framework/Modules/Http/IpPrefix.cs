@@ -1,3 +1,4 @@
+// os-only: os HTTP throttling helper; the framework has no HTTP ingress policy.
 using System.Net;
 using System.Net.Sockets;
 

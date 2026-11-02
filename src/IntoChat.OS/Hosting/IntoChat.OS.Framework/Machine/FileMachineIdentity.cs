@@ -1,3 +1,4 @@
+// os-only: os machine enrollment identity (D-11); not a framework concern.
 namespace IntoChat.OS.Framework.Machine;
 
 // macOS, Linux and container identity: the same GUID file logic the Windows module uses, at the per-OS default path.

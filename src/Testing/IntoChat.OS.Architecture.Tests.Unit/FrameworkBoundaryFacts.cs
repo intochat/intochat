@@ -93,6 +93,65 @@ public sealed partial class FrameworkBoundaryFacts
         }
     }
 
+    private static readonly string[] OsOnlyMarkers =
+    [
+        "IKernel", "IIntoChatOSBrains", "IMasterKeyCustody", "IntoChatOSNames", "CallerContextStamper", "ICostMeter", "BrainSignals", "OsModule",
+        "BrainKey", "GrainId", "GenerateSerializer", "PlainNeuronContracts",
+    ];
+
+    // Files whose DigitalBrain 0.12.0-preview.1 copies exist; the originals stay until external module packages stop binding to them.
+    private static readonly string[] PendingMoveToDigitalBrain =
+    [
+        "src/IntoChat.OS/Runtime/Watch/IInitialSignalWait.cs",
+        "src/IntoChat.OS/Runtime/Watch/ISelectiveWatch.cs",
+        "src/IntoChat.OS/Runtime/Watch/ISignalDelivery.cs",
+        "src/IntoChat.OS/Runtime/Watch/ISignalWatch.cs",
+        "src/IntoChat.OS/Runtime/Watch/Reaction.cs",
+        "src/IntoChat.OS/Runtime/Watch/SignalDeliveries.cs",
+        "src/IntoChat.OS/Runtime/Watch/SourceSet.cs",
+        "src/IntoChat.OS/Runtime/Watch/Sources.cs",
+        "src/IntoChat.OS/Runtime/Watch/WatchStream.cs",
+        "src/IntoChat.OS/Runtime/NeuronAddress.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Runtime/IWorkContinuation.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Storage/Confinement/ConfinementDenied.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Storage/Confinement/HardDenyList.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Storage/Confinement/PathConfinement.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/IModuleValidator.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidation.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ModuleValidationException.cs",
+        "src/IntoChat.OS/Hosting/IntoChat.OS.Framework/Modules/Validation/ValidationIssue.cs",
+    ];
+
+    private static string[] OsFrameworkFiles()
+        => new[] { "src/IntoChat.OS/Hosting/IntoChat.OS.Framework", "src/IntoChat.OS/Runtime" }
+            .SelectMany(folder => FilesUnder(Path.Combine(Repository.Root, folder), name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
+            .Select(Repository.Relative).ToArray();
+
+    // Generic code belongs in DigitalBrain; what stays in the os framework folders must touch an os-only type or say why it is os-only.
+    [Fact]
+    public void OsFrameworkFilesReferenceAnOsOnlyTypeOrAwaitTheirMove()
+    {
+        var files = OsFrameworkFiles();
+        Assert.True(files.Length > 20, "the scan found " + files.Length + " files");
+        var offenders = files
+            .Where(path => !PendingMoveToDigitalBrain.Contains(path, StringComparer.OrdinalIgnoreCase))
+            .Where(path =>
+            {
+                var text = File.ReadAllText(Path.Combine(Repository.Root, path));
+                return !OsOnlyMarkers.Any(marker => text.Contains(marker, StringComparison.Ordinal))
+                    && !text.Split('\n').Any(line => line.TrimStart().StartsWith("// os-only: ", StringComparison.Ordinal) && line.Trim().Length > "// os-only: ".Length);
+            })
+            .ToArray();
+        Assert.True(offenders.Length == 0, "os framework files reference an os-only type or carry '// os-only: <reason>':\n" + string.Join('\n', offenders));
+    }
+
+    [Fact]
+    public void PendingMoveListNamesOnlyExistingFiles()
+    {
+        var missing = PendingMoveToDigitalBrain.Where(path => !File.Exists(Path.Combine(Repository.Root, path))).ToArray();
+        Assert.True(missing.Length == 0, "Remove deleted files from PendingMoveToDigitalBrain:\n" + string.Join('\n', missing));
+    }
+
     [Fact]
     public void FrameworkNamesNoPathOutsideFramework()
     {

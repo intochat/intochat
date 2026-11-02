@@ -1,3 +1,4 @@
+// os-only: os module-settings attribute for IntoChatOS configuration and the module README generator.
 namespace IntoChat.OS.Framework.Modules;
 
 /// <summary>

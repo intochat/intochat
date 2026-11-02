@@ -1,3 +1,4 @@
+// os-only: os module licence gate; the framework has no licensing.
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Framework.Modules;

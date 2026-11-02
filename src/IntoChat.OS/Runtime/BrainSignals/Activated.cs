@@ -1,3 +1,4 @@
+// os-only: the os brain lifecycle signal the operating system boots on.
 namespace IntoChat.OS;
 
 /// <summary>

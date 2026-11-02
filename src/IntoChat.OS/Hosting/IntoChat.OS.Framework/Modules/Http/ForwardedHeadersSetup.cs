@@ -1,3 +1,4 @@
+// os-only: os ingress trust configuration under IntoChatOS:ForwardedHeaders.
 using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

@@ -1,3 +1,4 @@
+// os-only: os machine signing key custody on macOS; not a framework concern.
 using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;

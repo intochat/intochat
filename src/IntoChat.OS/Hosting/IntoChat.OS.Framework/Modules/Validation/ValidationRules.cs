@@ -1,3 +1,4 @@
+// os-only: os helper over the module validation types; moves with them only once those are deleted.
 using System.Text;
 
 namespace IntoChat.OS.Framework.Modules.Validation;

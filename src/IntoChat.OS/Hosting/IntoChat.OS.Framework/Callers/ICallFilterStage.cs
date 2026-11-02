@@ -1,3 +1,4 @@
+// os-only: a stage of the os call filter, the single enforcement point for CallRequest.
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;

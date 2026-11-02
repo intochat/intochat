@@ -1,3 +1,4 @@
+// os-only: an os brain lifecycle signal (kernel.instance-created).
 namespace IntoChat.OS;
 
 /// <summary>A neuron of this brain wrote its state for the first time. Published by the brain's <see cref="IBrain"/>.</summary>

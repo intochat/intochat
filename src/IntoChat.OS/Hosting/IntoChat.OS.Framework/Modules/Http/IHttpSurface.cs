@@ -1,3 +1,4 @@
+// os-only: the slice of the os kernel HTTP pipeline a module maps.
 using Microsoft.AspNetCore.Builder;
 
 namespace IntoChat.OS.Framework.Modules;

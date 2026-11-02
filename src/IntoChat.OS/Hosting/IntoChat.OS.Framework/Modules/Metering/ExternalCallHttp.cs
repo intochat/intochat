@@ -1,3 +1,4 @@
+// os-only: os external-call metering over HttpRequestMessage (Funding, CostSubject).
 using IntoChat.OS.Contracts.Compute;
 
 namespace IntoChat.OS.Framework.Modules.Metering;

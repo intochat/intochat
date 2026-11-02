@@ -1,3 +1,4 @@
+// os-only: the os kernel type-table grain contract, which carries Feature.
 using DigitalBrain;
 
 // The type-table contract stays with the product kernel: it carries Feature, which the runtime does not.

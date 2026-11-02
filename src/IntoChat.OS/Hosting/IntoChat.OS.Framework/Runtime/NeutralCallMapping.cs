@@ -1,3 +1,4 @@
+// os-only: maps the neutral scheduling attributes onto Orleans in the os silo host.
 using System.Collections.Concurrent;
 using System.Reflection;
 using IntoChat.OS.Framework.Modules;

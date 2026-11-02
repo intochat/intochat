@@ -1,3 +1,4 @@
+// os-only: the IntoChatOS configuration grammar (key paths under IntoChatOS:Modules).
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;

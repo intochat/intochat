@@ -1,3 +1,4 @@
+// os-only: the framework has its own IRevisioned<TState> with a different shape; unified in phase 3.
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;

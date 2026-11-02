@@ -1,3 +1,4 @@
+// os-only: os machine key custody failure; not a framework concern.
 namespace IntoChat.OS.Framework.Machine;
 
 // Fixed text: the message never carries key material or custody detail (T-10-09).

@@ -1,3 +1,4 @@
+// os-only: the os module composition seam; the framework composes differently.
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -1,3 +1,4 @@
+// os-only: flows the os Trace across grain calls.
 using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;

@@ -1,3 +1,4 @@
+// os-only: os HTTP ingress throttling for module routes.
 using Microsoft.AspNetCore.Http;
 
 namespace IntoChat.OS.Framework.Modules.Http;

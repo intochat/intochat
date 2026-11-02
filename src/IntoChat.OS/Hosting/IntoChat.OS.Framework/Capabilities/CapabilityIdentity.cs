@@ -1,3 +1,4 @@
+// os-only: the os identity@1 capability helpers over the os capability broker.
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;

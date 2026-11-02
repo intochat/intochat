@@ -1,3 +1,4 @@
+// os-only: os credential-name rule shared by settings validation and architecture rules.
 namespace IntoChat.OS.Framework.Configuration;
 
 public static class ModuleSettingsValidation

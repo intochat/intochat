@@ -1,3 +1,4 @@
+// os-only: the os neuron state contract; the framework has its own persistence shape, unified in phase 3.
 using DigitalBrain;
 using DigitalBrain.State;
 

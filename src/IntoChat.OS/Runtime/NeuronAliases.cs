@@ -1,3 +1,4 @@
+// os-only: resolves aliases across NeuronAlias and Orleans Alias; the framework alias differs.
 using System.Reflection;
 using DigitalBrain.Contracts;
 

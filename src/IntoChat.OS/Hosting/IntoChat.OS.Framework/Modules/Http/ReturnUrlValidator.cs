@@ -1,3 +1,4 @@
+// os-only: os sign-in return URL policy for module routes.
 namespace IntoChat.OS.Framework.Modules.Http;
 
 // A local path ("/x", never "//x" or "/\x"), or an https URL on one of the allowed origins without user info.

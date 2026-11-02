@@ -1,3 +1,4 @@
+// os-only: carries the os Trace record (an os wire type) through RequestContext.
 using System.Diagnostics;
 using DigitalBrain;
 using IntoChat.OS.Contracts.Compute;

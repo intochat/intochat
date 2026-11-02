@@ -1,3 +1,4 @@
+// os-only: flattens os module options under IntoChatOS:Modules:{Name}:Options.
 using System.Reflection;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Validation;

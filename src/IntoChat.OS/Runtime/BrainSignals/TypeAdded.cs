@@ -1,3 +1,4 @@
+// os-only: an os brain lifecycle signal (kernel.type-added).
 using DigitalBrain.Spi;
 namespace IntoChat.OS;
 
