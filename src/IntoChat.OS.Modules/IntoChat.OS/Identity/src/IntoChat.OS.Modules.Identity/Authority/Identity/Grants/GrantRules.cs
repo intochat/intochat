@@ -153,7 +153,10 @@ public static class GrantRules
 
         // A plain neuron's target is {type}/{brain}/{key}; the app owns it when {brain}/{key} lies under the app.
         var typeEnd = target.IndexOf('/', StringComparison.Ordinal);
-        if (IsOwn(target) || typeEnd > 0 && IsOwn(target[(typeEnd + 1)..]))
+        // The csharp runtime gives each app program its own signal session, runtime.session/{brain}/csharp/{app key}.
+        var appKey = ownPrefix2 ?? ownPrefix1;
+        var ownSession = string.Equals(target, $"runtime.session/{caller.BrainId}/csharp/{appKey}", StringComparison.Ordinal);
+        if (ownSession || IsOwn(target) || typeEnd > 0 && IsOwn(target[(typeEnd + 1)..]))
         {
             return CallDecision.Allow();
         }
