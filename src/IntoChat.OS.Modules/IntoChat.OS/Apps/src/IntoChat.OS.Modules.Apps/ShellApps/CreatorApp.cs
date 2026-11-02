@@ -41,6 +41,7 @@ public sealed record CreatorRollback(string? Version = null) : DigitalBrain.Sign
 [DigitalBrain.Signal("creator.hot-restart")]
 public sealed record CreatorHotRestart : DigitalBrain.Signal;
 
+[Obsolete("Use AppNeuron version history.")]
 public sealed record CreatorVersionEntry(
     string Version,
     string Source,
@@ -70,7 +71,10 @@ public sealed record CreatorAppState(
     bool SandboxCompiled = true,
     string[]? RoslynDiagnostics = null,
     int SandboxRestartCount = 0,
+#pragma warning disable CS0618
+    [property: Obsolete("Creator no longer duplicates app version snapshots; AppNeuron is the single source of truth.")]
     CreatorVersionEntry[]? VersionSnapshots = null,
+#pragma warning restore CS0618
     CreatorStepVerdict[]? ScenarioSteps = null)
 {
     public CreatorAppState() : this(
@@ -255,21 +259,13 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         }
         var scene = ComposeBrainGraph(target);
 
-        var existingSnapshots = (State.VersionSnapshots ?? []).ToList();
-        if (existingSnapshots.Count == 0)
-        {
-            var initialSource = string.IsNullOrWhiteSpace(State.GeneratedSource) ? DefaultSandboxCode : State.GeneratedSource;
-            existingSnapshots.Add(new CreatorVersionEntry("1.0.0", initialSource, "Initial baseline"));
-        }
-
         var nextVersion = compiled ? BumpMinorVersion(State.CurrentVersion) : State.CurrentVersion;
-        if (compiled)
+        var historyList = State.VersionHistory is { Length: > 0 } ? State.VersionHistory.ToList() : ["1.0.0"];
+        if (compiled && !historyList.Contains(nextVersion, StringComparer.Ordinal))
         {
-            existingSnapshots.RemoveAll(s => string.Equals(s.Version, nextVersion, StringComparison.Ordinal));
-            existingSnapshots.Add(new CreatorVersionEntry(nextVersion, source, instruction));
+            historyList.Add(nextVersion);
         }
-
-        var history = existingSnapshots.Select(s => s.Version).Distinct(StringComparer.Ordinal).ToArray();
+        var history = historyList.Distinct(StringComparer.Ordinal).ToArray();
 
         Set(State with
         {
@@ -293,7 +289,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             VersionHistory = history,
             SandboxCompiled = compiled,
             RoslynDiagnostics = diagnostics,
-            VersionSnapshots = [.. existingSnapshots],
+            VersionSnapshots = null,
             ScenarioSteps = steps,
         });
     }
@@ -328,10 +324,9 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
     public Task SwitchLanguage(CreatorSwitchLanguage request) => Language(request);
 
     [DigitalBrain.On]
-    public Task Rollback(CreatorRollback request)
+    public async Task Rollback(CreatorRollback request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var snapshots = State.VersionSnapshots ?? [];
         var history = State.VersionHistory is { Length: > 0 } ? State.VersionHistory : ["1.0.0"];
         var requestedVersion = request.Version?.Trim();
 
@@ -350,8 +345,22 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             targetVersion = history[0];
         }
 
-        var snapshot = snapshots.LastOrDefault(s => string.Equals(s.Version, targetVersion, StringComparison.Ordinal));
-        var restoredSource = snapshot?.Source ?? (string.IsNullOrWhiteSpace(State.GeneratedSource) ? DefaultSandboxCode : State.GeneratedSource);
+        var restoredSource = string.IsNullOrWhiteSpace(State.GeneratedSource) ? DefaultSandboxCode : State.GeneratedSource;
+        if (TryGetApp(State.TargetApp) is { } app)
+        {
+            try
+            {
+                var bundle = await app.ExportVersion(targetVersion);
+                if (bundle is not null && bundle.Files.Count > 0)
+                {
+                    restoredSource = string.Join("\n\n", bundle.Files.Where(f => f.Key.EndsWith(".cs", StringComparison.Ordinal)).Select(f => f.Value));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "ExportVersion failed from AppNeuron; keeping generated source");
+            }
+        }
 
         Set(State with
         {
@@ -359,7 +368,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             GeneratedSource = restoredSource,
             Status = $"Rolled back {State.TargetApp} sandbox to v{targetVersion}",
         });
-        return Task.CompletedTask;
     }
 
     [DigitalBrain.On]
@@ -890,6 +898,20 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         catch (InvalidOperationException error)
         {
             Swallow(error, "AspireNeuron is optional when running without AspireModule registered.");
+            return null;
+        }
+    }
+
+    private IApp? TryGetApp(string targetApp)
+    {
+        if (string.IsNullOrWhiteSpace(targetApp)) { return null; }
+        try
+        {
+            return Get<IApp>($"apps/{targetApp}");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, $"App {targetApp} is not registered.");
             return null;
         }
     }
