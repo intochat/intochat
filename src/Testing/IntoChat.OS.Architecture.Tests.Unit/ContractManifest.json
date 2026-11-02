@@ -48,7 +48,7 @@
     "IntoChat.OS.Client.Runtime.V1.TokenEvent": "microsoft.csharp.runtime.token-event; Token=0",
     "IntoChat.OS.Connections.Contracts.NeuronType": "registry.neuron-type; Id=0, ModuleId=1, Name=2, Description=3, Methods=4, Contract=5, Key=6, Tool=7",
     "IntoChat.OS.Connections.Contracts.NeuronTypeHit": "registry.type-hit; Type=0, Score=1",
-    "IntoChat.OS.Connections.Identity.Grant": "identity.grant; AppId=0, SemanticTypeId=1, Mode=2, WorkspaceId=3, ConversationId=4, GrantedAt=5, Revoked=6, TargetNeuronKey=7, Id=8, Owner=9, Grantee=10, Target=11, Scope=12, Expires=13",
+    "IntoChat.OS.Connections.Identity.Grant": "identity.grant; AppId=0, SemanticTypeId=1, Mode=2, WorkspaceId=3, ConversationId=4, GrantedAt=5, Revoked=6, TargetNeuronKey=7, Id=8, Owner=9, Grantee=10, Target=11, Scope=12, Expires=13, Delegable=14",
     "IntoChat.OS.Connections.Platform.Connections.ConnectionProbeResult": "connection.probe-result; Outcome=0, Detail=1",
     "IntoChat.OS.Connections.Platform.Connections.ConnectionState": "connection.state; AuthMethodId=0, Status=1, Secrets=2, Account=3, Scopes=4, ExpiresAt=5, LastProbedAt=6, Detail=7, SharedInto=8",
     "IntoChat.OS.Connections.Platform.Connections.ConnectionView": "connection.view; ConnectorId=0, ConnectionId=1, AuthMethodId=2, Status=3, Account=4, ExpiresAt=5, LastProbedAt=6, Detail=7",
