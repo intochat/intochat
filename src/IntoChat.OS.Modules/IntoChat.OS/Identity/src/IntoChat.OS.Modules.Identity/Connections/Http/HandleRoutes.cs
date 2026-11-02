@@ -1,4 +1,3 @@
-using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Handles;
 using IntoChat.OS.Framework;
@@ -10,9 +9,6 @@ namespace IntoChat.OS.Connections.Http;
 
 public static class HandleRoutes
 {
-    private static readonly CapabilityCaller PlatformCaller =
-        CapabilityCallers.Platform("identity-handles", "system", "system");
-
     public static string? Rewrite(string handle, string collection, string key, string brainId)
     {
         _ = handle;
@@ -37,18 +33,7 @@ public static class HandleRoutes
             var normalizedHandle = IHandleDirectory.Normalize(handle);
             var handleDirectory = ResolveDirectory(http.RequestServices, normalizedHandle);
 
-            string? brainId;
-            try
-            {
-                using (CallerContextStamper.StampScope(PlatformCaller))
-                {
-                    brainId = await handleDirectory.Resolve();
-                }
-            }
-            catch (Exception)
-            {
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
-            }
+            var brainId = await handleDirectory.Resolve();
 
             if (string.IsNullOrWhiteSpace(brainId))
             {
