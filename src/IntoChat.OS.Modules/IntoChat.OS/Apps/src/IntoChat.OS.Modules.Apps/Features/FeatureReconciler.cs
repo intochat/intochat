@@ -16,7 +16,8 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron("apps.reconciler")]
 internal sealed class FeatureReconciler(
     IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
-    IEnumerable<IFeatureMigration> migrations, ICapabilityBroker? directory = null)
+    IEnumerable<IFeatureMigration> migrations, ICapabilityBroker? directory = null,
+    IntoChat.OS.Connections.Platform.Identity.IIdentityClient? identity = null)
     : DigitalBrain.Neuron, IFeatureReconciler
 {
     public async Task Reconcile(CancellationToken ct = default)
@@ -46,6 +47,7 @@ internal sealed class FeatureReconciler(
             { logger.LogWarning(error, "Could not read {Brain}/{App} to reconcile it.", brainId, name); continue; }
             if (snapshot.MigrationTarget is not null) { continue; }
             if (snapshot.Origin is not { Source: AppSource.Shipped } origin) { continue; }
+            await GrantShipped(brainId, name, origin);
             var migrating = false;
             try
             {
@@ -73,5 +75,14 @@ internal sealed class FeatureReconciler(
             { logger.LogWarning(error, "Reconciling {Brain}/{App} to {Version} failed.", brainId, name, bundle.Version); continue; }
             await Publish(new AppReconciled(name, origin.Version, bundle.Version));
         }
+    }
+
+    // Every activation brings a shipped shell app's grants up to what it needs; recording is idempotent.
+    private async Task GrantShipped(string brainId, string name, AppOrigin origin)
+    {
+        if (identity is null || origin.Publisher != ShippedGrants.Publisher || ShippedGrants.For(brainId, name) is not { Length: > 0 } grants) { return; }
+        try { await identity.GrantShipped(brainId, grants); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        { logger.LogWarning(error, "Granting shipped {Brain}/{App} what it needs failed.", brainId, name); }
     }
 }

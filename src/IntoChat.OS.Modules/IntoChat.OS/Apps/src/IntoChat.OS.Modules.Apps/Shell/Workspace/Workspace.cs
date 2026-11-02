@@ -97,15 +97,14 @@ public static class Workspace
         return (await brain.Get<IText>(desktop + "/layout").Read()).Markdown != "classic";
     }
 
-    public static async Task<IButton[]> Inputs(IntoChatOSConnection brain)
+    // The bottom bar's buttons: the fixed three, then a focus and a close per open view and one per pin.
+    public static async Task<string[]> InputKeys(string key, IWorkspace workspace)
     {
-        var key = Key(brain);
-        var state = await State(brain).Read();
-        List<IButton> sources = [brain.Get<IButton>(key + "/ino"), brain.Get<IButton>(key + "/usage-button"), brain.Get<IButton>(key + "/profile")];
-        for (var i = 0; i < state.OpenViews.Length; i++)
-        { sources.Add(brain.Get<IButton>(key + "/focus-" + i)); sources.Add(brain.Get<IButton>(key + "/close-" + i)); }
-        for (var i = 0; i < state.Pins.Length; i++) { sources.Add(brain.Get<IButton>(key + "/pinned-" + i)); }
-        return [.. sources];
+        var state = await workspace.Read();
+        List<string> keys = [key + "/ino", key + "/usage-button", key + "/profile"];
+        for (var i = 0; i < state.OpenViews.Length; i++) { keys.Add(key + "/focus-" + i); keys.Add(key + "/close-" + i); }
+        for (var i = 0; i < state.Pins.Length; i++) { keys.Add(key + "/pinned-" + i); }
+        return [.. keys];
     }
 
     public static async Task Compose(IntoChatOSConnection brain)
@@ -224,5 +223,56 @@ public static class Workspace
         var layout = brain.Get<ILayout>(key);
         await layout.Set(new(mode, children, Gap: gap, Extents: extents, Surface: surface, Padding: padding), (await layout.Read()).Revision);
         return new("layout", key);
+    }
+}
+
+[DigitalBrain.App("workspace")]
+public sealed class WorkspaceProgram : DigitalBrain.App
+{
+    [DigitalBrain.On("open")]
+    public Task Open(string? input) => Act(brain => Workspace.Compose(brain));
+
+    [DigitalBrain.On("navigate")]
+    public Task Navigate(string? input) => Act(brain => Workspace.Navigate(brain, input ?? "", Guid.NewGuid().ToString()));
+
+    [DigitalBrain.On("activate")]
+    public Task Activate(string? input) => Act(brain => Workspace.Activate(brain, input ?? "", Guid.NewGuid().ToString()));
+
+    protected override void Watches(DigitalBrain.WatchBuilder watch)
+    {
+        // The canvas and bar follow the workspace state.
+        watch.On<IWorkspace, IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged>("compose", at => IWorkspace.Key(at.Brain),
+            async _ => { await using var brain = await IntoChatOSClient.ConnectAsync([]); await Workspace.Compose(brain); });
+        // The bar's buttons, re-selected whenever the open views or pins change.
+        watch.OnEach<IWorkspace, IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged, IButton, IntoChat.OS.Modules.Flutter.Button.Signals.ButtonClicked>(
+            "buttons", at => IWorkspace.Key(at.Brain), (workspace, at, _) => Workspace.InputKeys(at.App, workspace),
+            async clicked => { await using var brain = await IntoChatOSClient.ConnectAsync([]); await Workspace.Navigate(brain, clicked.Action, clicked.RequestId.ToString()); });
+        // The launcher and More menus.
+        foreach (var menu in new[] { "launcher", "more" })
+        {
+            watch.On<ISelect, SelectChanged>(menu, at => at.App + "/" + menu, async selected =>
+            {
+                if (selected.Value.Length == 0) { return; }
+                var operation = "select:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(selected.Value)));
+                await using var brain = await IntoChatOSClient.ConnectAsync([]);
+                await Workspace.Navigate(brain, selected.Value, operation);
+            });
+        }
+    }
+
+    // A rejected user action is shown, never thrown: it must not poison the operation's subscription.
+    private static async Task Act(Func<IntoChatOSConnection, Task> action)
+    {
+        await using var brain = await IntoChatOSClient.ConnectAsync([]);
+        try
+        {
+            await brain.Get<IText>(Workspace.Key(brain) + "/navigation-error").Set("");
+            await action(brain);
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            await brain.Get<IText>(Workspace.Key(brain) + "/navigation-error").Set("Could not open: " + error.Message);
+            await Workspace.Compose(brain);
+        }
     }
 }

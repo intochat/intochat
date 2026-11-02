@@ -163,7 +163,7 @@ public static class GrantRules
 
         if (request.SemanticTypeIds.Length == 0)
         {
-            if (IsGranted(GrantRelations.Run, request.TargetNeuron ?? "", grants, principals, caller))
+            if (IsGranted(GrantRelations.Run, request.TargetNeuron ?? "", grants, principals, caller, request.TargetScope))
             {
                 return CallDecision.Allow();
             }
@@ -172,7 +172,7 @@ public static class GrantRules
 
         foreach (var semanticTypeId in request.SemanticTypeIds)
         {
-            if (!IsGranted(semanticTypeId, request.TargetNeuron ?? "", grants, principals, caller))
+            if (!IsGranted(semanticTypeId, request.TargetNeuron ?? "", grants, principals, caller, request.TargetScope))
             {
                 return CallDecision.Deny(CallDenial.MissingGrant, $"No grant for semantic type '{semanticTypeId}'. The value is treated as missing.");
             }
@@ -218,7 +218,9 @@ public static class GrantRules
         return AppPrincipal.AppKeyOf(caller.PrincipalId) is { } app && app != caller.AppId ? null : caller.AppId;
     }
 
-    internal static bool IsGranted(string relation, string target, IReadOnlyList<Grant> grants, PrincipalSet principals, CapabilityCaller? caller = null)
+    // targetBrain: the brain the call filter named for the target; a plain neuron's target ({type}/{brain}/{key}) does not start with it.
+    internal static bool IsGranted(string relation, string target, IReadOnlyList<Grant> grants, PrincipalSet principals, CapabilityCaller? caller = null,
+        string? targetBrain = null)
     {
         if (grants is null || grants.Count == 0 || string.IsNullOrWhiteSpace(relation))
         {
@@ -253,7 +255,7 @@ public static class GrantRules
             }
 
             // Owner-declared: only the target brain's owner can grant access to its neurons.
-            if (!string.Equals(grant.Owner, "brain:" + EdgeGrantsCache.ExtractBrain(cleanTarget), StringComparison.Ordinal))
+            if (!string.Equals(grant.Owner, "brain:" + (string.IsNullOrWhiteSpace(targetBrain) ? EdgeGrantsCache.ExtractBrain(cleanTarget) : targetBrain), StringComparison.Ordinal))
             {
                 continue;
             }

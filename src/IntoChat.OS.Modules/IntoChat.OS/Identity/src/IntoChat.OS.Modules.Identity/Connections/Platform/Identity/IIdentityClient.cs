@@ -52,6 +52,10 @@ public interface IIdentityClient
 
     Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant);
 
+    // The platform records what a shipped app needs when it installs it; a grant the brain already holds for the same
+    // grantee, target and relation is kept as it is, and nothing is ever revoked here.
+    Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants);
+
     Task RevokeAsOwner(CapabilityCaller caller, string grantId);
 
     [Obsolete("Use RevokeAsOwner with grantId")]

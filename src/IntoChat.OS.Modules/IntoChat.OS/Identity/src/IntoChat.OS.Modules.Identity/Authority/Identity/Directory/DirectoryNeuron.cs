@@ -39,6 +39,7 @@ internal interface IDirectoryStore
     Task<CallDecision?> Authorize(CallRequest request);
     Task<Grant[]> ListGrants(string brainScopeId);
     Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant);
+    Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants);
     Task RevokeAsOwner(CapabilityCaller caller, string grantId);
     Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
 }
@@ -255,7 +256,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var normalized = Grant.Normalize(grant);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Grantee);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Scope);
-        if (normalized.Target.Length > 0 && !string.Equals(EdgeGrantsCache.ExtractBrain(normalized.Target), caller.BrainId, StringComparison.Ordinal))
+        if (normalized.Target.Length > 0 && !InBrain(normalized.Target, caller.BrainId))
         { throw new UnauthorizedAccessException("A brain owner grants access only to neurons in that brain."); }
         var stored = normalized with
         {
@@ -276,6 +277,38 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(caller.BrainId));
         await grantsNeuron.Grant(stored);
         return stored;
+    }
+
+    public async Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainScopeId);
+        ArgumentNullException.ThrowIfNull(grants);
+        if (BrainOf(State, brainScopeId) is not { } brain) { return []; }
+        List<Grant> added = [];
+        foreach (var grant in grants)
+        {
+            var normalized = Grant.Normalize(grant);
+            if (!normalized.Grantee.StartsWith($"app:{brainScopeId}/apps/", StringComparison.Ordinal) || !InBrain(normalized.Target, brainScopeId))
+            { throw new UnauthorizedAccessException("A shipped app is granted only neurons of the brain it is installed in."); }
+            if (brain.Grants.Concat(added).Select(Grant.Normalize).Any(held => !held.Revoked
+                && string.Equals(held.Grantee, normalized.Grantee, StringComparison.Ordinal)
+                && string.Equals(held.Target, normalized.Target, StringComparison.Ordinal)
+                && string.Equals(held.Scope, normalized.Scope, StringComparison.Ordinal))) { continue; }
+            added.Add(normalized with { Owner = $"brain:{brainScopeId}", WorkspaceId = brainScopeId, GrantedAt = clock.GetUtcNow() });
+        }
+        if (added.Count == 0) { return []; }
+        await Commit(ReplaceBrain(State, brain with { Grants = [.. brain.Grants, .. added] }), brainScopeId);
+        var grantsNeuron = SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(brainScopeId));
+        foreach (var grant in added) { await grantsNeuron.Grant(grant); }
+        return [.. added];
+    }
+
+    // A target names its brain first ({brain}/...) or, for a plain neuron, after its type ({type}/{brain}/...).
+    internal static bool InBrain(string target, string brainId)
+    {
+        if (string.Equals(EdgeGrantsCache.ExtractBrain(target), brainId, StringComparison.Ordinal)) { return true; }
+        var slash = target.IndexOf('/', StringComparison.Ordinal);
+        return slash > 0 && string.Equals(EdgeGrantsCache.ExtractBrain(target[(slash + 1)..]), brainId, StringComparison.Ordinal);
     }
 
     public async Task RevokeAsOwner(CapabilityCaller caller, string grantId)

@@ -32,6 +32,8 @@ internal static class BrainAuthorityDecisions
     internal static string GrantsBrainOf(CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        // The call filter names the target's brain; a plain neuron's target ({type}/{brain}/{key}) does not start with it.
+        if (!string.IsNullOrWhiteSpace(request.TargetScope)) { return request.TargetScope; }
         var callerBrain = request.Caller?.BrainId ?? "";
         if (string.IsNullOrWhiteSpace(request.TargetNeuron)) { return callerBrain; }
         var brain = EdgeGrantsCache.ExtractBrain(request.TargetNeuron);
