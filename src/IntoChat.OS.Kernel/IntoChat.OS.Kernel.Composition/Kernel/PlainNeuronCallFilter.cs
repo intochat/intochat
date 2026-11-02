@@ -28,6 +28,12 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
 
         if (!CallerContextStamper.TryGet(out var caller) || caller is null)
         {
+            if (context.SourceId is { } internalSource && !internalSource.Type.ToString()!.StartsWith("sys.client", StringComparison.Ordinal))
+            {
+                await context.Invoke();
+                return;
+            }
+
             logger.LogWarning("Access denied: unstamped call to plain neuron {Contract}.{Method}", call.Contract, call.Method);
             throw new UnauthorizedAccessException($"Unstamped calls are not authorized for plain neuron {call.Contract}.{call.Method}");
         }
