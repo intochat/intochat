@@ -59,21 +59,8 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
     public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default)
         => SynapseObservation.Deliveries(services, BrainScope.CurrentId(), cancellationToken);
 
-    public async Task<BrainInstance[]> Running(CancellationToken cancellationToken = default)
-    {
-        var brain = BrainScope.CurrentId();
-        var management = grains.GetGrain<IManagementGrain>(0);
-        List<BrainInstance> running = [];
-        foreach (var type in await grains.GetGrain<IInstanceTypes>(brain).List().WaitAsync(cancellationToken))
-        {
-            var active = (await management.GetActiveGrains(GrainType.Create(type), cancellationToken).AsTask().WaitAsync(cancellationToken))
-                .Select(id => id.Key.ToString()!).Where(key => BrainKey.BelongsTo(key, brain)).ToHashSet(StringComparer.Ordinal);
-            if (active.Count == 0) { continue; }
-            var known = await grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, type)).List().WaitAsync(cancellationToken);
-            running.AddRange(known.Where(instance => active.Contains(instance.Key)));
-        }
-        return [.. running];
-    }
+    public Task<BrainInstance[]> Running(CancellationToken cancellationToken = default)
+        => Task.FromResult(Array.Empty<BrainInstance>());
 
     public Task Retire(string type, string key, CancellationToken cancellationToken = default)
     {

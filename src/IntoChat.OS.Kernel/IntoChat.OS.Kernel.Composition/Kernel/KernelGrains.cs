@@ -34,31 +34,16 @@ internal sealed class InstanceDirectoryGrain(
         if (store.State.Entries.Any(entry => entry.Key == key)) { return; }
         var first = store.State.Entries.Length == 0;
         var entries = new List<BrainInstance>(store.State.Entries) { new(Type, key, time.GetUtcNow(), creator) };
-        // Ledger 38: keep the directory bounded — drop the oldest entries that are not currently active once a
-        // type exceeds the limit, so ephemeral neurons do not accumulate in the brain's core without bound.
+        // Keep the directory bounded — drop the oldest entries once a type exceeds the limit.
         if (entries.Count > options.Value.Limit)
         {
-            var active = await ActiveKeys();
             var over = entries.Count - options.Value.Limit;
-            var kept = new List<BrainInstance>(entries.Count);
-            foreach (var entry in entries.OrderBy(entry => entry.Created))
-            {
-                if (over > 0 && !active.Contains(entry.Key)) { over--; continue; }
-                kept.Add(entry);
-            }
-            entries = kept;
+            entries = entries.OrderBy(entry => entry.Created).Skip(over).ToList();
         }
         store.State.Entries = [.. entries];
         await store.WriteStateAsync();
         if (first) { await GrainFactory.GetGrain<IInstanceTypes>(Brain).Add(Type); }
         Announce(brain => brain.InstanceCreated(Type, key));
-    }
-
-    // The live instances of this directory's type in its brain: compaction never drops these.
-    private async Task<HashSet<string>> ActiveKeys()
-    {
-        var active = await GrainFactory.GetGrain<IManagementGrain>(0).GetActiveGrains(GrainType.Create(Type));
-        return [.. active.Select(id => id.Key.ToString()!).Where(key => BrainKey.BelongsTo(key, Brain))];
     }
 
     public async Task Retire(string key)
