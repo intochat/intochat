@@ -242,7 +242,7 @@ public sealed class FeatureCatalog
                 await side.Adopt(_git, File.ReadAllText(file).Trim(), CancellationToken.None);
                 File.Delete(file);
             }
-            catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException or DigitalBrain.Capabilities.Storage.Confinement.ConfinementDenied)
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException or IntoChat.OS.Runtime.Storage.Confinement.ConfinementDenied)
             { _ = error.Message; }
         }
     }
