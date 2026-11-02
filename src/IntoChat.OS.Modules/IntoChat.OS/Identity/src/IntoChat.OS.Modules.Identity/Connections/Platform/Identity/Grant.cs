@@ -92,10 +92,14 @@ public sealed record Grant
 
         return g with
         {
-            Owner = g.WorkspaceId.StartsWith("brain:", StringComparison.Ordinal) ? g.WorkspaceId : "brain:" + g.WorkspaceId,
-            Grantee = g.AppId.StartsWith("app:", StringComparison.Ordinal) ? g.AppId : "app:" + g.AppId,
-            Target = g.TargetNeuronKey ?? "",
-            Scope = g.SemanticTypeId,
+            Owner = g.Owner.Length > 0
+                ? (g.Owner.StartsWith("brain:", StringComparison.Ordinal) ? g.Owner : "brain:" + g.Owner)
+                : (g.WorkspaceId.StartsWith("brain:", StringComparison.Ordinal) ? g.WorkspaceId : "brain:" + g.WorkspaceId),
+            Grantee = g.Grantee.Length > 0
+                ? g.Grantee
+                : (g.AppId.StartsWith("app:", StringComparison.Ordinal) ? g.AppId : "app:" + g.AppId),
+            Target = g.Target.Length > 0 ? g.Target : (g.TargetNeuronKey ?? ""),
+            Scope = g.Scope.Length > 0 ? g.Scope : g.SemanticTypeId,
         };
     }
 }

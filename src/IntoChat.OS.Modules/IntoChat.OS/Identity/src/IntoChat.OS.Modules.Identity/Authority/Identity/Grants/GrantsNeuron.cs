@@ -56,9 +56,7 @@ public sealed class GrantsNeuron : DigitalBrain.Neuron<GrantsState>, IGrantsNeur
         if (string.IsNullOrWhiteSpace(grantId)) { return; }
         var state = await Normalized();
         var current = state.Grants;
-        var filtered = current.Where(g => !string.Equals(g.Id, grantId, StringComparison.Ordinal)
-            && !string.Equals(g.Target, grantId, StringComparison.Ordinal)
-            && !string.Equals(g.TargetNeuronKey, grantId, StringComparison.Ordinal)).ToArray();
+        var filtered = current.Where(g => !string.Equals(g.Id, grantId, StringComparison.Ordinal)).ToArray();
         if (filtered.Length == current.Length)
         {
             return;
@@ -90,13 +88,10 @@ public sealed class GrantsNeuron : DigitalBrain.Neuron<GrantsState>, IGrantsNeur
         {
             return true;
         }
-        if (!string.IsNullOrWhiteSpace(candidate.Target) && !string.IsNullOrWhiteSpace(candidate.Grantee))
-        {
-            return string.Equals(existing.Grantee, candidate.Grantee, StringComparison.Ordinal)
-                && string.Equals(existing.Target, candidate.Target, StringComparison.Ordinal);
-        }
-        return string.Equals(existing.AppId, candidate.AppId, StringComparison.Ordinal)
-            && string.Equals(existing.SemanticTypeId, candidate.SemanticTypeId, StringComparison.Ordinal)
-            && string.Equals(existing.TargetNeuronKey, candidate.TargetNeuronKey, StringComparison.Ordinal);
+        var eNorm = GrantModel.Normalize(existing);
+        var cNorm = GrantModel.Normalize(candidate);
+        return string.Equals(eNorm.Grantee, cNorm.Grantee, StringComparison.Ordinal)
+            && string.Equals(eNorm.Target, cNorm.Target, StringComparison.Ordinal)
+            && string.Equals(eNorm.Scope, cNorm.Scope, StringComparison.Ordinal);
     }
 }

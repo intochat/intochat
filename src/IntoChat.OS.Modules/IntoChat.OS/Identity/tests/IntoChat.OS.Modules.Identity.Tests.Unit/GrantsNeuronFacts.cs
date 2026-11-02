@@ -91,4 +91,29 @@ public sealed class GrantsNeuronFacts
         Assert.Equal(before + 1, await g.GetVersion()); // second List does not bump again
         await g.List();
     }
+
+    [Fact]
+    public async Task RevokeMatchesIdOnly()
+    {
+        await using var os = TestOS.Local();
+        os.Register<GrantsNeuron>();
+        var g = os.Get<IGrantsNeuron>(new NeuronId(new BrainId("test-brain"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
+        await g.Grant(Grant.Tuple("brain:test-brain", "brain:bob", "apps/photocraft", "run") with { Id = "a" });
+        await g.Grant(Grant.Tuple("brain:test-brain", "brain:ana", "apps/photocraft", "run") with { Id = "b" });
+        await g.Revoke("apps/photocraft");
+        Assert.Equal(2, (await g.List()).Length);
+        await g.Revoke("a");
+        Assert.Equal(["b"], (await g.List()).Select(x => x.Id).ToArray());
+    }
+
+    [Fact]
+    public async Task SameTupleReplacesInsteadOfDuplicating()
+    {
+        await using var os = TestOS.Local();
+        os.Register<GrantsNeuron>();
+        var g = os.Get<IGrantsNeuron>(new NeuronId(new BrainId("test-brain"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
+        await g.Grant(Grant.Tuple("brain:test-brain", "brain:bob", "apps/photocraft", "run"));
+        await g.Grant(Grant.Tuple("brain:test-brain", "brain:bob", "apps/photocraft", "run", expires: DateTimeOffset.UtcNow.AddDays(1)));
+        Assert.Single(await g.List());
+    }
 }
