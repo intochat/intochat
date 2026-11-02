@@ -74,4 +74,21 @@ public sealed class GrantsNeuronFacts
         var list = await grantsNeuron.List();
         Assert.DoesNotContain(list, g => g.Id == "grant-revocable");
     }
+
+    [Fact]
+    public async Task LegacyRowWithoutCanonicalFieldsEvaluatesAsBefore()
+    {
+        await using var os = TestOS.Local();
+        os.Register<GrantsNeuron>();
+        var g = os.Get<IGrantsNeuron>(new NeuronId(new BrainId("test-brain"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
+        await g.Grant(new Grant { Id = "legacy1", AppId = "photocraft", SemanticTypeId = "person.birthDate", WorkspaceId = "test-brain" });
+        var before = await g.GetVersion();
+        var list = await g.List();
+        Assert.Single(list);
+        Assert.True(list[0].IsCanonical);
+        Assert.Equal("app:photocraft", list[0].Grantee);
+        Assert.Equal(before + 1, await g.GetVersion());
+        Assert.Equal(before + 1, await g.GetVersion()); // second List does not bump again
+        await g.List();
+    }
 }
