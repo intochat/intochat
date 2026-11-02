@@ -22,6 +22,9 @@
   "Contracts": {
     "IntoChat.OS.Authority.Entries.BrainEntriesState": "brain.entries-state; Entries=0, Version=1",
     "IntoChat.OS.Authority.Entries.StoredEntry": "brain.entry; Name=0, Kind=1, Value=2, Sealed=3, Tail=4, UpdatedAt=5",
+    "IntoChat.OS.Authority.Identity.Contacts.ContactEntry": "identity.contact-entry; Principal=0, Handle=1, DisplayName=2, AddedAt=3",
+    "IntoChat.OS.Authority.Identity.Contacts.ContactList": "identity.contact-list; Name=0, Members=1",
+    "IntoChat.OS.Authority.Identity.Contacts.ContactsState": "identity.contacts-state; Lists=0, Version=1",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayState": "identity.external-ticket-replay-state; Used=0",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketUse": "identity.external-ticket-use; Jti=0, ExpiresAt=1",
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain (not generated); ",
@@ -208,6 +211,7 @@
     "IntoChat.Files.FilesSelected": "FilesSelected",
     "IntoChat.OS.Activated": "Activated",
     "IntoChat.OS.Authority.Identity.Authority.DirectoryChanged": "DirectoryChanged",
+    "IntoChat.OS.Authority.Identity.Contacts.ContactsChanged": "ContactsChanged",
     "IntoChat.OS.Authority.Identity.Grants.GrantsChanged": "GrantsChanged",
     "IntoChat.OS.Authority.Secrets.VaultChanged": "VaultChanged",
     "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionConnected": "ConnectionConnected",
