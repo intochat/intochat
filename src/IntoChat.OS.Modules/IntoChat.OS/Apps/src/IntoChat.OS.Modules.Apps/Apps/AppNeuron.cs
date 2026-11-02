@@ -851,11 +851,11 @@ internal sealed partial class AppNeuron(
         next.History = [.. next.History.Where(held => held.Version != next.Version).TakeLast(MaxHistory - 1), record];
     }
 
-    private bool Replayed(Guid operationId) => Snapshot.Receipts.Any(receipt => receipt.OperationId == operationId);
+    private bool Replayed(Guid operationId) => Snapshot.HasReceipt(operationId);
 
     private static void Receipt(AppState next, Guid operationId)
     {
-        next.Receipts = [.. next.Receipts.Append(new OperationReceipt(operationId, "", "")).TakeLast(MaxReceipts)];
+        next.Receipts = [.. next.Receipts.Append(new OperationReceipt(operationId)).TakeLast(MaxReceipts)];
     }
 
     private void RequireCreated()
