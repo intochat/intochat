@@ -57,6 +57,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.AddSingleton<DevAppGate>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
+        services.AddSingleton<DigitalBrain.Graph.IGraphSource, AppGraphSource>();
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)
