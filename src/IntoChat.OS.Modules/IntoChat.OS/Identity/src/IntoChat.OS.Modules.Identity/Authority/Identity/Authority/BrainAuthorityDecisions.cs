@@ -19,7 +19,9 @@ internal static class BrainAuthorityDecisions
         var circleMember = state.Kind == BrainKind.Circle && Member(state, caller.PersonId)?.AccountId == caller.AccountId;
         if (state.AccountId != caller.AccountId && !circleMember || state.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), state.Grants, PrincipalSet.For(request.Caller));
+        var targetBrain = EdgeGrantsCache.ExtractBrain(request.TargetNeuron);
+        var principals = EdgeGrantsCache.Current.ExpandAsync(targetBrain, caller).GetAwaiter().GetResult();
+        return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), state.Grants, principals);
     }
 
     private static Member? Member(BrainRow state, string principalId)
