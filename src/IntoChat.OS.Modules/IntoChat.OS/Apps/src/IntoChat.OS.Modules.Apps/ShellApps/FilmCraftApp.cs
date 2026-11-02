@@ -79,16 +79,7 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
 {
     public IFilesVfsService? FilesVfs { get; set; }
 
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "filmcraft",
-        "FilmCraft",
-        "1.1.0",
-        [],
-        new DigitalBrain.AppRequirements([]))
-    {
-        Accent = "#8B5CF6",
-        Category = "Studio",
-    };
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(FilmCraftApp));
 
     public static AppBundle Bundle { get; } = new(
         "filmcraft",

@@ -43,8 +43,7 @@ public sealed record DesktopAppState(
 [DigitalBrain.App("desktop")]
 public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 {
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "desktop", "Desktop", "0.4.0", [], new DigitalBrain.AppRequirements([]));
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DesktopApp));
 
     public static AppBundle Bundle { get; } = ShellPrograms.Load("Desktop");
 

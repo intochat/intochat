@@ -20,8 +20,8 @@ public sealed class FilesAppFacts
         await using var os = TestOS.Local(options => options.Services = services).With<IStorage>("documents", storage);
         var app = await os.Install<FilesApp>();
         await app.Request("open");
-        Assert.Equal("files", app.Manifest.Id);
-        Assert.Equal([Capability.Storage.V1], app.Manifest.Requires.Capabilities);
+        Assert.Equal("files", app.Definition.Id);
+        Assert.Equal([Capability.Storage.V1], app.Definition.Requires.Capabilities);
         Assert.Equal("documents", Assert.Single(app.App.Snapshot.Storages).Label);
     }
 

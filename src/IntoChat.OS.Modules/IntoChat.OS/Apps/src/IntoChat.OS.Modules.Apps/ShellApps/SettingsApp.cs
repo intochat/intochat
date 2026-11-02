@@ -150,8 +150,7 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
         new("danger", "Danger zone", "export archive zip delete account reset brain", "os://window/settings?section=danger", "triangle-alert", "Organization & System"),
     ];
 
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "settings", "Settings", "2.2.0", [typeof(UserSettingsNeuron)], new DigitalBrain.AppRequirements([]));
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(SettingsApp));
 
     public static AppBundle Bundle { get; } = ShellPrograms.Load("Settings");
 

@@ -23,7 +23,6 @@ using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
-using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
@@ -561,8 +560,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B01_FilmCraft_ManifestId_ExactCasing()
     {
-        Assert.Equal("filmcraft", FilmCraftApp.Manifest.Id);
-        Assert.NotEqual("FilmCraft", FilmCraftApp.Manifest.Id);
+        Assert.Equal("filmcraft", FilmCraftApp.Definition.Id);
+        Assert.NotEqual("FilmCraft", FilmCraftApp.Definition.Id);
     }
 
     [Fact]
@@ -570,8 +569,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B02_PhotoCraft_ManifestId_ExactCasing()
     {
-        Assert.Equal("photocraft", PhotoCraftApp.Manifest.Id);
-        Assert.NotEqual("PhotoCraft", PhotoCraftApp.Manifest.Id);
+        Assert.Equal("photocraft", PhotoCraftApp.Definition.Id);
+        Assert.NotEqual("PhotoCraft", PhotoCraftApp.Definition.Id);
     }
 
     [Fact]
@@ -579,10 +578,10 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B03_ManifestAccents_ValidHexFormat()
     {
-        Assert.StartsWith("#", FilmCraftApp.Manifest.Accent!);
-        Assert.StartsWith("#", PhotoCraftApp.Manifest.Accent!);
-        Assert.Equal(7, FilmCraftApp.Manifest.Accent!.Length);
-        Assert.Equal(7, PhotoCraftApp.Manifest.Accent!.Length);
+        Assert.StartsWith("#", FilmCraftApp.Definition.Accent!);
+        Assert.StartsWith("#", PhotoCraftApp.Definition.Accent!);
+        Assert.Equal(7, FilmCraftApp.Definition.Accent!.Length);
+        Assert.Equal(7, PhotoCraftApp.Definition.Accent!.Length);
     }
 
     [Fact]
@@ -590,8 +589,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B04_ManifestVersions_ValidSemverDots()
     {
-        Assert.Contains(".", FilmCraftApp.Manifest.Version);
-        Assert.Contains(".", PhotoCraftApp.Manifest.Version);
+        Assert.Contains(".", FilmCraftApp.Definition.Version);
+        Assert.Contains(".", PhotoCraftApp.Definition.Version);
     }
 
     [Fact]
@@ -599,8 +598,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B05_ManifestCategories_AreNotEmpty()
     {
-        Assert.False(string.IsNullOrWhiteSpace(FilmCraftApp.Manifest.Category));
-        Assert.False(string.IsNullOrWhiteSpace(PhotoCraftApp.Manifest.Category));
+        Assert.False(string.IsNullOrWhiteSpace(FilmCraftApp.Definition.Category));
+        Assert.False(string.IsNullOrWhiteSpace(PhotoCraftApp.Definition.Category));
     }
 
     #endregion

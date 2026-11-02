@@ -22,7 +22,9 @@ internal sealed class ConnectionCallBindings(IConnectionBindings bindings, Autho
         {
             return true;
         }
-        if (SdkCapabilitySharing.IsConnectionBoundToFriend(request.Caller, key))
+        if (!string.IsNullOrWhiteSpace(request.Caller.BrainId)
+            && !string.Equals(request.Caller.BrainId, brain, StringComparison.OrdinalIgnoreCase)
+            && await _edgeCache.IsConnectionBoundAsync(request.Caller.BrainId, request.Caller, key, cancellationToken).ConfigureAwait(false))
         {
             return true;
         }

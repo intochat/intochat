@@ -149,9 +149,11 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
         var (owner, connector, connectionId) = ConnectionKeys.Parse(key);
         var caller = CapabilityCallers.Of($"app:{callerApp}", owner, brain.Value, CallerKind.App, callerApp);
-        var isBound = services.GetService<IntoChat.OS.Authority.Identity.Grants.IEdgeGrantsCache>() is { } cache
-            ? cache.IsConnectionBoundAsync(owner, caller, key, ct).GetAwaiter().GetResult()
-            : SdkCapabilitySharing.IsConnectionBoundToFriend(caller, key);
+        var cache = services.GetService<IntoChat.OS.Authority.Identity.Grants.IEdgeGrantsCache>()
+            ?? IntoChat.OS.Authority.Identity.Grants.EdgeGrantsCache.Current;
+        var isBound = cache.IsConnectionBoundAsync(owner, caller, key, ct).GetAwaiter().GetResult()
+            || (!string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, owner, StringComparison.OrdinalIgnoreCase)
+                && cache.IsConnectionBoundAsync(caller.BrainId, caller, key, ct).GetAwaiter().GetResult());
         if (owner != brain.Value && !isBound)
         {
             throw new ArgumentException("The connection belongs to another brain.", nameof(key));

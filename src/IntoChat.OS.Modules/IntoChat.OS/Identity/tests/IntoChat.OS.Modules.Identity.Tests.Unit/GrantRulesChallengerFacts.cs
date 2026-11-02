@@ -77,7 +77,7 @@ public sealed class GrantRulesChallengerFacts
         var caller = CreateAppCaller(appKey);
         var connectionKey = "local/connection/github/team-challenger";
 
-        SdkCapabilitySharing.BindFriendConnection(connectionKey, appKey);
+        EdgeGrantsCache.Current.BindFriendConnection(connectionKey, appKey);
 
         var request = new CallRequest
         {

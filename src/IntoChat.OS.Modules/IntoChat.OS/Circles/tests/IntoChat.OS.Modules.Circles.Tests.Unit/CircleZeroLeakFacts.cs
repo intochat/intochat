@@ -3,7 +3,6 @@ using System.Reflection;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Modules.Circles;
@@ -41,7 +40,7 @@ public sealed class CircleZeroLeakFacts
         // 2. Establish reference grant via capability broker
         try
         {
-            SdkCapabilitySharing.BindFriendConnection(connectionKey, circleAppId);
+            EdgeGrantsCache.Current.BindFriendConnection(connectionKey, circleAppId);
 
             var caller = CapabilityCallers.Of(AppPrincipal.Id(circleAppId), "user-bob", CircleBrain, CallerKind.App, circleAppId);
             var request = new CallRequest
@@ -59,7 +58,7 @@ public sealed class CircleZeroLeakFacts
         }
         finally
         {
-            SdkCapabilitySharing.UnbindFriendConnection(connectionKey, circleAppId);
+            EdgeGrantsCache.Current.UnbindFriendConnection(connectionKey, circleAppId);
         }
     }
 
@@ -71,7 +70,7 @@ public sealed class CircleZeroLeakFacts
 
         try
         {
-            SdkCapabilitySharing.BindFriendConnection(connectionKey, circleAppId);
+            EdgeGrantsCache.Current.BindFriendConnection(connectionKey, circleAppId);
             var caller = CapabilityCallers.Of(AppPrincipal.Id(circleAppId), "user-bob", CircleBrain, CallerKind.App, circleAppId);
 
             // 1. Direct access to vault/secrets/credentials must be blocked by ZeroTokenGuard
@@ -141,7 +140,7 @@ public sealed class CircleZeroLeakFacts
         }
         finally
         {
-            SdkCapabilitySharing.UnbindFriendConnection(connectionKey, circleAppId);
+            EdgeGrantsCache.Current.UnbindFriendConnection(connectionKey, circleAppId);
         }
     }
 
@@ -167,14 +166,14 @@ public sealed class CircleZeroLeakFacts
         Assert.Equal(CallDenial.MissingGrant, initialDecision.Denial);
 
         // Phase 2: Grant is issued when shared into circle -> invocation succeeds
-        SdkCapabilitySharing.BindFriendConnection(targetNeuron, circleAppId);
+        EdgeGrantsCache.Current.BindFriendConnection(targetNeuron, circleAppId);
 
         var activeDecision = GrantRules.Evaluate(request, null, []);
         Assert.NotNull(activeDecision);
         Assert.True(activeDecision.Allowed);
 
         // Phase 3: Circle grant is revoked (e.g., app unshared or circle deleted) -> invocation instantly severed
-        SdkCapabilitySharing.UnbindFriendConnection(targetNeuron, circleAppId);
+        EdgeGrantsCache.Current.UnbindFriendConnection(targetNeuron, circleAppId);
 
         var revokedDecision = GrantRules.Evaluate(request, null, []);
         Assert.NotNull(revokedDecision);

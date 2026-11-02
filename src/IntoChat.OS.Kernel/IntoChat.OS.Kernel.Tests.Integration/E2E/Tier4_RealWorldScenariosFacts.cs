@@ -21,7 +21,6 @@ using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
-using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
@@ -118,7 +117,7 @@ public sealed class Tier4_RealWorldScenariosFacts
     public async Task Scenario02_HighThroughputStudioAppMediaPipeline_CoordinatesSignalsAndState()
     {
         // Step 1: Studio App Manifest Resolution
-        var filmCraft = FilmCraftApp.Manifest;
+        var filmCraft = FilmCraftApp.Definition;
         Assert.Equal("filmcraft", filmCraft.Id);
         Assert.Equal("#8B5CF6", filmCraft.Accent);
         Assert.Equal("Studio", filmCraft.Category);

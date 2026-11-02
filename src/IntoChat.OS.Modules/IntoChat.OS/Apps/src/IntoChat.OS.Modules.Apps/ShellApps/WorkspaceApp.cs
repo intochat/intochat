@@ -22,8 +22,7 @@ public sealed record WorkspaceActivate : DigitalBrain.Signal;
 [DigitalBrain.App("workspace", Accent = "#A855F7", Category = "Social")]
 public sealed class WorkspaceApp(IPresenter presenter) : DigitalBrain.App
 {
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "workspace", "Workspace", "0.3.6", [], new DigitalBrain.AppRequirements([]));
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(WorkspaceApp));
 
     public static AppBundle Bundle { get; } = ShellPrograms.Load("Workspace");
 

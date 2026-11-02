@@ -34,8 +34,7 @@ public sealed class BrainScene : DigitalBrain.App
     private const double Radius = 240;
     private const int MaxNeurons = 1024;
 
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "brain", "Brain", "1.0.0", [], new DigitalBrain.AppRequirements([]));
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(BrainScene));
 
     public static AppBundle Bundle { get; } = new(
         "brain", "1.0.0",

@@ -23,7 +23,6 @@ using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
-using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
@@ -609,7 +608,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_01_FilmCraftApp_Manifest_DeclaresUniqueId()
     {
-        var manifest = FilmCraftApp.Manifest;
+        var manifest = FilmCraftApp.Definition;
         Assert.NotNull(manifest);
         Assert.Equal("filmcraft", manifest.Id);
     }
@@ -619,7 +618,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_02_PhotoCraftApp_Manifest_DeclaresUniqueId()
     {
-        var manifest = PhotoCraftApp.Manifest;
+        var manifest = PhotoCraftApp.Definition;
         Assert.NotNull(manifest);
         Assert.Equal("photocraft", manifest.Id);
     }
@@ -629,7 +628,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_03_StudioApps_HaveDistinctManifestIdentities()
     {
-        Assert.NotEqual(FilmCraftApp.Manifest.Id, PhotoCraftApp.Manifest.Id);
+        Assert.NotEqual(FilmCraftApp.Definition.Id, PhotoCraftApp.Definition.Id);
     }
 
     [Fact]
@@ -637,8 +636,8 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_04_FilmCraftApp_AccentAndCategory_AreConfigured()
     {
-        Assert.Equal("#8B5CF6", FilmCraftApp.Manifest.Accent);
-        Assert.Equal("Studio", FilmCraftApp.Manifest.Category);
+        Assert.Equal("#8B5CF6", FilmCraftApp.Definition.Accent);
+        Assert.Equal("Studio", FilmCraftApp.Definition.Category);
     }
 
     [Fact]
@@ -646,8 +645,8 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_05_PhotoCraftApp_AccentAndCategory_AreConfigured()
     {
-        Assert.Equal("#06B6D4", PhotoCraftApp.Manifest.Accent);
-        Assert.Equal("Studio", PhotoCraftApp.Manifest.Category);
+        Assert.Equal("#06B6D4", PhotoCraftApp.Definition.Accent);
+        Assert.Equal("Studio", PhotoCraftApp.Definition.Category);
     }
 
     #endregion

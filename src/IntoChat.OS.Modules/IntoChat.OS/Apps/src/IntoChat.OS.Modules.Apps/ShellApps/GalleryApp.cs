@@ -107,7 +107,7 @@ public sealed record GalleryAppState(
             "design",
             "Iconography & Squircle IcAppIcon Builder",
             "Two-stop gradient squircle app badges with 1px specular border and custom/Lucide vector glyphs.",
-            "DigitalBrain.AppManifest@1",
+            "DigitalBrain.AppDefinition@1",
             ["AppRegisteredSignal"],
             "neuron://local/ui.gallery/iconography",
             "[DigitalBrain.App(\"gallery\", Accent = \"#22C55E\", Category = \"Studio\")]")
@@ -396,16 +396,7 @@ public sealed record GalleryAppState(
 [DigitalBrain.App("gallery", Accent = "#22C55E", Category = "Studio")]
 public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
 {
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "gallery",
-        "UI Gallery",
-        "1.0.0",
-        [],
-        new DigitalBrain.AppRequirements([]))
-    {
-        Accent = "#22C55E",
-        Category = "Studio",
-    };
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(GalleryApp));
 
     public static AppBundle Bundle { get; } = new(
         "gallery",

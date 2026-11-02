@@ -16,7 +16,13 @@ public sealed class ShellAppFacts
     public static IEnumerable<TheoryDataRow<AppOperationCase>> PostOperations => AppBaseline.Cases(typeof(PostApp));
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> CreatorOperations
-        => AppBaseline.Cases(typeof(CreatorApp), os => os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>());
+        => AppBaseline.Cases(
+            typeof(CreatorApp),
+            os =>
+            {
+                os.Register<DigitalBrain.BddNeuron>();
+                os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
+            });
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> GalleryOperations => AppBaseline.Cases(typeof(GalleryApp));
 
@@ -121,7 +127,11 @@ public sealed class ShellAppFacts
         Assert.Single(postReport.Scenarios);
 
         var creatorReport = await BddRunner.VerifyAsync<CreatorApp>(
-            fakes: os => os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>(),
+            fakes: os =>
+            {
+                os.Register<DigitalBrain.BddNeuron>();
+                os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
+            },
             cancellationToken: ct);
         Assert.True(creatorReport.Passed);
         Assert.Single(creatorReport.Scenarios);

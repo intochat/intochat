@@ -38,7 +38,7 @@ internal static class BuildMetadata
                 if (context.GetTypeInfo(type) is null)
                 { throw new InvalidOperationException($"JsonSerializerContext {contexts[0].FullName} is missing {type.FullName}. Add [JsonSerializable(typeof({type.Name}))]."); }
             }
-            var descriptor = TrustedBuildMetadata.Extract(apps[0], definition.Manifest);
+            var descriptor = TrustedBuildMetadata.Extract(apps[0], definition);
             var shared = ImmutableSortedDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
             foreach (var path in Directory.EnumerateFiles(directory, "*.dll"))
             {
@@ -66,7 +66,7 @@ internal static class BuildMetadata
         {
             foreach (var parameter in method.GetParameters().Where(p => p.ParameterType != typeof(CancellationToken))) { yield return parameter.ParameterType; }
         }
-        foreach (var neuron in definition.Manifest.Neurons)
+        foreach (var neuron in definition.Neurons)
         {
             for (var current = neuron; current is not null; current = current.BaseType)
             { if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(Neuron<>)) { yield return current.GetGenericArguments()[0]; } }

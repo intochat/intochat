@@ -38,8 +38,7 @@ public sealed record PostAppState(
 [DigitalBrain.App("post", Accent = "#FB7185", Category = "Reach")]
 public sealed class PostApp(IPresenter? presenter = null) : DigitalBrain.App<PostAppState>
 {
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "post", "Post", "1.0.0", [typeof(ProfileNeuron)], new DigitalBrain.AppRequirements([]));
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(PostApp));
 
     public static AppBundle Bundle { get; } = new(
         "post",

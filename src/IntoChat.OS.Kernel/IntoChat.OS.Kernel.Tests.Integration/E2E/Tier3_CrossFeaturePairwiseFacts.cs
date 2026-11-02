@@ -22,7 +22,6 @@ using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
-using AppManifest = DigitalBrain.AppManifest;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
@@ -235,7 +234,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     public void TF07_AppConsent_WithAppManifest_ValidatesStudioAppRequirements()
     {
         // F7 (App Consent Diffing) + F9 (Studio App Manifests)
-        var filmCraftManifest = FilmCraftApp.Manifest;
+        var filmCraftManifest = FilmCraftApp.Definition;
         Assert.Equal("filmcraft", filmCraftManifest.Id);
 
         var filmCraftReqs = new AppRequirements(
@@ -337,14 +336,14 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     public void TF11_AppActivity_WithAppManifest_CorrelatesSignalsWithStudioApps()
     {
         // F1 (Ephemeral Signals) + F9 (Studio App Manifests)
-        var filmCraft = FilmCraftApp.Manifest;
+        var filmCraft = FilmCraftApp.Definition;
         var activity = new AppActivity(filmCraft.Id, "rendering", "Exporting 4K sequence");
 
         Assert.Equal("filmcraft", activity.App);
         Assert.Equal("rendering", activity.State);
         Assert.Equal("Exporting 4K sequence", activity.Detail);
 
-        var photoCraft = PhotoCraftApp.Manifest;
+        var photoCraft = PhotoCraftApp.Definition;
         var photoActivity = new AppActivity(photoCraft.Id, "editing", "Applying color grade");
 
         Assert.Equal("photocraft", photoActivity.App);

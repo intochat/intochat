@@ -246,9 +246,9 @@ public sealed class IntegrationsAndZeroTokenFacts
     }
 
     [Fact]
-    public async Task SdkCapabilitySharingAllowsTrustedFriendAppsThroughGrantRulesAndConnectionBindings()
+    public async Task EdgeGrantsCacheAllowsTrustedFriendAppsThroughGrantRulesAndConnectionBindings()
     {
-        SdkCapabilitySharing.ClearForTests();
+        EdgeGrantsCache.Current.Clear();
         try
         {
             var ownerApp = "local/apps/ino";
@@ -266,8 +266,8 @@ public sealed class IntegrationsAndZeroTokenFacts
                 GrantedAt = DateTimeOffset.UtcNow,
             };
 
-            SdkCapabilitySharing.RegisterFriend(ownerApp, friendApp, "repo.contents");
-            SdkCapabilitySharing.BindFriendConnection(connectionKey, friendApp);
+            EdgeGrantsCache.Current.RegisterFriend(ownerApp, friendApp, "repo.contents");
+            EdgeGrantsCache.Current.BindFriendConnection(connectionKey, friendApp);
 
             var friendCaller = CapabilityCallers.Of(AppPrincipal.Id(friendApp), "ada", "local", CallerKind.App, friendApp);
             var strangerCaller = CapabilityCallers.Of(AppPrincipal.Id(strangerApp), "ada", "local", CallerKind.App, strangerApp);
@@ -299,7 +299,7 @@ public sealed class IntegrationsAndZeroTokenFacts
         }
         finally
         {
-            SdkCapabilitySharing.ClearForTests();
+            EdgeGrantsCache.Current.Clear();
         }
     }
 

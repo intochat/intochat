@@ -461,24 +461,14 @@ public sealed class GrantsNeuronAdversarialFacts
     }
 
     [Fact]
-    public async Task StaticIsolation_NoStaticMemoryCollectionsInEdgeGrantsCacheOrSdkCapabilitySharing()
+    public async Task StaticIsolation_NoStaticMemoryCollectionsInEdgeGrantsCache()
     {
         var original = EdgeGrantsCache.Current;
         try
         {
             var ct = TestContext.Current.CancellationToken;
 
-            // Check 1: SdkCapabilitySharing static fields
-            var sdkFields = typeof(SdkCapabilitySharing).GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            foreach (var field in sdkFields)
-            {
-                var type = field.FieldType;
-                if (type == typeof(string)) { continue; } // constants like WildcardScope
-                Assert.False(typeof(IEnumerable).IsAssignableFrom(type),
-                    $"SdkCapabilitySharing has static collection field '{field.Name}' of type '{type.Name}'. All static memory collections must be removed.");
-            }
-
-            // Check 2: EdgeGrantsCache static fields
+            // Check 1: EdgeGrantsCache static fields
             var edgeFields = typeof(EdgeGrantsCache).GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             foreach (var field in edgeFields)
             {
@@ -488,7 +478,7 @@ public sealed class GrantsNeuronAdversarialFacts
                     $"EdgeGrantsCache has static collection field '{field.Name}' of type '{type.Name}'. Open-ended caches must be instance fields.");
             }
 
-            // Check 3: Instance isolation verification
+            // Check 2: Instance isolation verification
             var cache1 = new EdgeGrantsCache();
             var cache2 = new EdgeGrantsCache();
 

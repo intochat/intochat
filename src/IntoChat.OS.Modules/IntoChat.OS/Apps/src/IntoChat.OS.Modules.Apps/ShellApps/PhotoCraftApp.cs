@@ -88,16 +88,7 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
 {
     public IFilesVfsService? FilesVfs { get; set; }
 
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "photocraft",
-        "PhotoCraft",
-        "1.1.0",
-        [],
-        new DigitalBrain.AppRequirements([]))
-    {
-        Accent = "#06B6D4",
-        Category = "Studio",
-    };
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(PhotoCraftApp));
 
     public static AppBundle Bundle { get; } = new(
         "photocraft",

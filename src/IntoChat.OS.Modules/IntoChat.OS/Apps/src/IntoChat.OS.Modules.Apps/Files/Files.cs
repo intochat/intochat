@@ -74,11 +74,12 @@ public sealed record FilesState
 
 // Files uses storage@1 only. The host persists snapshots and submits plans to the runtime's confirmation/operation gate.
 [App("files", Accent = "#F6B73C", Category = "Workspace")]
-public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state) : App
+public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state, IReadOnlyList<IStorage>? storages = null) : App
 {
     public const int PageSize = 100;
     public static readonly TimeSpan DefaultSearchLimit = TimeSpan.FromSeconds(2);
-    public static AppManifest Manifest { get; } = new("files", "Files", "3.0.1", [], new([Capability.Storage.V1]));
+    public static AppDefinition Definition { get; } = new(typeof(FilesApp));
+    public IReadOnlyList<IStorage>? Storages { get; } = storages;
     public FilesState Snapshot { get; private set; } = state;
     public TimeSpan SearchLimit { get; set; } = DefaultSearchLimit;
     public IReadOnlySet<string> InstalledApps { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

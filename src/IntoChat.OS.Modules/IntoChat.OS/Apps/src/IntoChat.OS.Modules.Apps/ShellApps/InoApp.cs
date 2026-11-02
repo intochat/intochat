@@ -105,12 +105,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 
     public ITaskEngine? TaskEngine { get; set; }
 
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "ino",
-        "Ino",
-        "3.5.0",
-        [typeof(UserSettingsNeuron)],
-        new DigitalBrain.AppRequirements([]));
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(InoApp));
 
     public static AppBundle Bundle { get; } = new(
         "ino",

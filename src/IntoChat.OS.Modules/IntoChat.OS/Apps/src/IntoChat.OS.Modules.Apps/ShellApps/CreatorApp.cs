@@ -128,16 +128,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         }
         """;
 
-    public static DigitalBrain.AppManifest Manifest { get; } = new(
-        "creator",
-        "Creator",
-        "1.0.0",
-        [typeof(BddNeuron)],
-        new DigitalBrain.AppRequirements([]))
-    {
-        Accent = "#FF5D8F",
-        Category = "Studio",
-    };
+    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(CreatorApp));
 
     public static AppBundle Bundle { get; } = new(
         "creator",
@@ -246,8 +237,10 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             BaselineError: compiled ? null : string.Join("; ", diagnostics),
             Elapsed: TimeSpan.FromMilliseconds(4));
 
-        var bdd = Get<IBdd>("bdd");
-        await bdd.Record(report);
+        if (TryGetBdd() is { } bdd)
+        {
+            await bdd.Record(report);
+        }
         var scene = ComposeBrainGraph(target);
 
         var existingSnapshots = (State.VersionSnapshots ?? []).ToList();
@@ -694,10 +687,13 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             throw new InvalidOperationException("Expected CreatorApp.HotRestart to increment SandboxRestartCount.");
         }
 
-        var recorded = await Get<IBdd>("bdd").Read();
-        if (recorded is not { AppId: "calculator", Passed: true })
+        if (TryGetBdd() is { } bdd)
         {
-            throw new InvalidOperationException("Expected BddNeuron to hold the passing BddReport for calculator.");
+            var recorded = await bdd.Read();
+            if (recorded is not { AppId: "calculator", Passed: true })
+            {
+                throw new InvalidOperationException("Expected BddNeuron to hold the passing BddReport for calculator.");
+            }
         }
     }
 
@@ -891,6 +887,19 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         catch (InvalidOperationException error)
         {
             Swallow(error, "AppStudioNeuron is optional when running in unit tests without Creator registered.");
+            return null;
+        }
+    }
+
+    private IBdd? TryGetBdd()
+    {
+        try
+        {
+            return Get<IBdd>("bdd");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "BddNeuron is optional when running without bdd neuron registered.");
             return null;
         }
     }

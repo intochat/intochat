@@ -1,6 +1,5 @@
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -126,7 +125,7 @@ public static class GrantRules
 
         if (request.SemanticTypeIds.Length == 0)
         {
-            if (SdkCapabilitySharing.IsConnectionBoundToFriend(caller, request.TargetNeuron))
+            if (EdgeGrantsCache.Current.IsConnectionBound(caller, request.TargetNeuron))
             {
                 return CallDecision.Allow();
             }
@@ -194,8 +193,8 @@ public static class GrantRules
         => AppOf(caller) is { } app && grants.Any(grant => !grant.Revoked
             && string.Equals(grant.WorkspaceId, caller.BrainId, StringComparison.Ordinal)
             && (string.Equals(grant.AppId, app, StringComparison.Ordinal)
-                || SdkCapabilitySharing.IsFriend(grant.AppId, app, semanticTypeId)
-                || (!string.IsNullOrWhiteSpace(targetNeuron) && SdkCapabilitySharing.IsFriend(grant.AppId, app, targetNeuron)))
+                || EdgeGrantsCache.Current.IsFriend(grant.AppId, app, semanticTypeId)
+                || (!string.IsNullOrWhiteSpace(targetNeuron) && EdgeGrantsCache.Current.IsFriend(grant.AppId, app, targetNeuron)))
             && string.Equals(grant.SemanticTypeId, semanticTypeId, StringComparison.Ordinal)
             && (grant.TargetNeuronKey is null || string.Equals(grant.TargetNeuronKey, targetNeuron, StringComparison.Ordinal))
             && ModeSatisfied(grant, caller));
