@@ -269,6 +269,11 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             existingSnapshots.Add(new CreatorVersionEntry(nextVersion, source, instruction));
         }
 
+        if (existingSnapshots.Count > 3)
+        {
+            existingSnapshots = existingSnapshots.TakeLast(3).ToList();
+        }
+
         var history = existingSnapshots.Select(s => s.Version).Distinct(StringComparer.Ordinal).ToArray();
 
         Set(State with
