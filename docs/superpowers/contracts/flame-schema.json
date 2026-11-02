@@ -32,11 +32,18 @@
       { "key": "width", "kind": "number", "required": false, "choices": [] },
       { "key": "height", "kind": "number", "required": false, "choices": [] } ] },
     { "type": "path", "parameters": [
-      { "key": "d", "kind": "text", "required": true, "choices": [] } ] },
+      { "key": "d", "kind": "text", "required": true, "choices": [] },
+      { "key": "color", "kind": "color", "required": false, "choices": [] },
+      { "key": "step", "kind": "number", "required": false, "choices": [] },
+      { "key": "opacity", "kind": "number", "required": false, "choices": [] },
+      { "key": "kind", "kind": "text", "required": false, "choices": [] },
+      { "key": "weight", "kind": "number", "required": false, "choices": [] } ] },
     { "type": "particles", "parameters": [
       { "key": "count", "kind": "number", "required": false, "choices": [] },
       { "key": "speed", "kind": "number", "required": false, "choices": [] },
-      { "key": "color", "kind": "color", "required": false, "choices": [] } ] },
+      { "key": "color", "kind": "color", "required": false, "choices": [] },
+      { "key": "step", "kind": "number", "required": false, "choices": [] },
+      { "key": "opacity", "kind": "number", "required": false, "choices": [] } ] },
     { "type": "group", "parameters": [] },
     { "type": "activity_ring", "parameters": [
       { "key": "items", "kind": "json", "required": false, "choices": [] },
@@ -52,6 +59,11 @@
       { "key": "state", "kind": "choice", "required": false, "choices": ["ready", "unready", "error"] },
       { "key": "error", "kind": "text", "required": false, "choices": [] },
       { "key": "neuron", "kind": "text", "required": false, "choices": [] },
-      { "key": "focused", "kind": "boolean", "required": false, "choices": [] } ] }
+      { "key": "focused", "kind": "boolean", "required": false, "choices": [] },
+      { "key": "graphId", "kind": "text", "required": false, "choices": [] },
+      { "key": "kind", "kind": "text", "required": false, "choices": [] },
+      { "key": "level", "kind": "text", "required": false, "choices": [] },
+      { "key": "group", "kind": "text", "required": false, "choices": [] },
+      { "key": "drill", "kind": "text", "required": false, "choices": [] } ] }
   ]
 }

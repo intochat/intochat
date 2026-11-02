@@ -121,11 +121,18 @@ abstract final class FlameSchema {
     ]),
     FlameNodeType('path', [
       FlameParam('d', FlameParamKind.text, required: true),
+      FlameParam('color', FlameParamKind.color),
+      FlameParam('step', FlameParamKind.number),
+      FlameParam('opacity', FlameParamKind.number),
+      FlameParam('kind', FlameParamKind.text),
+      FlameParam('weight', FlameParamKind.number),
     ]),
     FlameNodeType('particles', [
       FlameParam('count', FlameParamKind.number),
       FlameParam('speed', FlameParamKind.number),
       FlameParam('color', FlameParamKind.color),
+      FlameParam('step', FlameParamKind.number),
+      FlameParam('opacity', FlameParamKind.number),
     ]),
     FlameNodeType('group', []),
     FlameNodeType('activity_ring', [
@@ -148,6 +155,11 @@ abstract final class FlameSchema {
       FlameParam('error', FlameParamKind.text),
       FlameParam('neuron', FlameParamKind.text),
       FlameParam('focused', FlameParamKind.boolean),
+      FlameParam('graphId', FlameParamKind.text),
+      FlameParam('kind', FlameParamKind.text),
+      FlameParam('level', FlameParamKind.text),
+      FlameParam('group', FlameParamKind.text),
+      FlameParam('drill', FlameParamKind.text),
     ]),
   ];
 

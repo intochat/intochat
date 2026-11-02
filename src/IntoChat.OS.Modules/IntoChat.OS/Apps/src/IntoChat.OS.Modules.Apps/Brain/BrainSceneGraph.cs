@@ -40,7 +40,7 @@ public static partial class BrainSceneGraph
                 ["graphId"] = id,
                 ["kind"] = graph.Kinds[i].ToString().ToLowerInvariant(),
                 ["level"] = level.ToString().ToLowerInvariant(),
-                ["neuronId"] = id,
+                ["neuron"] = id,
             };
             if (group is not null) { parameters["group"] = group.Label; }
             if (Drill(level, focus, id, graph.Kinds[i], group) is { } drill) { parameters[DrillParameter] = drill; }

@@ -38,12 +38,14 @@ public static class FlameSchema
         new("rect", [Number("width"), Number("height"), Color("color"), Number("corner")]),
         new("text", [Needed("text"), Number("size"), Color("color"), Choice("align", "left", "center", "right")]),
         new("sprite", [Needed("src"), Number("width"), Number("height")]),
-        new("path", [Needed("d")]),
-        new("particles", [Number("count"), Number("speed"), Color("color")]),
+        new("path", [Needed("d"), Color("color"), Number("step"), Number("opacity"), Text("kind"), Number("weight")]),
+        new("particles", [Number("count"), Number("speed"), Color("color"), Number("step"), Number("opacity")]),
         new("group", []),
         new("activity_ring", [Json("items"), Number("radius")]),
         new("sphere", [Needed("icon"), Text("title"), Text("description"), Json("blackboard"), Json("side"), Json("main"), Json("toolbar"),
-            Choice("state", "ready", "unready", "error"), Text("error"), Text("neuron"), Boolean("focused")]),
+            Choice("state", "ready", "unready", "error"), Text("error"), Text("neuron"), Boolean("focused"),
+            // The brain graph view (brain-graph-plan Phase 2): the node id, its kind, the view level and group, and where a tap drills.
+            Text("graphId"), Text("kind"), Text("level"), Text("group"), Text("drill")]),
     ];
 
     // A tree is data the shell runs, so it is checked as strictly as parameters are: kinds, shape, size, ranges, and
