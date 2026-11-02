@@ -84,8 +84,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
     public async Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct)
     {
-
-        using var stampScope = CallerContextStamper.StampScope(CapabilityCallers.Of(brain.Value, brain.Value, brain.Value));
+        // The kernel reads its brain's connections as the platform: a user stamp made of the brain id is nobody's account.
+        using var stampScope = CallerContextStamper.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value));
         try
         {
             var summaries = await Requests(brain).ListConnections().WaitAsync(ct).ConfigureAwait(false);
@@ -193,8 +193,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     // Dedupes on the brain's pending requests: one pending request of a module providing the capability is enough.
     public async Task RequestConnection(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct)
     {
-
-        using var stampScope = CallerContextStamper.StampScope(CapabilityCallers.Of(brain.Value, brain.Value, brain.Value));
+        // The kernel reads its brain's connections as the platform: a user stamp made of the brain id is nobody's account.
+        using var stampScope = CallerContextStamper.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value));
         try
         {
             var requests = Requests(brain);

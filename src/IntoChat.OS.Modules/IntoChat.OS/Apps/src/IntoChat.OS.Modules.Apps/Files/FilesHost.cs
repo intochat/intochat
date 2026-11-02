@@ -50,7 +50,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
             if (CallerContextStamper.TryGet(out var stamped))
             {
-                CallerContextStamper.Stamp(stamped with { AppId = key });
+                CallerContextStamper.Stamp(HostCaller.AsApp(stamped, key));
                 try
                 {
                     await workspace.Open(CancellationToken.None);
@@ -112,7 +112,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
             var key = IApp.Key(brain, "files");
             var app = SiloNeurons.Get<IApp>(services, key);
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
-            CallerContextStamper.Stamp(caller with { AppId = key });
+            CallerContextStamper.Stamp(HostCaller.AsApp(caller, key));
             try
             {
                 if (request.Operation == "open")

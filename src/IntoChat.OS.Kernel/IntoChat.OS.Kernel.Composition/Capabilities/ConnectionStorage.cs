@@ -98,8 +98,8 @@ public sealed class ConnectionStorage(
             var slash = connectionKey.IndexOf('/', StringComparison.Ordinal);
             var owner = slash > 0 ? connectionKey[..slash] : connectionKey;
             var brain = current?.BrainId is { Length: > 0 } b ? b : owner;
-            stampScope = CallerContextStamper.StampScope(CapabilityCallers.Of(owner, owner, brain));
-
+            // The connection's owner here is a brain id, nobody's account: the kernel reads the connection as its platform.
+            stampScope = CallerContextStamper.StampScope(CapabilityCallers.Platform(owner, owner, brain));
         }
         try { return await call().ConfigureAwait(false); }
         catch (Exception error) when (error is not StorageException && StorageErrors.FromMessage(error.Message) is { } typed)

@@ -376,7 +376,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                     : await HostCaller.ForBrain(_services, BrainId).ConfigureAwait(false);
                 if (baseCaller is not null)
                 {
-                    stampScope = CallerContextStamper.StampScope(baseCaller with { AppId = filesAppKey });
+                    stampScope = CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, filesAppKey));
 
                 }
             }

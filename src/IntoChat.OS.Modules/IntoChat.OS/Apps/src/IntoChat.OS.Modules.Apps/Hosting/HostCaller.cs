@@ -30,4 +30,12 @@ internal static class HostCaller
         }
         return fallback;
     }
+
+    // A person's stamp names the app it acts through; a platform stamp stays the platform, since naming an app on it would
+    // turn the brain id into a user's principal and account that the authority denies.
+    public static CapabilityCaller AsApp(CapabilityCaller caller, string appKey)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        return caller.Kind is CallerKind.User or CallerKind.App ? caller with { AppId = appKey } : caller;
+    }
 }
