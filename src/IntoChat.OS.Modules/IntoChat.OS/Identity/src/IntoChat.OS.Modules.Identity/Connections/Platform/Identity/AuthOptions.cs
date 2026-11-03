@@ -26,6 +26,7 @@ public sealed class AuthOptions
     // it owns its own brain before the brain's authority records any membership. Every owner rule asks this.
     public const string OpenOwner = "owner";
 
+    [Obsolete("Ownership is the directory's Owner membership; removed in 0.13.")]
     public static bool IsOpenPostureOwner(IdentityPosture? posture, CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);

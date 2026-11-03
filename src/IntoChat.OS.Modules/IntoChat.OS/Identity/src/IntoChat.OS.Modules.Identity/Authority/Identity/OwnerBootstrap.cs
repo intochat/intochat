@@ -5,7 +5,8 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Identity;
 
-internal sealed class OwnerBootstrap(IIdentityClient identity, BrainBirths births, IOptions<AuthOptions> options, TimeProvider clock) : IStartupTask
+// Runs on every start so an upgraded home (such as a 0.11 Open-posture brain with no members) gains the Owner membership row idempotently.
+internal sealed class OwnerBootstrap(IIdentityClient identity, IBrainBirths births, IOptions<AuthOptions> options, TimeProvider clock) : IStartupTask
 {
     public async Task Execute(CancellationToken cancellationToken)
     {

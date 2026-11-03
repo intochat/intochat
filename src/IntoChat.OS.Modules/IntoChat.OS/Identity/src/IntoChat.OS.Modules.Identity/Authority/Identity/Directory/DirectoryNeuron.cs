@@ -238,24 +238,30 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     // only the 30 s timeout ended, so every first call after a start failed (reconciler, compiled apps, brain scene).
     private static CapabilityCaller AuthorityReader(string brain) => CapabilityCallers.Platform(IDirectoryStore.Type, "system", brain);
 
-    private Grants.IGrantsNeuron GrantsOf(string brain) => SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(brain));
+    private Grants.IGrantsNeuron? GrantsOf(string brain)
+        => Context.Services.GetService<IGrainFactory>() is not null
+            ? SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(brain))
+            : null;
 
     private async Task<Grant[]> ReadGrants(string brain)
     {
+        if (GrantsOf(brain) is not { } grants) { return []; }
         using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
-        return await GrantsOf(brain).List();
+        return await grants.List();
     }
 
     private async Task WriteGrant(string brain, Grant grant)
     {
+        if (GrantsOf(brain) is not { } grants) { return; }
         using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
-        await GrantsOf(brain).Grant(grant);
+        await grants.Grant(grant);
     }
 
     private async Task RevokeGrant(string brain, string grantId)
     {
+        if (GrantsOf(brain) is not { } grants) { return; }
         using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
-        await GrantsOf(brain).Revoke(grantId);
+        await grants.Revoke(grantId);
     }
 
     public async Task<CallDecision?> Authorize(CallRequest request)
@@ -437,7 +443,6 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     {
         if (!CallerContextStamper.IsTrusted(caller) || caller.Kind != CallerKind.User || caller.BrainId.Length == 0)
         { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }
-        if (AuthOptions.IsOpenPostureOwner(auth.Value.Posture, caller)) { return Initialize(state, caller.AccountId, caller.BrainId); }
         if (MemberOf(BrainOf(state, caller.BrainId), caller.PrincipalId)?.Role != MemberRole.Owner)
         { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }
         return state;

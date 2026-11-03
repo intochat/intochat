@@ -132,13 +132,14 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         return null;
     }
 
-    // A person, not an app or a script, who owns this brain: its Owner member, or the Open posture's owner in its own
-    // brain, by the same rule the brain's authority grants with.
+    // A person, not an app or a script, who owns this brain: its Owner member in the directory.
     internal async Task<bool> IsOwner(string scope, CapabilityCaller? caller)
-        => directory is not null && caller?.Kind == CallerKind.User && caller.StampedBy != TrustedEdge.AppProxy
+    {
+        _ = auth;
+        return directory is not null && caller?.Kind == CallerKind.User && caller.StampedBy != TrustedEdge.AppProxy
             && BrainScope.Create(caller.AccountId, caller.BrainId).Id == scope
-            && (AuthOptions.IsOpenPostureOwner(auth?.Value.Posture, caller)
-                || (await (await directory.Identity()).Membership(scope, caller.PrincipalId))?.Role == Idn.MemberRole.Owner);
+            && (await (await directory.Identity()).Membership(scope, caller.PrincipalId))?.Role == Idn.MemberRole.Owner;
+    }
 
     private async Task RollBack(string appKey, string[]? types, CapabilityCaller? caller)
     {
