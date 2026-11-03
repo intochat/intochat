@@ -1,3 +1,8 @@
+using System.Reflection;
+using DigitalBrain.Apps.Hosting;
+using DigitalBrain.Contracts;
+using DigitalBrain.Runtime.Apps;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -42,6 +47,16 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
         services.TryAddSingleton<SideloadInstaller>();
+        services.TryAddSingleton<SideloadDesk>();
+        services.TryAddSingleton<AppPresentationSink>();
+        services.TryAddSingleton<IPresentationSink>(sp => sp.GetRequiredService<AppPresentationSink>());
+        services.TryAddSingleton<InProcessAppHost>(sp => new InProcessAppHost(
+            neuronResolver: (contractType, neuronKey) => ResolveNeuron(sp, contractType, neuronKey),
+            capabilityResolver: capType => sp.GetService(capType)
+                ?? throw new InvalidOperationException($"Capability '{capType.Name}' is not registered."),
+            sink: sp.GetRequiredService<IPresentationSink>(),
+            services: serviceType => sp.GetService(serviceType)));
+        services.TryAddSingleton<IAppHost>(sp => sp.GetRequiredService<InProcessAppHost>());
         services.TryAddSingleton<AppWorkQueue>();
         services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
@@ -56,8 +71,32 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, SettingsSideloadLifecycle>();
         services.AddSingleton<DevAppGate>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, InProcessAppRuntime>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, AppGraphSource>();
+    }
+
+    private static object ResolveNeuron(IServiceProvider services, Type contractType, string neuronKey)
+    {
+        var brain = CallerContextStamper.TryGet(out var caller) && !string.IsNullOrWhiteSpace(caller.BrainId)
+            ? caller.BrainId
+            : DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current is { BrainId: { Length: > 0 } b }
+                ? b
+                : "owner";
+        var fullKey = neuronKey.Contains('/', StringComparison.Ordinal) && BrainKey.BrainOf(neuronKey).Length > 0
+            ? neuronKey
+            : $"{brain}/{neuronKey}";
+        if (contractType.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is not null)
+        {
+            return SiloNeurons.Get(services, contractType, fullKey);
+        }
+
+        var alias = contractType.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
+            ?? contractType.GetCustomAttribute<DigitalBrain.NeuronAttribute>(inherit: false)?.Type
+            ?? throw new InvalidOperationException($"Contract {contractType.Name} has neither DefaultNeuronType nor NeuronAlias.");
+        var sep = fullKey.IndexOf('/', StringComparison.Ordinal);
+        var id = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(fullKey[..sep]), alias, fullKey[(sep + 1)..]);
+        return SiloNeurons.Get(services, contractType, id);
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

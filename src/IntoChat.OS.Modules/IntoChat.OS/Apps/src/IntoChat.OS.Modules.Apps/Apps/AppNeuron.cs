@@ -42,7 +42,7 @@ internal sealed partial class AppNeuron(
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await Interrupt();
-        if (!Snapshot.MigrationPaused && Snapshot.Manifest is not null && Snapshot.Files.Keys.Any(AppFiles.IsProgram))
+        if (!Snapshot.MigrationPaused && Snapshot.Manifest is not null && HasProgram(Snapshot))
         { _ = Get<IAppDeploy>(Id).Restore(); }
     }
 
@@ -454,6 +454,14 @@ internal sealed partial class AppNeuron(
         next.Spec = bundle.Spec;
         next.Files = bundle.Files;
         next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
+        {
+            next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
+        }
+        if (bundle.PrebuiltBehaviors is { Count: > 0 })
+        {
+            next.PutSetting(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, InProcessAppRuntime.SerializePrebuiltBehaviors(bundle.PrebuiltBehaviors));
+        }
         next.Connections = new Dictionary<string, string>();
         next.Version = bundle.Version;
         next.Installation = installation;
@@ -489,6 +497,14 @@ internal sealed partial class AppNeuron(
         next.Files = bundle.Files;
         foreach (var setting in bundle.Manifest.Settings)
         { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
+        if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
+        {
+            next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
+        }
+        if (bundle.PrebuiltBehaviors is { Count: > 0 })
+        {
+            next.PutSetting(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, InProcessAppRuntime.SerializePrebuiltBehaviors(bundle.PrebuiltBehaviors));
+        }
         next.Version = bundle.Version;
         Adopt(next, origin);
         // Settings, connections and the app's stored data stay; only the program is the bundle's.
@@ -761,7 +777,7 @@ internal sealed partial class AppNeuron(
     {
         if (Snapshot.MigrationPaused || Snapshot.Manifest is null || Runtime is not { } runtime) { return; }
         var sources = Sources(Snapshot);
-        if (sources.Count == 0) { return; }
+        if (!HasProgram(Snapshot)) { return; }
         var configuration = Configuration(Snapshot);
         var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
         var principal = Snapshot.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
@@ -784,7 +800,33 @@ internal sealed partial class AppNeuron(
         }
     }
 
-    private IAppRuntime? Runtime => runtimes.FirstOrDefault();
+    private IAppRuntime? Runtime => SelectRuntime(Snapshot);
+
+    private IAppRuntime? SelectRuntime(AppState state)
+    {
+        var bundle = CurrentBundle(state);
+        return runtimes.FirstOrDefault(r => r.Accepts(bundle)) ?? runtimes.FirstOrDefault();
+    }
+
+    private AppBundle CurrentBundle(AppState state)
+    {
+        state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var compiledType);
+        var prebuilt = InProcessAppRuntime.ExtractPrebuiltBehaviors(new(state.Files, StringComparer.Ordinal), new(state.Settings, StringComparer.Ordinal));
+        return new AppBundle(
+            Name(),
+            state.Version,
+            state.Manifest ?? new("", "", [], [], []),
+            state.Spec,
+            new(state.Files, StringComparer.Ordinal),
+            prebuilt.Count > 0 ? prebuilt : null,
+            compiledType);
+    }
+
+    private static bool HasProgram(AppState state)
+        => state.Files.Keys.Any(AppFiles.IsProgram)
+            || state.Files.Keys.Any(static k => k.EndsWith(".dll.base64", StringComparison.Ordinal))
+            || (state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var ct) && !string.IsNullOrWhiteSpace(ct))
+            || (state.Settings.TryGetValue(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, out var pb) && !string.IsNullOrWhiteSpace(pb));
 
     private static Dictionary<string, string> Sources(AppState state)
         => state.Files.Where(file => AppFiles.IsProgram(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
@@ -796,7 +838,7 @@ internal sealed partial class AppNeuron(
         await RecordFeature();
         if (Runtime is not { } runtime) { return; }
         var sources = Sources(Snapshot);
-        if (sources.Count == 0) { await runtime.Retire(Key, CancellationToken.None); return; }
+        if (!HasProgram(Snapshot)) { await runtime.Retire(Key, CancellationToken.None); return; }
         var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
         var principal = Snapshot.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
         if (principal is not null) { CallerContextStamper.Stamp(principal); }

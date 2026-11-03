@@ -240,7 +240,7 @@ internal sealed class ReactionWriter(
         return new([], attempts, basis?.Name, written.Path, deployed.Hashes.GetValueOrDefault(written.Path!), program.Sources);
     }
 
-    private IAppRuntime? Runtime => runtimes.FirstOrDefault();
+    private IAppRuntime? Runtime => runtimes.FirstOrDefault(r => r.Accepts(new AppBundle("app", "1.0.0", new("", "", [], [], []), "", new() { ["main.cs"] = "// cs" }))) ?? runtimes.FirstOrDefault();
 
     // The whole program to the runtime, asked again while a call times out (a repeat joins the deploy in flight).
     // Unsettled stays set when no call answered: the program may land after all, and Reconcile undoes it.

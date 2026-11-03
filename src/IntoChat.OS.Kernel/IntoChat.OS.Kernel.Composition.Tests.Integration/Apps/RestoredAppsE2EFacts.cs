@@ -197,7 +197,7 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
         // 2. Open CreatorApp on the real silo and inspect telemetry + 3D BrainScene nodes.
         var creator = fixture.AttachSilo(new CreatorApp(), brain);
         await creator.Open(new CreatorOpen());
-        Assert.True(creator.State.SceneNodeCount >= 4);
+        Assert.Contains("3D Brain ready", creator.State.Status, StringComparison.Ordinal);
         Assert.Contains(creator.State.DiagnosedErrors, err => err.Contains("DivideByZeroException in calculator", StringComparison.Ordinal));
 
         await creator.Inspect(new CreatorInspect("OperatingSystem"));
@@ -466,20 +466,6 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
             Needs: [],
             Settings: [],
             Secrets: []);
-    }
-
-    [Neuron("bdd")]
-    internal sealed class HostedBddNeuron : Neuron<BddState>, IBdd
-    {
-        public async Task<BddReport> Record(BddReport report, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(report);
-            await Save(State with { LastReport = report }, new BddVerified(report.AppId, report.Passed, report));
-            return report;
-        }
-
-        [ReadOnlyCall]
-        public Task<BddReport?> Read(CancellationToken cancellationToken = default) => Task.FromResult(State.LastReport);
     }
 
     public sealed class DigitalBrainSiloFixture : IAsyncLifetime

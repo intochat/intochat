@@ -9,6 +9,12 @@ namespace IntoChat.OS.Modules.Apps;
 // so a deploy replaces whatever that app ran before. The app program ({brain}/app/{name}) keeps the record of what was built.
 internal sealed class CSharpAppRuntime(IServiceProvider plain) : IAppRuntime
 {
+    public bool Accepts(AppBundle bundle)
+        => bundle is not null
+            && string.IsNullOrWhiteSpace(bundle.CompiledType)
+            && (bundle.PrebuiltBehaviors is null || bundle.PrebuiltBehaviors.Count == 0)
+            && bundle.Files.Keys.Any(AppFiles.IsProgram);
+
     public async Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
     {
         var program = await Programs(appKey).Assign(appKey, sources, configuration).WaitAsync(cancellationToken);

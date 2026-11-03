@@ -4,6 +4,8 @@ namespace IntoChat.OS.Modules.Apps;
 // runtime (no csharp module) registers none and apps are data only.
 public interface IAppRuntime
 {
+    bool Accepts(AppBundle bundle);
+
     // Compiles and runs the whole program; throws when it does not compile, leaving the previous program running.
     // Answers each synapse's assembly hash by path: the hash its run facts carry. A call that times out may
     // still land; the same program deployed again joins the deploy in flight (or answers the one applied)

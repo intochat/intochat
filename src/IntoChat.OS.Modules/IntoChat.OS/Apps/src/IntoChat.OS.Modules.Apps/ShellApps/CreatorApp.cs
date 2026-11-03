@@ -830,7 +830,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                 var snapshot = await graph.Snapshot(DigitalBrain.Graph.GraphLevel.Brain, null);
                 return BrainSceneGraph.Compose(snapshot, DigitalBrain.Graph.GraphLevel.Brain, null, [], 1.0);
             }
-            catch (InvalidOperationException error)
+            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
             {
                 Swallow(error, "The brain graph is unavailable; the Creator scene stays empty.");
             }

@@ -6,4 +6,6 @@ public sealed record AppBundle(
     string Version,
     AppManifest Manifest,
     string Spec,
-    Dictionary<string, string> Files);
+    Dictionary<string, string> Files,
+    Dictionary<string, DigitalBrain.Apps.Hosting.PrebuiltBehavior>? PrebuiltBehaviors = null,
+    string? CompiledType = null);
