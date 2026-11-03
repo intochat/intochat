@@ -222,7 +222,7 @@ public sealed partial class FrameworkBoundaryFacts
         Assert.True(offenders.Length == 0, "Build files may only name paths inside the repository:\n" + string.Join('\n', offenders));
     }
 
-    // Kept from NuGetOnlyConsumptionFacts: restores go through the committed nuget.config (nuget.org only).
+    // Kept from NuGetOnlyConsumptionFacts: restores go through the committed nuget.config.
     [Fact]
     public void WorkflowsRestoreFromTheCommittedConfigOnly()
     {
@@ -232,7 +232,7 @@ public sealed partial class FrameworkBoundaryFacts
         Assert.True(offenders.Length == 0, "Workflows restore through the committed nuget.config: " + string.Join(", ", offenders));
     }
 
-    [GeneratedRegex("local" + "-feed|Restore" + "ConfigFile", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("local" + "-feed|Restore" + "ConfigFile|\\.\\./nuget|\\.nuget-local", RegexOptions.IgnoreCase)]
     private static partial Regex LocalFeed();
 
     // Kept from NuGetOnlyConsumptionFacts.
