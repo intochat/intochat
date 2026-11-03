@@ -32,7 +32,7 @@ class UnifiedAppHeader extends StatefulWidget {
     this.onToggleMenu,
     this.tabs = const [],
     this.onMoveDelta,
-  });
+  }) : inWindowHeader = false;
 
   final DesktopWindowState window;
   final bool focused;
@@ -51,6 +51,31 @@ class UnifiedAppHeader extends StatefulWidget {
   final VoidCallback? onToggleMenu;
   final List<DesktopTabSpec> tabs;
   final ValueChanged<Offset>? onMoveDelta;
+  final bool inWindowHeader;
+
+  /// In-window app header rendering the tab strip below the 38px window `_TitleBar`.
+  const UnifiedAppHeader.inWindow({
+    super.key,
+    required this.window,
+    required this.focused,
+    required this.tabs,
+  }) : zoomed = false,
+       canMove = false,
+       desk = Size.zero,
+       onToggleZoom = _noop,
+       onPin = _noop,
+       isPinned = false,
+       onReload = _noop,
+       onHardRestartSandbox = _noop,
+       onFocus = null,
+       onClose = null,
+       onMinimize = null,
+       menuOpen = false,
+       onToggleMenu = null,
+       onMoveDelta = null,
+       inWindowHeader = true;
+
+  static void _noop() {}
 
   @override
   State<UnifiedAppHeader> createState() => _UnifiedAppHeaderState();
@@ -101,6 +126,18 @@ class _UnifiedAppHeaderState extends State<UnifiedAppHeader>
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
     final w = widget.window;
+
+    if (widget.inWindowHeader) {
+      return Container(
+        height: 34,
+        decoration: BoxDecoration(
+          color: c.surfaceSunk.withValues(alpha: 0.45),
+          border: Border(bottom: BorderSide(color: c.borderHairline)),
+        ),
+        alignment: Alignment.centerLeft,
+        child: _buildTabCluster(c),
+      );
+    }
 
     return Listener(
       onPointerDown: _onPointerDown,

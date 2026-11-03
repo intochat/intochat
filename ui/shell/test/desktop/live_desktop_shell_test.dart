@@ -550,7 +550,7 @@ void main() {
   );
 
   testWidgets(
-    'SpatialAppCanvas toggle in OsBar switches to infinite canvas, displays cards with UnifiedAppHeader, and supports Smart Sort',
+    'Workspace app opens SpatialAppCanvas in a window, displays cards with UnifiedAppHeader, and supports Smart Sort',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -600,17 +600,17 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      // Initially in Classic Desktop mode
+      // Initially 2 windows open, no SpatialAppCanvas
       expect(find.byType(SpatialAppCanvas), findsNothing);
       expect(find.byType(WindowFrame), findsNWidgets(2));
 
-      // 1. Toggle to Experimental Spatial Canvas via OsBar toggle
-      await tester.tap(find.byKey(const ValueKey('os-bar-spatial-toggle')));
+      // 1. Launch Workspace app from dock
+      await tester.tap(find.byKey(const ValueKey('dock-item-workspace')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.byType(SpatialAppCanvas), findsOneWidget);
-      expect(find.byType(WindowFrame), findsNothing);
+      expect(find.byType(WindowFrame), findsNWidgets(3));
       expect(
         find.byKey(const ValueKey('spatial-card-pos-w-1')),
         findsOneWidget,
@@ -633,19 +633,11 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('canvas-smart-sort-btn')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
-
-      // 4. Toggle back to Classic Desktop
-      await tester.tap(find.byKey(const ValueKey('os-bar-spatial-toggle')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-
-      expect(find.byType(SpatialAppCanvas), findsNothing);
-      expect(find.byType(WindowFrame), findsNWidgets(2));
     },
   );
 
   testWidgets(
-    'Clicking App settings in dock menu or window titlebar opens Settings window and navigates to app settings section',
+    'Clicking App settings in dock menu or window titlebar opens Brain graph focused on that app',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -710,14 +702,15 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      // Settings window opens immediately and navigates to apps:photocraft
+      // Brain window opens immediately and focuses on brain-1/apps/photocraft
       expect(find.byType(WindowFrame), findsNWidgets(3));
-      expect(find.text('Viewport: brain-1/apps/settings/view'), findsOneWidget);
+      expect(find.text('Viewport: brain-1/apps/brain/view'), findsOneWidget);
       expect(
-        actions.any(
+        activations.any(
           (a) =>
-              a['name'] == 'brain-1/apps/settings/view' &&
-              a['action'] == 'navigate:apps:photocraft',
+              a['application'] == 'brain' &&
+              a['operation'] == 'open' &&
+              a['input'] == '{"focus":"brain-1/apps/photocraft"}',
         ),
         isTrue,
       );

@@ -5,7 +5,7 @@ import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'unified_app_header.dart';
 
-const double kDesktopTitleBarHeight = kUnifiedAppHeaderHeight;
+const double kDesktopTitleBarHeight = 38.0;
 
 class DesktopWindowState extends ChangeNotifier {
   DesktopWindowState({
@@ -255,7 +255,7 @@ class _WindowFrameState extends State<WindowFrame> {
         final innerContent = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            UnifiedAppHeader(
+            _TitleBar(
               window: w,
               focused: widget.focused,
               zoomed: zoomed,
@@ -271,8 +271,13 @@ class _WindowFrameState extends State<WindowFrame> {
               onHardRestartSandbox: _handleHardRestartSandbox,
               menuOpen: _menuOpen,
               onToggleMenu: () => setState(() => _menuOpen = !_menuOpen),
-              tabs: widget.tabs,
             ),
+            if (widget.tabs.length > 1)
+              UnifiedAppHeader.inWindow(
+                window: w,
+                focused: widget.focused,
+                tabs: widget.tabs,
+              ),
             Expanded(
               child: Listener(
                 behavior: HitTestBehavior.translucent,
@@ -332,8 +337,8 @@ class _WindowFrameState extends State<WindowFrame> {
               ),
               if (_menuOpen)
                 Positioned(
-                  left: 10,
-                  top: kUnifiedAppHeaderHeight + 4,
+                  right: 10,
+                  top: kDesktopTitleBarHeight + 4,
                   width: 320,
                   child: AppTestingMenuPopover(
                     window: w,
@@ -381,6 +386,346 @@ class _WindowFrameState extends State<WindowFrame> {
           child: body,
         );
       },
+    );
+  }
+}
+
+class _TitleBar extends StatefulWidget {
+  const _TitleBar({
+    required this.window,
+    required this.focused,
+    required this.zoomed,
+    required this.canMove,
+    required this.desk,
+    required this.onToggleZoom,
+    required this.onPin,
+    required this.isPinned,
+    required this.onReload,
+    required this.onHardRestartSandbox,
+    required this.menuOpen,
+    required this.onToggleMenu,
+    this.onFocus,
+    this.onClose,
+    this.onMinimize,
+  });
+
+  final DesktopWindowState window;
+  final bool focused;
+  final bool zoomed;
+  final bool canMove;
+  final Size desk;
+  final VoidCallback onToggleZoom;
+  final VoidCallback onPin;
+  final bool isPinned;
+  final VoidCallback onReload;
+  final VoidCallback onHardRestartSandbox;
+  final bool menuOpen;
+  final VoidCallback onToggleMenu;
+  final VoidCallback? onFocus;
+  final VoidCallback? onClose;
+  final VoidCallback? onMinimize;
+
+  @override
+  State<_TitleBar> createState() => _TitleBarState();
+}
+
+class _TitleBarState extends State<_TitleBar>
+    with SingleTickerProviderStateMixin {
+  bool _hoverControls = false;
+  late final AnimationController _spinController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 600),
+  );
+
+  DateTime _lastDown = DateTime(0);
+  Offset _lastPos = Offset.zero;
+
+  @override
+  void dispose() {
+    _spinController.dispose();
+    super.dispose();
+  }
+
+  void _onDown(PointerDownEvent e) {
+    final now = DateTime.now();
+    final quick = now.difference(_lastDown) < const Duration(milliseconds: 350);
+    final near = (e.position - _lastPos).distance < 6;
+    _lastDown = now;
+    _lastPos = e.position;
+    if (quick && near && !_hoverControls && !widget.menuOpen) {
+      _lastDown = DateTime(0);
+      widget.onToggleZoom();
+    } else {
+      widget.onFocus?.call();
+    }
+  }
+
+  void _triggerReload({bool hard = false}) {
+    _spinController.forward(from: 0);
+    if (hard) {
+      widget.onHardRestartSandbox();
+    } else {
+      widget.onReload();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    final w = widget.window;
+    final effectivePinned = widget.isPinned || w.isPinned;
+
+    return Listener(
+      onPointerDown: _onDown,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanStart: widget.canMove ? (_) => widget.onFocus?.call() : null,
+        onPanUpdate: widget.canMove
+            ? (d) => w.moveBy(d.delta, widget.desk)
+            : null,
+        child: Container(
+          height: kDesktopTitleBarHeight,
+          decoration: BoxDecoration(
+            color: widget.focused ? c.titleBarFocused : c.titleBarBlurred,
+            border: Border(bottom: BorderSide(color: c.borderHairline)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Left: three 12px traffic lights, 8px apart
+              Align(
+                alignment: Alignment.centerLeft,
+                child: MouseRegion(
+                  onEnter: (_) => setState(() => _hoverControls = true),
+                  onExit: (_) => setState(() => _hoverControls = false),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _Light(
+                        key: ValueKey('window-close-btn-${w.id}'),
+                        color: c.error,
+                        active: widget.focused || _hoverControls,
+                        glyph: LucideIcons.x,
+                        showGlyph: _hoverControls,
+                        label: 'Close',
+                        onTap: widget.onClose ?? () {},
+                      ),
+                      const SizedBox(width: 8),
+                      _Light(
+                        key: ValueKey('window-minimize-btn-${w.id}'),
+                        color: c.working,
+                        active: widget.focused || _hoverControls,
+                        glyph: LucideIcons.minus,
+                        showGlyph: _hoverControls,
+                        label: 'Minimise',
+                        onTap: widget.onMinimize ?? () {},
+                      ),
+                      const SizedBox(width: 8),
+                      _Light(
+                        key: ValueKey('window-zoom-btn-${w.id}'),
+                        color: c.done,
+                        active: widget.focused || _hoverControls,
+                        glyph: widget.zoomed
+                            ? LucideIcons.minimize2
+                            : LucideIcons.maximize2,
+                        showGlyph: _hoverControls,
+                        label: 'Zoom',
+                        onTap: widget.onToggleZoom,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Centre: title 13/600 (+ optional sandbox status pill)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 96),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        w.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: IcType.text(
+                          13,
+                          weight: FontWeight.w600,
+                          color: widget.focused ? c.textStrong : c.textMuted,
+                        ),
+                      ),
+                    ),
+                    if (w.sandboxStatusBadge != null) ...[
+                      const SizedBox(width: 6),
+                      TagPill(
+                        label: w.sandboxStatusBadge!,
+                        tone: TagTone.accent,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Right: OS tools overflow group (reload, pin, settings menu)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _OverflowActionButton(
+                      key: ValueKey('window-reload-btn-${w.id}'),
+                      tooltip: 'Reload viewport (long-press for hard restart)',
+                      icon: LucideIcons.rotateCw,
+                      spinAnimation: _spinController,
+                      color: c.textMuted,
+                      onTap: () => _triggerReload(hard: false),
+                      onLongPress: () => _triggerReload(hard: true),
+                    ),
+                    const SizedBox(width: 2),
+                    _OverflowActionButton(
+                      key: ValueKey('window-pin-btn-${w.id}'),
+                      tooltip: effectivePinned
+                          ? 'Unpin window'
+                          : 'Pin window (always on top)',
+                      icon: effectivePinned
+                          ? LucideIcons.pinOff
+                          : LucideIcons.pin,
+                      active: effectivePinned,
+                      color: effectivePinned ? c.accent : c.textMuted,
+                      onTap: widget.onPin,
+                    ),
+                    const SizedBox(width: 2),
+                    _OverflowActionButton(
+                      key: ValueKey('window-settings-btn-${w.id}'),
+                      tooltip: 'Window & Sandbox options',
+                      icon: LucideIcons.moreHorizontal,
+                      active: widget.menuOpen,
+                      color: widget.menuOpen ? c.accent : c.textMuted,
+                      onTap: widget.onToggleMenu,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Light extends StatelessWidget {
+  const _Light({
+    super.key,
+    required this.color,
+    required this.active,
+    required this.glyph,
+    required this.showGlyph,
+    required this.label,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool active;
+  final IconData glyph;
+  final bool showGlyph;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        onDoubleTap: () {},
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: active ? color : c.borderInput,
+              shape: BoxShape.circle,
+            ),
+            child: showGlyph
+                ? Icon(glyph, size: 8, color: const Color(0xB317140F))
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OverflowActionButton extends StatefulWidget {
+  const _OverflowActionButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.onLongPress,
+    this.active = false,
+    this.spinAnimation,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool active;
+  final Animation<double>? spinAnimation;
+
+  @override
+  State<_OverflowActionButton> createState() => _OverflowActionButtonState();
+}
+
+class _OverflowActionButtonState extends State<_OverflowActionButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    Widget iconWidget = Icon(
+      widget.icon,
+      size: 13.5,
+      color: widget.active
+          ? widget.color
+          : (_hover ? c.textStrong : widget.color),
+    );
+    if (widget.spinAnimation != null) {
+      iconWidget = RotationTransition(
+        turns: widget.spinAnimation!,
+        child: iconWidget,
+      );
+    }
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
+          child: Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: widget.active
+                  ? widget.color.withValues(alpha: 0.14)
+                  : (_hover ? c.surfaceSunk : Colors.transparent),
+              borderRadius: BorderRadius.circular(IcRadius.button),
+            ),
+            child: iconWidget,
+          ),
+        ),
+      ),
     );
   }
 }

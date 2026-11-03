@@ -22,13 +22,11 @@ class OsBar extends StatelessWidget {
     this.focusedAppId = 'ino',
     this.paletteOpen = false,
     this.showingDesktop = false,
-    this.spatialCanvas = false,
     this.notifications = 2,
     this.tokensToday = 14800,
     this.connected = true,
     this.onTogglePalette,
     this.onToggleShowDesktop,
-    this.onToggleSpatialCanvas,
     this.onCycleStylePreset,
     this.onLaunchApp,
     this.onSecondaryTapApp,
@@ -37,6 +35,7 @@ class OsBar extends StatelessWidget {
     this.onOpenNotifications,
     this.onOpenCompute,
     this.onOpenClock,
+    this.profileMenu,
   });
 
   final BarLayout barLayout;
@@ -47,13 +46,11 @@ class OsBar extends StatelessWidget {
   final String? focusedAppId;
   final bool paletteOpen;
   final bool showingDesktop;
-  final bool spatialCanvas;
   final int notifications;
   final int tokensToday;
   final bool connected;
   final VoidCallback? onTogglePalette;
   final VoidCallback? onToggleShowDesktop;
-  final VoidCallback? onToggleSpatialCanvas;
   final VoidCallback? onCycleStylePreset;
   final ValueChanged<String>? onLaunchApp;
   final void Function(String appId, Offset globalPos)? onSecondaryTapApp;
@@ -62,6 +59,7 @@ class OsBar extends StatelessWidget {
   final VoidCallback? onOpenNotifications;
   final VoidCallback? onOpenCompute;
   final VoidCallback? onOpenClock;
+  final Widget? profileMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -93,9 +91,7 @@ class OsBar extends StatelessWidget {
                 if (onToggleShowDesktop != null) ...[
                   const SizedBox(width: 4),
                   _BarButton(
-                    tooltip: showingDesktop
-                        ? 'Restore open windows'
-                        : 'Show 3D DigitalBrain Desktop',
+                    tooltip: 'Home',
                     selected: showingDesktop,
                     onTap: onToggleShowDesktop!,
                     child: Row(
@@ -119,73 +115,48 @@ class OsBar extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (onToggleSpatialCanvas != null) ...[
-                  const SizedBox(width: 4),
-                  _BarButton(
-                    key: const ValueKey('os-bar-spatial-toggle'),
-                    tooltip: spatialCanvas
-                        ? 'Switch to Classic Desktop'
-                        : 'Switch to Experimental Spatial Canvas',
-                    selected: spatialCanvas,
-                    onTap: onToggleSpatialCanvas!,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          spatialCanvas
-                              ? LucideIcons.layoutGrid
-                              : LucideIcons.compass,
-                          size: 14,
-                          color: spatialCanvas ? c.accent : c.textBody,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          spatialCanvas ? 'Spatial' : 'Desktop',
-                          style: IcType.text(
-                            11.5,
-                            weight: FontWeight.w600,
-                            color: spatialCanvas ? c.textStrong : c.textBody,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final spec in apps)
-                _DockAppItem(
-                  key: ValueKey('dock-item-${spec.id}'),
-                  spec: spec,
-                  isOpen: openAppIds.contains(spec.id),
-                  isWorking: workingAppIds.contains(spec.id),
-                  isFocused: focusedAppId == spec.id,
-                  onTap: () => onLaunchApp?.call(spec.id),
-                  onSecondaryTapDown: (d) =>
-                      onSecondaryTapApp?.call(spec.id, d.globalPosition),
-                  onHoverChange: (hover, globalX) => onHoverTooltip?.call(
-                    hover ? '${spec.name} (${spec.neuronUri})' : null,
-                    globalX,
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final spec in apps)
+                  _DockAppItem(
+                    key: ValueKey('dock-item-${spec.id}'),
+                    spec: spec,
+                    isOpen: openAppIds.contains(spec.id),
+                    isWorking: workingAppIds.contains(spec.id),
+                    isFocused: focusedAppId == spec.id,
+                    onTap: () => onLaunchApp?.call(spec.id),
+                    onSecondaryTapDown: (d) =>
+                        onSecondaryTapApp?.call(spec.id, d.globalPosition),
+                    onHoverChange: (hover, globalX) => onHoverTooltip?.call(
+                      hover ? '${spec.name} (${spec.neuronUri})' : null,
+                      globalX,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           Align(
             alignment: Alignment.centerRight,
-            child: _StatusTray(
-              stylePreset: stylePreset,
-              notifications: notifications,
-              tokensToday: tokensToday,
-              connected: connected,
-              onCycleStylePreset: onCycleStylePreset,
-              onOpenNotifications: onOpenNotifications,
-              onOpenCompute: onOpenCompute,
-              onOpenSettings: onOpenSettings,
-              onOpenClock: onOpenClock,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: _StatusTray(
+                stylePreset: stylePreset,
+                notifications: notifications,
+                tokensToday: tokensToday,
+                connected: connected,
+                onCycleStylePreset: onCycleStylePreset,
+                onOpenNotifications: onOpenNotifications,
+                onOpenCompute: onOpenCompute,
+                onOpenSettings: onOpenSettings,
+                onOpenClock: onOpenClock,
+                profileMenu: profileMenu,
+              ),
             ),
           ),
         ],
@@ -363,6 +334,7 @@ class _StatusTray extends StatelessWidget {
     this.onOpenCompute,
     this.onOpenSettings,
     this.onOpenClock,
+    this.profileMenu,
   });
 
   final IcStylePreset stylePreset;
@@ -374,6 +346,7 @@ class _StatusTray extends StatelessWidget {
   final VoidCallback? onOpenCompute;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onOpenClock;
+  final Widget? profileMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -430,7 +403,7 @@ class _StatusTray extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         _BarButton(
-          tooltip: connected ? 'Brain connected (gRPC)' : 'Reconnecting…',
+          tooltip: 'Settings',
           onTap: onOpenSettings ?? () {},
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -495,6 +468,10 @@ class _StatusTray extends StatelessWidget {
             ),
           ),
         ),
+        if (profileMenu != null) ...[
+          const SizedBox(width: 4),
+          SizedBox(height: 32, child: profileMenu!),
+        ],
       ],
     );
   }

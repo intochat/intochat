@@ -4,20 +4,14 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart' show Theme, Brightness;
 import 'package:flutter/widgets.dart';
+import 'package:intochat_design_ui/intochat_design_ui.dart' as design_ui;
 
 import '../theme/ui_colors.dart';
 
-/// 3D Brain shader modes available across the 7 UI Identities.
-enum IcBrainShaderMode {
-  volumetricGlass('volumetric-glass', 'Volumetric Glass Spheres'),
-  architecturalBlueprint('architectural-blueprint', 'Architectural Blueprint'),
-  starMapConstellation('star-map', 'Star-Map Constellation'),
-  wireframeHud('wireframe-hud', 'Wireframe HUD');
+export 'package:intochat_design_ui/intochat_design_ui.dart'
+    show IcBrainShaderMode;
 
-  const IcBrainShaderMode(this.id, this.label);
-  final String id;
-  final String label;
-}
+typedef IcBrainShaderMode = design_ui.IcBrainShaderMode;
 
 /// Shell layout & positioning preset paired with a visual identity.
 enum BarLayout {
@@ -795,6 +789,61 @@ extension DesktopToneColor on DesktopTone {
   };
 }
 
+design_ui.IcColors _resolveDesignColors(BuildContext context) {
+  final c = IcTheme.of(context);
+  final designPreset = switch (c.preset) {
+    IcStylePreset.fluentAcrylic ||
+    IcStylePreset.fluentWarmMica => design_ui.IcStylePreset.fluentAcrylic,
+    IcStylePreset.spatialGlass => design_ui.IcStylePreset.spatialGlass,
+    IcStylePreset.cyberSynaptic => design_ui.IcStylePreset.cyberSynaptic,
+    IcStylePreset.warmPaper ||
+    IcStylePreset.nordicTactical => design_ui.IcStylePreset.warmPaper,
+    IcStylePreset.linearCarbon => design_ui.IcStylePreset.linearCarbon,
+  };
+  return design_ui.IcColors(
+    brightness: c.brightness,
+    preset: designPreset,
+    surfacePage: c.surfacePage,
+    surfaceElevated: c.surfaceElevated,
+    surfaceSunk: c.surfaceSunk,
+    surfaceCard: c.surfaceCard,
+    surfaceInk: c.surfaceInk,
+    textStrong: c.textStrong,
+    textBody: c.textBody,
+    textMuted: c.textMuted,
+    textSubtle: c.textSubtle,
+    borderHairline: c.borderHairline,
+    borderInput: c.borderInput,
+    borderStrong: c.borderStrong,
+    accent: c.accent,
+    accentHover: c.accentHover,
+    accentTint: c.accentTint,
+    onAccent: c.onAccent,
+    ring: c.ring,
+    done: c.done,
+    doneBg: c.doneBg,
+    working: c.working,
+    workingBg: c.workingBg,
+    error: c.error,
+    errorBg: c.errorBg,
+    idle: c.idle,
+    chartContext: c.chartContext,
+    chrome: c.chrome,
+    chromeBorder: c.chromeBorder,
+    titleBarFocused: c.titleBarFocused,
+    titleBarBlurred: c.titleBarBlurred,
+    blurSigma: c.blurSigma,
+    windowOpacity: c.windowOpacity,
+    specularBorder: c.specularBorder,
+    ambientGlow: c.ambientGlow,
+    secondaryGlow: c.secondaryGlow,
+  );
+}
+
+void ensureDesignThemeBridge() {
+  design_ui.IcTheme.fallbackResolver ??= _resolveDesignColors;
+}
+
 /// Ambient theme carrier so any widget can call `IcTheme.of(context)`.
 /// Resolves from an explicit [IcTheme] ancestor or falls back to the active
 /// [UiColors] extension on [Theme].
@@ -803,10 +852,17 @@ class IcTheme extends InheritedWidget {
 
   final IcColors colors;
 
+  @override
+  InheritedElement createElement() {
+    ensureDesignThemeBridge();
+    return super.createElement();
+  }
+
   static IcColors? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<IcTheme>()?.colors;
 
   static IcColors of(BuildContext context) {
+    ensureDesignThemeBridge();
     final explicit = maybeOf(context);
     if (explicit != null) return explicit;
     final ui = Theme.of(context).extension<UiColors>();

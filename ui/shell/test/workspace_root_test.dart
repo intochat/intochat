@@ -6,7 +6,7 @@ import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flutter/widgets.dart' show Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
+import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 
 import 'application_fixture.dart';
 
@@ -48,7 +48,7 @@ void main() {
       final server = ApplicationServer()
         ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
       final fixture = await ApplicationFixture.start(tester, server: server);
-      expect(find.byType(NeuronSpace), findsNothing);
+      expect(find.byType(LiveDesktopShell), findsNothing);
       expect(find.text('Ask the assistant'), findsOneWidget);
       expect(server.requestsTo('/brains/brain-1/apps/connect'), hasLength(1));
       expect(

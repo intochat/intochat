@@ -3,8 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'application_fixture.dart';
 
-import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
-
 void main() {
   testWidgets(
     'failed destination Show preserves the source controller and path',
@@ -13,7 +11,7 @@ void main() {
       final source = f.space;
       final original = source.workspace!.path.toList();
       f.server.failOpen = true;
-      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+      await f.appState.activateAction({
         'brainId': 'circle-test',
         'application': 'notes',
       });
@@ -38,7 +36,7 @@ void main() {
           tester,
           server: ApplicationServer()..allowed = allowed,
         );
-        tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+        await f.appState.activateAction({
           'kind': 'workspace',
           'brainId': 'circle-test',
           'application': 'notes',
@@ -80,7 +78,7 @@ void main() {
         tester,
         server: ApplicationServer()..allowed = allowed,
       );
-      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+      await f.appState.activateAction({
         'kind': 'settings',
         'brainId': 'circle-test',
         'tab': 'keys',
@@ -118,7 +116,7 @@ void main() {
       final request = {
         'ref': {'publisher': 'os', 'name': 'notes'},
       };
-      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+      await f.appState.activateAction({
         'kind': 'install',
         'brainId': 'circle-test',
         'request': request,

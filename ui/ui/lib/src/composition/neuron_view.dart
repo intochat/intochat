@@ -7,7 +7,15 @@ import '../components/kit/kit_toast.dart';
 import '../components/kit/ui_kit_surface.dart';
 import '../components/kit/ui_kit_switch.dart';
 import '../design/app_tile.dart';
-import '../design/brain_scene_3d.dart';
+import 'package:intochat_design_ui/intochat_design_ui.dart'
+    show
+        BrainScene3D,
+        BrainNode3D,
+        BrainSynapse3D,
+        BrainNodeStatus,
+        BrainNodeKind,
+        defaultBrainNodes,
+        defaultBrainSynapses;
 import '../design/cards/cards.dart';
 import '../design/controls.dart';
 import '../design/copy/ino_copy.dart';

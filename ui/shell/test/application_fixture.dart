@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
-import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
-import 'package:intochat_os_flutter_shell/space/space_controller.dart';
 import 'package:intochat_os_flutter_shell/workspace/workspace_app.dart';
 import 'package:intochat_os_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter/widgets.dart';
@@ -97,6 +95,67 @@ Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
       'enabled': true,
       'action': 'click',
     },
+    'view' =>
+      name.endsWith('/apps/desktop/view')
+          ? {
+              'generation': 1,
+              'root': {
+                'kind': 2,
+                'key': 'desktop',
+                'children': [
+                  {
+                    'kind': 2,
+                    'key': 'windows',
+                    'children': [
+                      {
+                        'kind': 2,
+                        'key': 'frame-w1',
+                        'children': [
+                          {
+                            'kind': 2,
+                            'key': 'chrome-w1',
+                            'children': [
+                              {
+                                'kind': 1,
+                                'key': 'focus-w1',
+                                'text': 'Ino',
+                                'action': 'focus:w1',
+                                'enabled': true,
+                              },
+                              {
+                                'kind': 1,
+                                'key': 'pin-w1',
+                                'text': 'Pin',
+                                'action': 'pin:ino',
+                                'enabled': true,
+                              },
+                              {
+                                'kind': 1,
+                                'key': 'close-w1',
+                                'text': '×',
+                                'action': 'close:w1',
+                                'enabled': true,
+                              },
+                            ],
+                          },
+                          {'kind': 2, 'key': 'tabs-w1', 'children': <Object>[]},
+                          {
+                            'kind': 5,
+                            'key': 'body-w1',
+                            'reference': {
+                              'kind': 'surface',
+                              'name': '${segments[1]}/apps/ino/surface',
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  {'kind': 2, 'key': 'dock', 'children': <Object>[]},
+                ],
+              },
+            }
+          : null,
     _ => null,
   };
 }
@@ -272,6 +331,23 @@ class ApplicationServer extends http.BaseClient {
   }
 }
 
+class SpaceTestView {
+  const SpaceTestView(this.focused);
+  final String? focused;
+}
+
+class SpaceTestHandle {
+  SpaceTestHandle(this._state);
+  final WorkspaceAppState _state;
+
+  String? get brain => _state.currentBrain;
+  WorkspaceSnapshot? get workspace => _state.workspaceSnapshot;
+  ValueNotifier<SpaceTestView> get view =>
+      ValueNotifier<SpaceTestView>(SpaceTestView(_state.focusedNeuron));
+  Future<void> show(String key) => _state.show(key);
+  Future<void> home() => _state.home();
+}
+
 class ApplicationFixture {
   ApplicationFixture._(
     this.tester,
@@ -287,8 +363,9 @@ class ApplicationFixture {
   final RecordingLink link;
   String get brainId => client.defaultBrainId!;
   String? get renderedSurface => server.renderedSurface;
-  SpaceController get space =>
-      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).controller;
+  WorkspaceAppState get appState =>
+      tester.state<WorkspaceAppState>(find.byType(WorkspaceApp));
+  late final SpaceTestHandle space = SpaceTestHandle(appState);
   static Future<ApplicationFixture> start(
     WidgetTester tester, {
     ApplicationServer? server,

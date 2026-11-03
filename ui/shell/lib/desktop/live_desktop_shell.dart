@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -7,10 +8,10 @@ import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:uuid/uuid.dart';
 
+import '../workspace/spatial_app_canvas.dart';
 import 'desktop_overlays.dart';
 import 'os_bar.dart';
 import 'smart_desktop.dart';
-import 'spatial_app_canvas.dart';
 import 'window_frame.dart';
 
 class _ParsedDesktopWindow {
@@ -64,6 +65,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.scenes,
     this.entries,
     this.localPreferences,
+    this.profileMenu,
   });
 
   final String brain;
@@ -82,6 +84,7 @@ class LiveDesktopShell extends StatefulWidget {
   final SceneClient? scenes;
   final EntriesClient Function(String brainId)? entries;
   final LocalPreferences? localPreferences;
+  final Widget? profileMenu;
 
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
@@ -100,7 +103,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   final List<String> _clientOpenedApps = [];
   final Set<String> _clientClosedWindowIds = {};
   bool _showDesktopOnly = false;
-  bool _spatialCanvasMode = false;
 
   DesktopPopoverKind _popover = DesktopPopoverKind.none;
   double _popoverAnchorX = 0;
@@ -116,6 +118,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     'creator',
     'gallery',
     'post',
+    'workspace',
+    'brain',
     'settings',
   };
   bool _switcherOpen = false;
@@ -352,6 +356,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       'creator' => 'Creator',
       'gallery' => 'UI Gallery',
       'post' => 'Post',
+      'workspace' => 'Workspace',
+      'brain' => 'Brain',
       'settings' => 'Settings',
       _ =>
         appId.isEmpty
@@ -378,6 +384,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     if (lower.contains('creator')) return 'creator';
     if (lower.contains('file')) return 'files';
     if (lower.contains('post')) return 'post';
+    if (lower.contains('workspace')) return 'workspace';
+    if (lower.contains('brain')) return 'brain';
     if (lower.contains('setting')) return 'settings';
     if (lower.contains('circle')) return 'circleroom';
     return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
@@ -720,11 +728,26 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     widget.onActivate({'brainId': widget.brain, ...activation});
   }
 
+  void _openAppGraph(
+    String appId,
+    List<_ParsedDesktopWindow> windows,
+    Map<String, Map<String, dynamic>> dockButtons,
+  ) {
+    final focusKey = '${widget.brain}/apps/$appId';
+    _launchOrFocusApp(
+      'brain',
+      windows,
+      dockButtons,
+      openInput: jsonEncode({'focus': focusKey}),
+    );
+  }
+
   void _launchOrFocusApp(
     String appId,
     List<_ParsedDesktopWindow> windows,
     Map<String, Map<String, dynamic>> dockButtons, {
     String? settingsSection,
+    String? openInput,
   }) {
     setState(() => _showDesktopOnly = false);
     if (appId.startsWith('os://')) {
@@ -748,6 +771,15 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     for (final w in windows.reversed) {
       if (w.appId == appId) {
         _focusWindow(w);
+        if (openInput != null) {
+          widget.onActivate({
+            'brainId': widget.brain,
+            'kind': 'workspace',
+            'application': appId,
+            'operation': 'open',
+            'input': openInput,
+          });
+        }
         return;
       }
     }
@@ -780,6 +812,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       'kind': 'workspace',
       'application': appId,
       'operation': 'open',
+      'input': ?openInput,
     });
   }
 
@@ -795,7 +828,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
           (c) => c is Map && c['key'] == 'windows',
         );
 
-    if (data == null || !isDesktopTree) {
+    if (data == null || (!isDesktopTree && root != null)) {
       if (_error != null && data == null) {
         return Center(child: Text('$_error'));
       }
@@ -813,9 +846,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       );
     }
 
+    final effectiveRoot = root is Map ? root : const <String, dynamic>{};
     final c = IcTheme.of(context);
-    final windows = _parseWindows(root);
-    final dockButtons = _parseDockButtons(root);
+    final windows = _parseWindows(effectiveRoot);
+    final dockButtons = _parseDockButtons(effectiveRoot);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -879,105 +913,42 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   ),
                 ),
 
-              if (_spatialCanvasMode)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  width: desk.width,
-                  height: desk.height,
-                  child: SpatialAppCanvas(
-                    windows: visibleWindows.map((w) => w.windowId).toList(),
-                    windowStates: _windowStates,
-                    topWindowId: topWindow?.windowId,
-                    onFocusWindow: (id) {
-                      final spec = byId[id];
-                      if (spec != null) _focusWindow(spec);
-                    },
-                    onCloseWindow: (id) {
-                      final spec = byId[id];
-                      if (spec != null) _closeWindow(spec);
-                    },
-                    onToggleZoom: (id) {
-                      _windowStates[id]?.toggleZoom();
-                    },
-                    onPinWindow: (id) {
-                      final spec = byId[id];
-                      if (spec != null) {
-                        setState(() => _normalizeZOrder());
-                        if (spec.pinNode != null) {
-                          _dispatchViewNode(spec.pinNode);
-                        }
-                      }
-                    },
-                    onReloadWindow: (id) {
-                      setState(() {});
-                      unawaited(_reload());
-                    },
-                    onHardRestartWindow: (id) {
-                      final spec = byId[id];
-                      if (spec != null) {
-                        unawaited(
-                          widget
-                              .onAction({
-                                'kind': 'view',
-                                'name': '${spec.viewportRef['name']}',
-                                'revision': _generation,
-                                'field': 'sandbox-${spec.windowId}',
-                                'action': 'sandbox-restart:${spec.appId}',
-                                'operationId': _operationId(),
-                              })
-                              .then((_) => _reload())
-                              .catchError((Object _) {}),
-                        );
-                      }
-                    },
-                    onSwitchExecutionMode: (id, mode) {
-                      final spec = byId[id];
-                      if (spec != null) {
-                        unawaited(
-                          widget
-                              .onAction({
-                                'kind': 'view',
-                                'name': '${spec.viewportRef['name']}',
-                                'revision': _generation,
-                                'field': 'mode-${spec.windowId}',
-                                'action': 'switch-mode:$mode',
-                                'operationId': _operationId(),
-                              })
-                              .then((_) => _reload())
-                              .catchError((Object _) {}),
-                        );
-                      }
-                    },
-                    onInspectSandbox: (id) {
-                      final spec = byId[id];
-                      if (spec != null) {
-                        _launchOrFocusApp('creator', windows, dockButtons);
-                        widget.onActivate({
-                          'brainId': widget.brain,
-                          'kind': 'workspace',
-                          'application': 'creator',
-                          'operation': 'inspect',
-                          'resource': 'app.${spec.appId}',
-                        });
-                      }
-                    },
-                    onOpenAppSettings: (id) {
-                      final spec = byId[id];
-                      if (spec != null) {
-                        _launchOrFocusApp(
-                          'settings',
-                          windows,
-                          dockButtons,
-                          settingsSection: spec.appId != 'settings'
-                              ? 'apps:${spec.appId}'
-                              : 'general',
-                        );
-                      }
-                    },
-                    tabs: {
-                      for (final spec in visibleWindows)
-                        spec.windowId: [
+              // 2. SmartDesktop (Interactive 3D Orbital Neural Graph + Whiteboard Sticky Cards)
+              Positioned(
+                left: 0,
+                top: 0,
+                width: desk.width,
+                height: desk.height,
+                child: SmartDesktop(
+                  hasOpenWindows: visibleWindows.isNotEmpty,
+                  stylePreset: widget.stylePreset,
+                  barLayout: widget.barLayout,
+                  onLaunchApp: (appId) =>
+                      _launchOrFocusApp(appId, windows, dockButtons),
+                  onOpenPalette: widget.onTogglePalette,
+                  onSelectPreset: widget.onSelectPreset,
+                  onCycleBarLayout: widget.onCycleBarLayout,
+                  onAutoArrange: () => _autoArrangeWindows(desk),
+                ),
+              ),
+
+              // 3. Free-Floating, Draggable, 8-Way Resizable Acrylic Windows
+              Positioned(
+                left: 0,
+                top: 0,
+                width: desk.width,
+                height: desk.height,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    for (final spec in visibleWindows)
+                      WindowFrame(
+                        key: ValueKey('window:${spec.windowId}'),
+                        window: _windowStates[spec.windowId]!,
+                        focused: spec == topWindow,
+                        forceZoom: focusMode,
+                        desk: desk,
+                        tabs: [
                           for (final t in spec.tabs)
                             DesktopTabSpec(
                               key: '${t['key']}',
@@ -986,175 +957,237 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                               onTap: () => _dispatchViewNode(t),
                             ),
                         ],
-                    },
-                    windowBuilders: {
-                      for (final spec in visibleWindows)
-                        spec.windowId: (context) => NeuronView(
-                          key: ValueKey(
-                            'viewport:${spec.viewportRef['name']}:${_windowStates[spec.windowId]?.reloadEpoch ?? 0}',
-                          ),
-                          kind: spec.viewportRef['kind'] as String,
-                          name: spec.viewportRef['name'] as String,
-                          load: widget.load,
-                          watch: widget.watch,
-                          onAction: widget.onAction,
-                          onActivate: (activation) => _handleChildActivation(
-                            activation,
-                            windows,
-                            dockButtons,
-                          ),
-                          scenes: widget.scenes,
-                          entries: widget.entries,
-                          localPreferences: widget.localPreferences,
-                        ),
-                    },
-                  ),
-                )
-              else ...[
-                // 2. SmartDesktop (Interactive 3D Orbital Neural Graph + Whiteboard Sticky Cards)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  width: desk.width,
-                  height: desk.height,
-                  child: SmartDesktop(
-                    hasOpenWindows: visibleWindows.isNotEmpty,
-                    stylePreset: widget.stylePreset,
-                    barLayout: widget.barLayout,
-                    onLaunchApp: (appId) =>
-                        _launchOrFocusApp(appId, windows, dockButtons),
-                    onOpenPalette: widget.onTogglePalette,
-                    onSelectPreset: widget.onSelectPreset,
-                    onCycleBarLayout: widget.onCycleBarLayout,
-                    onAutoArrange: () => _autoArrangeWindows(desk),
-                  ),
-                ),
-
-                // 3. Free-Floating, Draggable, 8-Way Resizable Acrylic Windows
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  width: desk.width,
-                  height: desk.height,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      for (final spec in visibleWindows)
-                        WindowFrame(
-                          key: ValueKey('window:${spec.windowId}'),
-                          window: _windowStates[spec.windowId]!,
-                          focused: spec == topWindow,
-                          forceZoom: focusMode,
-                          desk: desk,
-                          tabs: [
-                            for (final t in spec.tabs)
-                              DesktopTabSpec(
-                                key: '${t['key']}',
-                                label: '${t['text'] ?? ''}',
-                                selected: t['selected'] == true,
-                                onTap: () => _dispatchViewNode(t),
+                        onFocus: () => _focusWindow(spec),
+                        onClose: () => _closeWindow(spec),
+                        onMinimize: () {
+                          final st = _windowStates[spec.windowId];
+                          if (st != null) {
+                            setState(() => st.setMinimized(!st.minimized));
+                          }
+                        },
+                        onNewTab: spec.newTabNode != null
+                            ? () => _dispatchViewNode(spec.newTabNode)
+                            : null,
+                        onFavourite: spec.starNode != null
+                            ? () => _dispatchViewNode(spec.starNode)
+                            : null,
+                        isFavourite: (spec.starNode?['text'] as String? ?? '')
+                            .toLowerCase()
+                            .contains('remove'),
+                        onPin: () {
+                          setState(() => _normalizeZOrder());
+                          if (spec.pinNode != null) {
+                            _dispatchViewNode(spec.pinNode);
+                          }
+                        },
+                        isPinned:
+                            _windowStates[spec.windowId]?.isPinned ?? false,
+                        onReload: () {
+                          setState(() {});
+                          unawaited(_reload());
+                        },
+                        onHardRestartSandbox: () {
+                          unawaited(
+                            widget
+                                .onAction({
+                                  'kind': 'view',
+                                  'name': '${spec.viewportRef['name']}',
+                                  'revision': _generation,
+                                  'field': 'sandbox-${spec.windowId}',
+                                  'action': 'sandbox-restart:${spec.appId}',
+                                  'operationId': _operationId(),
+                                })
+                                .then((_) => _reload())
+                                .catchError((Object _) {}),
+                          );
+                        },
+                        onSwitchExecutionMode: (mode) {
+                          unawaited(
+                            widget
+                                .onAction({
+                                  'kind': 'view',
+                                  'name': '${spec.viewportRef['name']}',
+                                  'revision': _generation,
+                                  'field': 'mode-${spec.windowId}',
+                                  'action': 'switch-mode:$mode',
+                                  'operationId': _operationId(),
+                                })
+                                .then((_) => _reload())
+                                .catchError((Object _) {}),
+                          );
+                        },
+                        onInspectSandbox: () {
+                          _launchOrFocusApp('creator', windows, dockButtons);
+                          widget.onActivate({
+                            'brainId': widget.brain,
+                            'kind': 'workspace',
+                            'application': 'creator',
+                            'operation': 'inspect',
+                            'resource': 'app.${spec.appId}',
+                          });
+                        },
+                        onOpenAppSettings: () =>
+                            _openAppGraph(spec.appId, windows, dockButtons),
+                        child: spec.appId == 'workspace'
+                            ? SpatialAppCanvas(
+                                windows: [
+                                  for (final w in visibleWindows)
+                                    if (w.windowId != spec.windowId) w.windowId,
+                                ],
+                                windowStates: _windowStates,
+                                topWindowId: topWindow?.windowId,
+                                onFocusWindow: (id) {
+                                  final target = byId[id];
+                                  if (target != null) _focusWindow(target);
+                                },
+                                onCloseWindow: (id) {
+                                  final target = byId[id];
+                                  if (target != null) _closeWindow(target);
+                                },
+                                onToggleZoom: (id) {
+                                  _windowStates[id]?.toggleZoom();
+                                },
+                                onPinWindow: (id) {
+                                  final target = byId[id];
+                                  if (target != null) {
+                                    setState(() => _normalizeZOrder());
+                                    if (target.pinNode != null) {
+                                      _dispatchViewNode(target.pinNode);
+                                    }
+                                  }
+                                },
+                                onReloadWindow: (id) {
+                                  setState(() {});
+                                  unawaited(_reload());
+                                },
+                                onHardRestartWindow: (id) {
+                                  final target = byId[id];
+                                  if (target != null) {
+                                    unawaited(
+                                      widget
+                                          .onAction({
+                                            'kind': 'view',
+                                            'name':
+                                                '${target.viewportRef['name']}',
+                                            'revision': _generation,
+                                            'field':
+                                                'sandbox-${target.windowId}',
+                                            'action':
+                                                'sandbox-restart:${target.appId}',
+                                            'operationId': _operationId(),
+                                          })
+                                          .then((_) => _reload())
+                                          .catchError((Object _) {}),
+                                    );
+                                  }
+                                },
+                                onSwitchExecutionMode: (id, mode) {
+                                  final target = byId[id];
+                                  if (target != null) {
+                                    unawaited(
+                                      widget
+                                          .onAction({
+                                            'kind': 'view',
+                                            'name':
+                                                '${target.viewportRef['name']}',
+                                            'revision': _generation,
+                                            'field': 'mode-${target.windowId}',
+                                            'action': 'switch-mode:$mode',
+                                            'operationId': _operationId(),
+                                          })
+                                          .then((_) => _reload())
+                                          .catchError((Object _) {}),
+                                    );
+                                  }
+                                },
+                                onInspectSandbox: (id) {
+                                  final target = byId[id];
+                                  if (target != null) {
+                                    _launchOrFocusApp(
+                                      'creator',
+                                      windows,
+                                      dockButtons,
+                                    );
+                                    widget.onActivate({
+                                      'brainId': widget.brain,
+                                      'kind': 'workspace',
+                                      'application': 'creator',
+                                      'operation': 'inspect',
+                                      'resource': 'app.${target.appId}',
+                                    });
+                                  }
+                                },
+                                onOpenAppSettings: (id) {
+                                  final target = byId[id];
+                                  if (target != null) {
+                                    _openAppGraph(
+                                      target.appId,
+                                      windows,
+                                      dockButtons,
+                                    );
+                                  }
+                                },
+                                tabs: {
+                                  for (final w in visibleWindows)
+                                    if (w.windowId != spec.windowId)
+                                      w.windowId: [
+                                        for (final t in w.tabs)
+                                          DesktopTabSpec(
+                                            key: '${t['key']}',
+                                            label: '${t['text'] ?? ''}',
+                                            selected: t['selected'] == true,
+                                            onTap: () => _dispatchViewNode(t),
+                                          ),
+                                      ],
+                                },
+                                windowBuilders: {
+                                  for (final w in visibleWindows)
+                                    if (w.windowId != spec.windowId)
+                                      w.windowId: (context) => NeuronView(
+                                        key: ValueKey(
+                                          'canvas-viewport:${w.viewportRef['name']}:${_windowStates[w.windowId]?.reloadEpoch ?? 0}',
+                                        ),
+                                        kind: w.viewportRef['kind'] as String,
+                                        name: w.viewportRef['name'] as String,
+                                        load: widget.load,
+                                        watch: widget.watch,
+                                        onAction: widget.onAction,
+                                        onActivate: (activation) =>
+                                            _handleChildActivation(
+                                              activation,
+                                              windows,
+                                              dockButtons,
+                                            ),
+                                        scenes: widget.scenes,
+                                        entries: widget.entries,
+                                        localPreferences:
+                                            widget.localPreferences,
+                                      ),
+                                },
+                              )
+                            : NeuronView(
+                                key: ValueKey(
+                                  'viewport:${spec.viewportRef['name']}:${_windowStates[spec.windowId]?.reloadEpoch ?? 0}',
+                                ),
+                                kind: spec.viewportRef['kind'] as String,
+                                name: spec.viewportRef['name'] as String,
+                                load: widget.load,
+                                watch: widget.watch,
+                                onAction: widget.onAction,
+                                onActivate: (activation) =>
+                                    _handleChildActivation(
+                                      activation,
+                                      windows,
+                                      dockButtons,
+                                    ),
+                                scenes: widget.scenes,
+                                entries: widget.entries,
+                                localPreferences: widget.localPreferences,
                               ),
-                          ],
-                          onFocus: () => _focusWindow(spec),
-                          onClose: () => _closeWindow(spec),
-                          onMinimize: () {
-                            final st = _windowStates[spec.windowId];
-                            if (st != null) {
-                              setState(() => st.setMinimized(!st.minimized));
-                            }
-                          },
-                          onNewTab: spec.newTabNode != null
-                              ? () => _dispatchViewNode(spec.newTabNode)
-                              : null,
-                          onFavourite: spec.starNode != null
-                              ? () => _dispatchViewNode(spec.starNode)
-                              : null,
-                          isFavourite: (spec.starNode?['text'] as String? ?? '')
-                              .toLowerCase()
-                              .contains('remove'),
-                          onPin: () {
-                            setState(() => _normalizeZOrder());
-                            if (spec.pinNode != null) {
-                              _dispatchViewNode(spec.pinNode);
-                            }
-                          },
-                          isPinned:
-                              _windowStates[spec.windowId]?.isPinned ?? false,
-                          onReload: () {
-                            setState(() {});
-                            unawaited(_reload());
-                          },
-                          onHardRestartSandbox: () {
-                            unawaited(
-                              widget
-                                  .onAction({
-                                    'kind': 'view',
-                                    'name': '${spec.viewportRef['name']}',
-                                    'revision': _generation,
-                                    'field': 'sandbox-${spec.windowId}',
-                                    'action': 'sandbox-restart:${spec.appId}',
-                                    'operationId': _operationId(),
-                                  })
-                                  .then((_) => _reload())
-                                  .catchError((Object _) {}),
-                            );
-                          },
-                          onSwitchExecutionMode: (mode) {
-                            unawaited(
-                              widget
-                                  .onAction({
-                                    'kind': 'view',
-                                    'name': '${spec.viewportRef['name']}',
-                                    'revision': _generation,
-                                    'field': 'mode-${spec.windowId}',
-                                    'action': 'switch-mode:$mode',
-                                    'operationId': _operationId(),
-                                  })
-                                  .then((_) => _reload())
-                                  .catchError((Object _) {}),
-                            );
-                          },
-                          onInspectSandbox: () {
-                            _launchOrFocusApp('creator', windows, dockButtons);
-                            widget.onActivate({
-                              'brainId': widget.brain,
-                              'kind': 'workspace',
-                              'application': 'creator',
-                              'operation': 'inspect',
-                              'resource': 'app.${spec.appId}',
-                            });
-                          },
-                          onOpenAppSettings: () => _launchOrFocusApp(
-                            'settings',
-                            windows,
-                            dockButtons,
-                            settingsSection: spec.appId != 'settings'
-                                ? 'apps:${spec.appId}'
-                                : 'general',
-                          ),
-                          child: NeuronView(
-                            key: ValueKey(
-                              'viewport:${spec.viewportRef['name']}:${_windowStates[spec.windowId]?.reloadEpoch ?? 0}',
-                            ),
-                            kind: spec.viewportRef['kind'] as String,
-                            name: spec.viewportRef['name'] as String,
-                            load: widget.load,
-                            watch: widget.watch,
-                            onAction: widget.onAction,
-                            onActivate: (activation) => _handleChildActivation(
-                              activation,
-                              windows,
-                              dockButtons,
-                            ),
-                            scenes: widget.scenes,
-                            entries: widget.entries,
-                            localPreferences: widget.localPreferences,
-                          ),
-                        ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-              ],
+              ),
 
               // 4. Adaptive 36px Glass OS Bar & Dock
               Positioned(
@@ -1169,8 +1202,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   focusedAppId: topWindow?.appId,
                   paletteOpen: widget.paletteOpen,
                   showingDesktop: _showDesktopOnly || visibleWindows.isEmpty,
-                  spatialCanvas: _spatialCanvasMode,
                   notifications: _notificationsCount,
+                  profileMenu: widget.profileMenu,
                   onTogglePalette: () {
                     setState(() => _popover = DesktopPopoverKind.none);
                     widget.onTogglePalette();
@@ -1179,12 +1212,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     setState(() {
                       _popover = DesktopPopoverKind.none;
                       _showDesktopOnly = !_showDesktopOnly;
-                    });
-                  },
-                  onToggleSpatialCanvas: () {
-                    setState(() {
-                      _popover = DesktopPopoverKind.none;
-                      _spatialCanvasMode = !_spatialCanvasMode;
                     });
                   },
                   onCycleStylePreset: () {
@@ -1275,15 +1302,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   onOpenSettings: () {
                     final targetApp = _dockMenuAppId;
                     setState(() => _popover = DesktopPopoverKind.none);
-                    _launchOrFocusApp(
-                      'settings',
-                      windows,
-                      dockButtons,
-                      settingsSection:
-                          targetApp != null && targetApp != 'settings'
-                          ? 'apps:$targetApp'
-                          : null,
-                    );
+                    if (targetApp != null && targetApp.isNotEmpty) {
+                      _openAppGraph(targetApp, windows, dockButtons);
+                    } else {
+                      _launchOrFocusApp('settings', windows, dockButtons);
+                    }
                   },
                   onOpenComputeSettings: () {
                     if (widget.onOpenCompute != null) {

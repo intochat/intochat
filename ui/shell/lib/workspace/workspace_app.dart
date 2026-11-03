@@ -5,13 +5,12 @@ import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:uuid/uuid.dart';
 
 import '../connections/connect_window.dart';
 import '../desktop/command_palette.dart';
 import '../desktop/live_desktop_shell.dart';
 import '../desktop/smart_desktop.dart';
-import '../space/neuron_space.dart';
-import '../space/space_controller.dart';
 import 'apps/app_activations.dart';
 import 'width_hint.dart';
 import 'workspace_store.dart';
@@ -42,10 +41,10 @@ class WorkspaceApp extends StatefulWidget {
   final String? statusMessage;
   final IntoChatOSUiClient? programmingClient;
   @override
-  State<WorkspaceApp> createState() => _WorkspaceAppState();
+  State<WorkspaceApp> createState() => WorkspaceAppState();
 }
 
-class _WorkspaceAppState extends State<WorkspaceApp>
+class WorkspaceAppState extends State<WorkspaceApp>
     with WidgetsBindingObserver {
   // A connector may mount any app-authored root. Product composition stays in that app.
   static const _root = String.fromEnvironment('INTOCHATOS_ROOT');
@@ -63,17 +62,62 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       );
   late final _localPreferences = WorkspaceLocalPreferences(store);
   final _navigator = GlobalKey<NavigatorState>();
-  SpaceController? _space;
   String? _rootName;
   String? _activationApp;
   String _renderKind = 'layout';
+  bool _hasExplicitRoot = false;
   String? _brain;
+  String? _focusedNeuron;
+  WorkspaceSnapshot? _workspaceSnapshot;
   Object? _startupError;
   bool _developerMode = false;
   bool _ready = false;
   bool _paletteOpen = false;
   BarLayout _barLayout = BarLayout.floatingGlass;
   Uri? _pendingLocation;
+
+  String? get currentBrain => _brain;
+  WorkspaceSnapshot? get workspaceSnapshot => _workspaceSnapshot;
+  String get focusedNeuron =>
+      _focusedNeuron ??
+      (_workspaceSnapshot != null && _workspaceSnapshot!.path.isNotEmpty
+          ? _workspaceSnapshot!.path.last
+          : '${_brain ?? ''}/apps/ino');
+  Future<void> activateAction(Map<String, dynamic> action) => _activate(action);
+  Future<void> show(String neuron) async {
+    final client = widget.programmingClient;
+    final brain = _brain;
+    if (client == null || brain == null) return;
+    final snap = await client.showNeuron(
+      brain,
+      neuron,
+      const Uuid().v4(),
+      _workspaceSnapshot?.revision ?? 0,
+    );
+    if (mounted) {
+      setState(() {
+        _workspaceSnapshot = snap;
+        _focusedNeuron = snap.path.isNotEmpty ? snap.path.last : neuron;
+      });
+    }
+  }
+
+  Future<void> home() async {
+    final client = widget.programmingClient;
+    final brain = _brain;
+    if (client == null || brain == null) return;
+    final snap = await client.homeNeuron(
+      brain,
+      const Uuid().v4(),
+      _workspaceSnapshot?.revision ?? 0,
+    );
+    if (mounted) {
+      setState(() {
+        _workspaceSnapshot = snap;
+        _focusedNeuron = snap.path.isNotEmpty ? snap.path.last : brain;
+      });
+    }
+  }
   @override
   void initState() {
     super.initState();
@@ -140,7 +184,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
             })
             .catchError((Object _) {}),
       );
-      if (_rootName == null &&
+      if (!_hasExplicitRoot &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
         unawaited(_activate({'kind': 'settings'}));
       }
@@ -156,12 +200,11 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   }) async {
     if (_brain == brain && !reconnect) return;
     if (_root.isNotEmpty) {
-      _space?.dispose();
-      _space = null;
       setState(() {
         _brain = brain;
         _rootName = '$brain/$_root';
         _renderKind = _rootKind;
+        _hasExplicitRoot = true;
       });
       return;
     }
@@ -171,69 +214,44 @@ class _WorkspaceAppState extends State<WorkspaceApp>
       final name = root['name'] as String;
       final kind = root['kind'] as String;
       if (!mounted) return;
-      _space?.dispose();
-      _space = null;
       setState(() {
         _brain = brain;
         _rootName = name;
         _activationApp = connection['activationApp'] as String?;
         _renderKind = kind;
+        _hasExplicitRoot = true;
       });
       return;
     }
-    _rootName = null;
-    _activationApp = null;
-    final old = _space;
-    final controller = SpaceController(
-      client: client,
-      scenes: client.scenes(brain),
-      brain: brain,
-    );
-    // Initial connection exposes its read error and retry on the space screen.
-    if (old == null) {
+    var snap = await client.readWorkspace(brain);
+    if (show != null && (snap.path.isEmpty || snap.path.last != show)) {
+      snap = await client.showNeuron(
+        brain,
+        show,
+        const Uuid().v4(),
+        snap.revision,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
       _brain = brain;
-      _space = controller;
-      if (mounted) setState(() {});
-      await controller.start();
-      return;
-    }
-    try {
-      await controller.start();
-      if (controller.error.value case final Object problem) throw problem;
-      if (show != null) await controller.show(show);
-      if (!mounted) {
-        controller.dispose();
-        return;
-      }
-      setState(() {
-        _brain = brain;
-        _space = controller;
-      });
-      old.dispose();
-    } catch (_) {
-      controller.dispose();
-      rethrow;
-    }
-  }
-
-  Future<Uint8List?> _icon(String neuron, String icon) async {
-    final client = widget.programmingClient;
-    if (client == null) return null;
-    final marker = neuron.indexOf('/apps/');
-    if (marker <= 0) return null;
-    final brain = neuron.substring(0, marker);
-    final app = neuron.substring(marker + 6).split('/').first;
-    final manifest = await client.readAppManifest(brain, app);
-    if (manifest.icon != icon || shellIcon(icon) != null) return null;
-    return client.readBytes(
-      '/brains/${Uri.encodeComponent(brain)}/apps/${Uri.encodeComponent(app)}/icon',
-    );
+      _rootName = '$brain/apps/desktop/view';
+      _activationApp = connection['activationApp'] as String?;
+      _renderKind = 'view';
+      _hasExplicitRoot = false;
+      _workspaceSnapshot = snap;
+      _focusedNeuron = snap.path.isNotEmpty
+          ? snap.path.last
+          : (show ?? '$brain/apps/ino');
+    });
   }
 
   // The desktop root lays out one window on a narrow screen: tell it which side of 900 px the window is.
   Widget _widthHinted(Widget root) {
     final brain = _brain!;
-    if (_renderKind != 'view' || _rootName != '$brain/apps/desktop/view') {
+    if (!_hasExplicitRoot ||
+        _renderKind != 'view' ||
+        _rootName != '$brain/apps/desktop/view') {
       return root;
     }
     return WidthHint(
@@ -387,7 +405,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         );
         return;
       }
-      if (_rootName != null) {
+      if (_hasExplicitRoot) {
         final receiver = _activationApp;
         if (receiver == null) {
           throw StateError('This root has no navigation receiver.');
@@ -400,7 +418,20 @@ class _WorkspaceAppState extends State<WorkspaceApp>
         );
         return;
       }
-      if (neuron != null && !changingBrain) await _space!.show(neuron);
+      if (neuron != null && !changingBrain) {
+        final snap = await client.showNeuron(
+          brain,
+          neuron,
+          const Uuid().v4(),
+          _workspaceSnapshot?.revision ?? 0,
+        );
+        if (mounted) {
+          setState(() {
+            _workspaceSnapshot = snap;
+            _focusedNeuron = snap.path.isNotEmpty ? snap.path.last : neuron;
+          });
+        }
+      }
       if (action['operation'] case final String operation) {
         if (app != null) {
           await client.requestApp(
@@ -417,26 +448,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
     } catch (_) {
       if (mounted) {
         _toast('Could not navigate there. Try again.', tone: UiTone.error);
-      }
-    }
-  }
-
-  Future<void> _request(String operation, String input) async {
-    final client = widget.programmingClient, space = _space;
-    if (client == null || space == null) return;
-    final prefix = '${space.brain}/apps/';
-    final focused = space.view.value.focused;
-    if (!focused.startsWith(prefix)) return;
-    try {
-      await client.requestApp(
-        space.brain,
-        focused.substring(prefix.length).split('/').first,
-        operation,
-        input,
-      );
-    } catch (_) {
-      if (mounted) {
-        _toast('Could not run that action. Try again.', tone: UiTone.error);
       }
     }
   }
@@ -592,7 +603,6 @@ class _WorkspaceAppState extends State<WorkspaceApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _space?.dispose();
     store.removeListener(_changed);
     if (widget.store == null) store.dispose();
     super.dispose();
@@ -687,6 +697,7 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                                   brain,
                                 ),
                                 localPreferences: _localPreferences,
+                                profileMenu: _menu(),
                               )
                             : NeuronView(
                                 key: ValueKey(_rootName),
@@ -721,40 +732,12 @@ class _WorkspaceAppState extends State<WorkspaceApp>
                               ),
                       ),
                     )
-                  : _space == null
-                  ? Center(
+                  : Center(
                       child: Text(
                         _startupError?.toString() ??
                             widget.statusMessage ??
                             'Connect to your brain to begin.',
                       ),
-                    )
-                  : NeuronSpace(
-                      key: ValueKey(_brain),
-                      controller: _space!,
-                      load: (kind, name) => widget.programmingClient!.appRequest(
-                        _brain!,
-                        'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
-                      ),
-                      watch: (kind, name) => widget.programmingClient!
-                          .watchNode(_brain!, kind, name)
-                          .map((_) {}),
-                      onAction: (event) async {
-                        await widget.programmingClient!.appRequest(
-                          _brain!,
-                          'event',
-                          body: event,
-                        );
-                      },
-                      onActivate: (action) => unawaited(_activate(action)),
-                      onRequest: _request,
-                      loadIcon: _icon,
-                      menu: _menu(),
-                      onSettings: () =>
-                          unawaited(_activate({'kind': 'settings'})),
-                      entries: (brain) =>
-                          EntriesClient(widget.programmingClient!, brain),
-                      localPreferences: _localPreferences,
                     ),
               if (_paletteOpen)
                 CommandPalette(

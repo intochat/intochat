@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/auth/login_screen.dart';
-import 'package:intochat_os_flutter_shell/space/neuron_space.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'application_fixture.dart';
@@ -10,7 +9,7 @@ void main() {
   testWidgets('navigation_error_shows_kit_toast', (tester) async {
     final f = await ApplicationFixture.start(tester);
     f.server.failOpen = true;
-    tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+    await f.appState.activateAction({
       'brainId': 'circle-test',
       'application': 'notes',
     });

@@ -62,6 +62,24 @@ export 'src/controls/ic_files_finder_view.dart';
 export 'package:lucide_icons_flutter/lucide_icons.dart';
 
 export 'src/design/app_tile.dart';
-export 'src/design/brain_scene_3d.dart';
+export 'package:intochat_design_ui/intochat_design_ui.dart'
+    show
+        BrainScene3D,
+        BrainNode3D,
+        BrainSynapse3D,
+        BrainNodeStatus,
+        BrainNodeKind,
+        defaultBrainNodes,
+        defaultBrainSynapses,
+        NodeKind,
+        EdgeKind,
+        GraphView,
+        IssueSeverity,
+        GraphNodeKind,
+        GraphEdgeKind,
+        GraphEdge,
+        GraphGroup,
+        GraphSnapshot,
+        brainSceneFromSnapshot;
 export 'src/design/copy/ino_copy.dart';
 export 'src/design/cards/cards.dart';
