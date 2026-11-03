@@ -74,9 +74,101 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
         Assert.Equal(HttpStatusCode.Accepted, postResponse.StatusCode);
 
         var actualView = await PollPresentedViewAsync(journey.App, baselineRevision, ct);
-        var expectedJson = CanonicalJson(expectedFixture!.Main!);
-        var actualJson = CanonicalJson(actualView);
-        Assert.Equal(expectedJson, actualJson);
+        var diff = ViewComparison.Diff(expectedFixture!.Main!, actualView);
+        Assert.True(diff is null, diff);
+    }
+
+    [Fact]
+    public async Task AJourneyFailsOnAViewDrift()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await host.Healthy(ct);
+
+        var journey = JourneysByApp["settings"];
+        var fixturePath = ResolveFixturePath(journey.App, journey.FixtureFile);
+        var expectedFixture = JsonSerializer.Deserialize<ViewFixture>(
+            await File.ReadAllTextAsync(fixturePath, Encoding.UTF8, ct),
+            JsonOptions);
+        Assert.NotNull(expectedFixture?.Main);
+
+        var baselineRevision = await ReadViewRevisionAsync(journey.App, ct);
+        using var postResponse = await host.Os.PostAsJsonAsync(
+            $"/brains/{host.Scope}/apps/{journey.App}/request",
+            new { operation = journey.Operation, input = journey.Argument },
+            ct);
+        Assert.Equal(HttpStatusCode.Accepted, postResponse.StatusCode);
+
+        var actualView = await PollPresentedViewAsync(journey.App, baselineRevision, ct);
+        var driftedExpected = MutateFirstTextNode(expectedFixture!.Main!, "DRIFTED_TEXT_NODE");
+
+        var diff = ViewComparison.Diff(driftedExpected, actualView);
+        Assert.NotNull(diff);
+        Assert.Contains("/root/children/0/children/1/children/2/value", diff, StringComparison.Ordinal);
+        Assert.Contains("DRIFTED_TEXT_NODE", diff, StringComparison.Ordinal);
+    }
+
+    private static View MutateFirstTextNode(View source, string newText)
+    {
+        var (mutatedRoot, changed) = MutateNode(source.Root, newText);
+        Assert.True(changed, "Expected to find and mutate a Text node in the view.");
+        return source with { Root = mutatedRoot };
+    }
+
+    private static (Node Node, bool Changed) MutateNode(Node node, string newText)
+    {
+        switch (node)
+        {
+            case Text text:
+                return (text with { Value = newText }, true);
+
+            case Column col:
+            {
+                var children = col.Children.ToArray();
+                for (var i = 0; i < children.Length; i++)
+                {
+                    var (next, changed) = MutateNode(children[i], newText);
+                    if (changed)
+                    {
+                        children[i] = next;
+                        return (col with { Children = children }, true);
+                    }
+                }
+                return (col, false);
+            }
+
+            case Row row:
+            {
+                var children = row.Children.ToArray();
+                for (var i = 0; i < children.Length; i++)
+                {
+                    var (next, changed) = MutateNode(children[i], newText);
+                    if (changed)
+                    {
+                        children[i] = next;
+                        return (row with { Children = children }, true);
+                    }
+                }
+                return (row, false);
+            }
+
+            case Surface surface:
+            {
+                var children = surface.Children.ToArray();
+                for (var i = 0; i < children.Length; i++)
+                {
+                    var (next, changed) = MutateNode(children[i], newText);
+                    if (changed)
+                    {
+                        children[i] = next;
+                        return (surface with { Children = children }, true);
+                    }
+                }
+                return (surface, false);
+            }
+
+            default:
+                return (node, false);
+        }
     }
 
     internal async Task<long> ReadViewRevisionAsync(string app, CancellationToken ct)
