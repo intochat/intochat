@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using IntoChat.OS.Authority.Identity.Rules;
 
 namespace IntoChat.OS.Authority.Identity.Contacts;
 
@@ -10,16 +11,11 @@ public sealed partial class ContactsNeuron : DigitalBrain.Neuron<ContactsState>,
 
     public async Task Add(string list, ContactEntry entry)
     {
-        if (string.IsNullOrEmpty(list) || !ListNameRegex().IsMatch(list))
-        {
-            throw new ArgumentException($"Invalid contact list name '{list}'. Must match ^[a-z0-9][a-z0-9-]{{0,39}}$", nameof(list));
-        }
+        list ??= "";
+        await Check("Add", new ContactListNameIsValid(list, list.Length > 0 && ListNameRegex().IsMatch(list)));
 
         ArgumentNullException.ThrowIfNull(entry);
-        if (string.IsNullOrWhiteSpace(entry.Principal))
-        {
-            throw new ArgumentException("Contact entry must have a non-empty Principal.", nameof(entry));
-        }
+        await Check("Add", new ContactPrincipalIsNotEmpty(entry.Principal));
 
         var lists = (State.Lists ?? []).ToList();
         var index = lists.FindIndex(l => string.Equals(l.Name, list, StringComparison.Ordinal));

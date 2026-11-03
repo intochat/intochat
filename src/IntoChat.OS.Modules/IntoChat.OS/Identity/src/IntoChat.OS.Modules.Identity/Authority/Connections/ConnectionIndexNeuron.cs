@@ -1,3 +1,4 @@
+using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Authority.Connections;
@@ -20,14 +21,14 @@ internal sealed class ConnectionIndexNeuron : DigitalBrain.Neuron, IConnectionIn
 
     public async Task Track(string connectionKey)
     {
-        Require(connectionKey);
+        await Require("Track", connectionKey);
         if (_state.Keys.Contains(connectionKey, StringComparer.Ordinal)) { return; }
         await Persist(new() { Keys = [.. _state.Keys, connectionKey] });
     }
 
     public async Task Untrack(string connectionKey)
     {
-        Require(connectionKey);
+        await Require("Untrack", connectionKey);
         if (!_state.Keys.Contains(connectionKey, StringComparer.Ordinal)) { return; }
         await Persist(new() { Keys = [.. _state.Keys.Where(key => key != connectionKey)] });
     }
@@ -38,9 +39,6 @@ internal sealed class ConnectionIndexNeuron : DigitalBrain.Neuron, IConnectionIn
         _state = next;
     }
 
-    private void Require(string connectionKey)
-    {
-        if (ConnectionKeys.Parse(connectionKey).BrainId != Id.Brain.Value)
-        { throw new ArgumentException("The connection belongs to another brain.", nameof(connectionKey)); }
-    }
+    private Task Require(string operation, string connectionKey)
+        => Check(operation, new ConnectionBelongsToBrain(ConnectionKeys.Parse(connectionKey).BrainId, Id.Brain.Value));
 }

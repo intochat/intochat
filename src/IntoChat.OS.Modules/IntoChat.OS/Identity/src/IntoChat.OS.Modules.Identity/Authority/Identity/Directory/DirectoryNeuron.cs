@@ -3,6 +3,7 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Grants;
+using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework;
@@ -43,6 +44,7 @@ internal interface IDirectoryStore
     Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants);
     Task RevokeAsOwner(CapabilityCaller caller, string grantId);
     Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
+    Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null);
 }
 
 [DigitalBrain.Signal("identity.directory-changed")]
@@ -104,7 +106,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         ArgumentNullException.ThrowIfNull(account);
         if (AccountOf(State, account.AccountId) is { } existing)
         {
-            if (existing.OwnerPrincipalId != account.OwnerPrincipalId) { throw new InvalidOperationException("Account ownership conflict."); }
+            await Check("EnsureAccount", new AccountOwnerMatches(existing.OwnerPrincipalId, account.OwnerPrincipalId));
             return;
         }
         await Commit(State with { Accounts = [.. State.Accounts, account] }, account.AccountId);
@@ -128,22 +130,22 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
             };
             next = next with { Operations = [.. next.Operations, new BrainOperation { AccountId = accountId, OperationId = operationId, Member = member }] };
         }
-        next = Classify(next, member.BrainId, kind);
-        var (provisioned, created) = Provision(next, member);
+        next = await Classify("CreateBrain", next, member.BrainId, kind);
+        var (provisioned, created) = await Provision("CreateBrain", next, member);
         await Commit(provisioned, member.BrainId);
         return new BrainProvision(member, created);
     }
 
     public async Task<BrainProvision> EnsureBrain(Member owner)
     {
-        var (next, created) = Provision(State, owner);
+        var (next, created) = await Provision("EnsureBrain", State, owner);
         await Commit(next, owner.BrainId);
         return new BrainProvision(owner, created);
     }
 
     public async Task<BrainProvision> ProvisionOwner(Member owner)
     {
-        var (next, created) = Provision(State, owner);
+        var (next, created) = await Provision("ProvisionOwner", State, owner);
         await Commit(next, owner.BrainId);
         return new BrainProvision(owner, created);
     }
@@ -152,10 +154,10 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
 
     public async Task<BrainProvision> RegisterPrincipal(string principalId, string displayName)
     {
-        if (principalId.Length is 0 or > 80 || !System.Text.RegularExpressions.Regex.IsMatch(principalId, "^[a-z0-9][a-z0-9-]*$"))
-        { throw new ArgumentException("Use a lowercase username containing letters, numbers and hyphens."); }
-        if (principalId is "owner" or "integrations" || PrincipalOf(State, principalId)?.DefaultMembership is not null)
-        { throw new InvalidOperationException("That username is unavailable."); }
+        principalId ??= "";
+        await Check("RegisterPrincipal",
+            new PrincipalIdIsValid(principalId),
+            new PrincipalIdIsAvailable(principalId, PrincipalOf(State, principalId)?.DefaultMembership is not null));
         var accountId = Guid.NewGuid().ToString("N");
         var member = new Member
         {
@@ -167,7 +169,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
             JoinedAt = clock.GetUtcNow(),
         };
         var next = UpsertPrincipal(State, new PrincipalRow { PrincipalId = principalId, DefaultMembership = member });
-        var (completed, provision) = FinishRegistration(next, principalId);
+        var (completed, provision) = await FinishRegistration("RegisterPrincipal", next, principalId);
         await Commit(completed, member.BrainId);
         return provision!;
     }
@@ -175,9 +177,21 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     public async Task<BrainProvision?> CompleteRegistration(string principalId)
     {
         if (PrincipalOf(State, principalId)?.DefaultMembership is null) { return null; }
-        var (next, provision) = FinishRegistration(State, principalId);
+        var (next, provision) = await FinishRegistration("CompleteRegistration", State, principalId);
         if (!ReferenceEquals(next, State)) { await Commit(next, provision!.Member.BrainId); }
         return provision;
+    }
+
+    public async Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(issuer);
+        ArgumentException.ThrowIfNullOrWhiteSpace(email);
+        var known = auth.Value.TrustedIssuers.Any(item => string.Equals(item.Name, issuer, StringComparison.Ordinal));
+        await Check("RedeemExternalTicket", new IssuerIsKnown(issuer, known));
+        var normalizedEmail = DigitalBrain.Capabilities.Identity.ExternalSignInTicket.NormalizeEmail(email) ?? email.Trim();
+        var principalId = External.ExternalSignIn.PrincipalOf(issuer, normalizedEmail);
+        var name = string.IsNullOrWhiteSpace(displayName) ? normalizedEmail : displayName.Trim();
+        return await CompleteRegistration(principalId) ?? await RegisterPrincipal(principalId, name);
     }
 
     public Task<BrainEntry[]> BrainsOf(string principalId) => Task.FromResult(PrincipalOf(State, principalId)?.Brains ?? []);
@@ -192,17 +206,19 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     public async Task<Member?> EnsureMember(Member member)
     {
         ArgumentNullException.ThrowIfNull(member);
-        var next = AddMember(State, member);
+        var next = await AddMember(State, member);
         await Commit(next, member.BrainId);
         return MemberOf(BrainOf(next, member.BrainId), member.PrincipalId);
     }
 
     public async Task RemoveMember(string brainScopeId, string accountId)
     {
-        var brain = BrainOf(State, brainScopeId) ?? throw new InvalidOperationException($"Brain {brainScopeId} is not provisioned.");
-        if (accountId == brain.AccountId) { throw new InvalidOperationException($"The owner of brain {brainScopeId} cannot be removed from it."); }
+        var brain = BrainOf(State, brainScopeId);
+        await Check("RemoveMember",
+            new BrainIsProvisioned(brainScopeId, brain is not null),
+            new MemberIsNotBrainOwner(brainScopeId, brain is not null && accountId == brain.AccountId));
         var next = State;
-        foreach (var principal in brain.Members.Where(item => item.AccountId == accountId).Select(item => item.PrincipalId).ToArray())
+        foreach (var principal in brain!.Members.Where(item => item.AccountId == accountId).Select(item => item.PrincipalId).ToArray())
         { next = DropMember(next, brainScopeId, principal); }
         await Commit(next, brainScopeId);
     }
@@ -213,8 +229,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
         var brain = BrainOf(State, brainScopeId);
         if (brain is null || MemberOf(brain, principalId) is not { } member) { return; }
-        if (member.Role == MemberRole.Owner || principalId == brain.AccountId)
-        { throw new InvalidOperationException($"The owner of brain {brainScopeId} cannot be removed from it."); }
+        await Check("RemovePrincipalMember", new MemberIsNotBrainOwner(brainScopeId, member.Role == MemberRole.Owner || principalId == brain.AccountId));
         await Commit(DropMember(State, brainScopeId, principalId), brainScopeId);
     }
 
@@ -276,7 +291,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     public async Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant)
     {
         var next = RequireOwner(State, caller);
-        if (BrainOf(next, caller.BrainId) is null) { throw new InvalidOperationException("Initialize the brain authority before granting access."); }
+        await Check("GrantAsOwner", new BrainAuthorityIsInitialized(BrainOf(next, caller.BrainId) is not null));
         var normalized = Grant.Normalize(grant);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Grantee);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Scope);
@@ -359,52 +374,52 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         }
     }
 
-    private (DirectoryState Next, bool Created) Provision(DirectoryState state, Member owner)
+    private Task<(DirectoryState Next, bool Created)> Provision(string operation, DirectoryState state, Member owner)
     {
         var account = AccountOf(state, owner.AccountId) ?? throw new UnauthorizedAccessException("Brain ownership does not match the account.");
         if (account.OwnerPrincipalId != owner.PrincipalId) { throw new UnauthorizedAccessException("Brain ownership does not match the account."); }
         var next = Initialize(state, owner.AccountId, owner.BrainId);
-        return ProvisionOwnerRow(next, owner);
+        return ProvisionOwnerRow(operation, next, owner);
     }
 
-    private (DirectoryState Next, bool Created) ProvisionOwnerRow(DirectoryState state, Member owner)
+    private async Task<(DirectoryState Next, bool Created)> ProvisionOwnerRow(string operation, DirectoryState state, Member owner)
     {
-        if (owner.Role != MemberRole.Owner) { throw new ArgumentException("An owner is required."); }
+        await Check(operation, new MemberIsOwnerRole(owner.Role == MemberRole.Owner));
         var brain = BrainOf(state, owner.BrainId)!;
         if (brain.OwnerProvisioned)
         {
             var current = brain.Members.FirstOrDefault(member => member.Role == MemberRole.Owner);
             if (current is null || current.PrincipalId == owner.PrincipalId) { return (state, false); }
-            throw new InvalidOperationException($"Brain {owner.BrainId} already belongs to {current.PrincipalId}; {owner.PrincipalId} cannot be provisioned as its owner.");
+            await Check(operation, new BrainOwnerMatches(owner.BrainId, current.PrincipalId, owner.PrincipalId));
         }
         var members = brain.Members.Where(member => member.PrincipalId != owner.PrincipalId).Append(owner).ToArray();
         var next = ReplaceBrain(state, brain with { Members = members, OwnerProvisioned = true });
         return (JoinBrain(next, owner.PrincipalId, owner.BrainId, brain.Kind), true);
     }
 
-    private (DirectoryState Next, BrainProvision? Provision) FinishRegistration(DirectoryState state, string principalId)
+    private async Task<(DirectoryState Next, BrainProvision? Provision)> FinishRegistration(string operation, DirectoryState state, string principalId)
     {
         var row = PrincipalOf(state, principalId);
         if (row?.DefaultMembership is not { } member) { return (state, null); }
         if (row.RegistrationComplete) { return (state, new BrainProvision(member, false)); }
         var account = new Account { AccountId = member.AccountId, OwnerPrincipalId = member.PrincipalId, Name = member.DisplayName, CreatedAt = member.JoinedAt };
         var withAccount = AccountOf(state, account.AccountId) is null ? state with { Accounts = [.. state.Accounts, account] } : state;
-        var (provisioned, created) = Provision(withAccount, member);
+        var (provisioned, created) = await Provision(operation, withAccount, member);
         var completed = UpsertPrincipal(provisioned, PrincipalOf(provisioned, principalId)! with { RegistrationComplete = true });
         return (completed, new BrainProvision(member, created));
     }
 
-    private DirectoryState AddMember(DirectoryState state, Member member)
+    private async Task<DirectoryState> AddMember(DirectoryState state, Member member)
     {
         var brain = BrainOf(state, member.BrainId);
         if (brain?.AccountId is { } owner && owner != member.AccountId)
         {
-            if (member.Role == MemberRole.Owner) { throw new InvalidOperationException("A brain has one owner, its creator."); }
+            await Check("EnsureMember", new BrainHasSingleOwner(member.Role == MemberRole.Owner));
         }
         else { state = Initialize(state, member.AccountId, member.BrainId); brain = BrainOf(state, member.BrainId); }
         if (brain!.Members.FirstOrDefault(item => item.PrincipalId == member.PrincipalId) is { } existing)
         {
-            if (existing.Role != member.Role) { throw new InvalidOperationException("Membership role conflict."); }
+            await Check("EnsureMember", new MemberRoleMatches(existing.Role == member.Role));
             return state;
         }
         var members = brain.Members.Append(member).ToArray();
@@ -433,15 +448,18 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var brain = BrainOf(state, brainId);
         if (brain is null) { return ReplaceBrain(state, new BrainRow { BrainId = brainId, AccountId = accountId }); }
         if (brain.AccountId is not null && (brain.AccountId != accountId || brain.BrainId != brainId))
-        { throw new InvalidOperationException("Brain authority scope conflict."); }
+        {
+            // authority: brain authority scope conflict is an authority invariant
+            throw new InvalidOperationException("Brain authority scope conflict.");
+        }
         return brain.AccountId is null ? ReplaceBrain(state, brain with { AccountId = accountId }) : state;
     }
 
-    private static DirectoryState Classify(DirectoryState state, string brainId, BrainKind kind)
+    private async Task<DirectoryState> Classify(string operation, DirectoryState state, string brainId, BrainKind kind)
     {
         var brain = BrainOf(state, brainId) ?? new BrainRow { BrainId = brainId };
         if (brain.Kind == kind) { return BrainOf(state, brainId) is null ? ReplaceBrain(state, brain) : state; }
-        if (brain.OwnerProvisioned) { throw new InvalidOperationException($"Brain {brainId} is a {brain.Kind} brain; its kind is fixed."); }
+        await Check(operation, new BrainKindIsMutable(brainId, brain.Kind.ToString(), brain.OwnerProvisioned));
         return ReplaceBrain(state, brain with { Kind = kind });
     }
 

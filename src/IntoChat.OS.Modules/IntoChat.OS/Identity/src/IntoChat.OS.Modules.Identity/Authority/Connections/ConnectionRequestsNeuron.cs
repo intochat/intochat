@@ -1,4 +1,5 @@
 using IntoChat.OS;
+using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
@@ -27,12 +28,11 @@ internal sealed class ConnectionRequestsNeuron(
 {
     private string BrainId => Id.Brain.Value;
 
-    public Task Changed(string connectionKey)
+    public async Task Changed(string connectionKey)
     {
-        if (ConnectionKeys.Parse(connectionKey).BrainId != BrainId)
-        { throw new ArgumentException("The connection belongs to another brain.", nameof(connectionKey)); }
+        await Check("Changed", new ConnectionBelongsToBrain(ConnectionKeys.Parse(connectionKey).BrainId, BrainId));
         var next = new ConnectionRequestsState { Pending = State.Pending, Revision = State.Revision + 1, Order = State.Order };
-        return Save(next, new ConnectionsChanged(next.Revision));
+        await Save(next, new ConnectionsChanged(next.Revision));
     }
 
     public async Task<ConnectorKind[]> ListKinds()
@@ -90,10 +90,8 @@ internal sealed class ConnectionRequestsNeuron(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
         var id = kind.Trim();
-        if (!(await catalog.ListAsync(CancellationToken.None)).Any(definition => definition.Id == id))
-        {
-            throw new ArgumentException($"Integration '{kind}' is not available.");
-        }
+        var available = (await catalog.ListAsync(CancellationToken.None)).Any(definition => definition.Id == id);
+        await Check("Request", new IntegrationIsAvailable(kind, available));
 
         var account = new ConnectionRef(id, Guid.NewGuid().ToString("n"));
         var next = new ConnectionRequestsState { Pending = [.. State.Pending, account], Revision = State.Revision, Order = State.Order };

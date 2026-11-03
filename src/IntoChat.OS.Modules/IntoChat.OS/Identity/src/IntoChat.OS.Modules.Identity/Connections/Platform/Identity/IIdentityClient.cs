@@ -60,4 +60,7 @@ public interface IIdentityClient
 
     [Obsolete("Use RevokeAsOwner with grantId")]
     Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
+
+    Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
+        => throw new NotSupportedException();
 }

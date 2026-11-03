@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities;
+using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Connections.Platform.Connections.Signals;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
@@ -110,10 +111,9 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         RequireMember();
-        RequireAuthMethod(authMethodId);
+        await RequireAuthMethod("Connect", authMethodId);
         // An OAuth method's token arrives only through AcceptGrant, after the Platform's code exchange.
-        if (Connector.OAuthMethods.Any(method => method.Id == authMethodId))
-        { throw new ArgumentException($"Authentication method '{authMethodId}' of connector '{Key.Connector}' is a browser login; start it from the login route.", nameof(authMethodId)); }
+        await Check("Connect", new AuthMethodIsNotBrowserLogin(Key.Connector, authMethodId, Connector.OAuthMethods.Any(method => method.Id == authMethodId)));
         Snapshot.AuthMethodId = authMethodId;
         Snapshot.Secrets = [await SealAsync(ValueSecret, value)];
         Snapshot.ExpiresAt = null;
@@ -129,7 +129,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     {
         ArgumentNullException.ThrowIfNull(grant);
         RequireMember();
-        RequireAuthMethod(grant.AuthMethodId);
+        await RequireAuthMethod("AcceptGrant", grant.AuthMethodId);
         // The module's override sets Snapshot.Account (mailbox, instance url, owner/repo) and may throw.
         var accepted = await AcceptGrantAsync(grant);
         await SealAsync(accepted, keepRefresh: false);
@@ -144,7 +144,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     public async Task<ConnectionView> Probe()
     {
         RequireMember();
-        if (Snapshot.Status == ConnectionStatus.Disconnected) { throw new InvalidOperationException("The connection is not configured."); }
+        await Check("Probe", new ConnectionIsConfigured(Snapshot.Status != ConnectionStatus.Disconnected));
         ConnectionProbeResult result;
         try { result = await ProbeAsync(await OpenAsync(), CancellationToken.None); }
         // The message may carry a provider URL with a token in it; only the type is kept.
@@ -176,7 +176,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     public async Task<ConnectionView> Adopt(string authMethodId, string? account)
     {
         RequireNotAppCaller();
-        RequireAuthMethod(authMethodId);
+        await RequireAuthMethod("Adopt", authMethodId);
         if (Snapshot.Status != ConnectionStatus.Disconnected || Snapshot.Secrets.Length > 0) { return View(); }
         Snapshot.AuthMethodId = authMethodId;
         Snapshot.Account = account;
@@ -193,9 +193,10 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         RequireNotAppCaller();
         if (Snapshot.Secrets.Length == 0) { return []; }
-        var part = BrainSealer ?? throw new InvalidOperationException("Re-sealing a shared credential needs this machine's part keys.");
+        var part = BrainSealer;
+        await Check("ExportFor", new BrainSealerIsAvailable(part is not null));
         var reSealed = new List<SealedSecret>(Snapshot.Secrets.Length);
-        foreach (var secret in Snapshot.Secrets) { reSealed.Add(await part.Seal(brainId, secret.Name, Sealer.Open(secret))); }
+        foreach (var secret in Snapshot.Secrets) { reSealed.Add(await part!.Seal(brainId, secret.Name, Sealer.Open(secret))); }
         return [.. reSealed];
     }
 
@@ -204,7 +205,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     {
         ArgumentNullException.ThrowIfNull(secrets);
         RequireNotAppCaller();
-        RequireAuthMethod(authMethodId);
+        await RequireAuthMethod("Import", authMethodId);
         Snapshot.AuthMethodId = authMethodId;
         Snapshot.Account = account;
         Snapshot.Secrets = secrets;
@@ -370,11 +371,8 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
 
     private Task Track() => Context.Get<IConnectionIndex>(IConnectionIndex.Id(Key.Brain)).Track(FullKey);
 
-    private void RequireAuthMethod(string authMethodId)
-    {
-        if (!Connector.AuthMethods.Contains(authMethodId, StringComparer.Ordinal))
-        { throw new ArgumentException($"Connector '{Key.Connector}' does not offer authentication method '{authMethodId}'.", nameof(authMethodId)); }
-    }
+    private Task RequireAuthMethod(string operation, string authMethodId)
+        => Check(operation, new AuthMethodIsOffered(Key.Connector, authMethodId, Connector.AuthMethods.Contains(authMethodId, StringComparer.Ordinal)));
 
     // Members of the brain named in the key; never an installed app.
     private void RequireMember()

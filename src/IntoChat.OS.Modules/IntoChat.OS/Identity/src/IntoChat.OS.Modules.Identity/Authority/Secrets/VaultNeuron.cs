@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Contracts;
+using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -31,10 +32,7 @@ internal sealed class VaultNeuron(IKeyWrapper keys) : DigitalBrain.Neuron<Secret
     public async Task<SecretRef> Set(CapabilityCaller caller, string name, string label, string value)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (caller.Kind == CallerKind.User && caller.PrincipalId != Principal())
-        {
-            throw new InvalidOperationException("Only the owner can store a secret.");
-        }
+        await Check("Set", new CallerCanStoreSecret(!(caller.Kind == CallerKind.User && caller.PrincipalId != Principal())));
 
         var next = Copy(State);
         next.Owner = Principal();
@@ -49,10 +47,7 @@ internal sealed class VaultNeuron(IKeyWrapper keys) : DigitalBrain.Neuron<Secret
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var isOwner = caller.Kind == CallerKind.User && caller.PrincipalId == Principal();
         var isPlatform = caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform;
-        if (!isOwner && !isPlatform)
-        {
-            throw new InvalidOperationException("Only the owner or trusted platform code can remove a secret.");
-        }
+        await Check("Remove", new CallerCanRemoveSecret(isOwner || isPlatform));
 
         if (!Copy(State).Fields.ContainsKey(name)) { return; }
         var next = Copy(State);

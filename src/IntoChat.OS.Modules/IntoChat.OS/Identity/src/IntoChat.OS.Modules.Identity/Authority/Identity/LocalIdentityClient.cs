@@ -37,4 +37,6 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityC
     [Obsolete("Use RevokeAsOwner with grantId")]
     public Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
         => Directory.RevokeAsOwner(caller, appId, semanticTypeId, mode);
+    public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
+        => Directory.RedeemExternalTicket(issuer, email, displayName);
 }

@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Rules;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity.Contacts;
 
@@ -42,7 +43,8 @@ public sealed class ContactsNeuronFacts
     {
         var (os, c) = await Open();
         await using var _ = os;
-        await Assert.ThrowsAsync<ArgumentException>(() => c.Add("My Friends", new ContactEntry { Principal = "brain:bob" }));
+        var ex = await Assert.ThrowsAsync<RuleViolationException>(() => c.Add("My Friends", new ContactEntry { Principal = "brain:bob" }));
+        Assert.Contains("identity.contact-list-name-valid", ex.Rejected.Rules);
     }
 
     [Fact]
