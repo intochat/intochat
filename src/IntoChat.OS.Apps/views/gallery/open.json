@@ -1,0 +1,1214 @@
+{
+  "appId": "gallery",
+  "scenario": "open",
+  "side": {
+    "title": "UI Kit Catalog",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "fluent-acrylic",
+                  "tone": "accent",
+                  "icon": "palette"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "floating-glass",
+                  "tone": "neutral",
+                  "icon": "layout"
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "Identity: fluent-acrylic · floating-glass",
+              "tone": "muted",
+              "tabular": true,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "UI Gallery · Component Studio",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "textField",
+          "name": "gallery-search",
+          "value": "",
+          "placeholder": "Search 5 categories & LFP cards…",
+          "onSubmit": {
+            "neuron": "gallery",
+            "operation": "filter",
+            "arguments": [
+              "all",
+              ""
+            ]
+          }
+        },
+        {
+          "kind": "divider",
+          "label": "CATEGORIES (5)"
+        },
+        {
+          "kind": "column",
+          "children": [
+            {
+              "kind": "navItem",
+              "key": "cat-home",
+              "label": "Catalog Grid (Home)",
+              "icon": "house",
+              "action": "select:home",
+              "selected": false,
+              "badge": "30"
+            },
+            {
+              "kind": "navItem",
+              "key": "cat-all",
+              "label": "All Controls",
+              "icon": "layout-grid",
+              "action": "filter:all",
+              "selected": true,
+              "badge": "30"
+            },
+            {
+              "kind": "navItem",
+              "key": "cat-design",
+              "label": "Design & Identity",
+              "icon": "palette",
+              "action": "filter:design",
+              "selected": false,
+              "badge": "4"
+            },
+            {
+              "kind": "navItem",
+              "key": "cat-controls",
+              "label": "Basic Input",
+              "icon": "mouse-pointer-click",
+              "action": "filter:controls",
+              "selected": false,
+              "badge": "7"
+            },
+            {
+              "kind": "navItem",
+              "key": "cat-layout",
+              "label": "Layout & App Shell",
+              "icon": "panel-left",
+              "action": "filter:layout",
+              "selected": false,
+              "badge": "4"
+            },
+            {
+              "kind": "navItem",
+              "key": "cat-lfp",
+              "label": "Data & 13 LFP Chat Cards",
+              "icon": "table",
+              "action": "filter:chat-lfp",
+              "selected": false,
+              "badge": "13"
+            },
+            {
+              "kind": "navItem",
+              "key": "cat-3d",
+              "label": "3D Brain & Neurons",
+              "icon": "brain-circuit",
+              "action": "filter:3d-brain",
+              "selected": false,
+              "badge": "2"
+            }
+          ],
+          "gap": 4,
+          "padding": 0
+        },
+        {
+          "kind": "divider",
+          "label": "CONTROLS (30)"
+        },
+        {
+          "kind": "column",
+          "children": [
+            {
+              "kind": "navItem",
+              "key": "sample-themes",
+              "label": "7 UI Identities & Glass Materiality",
+              "icon": "palette",
+              "action": "select:themes",
+              "selected": false,
+              "badge": "Design"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-typography",
+              "label": "Typography (Inter + InterDisplay + tnum)",
+              "icon": "type",
+              "action": "select:typography",
+              "selected": false,
+              "badge": "Design"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-iconography",
+              "label": "Iconography & Squircle IcAppIcon Builder",
+              "icon": "sparkles",
+              "action": "select:iconography",
+              "selected": false,
+              "badge": "Design"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-acrylic-surface",
+              "label": "AcrylicSurface & Specular Border",
+              "icon": "layers",
+              "action": "select:acrylic-surface",
+              "selected": false,
+              "badge": "Design"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-buttons",
+              "label": "Btn (Styles, Sizes & Icons)",
+              "icon": "mouse-pointer-click",
+              "action": "select:buttons",
+              "selected": false,
+              "badge": "Input"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-inputs",
+              "label": "Field & TextField",
+              "icon": "text-cursor-input",
+              "action": "select:inputs",
+              "selected": false,
+              "badge": "Input"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-switch",
+              "label": "IcSwitch (with Lock State)",
+              "icon": "toggle-right",
+              "action": "select:switch",
+              "selected": false,
+              "badge": "Input"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-select",
+              "label": "Select & Dropdown",
+              "icon": "list-filter",
+              "action": "select:select",
+              "selected": false,
+              "badge": "Input"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-tag-pill",
+              "label": "TagPill & Status Badges",
+              "icon": "tag",
+              "action": "select:tag-pill",
+              "selected": false,
+              "badge": "Input"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-progress-infobar",
+              "label": "Progress & InfoBar",
+              "icon": "loader",
+              "action": "select:progress-infobar",
+              "selected": false,
+              "badge": "Input"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-files-neuron-uri",
+              "label": "Distributed neuron:// File Addressing",
+              "icon": "folder",
+              "action": "select:files-neuron-uri",
+              "selected": false,
+              "badge": "Input"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-app-shell",
+              "label": "Ui.AppShell & Ui.StatCard Builders",
+              "icon": "panel-left",
+              "action": "select:app-shell",
+              "selected": false,
+              "badge": "Layout"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-tabs",
+              "label": "Tabs & Segmented Views",
+              "icon": "folder-kanban",
+              "action": "select:tabs",
+              "selected": false,
+              "badge": "Layout"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-surfaces",
+              "label": "IcAcrylicBox Surfaces",
+              "icon": "square-stack",
+              "action": "select:surfaces",
+              "selected": false,
+              "badge": "Layout"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-stat-card",
+              "label": "StatCard (Ui.StatCard)",
+              "icon": "trending-up",
+              "action": "select:stat-card",
+              "selected": false,
+              "badge": "Layout"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-table-card",
+              "label": "TableCard & Postgres SQL Result (LFP)",
+              "icon": "table",
+              "action": "select:table-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-chart-card",
+              "label": "ChartCard (LFP)",
+              "icon": "chart-column",
+              "action": "select:chart-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-approval-card",
+              "label": "ApprovalCard (LFP)",
+              "icon": "check-check",
+              "action": "select:approval-card",
+              "selected": true,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-choice-card",
+              "label": "ChoiceCard (LFP)",
+              "icon": "list-checks",
+              "action": "select:choice-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-draft-card",
+              "label": "DraftCard (LFP)",
+              "icon": "mail",
+              "action": "select:draft-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-change-preview-card",
+              "label": "ChangePreviewCard (LFP)",
+              "icon": "git-compare",
+              "action": "select:change-preview-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-app-install-card",
+              "label": "AppInstallCard (LFP)",
+              "icon": "package-plus",
+              "action": "select:app-install-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-record-card",
+              "label": "RecordCard (LFP)",
+              "icon": "contact",
+              "action": "select:record-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-secret-card",
+              "label": "SecretCard (LFP)",
+              "icon": "key-round",
+              "action": "select:secret-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-job-card",
+              "label": "JobCard (LFP)",
+              "icon": "workflow",
+              "action": "select:job-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-remember-card",
+              "label": "RememberCard (LFP)",
+              "icon": "brain",
+              "action": "select:remember-card",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-file-cards",
+              "label": "FileCards (FileCard, FileChip & SaveToPicker) (LFP)",
+              "icon": "file-check",
+              "action": "select:file-cards",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-error-line",
+              "label": "ErrorLine (LFP)",
+              "icon": "triangle-alert",
+              "action": "select:error-line",
+              "selected": false,
+              "badge": "LFP"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-brain-scene-3d",
+              "label": "BrainScene3D Orbital Graph",
+              "icon": "brain-circuit",
+              "action": "select:brain-scene-3d",
+              "selected": false,
+              "badge": "3D"
+            },
+            {
+              "kind": "navItem",
+              "key": "sample-neuron-paths",
+              "label": "Distributed NeuronId Addressing",
+              "icon": "network",
+              "action": "select:neuron-paths",
+              "selected": false,
+              "badge": "3D"
+            }
+          ],
+          "gap": 4,
+          "padding": 0
+        }
+      ],
+      "gap": 10,
+      "padding": 0
+    }
+  },
+  "main": {
+    "title": "UI Gallery",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "button",
+                  "label": "Back to Gallery",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "select",
+                    "arguments": [
+                      "home"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "arrow-left",
+                  "small": true
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "Data & 13 LFP Chat Cards",
+                  "tone": "accent",
+                  "icon": "check-check"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "IntoChat.UI.ApprovalCard@1",
+                  "tone": "ok",
+                  "icon": "cpu"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "[Signal] ino.approve-card (0)",
+                  "tone": "done",
+                  "icon": "zap"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "fluent-acrylic · floating-glass",
+                  "tone": "neutral",
+                  "icon": "palette"
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            },
+            {
+              "kind": "heading",
+              "value": "ApprovalCard (LFP)",
+              "level": 1,
+              "subtitle": "Inline human-in-the-loop confirmation card rendered inside Ino chat turns and Smart Desktop."
+            },
+            {
+              "kind": "text",
+              "value": "Showing 30 UI Kit controls (fluent-acrylic · floating-glass)",
+              "tone": "muted",
+              "tabular": true,
+              "mono": false
+            },
+            {
+              "kind": "text",
+              "value": "Control: ApprovalCard (LFP) [IntoChat.UI.ApprovalCard@1]",
+              "tone": "neutral",
+              "tabular": true,
+              "mono": false
+            },
+            {
+              "kind": "text",
+              "value": "URI: neuron://local/os.confirmations/inbox#approval-card",
+              "tone": "neutral",
+              "tabular": true,
+              "mono": true
+            },
+            {
+              "kind": "text",
+              "value": "Signals: ino.approve-card",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": true
+            },
+            {
+              "kind": "neuronRef",
+              "refKind": "gallery",
+              "neuronUri": "neuron://local/os.confirmations/inbox#approval-card"
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "UI Gallery · Interactive Control Playground",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "splitPane",
+          "leading": {
+            "kind": "surface",
+            "children": [
+              {
+                "kind": "approvalCard",
+                "id": "card-gallery-1",
+                "title": "Update close date on Nordlys Q4 renewal to 15 Nov 2026?",
+                "summary": "Ino matched Kari Holm's email to your open Salesforce opportunity (scope:neuron://local/apps/ino#card-1)",
+                "rows": [
+                  {
+                    "label": "Nordlys Q4 Enterprise",
+                    "oldValue": "30 Oct 2026",
+                    "newValue": "15 Nov 2026",
+                    "amount": "480,000 NOK",
+                    "warn": false
+                  },
+                  {
+                    "label": "Owner",
+                    "oldValue": "Unassigned",
+                    "newValue": "Vlad Horb",
+                    "amount": null,
+                    "warn": false
+                  }
+                ],
+                "valueLabel": "Value",
+                "systemName": "Salesforce",
+                "status": "pending",
+                "onApprove": {
+                  "neuron": "gallery",
+                  "operation": "select",
+                  "arguments": [
+                    "card:approval:approved"
+                  ]
+                },
+                "onReject": {
+                  "neuron": "gallery",
+                  "operation": "select",
+                  "arguments": [
+                    "card:approval:rejected"
+                  ]
+                },
+                "sourceNeuronUri": "neuron://local/os.confirmations/inbox#approval-card"
+              }
+            ],
+            "surfaceKind": "acrylic",
+            "title": "Live Control Preview",
+            "subtitle": "IntoChat.UI.ApprovalCard@1 · State: interactive · Surface: acrylic",
+            "padding": 18
+          },
+          "trailing": {
+            "kind": "surface",
+            "children": [
+              {
+                "kind": "text",
+                "value": "STYLE (Primary · Secondary · Ghost · Danger)",
+                "tone": "muted",
+                "tabular": false,
+                "mono": false,
+                "size": 11
+              },
+              {
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "button",
+                    "label": "Primary",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:style:primary"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "accent",
+                    "style": "primary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Secondary",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:style:secondary"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Ghost",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:style:ghost"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Danger",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:style:danger"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  }
+                ],
+                "gap": 6,
+                "padding": 0
+              },
+              {
+                "kind": "text",
+                "value": "TONE (Neutral · Accent · Done · Working · Error)",
+                "tone": "muted",
+                "tabular": false,
+                "mono": false,
+                "size": 11
+              },
+              {
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "button",
+                    "label": "Neutral",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:tone:neutral"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Accent",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:tone:accent"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "accent",
+                    "style": "primary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Done",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:tone:done"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Working",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:tone:working"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Error",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:tone:error"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  }
+                ],
+                "gap": 6,
+                "padding": 0
+              },
+              {
+                "kind": "text",
+                "value": "SIZE (Standard 36px · Small 30px)",
+                "tone": "muted",
+                "tabular": false,
+                "mono": false,
+                "size": 11
+              },
+              {
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "button",
+                    "label": "Standard (36px)",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:size:standard"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "accent",
+                    "style": "primary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Small (30px)",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:size:small"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  }
+                ],
+                "gap": 6,
+                "padding": 0
+              },
+              {
+                "kind": "text",
+                "value": "STATE (Interactive · Loading · Disabled · Empty)",
+                "tone": "muted",
+                "tabular": false,
+                "mono": false,
+                "size": 11
+              },
+              {
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "button",
+                    "label": "Interactive",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:state:interactive"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "accent",
+                    "style": "primary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Loading",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:state:loading"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Disabled",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:state:disabled"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Empty",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:state:empty"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  }
+                ],
+                "gap": 6,
+                "padding": 0
+              },
+              {
+                "kind": "text",
+                "value": "SURFACE (Acrylic · Elevated · Recessed)",
+                "tone": "muted",
+                "tabular": false,
+                "mono": false,
+                "size": 11
+              },
+              {
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "button",
+                    "label": "Acrylic",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:surface:acrylic"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "accent",
+                    "style": "primary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Elevated",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:surface:elevated"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Recessed",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:surface:recessed"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  }
+                ],
+                "gap": 6,
+                "padding": 0
+              },
+              {
+                "kind": "text",
+                "value": "CHART KIND (Bar · Line)",
+                "tone": "muted",
+                "tabular": false,
+                "mono": false,
+                "size": 11
+              },
+              {
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "button",
+                    "label": "Bar",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:chart:bar"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "accent",
+                    "style": "primary",
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "label": "Line",
+                    "action": {
+                      "neuron": "gallery",
+                      "operation": "select",
+                      "arguments": [
+                        "knob:chart:line"
+                      ]
+                    },
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
+                  }
+                ],
+                "gap": 6,
+                "padding": 0
+              }
+            ],
+            "surfaceKind": "recessed",
+            "title": "Property Knobs",
+            "subtitle": "Live C# state mutation",
+            "padding": 18
+          },
+          "leadingExtent": 540,
+          "gap": 14
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "button",
+                  "label": "Fluent Acrylic",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "switch-identity",
+                    "arguments": [
+                      "fluent-acrylic",
+                      "floating-glass"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "accent",
+                  "style": "secondary",
+                  "icon": "palette",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Spatial Glass",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "switch-identity",
+                    "arguments": [
+                      "spatial-glass",
+                      "compact-pill"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "sparkles",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Cyber Synaptic",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "switch-identity",
+                    "arguments": [
+                      "cyber-synaptic",
+                      "split-top-dock"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "zap",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Warm Paper",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "switch-identity",
+                    "arguments": [
+                      "warm-paper",
+                      "classic-bottom"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "sun",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Warm Mica",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "switch-identity",
+                    "arguments": [
+                      "fluent-warm-mica",
+                      "floating-glass"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "sun",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Linear Carbon",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "switch-identity",
+                    "arguments": [
+                      "linear-carbon",
+                      "classic-bottom"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "terminal",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Nordic Tactical",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "switch-identity",
+                    "arguments": [
+                      "nordic-tactical",
+                      "split-top-dock"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "shield",
+                  "small": true
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            },
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "button",
+                  "label": "C# DigitalBrain.UI",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "select",
+                    "arguments": [
+                      "tab:csharp"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "accent",
+                  "style": "secondary",
+                  "icon": "code",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Flutter Ic*",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "select",
+                    "arguments": [
+                      "tab:flutter"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "layers",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Contract & [Signal]",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "select",
+                    "arguments": [
+                      "tab:contract"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "radio",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Fire Test [Signal]",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "select",
+                    "arguments": [
+                      "pulse"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "accent",
+                  "style": "secondary",
+                  "icon": "zap",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Copy Snippet",
+                  "action": {
+                    "neuron": "gallery",
+                    "operation": "copy",
+                    "arguments": [
+                      "// IntoChat.UI.ApprovalCard@1 · [ino.approve-card]\n// Knobs: Style=primary · Tone=accent · Size=Standard(36px) · Surface=acrylic\nawait Send(new InoSend(\"Draft confirmation card\"));\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "copy",
+                  "small": true
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            },
+            {
+              "kind": "surface",
+              "children": [
+                {
+                  "kind": "text",
+                  "value": "// IntoChat.UI.ApprovalCard@1 · [ino.approve-card]\n// Knobs: Style=primary · Tone=accent · Size=Standard(36px) · Surface=acrylic\nawait Send(new InoSend(\"Draft confirmation card\"));\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));",
+                  "tone": "neutral",
+                  "tabular": true,
+                  "mono": true
+                }
+              ],
+              "surfaceKind": "acrylic",
+              "title": null,
+              "subtitle": null,
+              "padding": 18
+            }
+          ],
+          "surfaceKind": "recessed",
+          "title": "C# App<TState> & [Signal] Contract",
+          "subtitle": "IntoChat.UI.ApprovalCard@1 · neuron://local/os.confirmations/inbox#approval-card",
+          "padding": 18
+        }
+      ],
+      "gap": 16,
+      "padding": 0
+    }
+  }
+}

@@ -60,12 +60,15 @@ internal static class AppsEndpoints
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), null, request.Text, ct)));
         }));
 
-        apps.MapGet("/{name}", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        apps.MapGet("/{name}", (string name, INeuronProxies brain, HttpContext http, CancellationToken ct) => Respond(async () =>
         {
+            var key = AppKey(name);
             var snapshot = await App(brain, name).Read().WaitAsync(ct);
+            var sink = http.RequestServices.GetService(typeof(AppPresentationSink)) as AppPresentationSink;
+            var (side, main, sequence) = sink?.TryGetPresentedViews(key) ?? (null, null, 0L);
             return snapshot.Manifest.Title.Length == 0
                 ? throw new KeyNotFoundException($"No app named {name} exists in this brain.")
-                : Results.Ok(View(snapshot));
+                : Results.Ok(View(snapshot, main, side, sequence));
         }));
 
         apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
@@ -208,7 +211,7 @@ internal static class AppsEndpoints
         }
     }
 
-    internal static object View(AppSnapshot snapshot) => new
+    internal static object View(AppSnapshot snapshot, DigitalBrain.UI.View? presentedView = null, DigitalBrain.UI.View? presentedSide = null, long viewRevision = 0L) => new
     {
         name = snapshot.Name,
         manifest = snapshot.Manifest,
@@ -223,6 +226,9 @@ internal static class AppsEndpoints
         publishedVersion = snapshot.PublishedVersion,
         origin = snapshot.Origin,
         edited = snapshot.Edited,
+        view = presentedView,
+        side = presentedSide,
+        viewRevision,
         synapses = (snapshot.Synapses ?? []).Select(synapse => new
         {
             operationId = synapse.OperationId,

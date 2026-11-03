@@ -1,0 +1,34 @@
+{
+  "appId": "photocraft",
+  "scenario": "open",
+  "side": null,
+  "main": {
+    "title": "PhotoCraft",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "text",
+          "value": "PhotoCraft tools connected (WASM Web UI) · Active: /work/portrait.png · /work/portrait.png -> /work/portrait.nobg.png",
+          "tone": "muted",
+          "tabular": true,
+          "mono": false
+        },
+        {
+          "kind": "webBrowser",
+          "key": "photocraft-wasm",
+          "url": "http://localhost:18082",
+          "title": "PhotoCraft WASM Studio",
+          "height": 0,
+          "executionMode": "wasm-ui"
+        }
+      ],
+      "gap": 4,
+      "padding": 0,
+      "extents": [
+        24,
+        0
+      ]
+    }
+  }
+}

@@ -314,6 +314,82 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
             Assert.Equal(report.AppId, stored.AppId);
             Assert.Equal(report.Scenarios.Count, stored.Scenarios.Count);
         }
+
+        await VerifyAllShellAppsOpenFixturesOnSiloAsync(brain, viewsRoot, ct);
+    }
+
+    private async Task VerifyAllShellAppsOpenFixturesOnSiloAsync(string brain, string viewsRoot, CancellationToken ct)
+    {
+        var openChecks = new (string AppId, Func<Task<(View? Side, View Main)>> OpenOnSilo)[]
+        {
+            ("settings", async () =>
+            {
+                var app = fixture.AttachSilo(new SettingsApp(), brain);
+                await app.Open(new SettingsOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("workspace", async () =>
+            {
+                var app = fixture.AttachSilo(new WorkspaceApp(), brain);
+                await app.Open(new WorkspaceOpen());
+                return (null, app.Render());
+            }),
+            ("gallery", async () =>
+            {
+                var app = fixture.AttachSilo(new GalleryApp(), brain);
+                await app.Open(new GalleryOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("creator", async () =>
+            {
+                var app = fixture.AttachSilo(new CreatorApp(), brain);
+                await app.Open(new CreatorOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("ino", async () =>
+            {
+                var app = fixture.AttachSilo(new InoApp(), brain);
+                await app.Open(new InoOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("desktop", async () =>
+            {
+                var app = fixture.AttachSilo(new DesktopApp(), brain);
+                await app.Open(new DesktopOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("post", async () =>
+            {
+                var app = fixture.AttachSilo(new PostApp(), brain);
+                await app.Open(new PostOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("photocraft", async () =>
+            {
+                var app = fixture.AttachSilo(new PhotoCraftApp(), brain);
+                await app.Open(new PhotoCraftStudioOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("filmcraft", async () =>
+            {
+                var app = fixture.AttachSilo(new FilmCraftApp(), brain);
+                await app.Open(new FilmCraftStudioOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+        };
+
+        foreach (var (appId, openOnSilo) in openChecks)
+        {
+            ct.ThrowIfCancellationRequested();
+            var (side, main) = await openOnSilo();
+            var openReport = new BddReport(
+                appId,
+                [new ScenarioVerdict("open", Passed: true, Error: null, Elapsed: TimeSpan.FromMilliseconds(1)) { Side = side, Main = main }],
+                BaselinePassed: true,
+                BaselineError: null,
+                Elapsed: TimeSpan.FromMilliseconds(1));
+            ViewFixtures.Verify(openReport, Path.Combine(viewsRoot, appId));
+        }
     }
 
     private static string ResolveViewsRoot()

@@ -1,0 +1,162 @@
+{
+  "appId": "ino",
+  "scenario": "open",
+  "side": {
+    "title": "Chats",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Ino · Arc Sidebar",
+                  "tone": "accent",
+                  "icon": "sparkles"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "0 turn(s)",
+                  "tone": "neutral",
+                  "icon": null
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "Ready (qwen3.5:4b)",
+              "tone": "muted",
+              "tabular": true,
+              "mono": false
+            },
+            {
+              "kind": "button",
+              "label": "+ New Session",
+              "action": {
+                "neuron": "apps/ino",
+                "operation": "new",
+                "arguments": []
+              },
+              "enabled": true,
+              "tone": "accent",
+              "style": "secondary",
+              "icon": "plus",
+              "small": true
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "New chat",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "divider",
+          "label": "PINNED SESSIONS"
+        },
+        {
+          "kind": "navItem",
+          "key": "arc-q4-renewal",
+          "label": "Nordlys Q4 Renewal",
+          "icon": "sparkles",
+          "action": "send:/scenario q4-renewal",
+          "selected": false,
+          "badge": "Needs you"
+        },
+        {
+          "kind": "navItem",
+          "key": "arc-morning-brief",
+          "label": "Morning Brief",
+          "icon": "sun",
+          "action": "send:/scenario morning-brief",
+          "selected": false,
+          "badge": "3"
+        },
+        {
+          "kind": "divider",
+          "label": "TODAY"
+        },
+        {
+          "kind": "navItem",
+          "key": "arc-invoice-check",
+          "label": "Tripletex Invoice Check",
+          "icon": "key-round",
+          "action": "send:/scenario invoice-check",
+          "selected": false,
+          "badge": "Vault"
+        },
+        {
+          "kind": "navItem",
+          "key": "arc-first-run",
+          "label": "Ino Setup · First Run",
+          "icon": "compass",
+          "action": "send:/scenario first-run",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "collection",
+          "entries": [
+            {
+              "id": "main",
+              "title": "New chat",
+              "subtitle": "0 turn(s)"
+            }
+          ]
+        }
+      ],
+      "gap": 8,
+      "padding": 0
+    }
+  },
+  "main": {
+    "title": "Ino",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Ino Assistant",
+                  "tone": "accent",
+                  "icon": "bot"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "Ready",
+                  "tone": "ok",
+                  "icon": null
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "Ready (qwen3.5:4b)",
+              "tone": "neutral",
+              "tabular": true,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "New chat",
+          "subtitle": null,
+          "padding": 18
+        }
+      ],
+      "gap": 12,
+      "padding": 0
+    }
+  }
+}

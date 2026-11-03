@@ -15,12 +15,25 @@ namespace IntoChat.OS.Modules.Apps;
 
 internal sealed class AppPresentationSink(IServiceProvider services) : IPresentationSink
 {
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (View? Side, View? Main, long Sequence)> _presented = new(StringComparer.Ordinal);
+
+    public View? TryGetPresentedView(string appKey)
+        => _presented.TryGetValue(appKey, out var entry) ? entry.Main : null;
+
+    public (View? Side, View? Main, long Sequence) TryGetPresentedViews(string appKey)
+        => _presented.TryGetValue(appKey, out var entry) ? entry : (null, null, 0L);
+
     public async Task Present(string owner, View? side, View? main, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         var brain = BrainKey.BrainOf(owner);
         var appKey = owner.Contains("/apps/", StringComparison.Ordinal) ? owner : IApp.Key(brain, owner);
         var appName = IApp.NameOf(brain, appKey) ?? owner;
+        _presented.AddOrUpdate(
+            appKey,
+            static (_, v) => (v.Side, v.Main, 1L),
+            static (_, prev, v) => (v.Side, v.Main, prev.Sequence + 1L),
+            (Side: side, Main: main));
 
         var app = SiloNeurons.Get<IApp>(services, appKey);
         var snapshot = await app.Read().WaitAsync(ct);

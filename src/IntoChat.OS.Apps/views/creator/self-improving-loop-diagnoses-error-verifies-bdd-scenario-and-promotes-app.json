@@ -14,7 +14,7 @@
               "kind": "statCard",
               "key": "creator-nodes",
               "label": "3D Scene Nodes",
-              "value": "0",
+              "value": "9",
               "delta": "Live",
               "tone": 1,
               "icon": "cpu"
@@ -39,7 +39,7 @@
               "children": [
                 {
                   "kind": "tagPill",
-                  "label": "3D Scene Nodes: 0",
+                  "label": "3D Scene Nodes: 9",
                   "tone": "accent",
                   "icon": "cpu"
                 },
@@ -55,7 +55,7 @@
             },
             {
               "kind": "text",
-              "value": "3D Scene Nodes: 0",
+              "value": "3D Scene Nodes: 9",
               "tone": "neutral",
               "tabular": true,
               "mono": false
@@ -193,7 +193,7 @@
             },
             {
               "kind": "text",
-              "value": "Target App: calculator · Version: v1.1.0 (1.0.0 -> 1.1.0 -> 1.2.0) · Promoted: True · 3D BrainScene: 0 nodes",
+              "value": "Target App: calculator · Version: v1.1.0 (1.0.0 -> 1.1.0 -> 1.2.0) · Promoted: True · 3D BrainScene: 9 nodes",
               "tone": "muted",
               "tabular": true,
               "mono": false

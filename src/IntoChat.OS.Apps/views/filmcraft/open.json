@@ -1,0 +1,34 @@
+{
+  "appId": "filmcraft",
+  "scenario": "open",
+  "side": null,
+  "main": {
+    "title": "FilmCraft",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "text",
+          "value": "FilmCraft tools connected (WASM Web UI) · Sequence: /work/nordlys-launch.fcproj · /work/nordlys-launch.fcproj -> /work/nordlys-launch.cut.mp4",
+          "tone": "muted",
+          "tabular": true,
+          "mono": false
+        },
+        {
+          "kind": "webBrowser",
+          "key": "filmcraft-wasm",
+          "url": "http://localhost:18083",
+          "title": "FilmCraft WASM Studio",
+          "height": 0,
+          "executionMode": "wasm-ui"
+        }
+      ],
+      "gap": 4,
+      "padding": 0,
+      "extents": [
+        24,
+        0
+      ]
+    }
+  }
+}

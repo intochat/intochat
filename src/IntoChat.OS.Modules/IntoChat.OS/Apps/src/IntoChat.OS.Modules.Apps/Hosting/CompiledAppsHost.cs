@@ -86,9 +86,7 @@ internal sealed class CompiledAppsHost(
             if (appName == "desktop")
             {
                 _ = Task.Run(() => EnsureDesktopViewAsync(publisher.Brain.Value), CancellationToken.None);
-                return Task.CompletedTask;
             }
-            if (!HostedByName.ContainsKey(appName)) { return Task.CompletedTask; }
             _ = Task.Run(() => HandleAppRequestedAsync(publisher.Brain.Value, appName, signal, token), CancellationToken.None);
             return Task.CompletedTask;
         });
@@ -225,28 +223,53 @@ internal sealed class CompiledAppsHost(
         }
     }
 
-    private async Task<DigitalBrain.Apps.Hosting.AppTurns> EnsureAssignedAsync(string brain, string appName, string appKey, CancellationToken ct)
+    private async Task<DigitalBrain.Apps.Hosting.AppTurns?> EnsureAssignedAsync(string brain, string appName, string appKey, CancellationToken ct)
     {
-        var spec = ResolveSpec(appName);
-        var app = SiloNeurons.Get<IApp>(services, appKey);
-        var snapshot = await app.Read();
-        if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
+        if (HostedByName.ContainsKey(appName))
         {
-            await app.Import(spec.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), spec.Name, spec.Bundle.Version));
-        }
-        else if (snapshot.Manifest.Operations.Length < spec.Bundle.Manifest.Operations.Length)
-        {
-            await app.Replace(spec.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), spec.Name, spec.Bundle.Version));
+            var spec = ResolveSpec(appName);
+            var app = SiloNeurons.Get<IApp>(services, appKey);
+            var snapshot = await app.Read();
+            if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
+            {
+                await app.Import(spec.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), spec.Name, spec.Bundle.Version));
+            }
+            else if (snapshot.Manifest.Operations.Length < spec.Bundle.Manifest.Operations.Length)
+            {
+                await app.Replace(spec.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), spec.Name, spec.Bundle.Version));
+            }
+
+            var turns = host.TryGetTurns(appKey);
+            if (turns is null)
+            {
+                await host.AssignType(appKey, spec.AppType, new Dictionary<string, string>(StringComparer.Ordinal), ct);
+                turns = host.TryGetTurns(appKey)!;
+                WireInoServices(brain, turns.App);
+            }
+            return turns;
         }
 
-        var turns = host.TryGetTurns(appKey);
-        if (turns is null)
+        var existingTurns = host.TryGetTurns(appKey);
+        if (existingTurns is not null)
         {
-            await host.AssignType(appKey, spec.AppType, new Dictionary<string, string>(StringComparer.Ordinal), ct);
-            turns = host.TryGetTurns(appKey)!;
-            WireInoServices(brain, turns.App);
+            return existingTurns;
         }
-        return turns;
+
+        var unhostedSnapshot = await SiloNeurons.Get<IApp>(services, appKey).Read();
+        if (unhostedSnapshot.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var typeName)
+            && !string.IsNullOrWhiteSpace(typeName))
+        {
+            var type = Type.GetType(typeName, throwOnError: false)
+                ?? AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(a => a.GetType(typeName, throwOnError: false))
+                    .FirstOrDefault(t => t is not null);
+            if (type is not null)
+            {
+                await host.AssignType(appKey, type, new Dictionary<string, string>(unhostedSnapshot.Settings, StringComparer.Ordinal), ct);
+                return host.TryGetTurns(appKey);
+            }
+        }
+        return null;
     }
 
     private void WireInoServices(string brain, App instance)
@@ -264,19 +287,20 @@ internal sealed class CompiledAppsHost(
         try
         {
             if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
-            var spec = ResolveSpec(appName);
             var appKey = IApp.Key(brain, appName);
             var gate = _gates.GetOrAdd(appKey, static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync(ct);
             try
             {
                 var turns = await EnsureAssignedAsync(brain, appName, appKey, ct);
+                if (turns is null) { return; }
                 if (turns.Definition.FindOperation(request.Operation) is { } method)
                 {
                     await turns.Request(request.Operation, ParseArgument(method, request.Input), ct);
                 }
 
-                await SiloNeurons.Get<IApp>(services, appKey).Progress("idle", $"{spec.Bundle.Manifest.Title}: {request.Operation}");
+                var title = HostedByName.TryGetValue(appName, out var spec) ? spec.Bundle.Manifest.Title : appName;
+                await SiloNeurons.Get<IApp>(services, appKey).Progress("idle", $"{title}: {request.Operation}");
                 if (appName == "ino" && request.Operation == "send" && turns.App is App<InoAppState> inoRuntime && inoRuntime.State.Turns is { Length: > 0 } inoTurns)
                 {
                     await ForwardStudioPromptIfRoutedAsync(brain, inoTurns[^1], ct);
@@ -315,12 +339,12 @@ internal sealed class CompiledAppsHost(
             try
             {
                 var turns = await EnsureAssignedAsync(brain, "ino", appKey, ct);
-                if (turns.Definition.FindOperation("send") is { } sendMethod)
+                if (turns is not null && turns.Definition.FindOperation("send") is { } sendMethod)
                 {
                     await turns.Request("send", ParseArgument(sendMethod, submission.Text), ct);
                 }
                 await SiloNeurons.Get<IApp>(services, appKey).Progress("idle", "Ino: answered");
-                if (turns.App is App<InoAppState> ino && ino.State.Turns is { Length: > 0 } inoTurns) { latestTurn = inoTurns[^1]; }
+                if (turns?.App is App<InoAppState> ino && ino.State.Turns is { Length: > 0 } inoTurns) { latestTurn = inoTurns[^1]; }
             }
             finally { gate.Release(); }
 

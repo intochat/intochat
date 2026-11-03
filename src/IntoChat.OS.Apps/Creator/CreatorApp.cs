@@ -494,14 +494,40 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             try
             {
                 var snapshot = await graph.Snapshot(DigitalBrain.Graph.GraphLevel.Brain, null);
-                return BrainSceneGraph.Compose(snapshot, DigitalBrain.Graph.GraphLevel.Brain, null, [], 1.0);
+                var composed = BrainSceneGraph.Compose(snapshot, DigitalBrain.Graph.GraphLevel.Brain, null, [], 1.0);
+                if (composed.Nodes.Length > 0)
+                {
+                    return composed;
+                }
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
             {
-                Swallow(error, "The brain graph is unavailable; the Creator scene stays empty.");
+                Swallow(error, "The brain graph is unavailable; the Creator scene falls back to the studio graph.");
             }
         }
-        return BrainScene.Compose([], [], live: null, zoom: 1.0);
+        return ComposeFallbackScene();
+    }
+
+    private SceneDefinition ComposeFallbackScene()
+    {
+        var activeTarget = string.IsNullOrWhiteSpace(State.TargetApp) ? "scratch" : State.TargetApp;
+        var appKey = $"app.{activeTarget}";
+        var neurons = new BrainInstance[]
+        {
+            new("IntoChat.OS.Studio", "creator", DateTimeOffset.UnixEpoch, null),
+            new("DigitalBrain.Bdd", "bdd", DateTimeOffset.UnixEpoch, null),
+            new("Microsoft.Aspire", "aspire", DateTimeOffset.UnixEpoch, null),
+            new("IntoChat.OS.AI.Memory", "memory", DateTimeOffset.UnixEpoch, null),
+            new("IntoChat.OS.Sandbox", appKey, DateTimeOffset.UnixEpoch, null),
+        };
+        var synapses = new ObservedSynapse[]
+        {
+            new("creator", "bdd", "bdd.verified"),
+            new("creator", "aspire", "aspire.telemetry.changed"),
+            new("creator", "memory", "memory.recall"),
+            new("creator", appKey, "app.promoted"),
+        };
+        return BrainScene.Compose(neurons, synapses, live: null, zoom: 1.0);
     }
 
     private async Task<(string[] Resources, string[] Errors)> ReadTelemetryAsync(string? resourceFilter)
