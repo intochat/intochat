@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Context;
 using IntoChat.OS.Modules.AI.Tasks;

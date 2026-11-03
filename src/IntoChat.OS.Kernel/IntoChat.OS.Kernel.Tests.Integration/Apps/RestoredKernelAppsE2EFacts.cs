@@ -10,6 +10,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
+using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Authority;

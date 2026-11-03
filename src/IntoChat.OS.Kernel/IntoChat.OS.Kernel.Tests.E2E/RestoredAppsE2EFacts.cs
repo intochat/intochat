@@ -20,6 +20,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
+using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.PhotoCraft;

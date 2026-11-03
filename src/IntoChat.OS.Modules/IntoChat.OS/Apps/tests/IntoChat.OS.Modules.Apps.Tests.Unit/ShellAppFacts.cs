@@ -1,4 +1,5 @@
 using DigitalBrain.Testing;
+using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.PhotoCraft;
@@ -15,23 +16,11 @@ public sealed class ShellAppFacts
     public static IEnumerable<TheoryDataRow<AppOperationCase>> InoOperations
         => AppBaseline.Cases(typeof(InoApp), os => os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>());
 
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> CreatorOperations
-        => AppBaseline.Cases(
-            typeof(CreatorApp),
-            os =>
-            {
-                os.Register<DigitalBrain.BddNeuron>();
-                os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
-            });
-
     [Theory, MemberData(nameof(DesktopOperations))]
     public Task DesktopBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Theory, MemberData(nameof(InoOperations))]
     public Task InoBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
-
-    [Theory, MemberData(nameof(CreatorOperations))]
-    public Task CreatorBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Fact]
     public void WorkspaceAndDesktopCarryTheFlutterTrees()
