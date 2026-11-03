@@ -1,5 +1,6 @@
 using DigitalBrain;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Flame.Rules;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flame.Scene.Signals;
 
@@ -20,14 +21,14 @@ internal sealed class SceneNeuron
     }
 
     // A report is not a change: it publishes without touching the state or its revision.
-    public Task Report(string nodeId, string kind, double x, double y, string? payload)
+    public async Task Report(string nodeId, string kind, double x, double y, string? payload)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
         var name = Id.FullKey();
         SceneAccess.RequireReporter(name);
-        if (!Contains(State.Definition.Nodes, nodeId)) { throw new ArgumentException($"Scene has no node '{nodeId}'.", nameof(nodeId)); }
-        return Publish(new SceneInput(name, nodeId, kind, x, y, payload));
+        await Check("Report", new SceneNodeExists(nodeId, Contains(State.Definition.Nodes, nodeId)));
+        await Publish(new SceneInput(name, nodeId, kind, x, y, payload));
     }
 
     private static bool Contains(SceneNode[] nodes, string id) => nodes.Any(n => n.Id == id || Contains(n.Children, id));

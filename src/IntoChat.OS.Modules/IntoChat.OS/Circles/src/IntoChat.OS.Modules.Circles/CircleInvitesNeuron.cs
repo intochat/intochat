@@ -3,6 +3,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Circles.Rules;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Circles;
@@ -61,7 +62,7 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
     public async Task<MintedInvite> Mint(MintInvite request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Role is not ("member" or "admin")) { throw new ArgumentException("An invite role is member or admin.", nameof(request)); }
+        await Check("Mint", new InviteRoleIsValid(request.Role));
         var caller = await Steward();
         var now = Now;
         var expiresAt = now + InviteCode.Clamp(request.ValidFor);
@@ -120,7 +121,7 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
         var caller = await MemberCaller();
         var invite = Machine(machineId);
         if (invite.AccountId == caller.AccountId) { return Describe(invite); }
-        if (invite.AccountId is not null) { throw new InvalidOperationException("This machine is already bound to an account."); }
+        await Check("ClaimMachine", new MachineIsUnbound(invite.AccountId is null));
         var claimed = invite with { AccountId = caller.AccountId };
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. Snapshot.Invites.Select(known => known.Id == invite.Id ? claimed : known)] });
         return Describe(claimed);

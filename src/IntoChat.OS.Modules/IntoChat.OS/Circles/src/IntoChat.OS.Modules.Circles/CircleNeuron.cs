@@ -9,6 +9,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles.Rules;
 using IntoChat.OS.Modules.Circles.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -79,7 +80,7 @@ internal sealed class CircleNeuron(
 
     public async Task Found(string name)
     {
-        if (!ICircle.IsValidName(name)) { throw new ArgumentException("A circle name is 1 to 40 of a-z, 0-9 and '-'.", nameof(name)); }
+        await Check("Found", new CircleNameIsValid(name));
         if (Exists) { return; }
         var creator = Caller().AccountId;
         // Inside the brain's Create turn: the compute share (which reads the brain) is stated on the first change.
@@ -92,8 +93,7 @@ internal sealed class CircleNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
         RequirePerson();
         var next = MemberChange();
-        if (next.Members.Contains(accountId) || next.Invited.Contains(accountId))
-        { throw new InvalidOperationException($"{accountId} is already in {next.Name} or invited to it."); }
+        await Check("Invite", new AccountIsNotYetInvitedOrMember(next.Name, accountId, next.Members.Contains(accountId) || next.Invited.Contains(accountId)));
         next.Invited = [.. next.Invited, accountId];
         await CommitCore(next);
     }
@@ -104,7 +104,7 @@ internal sealed class CircleNeuron(
         RequirePerson();
         var next = MemberChange();
         if (Caller().AccountId != next.Owner) { throw new UnauthorizedAccessException($"Only {next.Name}'s creator names its admins."); }
-        if (!next.Members.Contains(accountId)) { throw new InvalidOperationException($"{accountId} is not in {next.Name}."); }
+        await Check("SetAdmin", new AccountIsCircleMember(next.Name, accountId, next.Members.Contains(accountId)));
         next.Admins = admin ? [.. next.Admins.Where(known => known != accountId), accountId] : [.. next.Admins.Where(known => known != accountId)];
         await CommitCore(next);
     }
@@ -125,8 +125,7 @@ internal sealed class CircleNeuron(
         RequirePerson();
         var caller = Caller();
         var record = Core();
-        if (caller.BrainId != CircleBrain || !record.Invited.Contains(caller.AccountId))
-        { throw new InvalidOperationException($"{caller.AccountId} has no invitation to {record.Name}."); }
+        await Check("Accept", new CallerHasCircleInvitation(record.Name, caller.AccountId, caller.BrainId == CircleBrain && record.Invited.Contains(caller.AccountId)));
         await (await broker.Identity()).EnsureMember(new Member
         {
             PrincipalId = caller.PersonId,
@@ -152,11 +151,11 @@ internal sealed class CircleNeuron(
         { throw new UnauthorizedAccessException($"Only {next.Name}'s creator removes another member."); }
         if (accountId == next.Owner)
         {
-            if (caller.AccountId != next.Owner) { throw new InvalidOperationException($"The creator of {next.Name} cannot be removed."); }
+            await Check("Remove", new CircleCreatorCannotBeRemoved(next.Name, caller.AccountId == next.Owner));
             await Delete(next);
             return;
         }
-        if (!next.Members.Contains(accountId) && !next.Invited.Contains(accountId)) { throw new InvalidOperationException($"{accountId} is not in {next.Name}."); }
+        await Check("Remove", new AccountIsCircleMember(next.Name, accountId, next.Members.Contains(accountId) || next.Invited.Contains(accountId)));
         await Drop(next, accountId);
         await CommitCore(next);
     }
@@ -325,8 +324,7 @@ internal sealed class CircleNeuron(
         foreach (var slot in shared.Manifest.Slots)
         {
             if (!shared.Connections.TryGetValue(slot.Name, out var id) || id.Length == 0) { continue; }
-            if (slot.Capability is not null)
-            { throw new InvalidOperationException($"Slot '{slot.Name}' binds capability '{slot.Capability}'; a circle cannot share a capability-bound connection yet."); }
+            await Check("Share", new SharedSlotIsConnectorBound(slot.Name, slot.Capability));
             if (connectionIds.Length > 0 && !connectionIds.Contains(id, StringComparer.Ordinal)) { continue; }
             var owned = ConnectionKeys.For(source, slot.Connector, id);
             await BrainActs.In(broker, source, async () =>
@@ -371,18 +369,13 @@ internal sealed class CircleNeuron(
                 (await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Modules.Apps.IApp.Key(brain.Id, appName)).Read()).Manifest.Title.Length > 0);
             if (installed) { holding.Add(brain.Id); }
         }
-        return holding.Count switch
-        {
-            1 => holding[0],
-            0 => throw new InvalidOperationException($"{caller.AccountId} has no app named {appName} to share."),
-            _ => throw new InvalidOperationException($"{caller.AccountId} has {appName} in several brains ({string.Join(", ", holding)}); share it from one."),
-        };
+        await Check("Share", new SharerHasAppToShare(caller.AccountId, appName, holding.Count, string.Join(", ", holding)));
+        return holding[0];
     }
 
     public async Task SetComputeShare(int percent)
     {
-        if (percent is < 0 or > ICircle.MaxComputeSharePercent)
-        { throw new ArgumentOutOfRangeException(nameof(percent), percent, $"A circle may share 0 to {ICircle.MaxComputeSharePercent}% of its creator's compute."); }
+        await Check("SetComputeShare", new ComputeSharePercentIsInRange(percent));
         var core = MemberChange();
         if (Caller().AccountId != core.Owner) { throw new UnauthorizedAccessException($"Only {core.Name}'s creator, who pays, sets its compute share."); }
         core.ComputeSharePercent = percent;

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Modules.Circles.Rules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -39,16 +40,18 @@ internal sealed class InviteCodeNeuron : DigitalBrain.Neuron, IInviteCode
     public async Task Bind(string circleBrainId, string inviteId, DateTimeOffset expiresAt)
     {
         // 60 random bits: a collision is refused rather than overwritten.
-        if (record is not null) { throw new InvalidOperationException("This invite code is already in use."); }
+        await Check("Bind", new InviteCodeIsAvailable(record is null));
         var next = new InviteCodeRecord { CircleBrainId = circleBrainId, InviteId = inviteId, ExpiresAt = expiresAt };
         await Context.State.Save(next, []);
         record = next;
     }
 
     public Task<RedeemOutcome> Redeem(RedeemInvite request)
-        => record is null ? Task.FromResult(RedeemOutcome.Rejected)
+    {
+        return record is null ? Task.FromResult(RedeemOutcome.Rejected)
             // The circle brain's invites, reached through the host seam (a neuron's own Get stays in its brain).
             : SiloNeurons.Get<ICircleInvites>(Context.Services, ICircleInvites.Key(record.CircleBrainId)).Redeem(record.InviteId, request);
+    }
 }
 
 // The deployment's invite HMAC key: IntoChatOS:Circles:InviteHmacKey (base64, at least 32 bytes) when configured,
@@ -83,7 +86,8 @@ internal sealed class InviteKeyNeuron : DigitalBrain.Neuron, IInviteKey
         if (Context.Services.GetService<IConfiguration>()?[IInviteKey.Configuration] is { Length: > 0 } configured)
         {
             var key = Convert.FromBase64String(configured);
-            return key.Length >= 32 ? key : throw new InvalidOperationException($"{IInviteKey.Configuration} must be at least 32 bytes.");
+            await Check("Get", new InviteHmacKeyIsLongEnough(key.Length));
+            return key;
         }
         if (record.Key.Length == 0)
         {

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="DigitalBrain.Testing" />
+    <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.Flame.Contracts.Testing/IntoChat.OS.Modules.Flame.Contracts.Testing.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
   </ItemGroup>
 </Project>

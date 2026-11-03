@@ -6,6 +6,7 @@ using DigitalBrain.State;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Circles.Rules;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -60,7 +61,7 @@ internal sealed class CircleFactoryNeuron(
 
     public async Task<string> Create(string name, string? requestId = null)
     {
-        if (!ICircle.IsValidName(name)) { throw new ArgumentException("A circle name is 1 to 40 of a-z, 0-9 and '-'.", nameof(name)); }
+        await Check("Create", new CircleNameIsValid(name));
         var caller = Own();
         var operation = string.IsNullOrWhiteSpace(requestId) ? Guid.NewGuid().ToString("N") : $"circle|{requestId}";
         var directory = await broker.Identity();

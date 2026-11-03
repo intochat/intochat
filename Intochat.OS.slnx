@@ -135,6 +135,7 @@
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Flame/tests/IntoChat.OS.Modules.Flame.Tests.Unit/IntoChat.OS.Modules.Flame.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/IntoChat.OS/Flame/Contracts/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts.Testing/IntoChat.OS.Modules.Flame.Contracts.Testing.csproj" />
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
   </Folder>
   <Folder Name="/Modules/IntoChat.OS/Flame/src/">

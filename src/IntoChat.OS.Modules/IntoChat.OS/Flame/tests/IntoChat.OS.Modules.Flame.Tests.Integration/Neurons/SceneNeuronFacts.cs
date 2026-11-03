@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Rules;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flame.Scene.Signals;
@@ -40,7 +41,8 @@ public sealed class SceneNeuronFacts(FlameFixture fixture) : IClassFixture<Flame
         var scene = runtime.Get<IScene>(id);
         await scene.Set(OneNode(), 0);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => scene.Report("missing", "tap", 1, 2, null));
+        var ex = await Assert.ThrowsAsync<RuleViolationException>(() => scene.Report("missing", "tap", 1, 2, null));
+        Assert.Contains("flame.scene-node-exists", ex.Rejected.Rules);
         await scene.Report("orb", "tap", 1, 2, "x");
 
         var input = Assert.Single(await runtime.WaitForSignals<SceneInput>(id, 1, Within, ct));

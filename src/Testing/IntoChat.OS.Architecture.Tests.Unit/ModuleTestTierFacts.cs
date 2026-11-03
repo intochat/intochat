@@ -22,6 +22,7 @@ public sealed partial class ModuleTestTierFacts
             .Where(project => project.Name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
                 && !project.Name.Contains(".Tests", StringComparison.Ordinal)
                 && !project.Name.EndsWith(".Contracts", StringComparison.Ordinal)
+                && !project.Name.EndsWith(".Testing", StringComparison.Ordinal)
                 && !project.Name.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
                 && !project.Name.EndsWith(".Sandbox", StringComparison.Ordinal))
             .Where(project => Repository.SourceFiles(project.Directory, "*.cs").Any(path => NeuronClass().IsMatch(File.ReadAllText(path))))

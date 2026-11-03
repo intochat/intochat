@@ -32,7 +32,7 @@ public sealed partial class ModuleFolderFacts
         Assert.True(misplaced.Count == 0, "Module projects outside their module's Contracts, implementation or tests folder: " + string.Join(", ", misplaced));
 
         static string Expected(Repository.Project project)
-            => IsTest(project) ? "tests" : project.Name.EndsWith(".Contracts", StringComparison.Ordinal) ? "Contracts" : SourceFolder;
+            => IsTest(project) ? "tests" : project.Name.EndsWith(".Contracts", StringComparison.Ordinal) || project.Name.EndsWith(".Contracts.Testing", StringComparison.Ordinal) ? "Contracts" : SourceFolder;
     }
 
     [Fact]
