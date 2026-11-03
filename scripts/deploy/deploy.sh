@@ -89,7 +89,7 @@ build_images() {
     if [[ ! -f "$sandbox_context/$sandbox_dockerfile" ]]; then
       sandbox_context="${MODULES_DIR:-$root/../modules}"
     fi
-    docker build -f "$sandbox_context/$sandbox_dockerfile" -t "$server/os-sandbox:$image_tag" "$sandbox_context"
+    docker build --secret id=nuget,env=NUGET_GITHUB_TOKEN -f "$sandbox_context/$sandbox_dockerfile" -t "$server/os-sandbox:$image_tag" "$sandbox_context"
     docker push "$server/os-sandbox:$image_tag"
   fi
 }

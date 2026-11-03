@@ -61,15 +61,10 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
           df -h /
 
-      - name: Populate NuGet packages from releases
+      - name: Authenticate GitHub Packages
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="v$(tr -d '[:space:]' < VERSION)"
-          mkdir -p ../nuget
-          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx
@@ -123,10 +118,10 @@ jobs:
       - name: Publish sandbox image
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          NUGET_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p modules/.nuget-local
-          cp ../nuget/*.nupkg artifacts/*.nupkg modules/.nuget-local/
-          docker build -f modules/src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
+          docker build --secret id=nuget,env=NUGET_GITHUB_TOKEN \
+            -f modules/src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
             -t ghcr.io/intochat/os-sandbox:${VERSION} \
             -t ghcr.io/intochat/os-sandbox:latest modules
           bash scripts/check-sandbox-image.sh "ghcr.io/intochat/os-sandbox:${VERSION}"

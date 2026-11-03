@@ -12,6 +12,7 @@ on:
 permissions:
   contents: read
   actions: read
+  packages: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -37,15 +38,10 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Populate NuGet packages from releases
+      - name: Authenticate GitHub Packages
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="v$(tr -d '[:space:]' < VERSION)"
-          mkdir -p ../nuget
-          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
@@ -73,15 +69,10 @@ jobs:
           df -h /
           sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
-      - name: Populate NuGet packages from releases
+      - name: Authenticate GitHub Packages
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="v$(tr -d '[:space:]' < VERSION)"
-          mkdir -p ../nuget
-          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       # Restore runs inside the build: one evaluation of the solution instead of two.
       - name: Build solution
@@ -189,15 +180,10 @@ jobs:
           global-json-file: global.json
       - name: Start Azurite
         run: docker run -d --name azurite -p 10000:10000 mcr.microsoft.com/azure-storage/azurite azurite-blob -l /data --blobHost 0.0.0.0 --skipApiVersionCheck
-      - name: Populate NuGet packages from releases
+      - name: Authenticate GitHub Packages
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="v$(tr -d '[:space:]' < VERSION)"
-          mkdir -p ../nuget
-          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - name: Blob storage conformance
         run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/blob-storage-results
 
@@ -266,15 +252,10 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Populate NuGet packages from releases
+      - name: Authenticate GitHub Packages
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="v$(tr -d '[:space:]' < VERSION)"
-          mkdir -p ../nuget
-          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx

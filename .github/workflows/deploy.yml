@@ -61,15 +61,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Populate NuGet packages from releases
+      - name: Authenticate GitHub Packages
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="v$(tr -d '[:space:]' < VERSION)"
-          mkdir -p ../nuget
-          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
@@ -91,10 +86,7 @@ jobs:
       - name: Deploy and verify unchanged reinstall
         env:
           MODULES_DIR: ${{ github.workspace }}/.modules-sandbox
-        run: |
-          mkdir -p "$MODULES_DIR/.nuget-local"
-          cp ../nuget/*.nupkg "$MODULES_DIR/.nuget-local/"
-          bash scripts/deploy/deploy.sh --env test --verify-repeatability
+        run: bash scripts/deploy/deploy.sh --env test --verify-repeatability
       - name: Record tested image digests
         run: python3 scripts/deploy/release_manifest.py record "$GITHUB_SHA" "$RUNNER_TEMP/tested-images.json"
       - uses: actions/upload-artifact@v4
@@ -158,22 +150,16 @@ jobs:
           TEST_RUN_ID: ${{ steps.tested.outputs.run_id }}
         run: |
           mkdir -p "$RUNNER_TEMP/tested"
-          gh run download "$TEST_RUN_ID" --repo "$GITHUB_REPOSITORY" --name tested-images --dir "$RUNNER_TEMP/tested" || \
-            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern tested-images.json --dir "$RUNNER_TEMP/tested" --clobber
+          gh run download "$TEST_RUN_ID" --repo "$GITHUB_REPOSITORY" --name tested-images --dir "$RUNNER_TEMP/tested"
           python3 scripts/deploy/release_manifest.py validate "$DEPLOY_SHA" "$RUNNER_TEMP/tested/tested-images.json"
           gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/tested/tested-images.json" --repo "$GITHUB_REPOSITORY" --clobber
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Populate NuGet packages from releases
+      - name: Authenticate GitHub Packages
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="v$(tr -d '[:space:]' < VERSION)"
-          mkdir -p ../nuget
-          gh release download "${version}" --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/digitalbrain -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/os -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/os -p "*.nupkg" -D ../nuget --clobber
-          gh release download "${version}" --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber || gh release download --repo intochat/modules -p "*.nupkg" -D ../nuget --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
