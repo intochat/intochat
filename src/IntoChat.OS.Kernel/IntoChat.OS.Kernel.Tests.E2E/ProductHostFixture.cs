@@ -57,6 +57,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
             typeof(ProductHostTestModule).Assembly,
             typeof(BddVerified).Assembly,
             typeof(AppsModule).Assembly,
+            typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly,
             typeof(IApp).Assembly,
             typeof(AuthorityPlainNeurons).Assembly,
             typeof(IConnectionRequests).Assembly,
@@ -112,7 +113,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
         app.AttachNeuronResolver((contractType, neuronKey) =>
         {
             var fullKey = neuronKey.Contains('/', StringComparison.Ordinal)
-                && BrainId.IsValid(neuronKey[..neuronKey.IndexOf('/', StringComparison.Ordinal)])
+                && string.Equals(BrainKey.BrainOf(neuronKey), brain, StringComparison.Ordinal)
                 ? neuronKey
                 : $"{brain}/{neuronKey}";
 

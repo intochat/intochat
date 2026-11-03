@@ -1,8 +1,9 @@
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.Ino;
 
 internal static class InoStudioHandler
 {

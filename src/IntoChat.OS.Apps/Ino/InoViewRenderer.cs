@@ -1,6 +1,7 @@
+using IntoChat.OS.Modules.Apps;
 using DigitalBrain.UI;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.Ino;
 
 internal static class InoViewRenderer
 {

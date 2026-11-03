@@ -7,8 +7,9 @@ Operations: start, layout, open, narrow, auto-arrange, pin
 The embedded folder scripts publish the Flutter desktop. These operations present Smart Desktop state, Whiteboard sticky-note app pinning, auto-arrange, and 3D BrainScene telemetry.
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Apps;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.Desktop;
 
 [DigitalBrain.Signal("desktop.start")]
 public sealed record DesktopStart : DigitalBrain.Signal;
@@ -45,7 +46,10 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DesktopApp));
 
-    public static AppBundle Bundle { get; } = ShellPrograms.Load("Desktop");
+    public static AppBundle Bundle { get; } = ShellPrograms.Load("Desktop") with
+    {
+        CompiledType = typeof(DesktopApp).AssemblyQualifiedName,
+    };
 
     [DigitalBrain.On]
     public async Task Start(DesktopStart request)

@@ -41,7 +41,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             var instance = host?.TryGetTurns(owner)?.App;
 
             UiNode mainTree;
-            if (instance is InoApp ino)
+            if (instance is DigitalBrain.App<InoAppState> ino)
             {
                 await SyncInoChatAndComposerAsync(brain, appKey, ino.State);
                 mainTree = side is not null

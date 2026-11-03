@@ -1,8 +1,9 @@
+using IntoChat.OS.Modules.Apps;
 using System.Text;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Tasks;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.Ino;
 
 internal sealed record DiscoveredAppCapability(
     string AppId,
@@ -12,27 +13,50 @@ internal sealed record DiscoveredAppCapability(
 
 internal static class InoCapabilityCatalog
 {
-    private static AppBundle ResolveBundle(string typeName, string appName, string title, string description, AppOperation[] operations)
-    {
-        var type = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetType(typeName, throwOnError: false))
-            .FirstOrDefault(t => t is not null);
-        if (type is not null && type.GetProperty("Bundle", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null) is AppBundle bundle)
-        {
-            return bundle;
-        }
-        return new AppBundle(appName, "1.0.0", new AppManifest(title, description, operations, [], [], "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal));
-    }
+    private static readonly AppBundle FilesBundle = new(
+        "files", "3.0.1",
+        new AppManifest(
+            Title: "Files",
+            Description: "Browse, search, create and manage files across connected storages, with safe confirmations.",
+            Operations:
+            [
+                new("open", "Show connected storages."),
+                new("storage", "Show the roots of the storage at Input.Index."),
+                new("browse", "Open the indexed folder in the current listing."),
+                new("select", "Select the indexed item in the current listing."),
+                new("search", "Search names in the current folder, or set Input.Everywhere for all storages."),
+                new("more", "Load the next page of results."),
+                new("preview", "Open the selected folder or preview the selected file."),
+                new("up", "Browse the parent folder."),
+                new("mkdir", "Create Input.Name; include ExpectedRevision."),
+                new("write", "Save Input.Text as Input.Name; include ExpectedRevision."),
+                new("rename", "Rename the selected item to Input.Name; include ExpectedRevision."),
+                new("delete", "Move the selected item to trash after confirmation; include ExpectedRevision."),
+                new("copy", "Remember the selected source for copying; include ExpectedRevision."),
+                new("move", "Remember the selected source for moving; include ExpectedRevision."),
+                new("paste", "Copy or move the saved source into this folder; include ExpectedRevision."),
+                new("fail", "Use the default stop-on-conflict policy; include ExpectedRevision."),
+                new("keep-both", "Keep both items on a name conflict; include ExpectedRevision."),
+                new("replace", "Replace conflicts after confirmation; include ExpectedRevision."),
+                new("dry-run", "Toggle dry-run planning; include ExpectedRevision."),
+                new("cancel", "Cancel the indexed running operation; include ExpectedRevision."),
+                new("ask-ino", "Open Ino with the selected file's neuron:// reference pre-filled."),
+            ],
+            Settings: [], Slots: [],
+            Toolbar: [new("up", Icon: "arrow-up", Label: "Up"), new("open", Icon: "folder", Label: "Storages")],
+            Requires: new(Capabilities: ["storage@1"])),
+        "",
+        new Dictionary<string, string>(StringComparer.Ordinal));
 
     private static readonly (string AppId, AppBundle FallbackBundle)[] KnownApps =
     [
-        ("files", FilesRequests.Bundle),
-        ("photocraft", ResolveBundle("IntoChat.OS.Apps.PhotoCraft.PhotoCraftApp", "photocraft", "PhotoCraft", "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.", [new("open", "Connect PhotoCraft studio and open or inspect a document."), new("edit", "Edit an image from natural language (e.g. remove background, select subject, desaturate, gradient)."), new("remove-background", "Run AI background removal (layer.removeBackground) on the active or specified image."), new("run-command", "Execute a PhotoCraft engine command ID directly via Native Linux CLI or MCP."), new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui.")])),
-        ("filmcraft", ResolveBundle("IntoChat.OS.Apps.FilmCraft.FilmCraftApp", "filmcraft", "FilmCraft", "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.", [new("open", "Connect FilmCraft studio and load a sequence."), new("edit", "Edit a video sequence from natural language (razor split, ripple trim, Lumetri color, export)."), new("run-command", "Execute a FilmCraft timeline command ID via Native Linux CLI or MCP."), new("export", "Render and export the active video sequence to H.264 MP4."), new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui.")])),
-        ("settings", ShellPrograms.Load("Settings")),
-        ("creator", ResolveBundle("IntoChat.OS.Apps.Creator.CreatorApp", "creator", "Creator", "3D DigitalBrain inspector and self-improving C# app loop with Aspire telemetry and BDD verification.", [new("open", "Open the 3D DigitalBrain view and telemetry inspector."), new("inspect", "Inspect Aspire logs, traces, and active neurons for anomalies."), new("prompt", "Create or repair a DigitalBrain App<TState> and verify its [Scenario] tests."), new("language", "Switch the plain-language BDD scenario debugger locale (en, uk, es, de, fr)."), new("rollback", "Roll back the sandbox app to a previous verified version and C# source."), new("hot-restart", "Hot-restart the live interactive sandbox viewport with clean state.")])),
-        ("gallery", ResolveBundle("IntoChat.OS.Apps.Gallery.GalleryApp", "gallery", "UI Gallery", "WinUI 3-inspired UI Kit, NodeContract inspector, and UI Identity switcher.", [new("open", "Open the UI Kit gallery catalog."), new("filter", "Filter controls by category or search query."), new("select", "Inspect a control's NodeContract, [Signal]s, and neuron:// URI."), new("switch-identity", "Switch the active StylePreset and BarLayout.")])),
-        ("post", ResolveBundle("IntoChat.OS.Apps.Post.PostApp", "post", "Post", "Public profile and Circle-scoped social post app.", [new("open", "Show profile and posts."), new("publish", "Publish a post to a Circle."), new("update-bio", "Update profile handle, bio, and pinned apps.")])),
+        ("files", FilesBundle),
+        ("photocraft", IntoChat.OS.Apps.PhotoCraft.PhotoCraftApp.Bundle),
+        ("filmcraft", IntoChat.OS.Apps.FilmCraft.FilmCraftApp.Bundle),
+        ("settings", IntoChat.OS.Apps.Settings.SettingsApp.Bundle),
+        ("creator", IntoChat.OS.Apps.Creator.CreatorApp.Bundle),
+        ("gallery", IntoChat.OS.Apps.Gallery.GalleryApp.Bundle),
+        ("post", IntoChat.OS.Apps.Post.PostApp.Bundle),
         ("ino", InoApp.Bundle),
     ];
 

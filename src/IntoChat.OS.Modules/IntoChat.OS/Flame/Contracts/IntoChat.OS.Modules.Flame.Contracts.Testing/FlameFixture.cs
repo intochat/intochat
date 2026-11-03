@@ -43,7 +43,7 @@ public class FlameFixture : BothRuntimesFixture
     private static TestOS CreateLocal()
     {
         var os = TestOS.Local();
-        os.Register<SceneNeuron>();
+        os.Register(typeof(FlameModule).Assembly);
         return os;
     }
 }

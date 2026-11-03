@@ -1,6 +1,7 @@
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Memory;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.Ino;
 
 internal static class InoDatabaseChartHandler
 {

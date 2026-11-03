@@ -28,26 +28,33 @@ internal sealed class CompiledAppsHost(
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };
 
-    private static (string Name, Type AppType, AppBundle Bundle) ResolveSettings()
+    private static (string Name, Type AppType, AppBundle Bundle) ResolveHosted(string appName, string typeName, AppBundle fallbackBundle)
     {
         var type = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetType("IntoChat.OS.Apps.Settings.SettingsApp", throwOnError: false))
+            .Select(a => a.GetType(typeName, throwOnError: false))
             .FirstOrDefault(t => t is not null);
         if (type is not null && type.GetProperty("Bundle", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is AppBundle bundle)
         {
-            return ("settings", type, bundle);
+            return (appName, type, bundle);
         }
-        return ("settings", typeof(InoApp), ShellPrograms.Load("Settings"));
+        return (appName, type ?? typeof(App), fallbackBundle);
     }
 
     private static readonly (string Name, Type AppType, AppBundle Bundle)[] Hosted =
     [
-        ("ino", typeof(InoApp), InoApp.Bundle),
-        ResolveSettings(),
+        ResolveHosted("ino", "IntoChat.OS.Apps.Ino.InoApp", new AppBundle("ino", "3.5.0", new AppManifest("Ino", "Talk to your brain, use its capabilities, query databases, and create apps.", [new("open", "Show Ino."), new("send", "Route or answer a message."), new("approve-card", "Approve or reject an inline LFP card."), new("connect-db", "Connect a PostgreSQL database via connection string."), new("query-db", "Execute a read-only SQL query against the connected database."), new("new", "Start a new conversation."), new("new-conversation", "Alias for new."), new("voice", "Begin voice input."), new("make", "Apply a sentence to the focused app, or Scratch.")], [new("Model", "Model catalog id; empty uses the default.", ""), new("RouteGate", "Confidence required for a direct route.", "0.8"), new("IntendGate", "Seconds to wait for Memory's brief before answering without it.", "8")], [], "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal))),
+        ResolveHosted("settings", "IntoChat.OS.Apps.Settings.SettingsApp", ShellPrograms.Load("Settings")),
     ];
 
     private static readonly IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName =
         Hosted.ToDictionary(item => item.Name, StringComparer.Ordinal);
+
+    private static (string Name, Type AppType, AppBundle Bundle) ResolveSpec(string appName) => appName switch
+    {
+        "ino" => ResolveHosted("ino", "IntoChat.OS.Apps.Ino.InoApp", HostedByName["ino"].Bundle),
+        "settings" => ResolveHosted("settings", "IntoChat.OS.Apps.Settings.SettingsApp", HostedByName["settings"].Bundle),
+        _ => HostedByName[appName],
+    };
 
     private readonly ConcurrentDictionary<string, IFilesVfsService> _vfsByBrain = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _ensuredBrains = new(StringComparer.Ordinal);
@@ -220,7 +227,7 @@ internal sealed class CompiledAppsHost(
 
     private async Task<DigitalBrain.Apps.Hosting.AppTurns> EnsureAssignedAsync(string brain, string appName, string appKey, CancellationToken ct)
     {
-        var spec = appName == "settings" ? ResolveSettings() : HostedByName[appName];
+        var spec = ResolveSpec(appName);
         var app = SiloNeurons.Get<IApp>(services, appKey);
         var snapshot = await app.Read();
         if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
@@ -244,13 +251,11 @@ internal sealed class CompiledAppsHost(
 
     private void WireInoServices(string brain, App instance)
     {
-        if (instance is InoApp ino)
-        {
-            ino.DecisionMaker = services.GetService(typeof(IDecisionMaker)) as IDecisionMaker;
-            ino.FilesVfs = _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b));
-            ino.KnowledgeStore = services.GetService(typeof(IKnowledgeStore)) as IKnowledgeStore;
-            ino.TaskEngine = services.GetService(typeof(ITaskEngine)) as ITaskEngine;
-        }
+        var type = instance.GetType();
+        type.GetProperty("DecisionMaker")?.SetValue(instance, services.GetService(typeof(IDecisionMaker)));
+        type.GetProperty("FilesVfs")?.SetValue(instance, _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b)));
+        type.GetProperty("KnowledgeStore")?.SetValue(instance, services.GetService(typeof(IKnowledgeStore)));
+        type.GetProperty("TaskEngine")?.SetValue(instance, services.GetService(typeof(ITaskEngine)));
     }
 
     private async Task HandleAppRequestedAsync(string brain, string appName, AppRequested request, CancellationToken ct)
@@ -259,7 +264,7 @@ internal sealed class CompiledAppsHost(
         try
         {
             if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
-            var spec = appName == "settings" ? ResolveSettings() : HostedByName[appName];
+            var spec = ResolveSpec(appName);
             var appKey = IApp.Key(brain, appName);
             var gate = _gates.GetOrAdd(appKey, static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync(ct);
@@ -272,7 +277,7 @@ internal sealed class CompiledAppsHost(
                 }
 
                 await SiloNeurons.Get<IApp>(services, appKey).Progress("idle", $"{spec.Bundle.Manifest.Title}: {request.Operation}");
-                if (appName == "ino" && request.Operation == "send" && turns.App is InoApp inoRuntime && inoRuntime.State.Turns is { Length: > 0 } inoTurns)
+                if (appName == "ino" && request.Operation == "send" && turns.App is App<InoAppState> inoRuntime && inoRuntime.State.Turns is { Length: > 0 } inoTurns)
                 {
                     await ForwardStudioPromptIfRoutedAsync(brain, inoTurns[^1], ct);
                 }
@@ -310,9 +315,12 @@ internal sealed class CompiledAppsHost(
             try
             {
                 var turns = await EnsureAssignedAsync(brain, "ino", appKey, ct);
-                await turns.Request("send", new InoSend(submission.Text), ct);
+                if (turns.Definition.FindOperation("send") is { } sendMethod)
+                {
+                    await turns.Request("send", ParseArgument(sendMethod, submission.Text), ct);
+                }
                 await SiloNeurons.Get<IApp>(services, appKey).Progress("idle", "Ino: answered");
-                if (turns.App is InoApp ino && ino.State.Turns is { Length: > 0 } inoTurns) { latestTurn = inoTurns[^1]; }
+                if (turns.App is App<InoAppState> ino && ino.State.Turns is { Length: > 0 } inoTurns) { latestTurn = inoTurns[^1]; }
             }
             finally { gate.Release(); }
 
@@ -370,19 +378,25 @@ internal sealed class CompiledAppsHost(
         var unescaped = Uri.UnescapeDataString(trimmed);
         var unquoted = unescaped.Length >= 2 && unescaped[0] == '"' && unescaped[^1] == '"' ? unescaped[1..^1] : unescaped;
 
-        if (targetType == typeof(InoOpen)) { return new InoOpen(unquoted); }
-        if (targetType == typeof(InoSend)) { return new InoSend(unquoted); }
-        if (targetType == typeof(InoConnectDb)) { return new InoConnectDb(unquoted); }
-        if (targetType == typeof(InoQueryDb)) { return new InoQueryDb(unquoted); }
-        if (targetType == typeof(InoApproveCard))
+        if (targetType.Name == "InoApproveCard")
         {
             var cardId = segs.ElementAtOrDefault(0) ?? unquoted;
             var approved = segs.Length < 2 || !bool.TryParse(segs[1], out var parsedApproved) || parsedApproved;
-            return new InoApproveCard(cardId, approved);
+            return Activator.CreateInstance(targetType, cardId, approved);
         }
-        if (targetType == typeof(InoMake)) { return new InoMake(unquoted); }
+        if (targetType.Name is "InoOpen" or "InoSend" or "InoConnectDb" or "InoQueryDb" or "InoMake")
+        {
+            var firstCtor = targetType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
+            var parameters = firstCtor.GetParameters();
+            var args = new object?[parameters.Length];
+            args[0] = unquoted;
+            for (var i = 1; i < parameters.Length; i++)
+            {
+                args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
+            }
+            return firstCtor.Invoke(args);
+        }
 
-        // Generic positional record constructor fallback for Settings* and other compiled apps
         var ctor = targetType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
         if (ctor is not null)
         {

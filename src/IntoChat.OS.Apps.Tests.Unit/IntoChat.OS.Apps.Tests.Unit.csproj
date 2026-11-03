@@ -2,6 +2,7 @@
   <ItemGroup>
     <PackageReference Include="DigitalBrain.Testing" />
     <ProjectReference Include="../IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <PackageReference Include="IntoChat.OS.Modules.AI" />
     <PackageReference Include="IntoChat.OS.Modules.ArtCraft" />
     <PackageReference Include="IntoChat.OS.Modules.Mcp" />

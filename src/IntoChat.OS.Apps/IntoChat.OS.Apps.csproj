@@ -5,6 +5,9 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Apps.Tests.Unit" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="DigitalBrain.Capabilities.Storage" />
     <PackageReference Include="DigitalBrain.Runtime.Apps" />
     <PackageReference Include="DigitalBrain.UI" />

@@ -11,7 +11,9 @@ using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Creator;
+using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Gallery;
+using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
@@ -171,6 +173,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                 typeof(RestoredKernelAppsTestModule).Assembly,
                 typeof(BddVerified).Assembly,
                 typeof(AppsModule).Assembly,
+                typeof(InoApp).Assembly,
                 typeof(IApp).Assembly,
                 typeof(IntoChat.OS.Modules.Apps.Signals.AppRequested).Assembly,
                 typeof(IdentityModule).Assembly,

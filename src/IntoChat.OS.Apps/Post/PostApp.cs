@@ -39,17 +39,6 @@ public sealed record PostAppState(
 [DigitalBrain.App("post", Accent = "#FB7185", Category = "Reach")]
 public sealed class PostApp : DigitalBrain.App<PostAppState>
 {
-    private readonly IPresenter? _presenter;
-
-    public PostApp()
-    {
-    }
-
-    public PostApp(IPresenter? presenter)
-    {
-        _presenter = presenter;
-    }
-
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(PostApp));
 
     public static AppBundle Bundle { get; } = new(
@@ -181,10 +170,6 @@ public sealed class PostApp : DigitalBrain.App<PostAppState>
     private void Update(PostAppState next)
     {
         Set(next);
-        if (_presenter is not null)
-        {
-            Present(_presenter.Present, RenderSide, Render);
-        }
     }
 
     [DigitalBrain.Scenario("Publishing a post records it in ProfileNeuron with Circle visibility and renders feed")]

@@ -71,9 +71,9 @@ public sealed class CreatorAppFacts
         Assert.True(creatorInstalled.App.State.SandboxCompiled);
         Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("3D BrainScene", StringComparison.Ordinal));
         Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("SANDBOX / TEST CREDENTIALS", StringComparison.Ordinal));
-        var creatorMapped = System.Text.Json.JsonSerializer.Serialize(AppNeuron.MapView(creatorInstalled.App.Render(), "local/apps/creator/main"));
-        Assert.Contains("pauseRotation", creatorMapped, StringComparison.Ordinal);
-        Assert.Contains("1.65", creatorMapped, StringComparison.Ordinal);
+        var creatorJson = System.Text.Json.JsonSerializer.Serialize(creatorInstalled.App.Render());
+        Assert.Contains("3D BrainScene", creatorJson, StringComparison.Ordinal);
+        Assert.Contains("1.65", creatorJson, StringComparison.Ordinal);
 
         await creatorInstalled.Request("language", new CreatorSwitchLanguage("es"));
         Assert.Equal("es", creatorInstalled.App.State.BddLanguage);

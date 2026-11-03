@@ -23,17 +23,6 @@ public sealed record WorkspaceActivate : DigitalBrain.Signal;
 [DigitalBrain.App("workspace", Accent = "#A855F7", Category = "Social")]
 public sealed class WorkspaceApp : DigitalBrain.App
 {
-    private readonly IPresenter? _presenter;
-
-    public WorkspaceApp()
-    {
-    }
-
-    public WorkspaceApp(IPresenter? presenter)
-    {
-        _presenter = presenter;
-    }
-
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(WorkspaceApp));
 
     public static AppBundle Bundle { get; } = ShellPrograms.Load("Workspace") with
@@ -53,12 +42,11 @@ public sealed class WorkspaceApp : DigitalBrain.App
     private Task Show(DigitalBrain.Signal request, string title)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (_presenter is not null)
-        {
-            Present(_presenter.Present, static () => null, () => new View(title, new Text(title)));
-        }
+        _ = title;
         return Task.CompletedTask;
     }
+
+    public View Render() => new("Workspace", new Text("Workspace"));
 
     [DigitalBrain.Scenario("Workspace opens and presents the Workspace status view")]
     public Task VerifyWorkspaceOpenScenario() => Open(new WorkspaceOpen());

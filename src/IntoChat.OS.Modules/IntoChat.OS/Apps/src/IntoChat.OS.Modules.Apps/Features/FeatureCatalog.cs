@@ -33,7 +33,7 @@ public sealed class FeatureCatalog
     internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, Assembly? modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
         : this(directory, sandbox, modules is null ? [] : [modules], dev, sideload, git) { }
 
-    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, IEnumerable<Assembly> modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
+    public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, IEnumerable<Assembly> modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
     {
         _directory = directory;
         _sandbox = sandbox;

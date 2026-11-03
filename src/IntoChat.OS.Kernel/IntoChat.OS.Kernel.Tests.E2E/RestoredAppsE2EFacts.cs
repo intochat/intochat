@@ -21,6 +21,8 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Apps.Creator;
+using IntoChat.OS.Apps.Desktop;
+using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.PhotoCraft;
@@ -260,7 +262,6 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
     public async Task AllShippedAppsPassExecutableBddScenariosAndPersistReportsInBddNeuronOnSilo()
     {
         var brain = fixture.NewBrain("bddsuite");
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
         var ct = TestContext.Current.CancellationToken;
         var viewsRoot = ResolveViewsRoot();
 
@@ -269,13 +270,35 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
             await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct),
             await BddRunner.VerifyAsync<WorkspaceApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<SettingsApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
-            await BddRunner.VerifyAsync<GalleryApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
+            await BddRunner.VerifyAsync<GalleryApp>(
+                fakes: os =>
+                {
+                    os.Register(typeof(AppsModule).Assembly);
+                    os.Register(typeof(GalleryApp).Assembly);
+                },
+                cancellationToken: ct),
             await BddRunner.VerifyAsync<PhotoCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<FilmCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<PostApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
-            await BddRunner.VerifyAsync<InoApp>(fakes: os => os.Register<MemoryNeuron>(), cancellationToken: ct),
-            await BddRunner.VerifyAsync<CreatorApp>(fakes: os => os.Register<AspireNeuron>(), cancellationToken: ct),
+            await BddRunner.VerifyAsync<InoApp>(
+                fakes: os =>
+                {
+                    os.Register(typeof(AppsModule).Assembly);
+                    os.Register<MemoryNeuron>();
+                },
+                cancellationToken: ct),
+            await BddRunner.VerifyAsync<CreatorApp>(
+                fakes: os =>
+                {
+                    os.Register(typeof(AppsModule).Assembly);
+                    os.Register(typeof(CreatorApp).Assembly);
+                    os.Register<BddNeuron>();
+                    os.Register<AspireNeuron>();
+                },
+                cancellationToken: ct),
         };
+
+        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
 
         foreach (var report in reports)
         {
@@ -304,9 +327,9 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var slnx = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx"));
         var appsProjectRel = slnx.Descendants("Project")
             .Select(p => p.Attribute("Path")?.Value)
-            .First(p => p is not null && p.EndsWith("/IntoChat.OS.Modules.Apps.csproj", StringComparison.Ordinal))!;
+            .First(p => p is not null && p.EndsWith("/IntoChat.OS.Apps.csproj", StringComparison.Ordinal))!;
         var appsProjectDir = Path.GetDirectoryName(Path.Combine(root, appsProjectRel.Replace('/', Path.DirectorySeparatorChar)))!;
-        return Path.Combine(appsProjectDir, "ShellApps", "views");
+        return Path.Combine(appsProjectDir, "views");
     }
 
     [Fact]

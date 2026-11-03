@@ -116,8 +116,7 @@ public sealed class SettingsAppFacts
             app.Navigate(new SettingsNavigate(section));
             Assert.Equal(section, app.State.Section);
             var view = app.Render();
-            var mapped = AppNeuron.MapView(view, "owner");
-            var json = System.Text.Json.JsonSerializer.Serialize(mapped, jsonOptions);
+            var json = System.Text.Json.JsonSerializer.Serialize(view, jsonOptions);
             Assert.Contains(SettingsApp.SearchIndex.Single(s => s.SectionId == section).Title, json, StringComparison.Ordinal);
         }
 
@@ -135,13 +134,13 @@ public sealed class SettingsAppFacts
             app.Navigate(new SettingsNavigate($"{sec}:{sub}"));
             Assert.Equal(sec, app.State.Section);
             Assert.Equal(sub, app.State.SubPage);
-            var json = System.Text.Json.JsonSerializer.Serialize(AppNeuron.MapView(app.Render(), "owner"), jsonOptions);
+            var json = System.Text.Json.JsonSerializer.Serialize(app.Render(), jsonOptions);
             Assert.Contains(marker, json, StringComparison.Ordinal);
         }
 
         app.Navigate(new SettingsNavigate("connections", SubPage: "google_drive", Sheet: "google_drive", SearchQuery: "Ollama"));
         Assert.Equal("google_drive", app.State.Sheet);
-        var sheetJson = System.Text.Json.JsonSerializer.Serialize(AppNeuron.MapView(app.Render(), "owner"), jsonOptions);
+        var sheetJson = System.Text.Json.JsonSerializer.Serialize(app.Render(), jsonOptions);
         Assert.Contains("Sheet · google_drive", sheetJson, StringComparison.Ordinal);
 
         var filtered = SettingsApp.FilterSections("Ollama");

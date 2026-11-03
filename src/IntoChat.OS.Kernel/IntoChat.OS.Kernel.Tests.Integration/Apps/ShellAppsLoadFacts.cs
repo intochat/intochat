@@ -136,8 +136,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         // 1. TestOS tier
         await using (var os = TestOS.Local())
         {
-            os.Register<InstalledModulesNeuron>();
-            os.Register<SideloadNeuron>();
+            os.Register(typeof(AppsModule).Assembly);
             using var ungrantedCaller = RuntimeCallerContext.Stamp(
                 CapabilityCallers.Of("app:local/apps/calculator", "local", "local", CallerKind.App, "local/apps/calculator"));
 
