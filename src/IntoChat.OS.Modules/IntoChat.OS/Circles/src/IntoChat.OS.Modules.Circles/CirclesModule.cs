@@ -30,15 +30,15 @@ public sealed partial class CirclesModule : DigitalBrain.Module, IHttpModule
         // ordinary circle routes still require membership before entering the brain.
         endpoints.MapPost("/circle-invitations/{brainId}/accept", async (string brainId, HttpContext http, IServiceProvider plain) =>
         {
-            if (http.User.Identity?.IsAuthenticated != true || !CallerContextStamper.TryGet(out var caller)
+            if (http.User.Identity?.IsAuthenticated != true || !RuntimeCallerContext.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp)
             { return Results.Unauthorized(); }
             if (!BrainScope.IsValidId(brainId)) { return Results.BadRequest(); }
-            CallerContextStamper.Stamp(caller with { BrainId = brainId });
+            RuntimeCallerContext.Stamp(caller with { BrainId = brainId });
             try { return Results.Ok(await SiloNeurons.Get<ICircle>(plain, ICircle.Key(brainId)).Accept()); }
             catch (Exception error) when (error is UnauthorizedAccessException or InvalidOperationException)
             { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-            finally { CallerContextStamper.Stamp(caller); }
+            finally { RuntimeCallerContext.Stamp(caller); }
         });
         MapInviteCodes(endpoints);
     }

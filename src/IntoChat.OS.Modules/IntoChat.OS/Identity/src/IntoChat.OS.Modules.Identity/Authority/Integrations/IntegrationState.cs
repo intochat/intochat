@@ -1,4 +1,4 @@
-using IntoChat.OS.Connections.Platform.Connections;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Authority.Integrations;
 
@@ -6,7 +6,7 @@ namespace IntoChat.OS.Authority.Integrations;
 [GenerateSerializer, Alias("integration.registration.state")]
 internal sealed class IntegrationState
 {
-    [Id(0)] public SealedSecret[] Secrets { get; set; } = [];
+    [Id(0)] public KeyValuePair<string, SealedSecret>[] Secrets { get; set; } = [];
 
     // Non-secret setting values only; secret fields never appear here.
     [Id(1)] public Dictionary<string, string> Settings { get; set; } = new(StringComparer.Ordinal);

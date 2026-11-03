@@ -1,4 +1,5 @@
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Signals;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -32,7 +33,7 @@ internal sealed class CircleBirth(ICapabilityBroker broker, IServiceProvider pla
         var directory = await broker.Identity(cancellationToken);
         if (await directory.KindOf(brainId, cancellationToken) != BrainKind.Circle) { return; }
         if (catalog is null || loader is null) { throw new InvalidOperationException($"Circle {brainId} needs the Apps module to load its room."); }
-        if (!CallerContextStamper.TryGet(out var creator)) { throw new InvalidOperationException($"Circle {brainId} is born only for its creator."); }
+        if (!RuntimeCallerContext.TryGet(out var creator)) { throw new InvalidOperationException($"Circle {brainId} is born only for its creator."); }
         var name = (await directory.Membership(brainId, creator.PersonId, cancellationToken))?.DisplayName
             ?? throw new InvalidOperationException($"Circle {brainId} has no creator on record.");
         await SiloNeurons.Get<ICircle>(plain, ICircle.Key(brainId)).Found(name);

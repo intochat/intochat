@@ -23,7 +23,7 @@ public sealed class TriRepoCreatorBoundaryFacts
         Assert.Equal(digitalBrain, typeof(CapabilityCallers).Assembly);
         Assert.Equal(digitalBrain, typeof(AppPrincipal).Assembly);
 
-        var framework = typeof(CallerContextStamper).Assembly;
+        var framework = typeof(RuntimeCallerContext).Assembly;
         Assert.DoesNotContain(framework.GetTypes(), t => t.Name is "CallerKind" or "TrustedEdge" or "CapabilityCallers" or "AppPrincipal");
     }
 
@@ -55,30 +55,30 @@ public sealed class TriRepoCreatorBoundaryFacts
     [Fact]
     public void CallerContextStamperStampScopeRestoresAndClearsUnstampedFlows()
     {
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         if (true)
         {
-            Assert.False(CallerContextStamper.TryGet(out _));
+            Assert.False(RuntimeCallerContext.TryGet(out _));
 
             var ownerStamp = CapabilityCallers.Of("owner1", "acc1", "brain1");
-            using (CallerContextStamper.StampScope(ownerStamp))
+            using (RuntimeCallerContext.StampScope(ownerStamp))
             {
-                Assert.True(CallerContextStamper.TryGet(out var active));
+                Assert.True(RuntimeCallerContext.TryGet(out var active));
                 Assert.Equal("owner1", active!.PrincipalId);
 
                 var nestedStamp = CapabilityCallers.Of("app:calc", "acc1", "brain1", CallerKind.App, "calc");
-                using (CallerContextStamper.StampScope(nestedStamp))
+                using (RuntimeCallerContext.StampScope(nestedStamp))
                 {
-                    Assert.True(CallerContextStamper.TryGet(out var nested));
+                    Assert.True(RuntimeCallerContext.TryGet(out var nested));
                     Assert.Equal(CallerKind.App, nested!.Kind);
                 }
 
-                Assert.True(CallerContextStamper.TryGet(out var restored));
+                Assert.True(RuntimeCallerContext.TryGet(out var restored));
                 Assert.Equal("owner1", restored!.PrincipalId);
                 Assert.Equal(CallerKind.User, restored.Kind);
             }
 
-            Assert.False(CallerContextStamper.TryGet(out _));
+            Assert.False(RuntimeCallerContext.TryGet(out _));
         }
     }
 

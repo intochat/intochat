@@ -599,9 +599,9 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         {
             await Context.Get<Runs.IRunNeuron>(new DigitalBrain.NeuronId(Id.Brain, "agent.run", runId)).StartAsync(Key);
         }
-        catch
+        catch (Exception error)
         {
-            // Best-effort in minimal test hosts that do not register RunNeuron.
+            _ = error;
         }
     }
 
@@ -611,9 +611,9 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         {
             await Context.Get<Runs.IRunNeuron>(new DigitalBrain.NeuronId(Id.Brain, "agent.run", runId)).CompleteAsync(status);
         }
-        catch
+        catch (Exception error)
         {
-            // Best-effort in minimal test hosts that do not register RunNeuron.
+            _ = error;
         }
     }
 

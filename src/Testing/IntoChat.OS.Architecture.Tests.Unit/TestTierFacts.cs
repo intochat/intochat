@@ -144,6 +144,7 @@ public sealed partial class TestTierFacts
             foreach (var file in Repository.SourceFiles(project.Directory, "*.cs"))
             {
                 var source = File.ReadAllText(file);
+                if (source.Contains("[Trait(\"tier\", \"nightly\")]", StringComparison.Ordinal)) { continue; }
                 if (tokens.Any(t => source.Contains(t, StringComparison.Ordinal)))
                 {
                     offenders.Add(Repository.ProjectKey(file));

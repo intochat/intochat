@@ -1,18 +1,8 @@
-using DigitalBrain.Capabilities.Connections.Integrations;
-using System.Text;
 using DigitalBrain.Capabilities;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using Orleans.Concurrency;
 
 namespace IntoChat.OS.Connections.Platform.Integrations;
-
-public enum IntegrationStatus
-{
-    Unconfigured = 0,
-    Partial = 1,
-    Ready = 2,
-}
 
 // Key: "integration/{id}". One deployment-level provider registration (a Google OAuth app, an AI key);
 // every value lives in the vault and never appears in state, snapshots or signals.
@@ -34,33 +24,3 @@ public interface IIntegration : IGrainWithStringKey
 
     Task<ReleasedIntegration> Release(CapabilityCaller caller);
 }
-
-[GenerateSerializer, Alias("integration.registration.snapshot")]
-public sealed record IntegrationSnapshot
-{
-    [Id(0)] public string IntegrationId { get; init; } = "";
-    [Id(1)] public IntegrationStatus Status { get; init; }
-    [Id(2)] public string[] MissingFields { get; init; } = [];
-    [Id(3)] public Dictionary<string, string> Settings { get; init; } = [];
-    [Id(4)] public long Revision { get; init; }
-}
-
-// Field name to value. The values go to the vault immediately, and the record never prints them.
-[GenerateSerializer, Alias("integration.registration.configure")]
-public sealed record ConfigureIntegration
-{
-    [Id(0)] public Dictionary<string, string> Values { get; init; } = [];
-
-    private bool PrintMembers(StringBuilder builder) => builder.Append("Values = <redacted>") is not null;
-}
-
-// Handed only to trusted platform code; never persisted.
-[GenerateSerializer, Alias("integration.registration.released")]
-public sealed record ReleasedIntegration
-{
-    [Id(0)] public Dictionary<string, string> Values { get; init; } = [];
-    [Id(1)] public IntegrationSnapshot Snapshot { get; init; } = new();
-
-    private bool PrintMembers(StringBuilder builder) => builder.Append("Values = <redacted>") is not null;
-}
-

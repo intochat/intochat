@@ -13,7 +13,7 @@ public sealed class ProgramPrincipalFacts
     public async Task ThePersonWhoDeployedIsTheProgramsPerson()
     {
         var owner = CapabilityCallers.Of("ada", "ada-account", "ada");
-        using var stamp = CallerContextStamper.StampScope(owner);
+        using var stamp = RuntimeCallerContext.StampScope(owner);
         Assert.Equal(owner, await ProgramPrincipal.ForBrain(NoServices, "ada", null));
     }
 

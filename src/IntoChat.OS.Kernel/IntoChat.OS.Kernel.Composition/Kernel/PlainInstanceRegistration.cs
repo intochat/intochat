@@ -57,7 +57,7 @@ internal sealed class PlainInstanceRegistration(IServiceProvider services, IGrai
         var known = _known.GetOrCreateValue(context.Grain);
         if (known.Exists == state.RecordExists) { return; }
         var directory = grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, id.Type));
-        if (state.RecordExists) { await directory.Register(fullKey, CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : null); }
+        if (state.RecordExists) { await directory.Register(fullKey, RuntimeCallerContext.TryGet(out var caller) ? caller.PrincipalId : null); }
         else if (known.Exists is not null) { await directory.Retire(fullKey); }
         known.Exists = state.RecordExists;
     }

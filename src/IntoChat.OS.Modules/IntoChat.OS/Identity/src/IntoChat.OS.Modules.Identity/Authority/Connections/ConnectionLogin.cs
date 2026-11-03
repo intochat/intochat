@@ -31,7 +31,7 @@ internal static class ConnectionLogin
         {
             // The callback grants into this key's neuron; refuse now rather than after the provider round trip.
             _ = neurons.CallerConnection<IConnection>(services, key);
-            return new(await services.GetRequiredService<OAuthLoginFlow>().StartAsync(key, authMethodId, target, CallerContextStamper.Require(), request, ct), false, null);
+            return new(await services.GetRequiredService<OAuthLoginFlow>().StartAsync(key, authMethodId, target, RuntimeCallerContext.Require(), request, ct), false, null);
         }
         catch (ArgumentException error) { return new(null, false, error.Message); }
         catch (InvalidOperationException error) { return new(null, true, error.Message); }

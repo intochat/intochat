@@ -1,3 +1,4 @@
+using BrainRoutes = IntoChat.OS.Connections.BrainRoutes;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections;
@@ -86,9 +87,9 @@ public static class StorageContentEndpoints
 
     private static void Stamp(string brainId)
     {
-        if (CallerContextStamper.TryGet(out var caller))
+        if (RuntimeCallerContext.TryGet(out var caller))
         {
-            CallerContextStamper.Stamp(caller with { BrainId = brainId });
+            RuntimeCallerContext.Stamp(caller with { BrainId = brainId });
         }
     }
 

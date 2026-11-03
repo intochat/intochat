@@ -1,6 +1,7 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Signals;
 using DigitalBrain.State;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -17,8 +18,8 @@ internal sealed class BrainNeuron(IEnumerable<ICreationHandler> creation, ILogge
 {
     private string Brain => Id.Brain.Value;
 
-    public Task<State> Read()
-        => State.Owner is { } owner ? Task.FromResult(new State(owner, State.CreatedAt))
+    public Task<BrainState> Read()
+        => State.Owner is { } owner ? Task.FromResult(new BrainState(owner, State.CreatedAt))
             : throw new InvalidOperationException("This brain has not been created.");
 
     public async Task Create(Owner owner)
@@ -51,14 +52,14 @@ internal sealed class BrainNeuron(IEnumerable<ICreationHandler> creation, ILogge
 
     private Task Announce(DigitalBrain.Signal signal)
     {
-        if (CallerContextStamper.TryGet(out _)) { throw new UnauthorizedAccessException("Only the kernel announces a brain's instances and types."); }
+        if (RuntimeCallerContext.TryGet(out _)) { throw new UnauthorizedAccessException("Only the kernel announces a brain's instances and types."); }
         return Publish(signal);
     }
 
     // Creating is the platform's act, or the owner's own. Host code with no stamped caller is trusted.
     private static void RequireCreator(Owner owner)
     {
-        if (!CallerContextStamper.TryGet(out var caller)) { return; }
+        if (!RuntimeCallerContext.TryGet(out var caller)) { return; }
         if (caller.Kind == CallerKind.Platform || caller.AccountId == owner.AccountId) { return; }
         throw new UnauthorizedAccessException("Only the platform or the owner may create a brain.");
     }

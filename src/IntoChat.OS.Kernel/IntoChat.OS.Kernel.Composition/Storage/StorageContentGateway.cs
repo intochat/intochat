@@ -89,7 +89,7 @@ internal sealed class StorageContentGateway(
 
     internal static string App()
     {
-        var caller = CallerContextStamper.Require();
+        var caller = RuntimeCallerContext.Require();
         return string.IsNullOrEmpty(caller.AppId) ? caller.PrincipalId : caller.AppId;
     }
 

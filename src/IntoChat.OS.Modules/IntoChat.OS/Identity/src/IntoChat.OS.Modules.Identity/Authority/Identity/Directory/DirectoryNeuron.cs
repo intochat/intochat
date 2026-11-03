@@ -441,7 +441,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
 
     private DirectoryState RequireOwner(DirectoryState state, CapabilityCaller caller)
     {
-        if (!CallerContextStamper.IsTrusted(caller) || caller.Kind != CallerKind.User || caller.BrainId.Length == 0)
+        if (!RuntimeCallerContext.IsTrusted(caller) || caller.Kind != CallerKind.User || caller.BrainId.Length == 0)
         { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }
         if (MemberOf(BrainOf(state, caller.BrainId), caller.PrincipalId)?.Role != MemberRole.Owner)
         { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }

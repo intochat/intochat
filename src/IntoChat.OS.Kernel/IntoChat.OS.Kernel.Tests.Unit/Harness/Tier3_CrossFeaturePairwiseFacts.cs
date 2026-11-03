@@ -72,12 +72,12 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
 
         // Case A: Missing or invalid caller fails closed
         var untrustedCaller = new CapabilityCaller("", "anon", "");
-        Assert.False(CallerContextStamper.IsTrusted(untrustedCaller));
+        Assert.False(RuntimeCallerContext.IsTrusted(untrustedCaller));
 
         // Attempting decision with unauthenticated caller rejected at boundary
         async Task<FastDecision> UnauthenticatedCall()
         {
-            if (!CallerContextStamper.IsTrusted(untrustedCaller))
+            if (!RuntimeCallerContext.IsTrusted(untrustedCaller))
             {
                 throw new InvalidOperationException("Caller context lacks verified provenance");
             }
@@ -87,7 +87,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
 
         // Case B: Verified caller proceeds to deliberate decision synthesis
         var trustedCaller = CapabilityCallers.Of("agent-kernel", "acc-admin", "brain-primary", CallerKind.User);
-        Assert.True(CallerContextStamper.IsTrusted(trustedCaller));
+        Assert.True(RuntimeCallerContext.IsTrusted(trustedCaller));
 
         var decision = await dm.DecideReactiveAsync(new ReactivePrompt("execute_critical", ["execute_critical"], new Dictionary<string, string>
         {
@@ -244,16 +244,16 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     {
         // F5 (Fail-Closed PlainNeuronCallFilter) + F8 (Strict Grant Rule Evaluation)
         var validCaller = CapabilityCallers.Of("user-123", "account-xyz", "brain-prod", CallerKind.User);
-        Assert.True(CallerContextStamper.IsTrusted(validCaller));
+        Assert.True(RuntimeCallerContext.IsTrusted(validCaller));
 
         // Malformed callers fail closed
         var missingPrincipal = new CapabilityCaller("", "account-xyz", "brain-prod");
         var missingBrain = new CapabilityCaller("user-123", "account-xyz", "");
         var whitespacePrincipal = new CapabilityCaller("   ", "account-xyz", "brain-prod");
 
-        Assert.False(CallerContextStamper.IsTrusted(missingPrincipal));
-        Assert.False(CallerContextStamper.IsTrusted(missingBrain));
-        Assert.False(CallerContextStamper.IsTrusted(whitespacePrincipal));
+        Assert.False(RuntimeCallerContext.IsTrusted(missingPrincipal));
+        Assert.False(RuntimeCallerContext.IsTrusted(missingBrain));
+        Assert.False(RuntimeCallerContext.IsTrusted(whitespacePrincipal));
     }
 
     [Fact]
@@ -402,7 +402,7 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     {
         // F6 (Caller Context Provenance) + F7 (App Consent Diffing)
         var caller = CapabilityCallers.Of("agent-app-manager", "acc-root", "brain-primary", CallerKind.User);
-        Assert.True(CallerContextStamper.IsTrusted(caller));
+        Assert.True(RuntimeCallerContext.IsTrusted(caller));
 
         var registeredReqs = new AppRequirements(
             SemanticTypes: ["metrics/telemetry"],

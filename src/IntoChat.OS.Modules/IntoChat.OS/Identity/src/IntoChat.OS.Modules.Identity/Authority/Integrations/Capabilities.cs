@@ -1,5 +1,4 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
-using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
@@ -15,9 +14,9 @@ namespace IntoChat.OS.Authority.Integrations;
 
 internal sealed class Capabilities(IEnumerable<ICapabilitySource> sources) : ICapabilities
 {
-    public async Task<Capability[]> List(CapabilityCaller caller, string? kind = null, CancellationToken ct = default)
+    public async Task<IntegrationCapability[]> List(CapabilityCaller caller, string? kind = null, CancellationToken ct = default)
     {
-        var derived = new List<Capability>();
+        var derived = new List<IntegrationCapability>();
         foreach (var source in sources)
         {
             derived.AddRange(await source.Derive(caller, ct));
@@ -35,6 +34,6 @@ internal static class CapabilityEndpoints
     {
         var group = BrainRoutes.Group(endpoints, "/integrations");
         group.MapGet("/capabilities", async (string? kind, [FromServices] ICapabilities capabilities, CancellationToken cancellationToken) =>
-            Results.Ok(await capabilities.List(CallerContextStamper.Require(), kind, cancellationToken)));
+            Results.Ok(await capabilities.List(RuntimeCallerContext.Require(), kind, cancellationToken)));
     }
 }

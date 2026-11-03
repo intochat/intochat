@@ -12,10 +12,10 @@ internal static class ConfirmationView
 {
     public static UiView Render(ConfirmationInbox inbox)
     {
-        var human = CallerContextStamper.TryGet(out var caller) && CallerContextStamper.IsTrusted(caller)
+        var human = RuntimeCallerContext.TryGet(out var caller) && RuntimeCallerContext.IsTrusted(caller)
             && caller.Kind == CallerKind.User && caller.StampedBy == TrustedEdge.AuthenticatedHttp
             && caller.AppId is null && caller.OnBehalfOf is null && !AppPrincipal.IsApp(caller.PrincipalId)
-            && !CallerContextStamper.IsModelOriginated(caller);
+            && !RuntimeCallerContext.IsModelOriginated(caller);
         var cards = inbox.Pending.Select((request, index) =>
         {
             var plan = request.Plan;

@@ -79,7 +79,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         }
         // Transitional (06-07): a plain contract (06-03 seam) is called on its runtime host after the same access checks.
         var neuron = DigitalBrain.Contracts.PlainNeuronContracts.Is(contract) ? SiloNeurons.Get(Plain, contract, invocation.Key) : grains.GetGrain(contract, invocation.Key);
-        CallerContextStamper.Stamp(caller);
+        RuntimeCallerContext.Stamp(caller);
         object? returned;
         try { returned = method.Invoke(neuron, values); }
         catch (TargetInvocationException error) when (error.InnerException is not null) { throw error.InnerException; }
@@ -93,7 +93,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     private async Task<JsonElement?> AskKernelAsync(string brainId, CapabilityCaller caller, RuntimeInvocation invocation, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(caller.PrincipalId)) { throw new UnauthorizedAccessException("A behavior without an owner cannot ask the kernel."); }
-        CallerContextStamper.Stamp(caller);
+        RuntimeCallerContext.Stamp(caller);
         if (BrainScope.CurrentId() != brainId) { throw new UnauthorizedAccessException("The kernel answers only about the session's own brain."); }
         string? Argument(int index) => invocation.Arguments.Length > index ? invocation.Arguments[index].Deserialize<string?>(RuntimeProtocol.Json) : null;
         object answer;
@@ -235,7 +235,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     // A behavior started without a caller (tests, the platform) calls without a stamp, as grain code does.
     private static void Stamp(BehaviorIdentity identity)
     {
-        if (identity.Caller is { } caller) { CallerContextStamper.Stamp(caller); }
+        if (identity.Caller is { } caller) { RuntimeCallerContext.Stamp(caller); }
     }
 
     private static SseItem<string> Item(string kind, object payload) => new(JsonSerializer.Serialize(payload, payload.GetType(), RuntimeProtocol.Json), kind);

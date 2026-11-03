@@ -1,13 +1,12 @@
-using DigitalBrain.Capabilities.Connections.Sealing;
-using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework.Modules;
-using OsSealedSecret = IntoChat.OS.Connections.Platform.Connections.SealedSecret;
 using OsSecretRef = IntoChat.OS.Connections.SecretRef;
 using SealedSecret = DigitalBrain.Capabilities.Secrets.SealedSecret;
 using SecretRef = DigitalBrain.Capabilities.Secrets.SecretRef;
@@ -93,19 +92,20 @@ public sealed class VaultPort(
     public async Task<SealedSecret?> Seal(CapabilityCaller caller, string context, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
+        cancellationToken.ThrowIfCancellationRequested();
         if (sealer is null || string.IsNullOrWhiteSpace(context)) { return null; }
-        var sealedText = await sealer.Seal(caller.BrainId, context, Bound(context, plaintext.Span), cancellationToken).ConfigureAwait(false);
-        return new SealedSecret { Cipher = sealedText.Ciphertext, KeyId = sealedText.KeyId };
+        return await sealer.Seal(caller.BrainId, context, Bound(context, plaintext.Span)).WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<byte[]?> Open(CapabilityCaller caller, string context, SealedSecret sealedSecret, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(sealedSecret);
+        cancellationToken.ThrowIfCancellationRequested();
         if (sealer is null || string.IsNullOrWhiteSpace(context)) { return null; }
         string? bound = null;
         // A tampered cipher, another key id or a value sealed elsewhere does not open: the capability answers Denied.
-        try { bound = await sealer.Open(caller.BrainId, new OsSealedSecret(context, sealedSecret.KeyId, sealedSecret.Cipher), cancellationToken).ConfigureAwait(false); }
+        try { bound = await sealer.Open(caller.BrainId, sealedSecret).WaitAsync(cancellationToken).ConfigureAwait(false); }
         catch (System.Security.Cryptography.CryptographicException) { return null; }
         catch (FormatException) { return null; }
         catch (ArgumentException) { return null; }

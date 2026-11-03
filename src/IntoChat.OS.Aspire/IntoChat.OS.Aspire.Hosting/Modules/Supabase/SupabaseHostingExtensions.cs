@@ -3,7 +3,6 @@ using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Connections.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.Supabase.Aspire.Hosting;

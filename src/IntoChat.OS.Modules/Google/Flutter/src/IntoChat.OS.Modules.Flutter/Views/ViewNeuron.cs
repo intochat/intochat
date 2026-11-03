@@ -50,7 +50,7 @@ internal sealed class ViewNeuron
 
     private void RequireWriter()
     {
-        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind == CallerKind.Platform) { return; }
+        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind == CallerKind.Platform) { return; }
         var name = FullKey;
         if (!BrainKey.BelongsTo(name, caller.BrainId) || caller.Kind == CallerKind.App &&
             (string.IsNullOrEmpty(caller.AppId) || !name.StartsWith(caller.AppId + "/", StringComparison.Ordinal)))

@@ -587,7 +587,7 @@ public sealed class EdgeSessionValidatorAdversarialFacts : IDisposable
         Assert.Equal("customer-acc-99", caller.AccountId);
 
         // Assert async context stamping
-        Assert.True(CallerContextStamper.TryGet(out var activeContext));
+        Assert.True(RuntimeCallerContext.TryGet(out var activeContext));
         Assert.Equal(caller, activeContext);
     }
 

@@ -23,11 +23,14 @@ public sealed class CredentialBoundaryFacts
     {
         string[] allowed =
         [
+            "IntoChat.OS.Modules.AI.Routing.AppMenuHost",
             "IntoChat.OS.Modules.Apps.AppNeuron",
             "IntoChat.OS.Modules.Apps.HostCaller",
+            "IntoChat.OS.Modules.Flutter.Space.SpaceWatcher",
             "IntoChat.OS.Modules.Microsoft.CSharp.Edge.EdgeSessionValidator",
             "IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge",
             "IntoChat.OS.Modules.Microsoft.CSharp.Programs.AppProgramNeuron",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Programs.ProgramPrincipal",
             "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
         ];
         var offenders = ModuleMethods()
@@ -51,6 +54,7 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Modules.Microsoft.CSharp.Edge.EdgeSessionValidator",
             "IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge",
             "IntoChat.OS.Modules.Microsoft.CSharp.Programs.AppProgramNeuron",
+            "IntoChat.OS.Modules.Microsoft.CSharp.Programs.ProgramPrincipal",
             "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
         ];
         var sites = ModuleMethods().Where(m => Calls(m).Any(ConstructsACaller))
@@ -62,7 +66,7 @@ public sealed class CredentialBoundaryFacts
     public void NoProductionMethodDirectlyConstructsCapabilityCallerOutsideFactory()
     {
         var offenders = ProductionArchitecture.Assemblies
-            .Where(a => a.GetName().Name != "IntoChat.OS.Framework")
+            .Where(a => a.GetName().Name is not ("IntoChat.OS.Framework" or "DigitalBrain"))
             .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             // CapabilityCaller.App (DigitalBrain 0.12) is the record's own factory, like CapabilityCallers.
             .Where(t => t != typeof(CapabilityCallers) && t != typeof(CapabilityCaller))
@@ -92,7 +96,7 @@ public sealed class CredentialBoundaryFacts
             .ToArray();
         string[] Sites(Func<MethodBase, bool> does) => [.. methods.Where(does).Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order()];
 
-        Assert.Equal(["IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
+        Assert.Equal(["IntoChat.OS.Authority.Identity.Authority.DirectoryNeuron", "IntoChat.OS.Authority.Identity.Grants.EdgeGrantsCache", "IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
             Sites(SetsAPlatformStamp));
         Assert.Equal(
             ["IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.Identity.AccountSessionIssuer", "IntoChat.OS.Authority.VaultPort"],

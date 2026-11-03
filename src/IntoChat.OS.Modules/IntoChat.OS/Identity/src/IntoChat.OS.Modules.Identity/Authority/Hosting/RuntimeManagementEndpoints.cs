@@ -1,5 +1,4 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Reflection;
 using IntoChat.OS.Connections;
@@ -27,7 +26,7 @@ internal static class RuntimeManagementEndpoints
         http.Response.Headers.CacheControl = "no-store";
         // A synthetic Open-posture caller is not an authenticated management session.
         if (http.User.Identity?.IsAuthenticated != true) { return Results.Unauthorized(); }
-        var caller = CallerContextStamper.Require();
+        var caller = RuntimeCallerContext.Require();
         var owner = await identity.OwnerOfBrain(brainId).WaitAsync(ct);
         if (owner is null || owner.AccountId != caller.AccountId || owner.OwnerPrincipalId != caller.PrincipalId)
         {

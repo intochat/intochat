@@ -1,4 +1,3 @@
-using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Collections.Concurrent;
 using System.Net.ServerSentEvents;
@@ -82,7 +81,7 @@ internal sealed class LocalRuntimeSessionHub
 
     private async Task OnSignalAsync(DigitalBrain.NeuronId publisher, DigitalBrain.Signal signal, CancellationToken ct)
     {
-        var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : null;
         var brainId = publisher.Brain.Value;
         var fullKey = $"{brainId}/{publisher.Key}";
         var alias = signal.GetType().GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias ?? signal.GetType().Name;

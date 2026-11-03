@@ -99,7 +99,7 @@ public sealed class AIModule : DigitalBrain.Module, IHttpModule
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapGet("/ai/models", async (INeuronProxies brain) => Results.Ok(await brain.Get<IModelCatalog>(
-            CatalogKey(CallerContextStamper.TryGet(out var caller) ? caller : null)).List()));
+            CatalogKey(RuntimeCallerContext.TryGet(out var caller) ? caller : null)).List()));
     }
 
     // A caller stamped without a valid brain (or no caller) gets the deployment's list, not a 500.

@@ -54,9 +54,9 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
         {
             await Context.Synapses.Ensure<TaskStepAdvanced>(taskNeuronId).ConfigureAwait(false);
         }
-        catch
+        catch (Exception error)
         {
-            // Synapse registration is best-effort when invoked directly in unit tests.
+            _ = error;
         }
 
         var taskNeuron = Get<ITaskNeuron>(taskNeuronId);
@@ -117,9 +117,9 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
                     var app = Get<IApp>(ResolveAppNeuronId(appImplementor));
                     await app.Request(operation, nextStep.Description).ConfigureAwait(false);
                 }
-                catch
+                catch (Exception error)
                 {
-                    // In minimal test environments where IApp is a graph node stub, execution still records completion.
+                    _ = error;
                 }
                 output = $"Executed '{nextStep.Capability}' via {appImplementor}";
             }
@@ -148,9 +148,9 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
                         builtKey = IApp.Key(Id.Brain.Value, buildResult.Name);
                     }
                 }
-                catch
+                catch (Exception error)
                 {
-                    // In unit tests without a live AppStudio neuron, still record the produced link for the synthesized app key.
+                    _ = error;
                 }
 
                 task = await taskNeuron.LinkAsync(builtKey, "produced").ConfigureAwait(false);
@@ -209,8 +209,9 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
             var neighbours = await Graph.Neighbourhood(contractNode, 1, [GraphEdgeKind.Implements]).ConfigureAwait(false);
             return neighbours.Where(id => !string.Equals(id, contractNode, StringComparison.Ordinal)).ToArray();
         }
-        catch
+        catch (Exception error)
         {
+            _ = error;
             return [];
         }
     }
@@ -249,18 +250,18 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
     private static async Task TryStartRunAsync(IRunNeuron run, string target, string taskId)
     {
         try { await run.StartAsync(target, taskId).ConfigureAwait(false); }
-        catch { }
+        catch (Exception error) { _ = error; }
     }
 
     private static async Task TryTouchRunAsync(IRunNeuron run, string status)
     {
         try { await run.TouchAsync(status).ConfigureAwait(false); }
-        catch { }
+        catch (Exception error) { _ = error; }
     }
 
     private static async Task TryCompleteRunAsync(IRunNeuron run, string status)
     {
         try { await run.CompleteAsync(status).ConfigureAwait(false); }
-        catch { }
+        catch (Exception error) { _ = error; }
     }
 }

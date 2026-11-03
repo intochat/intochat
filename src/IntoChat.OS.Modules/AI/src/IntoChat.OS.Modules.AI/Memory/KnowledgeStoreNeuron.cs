@@ -299,7 +299,7 @@ public sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowled
     }
 
     private static string? StampedCaller()
-        => DigitalBrain.Runtime.Orleans.Capabilities.CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : null;
+        => DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller) ? caller.PrincipalId : null;
 
     private static KnowledgeNode ToModel(KnowledgeNodeRecord r) => new(
         r.Id,

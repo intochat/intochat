@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Signals;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Contracts.Configuration;

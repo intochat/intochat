@@ -14,7 +14,7 @@ internal static class ProgramPrincipal
 {
     public static async Task<CapabilityCaller?> ForBrain(IServiceProvider services, string brain, CapabilityCaller? held)
     {
-        if (CallerContextStamper.TryGet(out var stamped) && IsPerson(stamped, brain)) { return stamped; }
+        if (RuntimeCallerContext.TryGet(out var stamped) && IsPerson(stamped, brain)) { return stamped; }
         if (held is { } kept && IsPerson(kept, brain)) { return kept; }
         if (services.GetService<ICapabilityBroker>() is { } broker)
         {

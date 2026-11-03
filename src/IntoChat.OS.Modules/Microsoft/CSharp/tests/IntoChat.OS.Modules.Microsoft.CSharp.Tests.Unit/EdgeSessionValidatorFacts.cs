@@ -142,7 +142,7 @@ public sealed class EdgeSessionValidatorFacts : IDisposable
         Assert.Equal("brain1", caller.BrainId);
         Assert.Equal("account_cust", caller.AccountId);
 
-        Assert.True(CallerContextStamper.TryGet(out var stamped));
+        Assert.True(RuntimeCallerContext.TryGet(out var stamped));
         Assert.Equal(caller, stamped);
     }
 

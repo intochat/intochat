@@ -76,7 +76,7 @@ internal sealed partial class WorkspaceNeuron
     // that merely bears its name.
     private async Task<bool> ShippedCaller(params string[] names)
     {
-        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
+        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
         if (names.FirstOrDefault(name => app == IApp.Key(Brain, name)) is not { } named) { return false; }
         return ShippedApps.Is(await ServiceProvider.GetRequiredService<INeuronProxies>().Get<IApp>(app).Read(), named);
     }

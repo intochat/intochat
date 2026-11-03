@@ -9,13 +9,13 @@
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
-using IntoChat.OS.Connections.Configuration;
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel;
+
+ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
 
 const string Begin = "<!-- BEGIN GENERATED options -->";
 const string End = "<!-- END GENERATED -->";
@@ -97,8 +97,8 @@ static string Stub(OsModule module, string assembly, string description, string?
 static string Render(OsModule module, Type type)
 {
     var builder = new StringBuilder();
-    var section = IntoChatOSConfiguration.ModuleOptionsSection(module.Id);
-    builder.Append($"Configuration section: `{section}` (environment prefix `{IntoChatOSConfiguration.EnvironmentName(section)}__`).\n\n");
+    var section = ModuleConfiguration.ModuleOptionsSection(module.Id);
+    builder.Append($"Configuration section: `{section}` (environment prefix `{ModuleConfiguration.EnvironmentName(section)}__`).\n\n");
 
     var optionsType = OptionsType(type);
     var rows = new List<string>();

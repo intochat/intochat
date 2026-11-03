@@ -164,7 +164,7 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
 
     private async Task<CapabilityCaller> MemberCaller()
     {
-        if (!CallerContextStamper.TryGet(out var caller)) { throw new UnauthorizedAccessException("Circle invites act only on a stamped caller."); }
+        if (!RuntimeCallerContext.TryGet(out var caller)) { throw new UnauthorizedAccessException("Circle invites act only on a stamped caller."); }
         if (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy)
         { throw new UnauthorizedAccessException("Circle invites are a person's own; a script may not."); }
         if (caller.BrainId != CircleBrain || await Circle.RoleOf(caller.AccountId) is "")

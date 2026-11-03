@@ -21,13 +21,13 @@ public sealed record UiBindingChanged(string Name) : DigitalBrain.Signal;
 [DigitalBrain.Neuron("ui.binding")]
 internal sealed class UiBindingNeuron : DigitalBrain.Neuron<UiBindingState>, IUiBinding
 {
-    private string FullKey => $"{Id.Brain.Value}/{Id.Key}";
+
 
     public Task Bind(string handler)
     {
         var id = UiEventDispatch.Parse(handler);
         if (id.Brain != Id.Brain) { throw new UnauthorizedAccessException("A UI binding hands its events to a neuron of its own brain only."); }
-        return Save(new() { HandlerId = id.ToString() }, new UiBindingChanged(FullKey));
+        return Save(new() { HandlerId = id.ToString() }, new UiBindingChanged(Id.FullKey()));
     }
 
     public Task Dispatch(UiEvent uiEvent)
@@ -50,5 +50,5 @@ internal static class UiEventDispatch
 
     // The caller stamped at the trusted edge this dispatch descends from, or null (a background dispatch).
     public static CapabilityCaller? Caller()
-        => CallerContextStamper.TryGet(out var caller) ? caller : null;
+        => RuntimeCallerContext.TryGet(out var caller) ? caller : null;
 }

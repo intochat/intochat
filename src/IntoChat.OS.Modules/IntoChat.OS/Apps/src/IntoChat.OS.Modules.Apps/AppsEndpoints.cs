@@ -1,5 +1,4 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans;
@@ -175,7 +174,7 @@ internal static class AppsEndpoints
 
     // A person at the authenticated edge: an app's call through the app proxy is not one.
     internal static bool IsPerson()
-        => CallerContextStamper.TryGet(out var caller) && caller.Kind == CallerKind.User && caller.StampedBy != TrustedEdge.AppProxy;
+        => RuntimeCallerContext.TryGet(out var caller) && caller.Kind == CallerKind.User && caller.StampedBy != TrustedEdge.AppProxy;
 
     internal static IResult Refused(InstallOutcome outcome) => outcome.Message == AppInstaller.OwnerOnly
         ? Results.Json(new { status = "refused", error = outcome.Message }, statusCode: 403)

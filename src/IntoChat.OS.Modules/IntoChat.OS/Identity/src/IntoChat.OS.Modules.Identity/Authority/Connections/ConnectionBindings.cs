@@ -28,8 +28,8 @@ internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClie
         if (await neurons.Directory().OwnerOfBrain(ConnectionKeys.Parse(connectionKey).BrainId) is not { } account
             || (await identity.Membership(callerBrain, account.OwnerPrincipalId))?.AccountId != account.AccountId) { return false; }
         // The lookup is the gate's own: unstamped, so the call filter it serves does not evaluate it again.
-        var stamped = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        var stamped = Orleans.Runtime.RequestContext.Get(RuntimeCallerContext.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         try
         {
             // Shared with the app's principal; an app id outside the caller's brain only matches a legacy pairing.
@@ -39,6 +39,6 @@ internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClie
                 : await connection.IsSharedInto(callerBrain, app);
             return direct;
         }
-        finally { if (stamped is not null) { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, stamped); } }
+        finally { if (stamped is not null) { Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.RequestContextKey, stamped); } }
     }
 }

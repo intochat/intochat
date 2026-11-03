@@ -1,5 +1,5 @@
 using DigitalBrain.Capabilities.Connections.Sealing;
-using IntoChat.OS.Connections.Platform.Connections;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Authority.Secrets;
 
@@ -10,12 +10,12 @@ internal sealed class SecretSealer(IKeyWrapper keys) : ISecretSealer
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrEmpty(plaintext);
         var key = SecretCipher.NewKey();
-        return new SealedSecret(name, keys.Wrap(key), SecretCipher.Seal(key, plaintext));
+        return new SealedSecret { KeyId = keys.Wrap(key), Cipher = SecretCipher.Seal(key, plaintext) };
     }
 
     public string Open(SealedSecret secret)
     {
         ArgumentNullException.ThrowIfNull(secret);
-        return SecretCipher.Open(keys.Unwrap(secret.KeyId), secret.Ciphertext);
+        return SecretCipher.Open(keys.Unwrap(secret.KeyId), secret.Cipher);
     }
 }

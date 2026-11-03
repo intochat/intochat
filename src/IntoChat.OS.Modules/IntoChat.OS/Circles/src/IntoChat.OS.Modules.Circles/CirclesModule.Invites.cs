@@ -20,13 +20,13 @@ public sealed partial class CirclesModule
     {
         endpoints.MapPost("/circle-invitations/{brainId}/codes", async (string brainId, MintCodeRequest? body, HttpContext http, IServiceProvider plain) =>
         {
-            if (http.User.Identity?.IsAuthenticated != true || !CallerContextStamper.TryGet(out var caller)
+            if (http.User.Identity?.IsAuthenticated != true || !RuntimeCallerContext.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp)
             { return Results.Unauthorized(); }
             if (!BrainScope.IsValidId(brainId)) { return Results.BadRequest(); }
             var request = new MintInvite(TimeSpan.FromMinutes(body?.ValidForMinutes ?? 24 * 60), body?.Role ?? "member", body?.BindCaller ?? false);
             if (request.Role is not ("member" or "admin")) { return Results.BadRequest(); }
-            CallerContextStamper.Stamp(caller with { BrainId = brainId });
+            RuntimeCallerContext.Stamp(caller with { BrainId = brainId });
             try
             {
                 var minted = await SiloNeurons.Get<ICircleInvites>(plain, ICircleInvites.Key(brainId)).Mint(request);
@@ -36,7 +36,7 @@ public sealed partial class CirclesModule
             catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             catch (InvalidOperationException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             catch (KeyNotFoundException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-            finally { CallerContextStamper.Stamp(caller); }
+            finally { RuntimeCallerContext.Stamp(caller); }
         });
     }
 }

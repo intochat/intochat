@@ -38,7 +38,7 @@ public sealed class TaskEngine : ITaskEngine
             return new BrainId(contextBrain);
         }
 
-        if (CallerContextStamper.TryGet(out var stamped) && stamped?.BrainId is { Length: > 0 } stampedBrain)
+        if (RuntimeCallerContext.TryGet(out var stamped) && stamped?.BrainId is { Length: > 0 } stampedBrain)
         {
             return new BrainId(stampedBrain);
         }

@@ -44,7 +44,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
     {
         var brain = fixture.NewBrain("s01");
         var agentCaller = CapabilityCallers.Of("agent-optimizer-01", "account-system", brain, CallerKind.User);
-        Assert.True(CallerContextStamper.IsTrusted(agentCaller));
+        Assert.True(RuntimeCallerContext.IsTrusted(agentCaller));
         using var stamp = RuntimeCallerContext.Stamp(agentCaller);
 
         var ctx = new ExecutionContext("exec_self_improve_01", agentCaller, new Dictionary<string, string>
@@ -215,14 +215,14 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
 
         // Step 1: Malicious unauthenticated caller attempts sideloading and is rejected by PlainNeuronCallFilter on the silo
         var untrustedCaller = new CapabilityCaller("malicious_actor", "acc_unknown", "");
-        Assert.False(CallerContextStamper.IsTrusted(untrustedCaller));
+        Assert.False(RuntimeCallerContext.IsTrusted(untrustedCaller));
 
         var settingsNeuron = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => settingsNeuron.Read());
 
         // Step 2: Legitimate developer authenticates with verified provenance on the silo
         var verifiedCaller = CapabilityCallers.Of("dev_usr", "acc_corp", brain, CallerKind.User);
-        Assert.True(CallerContextStamper.IsTrusted(verifiedCaller));
+        Assert.True(RuntimeCallerContext.IsTrusted(verifiedCaller));
         using var stamp = RuntimeCallerContext.Stamp(verifiedCaller);
 
         // Step 3: Developer attempts to install app requiring elevated capabilities

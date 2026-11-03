@@ -14,7 +14,7 @@ internal static class SecretsEndpoints
     {
         endpoints.MapPost("/secrets/{owner}", async (string owner, SecretInput body, AuthorityNeurons neurons) =>
         {
-            if (!CallerContextStamper.TryGet(out var caller))
+            if (!RuntimeCallerContext.TryGet(out var caller))
             {
                 return Results.Unauthorized();
             }

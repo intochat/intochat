@@ -1,5 +1,6 @@
 // os-only: os brain creation handler (awaited by IBrain.Create).
 using DigitalBrain.Brains;
+using DigitalBrain.Signals;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;

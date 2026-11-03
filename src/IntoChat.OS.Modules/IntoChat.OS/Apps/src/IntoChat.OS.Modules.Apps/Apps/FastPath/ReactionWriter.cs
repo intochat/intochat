@@ -254,9 +254,9 @@ internal sealed class ReactionWriter(
         turn.Unsettled = true;
         // The program runs as the app's principal, as it did when the app neuron deployed it, never as whoever
         // this background job happened to inherit.
-        var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
-        if (program.Principal is { } principal) { CallerContextStamper.Stamp(principal); }
-        else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
+        if (program.Principal is { } principal) { RuntimeCallerContext.Stamp(principal); }
+        else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
         try
         {
             for (var call = 1; ; call++)
@@ -283,8 +283,8 @@ internal sealed class ReactionWriter(
         finally
         {
             turn.DeployMs = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-            if (inherited is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-            else { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+            if (inherited is null) { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
+            else { RequestContext.Set(RuntimeCallerContext.RequestContextKey, inherited); }
         }
     }
 

@@ -113,7 +113,7 @@ internal sealed partial class CSharpFileNeuron : DigitalBrain.Neuron<CSharpFileS
     {
         if (string.IsNullOrWhiteSpace(source)) { throw new InvalidOperationException("Write the C# source before starting it."); }
         var program = await Programs.Assign(FileId, new(StringComparer.Ordinal) { [""] = source }, new(Current.Settings, StringComparer.Ordinal));
-        var owner = CallerContextStamper.TryGet(out var caller) ? caller : Current.Owner;
+        var owner = RuntimeCallerContext.TryGet(out var caller) ? caller : Current.Owner;
         await Keep(Current with { Program = source, Hash = program.Behaviors[0].Hash, Wanted = true, Owner = owner });
         return View(program);
     }

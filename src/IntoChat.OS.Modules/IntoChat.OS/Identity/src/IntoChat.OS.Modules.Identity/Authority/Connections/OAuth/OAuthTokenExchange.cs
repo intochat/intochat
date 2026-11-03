@@ -62,7 +62,7 @@ internal sealed class OAuthTokenExchange(
     private async Task<OAuthGrant> PostAsync(string connectionKey, string authMethodId, string? target, bool refreshGrant, Dictionary<string, string> form, CancellationToken ct)
     {
         var (brain, connectorId, _) = ConnectionKeys.Parse(connectionKey);
-        var caller = CallerContextStamper.Require();
+        var caller = RuntimeCallerContext.Require();
         if (brain != BrainScope.Create(caller.AccountId, caller.BrainId).Id)
         { throw new UnauthorizedAccessException("The connection must belong to the current brain."); }
         var method = Method(connectorId, authMethodId);

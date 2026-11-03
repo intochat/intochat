@@ -1,4 +1,5 @@
 // os-only: os module licence gate; the framework has no licensing.
+using DigitalBrain.Modules.Options;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Framework.Modules;

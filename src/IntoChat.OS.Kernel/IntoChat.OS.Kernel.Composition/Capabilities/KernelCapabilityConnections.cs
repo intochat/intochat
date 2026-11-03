@@ -87,7 +87,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     public async Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct)
     {
         // The kernel reads its brain's connections as the platform: a user stamp made of the brain id is nobody's account.
-        using var stampScope = CallerContextStamper.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value));
+        using var stampScope = RuntimeCallerContext.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value));
         try
         {
             var summaries = await Requests(brain).ListConnections().WaitAsync(ct).ConfigureAwait(false);
@@ -196,7 +196,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     public async Task RequestConnection(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct)
     {
         // The kernel reads its brain's connections as the platform: a user stamp made of the brain id is nobody's account.
-        using var stampScope = CallerContextStamper.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value));
+        using var stampScope = RuntimeCallerContext.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value));
         try
         {
             var requests = Requests(brain);

@@ -1,3 +1,4 @@
+using BrainRoutes = IntoChat.OS.Connections.BrainRoutes;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Net;
@@ -54,7 +55,7 @@ public sealed class HandleRoutesFacts
 
         app.Use(async (http, next) =>
         {
-            using (CallerContextStamper.StampScope(CapabilityCallers.Of("stranger-user", "stranger-account", "b-stranger", CallerKind.User)))
+            using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("stranger-user", "stranger-account", "b-stranger", CallerKind.User)))
             {
                 await next(http);
             }

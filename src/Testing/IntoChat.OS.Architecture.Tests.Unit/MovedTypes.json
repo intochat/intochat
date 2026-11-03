@@ -2,6 +2,366 @@
   "method": "Reflection over the production assemblies (ProductionArchitecture.Types): persisted when the type or a nested type is [GenerateSerializer], when it is the field, property or array/generic element type of a [GenerateSerializer] type in the OS assemblies, or when it derives from DigitalBrain.Signal. DigitalBrain cannot reference OS types, so its public API adds nothing.",
   "types": [
     {
+      "old": "IntoChat.OS.Activated",
+      "alias": "brain.activated",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Configuration.HostConfiguration",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Contracts.ICapabilities",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Contracts.IRuntimeCapabilitySource",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Contracts.NeuronType",
+      "alias": "registry.neuron-type",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Contracts.NeuronTypeHit",
+      "alias": "registry.type-hit",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.BrainSeal",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ConnectionKeys",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ConnectionNeuronTypes",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ConnectionNeuron`1",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ConnectionProbeOutcome",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ConnectionProbeResult",
+      "alias": "connection.probe-result",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ConnectionState",
+      "alias": "connection.state",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ConnectionStatus",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ConnectionView",
+      "alias": "connection.view",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.Credential",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.IBrainSecretSealer",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.IConnection",
+      "alias": "connection",
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.IConnectionCatalogUpdates",
+      "alias": "integrations.catalog-updates",
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.IConnectionInbound",
+      "alias": "connection.inbound",
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.IConnectionIndex",
+      "alias": "connection.index",
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.IConnectionWriteFaults",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.IOAuthTokenExchange",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.ISecretSealer",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.OAuthExternalOperations",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.OAuthGrant",
+      "alias": "connection.oauth-grant",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.OAuthMethod",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.OAuthTokenExchangeException",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.OAuthTokenFailure",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.SealedSecret",
+      "alias": "sealed-secret",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionConnected",
+      "alias": "connection.connected",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionDisconnected",
+      "alias": "connection.disconnected",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionExpired",
+      "alias": "connection.expired",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionFailing",
+      "alias": "connection.failing",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionUpdated",
+      "alias": "connection.updated",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Identity.IBrainOwnerDispatch",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.Capability",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.ConfigureIntegration",
+      "alias": "integration.registration.configure",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.ConnectorDefinition",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.ICapabilitySource",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.IIntegrationHandle",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.IIntegrationStartup",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.IModuleIntegrations`1",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.IntegrationSnapshot",
+      "alias": "integration.registration.snapshot",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.IntegrationStatus",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Integrations.ReleasedIntegration",
+      "alias": "integration.registration.released",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.BudgetExhaustedException",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ComputeTracePage",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.Cost",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.CostKind",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.CostRow",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.CostSubject",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.CostSummary",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalAccountingStatus",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalCallCompletion",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalCallHandle",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalCallOutcome",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalCallOutcomeKind",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalCallRequest",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalCallState",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalChargePolicy",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ExternalOperationDescriptor",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.Funding",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.FundingKind",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.ICostMeter",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.IPriceList",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.PriceQuote",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.PricingStatus",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.TraceDetailStatus",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Compute.UsageGrouping",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Contracts.Configuration.ConfigurationKeyGrammar",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Created",
+      "alias": "brain.created",
+      "persisted": true
+    },
+    {
       "old": "IntoChat.OS.Framework.BrainAffinePlacement",
       "alias": "os.brain-affine-placement",
       "persisted": true
@@ -13,6 +373,41 @@
     },
     {
       "old": "IntoChat.OS.Framework.BrainAffinePlacementDirector",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.BrainKey",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.BrainScope",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.CallerContextStamper",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Compute.TraceContext",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Compute.TraceOutgoingFilter",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Configuration.ModuleSettingsValidation",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Diagnostics.Swallow",
       "alias": null,
       "persisted": false
     },
@@ -42,7 +437,152 @@
       "persisted": false
     },
     {
+      "old": "IntoChat.OS.Framework.Modules.CallerAdmission",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Configuration.ModuleOptionsSerialization",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.ForwardedHeadersHosting",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.ForwardedHeadersSetup",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.HttpProblems",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.IRequestThrottle",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.IpPrefix",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.IpThrottleFilter",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.ReturnUrlValidator",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.SlidingWindowThrottle",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Http.ThrottleResult",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.IBrainAccess",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.IHttpModule",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.IHttpSurface",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.IModuleOptions",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.ExternalCallHandler",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.ExternalCallHttp",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.ExternalCallMetadata",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.IExternalCallContextAccessor",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.ISingleAttemptHttpTransport",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.MeteredHttpClientRegistration",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.MeteredHttpClients",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.ModulePriceListRegistration",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.ModulePriceListRegistry",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Metering.ModulePriceLists",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.ModuleId",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.Framework.Modules.OsModule",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Platform.Integrations.IntegrationSchema",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.SettingAttribute",
       "alias": null,
       "persisted": false
     },
@@ -62,6 +602,16 @@
       "persisted": false
     },
     {
+      "old": "IntoChat.OS.Framework.Parts.IMasterKeyCustody",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Parts.MasterKeyCustodyKind",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.Framework.SignalJournal",
       "alias": null,
       "persisted": false
@@ -72,7 +622,72 @@
       "persisted": false
     },
     {
+      "old": "IntoChat.OS.Framework.UntrustedCallerException",
+      "alias": "enforcement.untrusted-caller",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.IBrain",
+      "alias": "brain",
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.InstanceCreated",
+      "alias": "kernel.instance-created",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.InstanceRetired",
+      "alias": "kernel.instance-retired",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Integrations.ConnectionRef",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Integrations.ConnectionRequested",
+      "alias": "integrations.account-requested",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Integrations.ConnectionSummary",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Integrations.ConnectionsChanged",
+      "alias": "integrations.connections-changed",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Integrations.ConnectorKind",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Integrations.ConnectorOffer",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Integrations.IConnectionRequests",
+      "alias": "integrations.accounts",
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.NeuronAliases",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Owner",
+      "alias": "brain.owner",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Runtime.ConnectionContractAttribute",
       "alias": null,
       "persisted": false
     },
@@ -82,6 +697,21 @@
       "persisted": false
     },
     {
+      "old": "IntoChat.OS.Runtime.PlainNeuronContracts",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.ServiceUnavailableException",
+      "alias": "framework.service-unavailable",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.StaleActionException",
+      "alias": "ui.stale-action",
+      "persisted": true
+    },
+    {
       "old": "IntoChat.OS.State",
       "alias": "brain.state",
       "persisted": true
@@ -89,6 +719,11 @@
     {
       "old": "IntoChat.OS.Trace",
       "alias": "brain.trace",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.TypeAdded",
+      "alias": "kernel.type-added",
       "persisted": true
     }
   ]

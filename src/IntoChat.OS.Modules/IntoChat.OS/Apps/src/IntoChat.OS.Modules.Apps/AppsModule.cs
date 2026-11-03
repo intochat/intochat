@@ -1,4 +1,7 @@
-using DigitalBrain.Brains;
+global using DigitalBrain.Brains;
+global using DigitalBrain.Signals;
+global using CallerContextStamper = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext;
+
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
@@ -79,7 +82,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
 
     private static object ResolveNeuron(IServiceProvider services, Type contractType, string neuronKey)
     {
-        var brain = CallerContextStamper.TryGet(out var caller) && !string.IsNullOrWhiteSpace(caller.BrainId)
+        var brain = RuntimeCallerContext.TryGet(out var caller) && !string.IsNullOrWhiteSpace(caller.BrainId)
             ? caller.BrainId
             : DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current is { BrainId: { Length: > 0 } b }
                 ? b

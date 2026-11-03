@@ -101,7 +101,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             Main: new UiChildRef(UIVocabulary.ViewType, appKey + "/view"),
             Views: [new PresentationView("full", new UiChildRef(UIVocabulary.ViewType, appKey + "/view"))]);
 
-        var previousCaller = CallerContextStamper.TryGet(out var existingCaller) ? existingCaller : null;
+        var previousCaller = RuntimeCallerContext.TryGet(out var existingCaller) ? existingCaller : null;
         var baseCaller = previousCaller ?? await HostCaller.ForBrain(services, brain);
         if (baseCaller is null)
         {
@@ -111,7 +111,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         {
             AppId = appKey,
         };
-        CallerContextStamper.Stamp(appCaller);
+        RuntimeCallerContext.Stamp(appCaller);
         try
         {
             if (!string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
@@ -123,11 +123,11 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         {
             if (previousCaller is not null)
             {
-                CallerContextStamper.Stamp(previousCaller);
+                RuntimeCallerContext.Stamp(previousCaller);
             }
             else
             {
-                RequestContext.Remove(CallerContextStamper.RequestContextKey);
+                RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
             }
         }
     }

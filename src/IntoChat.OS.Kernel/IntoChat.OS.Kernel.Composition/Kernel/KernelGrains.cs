@@ -63,7 +63,7 @@ internal sealed class InstanceDirectoryGrain(
     // registered, so awaiting it would deadlock; no caller travels because the kernel is the author.
     private void Announce(Func<IBrainAnnouncer, Task> announce)
     {
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         _ = announce(SiloNeurons.Get<IBrainAnnouncer>(ServiceProvider, IBrain.Key(Brain)));
     }
 }
@@ -138,7 +138,7 @@ internal sealed class TypeTableGrain(
         await store.WriteStateAsync();
         if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain)
         {
-            RequestContext.Remove(CallerContextStamper.RequestContextKey);
+            RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
             var announcer = SiloNeurons.Get<IBrainAnnouncer>(ServiceProvider, IBrain.Key(brain));
             foreach (var added in stamped.Where(type => !known.Contains(type.Name)))
             { _ = announcer.TypeAdded(added.Name); }

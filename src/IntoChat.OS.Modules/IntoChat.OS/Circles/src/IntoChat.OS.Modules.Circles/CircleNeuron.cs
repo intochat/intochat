@@ -268,7 +268,7 @@ internal sealed class CircleNeuron(
         => CallerAdmission.RequirePerson("Inviting to a circle and accepting an invitation are a person's own; a script may not.");
 
     private static CapabilityCaller Caller()
-        => CallerContextStamper.TryGet(out var caller) ? caller : throw new UnauthorizedAccessException("A circle acts only on a stamped caller.");
+        => RuntimeCallerContext.TryGet(out var caller) ? caller : throw new UnauthorizedAccessException("A circle acts only on a stamped caller.");
 
     public async Task Share(string appName, string[] connectionIds) => await ShareIntoCircle(appName, connectionIds ?? []);
 

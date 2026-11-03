@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Signals;
 using DigitalBrain.Capabilities.Connections.Requests;
 using System.Diagnostics;
 using DigitalBrain;

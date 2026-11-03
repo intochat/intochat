@@ -57,7 +57,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
 
     private async Task<T> ReadShared<T>(Func<Task<T>> read)
     {
-        var caller = CallerContextStamper.Require();
+        var caller = RuntimeCallerContext.Require();
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Id.Brain.Value)
         { throw new UnauthorizedAccessException("Read Friends through the viewer's space."); }
         // Keep the verified viewer caller on every call; guarded foreign leaves use typed module readers.
@@ -136,8 +136,8 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         var types = compiled.Entries;
         if (!types.Any(type => type.Name == typeof(IApp).FullName) || !types.Any(type => type.Name == typeof(IScene).FullName)) { return; }
         // This is the module's derived write, even when an app's Show caused the invalidation.
-        var inherited = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        var inherited = Orleans.Runtime.RequestContext.Get(RuntimeCallerContext.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         try
         {
             // A presentation change rewrites one app. Workspace, circle and profile changes
@@ -192,7 +192,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         }
         finally
         {
-            if (inherited is not null) { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+            if (inherited is not null) { Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.RequestContextKey, inherited); }
         }
     }
 

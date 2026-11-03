@@ -80,7 +80,7 @@ public static class ServerHostingExtensions
             // The brain graph projection (brain-graph-plan Phase 1) is hosted on every silo; it reads the kernel observer and nothing else.
             .Append(typeof(DigitalBrain.Graph.GraphModule)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).
-        builder.Services.AddSingleton(new IntoChat.OS.Connections.Platform.Connections.ConnectionNeuronTypes(neuronModules));
+        builder.Services.AddSingleton(new DigitalBrain.Capabilities.Connections.ConnectionNeuronTypes(neuronModules));
         // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both. The kernel's own
         // signals (the brain neuron's Created, Activated and instance announcements, 06-08) live in IntoChat.OS, and every
         // connector's connection signals (ConnectionConnected and the rest, 06-08) in IntoChat.OS.Connections.
@@ -88,7 +88,7 @@ public static class ServerHostingExtensions
             .Concat(modules.Where(static module => module.Neurons is not null).Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
             .Append(typeof(DigitalBrain.Signal).Assembly)
             .Append(typeof(IBrain).Assembly)
-            .Append(typeof(IntoChat.OS.Connections.Platform.Connections.IConnection).Assembly)
+            .Append(typeof(DigitalBrain.Capabilities.Connections.IConnection).Assembly)
             // The Authority's connection requests publish ConnectionsChanged and ConnectionRequested (06-08).
             .Append(typeof(DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests).Assembly)
             .Distinct()

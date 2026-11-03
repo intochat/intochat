@@ -73,7 +73,7 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
     {
         var handlers = http.RequestServices.GetServices<ISignInHandler>().ToArray();
         if (handlers.Length == 0) { return; }
-        CallerContextStamper.Stamp(CapabilityCallers.Of(member.PrincipalId, member.AccountId, member.BrainId));
+        RuntimeCallerContext.Stamp(CapabilityCallers.Of(member.PrincipalId, member.AccountId, member.BrainId));
         var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ISignInHandler));
         foreach (var handler in handlers)
         {

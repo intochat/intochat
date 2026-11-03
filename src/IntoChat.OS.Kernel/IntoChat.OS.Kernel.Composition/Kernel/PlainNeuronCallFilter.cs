@@ -28,7 +28,7 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
 
         if (IsPlumbing(call)) { await context.Invoke(); return; }
 
-        if (!CallerContextStamper.TryGet(out var caller) || caller is null)
+        if (!RuntimeCallerContext.TryGet(out var caller) || caller is null)
         {
             if (context.SourceId is { } internalSource && !internalSource.Type.ToString()!.StartsWith("sys.client", StringComparison.Ordinal))
             {
@@ -45,11 +45,11 @@ internal sealed class PlainNeuronCallFilter(ICallFilter filter, ILogger<PlainNeu
         // from inside the cluster, keeps its provenance, so an unclassified ([Internal]) operation passes for it (06-08: the
         // fast-path writer completes a plain app's synapse after the person's request returned).
         var (scope, isPublic) = Classify(caller, id, call);
-        var internalCall = Orleans.Runtime.RequestContext.Get(CallerContextStamper.ModuleCallKey) is true
+        var internalCall = Orleans.Runtime.RequestContext.Get(RuntimeCallerContext.ModuleCallKey) is true
             || context.SourceId is { } source && !source.Type.ToString()!.StartsWith("sys.client", StringComparison.Ordinal);
         if (scope is null && !isPublic && internalCall) { await context.Invoke(); return; }
         await Authorize(filter, logger, caller, id, call);
-        Orleans.Runtime.RequestContext.Set(CallerContextStamper.ModuleCallKey, true);
+        Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.ModuleCallKey, true);
         await context.Invoke();
     }
 

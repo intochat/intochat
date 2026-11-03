@@ -348,10 +348,10 @@ public sealed class Tier1_FeatureCoverageFacts
     public void F5_01_CallerContextStamper_IsTrusted_RequiresAllFields()
     {
         var valid = CapabilityCallers.Of("user_123", "acc_1", "brain_alpha", CallerKind.User);
-        Assert.True(CallerContextStamper.IsTrusted(valid));
+        Assert.True(RuntimeCallerContext.IsTrusted(valid));
 
         var invalid = new CapabilityCaller("", "acc_1", "brain_alpha");
-        Assert.False(CallerContextStamper.IsTrusted(invalid));
+        Assert.False(RuntimeCallerContext.IsTrusted(invalid));
     }
 
     [Fact]
@@ -388,10 +388,10 @@ public sealed class Tier1_FeatureCoverageFacts
     public void F5_04_CallerContextStamper_IsModelOriginated_TracksConversationId()
     {
         var humanCaller = CapabilityCallers.Of("user_1", "acc_1", "brain_1", CallerKind.User);
-        Assert.False(CallerContextStamper.IsModelOriginated(humanCaller));
+        Assert.False(RuntimeCallerContext.IsModelOriginated(humanCaller));
 
         var modelCaller = CapabilityCallers.Of("asst_1", "acc_1", "brain_1", CallerKind.Agent, conversationId: "conv_42");
-        Assert.True(CallerContextStamper.IsModelOriginated(modelCaller));
+        Assert.True(RuntimeCallerContext.IsModelOriginated(modelCaller));
     }
 
     [Fact]
@@ -399,8 +399,8 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F5")]
     public void F5_05_CallerContextStamper_Constants_AreDefined()
     {
-        Assert.Equal("db.cap.principal", CallerContextStamper.RequestContextKey);
-        Assert.Equal("intochatos.trusted-module-call", CallerContextStamper.ModuleCallKey);
+        Assert.Equal("db.cap.principal", RuntimeCallerContext.RequestContextKey);
+        Assert.Equal("intochatos.trusted-module-call", RuntimeCallerContext.ModuleCallKey);
     }
 
     #endregion
@@ -574,7 +574,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F8")]
     public void F8_05_CallerContextStamper_Require_ThrowsWhenUnstamped()
     {
-        Assert.Throws<UntrustedCallerException>(() => CallerContextStamper.Require());
+        Assert.Throws<UntrustedCallerException>(() => RuntimeCallerContext.Require());
     }
 
     #endregion
@@ -717,9 +717,9 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_04_FrameworkAssembly_ExportsCanonicalConfigurationTypes()
     {
-        var assembly = typeof(DigitalBrain.Runtime.Orleans.Capabilities.CallerContextStamper).Assembly;
+        var assembly = typeof(IntoChat.OS.Framework.CallRequest).Assembly;
         var exportedTypes = assembly.GetExportedTypes().Select(t => t.Name).ToList();
-        Assert.Contains("CallerContextStamper", exportedTypes);
+        Assert.Contains("RuntimeCallerContext", typeof(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext).Assembly.GetExportedTypes().Select(t => t.Name));
         Assert.Contains("CallRequest", exportedTypes);
     }
 
@@ -728,7 +728,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_05_CleanNamespaceIsolation_NoObsoleteShims()
     {
-        var types = typeof(DigitalBrain.Runtime.Orleans.Capabilities.CallerContextStamper).Assembly.GetTypes();
+        var types = typeof(IntoChat.OS.Framework.CallRequest).Assembly.GetTypes();
         Assert.DoesNotContain(types, t => t.Name.Contains("NamesForward", StringComparison.OrdinalIgnoreCase));
     }
 

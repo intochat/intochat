@@ -1,5 +1,4 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections;
@@ -43,14 +42,14 @@ internal static class BrainEntriesEndpoints
         });
     }
 
-    private static string Scope(string brainId) => BrainScope.Create(CallerContextStamper.Require().AccountId, brainId).Id;
+    private static string Scope(string brainId) => BrainScope.Create(RuntimeCallerContext.Require().AccountId, brainId).Id;
 
     // Runs after the group's membership filter. The owner rule is BrainOwnerDispatch's: the directory
     // membership of the stamped user in this brain, under the same account, with the Owner role.
     private static async ValueTask<object?> RequireOwnerAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
-        if (!CallerContextStamper.TryGet(out var caller)) { return Results.Unauthorized(); }
+        if (!RuntimeCallerContext.TryGet(out var caller)) { return Results.Unauthorized(); }
         if (caller.Kind != CallerKind.User || http.Request.RouteValues["brainId"] is not string brainId)
         { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var identity = http.RequestServices.GetRequiredService<IIdentityClient>();

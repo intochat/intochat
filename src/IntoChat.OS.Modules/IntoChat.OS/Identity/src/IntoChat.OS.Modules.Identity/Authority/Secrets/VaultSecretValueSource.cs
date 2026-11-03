@@ -12,7 +12,7 @@ internal sealed class VaultSecretValueSource(AuthorityNeurons neurons) : ISecret
 {
     public async ValueTask<IReadOnlyList<string>> CurrentValues(CancellationToken cancellationToken)
     {
-        if (!CallerContextStamper.TryGet(out var caller) || string.IsNullOrEmpty(caller.PrincipalId)) { return []; }
+        if (!RuntimeCallerContext.TryGet(out var caller) || string.IsNullOrEmpty(caller.PrincipalId)) { return []; }
         if (caller.Kind == CallerKind.App || AppPrincipal.IsApp(caller.PrincipalId))
         {
             throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app principals cannot read raw vault secret values directly.");

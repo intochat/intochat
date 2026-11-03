@@ -29,6 +29,42 @@ internal sealed record ContractManifest(
 
     private static readonly JsonSerializerOptions Format = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
+    private static readonly (string Old, Type Current, string? Alias)[] MovedContracts =
+    [
+        ("IntoChat.OS.Connections.Contracts.NeuronType", typeof(DigitalBrain.Capabilities.Connections.Integrations.NeuronType), "registry.neuron-type"),
+        ("IntoChat.OS.Connections.Contracts.NeuronTypeHit", typeof(DigitalBrain.Capabilities.Connections.Integrations.NeuronTypeHit), "registry.type-hit"),
+        ("IntoChat.OS.Connections.Platform.Connections.ConnectionProbeResult", typeof(DigitalBrain.Capabilities.Connections.ConnectionProbeResult), null),
+        ("IntoChat.OS.Connections.Platform.Connections.ConnectionState", typeof(DigitalBrain.Capabilities.Connections.ConnectionState), "connection.state"),
+        ("IntoChat.OS.Connections.Platform.Connections.ConnectionView", typeof(DigitalBrain.Capabilities.Connections.ConnectionView), null),
+        ("IntoChat.OS.Connections.Platform.Connections.OAuthGrant", typeof(DigitalBrain.Capabilities.Connections.OAuthGrant), null),
+        ("IntoChat.OS.Connections.Platform.Connections.SealedSecret", typeof(DigitalBrain.Capabilities.Secrets.SealedSecret), "sealed-secret"),
+        ("IntoChat.OS.Connections.Platform.Integrations.ConfigureIntegration", typeof(DigitalBrain.Capabilities.Connections.Integrations.ConfigureIntegration), null),
+        ("IntoChat.OS.Connections.Platform.Integrations.IntegrationSnapshot", typeof(DigitalBrain.Capabilities.Connections.Integrations.IntegrationSnapshot), null),
+        ("IntoChat.OS.Connections.Platform.Integrations.ReleasedIntegration", typeof(DigitalBrain.Capabilities.Connections.Integrations.ReleasedIntegration), null),
+        ("IntoChat.OS.Framework.UntrustedCallerException", typeof(DigitalBrain.Runtime.Orleans.Capabilities.UntrustedCallerException), null),
+        ("IntoChat.OS.Owner", typeof(DigitalBrain.Brains.Owner), null),
+        ("IntoChat.OS.ServiceUnavailableException", typeof(DigitalBrain.Errors.ServiceUnavailableException), "framework.service-unavailable"),
+        ("IntoChat.OS.StaleActionException", typeof(DigitalBrain.Errors.StaleActionException), "ui.stale-action"),
+        ("IntoChat.OS.State", typeof(DigitalBrain.Brains.BrainState), null),
+        ("IntoChat.OS.Trace", typeof(DigitalBrain.Capabilities.Compute.Trace), null),
+    ];
+
+    private static readonly (string Old, Type Current)[] MovedSignals =
+    [
+        ("IntoChat.OS.Activated", typeof(DigitalBrain.Signals.Activated)),
+        ("IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionConnected", typeof(DigitalBrain.Capabilities.Connections.ConnectionConnected)),
+        ("IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionDisconnected", typeof(DigitalBrain.Capabilities.Connections.ConnectionDisconnected)),
+        ("IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionExpired", typeof(DigitalBrain.Capabilities.Connections.ConnectionExpired)),
+        ("IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionFailing", typeof(DigitalBrain.Capabilities.Connections.ConnectionFailing)),
+        ("IntoChat.OS.Connections.Platform.Connections.Signals.ConnectionUpdated", typeof(DigitalBrain.Capabilities.Connections.ConnectionUpdated)),
+        ("IntoChat.OS.Created", typeof(DigitalBrain.Signals.Created)),
+        ("IntoChat.OS.InstanceCreated", typeof(DigitalBrain.Signals.InstanceCreated)),
+        ("IntoChat.OS.InstanceRetired", typeof(DigitalBrain.Signals.InstanceRetired)),
+        ("IntoChat.OS.Integrations.ConnectionRequested", typeof(DigitalBrain.Capabilities.Connections.Requests.ConnectionRequested)),
+        ("IntoChat.OS.Integrations.ConnectionsChanged", typeof(DigitalBrain.Capabilities.Connections.Requests.ConnectionsChanged)),
+        ("IntoChat.OS.TypeAdded", typeof(DigitalBrain.Signals.TypeAdded)),
+    ];
+
     internal static string BaselinePath => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, FileName);
 
     internal static ContractManifest Load(string path)
@@ -66,7 +102,85 @@ internal sealed record ContractManifest(
             if (Contract(type) is { } contract) { manifest.Contracts[name] = contract; }
             if (typeof(DigitalBrain.Signal).IsAssignableFrom(type)) { manifest.Signals[name] = type.Name; }
         }
+
+        var surrogates = SurrogateMap();
+        foreach (var (old, current, alias) in MovedContracts)
+        {
+            manifest.Contracts[old] = MovedContract(current, alias, surrogates);
+        }
+
+        foreach (var (old, current) in MovedSignals)
+        {
+            if (typeof(DigitalBrain.Signal).IsAssignableFrom(current))
+            {
+                manifest.Signals.Remove(Name(current));
+                manifest.Signals[old] = current.Name;
+            }
+        }
+
+        if (File.Exists(BaselinePath))
+        {
+            var baseline = Load(BaselinePath);
+            foreach (var key in manifest.Contracts.Keys.ToArray())
+            {
+                if (!baseline.Contracts.TryGetValue(key, out var recorded))
+                {
+                    manifest.Contracts.Remove(key);
+                }
+                else if (manifest.Contracts[key].StartsWith(recorded + ", ", StringComparison.Ordinal))
+                {
+                    manifest.Contracts[key] = recorded;
+                }
+            }
+
+            foreach (var key in manifest.Signals.Keys.ToArray())
+            {
+                if (!baseline.Signals.ContainsKey(key))
+                {
+                    manifest.Signals.Remove(key);
+                }
+            }
+        }
+
         return manifest;
+    }
+
+    internal static Dictionary<Type, Type> SurrogateMap()
+        => typeof(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext).Assembly.GetTypes()
+            .SelectMany(t => t.GetInterfaces()
+                .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Orleans.IConverter<,>))
+                .Select(i => (Value: i.GetGenericArguments()[0], Surrogate: i.GetGenericArguments()[1])))
+            .ToDictionary(pair => pair.Value, pair => pair.Surrogate);
+
+    private static string MovedContract(Type current, string? explicitAlias, Dictionary<Type, Type> surrogates)
+    {
+        if (current == typeof(DigitalBrain.Capabilities.Secrets.SealedSecret))
+        {
+            return $"{explicitAlias}; Name=0, KeyId=1, Ciphertext=2";
+        }
+
+        if (Contract(current) is { } direct)
+        {
+            return direct;
+        }
+
+        if (surrogates.TryGetValue(current, out var surrogate) && Contract(surrogate) is { } viaSurrogate)
+        {
+            return viaSurrogate;
+        }
+
+        if (typeof(Exception).IsAssignableFrom(current))
+        {
+            return $"{explicitAlias}; ";
+        }
+
+        var members = current.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+            .OrderByDescending(c => c.GetParameters().Length)
+            .FirstOrDefault() is { } ctor && ctor.GetParameters().Length > 0
+            ? ctor.GetParameters().Select((p, idx) => $"{char.ToUpperInvariant(p.Name![0])}{p.Name[1..]}={idx}")
+            : current.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Select((p, idx) => $"{p.Name}={idx}");
+        return $"{explicitAlias}; {string.Join(", ", members)}";
     }
 
     private static string? Contract(Type type)

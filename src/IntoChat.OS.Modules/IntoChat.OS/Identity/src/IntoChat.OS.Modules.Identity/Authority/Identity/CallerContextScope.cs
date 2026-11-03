@@ -10,7 +10,7 @@ internal static class CallerContextScope
 {
     internal static IDisposable Scoped(CapabilityCaller caller)
     {
-        if (!CallerContextStamper.IsTrusted(caller))
+        if (!RuntimeCallerContext.IsTrusted(caller))
         {
             throw new UntrustedCallerException($"Caller kind {caller.Kind} cannot be stamped by {caller.StampedBy}.");
         }

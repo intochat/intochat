@@ -42,7 +42,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         { throw new ArgumentException("Choose an app name using lowercase letters, digits and dashes."); }
         if (!exact && name != reference.App) { throw new ArgumentException("The latest release installs under its own name."); }
         if (exact && request.OperationId == Guid.Empty) { throw new ArgumentException("An exact release installs with a nonempty operation ID."); }
-        var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : null;
 
         AppBundle bundle;
         AppOrigin origin;
@@ -225,7 +225,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
             return InstallOutcome.Installed(name);
         }
         if (request.Consent != AppConsent.Of(requires)) { return InstallOutcome.NeedsConsent(added, requires); }
-        var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : null;
         if (added.SemanticTypes is { Length: > 0 } && !await IsOwner(scope, caller)) { return InstallOutcome.Refused(OwnerOnly); }
         await loader.Load(scope, name, bundle, next with { Consented = Recorded(requires) }, ct);
         await Grant(IApp.Key(scope, name), added.SemanticTypes, caller, ct);

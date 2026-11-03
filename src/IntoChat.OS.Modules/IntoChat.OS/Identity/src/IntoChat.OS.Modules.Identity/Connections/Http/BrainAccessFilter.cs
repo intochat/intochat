@@ -28,7 +28,7 @@ public static class BrainAccessFilter
     public static async ValueTask<IResult?> Decide(HttpContext http, string brainId)
     {
         ArgumentNullException.ThrowIfNull(http);
-        if (!CallerContextStamper.TryGet(out var caller)) { return Results.Unauthorized(); }
+        if (!RuntimeCallerContext.TryGet(out var caller)) { return Results.Unauthorized(); }
 
         var access = http.RequestServices.GetRequiredService<IBrainAccess>();
         if (!await access.CanAccessAsync(caller.PrincipalId, caller.AccountId, brainId, http.RequestAborted))

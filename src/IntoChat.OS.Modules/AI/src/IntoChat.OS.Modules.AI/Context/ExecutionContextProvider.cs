@@ -85,7 +85,7 @@ public sealed class ExecutionContextProvider : IExecutionContextProvider
         CancellationToken cancellationToken = default)
     {
         var resolvedCaller = caller
-            ?? (CallerContextStamper.TryGet(out var stamped) ? stamped : RuntimeCallerContext.Current);
+            ?? (RuntimeCallerContext.TryGet(out var stamped) ? stamped : RuntimeCallerContext.Current);
 
         return new ExecutionContext(executionId, resolvedCaller, environment, initialSlices, cancellationToken);
     }
@@ -96,7 +96,7 @@ public sealed class ExecutionContextProvider : IExecutionContextProvider
         var (ambientSettings, ambientCt) = TryReadAmbientSession();
 
         // Bridge 2: Check Security Provenance (CallerContextStamper / RuntimeCallerContext)
-        var caller = CallerContextStamper.TryGet(out var stamped)
+        var caller = RuntimeCallerContext.TryGet(out var stamped)
             ? stamped
             : RuntimeCallerContext.Current;
 
@@ -161,8 +161,9 @@ public sealed class ExecutionContextProvider : IExecutionContextProvider
             var stopping = stoppingProp?.GetValue(scope) as CancellationToken?;
             return (settings, stopping);
         }
-        catch
+        catch (Exception error)
         {
+            _ = error;
             return (null, null);
         }
     }

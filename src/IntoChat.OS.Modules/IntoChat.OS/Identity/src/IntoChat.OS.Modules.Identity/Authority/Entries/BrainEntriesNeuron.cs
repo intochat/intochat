@@ -1,8 +1,9 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
-using DigitalBrain.Capabilities.Connections.Sealing;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Text;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Connections.Sealing;
+using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Contracts.Configuration;
@@ -92,7 +93,7 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
     {
         // As IIntegration.Release: only a module's own call stamped by the Platform edge. Users and
         // assistants (authenticated HTTP), apps (app proxy) and the scheduler never qualify.
-        if (caller is null || !CallerContextStamper.IsTrusted(caller)
+        if (caller is null || !RuntimeCallerContext.IsTrusted(caller)
             || caller.Kind != CallerKind.Platform || caller.StampedBy != TrustedEdge.Platform)
         { throw new UntrustedCallerException("Only trusted platform code can release a brain entry."); }
         if (_store.State.Entries.FirstOrDefault(entry => entry.Name == name) is not { } entry) { return null; }
@@ -127,13 +128,13 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
 
     private static void RefuseAppCalls()
     {
-        if (CallerContextStamper.TryGet(out var ambient) && (ambient.Kind == CallerKind.App || ambient.StampedBy == TrustedEdge.AppProxy))
+        if (RuntimeCallerContext.TryGet(out var ambient) && (ambient.Kind == CallerKind.App || ambient.StampedBy == TrustedEdge.AppProxy))
         { throw new UnauthorizedAccessException("Installed apps cannot use brain entries."); }
     }
 
     private void Audit(string operation, string name, EntryKind kind)
     {
-        var actor = CallerContextStamper.TryGet(out var current) ? current.PrincipalId : "platform";
+        var actor = RuntimeCallerContext.TryGet(out var current) ? current.PrincipalId : "platform";
         _logger.LogInformation("Brain entry {Operation} for {Entry} ({Kind}) in {Brain} by {Actor}.",
             operation, name, kind, this.GetPrimaryKeyString(), actor);
     }

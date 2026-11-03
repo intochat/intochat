@@ -15,10 +15,10 @@ internal static class HostCaller
 {
     public static async Task<CapabilityCaller?> ForBrain(IServiceProvider services, string brain)
     {
-        if (CallerContextStamper.TryGet(out var caller) && caller.BrainId == brain) { return caller; }
+        if (RuntimeCallerContext.TryGet(out var caller) && caller.BrainId == brain) { return caller; }
         if (string.IsNullOrWhiteSpace(brain)) { return null; }
         var fallback = CapabilityCallers.Platform(brain, brain, brain);
-        CallerContextStamper.Stamp(fallback);
+        RuntimeCallerContext.Stamp(fallback);
         if (services.GetService<ICapabilityBroker>() is { } broker)
         {
             IIdentity directory;
@@ -27,7 +27,7 @@ internal static class HostCaller
             if (await directory.OwnerOfBrain(brain) is { } account)
             {
                 var ownerCaller = CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain);
-                CallerContextStamper.Stamp(ownerCaller);
+                RuntimeCallerContext.Stamp(ownerCaller);
                 return ownerCaller;
             }
         }

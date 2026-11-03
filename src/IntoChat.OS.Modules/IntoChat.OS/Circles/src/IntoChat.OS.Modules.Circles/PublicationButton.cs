@@ -30,7 +30,7 @@ internal static class PublicationButton
         ArgumentNullException.ThrowIfNull(uiEvent);
         // Authority is the caller stamped on this call at a trusted edge; the event's caller must name the same person, so a
         // dispatch that lost the stamp, or carries another one, installs nothing (06-07b).
-        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.User
+        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.User
             || caller.StampedBy == TrustedEdge.AppProxy
             || uiEvent.Caller is not { } stamped || stamped.PrincipalId != caller.PrincipalId || stamped.AccountId != caller.AccountId
             || stamped.BrainId != caller.BrainId)

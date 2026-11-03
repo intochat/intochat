@@ -365,7 +365,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             ? cb.ForApp(filesAppKey)
             : resolvedBroker;
 
-        var hadPrevious = CallerContextStamper.TryGet(out var previous);
+        var hadPrevious = RuntimeCallerContext.TryGet(out var previous);
         IDisposable? stampScope = null;
         if (_services is not null)
         {
@@ -376,7 +376,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                     : await HostCaller.ForBrain(_services, BrainId).ConfigureAwait(false);
                 if (baseCaller is not null)
                 {
-                    stampScope = CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, filesAppKey));
+                    stampScope = RuntimeCallerContext.StampScope(HostCaller.AsApp(baseCaller, filesAppKey));
 
                 }
             }

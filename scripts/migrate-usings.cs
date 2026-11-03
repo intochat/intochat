@@ -82,7 +82,9 @@ static (List<(string Namespace, Regex Pattern)> TokenRules, List<(string OldText
         ("IntoChat.OS.Framework.Modules.Http.SlidingWindowThrottle", "DigitalBrain.Runtime.Http.Surface.SlidingWindowThrottle"),
         ("IntoChat.OS.Framework.Modules.Metering.ModulePriceListRegistry", "DigitalBrain.Capabilities.Compute.ModulePriceListRegistry"),
         ("IntoChat.OS.Framework.BrainKey", "DigitalBrain.Brains.BrainKey"),
-        ("IntoChat.OS.Framework.CallerContextStamper", "DigitalBrain.Runtime.Orleans.Capabilities.CallerContextStamper"),
+        ("IntoChat.OS.Framework.CallerContextStamper", "DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext"),
+        ("CallerContextStamper.", "RuntimeCallerContext."),
+        ("typeof(CallerContextStamper)", "typeof(RuntimeCallerContext)"),
     };
 
     var tokenRules = new List<(string Namespace, Regex Pattern)>
@@ -93,7 +95,7 @@ static (List<(string Namespace, Regex Pattern)> TokenRules, List<(string OldText
         ("DigitalBrain.Log", WordRegex("LogSwallowed", "Swallow")),
         ("DigitalBrain.Modules.Configuration", WordRegex("ModuleConfiguration", "ConfigurationKeyGrammar")),
         ("DigitalBrain.Modules.Options", WordRegex("IModuleOptions", "SettingAttribute", "GetModuleOptions", "ModuleOptionsSerialization", "ModuleId", "ModuleSettingsValidation")),
-        ("DigitalBrain.Runtime.Http.Surface", WordRegex("IHttpModule", "IHttpSurface", "IBrainAccess", "BrainRoutes", "HttpProblems", "IpThrottleFilter", "IpThrottleOptions", "IRequestThrottle", "SlidingWindowThrottle", "ThrottleResult", "ForwardedHeadersSetup", "ForwardedHeadersHosting", "ReturnUrlValidator")),
+        ("DigitalBrain.Runtime.Http.Surface", WordRegex("IHttpModule", "IHttpSurface", "IBrainAccess", "HttpProblems", "IpThrottleFilter", "IpThrottleOptions", "IRequestThrottle", "SlidingWindowThrottle", "ThrottleResult", "ForwardedHeadersSetup", "ForwardedHeadersHosting", "AddForwardedHeadersSetup", "UseForwardedHeadersIfConfigured", "ReturnUrlValidator")),
         ("DigitalBrain.Runtime.Orleans.Capabilities", WordRegex("CallerContextStamper", "RuntimeCallerContext", "UntrustedCallerException")),
         ("DigitalBrain.Capabilities.Compute", WordRegex("ICostMeter", "IPriceList", "CostKind", "CostSummary", "CostRow", "Funding", "FundingKind", "CostSubject", "PriceQuote", "PricingStatus", "ExternalOperationDescriptor", "ExternalCallRequest", "ExternalCallHandle", "ExternalCallOutcome", "ExternalCallOutcomeKind", "ExternalCallCompletion", "ExternalCallContext", "ExternalCallMetadata", "ExternalCallHttp", "ExternalCallHandler", "ExternalCallState", "ExternalAccountingStatus", "ExternalChargePolicy", "IExternalCallContextAccessor", "ISingleAttemptHttpTransport", "BudgetExhaustedException", "ComputeTracePage", "TraceContext", "TraceDetailStatus", "UsageGrouping", "AddMeteredHttpClient", "MeteredHttpClients", "MeteredHttpClientRegistration", "AddModulePriceList", "ModulePriceListRegistration", "ModulePriceListRegistry", "ModulePriceLists")),
         ("DigitalBrain.Capabilities.Connections", WordRegex("IConnection", "IConnectionInbound", "ConnectionView", "OAuthGrant", "Credential", "ConnectionStatus", "ConnectionProbeOutcome", "ConnectionProbeResult", "ConnectionKeys", "ConnectionState", "ConnectionNeuron", "ConnectionNeuronTypes", "IConnectionIndex", "IConnectionCatalogUpdates", "IConnectionWriteFaults", "IBrainOwnerDispatch", "ConnectionConnected", "ConnectionDisconnected", "ConnectionExpired", "ConnectionFailing", "ConnectionUpdated")),
@@ -125,6 +127,7 @@ static string RewriteFile(
     var hadComputeUsing = false;
     var hadHttpUsing = false;
 
+    var httpRule = tokenRules.First(r => r.Namespace == "DigitalBrain.Runtime.Http.Surface").Pattern;
     for (var i = lines.Count - 1; i >= 0; i--)
     {
         var trimmed = lines[i].Trim();
@@ -133,6 +136,18 @@ static string RewriteFile(
             hadRemovedOsUsing = true;
             hadComputeUsing |= isCompute;
             hadHttpUsing |= isHttp;
+            lines.RemoveAt(i);
+        }
+    }
+
+    var bodyWithoutUsings = string.Join('\n', lines.Where(l => !l.Trim().StartsWith("using ", StringComparison.Ordinal)));
+    for (var i = lines.Count - 1; i >= 0; i--)
+    {
+        if (lines[i].Trim() == "using DigitalBrain.Runtime.Http.Surface;"
+            && !httpRule.IsMatch(bodyWithoutUsings)
+            && !Regex.IsMatch(bodyWithoutUsings, @"\bIpPrefix\b"))
+        {
+            hadRemovedOsUsing = true;
             lines.RemoveAt(i);
         }
     }
@@ -159,7 +174,9 @@ static string RewriteFile(
 
     lines = body.Split('\n').ToList();
     var existingUsings = new HashSet<string>(
-        lines.Select(l => l.Trim()).Where(l => l.StartsWith("using ", StringComparison.Ordinal) && l.EndsWith(';')),
+        lines.Select(l => l.Trim())
+            .Where(l => (l.StartsWith("using ", StringComparison.Ordinal) || l.StartsWith("global using ", StringComparison.Ordinal)) && l.EndsWith(';'))
+            .Select(l => l.StartsWith("global ", StringComparison.Ordinal) ? l["global ".Length..] : l),
         StringComparer.Ordinal);
 
     var neededNamespaces = new SortedSet<string>(StringComparer.Ordinal);
@@ -200,6 +217,19 @@ static string RewriteFile(
         }
     }
 
+    var hasHttpSurface = existingUsings.Contains("using DigitalBrain.Runtime.Http.Surface;")
+        || neededNamespaces.Contains("DigitalBrain.Runtime.Http.Surface");
+    var hasOsConnections = existingUsings.Contains("using IntoChat.OS.Connections;")
+        || Regex.IsMatch(body, @"\bnamespace\s+IntoChat\.OS\.Connections\b");
+    if (hasHttpSurface && hasOsConnections && Regex.IsMatch(body, @"\bBrainRoutes\b"))
+    {
+        const string brainRoutesAlias = "using BrainRoutes = IntoChat.OS.Connections.BrainRoutes;";
+        if (!existingUsings.Contains(brainRoutesAlias))
+        {
+            newUsingLines.Add(brainRoutesAlias);
+        }
+    }
+
     if (!hadRemovedOsUsing && !changedInline && newUsingLines.Count == 0)
     {
         return content;
@@ -208,7 +238,9 @@ static string RewriteFile(
     if (newUsingLines.Count > 0)
     {
         var insertIndex = 0;
-        while (insertIndex < lines.Count && lines[insertIndex].TrimStart().StartsWith("//", StringComparison.Ordinal))
+        while (insertIndex < lines.Count
+            && (lines[insertIndex].TrimStart().StartsWith("//", StringComparison.Ordinal)
+                || lines[insertIndex].TrimStart().StartsWith("global using ", StringComparison.Ordinal)))
         {
             insertIndex++;
         }
@@ -241,5 +273,6 @@ static bool IsRemovedOsUsing(string trimmedLine, out bool isCompute, out bool is
             or "using IntoChat.OS.Framework.Modules.Platform.Integrations;"
             or "using IntoChat.OS.Framework.Parts;"
             or "using IntoChat.OS.Integrations;"
+            or "using IntoChat.OS.Connections.Configuration;"
             or "using IntoChat.OS.Connections.Platform.Connections.Signals;";
 }

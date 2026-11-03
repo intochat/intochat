@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Configuration;

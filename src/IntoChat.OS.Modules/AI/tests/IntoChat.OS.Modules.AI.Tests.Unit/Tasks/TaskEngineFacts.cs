@@ -226,7 +226,7 @@ public sealed class TaskEngineFacts
 
         Assert.Equal(new BrainId("local"), engine.ResolveBrainId());
 
-        using (CallerContextStamper.StampScope(CapabilityCallers.Of("usr-1", "acc-1", "tenant-alpha")))
+        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("usr-1", "acc-1", "tenant-alpha")))
         {
             Assert.Equal(new BrainId("tenant-alpha"), engine.ResolveBrainId());
         }

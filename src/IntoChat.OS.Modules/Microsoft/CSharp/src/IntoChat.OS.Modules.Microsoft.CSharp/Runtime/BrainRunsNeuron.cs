@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DigitalBrain.Capabilities.Compute;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 

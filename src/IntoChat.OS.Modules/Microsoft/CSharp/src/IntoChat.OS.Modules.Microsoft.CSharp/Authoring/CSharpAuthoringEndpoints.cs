@@ -1,4 +1,3 @@
-using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

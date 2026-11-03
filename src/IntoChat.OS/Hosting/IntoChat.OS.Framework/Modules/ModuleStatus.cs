@@ -1,4 +1,6 @@
 // os-only: os module activation status (licensing, enablement).
+using DigitalBrain.Modules.Options;
+
 namespace IntoChat.OS.Framework.Modules;
 
 public enum ModuleState { Active, Unlicensed, Disabled }

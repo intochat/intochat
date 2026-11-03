@@ -1,11 +1,11 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
-using CapabilityCaller = DigitalBrain.Capabilities.CapabilityCaller;
-using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Integrations;
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.Options;
+using CapabilityCaller = DigitalBrain.Capabilities.CapabilityCaller;
 
 namespace IntoChat.OS.Modules.AI;
 
@@ -15,10 +15,10 @@ internal sealed class AiModelCapabilities(IModuleIntegrations<AIModule> integrat
 {
     public const string LlmKind = "llm";
 
-    public async Task<Capability[]> Derive(CapabilityCaller caller, CancellationToken ct)
+    public async Task<IntegrationCapability[]> Derive(CapabilityCaller caller, CancellationToken ct)
     {
         var configuration = options.CurrentValue;
-        var capabilities = new List<Capability>();
+        var capabilities = new List<IntegrationCapability>();
         foreach (var provider in LLMModel.All.Select(model => model.Provider).Distinct())
         {
             var integrationId = provider == AiProvider.Ollama ? "ollama" : AiIntegrations.IdOf(provider);
@@ -33,7 +33,7 @@ internal sealed class AiModelCapabilities(IModuleIntegrations<AIModule> integrat
                 .Where(model => model.Provider == provider)
                 // A local server being configured does not imply every compiled local model is installed.
                 .Where(model => provider != AiProvider.Ollama || configuration.Ollama.Models.ContainsKey(model.Marker.Name))
-                .Select(model => new Capability(integrationId, LlmKind, model.Marker.Name, model.Id)));
+                .Select(model => new IntegrationCapability(integrationId, LlmKind, model.Marker.Name, model.Id)));
         }
 
         return [.. capabilities];

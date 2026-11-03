@@ -86,8 +86,8 @@ internal sealed partial class ChatNeuron : UiNeuron<ChatState>, IChat, IChatReco
 
     public async Task MarkRead(string source, long generation, long version, string[] messageIds)
     {
-        var caller = CallerContextStamper.Require();
-        if (caller.Kind != CallerKind.User || CallerContextStamper.IsModelOriginated(caller))
+        var caller = RuntimeCallerContext.Require();
+        if (caller.Kind != CallerKind.User || RuntimeCallerContext.IsModelOriginated(caller))
         { throw new UnauthorizedAccessException("Only a person can acknowledge an answer."); }
         var projection = Snapshot.Projection;
         if (projection is null || projection.Source != source || projection.Generation != generation || projection.Version != version)
@@ -112,7 +112,7 @@ internal sealed partial class ChatNeuron : UiNeuron<ChatState>, IChat, IChatReco
     [DigitalBrain.ReadOnlyCall]
     public Task<ChatState> Read()
     {
-        var principal = CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : null;
+        var principal = RuntimeCallerContext.TryGet(out var caller) ? caller.PrincipalId : null;
         var projection = Snapshot.Projection;
         var unread = projection is null || principal is null ? [] : projection.Messages
             .Where(message => message.Role == ChatRole.Assistant && message.Status == "completed"

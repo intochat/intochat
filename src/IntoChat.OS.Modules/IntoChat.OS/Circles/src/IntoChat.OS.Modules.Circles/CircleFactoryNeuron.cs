@@ -127,7 +127,7 @@ internal sealed class CircleFactoryNeuron(
     // The member acts in its own brain.
     private CapabilityCaller Own()
     {
-        if (!CallerContextStamper.TryGet(out var caller) || BrainScope.Create(caller.AccountId, caller.BrainId).Id != Brain)
+        if (!RuntimeCallerContext.TryGet(out var caller) || BrainScope.Create(caller.AccountId, caller.BrainId).Id != Brain)
         { throw new UnauthorizedAccessException($"{Brain}/{Id.Key} belongs to brain {Brain}."); }
         return caller;
     }

@@ -58,7 +58,7 @@ internal sealed class CircleChatNeuron(ICapabilityBroker broker)
     public async Task PublishPost(string postKey, string requestId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
-        var caller = CallerContextStamper.Require();
+        var caller = RuntimeCallerContext.Require();
         var brain = BrainScope.Create(caller.AccountId, caller.BrainId).Id;
         var prefix = brain + "/posts/";
         if (caller.Kind != CallerKind.App || caller.AppId != IApp.Key(brain, "friends")
@@ -87,7 +87,7 @@ internal sealed class CircleChatNeuron(ICapabilityBroker broker)
     // A member of the circle brain, under its own account (T26-8).
     private async Task<(string Account, CircleState Circle)> Member()
     {
-        if (!CallerContextStamper.TryGet(out var caller) || caller.BrainId != CircleBrain)
+        if (!RuntimeCallerContext.TryGet(out var caller) || caller.BrainId != CircleBrain)
         { throw new UnauthorizedAccessException($"The caller is not in circle {CircleBrain}."); }
         var circle = await Circle.State();
         if (!circle.Members.Contains(caller.AccountId)) { throw new UnauthorizedAccessException($"The caller is not a member of circle {CircleBrain}."); }

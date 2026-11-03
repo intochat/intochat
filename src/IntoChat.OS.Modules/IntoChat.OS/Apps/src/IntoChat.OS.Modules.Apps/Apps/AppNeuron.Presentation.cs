@@ -68,7 +68,7 @@ internal sealed partial class AppNeuron
 
     public async Task Stamp(string key, string value)
     {
-        if (CallerContextStamper.TryGet(out var caller) && caller.Kind != CallerKind.Platform)
+        if (RuntimeCallerContext.TryGet(out var caller) && caller.Kind != CallerKind.Platform)
         { throw new UnauthorizedAccessException("Only the module may stamp reserved blackboard keys."); }
         await RequireCreated("Stamp");
         await Check("Stamp", new BlackboardKeysAreDeclarable(FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal) ? ["ok"] : [""]));
@@ -86,7 +86,7 @@ internal sealed partial class AppNeuron
 
     private Task RequireExecutingAssignment(string operation, long expectedProgramRevision)
     {
-        if (!CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App
+        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App
             || !string.Equals(caller.AppId, Key, StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("Only this app's executing assignment may publish its presentation."); }
         return Check(operation,

@@ -3,17 +3,16 @@ using System.Threading.Tasks;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Contracts;
-using Orleans;
 
 namespace IntoChat.OS.Modules.AI.Agents.Runs;
 
-[GenerateSerializer, Alias("agent.run.state")]
+[Orleans.GenerateSerializer, Orleans.Alias("agent.run.state")]
 public sealed record RunState(
-    [property: Id(0)] string Target,
-    [property: Id(1)] string? TaskId,
-    [property: Id(2)] string Status,
-    [property: Id(3)] DateTimeOffset Started,
-    [property: Id(4)] DateTimeOffset LastTurn)
+    [property: Orleans.Id(0)] string Target,
+    [property: Orleans.Id(1)] string? TaskId,
+    [property: Orleans.Id(2)] string Status,
+    [property: Orleans.Id(3)] DateTimeOffset Started,
+    [property: Orleans.Id(4)] DateTimeOffset LastTurn)
 {
     public RunState() : this("", null, "Idle", default, default) { }
 }

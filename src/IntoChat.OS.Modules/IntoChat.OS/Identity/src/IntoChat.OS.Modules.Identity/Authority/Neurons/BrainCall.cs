@@ -19,8 +19,8 @@ internal static class BrainCall
     public static async Task<CapabilityCaller> Enter(ServerCallContext context, string brainId)
     {
         if (!BrainScope.IsValidId(brainId)) { throw new RpcException(new Status(StatusCode.InvalidArgument, "brain_id is not a valid brain id.")); }
-        var caller = CallerContextStamper.Require() with { BrainId = brainId };
-        CallerContextStamper.Stamp(caller);
+        var caller = RuntimeCallerContext.Require() with { BrainId = brainId };
+        RuntimeCallerContext.Stamp(caller);
         var http = context.GetHttpContext();
         if (await BrainAccessFilter.Decide(http, brainId) is { } denied)
         {

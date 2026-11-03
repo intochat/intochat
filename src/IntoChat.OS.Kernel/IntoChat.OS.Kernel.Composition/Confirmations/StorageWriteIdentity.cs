@@ -11,7 +11,7 @@ internal sealed class StorageWriteIdentity : IStorageWriteIdentity
 {
     public string? Current(BrainId brain)
     {
-        if (!CallerContextStamper.TryGet(out var caller) || !CallerContextStamper.IsTrusted(caller) || caller.BrainId != brain.Value)
+        if (!RuntimeCallerContext.TryGet(out var caller) || !RuntimeCallerContext.IsTrusted(caller) || caller.BrainId != brain.Value)
         { return null; }
         return JsonSerializer.Serialize(new
         {

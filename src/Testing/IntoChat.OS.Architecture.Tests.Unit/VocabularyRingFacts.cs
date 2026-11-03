@@ -11,7 +11,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // behind it (Framework, Platform, Client); widening the allowlist or the namespace list is a design decision.
 public sealed class VocabularyRingFacts
 {
-    private static readonly Assembly Vocabulary = typeof(IBrain).Assembly;
+    private static readonly Assembly Vocabulary = typeof(ILogic<>).Assembly;
 
     // The neuron-abstraction ring below IntoChat.OS: the DigitalBrain core packages (CORE-02). Script-visible
     // contracts may depend on IntoChat.OS and these only.
@@ -34,7 +34,7 @@ public sealed class VocabularyRingFacts
     {
         [typeof(NeuronAliases)] = "A type's effective alias across [NeuronAlias] (DigitalBrain.Contracts) and the Orleans [Alias]; the Orleans half keeps it out of the core package (03-03).",
         [typeof(NeuronKeys)] = "Canonical '{brain}/{key}' neuron key formatting across OS modules (phase 3 Task 6).",
-        [typeof(Trace)] = "The compute-cost record (alias brain.trace). Origin is a DigitalBrain.NeuronId. Signal traces are Activity.Current.",
+
     };
 
     // IntoChat.OS.Runtime is the runtime SPI (clean-core 2.3): what a runtime implements and a neuron is handed.
@@ -78,10 +78,11 @@ public sealed class VocabularyRingFacts
         // The Orleans-bound half stays legacy in IntoChat.OS.Runtime; the pure half comes from the DigitalBrain package (03-03 name map).
         Assert.Equal(
             [
-                "DigitalBrain.Contracts.ConnectionContractAttribute",
+
+
                 "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
                 "IntoChat.OS.Runtime.IRuntimeBuilder",
-                "IntoChat.OS.Runtime.NeuronProxies", "DigitalBrain.Contracts.PlainNeuronContracts"],
+                "IntoChat.OS.Runtime.NeuronProxies"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.State.IStateCodec", "DigitalBrain.State.StoredRecord", "DigitalBrain.State.WriteResult"],

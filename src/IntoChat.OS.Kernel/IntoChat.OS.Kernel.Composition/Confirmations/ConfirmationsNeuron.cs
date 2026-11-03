@@ -83,7 +83,7 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
         var direct = string.IsNullOrEmpty(Orleans.Runtime.RequestContext.Get(KernelInvocationSink.CallerKey) as string);
         var human = direct && caller.Kind == CallerKind.User && caller.StampedBy == TrustedEdge.AuthenticatedHttp
             && caller.AppId is null && caller.OnBehalfOf is null && !AppPrincipal.IsApp(caller.PrincipalId)
-            && !CallerContextStamper.IsModelOriginated(caller);
+            && !RuntimeCallerContext.IsModelOriginated(caller);
         var principal = human ? ConfirmationPrincipal.Person(caller.PrincipalId) : Approver(caller);
         await Expire();
         await End(planId, !approve ? ConfirmationOutcome.Denied : human ? ConfirmationOutcome.Approved : ConfirmationOutcome.Denied,
@@ -108,12 +108,12 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
 
     private CapabilityCaller? RequireOwnCaller(bool required)
     {
-        if (!CallerContextStamper.TryGet(out var caller))
+        if (!RuntimeCallerContext.TryGet(out var caller))
         {
             if (required) { throw new UnauthorizedAccessException("A trusted caller is required."); }
             return null;
         }
-        if (!CallerContextStamper.IsTrusted(caller) || caller.BrainId != Id.Brain.Value)
+        if (!RuntimeCallerContext.IsTrusted(caller) || caller.BrainId != Id.Brain.Value)
         { throw new UnauthorizedAccessException("This confirmation belongs to another brain."); }
         return caller;
     }
@@ -123,10 +123,10 @@ internal sealed class ConfirmationsNeuron(IOptions<ConfirmationOptions> options)
 
     private static ConfirmationPrincipal Requester(string origin)
     {
-        if (!CallerContextStamper.TryGet(out var caller)) { return ConfirmationPrincipal.App(origin); }
+        if (!RuntimeCallerContext.TryGet(out var caller)) { return ConfirmationPrincipal.App(origin); }
         return caller.Kind switch
         {
-            CallerKind.User when !CallerContextStamper.IsModelOriginated(caller) => ConfirmationPrincipal.Person(caller.PrincipalId),
+            CallerKind.User when !RuntimeCallerContext.IsModelOriginated(caller) => ConfirmationPrincipal.Person(caller.PrincipalId),
             CallerKind.App => ConfirmationPrincipal.App(caller.PrincipalId),
             _ => ConfirmationPrincipal.Agent(caller.PrincipalId),
         };

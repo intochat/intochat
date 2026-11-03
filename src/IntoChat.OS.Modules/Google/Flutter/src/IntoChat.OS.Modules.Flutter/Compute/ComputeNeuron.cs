@@ -61,7 +61,7 @@ internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, I
 
     private void EnsureAuthorized()
     {
-        if (CallerContextStamper.TryGet(out _) && $"{Id.Brain.Value}/{Id.Key}" != BrainScope.CurrentId() + "/compute")
+        if (RuntimeCallerContext.TryGet(out _) && $"{Id.Brain.Value}/{Id.Key}" != BrainScope.CurrentId() + "/compute")
         {
             throw new UnauthorizedAccessException("Read usage only through the current brain's compute neuron.");
         }

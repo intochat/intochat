@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>true</IsPackable>
-    <Description>Kernel module runtime: neurons, signals, and composition.</Description>
+    <IsPackable>false</IsPackable>
+    <Description>OS-only hosting</Description>
     <RootNamespace>IntoChat.OS.Framework</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
@@ -17,7 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.csproj" />
     <ProjectReference Include="../../Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />
-    <ProjectReference Include="../../Contracts.Compute/IntoChat.OS.Contracts.Compute.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Composition" />

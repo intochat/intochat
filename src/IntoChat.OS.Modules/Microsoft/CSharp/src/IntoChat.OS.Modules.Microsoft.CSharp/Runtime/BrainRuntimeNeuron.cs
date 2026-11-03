@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities.Compute;
+using Trace = DigitalBrain.Capabilities.Compute.Trace;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using System.Diagnostics;
@@ -210,7 +211,7 @@ internal sealed class BrainRuntimeNeuron(
     {
         if (string.IsNullOrWhiteSpace(token) || token.Length > 128)
         { throw new ArgumentException("A continuation token is required.", nameof(token)); }
-        if (CallerContextStamper.TryGet(out var caller) && !string.Equals(caller.BrainId, Brain, StringComparison.Ordinal))
+        if (RuntimeCallerContext.TryGet(out var caller) && !string.Equals(caller.BrainId, Brain, StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("A continuation belongs to its own brain."); }
     }
 
@@ -226,7 +227,7 @@ internal sealed class BrainRuntimeNeuron(
         ArgumentNullException.ThrowIfNull(settings);
 
         // The caller is part of the request: the same program assigned by another principal is applied again.
-        return Assigned(owner, RequestKey(owner, sources, settings, CallerContextStamper.TryGet(out var caller) ? caller : null), settings,
+        return Assigned(owner, RequestKey(owner, sources, settings, RuntimeCallerContext.TryGet(out var caller) ? caller : null), settings,
             () => Compile(sources));
     }
 
@@ -242,7 +243,7 @@ internal sealed class BrainRuntimeNeuron(
         { throw new ArgumentException("A prebuilt behavior carries its assembly, its symbols and its hash.", nameof(behaviors)); }
 
         var named = behaviors.ToDictionary(pair => pair.Key, pair => "prebuilt:" + pair.Value.Hash, StringComparer.Ordinal);
-        return Assigned(owner, RequestKey(owner, named, settings, CallerContextStamper.TryGet(out var caller) ? caller : null), settings,
+        return Assigned(owner, RequestKey(owner, named, settings, RuntimeCallerContext.TryGet(out var caller) ? caller : null), settings,
             () => Verified(behaviors));
     }
 
@@ -333,7 +334,7 @@ internal sealed class BrainRuntimeNeuron(
     private async Task<ProgramView> Stored(string owner, Dictionary<string, string> settings, Func<Task<IReadOnlyDictionary<string, CompiledBehavior>>> produce)
     {
         var ticket = ++_tickets;
-        var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : null;
         var produced = await produce();
         foreach (var behavior in produced.Values)
         { if (!await assemblies.Exists(behavior.Hash, CancellationToken.None)) { await assemblies.Put(behavior, CancellationToken.None); } }
@@ -1106,10 +1107,10 @@ internal sealed class BrainRuntimeNeuron(
     private void BeginRecording()
     {
         if (!_recording.IsCompleted) { return; }
-        var caller = RequestContext.Get(CallerContextStamper.RequestContextKey);
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        var caller = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
+        RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         try { _recording = RecordAsync(); }
-        finally { if (caller is not null) { RequestContext.Set(CallerContextStamper.RequestContextKey, caller); } }
+        finally { if (caller is not null) { RequestContext.Set(RuntimeCallerContext.RequestContextKey, caller); } }
     }
 
     private async Task RecordAsync()
@@ -1284,8 +1285,8 @@ internal sealed class BrainRuntimeNeuron(
     // has none. RequestContext is async-local, so the turn's caller is back once this returns.
     private static async Task AsProgram(CapabilityCaller? caller, Func<Task> call)
     {
-        if (caller is not null) { CallerContextStamper.Stamp(caller); }
-        else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        if (caller is not null) { RuntimeCallerContext.Stamp(caller); }
+        else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
         await call();
     }
 

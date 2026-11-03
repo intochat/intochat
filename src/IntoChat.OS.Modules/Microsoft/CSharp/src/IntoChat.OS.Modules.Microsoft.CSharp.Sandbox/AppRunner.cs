@@ -118,10 +118,7 @@ public sealed class AppRunner : IAsyncDisposable
                 var cached = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
                 if (!verify || Matches(name, cached)) { return cached; }
             }
-            catch (IOException)
-            {
-                // In-flight write/move collision in fast path; fall through to synchronized block.
-            }
+            catch (IOException error) { _ = error; }
         }
 
         var gate = CacheGates.GetOrAdd(name, _ => new SemaphoreSlim(1, 1));
@@ -147,7 +144,7 @@ public sealed class AppRunner : IAsyncDisposable
             {
                 if (File.Exists(tempFile))
                 {
-                    try { File.Delete(tempFile); } catch { /* best effort cleanup */ }
+                    try { File.Delete(tempFile); } catch (Exception error) { _ = error; }
                 }
             }
 
@@ -502,10 +499,10 @@ public sealed class AppRunner : IAsyncDisposable
             var saveMethod = app.GetType().GetMethod("SaveRuntimeState", [typeof(string), typeof(long)]);
             if (saveMethod is not null)
             {
-                var saveTask = (Task)saveMethod.Invoke(app, [json, _stateRevision])!;
-                await saveTask.ConfigureAwait(false);
-                var resultProp = saveTask.GetType().GetProperty("Result");
-                if (resultProp?.GetValue(saveTask) is { } updated && updated.GetType().GetProperty("RuntimeStateRevision")?.GetValue(updated) is long newRev)
+                if (saveMethod.Invoke(app, [json, _stateRevision]) is Task<AppSnapshot> saveTask)
+                {
+                    var updated = await saveTask.ConfigureAwait(false);
+                    if (updated.GetType().GetProperty("RuntimeStateRevision")?.GetValue(updated) is long newRev)
                 {
                     // The app neuron ignores a save behind its revision: another writer saved first, so this state was not kept.
                     if (newRev != _stateRevision + 1)

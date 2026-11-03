@@ -1,5 +1,4 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Runtime;
@@ -58,7 +57,7 @@ internal static class ChatEndpoints
     }
 
     private static bool Refused()
-        => CallerContextStamper.TryGet(out var caller) && (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy);
+        => RuntimeCallerContext.TryGet(out var caller) && (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy);
 
     private static async Task<IChatIndex> Index(INeuronProxies brain, CancellationToken ct)
     {

@@ -11,6 +11,7 @@ namespace IntoChat.OS.Framework;
 // pipeline allows.
 // R134/R146: a cross-brain call is denied before any stage, except an app's use of another brain's connection through
 // a binding recorded when the app was shared there.
+// os-only: the OS staged call filter pipeline and cross-brain connection binding check.
 public sealed class CallFilter(IEnumerable<ICallFilterStage> stages, ICallBindings? bindings = null) : ICallFilter
 {
     private readonly IReadOnlyList<ICallFilterStage> _stages = [.. stages.OrderBy(stage => stage.Order)];
@@ -24,12 +25,12 @@ public sealed class CallFilter(IEnumerable<ICallFilterStage> stages, ICallBindin
             return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no principal.");
         }
 
-        if (!CallerContextStamper.IsTrusted(caller))
+        if (!RuntimeCallerContext.IsTrusted(caller))
         {
             return CallDecision.Deny(CallDenial.UntrustedCaller, "The principal was not stamped at a trusted edge.");
         }
 
-        if (CallerContextStamper.TryGet(out var ambient) && ambient != caller)
+        if (RuntimeCallerContext.TryGet(out var ambient) && ambient != caller)
         {
             return CallDecision.Deny(CallDenial.UntrustedCaller, "The principal does not match the trusted edge stamp.");
         }

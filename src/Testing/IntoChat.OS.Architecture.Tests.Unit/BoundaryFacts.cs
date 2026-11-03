@@ -13,7 +13,7 @@ public sealed class BoundaryFacts
     // configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Contracts.Compute", "IntoChat.OS.Framework",
+        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Framework",
         "IntoChat.OS.Client", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Modules.Identity.Contracts", "IntoChat.OS.Modules.Identity"
     ];
 

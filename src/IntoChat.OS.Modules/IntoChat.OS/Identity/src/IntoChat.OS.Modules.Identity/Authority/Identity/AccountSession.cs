@@ -55,7 +55,7 @@ public static class AccountSession
                 return;
             }
 
-            CallerContextStamper.Stamp(principal);
+            RuntimeCallerContext.Stamp(principal);
             await next(context).ConfigureAwait(false);
         });
 

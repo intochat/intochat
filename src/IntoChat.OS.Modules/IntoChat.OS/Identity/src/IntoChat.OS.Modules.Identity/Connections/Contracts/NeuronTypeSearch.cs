@@ -32,7 +32,7 @@ public sealed class NeuronTypeSearch(
     public async Task<IReadOnlyList<NeuronType>> Capabilities(CancellationToken ct)
     {
         List<NeuronType> entries = [.. (await kernel.Types(ct).ConfigureAwait(false)).Where(type => type.Kind == DigitalBrain.TypeKind.Neuron).Select(NeuronType.From)];
-        if (!CallerContextStamper.TryGet(out _)) { return entries; }
+        if (!RuntimeCallerContext.TryGet(out _)) { return entries; }
         var brain = BrainScope.CurrentId();
         foreach (var source in live)
         {

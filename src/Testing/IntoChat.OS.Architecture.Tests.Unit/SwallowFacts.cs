@@ -14,7 +14,7 @@ public sealed class SwallowFacts
         var sites = new List<Site>();
         foreach (var clause in CSharpSyntaxTree.ParseText(source).GetRoot().DescendantNodes().OfType<CatchClauseSyntax>())
         {
-            var empty = clause.Block.Statements.Count == 0 && !IsCancellation(clause);
+            var empty = clause.Block.Statements.Count == 0 && clause.Filter is null && !IsCancellation(clause);
             var broad = clause.Declaration is null || clause.Declaration.Type.ToString() is "Exception" or "System.Exception";
             var name = clause.Declaration?.Identifier.Text;
             // A filter that names the exception has classified it (the body then returns the result of that class).

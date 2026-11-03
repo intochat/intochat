@@ -32,12 +32,12 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
 
     private async Task EnsureAsync(string brain)
     {
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         try
         {
             if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain)
             {
-                CallerContextStamper.Stamp(caller);
+                RuntimeCallerContext.Stamp(caller);
             }
             await EnsureDefaultLocalRootsAsync(services, brain);
             var key = IApp.Key(brain, "files");
@@ -49,9 +49,9 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
                 snapshot = await app.Read();
             }
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
-            if (CallerContextStamper.TryGet(out var stamped))
+            if (RuntimeCallerContext.TryGet(out var stamped))
             {
-                CallerContextStamper.Stamp(HostCaller.AsApp(stamped, key));
+                RuntimeCallerContext.Stamp(HostCaller.AsApp(stamped, key));
                 try
                 {
                     await workspace.Open(CancellationToken.None);
@@ -60,7 +60,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
                 }
                 finally
                 {
-                    CallerContextStamper.Stamp(stamped);
+                    RuntimeCallerContext.Stamp(stamped);
                 }
             }
             else
@@ -104,16 +104,16 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
 
     private async Task OpenAsync(string brain, AppRequested request, CancellationToken cancellationToken)
     {
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         try
         {
             if (await HostCaller.ForBrain(services, brain) is not { } caller || caller.BrainId != brain) { return; }
-            CallerContextStamper.Stamp(caller);
+            RuntimeCallerContext.Stamp(caller);
             await EnsureDefaultLocalRootsAsync(services, brain);
             var key = IApp.Key(brain, "files");
             var app = SiloNeurons.Get<IApp>(services, key);
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
-            CallerContextStamper.Stamp(HostCaller.AsApp(caller, key));
+            RuntimeCallerContext.Stamp(HostCaller.AsApp(caller, key));
             try
             {
                 if (request.Operation == "open")
@@ -127,7 +127,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
             }
             finally
             {
-                CallerContextStamper.Stamp(caller);
+                RuntimeCallerContext.Stamp(caller);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)

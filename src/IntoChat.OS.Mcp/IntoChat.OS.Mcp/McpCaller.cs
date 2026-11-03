@@ -36,6 +36,7 @@ internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions>
         var context = http.HttpContext ?? throw new UnauthorizedAccessException("MCP requires an HTTP caller.");
         var caller = AccountSession.ResolveCaller(context, auth.Value)
             ?? throw new UnauthorizedAccessException("MCP requires an authenticated caller.");
-        return CallerContextStamper.Stamp(caller);
+        RuntimeCallerContext.Stamp(caller);
+        return caller;
     }
 }

@@ -5,7 +5,6 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Configuration;
 
 namespace IntoChat.OS.Modules.AI;
 

@@ -256,7 +256,7 @@ public sealed class TestVerificationServiceFacts
 
         Assert.Equal(new BrainId("local"), service.ResolveBrainId());
 
-        using (CallerContextStamper.StampScope(CapabilityCallers.Of("usr-1", "acc-1", "tenant-beta")))
+        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("usr-1", "acc-1", "tenant-beta")))
         {
             Assert.Equal(new BrainId("tenant-beta"), service.ResolveBrainId());
         }

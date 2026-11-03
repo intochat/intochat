@@ -16,15 +16,15 @@ internal static class BrainActs
         ArgumentNullException.ThrowIfNull(broker);
         ArgumentNullException.ThrowIfNull(work);
         if (!BrainScope.IsValidId(brainId)) { throw new ArgumentException($"'{brainId}' is not a brain id.", nameof(brainId)); }
-        if (!CallerContextStamper.TryGet(out var caller) || !CallerContextStamper.IsTrusted(caller))
+        if (!RuntimeCallerContext.TryGet(out var caller) || !RuntimeCallerContext.IsTrusted(caller))
         { throw new UnauthorizedAccessException("Acting in another brain needs a stamped caller."); }
         var directory = await broker.Identity();
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != brainId
             && (await directory.Membership(brainId, caller.PersonId))?.AccountId != caller.AccountId)
         { throw new UnauthorizedAccessException($"{caller.AccountId} is not a member of brain {brainId}."); }
-        CallerContextStamper.Stamp(caller with { BrainId = brainId });
+        RuntimeCallerContext.Stamp(caller with { BrainId = brainId });
         try { return await work(); }
-        finally { CallerContextStamper.Stamp(caller); }
+        finally { RuntimeCallerContext.Stamp(caller); }
     }
 
     public static async Task In(ICapabilityBroker broker, string brainId, Func<Task> work)

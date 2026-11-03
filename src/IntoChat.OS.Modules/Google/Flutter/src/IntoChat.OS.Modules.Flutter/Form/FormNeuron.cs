@@ -133,7 +133,7 @@ internal sealed class FormNeuron
     public Task<FormState> Read()
     {
         Snapshot.FormId = FullKey;
-        return Task.FromResult(CallerContextStamper.TryGet(out var caller) && CallerContextStamper.IsModelOriginated(caller) ? Shape(Snapshot) : Snapshot);
+        return Task.FromResult(RuntimeCallerContext.TryGet(out var caller) && RuntimeCallerContext.IsModelOriginated(caller) ? Shape(Snapshot) : Snapshot);
     }
 
     // What a model may see of a form: its fields, status and revision, never a value or a secret reference.

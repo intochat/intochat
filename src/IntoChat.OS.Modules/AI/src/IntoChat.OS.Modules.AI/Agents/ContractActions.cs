@@ -22,17 +22,17 @@ internal static class ContractActions
         AIFunctionFactory.Create((string contract, string key, string method, string arguments, CancellationToken ct) =>
             Marked(conversation, async () => (object?)await surface.Call(contract, key, method, arguments, ct) ?? new { ok = true }),
             NeuronSurfaceTools.CallName, NeuronSurfaceTools.CallDescription),
-        AIFunctionFactory.Create(() => Marked(conversation, () => Task.FromResult<object>(CallerContextStamper.Require())),
+        AIFunctionFactory.Create(() => Marked(conversation, () => Task.FromResult<object>(RuntimeCallerContext.Require())),
             NeuronSurfaceTools.ContextName, NeuronSurfaceTools.ContextDescription),
     ];
 
     private static async Task<object> Marked(string conversation, Func<Task<object>> action)
     {
-        var caller = CallerContextStamper.Require();
-        CallerContextStamper.Stamp(caller with { ConversationId = conversation });
+        var caller = RuntimeCallerContext.Require();
+        RuntimeCallerContext.Stamp(caller with { ConversationId = conversation });
         try { return await action(); }
         catch (Exception error) when (error is ArgumentException or KeyNotFoundException or UnauthorizedAccessException or InvalidOperationException)
         { return new { isError = true, message = error.Message }; }
-        finally { CallerContextStamper.Stamp(caller); }
+        finally { RuntimeCallerContext.Stamp(caller); }
     }
 }

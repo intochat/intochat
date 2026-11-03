@@ -26,7 +26,7 @@ internal sealed partial class AppNeuron
             new ProgramIsNotPaused(State.MigrationPaused),
             new AppExists(Name(), State.Manifest is not null));
         await RequireCompiles();
-        CallerContextStamper.TryGet(out var caller);
+        RuntimeCallerContext.TryGet(out var caller);
         await Check("Publish", new PublisherIsSignedIn(caller?.PersonId));
         if (BrainScope.Create(caller!.AccountId, caller.BrainId).Id != BrainId())
         { throw new UnauthorizedAccessException("Only the brain that owns an app can publish it."); }

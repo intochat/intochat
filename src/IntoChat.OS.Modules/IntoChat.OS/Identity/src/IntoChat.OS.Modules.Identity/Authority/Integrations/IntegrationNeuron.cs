@@ -1,8 +1,9 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Capabilities.Connections.Sealing;
+using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
@@ -110,8 +111,8 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
             return state.Settings.TryGetValue(field, out var stored) && !string.Equals(stored, value, StringComparison.Ordinal);
         }
 
-        var secret = state.Secrets.FirstOrDefault(secret => secret.Name == field);
-        return secret is null || !string.Equals(_sealer.Open(secret), value, StringComparison.Ordinal);
+        var entry = state.Secrets.FirstOrDefault(secret => secret.Key == field);
+        return entry.Value is null || !string.Equals(_sealer.Open(entry.Value), value, StringComparison.Ordinal);
     }
 
     private Dictionary<string, string> Validate(ConfigureIntegration request)
@@ -145,7 +146,7 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
         }
         else
         {
-            state.Secrets = [.. state.Secrets.Where(secret => secret.Name != field), _sealer.Seal(field, value)];
+            state.Secrets = [.. state.Secrets.Where(secret => secret.Key != field), new KeyValuePair<string, SealedSecret>(field, _sealer.Seal(field, value))];
         }
     }
 
@@ -175,7 +176,7 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
 
         Audit("remove", field);
         var next = CopyOf(_store.State);
-        next.Secrets = [.. next.Secrets.Where(secret => secret.Name != field)];
+        next.Secrets = [.. next.Secrets.Where(secret => secret.Key != field)];
         next.Settings.Remove(field);
         // A person cleared this field: a later seed must not restore it.
         next.PersonFields = [.. next.PersonFields.Where(owned => owned != field)];
@@ -189,7 +190,7 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
         // Values leave only to trusted platform code: a module's own grain call stamped by the Platform
         // edge. Users and assistants (authenticated HTTP), installed apps (app proxy) and the scheduler
         // never qualify, so no HTTP route or script can obtain a provider credential.
-        if (caller is null || !CallerContextStamper.IsTrusted(caller)
+        if (caller is null || !RuntimeCallerContext.IsTrusted(caller)
             || caller.Kind != CallerKind.Platform || caller.StampedBy != TrustedEdge.Platform)
         {
             throw new InvalidOperationException("Only trusted platform code can release a registration.");
@@ -201,9 +202,9 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
         }
 
         var values = new Dictionary<string, string>(_store.State.Settings, StringComparer.Ordinal);
-        foreach (var secret in _store.State.Secrets)
+        foreach (var (name, secret) in _store.State.Secrets)
         {
-            values[secret.Name] = _sealer.Open(secret);
+            values[name] = _sealer.Open(secret);
         }
 
         return Task.FromResult(new ReleasedIntegration { Values = values, Snapshot = SnapshotOf(_store.State) });
@@ -213,7 +214,7 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
     // whatever parameters it passes. Platform HTTP paths carry User and startup work carries no stamp.
     private static void RefuseAppCalls()
     {
-        if (CallerContextStamper.TryGet(out var ambient) && (ambient.Kind == CallerKind.App || ambient.StampedBy == TrustedEdge.AppProxy))
+        if (RuntimeCallerContext.TryGet(out var ambient) && (ambient.Kind == CallerKind.App || ambient.StampedBy == TrustedEdge.AppProxy))
         {
             throw new InvalidOperationException("Installed apps cannot use provider registrations.");
         }
@@ -222,13 +223,13 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
     // Field names only; never a value.
     private void Audit(string operation, string field)
     {
-        var actor = CallerContextStamper.TryGet(out var current) ? current : PlatformCaller;
+        var actor = RuntimeCallerContext.TryGet(out var current) ? current : PlatformCaller;
         _logger.LogInformation("Registration {Operation} for {Provider}/{Field} requested by {Actor} in {Account}/{Brain}.",
             operation, Definition.Id, field, actor.PrincipalId, actor.AccountId, actor.BrainId);
     }
 
     private static bool Has(IntegrationState state, string field)
-        => state.Settings.ContainsKey(field) || state.Secrets.Any(secret => secret.Name == field);
+        => state.Settings.ContainsKey(field) || state.Secrets.Any(secret => secret.Key == field);
 
     private static IntegrationState CopyOf(IntegrationState state) => new()
     {

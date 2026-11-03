@@ -27,7 +27,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
     {
         // Only the brain's own callers see its gallery, as only they may Get from it.
         if (BrainScope.CurrentId() != Scope) { return []; }
-        var account = CallerContextStamper.TryGet(out var caller) ? caller.AccountId : null;
+        var account = RuntimeCallerContext.TryGet(out var caller) ? caller.AccountId : null;
         var listings = await marketplace.List(default);
         var installed = await InstalledApps.Read(Context.Services.GetRequiredService<INeuronProxies>(), Context.Services.GetRequiredService<IBrainObserver>(), Scope, default);
         var held = installed.ToDictionary(app => app.Name, app => app.Snapshot, StringComparer.Ordinal);
@@ -94,7 +94,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
     // The person, or the desktop the OS ships (its gallery), installs; another app may read the gallery but not install from it.
     private async Task<bool> MayInstall()
     {
-        if (!CallerContextStamper.TryGet(out var caller)) { return false; }
+        if (!RuntimeCallerContext.TryGet(out var caller)) { return false; }
         if (caller.Kind == CallerKind.User) { return true; }
         return caller.Kind == CallerKind.App && caller.AppId == IApp.Key(Scope, "desktop")
             && ShippedApps.Is(await Context.Services.GetRequiredService<INeuronProxies>().Get<IApp>(caller.AppId).Read(), "desktop");
@@ -141,7 +141,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         return await Answer(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            if (BrainScope.CurrentId() != Scope || !CallerContextStamper.TryGet(out var caller)
+            if (BrainScope.CurrentId() != Scope || !RuntimeCallerContext.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy == TrustedEdge.AppProxy)
             { return InstallOutcome.Refused("Only you can remove apps."); }
             if (ShippedApps.Roots.Contains(name)) { return InstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }

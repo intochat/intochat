@@ -92,7 +92,7 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
     private async Task RequireAdmitted()
     {
         var brain = Id.Brain.Value;
-        if (!CallerContextStamper.TryGet(out var caller))
+        if (!RuntimeCallerContext.TryGet(out var caller))
         {
             return;
         }

@@ -334,7 +334,7 @@ public sealed class KnowledgeStoreStressChallengeFacts
 
         // 4. Safe deletions on non-existent elements
         await store.DeleteNodeAsync("non-existent", ct);
-        await store.DeleteEdgeAsync("src", "dst", "rel", ct);
+        await store.DeleteEdgeAsync("source", "dst", "rel", ct);
 
         // 5. Disconnected components
         await store.RecordNodeAsync(new KnowledgeNode("c1-a", "Comp1 A", "type", new Dictionary<string, string>()), ct);

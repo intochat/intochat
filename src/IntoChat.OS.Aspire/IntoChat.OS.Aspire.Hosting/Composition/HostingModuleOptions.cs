@@ -2,7 +2,6 @@ using DigitalBrain.Modules.Configuration;
 using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

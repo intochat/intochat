@@ -73,7 +73,7 @@ internal sealed partial class AppNeuron(
         var next = State.Clone();
         next.Manifest = manifest.Validated();
         next.BrainScopeId = BrainId();
-        next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
+        next.Principal = RuntimeCallerContext.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
         next.Spec = spec ?? "";
         next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Version = "0.1.0";

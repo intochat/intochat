@@ -7,7 +7,6 @@ using Aspire.Hosting.Yarp;
 using Aspire.Hosting.Yarp.Transforms;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.ServiceDefaults;
 using AspireSdk = Aspire;

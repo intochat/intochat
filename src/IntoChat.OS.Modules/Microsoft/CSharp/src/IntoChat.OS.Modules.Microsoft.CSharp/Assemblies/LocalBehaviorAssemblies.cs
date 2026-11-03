@@ -28,7 +28,7 @@ internal sealed class LocalBehaviorAssemblies : IBehaviorAssemblies
 
     public LocalBehaviorAssemblies(IConfiguration configuration, IDataProtectionProvider protection, IServiceProvider services, IOptions<CSharpOptions> options)
     {
-        _root = Path.Combine(StateHome.Resolve(configuration, RuntimeOptions.IntoChatCompatible).Path, "behaviors");
+        _root = Path.Combine(StateHome.Resolve(configuration, services.GetService<RuntimeOptions>() ?? new() { HomeKey = IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey, DefaultHomeDirectoryName = ".intochat" }).Path, "behaviors");
         _protector = protection.CreateProtector(ProtectionPurpose).ToTimeLimitedDataProtector();
         _services = services;
         _options = options;
@@ -89,7 +89,7 @@ internal sealed class LocalBehaviorAssemblies : IBehaviorAssemblies
         var path = Path.Combine(_root, name);
         if (File.Exists(path))
         {
-            try { File.SetLastAccessTimeUtc(path, DateTime.UtcNow); } catch { }
+            try { File.SetLastAccessTimeUtc(path, DateTime.UtcNow); } catch (Exception error) { _ = error; }
             return Results.File(path, "application/octet-stream");
         }
         return Results.NotFound();
@@ -151,13 +151,13 @@ internal sealed class LocalBehaviorAssemblies : IBehaviorAssemblies
 
             foreach (var old in files)
             {
-                try { old.Delete(); } catch { }
-                try { File.Delete(Path.Combine(_root, old.Name + ".pdb")); } catch { }
+                try { old.Delete(); } catch (Exception error) { _ = error; }
+                try { File.Delete(Path.Combine(_root, old.Name + ".pdb")); } catch (Exception error) { _ = error; }
             }
         }
-        catch
+        catch (Exception error)
         {
-            // Pruning is non-fatal best effort maintenance
+            _ = error;
         }
     }
 

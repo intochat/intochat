@@ -64,7 +64,7 @@ Run from the repository root. Profiles and options are described in the header o
 
 ## The framework
 
-The DigitalBrain framework (neurons, signals, synapses, brains, apps and modules) lives in [`framework/`](framework/README.md) and is built by project reference: `dotnet build Intochat.OS.slnx` builds it with the os, and `dotnet build framework/DigitalBrain.slnx` builds it alone. The `DigitalBrain.*` packages are produced by `dotnet pack framework/DigitalBrain.slnx`; no feed is needed to build this repository. `framework/` keeps its own build props and references nothing under `src/`.
+The DigitalBrain framework (neurons, signals, synapses, brains, apps and modules) lives in its own sibling repository ([`intochat/digitalbrain`](https://github.com/intochat/digitalbrain)) and is consumed by this repository as `DigitalBrain.*` NuGet packages pinned in [`Directory.Packages.props`](Directory.Packages.props).
 
 ## Module model
 

@@ -319,7 +319,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public void F5_B01_CallerContextStamper_WhitespacePrincipal_FailsClosed()
     {
         var invalid = new CapabilityCaller("   ", "acc", "brain");
-        Assert.False(CallerContextStamper.IsTrusted(invalid));
+        Assert.False(RuntimeCallerContext.IsTrusted(invalid));
     }
 
     [Fact]
@@ -328,7 +328,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public void F5_B02_CallerContextStamper_WhitespaceBrainId_FailsClosed()
     {
         var invalid = new CapabilityCaller("user", "acc", "   ");
-        Assert.False(CallerContextStamper.IsTrusted(invalid));
+        Assert.False(RuntimeCallerContext.IsTrusted(invalid));
     }
 
     [Fact]
@@ -346,7 +346,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F5")]
     public void F5_B04_CallerContextStamper_StampNull_ThrowsArgumentNullException()
     {
-        var method = typeof(CallerContextStamper).GetMethod("Stamp", [typeof(CapabilityCaller)])!;
+        var method = typeof(RuntimeCallerContext).GetMethod("Stamp", [typeof(CapabilityCaller)])!;
         var ex = Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [null]));
         Assert.IsType<ArgumentNullException>(ex.InnerException);
     }
@@ -676,7 +676,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F13")]
     public void F13_B03_FrameworkAssembly_ExportsOnlyValidPublicTypes()
     {
-        var exported = typeof(CallerContextStamper).Assembly.GetExportedTypes();
+        var exported = typeof(RuntimeCallerContext).Assembly.GetExportedTypes();
         Assert.NotEmpty(exported);
     }
 
@@ -685,7 +685,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F13")]
     public void F13_B04_NoDeprecatedPrefixesInExportedTypes()
     {
-        var exported = typeof(CallerContextStamper).Assembly.GetExportedTypes();
+        var exported = typeof(RuntimeCallerContext).Assembly.GetExportedTypes();
         Assert.DoesNotContain(exported, t => t.Name.StartsWith("Deprecated", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -694,7 +694,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F13")]
     public void F13_B05_ConfigurationNamespaces_AreClean()
     {
-        var exported = typeof(CallerContextStamper).Assembly.GetExportedTypes();
+        var exported = typeof(RuntimeCallerContext).Assembly.GetExportedTypes();
         Assert.All(exported, t => Assert.False(t.Namespace?.Contains("Obsolete", StringComparison.OrdinalIgnoreCase) ?? false));
     }
 

@@ -1,5 +1,4 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
-using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
@@ -25,7 +24,7 @@ public static class McpHosting
         services.AddLocalPlatformClients();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
         services.TryAddScoped<ISignalWatch>(provider => provider.GetRequiredService<IIntoChatOSBrains>().Open(
-            (CallerContextStamper.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp()).BrainId));
+            (RuntimeCallerContext.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp()).BrainId));
         services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.For);
         services.AddHttpContextAccessor();
         services.AddSingleton<McpCaller>();
@@ -37,7 +36,7 @@ public static class McpHosting
     public static void MapIntoChatOSMcp(this WebApplication app)
     {
         app.MapMcp("/mcp").AddEndpointFilter(async (context, next) =>
-            await BrainAccessFilter.Decide(context.HttpContext, CallerContextStamper.Require().BrainId) is { } denied
+            await BrainAccessFilter.Decide(context.HttpContext, RuntimeCallerContext.Require().BrainId) is { } denied
                 ? denied : await next(context));
         BrainRoutes.Group(app).MapMcp("/mcp");
     }

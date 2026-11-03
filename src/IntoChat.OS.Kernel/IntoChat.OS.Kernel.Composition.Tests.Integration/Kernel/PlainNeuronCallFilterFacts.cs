@@ -129,7 +129,7 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
         var settingsNeuron = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
 
         // Adversarial challenge: Attacker injects ModuleCallKey into Orleans RequestContext
-        Orleans.Runtime.RequestContext.Set(CallerContextStamper.ModuleCallKey, true);
+        Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.ModuleCallKey, true);
         try
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
@@ -139,7 +139,7 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
         }
         finally
         {
-            Orleans.Runtime.RequestContext.Remove(CallerContextStamper.ModuleCallKey);
+            Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.ModuleCallKey);
         }
     }
 

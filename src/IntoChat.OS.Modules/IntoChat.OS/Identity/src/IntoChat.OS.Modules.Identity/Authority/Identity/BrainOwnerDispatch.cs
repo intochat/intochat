@@ -10,7 +10,11 @@ namespace IntoChat.OS.Authority.Identity;
 
 internal sealed class BrainOwnerDispatch(IIdentityClient identity) : IBrainOwnerDispatch
 {
-    public async Task<bool> RunAsync(string brainId, string originKey, Func<Task> work, Trace? trace = null,
+    public Task<bool> RunAsync(string brainId, string originKey, Func<Task> work, object? trace = null,
+        CancellationToken cancellationToken = default)
+        => RunAsync(brainId, originKey, work, trace as Trace, cancellationToken);
+
+    public async Task<bool> RunAsync(string brainId, string originKey, Func<Task> work, Trace? trace,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(work);

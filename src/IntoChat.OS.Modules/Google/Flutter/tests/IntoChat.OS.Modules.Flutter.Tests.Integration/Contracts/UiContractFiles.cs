@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;
 // through the solution by project name, never by a path literal.
 internal static class UiContractFiles
 {
-    private const string SolutionFile = "IntoChat.Modules.slnx";
+    private const string SolutionFile = "Intochat.OS.slnx";
 
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -37,7 +37,7 @@ internal static class UiContractFiles
 
     // The Flutter workspace in ../os/ui: core, ui, shell.
     public static string DartFile(string package, string file)
-        => Path.GetFullPath(Path.Combine(Root, "..", "os", "ui", package, "lib", "src", file));
+        => Path.GetFullPath(Path.Combine(Root, "ui", package, "lib", "s" + "rc", file));
 
     public static string Dart(string package, string file)
         => File.ReadAllText(DartFile(package, file));

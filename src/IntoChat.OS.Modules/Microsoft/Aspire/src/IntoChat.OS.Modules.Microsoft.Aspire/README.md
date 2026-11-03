@@ -24,6 +24,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | --- | --- |
 | `CandidateModel` | no |
 
-Contracts: assembly `IntoChat.OS.Modules.Microsoft.Aspire.Contracts` (`ICandidate`, `ICandidates`, `IDeployment`).
+Contracts: assembly `IntoChat.OS.Modules.Microsoft.Aspire.Contracts` (`IAspire`, `ICandidate`, `ICandidates`, `IDeployment`).
 Hosting: runs in process.
 <!-- END GENERATED -->

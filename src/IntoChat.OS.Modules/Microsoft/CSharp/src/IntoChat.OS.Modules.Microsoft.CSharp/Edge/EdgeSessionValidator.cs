@@ -45,7 +45,7 @@ internal sealed class EdgeSessionValidator(SessionTokens tokens, TimeProvider? t
             kind: CallerKind.App,
             appId: claims.App);
 
-        CallerContextStamper.Stamp(caller);
+        RuntimeCallerContext.Stamp(caller);
         return caller;
     }
 }

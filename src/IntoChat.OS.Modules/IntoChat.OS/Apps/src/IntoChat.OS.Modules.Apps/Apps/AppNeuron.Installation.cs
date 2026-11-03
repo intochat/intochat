@@ -36,7 +36,7 @@ internal sealed partial class AppNeuron
         await Check("Import", new AppNameIsFree(Name(), State.Manifest is not null));
         var next = State.Clone();
         next.BrainScopeId = BrainId();
-        next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
+        next.Principal = RuntimeCallerContext.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
         next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
         next.Files = bundle.Files;
@@ -111,7 +111,7 @@ internal sealed partial class AppNeuron
     // only the runtime's answer makes it Live. Landing again is cheap: Assign is idempotent per program.
     private async Task<AppSnapshot> Land(AppState next)
     {
-        next.Principal ??= CallerContextStamper.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
+        next.Principal ??= RuntimeCallerContext.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
         next.Status = AppStatus.Deploying;
         AdvanceProgram(next);
         Record(next);
@@ -142,7 +142,7 @@ internal sealed partial class AppNeuron
         ArgumentNullException.ThrowIfNull(origin);
         // Recording the publisher's origin marks a copy unedited and shipped, which every ShippedApps.Is guard trusts:
         // an app behind the proxy (itself included) must never write its own.
-        if (CallerContextStamper.TryGet(out var caller) && caller.StampedBy == TrustedEdge.AppProxy)
+        if (RuntimeCallerContext.TryGet(out var caller) && caller.StampedBy == TrustedEdge.AppProxy)
         { throw new UnauthorizedAccessException("Only the kernel or a person records where an app came from."); }
         await RequireCreated("RecordOrigin");
         var next = State.Clone();
@@ -158,10 +158,10 @@ internal sealed partial class AppNeuron
         var sources = Sources(State);
         if (!HasProgram(State)) { return; }
         var configuration = Configuration(State);
-        var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
+        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
         var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
-        if (principal is not null) { CallerContextStamper.Stamp(principal); }
-        else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
+        else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
         try
         {
             // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
@@ -174,8 +174,8 @@ internal sealed partial class AppNeuron
         }
         finally
         {
-            if (inherited is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-            else { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+            if (inherited is null) { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
+            else { RequestContext.Set(RuntimeCallerContext.RequestContextKey, inherited); }
         }
     }
 
@@ -218,17 +218,17 @@ internal sealed partial class AppNeuron
         if (Runtime is not { } runtime) { return; }
         var sources = Sources(State);
         if (!HasProgram(State)) { await runtime.Retire(Key, CancellationToken.None); return; }
-        var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
+        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
         var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
-        if (principal is not null) { CallerContextStamper.Stamp(principal); }
+        if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
         try
         {
             await runtime.Deploy(Key, sources, Configuration(State), CancellationToken.None);
         }
         finally
         {
-            if (inherited is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-            else { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+            if (inherited is null) { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
+            else { RequestContext.Set(RuntimeCallerContext.RequestContextKey, inherited); }
         }
     }
 
@@ -269,7 +269,7 @@ internal sealed partial class AppNeuron
     private Task ValidateInstallation(string operation, AppBundle bundle, AppOrigin? origin, AppInstallReceipt installation)
     {
         var reference = installation.Publication;
-        if (!CallerContextStamper.TryGet(out var caller) || caller.AccountId != installation.AccountId
+        if (!RuntimeCallerContext.TryGet(out var caller) || caller.AccountId != installation.AccountId
             || BrainScope.CurrentId() != BrainId())
         { throw new UnauthorizedAccessException("An installation belongs to its initiating account and destination brain."); }
         var matches = installation.OperationId != Guid.Empty && installation.TargetName == Name()

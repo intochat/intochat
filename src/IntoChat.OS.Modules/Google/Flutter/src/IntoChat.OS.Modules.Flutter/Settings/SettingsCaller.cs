@@ -20,7 +20,7 @@ internal static class SettingsCaller
     // The named app the OS ships, unedited, calling through the app proxy from its install in this brain.
     public static async Task<bool> IsShipped(INeuronProxies brain, string? scope, string app)
     {
-        if (scope is null || !CallerContextStamper.TryGet(out var caller) || caller.Kind != CallerKind.App
+        if (scope is null || !RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App
             || caller.StampedBy != TrustedEdge.AppProxy || caller.AppId != IApp.Key(scope, app)) { return false; }
         // Only ShippedApps.Publisher ("os"), as WorkspaceNeuron and AppStoreNeuron check: OsAppsOptions.TrustedPublishers
         // lives in the Kernel, which this module cannot reference; a host-trusted extra publisher does not get this authority.

@@ -160,10 +160,10 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     try
                     {
                         var enrichedPrompt = !string.IsNullOrWhiteSpace(app.Snapshot.Preview) && !string.Equals(app.Snapshot.Preview, FilesCopy.PreviewUnavailable, StringComparison.Ordinal) ? $"{prompt}\n\n[File Preview]\n{(app.Snapshot.Preview.Length <= 1200 ? app.Snapshot.Preview : app.Snapshot.Preview[..1200])}" : prompt;
-                        var hadCaller = CallerContextStamper.TryGet(out var prevCaller);
-                        if (await HostCaller.ForBrain(Context.Services, Id.Brain.Value) is { } hostCaller) { CallerContextStamper.Stamp(hostCaller); }
+                        var hadCaller = RuntimeCallerContext.TryGet(out var prevCaller);
+                        if (await HostCaller.ForBrain(Context.Services, Id.Brain.Value) is { } hostCaller) { RuntimeCallerContext.Stamp(hostCaller); }
                         try { await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(Context.Services, IApp.Key(Id.Brain.Value, "ino")).Request("send", enrichedPrompt); }
-                        finally { if (hadCaller && prevCaller is not null) { CallerContextStamper.Stamp(prevCaller); } else { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); } }
+                        finally { if (hadCaller && prevCaller is not null) { RuntimeCallerContext.Stamp(prevCaller); } else { Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.RequestContextKey); } }
 
                     }
                     catch (Exception error) when (error is not OperationCanceledException)
@@ -314,20 +314,20 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
 
     private async Task WithAppCallerAsync(Func<Task> action)
     {
-        var hadPrevious = CallerContextStamper.TryGet(out var previous);
+        var hadPrevious = RuntimeCallerContext.TryGet(out var previous);
         var baseCaller = hadPrevious && previous is not null && previous.BrainId == Id.Brain.Value
             ? previous
             : await HostCaller.ForBrain(Context.Services, Id.Brain.Value);
         if (baseCaller is null) { return; }
-        CallerContextStamper.Stamp(HostCaller.AsApp(baseCaller, AppKey));
+        RuntimeCallerContext.Stamp(HostCaller.AsApp(baseCaller, AppKey));
         try
         {
             await action();
         }
         finally
         {
-            if (hadPrevious && previous is not null) { CallerContextStamper.Stamp(previous); }
-            else { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+            if (hadPrevious && previous is not null) { RuntimeCallerContext.Stamp(previous); }
+            else { Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
         }
     }
 
@@ -359,7 +359,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
 
     private void RequireAccess()
     {
-        _ = CallerContextStamper.Require();
+        _ = RuntimeCallerContext.Require();
         CallerAdmission.RequireSameBrain(Id.Brain.Value, AppKey, "this Files workspace");
     }
 }

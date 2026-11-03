@@ -245,7 +245,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter, IRouterWo
     private static bool AppsAllowed(string[]? allowed) => allowed is null || allowed.Contains(typeof(IApp).FullName!, StringComparer.Ordinal);
 
     // The asking app, from the kernel-stamped caller (an app's behaviors call as their app's key).
-    private string? Asker() => CallerContextStamper.TryGet(out var caller) && caller.AppId is { } app ? IApp.NameOf(Scope, app) : null;
+    private string? Asker() => RuntimeCallerContext.TryGet(out var caller) && caller.AppId is { } app ? IApp.NameOf(Scope, app) : null;
 
     public async Task<RouteOutcome> Dispatch(string state, string[]? allowed, CancellationToken ct)
     {

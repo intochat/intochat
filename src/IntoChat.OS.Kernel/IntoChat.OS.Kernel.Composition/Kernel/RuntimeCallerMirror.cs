@@ -24,7 +24,7 @@ internal sealed class RuntimeCallerMirror : IOutgoingGrainCallFilter
 
     internal static void Mirror()
     {
-        if (CallerContextStamper.TryGet(out var caller) && CallerContextStamper.IsTrusted(caller))
+        if (RuntimeCallerContext.TryGet(out var caller) && RuntimeCallerContext.IsTrusted(caller))
         {
             // Stamp writes every key (a null app or conversation removes its key); its restore is not wanted: the os stamp it
             // mirrors is not restored either.

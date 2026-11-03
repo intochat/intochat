@@ -1,15 +1,17 @@
+using DigitalBrain;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Compute;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Kernel.Composition.Machine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
-using DigitalBrain;
 
 namespace IntoChat.OS.Kernel.Composition;
 
@@ -25,6 +27,10 @@ public static class BrainHosting
         // The host registers what became of every module it was given; a bare silo reports its modules Active.
         silo.Services.AddSingleton(provider => new ModuleInventory(selected, provider.GetService<IReadOnlyList<ModuleStatus>>()));
         foreach (var module in selected) { module.BindOptions(silo.Services); }
+        if (selected.Any(module => module.Id.Value == "windows"))
+        {
+            silo.Services.AddWindowsMachineIdentity();
+        }
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.AddOptions<Confirmations.ConfirmationOptions>().BindConfiguration(Confirmations.ConfirmationOptions.Section);
@@ -37,7 +43,7 @@ public static class BrainHosting
         {
             if (services.GetService<ICallFilter>() is not { } filter)
             { return Task.CompletedTask; }
-            if (!CallerContextStamper.TryGet(out var caller))
+            if (!RuntimeCallerContext.TryGet(out var caller))
             {
                 throw new UnauthorizedAccessException($"Unstamped streaming calls are not authorized for plain neuron {call.Contract}.{call.Method}");
             }

@@ -34,7 +34,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IBrainObserver kerne
 
     public override async Task<CallReply> Call(CallRequest request, ServerCallContext context)
     {
-        CallerContextStamper.Stamp(await BrainCall.Enter(context, request.BrainId));
+        RuntimeCallerContext.Stamp(await BrainCall.Enter(context, request.BrainId));
         try
         {
             var arguments = request.Arguments.IsEmpty ? "[]" : request.Arguments.ToStringUtf8();
@@ -46,7 +46,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IBrainObserver kerne
 
     public override async Task<NeuronStateReply> ReadState(NeuronStateRequest request, ServerCallContext context)
     {
-        CallerContextStamper.Stamp(await BrainCall.Enter(context, request.BrainId));
+        RuntimeCallerContext.Stamp(await BrainCall.Enter(context, request.BrainId));
         try
         {
             var id = await surface.PlainId(request.Contract, request.Key, context.CancellationToken);
@@ -72,7 +72,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IBrainObserver kerne
     // Retained last signal per source and type first, then live ones, until the client goes away.
     public override async Task Watch(WatchRequest request, IServerStreamWriter<SignalEnvelope> responseStream, ServerCallContext context)
     {
-        CallerContextStamper.Stamp(await BrainCall.Enter(context, request.BrainId));
+        RuntimeCallerContext.Stamp(await BrainCall.Enter(context, request.BrainId));
         if (request.Sources.Count == 0) { throw new RpcException(new Status(StatusCode.InvalidArgument, "Name at least one source.")); }
         if (request.Sources.Sum(source => Math.Max(1, source.SignalTypes.Count)) > MaximumWatches)
         { throw new RpcException(new Status(StatusCode.InvalidArgument, $"At most {MaximumWatches} source signals per watch.")); }

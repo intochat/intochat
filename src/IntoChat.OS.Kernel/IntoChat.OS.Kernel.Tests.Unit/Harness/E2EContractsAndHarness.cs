@@ -291,6 +291,9 @@ public sealed class InMemoryTaskEngine : ITaskEngine, IAsyncDisposable
     }
 
     public ValueTask DisposeAsync() => _os.DisposeAsync();
+
+    public Task<AgentTask> LinkTaskAsync(string taskId, string targetId, string kind, CancellationToken ct = default)
+        => _inner.LinkTaskAsync(taskId, targetId, kind, ct);
 }
 
 #endregion

@@ -92,7 +92,7 @@ public sealed class ConnectionStorage(
 
     private async Task<T> Typed<T>(Func<Task<T>> call)
     {
-        var hadCaller = CallerContextStamper.TryGet(out var current);
+        var hadCaller = RuntimeCallerContext.TryGet(out var current);
         IDisposable? stampScope = null;
         if (connectionKey is { Length: > 0 } && (!hadCaller || current is null || current.Kind == CallerKind.App))
         {
@@ -100,7 +100,7 @@ public sealed class ConnectionStorage(
             var owner = slash > 0 ? connectionKey[..slash] : connectionKey;
             var brain = current?.BrainId is { Length: > 0 } b ? b : owner;
             // The connection's owner here is a brain id, nobody's account: the kernel reads the connection as its platform.
-            stampScope = CallerContextStamper.StampScope(CapabilityCallers.Platform(owner, owner, brain));
+            stampScope = RuntimeCallerContext.StampScope(CapabilityCallers.Platform(owner, owner, brain));
         }
         try { return await call().ConfigureAwait(false); }
         catch (Exception error) when (error is not StorageException && StorageErrors.FromMessage(error.Message) is { } typed)

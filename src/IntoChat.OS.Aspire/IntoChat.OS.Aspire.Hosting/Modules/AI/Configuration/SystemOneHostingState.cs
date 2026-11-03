@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using IntoChatOSConfiguration = DigitalBrain.Modules.Configuration.ModuleConfiguration;
 using Aspire.Hosting;
@@ -18,11 +19,11 @@ public static partial class AIHostingExtensions
 
     // "typesafe" mirrors the module's internal HttpSystemOne.IntegrationId.
     private static readonly string TypeSafeEndpointEnvironmentKey =
-        IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("typesafe", "Endpoint"));
+        ModuleConfiguration.EnvironmentName(IntegrationSchema.Key("typesafe", "Endpoint"));
     private static readonly string TypeSafeApiKeyEnvironmentKey =
-        IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("typesafe", "ApiKey"));
+        ModuleConfiguration.EnvironmentName(IntegrationSchema.Key("typesafe", "ApiKey"));
     private static readonly string DefaultSystemOneEnvironmentKey =
-        IntoChatOSConfiguration.EnvironmentName(AIKeys.DefaultSystemOne);
+        ModuleConfiguration.EnvironmentName(AIKeys.DefaultSystemOne);
 
     private sealed class SystemOneHostingState(
         IntoChatOSBuilder brain,

@@ -42,14 +42,14 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
 
     // A call with no caller is in no brain, so it sees the compiled layer alone.
     public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
-        => (CallerContextStamper.TryGet(out _)
+        => (RuntimeCallerContext.TryGet(out _)
             ? grains.GetGrain<ITypeTable>(BrainScope.CurrentId()).List()
             : grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).List()).WaitAsync(cancellationToken);
 
     public async Task<string[]> Brains(CancellationToken cancellationToken = default)
     {
         var current = BrainScope.CurrentId();
-        var caller = CallerContextStamper.Require();
+        var caller = RuntimeCallerContext.Require();
         // Fail closed: without a membership source the kernel cannot tell which brains the caller may see.
         var source = membership ?? throw new InvalidOperationException("No brain membership source registered: register IBrainMembership (AddIntoChatOSConnections) before listing brains.");
         var members = await source.BrainsOf(caller.PersonId, cancellationToken).WaitAsync(cancellationToken);
