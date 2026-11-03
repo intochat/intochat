@@ -28,6 +28,7 @@
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Identity.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.E2E" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Composition.Tests.Integration" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
+    <PackageReference Include="DigitalBrain.Testing.Silo" />
+    <PackageReference Include="DigitalBrain.Testing" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="DigitalBrain.UI" />
+    <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Flame/src/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
+    <PackageReference Include="IntoChat.OS.Modules.AI" />
+    <PackageReference Include="IntoChat.OS.Modules.Flutter" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Aspire" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+  </ItemGroup>
+</Project>

@@ -20,7 +20,7 @@ using OpenTelemetry.Trace;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 
-namespace IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
+namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
 #region F15: Decision Maker Subsystem (Delegates to Production IntoChat.OS.Modules.AI.Decision.DecisionMaker)
 

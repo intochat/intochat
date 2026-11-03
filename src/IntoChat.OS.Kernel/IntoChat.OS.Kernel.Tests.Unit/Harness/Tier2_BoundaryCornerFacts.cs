@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
-using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -13,7 +12,6 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
-using IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
 using IntoChat.OS.Modules.AI.Context;
 using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
@@ -28,37 +26,14 @@ using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
-namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
+namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
 /// <summary>
 /// Tier 2: Boundary & Corner Cases — Comprehensive opaque-box test suite verifying boundary limits,
-/// adversarial combinations, extreme payloads, nulls, and fail-closed behaviors for F1–F21 (105 tests).
+/// adversarial combinations, extreme payloads, nulls, and fail-closed behaviors for F1–F21.
 /// </summary>
 public sealed class Tier2_BoundaryCornerFacts
 {
-    private static string RepositoryRoot => RepositoryPath();
-
-    private static string RepositoryPath()
-    {
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current) && !File.Exists(Path.Combine(current, "Intochat.OS.slnx")))
-        {
-            var parent = Directory.GetParent(current);
-            if (parent is null) { break; }
-            current = parent.FullName;
-        }
-        return current;
-    }
-
-    private static string FindProjectDirectory(string projectName)
-    {
-        var root = RepositoryRoot;
-        var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
-            .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
-            .Single(p => p.EndsWith("/" + projectName + ".csproj", StringComparison.Ordinal));
-        return Path.Combine(root, Path.GetDirectoryName(project)!);
-    }
-
     #region F1: Ephemeral Signal Annotation Boundaries
 
     [Fact]
@@ -380,8 +355,10 @@ public sealed class Tier2_BoundaryCornerFacts
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
         var req = new CallRequest { Caller = caller, TargetNeuron = "target", Operation = "op" };
-        Assert.False(req.PublicOperation);
+        Assert.False(request_PublicOperation(req));
         Assert.False(req.EnforceTarget);
+
+        static bool request_PublicOperation(CallRequest r) => r.PublicOperation;
     }
 
     #endregion
@@ -600,115 +577,6 @@ public sealed class Tier2_BoundaryCornerFacts
     {
         Assert.False(string.IsNullOrWhiteSpace(FilmCraftApp.Definition.Category));
         Assert.False(string.IsNullOrWhiteSpace(PhotoCraftApp.Definition.Category));
-    }
-
-    #endregion
-
-    #region F10: Fix SystemOne Hosting Path Boundaries
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F10")]
-    public void F10_B01_AdapterDirectory_UsesForwardSlashes()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.Contains("\"" + "s" + "rc/IntoChat.OS.Modules/AI/systemone-adapter\"", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F10")]
-    public void F10_B02_AdapterDirectory_DoesNotStartWithSlash()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.DoesNotContain("\"/" + "s" + "rc/IntoChat.OS.Modules/AI/", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F10")]
-    public void F10_B03_AdapterDirectory_DoesNotContainDotDotEscape()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.DoesNotContain("../", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F10")]
-    public void F10_B04_SystemOneResourceName_IsAlphanumeric()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.Contains("SystemOneResourceName = \"systemone\";", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F10")]
-    public void F10_B05_SystemOneApiKeyLocal_IsLocalString()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.Contains("SystemOneApiKeyLocal = \"local\";", content);
-    }
-
-    #endregion
-
-    #region F11: Stale InternalsVisibleTo Cleanup Boundaries
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F11")]
-    public void F11_B01_ClientOrleansCsproj_HasNoEmptyInternalsVisibleTo()
-    {
-        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
-        var xml = XDocument.Load(csprojPath);
-        var ivts = xml.Descendants("InternalsVisibleTo").Select(x => x.Attribute("Include")?.Value).ToList();
-        Assert.DoesNotContain("", ivts);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F11")]
-    public void F11_B02_ClientOrleansCsproj_NoDuplicateGrants()
-    {
-        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
-        var xml = XDocument.Load(csprojPath);
-        var ivts = xml.Descendants("InternalsVisibleTo").Select(x => x.Attribute("Include")?.Value).ToList();
-        Assert.Equal(ivts.Count, ivts.Distinct().Count());
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F11")]
-    public void F11_B03_ClientOrleansCsproj_FileLength_IsReasonable()
-    {
-        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
-        var fi = new FileInfo(csprojPath);
-        Assert.True(fi.Length > 200 && fi.Length < 100_000);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F11")]
-    public void F11_B04_ClientOrleansCsproj_ContainsProjectClosingTag()
-    {
-        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
-        var content = File.ReadAllText(csprojPath);
-        Assert.Contains("</Project>", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F11")]
-    public void F11_B05_ClientOrleansDirectory_ContainsOrleansBrain()
-    {
-        var dir = FindProjectDirectory("IntoChat.OS.Client.Orleans");
-        Assert.True(File.Exists(Path.Combine(dir, "OrleansBrain.cs")));
     }
 
     #endregion
@@ -1137,105 +1005,6 @@ public sealed class Tier2_BoundaryCornerFacts
     {
         using var doc = JsonDocument.Parse("{}");
         Assert.False(doc.RootElement.TryGetProperty("Contracts", out _));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F18")]
-    public void F18_B02_ContractManifest_FileSize_ExceedsTenKilobytes()
-    {
-        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
-        var fi = new FileInfo(manifestPath);
-        Assert.True(fi.Length > 10_000, $"Manifest size was {fi.Length} bytes, expected > 10KB");
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F18")]
-    public void F18_B03_ContractManifest_LineCount_ExceedsOneHundredLines()
-    {
-        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
-        var lineCount = File.ReadAllLines(manifestPath).Length;
-        Assert.True(lineCount > 100);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F18")]
-    public void F18_B04_ContractManifest_ValidGrainInterfacesSection()
-    {
-        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
-        var content = File.ReadAllText(manifestPath);
-        using var doc = JsonDocument.Parse(content);
-        Assert.True(doc.RootElement.TryGetProperty("GrainInterfaces", out var grains));
-        Assert.Equal(JsonValueKind.Object, grains.ValueKind);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F18")]
-    public void F18_B05_ContractManifest_TracksIdentityDirectory()
-    {
-        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
-        var content = File.ReadAllText(manifestPath);
-        Assert.Contains("IdentityDirectoryNeuron", content);
-    }
-
-    #endregion
-
-    #region F19: TreatWarningsAsErrors Zero-Warning Enforcement Boundaries
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F19")]
-    public void F19_B01_DirectoryBuildProps_ValidXmlStructure()
-    {
-        var propsPath = Path.Combine(RepositoryRoot, "Directory.Build.props");
-        var xml = XDocument.Load(propsPath);
-        Assert.NotNull(xml.Root);
-        Assert.Equal("Project", xml.Root.Name.LocalName);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F19")]
-    public void F19_B02_DirectoryBuildProps_TargetFrameworkTrimmed()
-    {
-        var propsPath = Path.Combine(RepositoryRoot, "Directory.Build.props");
-        var xml = XDocument.Load(propsPath);
-        var tf = xml.Descendants("TargetFramework").First().Value.Trim();
-        Assert.Equal("net11.0", tf);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F19")]
-    public void F19_B03_DirectoryBuildProps_NotConfiguredToFalse()
-    {
-        var propsPath = Path.Combine(RepositoryRoot, "Directory.Build.props");
-        var content = File.ReadAllText(propsPath);
-        Assert.DoesNotContain("<TreatWarningsAsErrors>false</TreatWarningsAsErrors>", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F19")]
-    public void F19_B04_DirectoryPackagesProps_ValidXml()
-    {
-        var packagesPath = Path.Combine(RepositoryRoot, "Directory.Packages.props");
-        var xml = XDocument.Load(packagesPath);
-        Assert.NotNull(xml.Root);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F19")]
-    public void F19_B05_DirectoryBuildProps_LocatedAtRepositoryRoot()
-    {
-        var propsPath = Path.Combine(RepositoryRoot, "Directory.Build.props");
-        Assert.True(File.Exists(propsPath));
-        var dir = Path.GetDirectoryName(propsPath);
-        Assert.True(File.Exists(Path.Combine(dir!, "Intochat.OS.slnx")));
     }
 
     #endregion

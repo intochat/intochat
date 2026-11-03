@@ -29,17 +29,18 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
-namespace IntoChat.OS.Kernel.Composition.Tests.Integration.Apps;
+namespace IntoChat.OS.Kernel.Tests.E2E;
 
 /// <summary>
 /// Restores the historical E2E app workflows (DesktopStartFacts, AppsAppFacts, ShippedAppJourneys,
 /// InoChatFacts, MemoryLoopFacts, InoSecretFacts, SelfImproveFacts, and Files/Storage broker journeys)
 /// against the real DigitalBrain SiloHost environment.
 /// </summary>
-public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFixture fixture)
-    : IClassFixture<RestoredAppsE2EFacts.DigitalBrainSiloFixture>
+public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
+    : IClassFixture<ProductHostFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     [Fact]
     public async Task DesktopSettingsGalleryPhotoCraftAndFilmCraftLifecycleRunsOnSilo()
     {
@@ -218,7 +219,7 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
         Assert.Contains("[App(\"calculator\")]", creator.State.GeneratedSource, StringComparison.Ordinal);
         Assert.Contains("DivideByZeroException", creator.State.GeneratedSource, StringComparison.Ordinal);
 
-        // Verify the BddReport was persisted into HostedBddNeuron on the real Orleans silo.
+        // Verify the BddReport was persisted into BddNeuron on the real Orleans silo.
         var siloBdd = SiloNeurons.Get<IBdd>(fixture.Services, new NeuronId(new BrainId(brain), "bdd", "bdd"));
         var persistedReport = await siloBdd.Read(Ct);
         Assert.NotNull(persistedReport);
@@ -456,148 +457,4 @@ public sealed class RestoredAppsE2EFacts(RestoredAppsE2EFacts.DigitalBrainSiloFi
         AppShellNode shell => new[] { shell.Sidebar, shell.Toolbar, shell.Body, shell.Inspector }.OfType<Node>(),
         _ => [],
     };
-
-    [DigitalBrain.Module("restored.apps.e2e")]
-    private sealed class RestoredAppsTestModule : DigitalBrain.Module
-    {
-        public static ModuleManifest Manifest { get; } = new(
-            Provides: [],
-            Requires: [],
-            Needs: [],
-            Settings: [],
-            Secrets: []);
-    }
-
-    public sealed class DigitalBrainSiloFixture : IAsyncLifetime
-    {
-        private readonly FakeStorage _storage = new("Workspace Disk");
-        private readonly SingleStorageConnections _connections;
-        private IInProcessHost? _host;
-        private int _counter;
-
-        public DigitalBrainSiloFixture()
-        {
-            _storage.AddFolder(_storage.Root, "projects");
-            _connections = new SingleStorageConnections("local-disk", "Workspace Disk", _storage);
-        }
-
-        public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Silo host is not started.")).Services;
-
-        public IReadOnlyList<(BrainId Brain, string ConnectionKey, string CallerApp)> BoundStorageCalls => _connections.BoundCalls;
-
-        public string NewBrain(string prefix)
-            => $"{prefix}{Interlocked.Increment(ref _counter)}";
-
-        public async ValueTask InitializeAsync()
-        {
-            var signalAssemblies = new[]
-            {
-                typeof(RestoredAppsTestModule).Assembly,
-                typeof(BddVerified).Assembly,
-                typeof(AppsModule).Assembly,
-                typeof(IApp).Assembly,
-                typeof(AuthorityPlainNeurons).Assembly,
-                typeof(IConnectionRequests).Assembly,
-                typeof(AIModule).Assembly,
-                typeof(IMemory).Assembly,
-                typeof(AspireModule).Assembly,
-                typeof(IAspire).Assembly,
-                typeof(FlutterModule).Assembly,
-                typeof(IView).Assembly,
-                typeof(FlameModule).Assembly,
-                typeof(ConfirmationNeurons).Assembly,
-            }.Distinct().ToArray();
-
-            var factory = new LocalSiloHostFactory(
-                new BrainStorageRegistration(signalAssemblies),
-                services =>
-                {
-                    services.AddSingleton<ICapabilityConnections>(_connections);
-                    services.TryAddSingleton<ICallFilter, CallFilter>();
-                    services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainNeuronCallFilter>());
-                });
-
-            _host = await factory.Start(
-                new InProcessHostOptions
-                {
-                    Modules =
-                    [
-                        typeof(RestoredAppsTestModule),
-                        typeof(AppsModule),
-                        typeof(AuthorityPlainNeurons),
-                        typeof(AIModule),
-                        typeof(AspireModule),
-                        typeof(FlutterModule),
-                        typeof(FlameModule),
-                        typeof(ConfirmationNeurons),
-                    ],
-                },
-                CancellationToken.None);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (_host is not null)
-            {
-                await _host.DisposeAsync();
-            }
-        }
-
-        public TApp AttachSilo<TApp>(TApp app, string brain) where TApp : App
-        {
-            ArgumentNullException.ThrowIfNull(app);
-            app.AttachNeuronResolver((contractType, neuronKey) =>
-            {
-                var fullKey = neuronKey.Contains('/', StringComparison.Ordinal)
-                    && BrainId.IsValid(neuronKey[..neuronKey.IndexOf('/', StringComparison.Ordinal)])
-                    ? neuronKey
-                    : $"{brain}/{neuronKey}";
-
-                if (contractType.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is not null)
-                {
-                    return SiloNeurons.Get(Services, contractType, fullKey);
-                }
-
-                var alias = contractType.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
-                    ?? throw new InvalidOperationException($"Contract {contractType.Name} has neither DefaultNeuronType nor NeuronAlias.");
-                var sep = fullKey.IndexOf('/', StringComparison.Ordinal);
-                var id = new NeuronId(new BrainId(fullKey[..sep]), alias, fullKey[(sep + 1)..]);
-                return SiloNeurons.Get(Services, contractType, id);
-            });
-            return app;
-        }
-
-        public async Task PublishAppViewToSiloAsync(string brain, string appName, View? side, View main)
-        {
-            var appKey = IApp.Key(brain, appName);
-            if (side is not null)
-            {
-                var sideNeuron = SiloNeurons.Get<IView>(Services, appKey + "/side");
-                await sideNeuron.Publish(new UiView(1, 1, Ui.Column("view", [Ui.Text("title", side.Title)])));
-            }
-            var mainNeuron = SiloNeurons.Get<IView>(Services, appKey + "/view");
-            await mainNeuron.Publish(new UiView(1, 1, Ui.Column("view", [Ui.Text("title", main.Title)])));
-        }
-
-        private sealed class SingleStorageConnections(string key, string label, IStorage storage) : ICapabilityConnections
-        {
-            private readonly List<(BrainId Brain, string ConnectionKey, string CallerApp)> _boundCalls = [];
-
-            public IReadOnlyList<(BrainId Brain, string ConnectionKey, string CallerApp)> BoundCalls => _boundCalls;
-
-            public Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct = default)
-                => Task.FromResult<IReadOnlyList<BrainConnection>>(
-                    [new BrainConnection(key, label, true, [Capability.Storage.V1], null)]);
-
-            public Task<TCapability> Bind<TCapability>(BrainId brain, string connectionKey, string callerApp, CancellationToken ct = default)
-                where TCapability : class
-            {
-                _boundCalls.Add((brain, connectionKey, callerApp));
-                return Task.FromResult((TCapability)(object)storage);
-            }
-
-            public Task RequestConnection(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct = default)
-                => Task.CompletedTask;
-        }
-    }
 }

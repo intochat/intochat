@@ -149,20 +149,6 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
             Secrets: []);
     }
 
-    [Neuron("bdd")]
-    internal sealed class HostedKernelBddNeuron : Neuron<BddState>, IBdd
-    {
-        public async Task<BddReport> Record(BddReport report, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(report);
-            await Save(State with { LastReport = report }, new BddVerified(report.AppId, report.Passed, report));
-            return report;
-        }
-
-        [ReadOnlyCall]
-        public Task<BddReport?> Read(CancellationToken cancellationToken = default) => Task.FromResult(State.LastReport);
-    }
-
     public sealed class KernelAppsSiloFixture : IAsyncLifetime
     {
         private readonly FakeStorage _storage = new("Workspace Disk");

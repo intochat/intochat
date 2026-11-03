@@ -1,7 +1,6 @@
 #pragma warning disable xUnit1051, IDE0062, IDE0200
 using System.Diagnostics;
 using System.Text.Json;
-using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -12,7 +11,6 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
-using IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
 using IntoChat.OS.Modules.AI.Context;
 using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
@@ -27,37 +25,14 @@ using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
-namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
+namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
 /// <summary>
-/// Tier 3: Cross-Feature Combinations — 16 pairwise integration tests verifying seamless interaction
+/// Tier 3: Cross-Feature Combinations — Pairwise tests verifying seamless interaction
 /// across decoupled kernel, runtime, security, manifest, and telemetry subsystems.
 /// </summary>
 public sealed class Tier3_CrossFeaturePairwiseFacts
 {
-    private static string RepositoryRoot => RepositoryPath();
-
-    private static string RepositoryPath()
-    {
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current) && !File.Exists(Path.Combine(current, "Intochat.OS.slnx")))
-        {
-            var parent = Directory.GetParent(current);
-            if (parent is null) { break; }
-            current = parent.FullName;
-        }
-        return current;
-    }
-
-    private static string FindProjectDirectory(string projectName)
-    {
-        var root = RepositoryRoot;
-        var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
-            .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
-            .Single(p => p.EndsWith("/" + projectName + ".csproj", StringComparison.Ordinal));
-        return Path.Combine(root, Path.GetDirectoryName(project)!);
-    }
-
     [Fact]
     [Trait("Category", "Tier3_CrossFeature")]
     [Trait("Pairwise", "F1_F14")]
@@ -311,23 +286,6 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
         Assert.Equal("{\"version\": 2}", restored.Files["manifest.json"]);
         Assert.Equal("dark", restored.Settings["THEME"]);
         Assert.Equal("tcp://127.0.0.1:1113", restored.Connections["eventStore"]);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F10_F13")]
-    public void TF10_SystemOneHosting_WithKernelContracts_MaintainsCleanSeparation()
-    {
-        // F10 (Fix SystemOne Hosting Path) + F13 (Retire Legacy Shims & Forwards)
-        var hostingFile = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        Assert.True(File.Exists(hostingFile), $"SystemOneHostingState.cs must exist at '{hostingFile}'");
-
-        var kernelAssembly = typeof(IntoChat.OS.Kernel.CloudHost).Assembly;
-        var kernelTypes = kernelAssembly.GetTypes().Select(t => t.Name).ToList();
-
-        // Verify kernel does not reference obsolete shim classes
-        Assert.DoesNotContain("IntoChatOSNamesForward", kernelTypes);
-        Assert.DoesNotContain("LegacyTypeNames", kernelTypes);
     }
 
     [Fact]

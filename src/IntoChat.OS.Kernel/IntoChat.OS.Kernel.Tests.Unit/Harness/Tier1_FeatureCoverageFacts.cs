@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
-using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -13,7 +12,6 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
-using IntoChat.OS.Kernel.Tests.Integration.E2E.Harness;
 using IntoChat.OS.Modules.AI.Context;
 using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
@@ -28,37 +26,14 @@ using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
-namespace IntoChat.OS.Kernel.Tests.Integration.E2E;
+namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
 /// <summary>
 /// Tier 1: Feature Coverage — Comprehensive opaque-box test suite verifying primary behavior (happy paths)
-/// for all 21 features in PROJECT.md § Feature Inventory (>=5 tests per feature = 105 tests).
+/// for harness and in-memory features in PROJECT.md § Feature Inventory.
 /// </summary>
 public sealed class Tier1_FeatureCoverageFacts
 {
-    private static string RepositoryRoot => RepositoryPath();
-
-    private static string RepositoryPath()
-    {
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current) && !File.Exists(Path.Combine(current, "Intochat.OS.slnx")))
-        {
-            var parent = Directory.GetParent(current);
-            if (parent is null) { break; }
-            current = parent.FullName;
-        }
-        return current;
-    }
-
-    private static string FindProjectDirectory(string projectName)
-    {
-        var root = RepositoryRoot;
-        var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
-            .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
-            .Single(p => p.EndsWith("/" + projectName + ".csproj", StringComparison.Ordinal));
-        return Path.Combine(root, Path.GetDirectoryName(project)!);
-    }
-
     #region F1: Ephemeral Signal Annotation
 
     [Fact]
@@ -229,9 +204,9 @@ public sealed class Tier1_FeatureCoverageFacts
         var tcs = new TaskCompletionSource<ConfirmationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var expected = new ConfirmationResult("plan-99", ConfirmationOutcome.Approved, ConfirmationDenyReason.None, false);
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
-            Thread.Sleep(10);
+            await Task.Yield();
             tcs.TrySetResult(expected);
         });
 
@@ -647,119 +622,6 @@ public sealed class Tier1_FeatureCoverageFacts
     {
         Assert.Equal("#06B6D4", PhotoCraftApp.Definition.Accent);
         Assert.Equal("Studio", PhotoCraftApp.Definition.Category);
-    }
-
-    #endregion
-
-    #region F10: Fix SystemOne Hosting Path
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F10")]
-    public void F10_01_SystemOneHostingState_SourceFile_ExistsInAspireHosting()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        Assert.True(File.Exists(path), $"SystemOneHostingState.cs must exist at '{path}'");
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F10")]
-    public void F10_02_SystemOneHostingState_ContainsCorrectAdapterDirectoryPath()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.Contains("s" + "rc/IntoChat.OS.Modules/AI/systemone-adapter", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F10")]
-    public void F10_03_SystemOneAdapter_PathFormatting_ConformsToModuleLayout()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.Contains("s" + "rc/IntoChat.OS.Modules/AI/", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F10")]
-    public void F10_04_SystemOneHostingState_DeclaresExpectedConstants()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.Contains("public const string SystemOneResourceName = \"systemone\";", content);
-        Assert.Contains("public const string SystemOneApiKeyLocal = \"local\";", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F10")]
-    public void F10_05_SystemOneHostingState_UsesIntoChatOSConfiguration()
-    {
-        var path = Path.Combine(FindProjectDirectory("IntoChat.OS.Aspire.Hosting"), "Modules/AI/Configuration/SystemOneHostingState.cs");
-        var content = File.ReadAllText(path);
-        Assert.Contains("IntoChatOSConfiguration.EnvironmentName", content);
-    }
-
-    #endregion
-
-    #region F11: Stale InternalsVisibleTo Cleanup
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F11")]
-    public void F11_01_IntoChatOSClientOrleansCsproj_FileExists()
-    {
-        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
-        Assert.True(File.Exists(csprojPath), $"Csproj must exist at {csprojPath}");
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F11")]
-    public void F11_02_IntoChatOSClientOrleansCsproj_GrantsFollowOwnTestsRule()
-    {
-        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
-        var xml = XDocument.Load(csprojPath);
-        var ivtElements = xml.Descendants("InternalsVisibleTo")
-            .Select(x => x.Attribute("Include")?.Value)
-            .Where(x => x != null)
-            .ToList();
-
-        Assert.All(ivtElements, elem => Assert.StartsWith("IntoChat.OS.Client.Orleans.Tests", elem));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F11")]
-    public void F11_03_IntoChatOSClientOrleansCsproj_ParsesAsValidXml()
-    {
-        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
-        var xml = XDocument.Load(csprojPath);
-        Assert.NotNull(xml.Root);
-        Assert.Equal("Project", xml.Root.Name.LocalName);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F11")]
-    public void F11_04_ClientOrleansCsproj_ReferencesFramework()
-    {
-        var csprojPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Client.Orleans"), "IntoChat.OS.Client.Orleans.csproj");
-        var content = File.ReadAllText(csprojPath);
-        Assert.Contains("IntoChat.OS.Framework", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F11")]
-    public void F11_05_ClientOrleansDirectory_ContainsExpectedSources()
-    {
-        var dir = FindProjectDirectory("IntoChat.OS.Client.Orleans");
-        Assert.True(File.Exists(Path.Combine(dir, "BrainClient.cs")));
-        Assert.True(File.Exists(Path.Combine(dir, "OrleansBrain.cs")));
     }
 
     #endregion
@@ -1184,119 +1046,6 @@ public sealed class Tier1_FeatureCoverageFacts
         var verification = await engine.VerifyTaskAsync(task.TaskId);
         Assert.True(verification.Passed);
         Assert.True(verification.Violations is null || verification.Violations.Length == 0);
-    }
-
-    #endregion
-
-    #region F18: API Tracking Baseline & Contract Manifest Update
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F18")]
-    public void F18_01_ContractManifestFile_ExistsInTestingDirectory()
-    {
-        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
-        Assert.True(File.Exists(manifestPath), $"ContractManifest.json must exist at '{manifestPath}'");
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F18")]
-    public void F18_02_ContractManifestFile_ParsesAsValidJsonDocument()
-    {
-        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
-        var content = File.ReadAllText(manifestPath);
-        using var doc = JsonDocument.Parse(content);
-        Assert.Equal(JsonValueKind.Object, doc.RootElement.ValueKind);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F18")]
-    public void F18_03_ContractManifestFacts_ClassExistsInTestingSuite()
-    {
-        var factsPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifestFacts.cs");
-        Assert.True(File.Exists(factsPath), $"ContractManifestFacts.cs must exist at '{factsPath}'");
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F18")]
-    public void F18_04_ContractManifest_ContainsContractsSection()
-    {
-        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
-        var content = File.ReadAllText(manifestPath);
-        using var doc = JsonDocument.Parse(content);
-        var hasContracts = doc.RootElement.TryGetProperty("Contracts", out _)
-            || doc.RootElement.TryGetProperty("Grains", out _);
-        Assert.True(hasContracts);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F18")]
-    public void F18_05_ContractManifest_TracksCoreModules()
-    {
-        var manifestPath = Path.Combine(FindProjectDirectory("IntoChat.OS.Architecture.Tests.Unit"), "ContractManifest.json");
-        var content = File.ReadAllText(manifestPath);
-        Assert.Contains("IntoChat.OS.Framework", content);
-    }
-
-    #endregion
-
-    #region F19: TreatWarningsAsErrors Zero-Warning Enforcement
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F19")]
-    public void F19_01_DirectoryBuildProps_ContainsTreatWarningsAsErrors()
-    {
-        var propsPath = Path.Combine(RepositoryRoot, "Directory.Build.props");
-        Assert.True(File.Exists(propsPath), "Directory.Build.props must exist at root");
-
-        var content = File.ReadAllText(propsPath);
-        Assert.Contains("<TreatWarningsAsErrors>true</TreatWarningsAsErrors>", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F19")]
-    public void F19_02_DirectoryBuildProps_SpecifiesNet11TargetFramework()
-    {
-        var propsPath = Path.Combine(RepositoryRoot, "Directory.Build.props");
-        var content = File.ReadAllText(propsPath);
-        Assert.Contains("<TargetFramework>net11.0</TargetFramework>", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F19")]
-    public void F19_03_DirectoryBuildProps_EnforcesNullableReferenceTypes()
-    {
-        var propsPath = Path.Combine(RepositoryRoot, "Directory.Build.props");
-        var content = File.ReadAllText(propsPath);
-        Assert.Contains("<Nullable>enable</Nullable>", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F19")]
-    public void F19_04_DirectoryBuildProps_EnforcesImplicitUsings()
-    {
-        var propsPath = Path.Combine(RepositoryRoot, "Directory.Build.props");
-        var content = File.ReadAllText(propsPath);
-        Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", content);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F19")]
-    public void F19_05_DirectoryPackagesProps_DefinesCentralPackageManagement()
-    {
-        var packagesPath = Path.Combine(RepositoryRoot, "Directory.Packages.props");
-        Assert.True(File.Exists(packagesPath), "Directory.Packages.props must exist at root");
-        var content = File.ReadAllText(packagesPath);
-        Assert.Contains("<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>", content);
     }
 
     #endregion

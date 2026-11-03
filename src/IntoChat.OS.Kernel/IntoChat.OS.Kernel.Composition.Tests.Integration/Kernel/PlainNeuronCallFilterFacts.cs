@@ -1,18 +1,77 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain;
+using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Testing;
+using DigitalBrain.Spi;
+using DigitalBrain.Testing;
+using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Kernel.Composition.Tests.Integration.Apps;
+using IntoChat.OS.Integrations;
+using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Modules.Apps;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Composition.Tests.Integration.Kernel;
 
-public sealed class PlainNeuronCallFilterFacts(RestoredAppsE2EFacts.DigitalBrainSiloFixture fixture)
-    : IClassFixture<RestoredAppsE2EFacts.DigitalBrainSiloFixture>
+public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.FilterSiloFixture fixture)
+    : IClassFixture<PlainNeuronCallFilterFacts.FilterSiloFixture>
 {
+    public sealed class FilterSiloFixture : IAsyncLifetime
+    {
+        private IInProcessHost? _host;
+        private int _counter;
+
+        public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Silo host is not started.")).Services;
+
+        public string NewBrain(string prefix)
+            => $"{prefix}{Interlocked.Increment(ref _counter)}";
+
+        public async ValueTask InitializeAsync()
+        {
+            var signalAssemblies = new[]
+            {
+                typeof(FilterSiloFixture).Assembly,
+                typeof(AppsModule).Assembly,
+                typeof(IApp).Assembly,
+                typeof(AuthorityPlainNeurons).Assembly,
+                typeof(IConnectionRequests).Assembly,
+                typeof(ConfirmationNeurons).Assembly,
+            }.Distinct().ToArray();
+
+            var factory = new LocalSiloHostFactory(
+                new BrainStorageRegistration(signalAssemblies),
+                services =>
+                {
+                    services.TryAddSingleton<ICallFilter, CallFilter>();
+                    services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainNeuronCallFilter>());
+                });
+
+            _host = await factory.Start(
+                new InProcessHostOptions
+                {
+                    Modules =
+                    [
+                        typeof(AppsModule),
+                        typeof(AuthorityPlainNeurons),
+                        typeof(ConfirmationNeurons),
+                    ],
+                },
+                CancellationToken.None);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_host is not null)
+            {
+                await _host.DisposeAsync();
+            }
+        }
+    }
     [Fact]
     public async Task UnstampedCallToPlainNeuronThrowsUnauthorizedAccessException()
     {
