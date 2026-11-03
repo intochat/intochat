@@ -7,8 +7,9 @@ Operations: open, navigate, activate
 The embedded folder scripts publish the Flutter workspace. These operations present a status for the baseline.
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Apps;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.Workspace;
 
 [DigitalBrain.Signal("workspace.open")]
 public sealed record WorkspaceOpen : DigitalBrain.Signal;
@@ -20,11 +21,25 @@ public sealed record WorkspaceNavigate : DigitalBrain.Signal;
 public sealed record WorkspaceActivate : DigitalBrain.Signal;
 
 [DigitalBrain.App("workspace", Accent = "#A855F7", Category = "Social")]
-public sealed class WorkspaceApp(IPresenter presenter) : DigitalBrain.App
+public sealed class WorkspaceApp : DigitalBrain.App
 {
+    private readonly IPresenter? _presenter;
+
+    public WorkspaceApp()
+    {
+    }
+
+    public WorkspaceApp(IPresenter? presenter)
+    {
+        _presenter = presenter;
+    }
+
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(WorkspaceApp));
 
-    public static AppBundle Bundle { get; } = ShellPrograms.Load("Workspace");
+    public static AppBundle Bundle { get; } = ShellPrograms.Load("Workspace") with
+    {
+        CompiledType = typeof(WorkspaceApp).AssemblyQualifiedName,
+    };
 
     [DigitalBrain.On]
     public Task Open(WorkspaceOpen request) => Show(request, "Workspace");
@@ -38,7 +53,10 @@ public sealed class WorkspaceApp(IPresenter presenter) : DigitalBrain.App
     private Task Show(DigitalBrain.Signal request, string title)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Present(presenter.Present, static () => null, () => new View(title, new Text(title)));
+        if (_presenter is not null)
+        {
+            Present(_presenter.Present, static () => null, () => new View(title, new Text(title)));
+        }
         return Task.CompletedTask;
     }
 

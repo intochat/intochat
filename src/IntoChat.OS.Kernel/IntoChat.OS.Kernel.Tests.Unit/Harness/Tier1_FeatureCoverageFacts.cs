@@ -6,6 +6,8 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
+using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

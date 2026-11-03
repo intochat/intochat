@@ -10,11 +10,12 @@ Open-source Photoshop-compatible layered image editor (PSD, layers, alpha masks,
 3. Interactive WASM Web UI mode for full-card canvas editing.
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 using UI = DigitalBrain.UI.Ui;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.PhotoCraft;
 
 [DigitalBrain.Signal("photocraft.open")]
 public sealed record PhotoCraftStudioOpen(
@@ -113,7 +114,10 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
                 new("remove-background", Icon: "wand-sparkles", Label: "Remove Background"),
             ]),
         "",
-        new Dictionary<string, string>(StringComparer.Ordinal));
+        new Dictionary<string, string>(StringComparer.Ordinal))
+    {
+        CompiledType = typeof(PhotoCraftApp).AssemblyQualifiedName,
+    };
 
     [DigitalBrain.On]
     public async Task Open(PhotoCraftStudioOpen request)
@@ -282,15 +286,53 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
         string targetDoc,
         string mode)
     {
-        var result = await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
-            instructionOrCommand,
-            explicitParamsJson,
-            targetDoc,
-            mode,
-            TryGetArtCraftStudio(),
-            TryGetMcpServer,
-            (err, reason) => Swallow(err, reason),
-            FilesVfs);
+        ArtCraftExecutionResult result;
+        if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
+        {
+            try
+            {
+                var engineRes = await engine.ExecutePhotoCraft(instructionOrCommand, explicitParamsJson, targetDoc, mode);
+                result = new ArtCraftExecutionResult(
+                    engineRes.App,
+                    engineRes.ExecutionMode,
+                    engineRes.CommandId,
+                    engineRes.CommandTitle,
+                    engineRes.ParametersJson,
+                    engineRes.InputDocument,
+                    engineRes.OutputDocument,
+                    engineRes.CliInvocation,
+                    engineRes.Summary,
+                    engineRes.PreviewDataUrl,
+                    engineRes.LayersOrTracks,
+                    engineRes.IsValidCommand,
+                    engineRes.OutputNeuronUri);
+            }
+            catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
+            {
+                Swallow(error, "ArtCraftEngineNeuron is optional when running PhotoCraftApp standalone.");
+                result = await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
+                    instructionOrCommand,
+                    explicitParamsJson,
+                    targetDoc,
+                    mode,
+                    TryGetArtCraftStudio(),
+                    TryGetMcpServer,
+                    (err, reason) => Swallow(err, reason),
+                    FilesVfs);
+            }
+        }
+        else
+        {
+            result = await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
+                instructionOrCommand,
+                explicitParamsJson,
+                targetDoc,
+                mode,
+                TryGetArtCraftStudio(),
+                TryGetMcpServer,
+                (err, reason) => Swallow(err, reason),
+                FilesVfs);
+        }
 
         if (!result.IsValidCommand)
         {
@@ -334,6 +376,19 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
         "wasm-ui" => "WASM Web UI",
         _ => "Native Linux CLI (photocraft-cli)",
     };
+
+    private IArtCraftEngine? TryGetArtCraftEngine()
+    {
+        try
+        {
+            return Get<IArtCraftEngine>("apps/artcraft-engine");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "ArtCraftEngineNeuron is optional when running PhotoCraftApp standalone.");
+            return null;
+        }
+    }
 
     private IArtCraftStudio? TryGetArtCraftStudio()
     {

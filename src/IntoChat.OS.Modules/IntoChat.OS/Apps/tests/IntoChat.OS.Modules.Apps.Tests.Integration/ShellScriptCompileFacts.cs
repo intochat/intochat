@@ -1,4 +1,5 @@
 using System.Reflection;
+using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;

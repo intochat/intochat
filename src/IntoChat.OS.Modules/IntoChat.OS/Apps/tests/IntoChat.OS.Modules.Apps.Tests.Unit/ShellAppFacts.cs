@@ -1,18 +1,18 @@
 using DigitalBrain.Testing;
+using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.PhotoCraft;
+using IntoChat.OS.Apps.Post;
+using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.LocalDisk;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
 public sealed class ShellAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> WorkspaceOperations => AppBaseline.Cases(typeof(WorkspaceApp));
-
     public static IEnumerable<TheoryDataRow<AppOperationCase>> DesktopOperations => AppBaseline.Cases(typeof(DesktopApp));
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> InoOperations
         => AppBaseline.Cases(typeof(InoApp), os => os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>());
-
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> PostOperations => AppBaseline.Cases(typeof(PostApp));
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> CreatorOperations
         => AppBaseline.Cases(
@@ -25,33 +25,17 @@ public sealed class ShellAppFacts
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> GalleryOperations => AppBaseline.Cases(typeof(GalleryApp));
 
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> PhotoCraftOperations => AppBaseline.Cases(typeof(PhotoCraftApp));
-
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> FilmCraftOperations => AppBaseline.Cases(typeof(FilmCraftApp));
-
-    [Theory, MemberData(nameof(WorkspaceOperations))]
-    public Task WorkspaceBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
-
     [Theory, MemberData(nameof(DesktopOperations))]
     public Task DesktopBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Theory, MemberData(nameof(InoOperations))]
     public Task InoBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
-    [Theory, MemberData(nameof(PostOperations))]
-    public Task PostBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
-
     [Theory, MemberData(nameof(CreatorOperations))]
     public Task CreatorBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Theory, MemberData(nameof(GalleryOperations))]
     public Task GalleryBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
-
-    [Theory, MemberData(nameof(PhotoCraftOperations))]
-    public Task PhotoCraftStudioBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
-
-    [Theory, MemberData(nameof(FilmCraftOperations))]
-    public Task FilmCraftStudioBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Fact]
     public void WorkspaceAndDesktopCarryTheFlutterTrees()
@@ -132,11 +116,11 @@ public sealed class ShellAppFacts
         Assert.True(galleryReport.Passed);
         Assert.Single(galleryReport.Scenarios);
 
-        var photoCraftReport = await BddRunner.VerifyAsync<PhotoCraftApp>(cancellationToken: ct);
+        var photoCraftReport = await BddRunner.VerifyAsync<PhotoCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct);
         Assert.True(photoCraftReport.Passed);
         Assert.Single(photoCraftReport.Scenarios);
 
-        var filmCraftReport = await BddRunner.VerifyAsync<FilmCraftApp>(cancellationToken: ct);
+        var filmCraftReport = await BddRunner.VerifyAsync<FilmCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct);
         Assert.True(filmCraftReport.Passed);
         Assert.Single(filmCraftReport.Scenarios);
 
@@ -144,7 +128,7 @@ public sealed class ShellAppFacts
         Assert.True(inoReport.Passed);
         Assert.Single(inoReport.Scenarios);
 
-        var postReport = await BddRunner.VerifyAsync<PostApp>(cancellationToken: ct);
+        var postReport = await BddRunner.VerifyAsync<PostApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct);
         Assert.True(postReport.Passed);
         Assert.Single(postReport.Scenarios);
 

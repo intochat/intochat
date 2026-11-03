@@ -7,8 +7,9 @@ Operations: open, publish, update-bio
 Publishes posts and profile cards to the brain's ProfileNeuron (IProfile) with Circle-scoped visibility ("public", "friends", or a specific Circle id).
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Apps;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.Post;
 
 [DigitalBrain.Signal("post.open")]
 public sealed record PostOpen : DigitalBrain.Signal;
@@ -36,8 +37,19 @@ public sealed record PostAppState(
 }
 
 [DigitalBrain.App("post", Accent = "#FB7185", Category = "Reach")]
-public sealed class PostApp(IPresenter? presenter = null) : DigitalBrain.App<PostAppState>
+public sealed class PostApp : DigitalBrain.App<PostAppState>
 {
+    private readonly IPresenter? _presenter;
+
+    public PostApp()
+    {
+    }
+
+    public PostApp(IPresenter? presenter)
+    {
+        _presenter = presenter;
+    }
+
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(PostApp));
 
     public static AppBundle Bundle { get; } = new(
@@ -56,7 +68,10 @@ public sealed class PostApp(IPresenter? presenter = null) : DigitalBrain.App<Pos
             Slots: [],
             Icon: "icon.svg"),
         "",
-        new Dictionary<string, string>(StringComparer.Ordinal));
+        new Dictionary<string, string>(StringComparer.Ordinal))
+    {
+        CompiledType = typeof(PostApp).AssemblyQualifiedName,
+    };
 
     [DigitalBrain.On]
     public async Task Open(PostOpen request)
@@ -166,9 +181,9 @@ public sealed class PostApp(IPresenter? presenter = null) : DigitalBrain.App<Pos
     private void Update(PostAppState next)
     {
         Set(next);
-        if (presenter is not null)
+        if (_presenter is not null)
         {
-            Present(presenter.Present, RenderSide, Render);
+            Present(_presenter.Present, RenderSide, Render);
         }
     }
 

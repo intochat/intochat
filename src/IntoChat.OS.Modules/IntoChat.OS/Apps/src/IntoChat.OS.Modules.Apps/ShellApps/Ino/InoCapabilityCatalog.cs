@@ -12,15 +12,27 @@ internal sealed record DiscoveredAppCapability(
 
 internal static class InoCapabilityCatalog
 {
+    private static AppBundle ResolveBundle(string typeName, string appName, string title, string description, AppOperation[] operations)
+    {
+        var type = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(a => a.GetType(typeName, throwOnError: false))
+            .FirstOrDefault(t => t is not null);
+        if (type is not null && type.GetProperty("Bundle", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null) is AppBundle bundle)
+        {
+            return bundle;
+        }
+        return new AppBundle(appName, "1.0.0", new AppManifest(title, description, operations, [], [], "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal));
+    }
+
     private static readonly (string AppId, AppBundle FallbackBundle)[] KnownApps =
     [
         ("files", FilesRequests.Bundle),
-        ("photocraft", PhotoCraftApp.Bundle),
-        ("filmcraft", FilmCraftApp.Bundle),
+        ("photocraft", ResolveBundle("IntoChat.OS.Apps.PhotoCraft.PhotoCraftApp", "photocraft", "PhotoCraft", "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.", [new("open", "Connect PhotoCraft studio and open or inspect a document."), new("edit", "Edit an image from natural language (e.g. remove background, select subject, desaturate, gradient)."), new("remove-background", "Run AI background removal (layer.removeBackground) on the active or specified image."), new("run-command", "Execute a PhotoCraft engine command ID directly via Native Linux CLI or MCP."), new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui.")])),
+        ("filmcraft", ResolveBundle("IntoChat.OS.Apps.FilmCraft.FilmCraftApp", "filmcraft", "FilmCraft", "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.", [new("open", "Connect FilmCraft studio and load a sequence."), new("edit", "Edit a video sequence from natural language (razor split, ripple trim, Lumetri color, export)."), new("run-command", "Execute a FilmCraft timeline command ID via Native Linux CLI or MCP."), new("export", "Render and export the active video sequence to H.264 MP4."), new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui.")])),
         ("settings", ShellPrograms.Load("Settings")),
         ("creator", CreatorApp.Bundle),
         ("gallery", GalleryApp.Bundle),
-        ("post", PostApp.Bundle),
+        ("post", ResolveBundle("IntoChat.OS.Apps.Post.PostApp", "post", "Post", "Public profile and Circle-scoped social post app.", [new("open", "Show profile and posts."), new("publish", "Publish a post to a Circle."), new("update-bio", "Update profile handle, bio, and pinned apps.")])),
         ("ino", InoApp.Bundle),
     ];
 

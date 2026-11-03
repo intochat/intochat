@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain.Testing;
+using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Modules.AI.Context;
 using IntoChat.OS.Modules.AI.Decision;
 using Microsoft.Extensions.DependencyInjection;

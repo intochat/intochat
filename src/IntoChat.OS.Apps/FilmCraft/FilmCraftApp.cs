@@ -11,11 +11,12 @@ with dual execution:
 3. Interactive WASM Web UI mode for full-card browser timeline editing.
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 using UI = DigitalBrain.UI.Ui;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.FilmCraft;
 
 [DigitalBrain.Signal("filmcraft.open")]
 public sealed record FilmCraftStudioOpen(
@@ -104,7 +105,10 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
                 new("export", Icon: "film", Label: "Export MP4"),
             ]),
         "",
-        new Dictionary<string, string>(StringComparer.Ordinal));
+        new Dictionary<string, string>(StringComparer.Ordinal))
+    {
+        CompiledType = typeof(FilmCraftApp).AssemblyQualifiedName,
+    };
 
     [DigitalBrain.On]
     public async Task Open(FilmCraftStudioOpen request)
@@ -276,15 +280,53 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
         string sequence,
         string mode)
     {
-        var result = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
-            instructionOrCommand,
-            explicitParamsJson,
-            sequence,
-            mode,
-            TryGetArtCraftStudio(),
-            TryGetMcpServer,
-            (err, reason) => Swallow(err, reason),
-            FilesVfs);
+        ArtCraftExecutionResult result;
+        if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
+        {
+            try
+            {
+                var engineRes = await engine.ExecuteFilmCraft(instructionOrCommand, explicitParamsJson, sequence, mode);
+                result = new ArtCraftExecutionResult(
+                    engineRes.App,
+                    engineRes.ExecutionMode,
+                    engineRes.CommandId,
+                    engineRes.CommandTitle,
+                    engineRes.ParametersJson,
+                    engineRes.InputDocument,
+                    engineRes.OutputDocument,
+                    engineRes.CliInvocation,
+                    engineRes.Summary,
+                    engineRes.PreviewDataUrl,
+                    engineRes.LayersOrTracks,
+                    engineRes.IsValidCommand,
+                    engineRes.OutputNeuronUri);
+            }
+            catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
+            {
+                Swallow(error, "ArtCraftEngineNeuron is optional when running FilmCraftApp standalone.");
+                result = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
+                    instructionOrCommand,
+                    explicitParamsJson,
+                    sequence,
+                    mode,
+                    TryGetArtCraftStudio(),
+                    TryGetMcpServer,
+                    (err, reason) => Swallow(err, reason),
+                    FilesVfs);
+            }
+        }
+        else
+        {
+            result = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
+                instructionOrCommand,
+                explicitParamsJson,
+                sequence,
+                mode,
+                TryGetArtCraftStudio(),
+                TryGetMcpServer,
+                (err, reason) => Swallow(err, reason),
+                FilesVfs);
+        }
 
         if (!result.IsValidCommand)
         {
@@ -318,6 +360,19 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
         "wasm-ui" => "WASM Web UI",
         _ => "Native Linux CLI (filmcraft-cli)",
     };
+
+    private IArtCraftEngine? TryGetArtCraftEngine()
+    {
+        try
+        {
+            return Get<IArtCraftEngine>("apps/artcraft-engine");
+        }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, "ArtCraftEngineNeuron is optional when running FilmCraftApp standalone.");
+            return null;
+        }
+    }
 
     private IArtCraftStudio? TryGetArtCraftStudio()
     {

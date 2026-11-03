@@ -812,14 +812,14 @@ public static class ArtCraftEngineRunner
         return null;
     }
 
-    internal static bool IsImageExtension(string pathOrName)
+    public static bool IsImageExtension(string pathOrName)
         => pathOrName.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
             || pathOrName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
             || pathOrName.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)
             || pathOrName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
             || pathOrName.EndsWith(".psd", StringComparison.OrdinalIgnoreCase);
 
-    internal static bool IsVideoExtension(string pathOrName)
+    public static bool IsVideoExtension(string pathOrName)
         => pathOrName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
             || pathOrName.EndsWith(".mov", StringComparison.OrdinalIgnoreCase)
             || pathOrName.EndsWith(".fcproj", StringComparison.OrdinalIgnoreCase);

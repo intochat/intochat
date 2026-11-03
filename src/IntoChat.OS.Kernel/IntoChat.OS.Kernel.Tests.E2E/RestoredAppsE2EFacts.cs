@@ -20,7 +20,11 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
+using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.PhotoCraft;
+using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Apps.Settings;
+using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
@@ -261,12 +265,12 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var reports = new[]
         {
             await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct),
-            await BddRunner.VerifyAsync<WorkspaceApp>(cancellationToken: ct),
+            await BddRunner.VerifyAsync<WorkspaceApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<SettingsApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<GalleryApp>(cancellationToken: ct),
-            await BddRunner.VerifyAsync<PhotoCraftApp>(cancellationToken: ct),
-            await BddRunner.VerifyAsync<FilmCraftApp>(cancellationToken: ct),
-            await BddRunner.VerifyAsync<PostApp>(cancellationToken: ct),
+            await BddRunner.VerifyAsync<PhotoCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
+            await BddRunner.VerifyAsync<FilmCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
+            await BddRunner.VerifyAsync<PostApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<InoApp>(fakes: os => os.Register<MemoryNeuron>(), cancellationToken: ct),
             await BddRunner.VerifyAsync<CreatorApp>(fakes: os => os.Register<AspireNeuron>(), cancellationToken: ct),
         };

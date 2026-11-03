@@ -10,6 +10,7 @@ using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
