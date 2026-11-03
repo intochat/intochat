@@ -4,6 +4,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using IntoChat.Files;
 using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Apps.Workspace;

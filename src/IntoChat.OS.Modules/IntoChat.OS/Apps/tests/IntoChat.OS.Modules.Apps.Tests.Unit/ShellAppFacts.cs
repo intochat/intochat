@@ -1,5 +1,6 @@
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Apps.Workspace;
@@ -23,8 +24,6 @@ public sealed class ShellAppFacts
                 os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
             });
 
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> GalleryOperations => AppBaseline.Cases(typeof(GalleryApp));
-
     [Theory, MemberData(nameof(DesktopOperations))]
     public Task DesktopBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
@@ -33,9 +32,6 @@ public sealed class ShellAppFacts
 
     [Theory, MemberData(nameof(CreatorOperations))]
     public Task CreatorBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
-
-    [Theory, MemberData(nameof(GalleryOperations))]
-    public Task GalleryBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Fact]
     public void WorkspaceAndDesktopCarryTheFlutterTrees()
@@ -112,7 +108,7 @@ public sealed class ShellAppFacts
         Assert.True(desktopReport.Passed);
         Assert.Single(desktopReport.Scenarios);
 
-        var galleryReport = await BddRunner.VerifyAsync<GalleryApp>(cancellationToken: ct);
+        var galleryReport = await BddRunner.VerifyAsync<GalleryApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct);
         Assert.True(galleryReport.Passed);
         Assert.Single(galleryReport.Scenarios);
 

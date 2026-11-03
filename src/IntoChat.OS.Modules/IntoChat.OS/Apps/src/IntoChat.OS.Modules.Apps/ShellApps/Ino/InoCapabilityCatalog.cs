@@ -31,7 +31,7 @@ internal static class InoCapabilityCatalog
         ("filmcraft", ResolveBundle("IntoChat.OS.Apps.FilmCraft.FilmCraftApp", "filmcraft", "FilmCraft", "Premiere-compatible non-linear video editor (VideoCraft / FilmCraft) with full-card WASM Web UI, Native Linux CLI (filmcraft-cli), and MCP Server.", [new("open", "Connect FilmCraft studio and load a sequence."), new("edit", "Edit a video sequence from natural language (razor split, ripple trim, Lumetri color, export)."), new("run-command", "Execute a FilmCraft timeline command ID via Native Linux CLI or MCP."), new("export", "Render and export the active video sequence to H.264 MP4."), new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui.")])),
         ("settings", ShellPrograms.Load("Settings")),
         ("creator", CreatorApp.Bundle),
-        ("gallery", GalleryApp.Bundle),
+        ("gallery", ResolveBundle("IntoChat.OS.Apps.Gallery.GalleryApp", "gallery", "UI Gallery", "WinUI 3-inspired UI Kit, NodeContract inspector, and UI Identity switcher.", [new("open", "Open the UI Kit gallery catalog."), new("filter", "Filter controls by category or search query."), new("select", "Inspect a control's NodeContract, [Signal]s, and neuron:// URI."), new("switch-identity", "Switch the active StylePreset and BarLayout.")])),
         ("post", ResolveBundle("IntoChat.OS.Apps.Post.PostApp", "post", "Post", "Public profile and Circle-scoped social post app.", [new("open", "Show profile and posts."), new("publish", "Publish a post to a Circle."), new("update-bio", "Update profile handle, bio, and pinned apps.")])),
         ("ino", InoApp.Bundle),
     ];

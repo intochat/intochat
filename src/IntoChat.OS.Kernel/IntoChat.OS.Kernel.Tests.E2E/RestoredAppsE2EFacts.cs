@@ -21,6 +21,7 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Apps.Settings;
@@ -267,7 +268,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
             await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct),
             await BddRunner.VerifyAsync<WorkspaceApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<SettingsApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
-            await BddRunner.VerifyAsync<GalleryApp>(cancellationToken: ct),
+            await BddRunner.VerifyAsync<GalleryApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<PhotoCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<FilmCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<PostApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
