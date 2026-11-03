@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" />
+    <PackageReference Include="Aspire.Hosting.Testing" />
+    <PackageReference Include="Aspire.Hosting.Yarp" />
+    <PackageReference Include="DigitalBrain.Testing" />
+    <PackageReference Include="DigitalBrain.Testing.Silo" />
+    <PackageReference Include="DigitalBrain.Runtime.Apps" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="DigitalBrain.UI" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+    <PackageReference Include="IntoChat.OS.Modules.AI" />
+    <PackageReference Include="IntoChat.OS.Modules.Flutter" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Aspire" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Circles/src/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Flame/src/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/IntoChat.OS.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

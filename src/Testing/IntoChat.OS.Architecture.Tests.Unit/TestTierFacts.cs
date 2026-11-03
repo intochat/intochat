@@ -140,7 +140,7 @@ public sealed partial class TestTierFacts
         var offenders = new List<string>();
         foreach (var project in Repository.TestProjects())
         {
-            if (!project.Name.EndsWith(".Tests.E2E", StringComparison.Ordinal)) { continue; }
+            if (!project.Name.EndsWith(".Tests.E2E", StringComparison.Ordinal) && !project.Name.EndsWith(".Tests.E2E.Aspire", StringComparison.Ordinal)) { continue; }
             foreach (var file in Repository.SourceFiles(project.Directory, "*.cs"))
             {
                 var source = File.ReadAllText(file);

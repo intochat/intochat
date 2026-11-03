@@ -127,7 +127,7 @@ public sealed class FeatureCatalog
         var names = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var ((owner, name), origin) in loaded.Origins)
         {
-            if (owner == ShippedApps.Publisher && origin is FeatureOrigin.Folder) { names.Add(name); }
+            if (owner == ShippedApps.Publisher && origin is FeatureOrigin.Folder or FeatureOrigin.Module) { names.Add(name); }
         }
         foreach (var root in ShippedApps.Roots) { names.Add(root); }
         return [.. names.Select(name => (ShippedApps.Publisher, name))];

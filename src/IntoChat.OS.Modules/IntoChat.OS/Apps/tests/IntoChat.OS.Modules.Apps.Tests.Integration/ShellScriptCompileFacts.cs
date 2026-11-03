@@ -1,4 +1,5 @@
 using System.Reflection;
+using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 

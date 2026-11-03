@@ -17,6 +17,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     public override void Configure(IntoChatOSBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
+        if (brain.ApplicationBuilder.Configuration[$"{IntoChatOSConfiguration.ModuleSection("csharp")}:Enabled"] == "false") { return; }
         // The image builds from the repository (or its sibling modules repository); a host composed without one has no container.
         if (RepositoryRoot.Find() is not { } repository) { return; }
         var contextPath = repository;

@@ -73,14 +73,14 @@
     <IntoChatOSTestTier>Legacy</IntoChatOSTestTier>
     <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">Unit</IntoChatOSTestTier>
     <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">Integration</IntoChatOSTestTier>
-    <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">E2E</IntoChatOSTestTier>
+    <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E')) Or $(MSBuildProjectName.EndsWith('.Tests.E2E.Aspire'))">E2E</IntoChatOSTestTier>
     <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Browser'))">Browser</IntoChatOSTestTier>
     <IntoChatOSTestTier Condition="$(MSBuildProjectName.EndsWith('.Tests.Hosting'))">Hosting</IntoChatOSTestTier>
     <!-- IntoChatOSNightly=false drops the nightly tiers (Browser, and E2E projects that reference Aspire hosting) from `dotnet test`. -->
     <IntoChatOSNightly Condition="'$(IntoChatOSNightly)' == ''">true</IntoChatOSNightly>
-    <_ReferencesAspireHosting>$([System.IO.File]::ReadAllText('$(MSBuildProjectFullPath)').Contains('Aspire.Hosting'))</_ReferencesAspireHosting>
-    <IsTestProject Condition="'$(IntoChatOSNightly)' == 'false' And ('$(IntoChatOSTestTier)' == 'Browser' Or ('$(IntoChatOSTestTier)' == 'E2E' And '$(_ReferencesAspireHosting)' == 'True'))">false</IsTestProject>
-    <IsTestingPlatformApplication Condition="'$(IntoChatOSNightly)' == 'false' And ('$(IntoChatOSTestTier)' == 'Browser' Or ('$(IntoChatOSTestTier)' == 'E2E' And '$(_ReferencesAspireHosting)' == 'True'))">false</IsTestingPlatformApplication>
+
+    <IsTestProject Condition="'$(IntoChatOSNightly)' == 'false' And '$(IntoChatOSTestTier)' == 'Browser'">false</IsTestProject>
+    <IsTestingPlatformApplication Condition="'$(IntoChatOSNightly)' == 'false' And '$(IntoChatOSTestTier)' == 'Browser'">false</IsTestingPlatformApplication>
     <!-- A solution test of one tier must not invoke the other tiers: a tier with no selected tests exits 8. -->
     <IsTestProject Condition="'$(IntoChatOSOnlyTier)' != '' And '$(IntoChatOSTestTier)' != '$(IntoChatOSOnlyTier)'">false</IsTestProject>
     <IsTestingPlatformApplication Condition="'$(IntoChatOSOnlyTier)' != '' And '$(IntoChatOSTestTier)' != '$(IntoChatOSOnlyTier)'">false</IsTestingPlatformApplication>

@@ -31,5 +31,7 @@ public sealed class AppsOptions : IModuleOptions
         if (FastPathReasoning is { Length: > 0 } reasoning && reasoning.ToLowerInvariant() is not ("none" or "low" or "medium" or "high" or "xhigh"))
         { throw new InvalidOperationException("FastPathReasoning must be none, low, medium, high or xhigh."); }
         if (FastPathMaxOutputTokens <= 0) { throw new InvalidOperationException("FastPathMaxOutputTokens must be positive."); }
+        if (!string.IsNullOrWhiteSpace(Features) && File.Exists(Features))
+        { throw new InvalidOperationException($"Features path '{Features}' is a file, not a directory."); }
     }
 }

@@ -147,6 +147,7 @@
   <Folder Name="/Kernel/">
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition.Tests.Integration/IntoChat.OS.Kernel.Composition.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
+    <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Integration/IntoChat.OS.Kernel.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Unit/IntoChat.OS.Kernel.Tests.Unit.csproj" />

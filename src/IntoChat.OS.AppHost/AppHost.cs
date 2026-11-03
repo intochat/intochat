@@ -55,8 +55,12 @@ if (shellEnabled) { intoChatOS = intoChatOS.WithHosting<FlutterModuleHosting, Fl
 var cookieProtection = cloud ? intoChatOS.AddBlobContainer(intoChatOS.Identity!.ProtectionContainerName) : null;
 
 // The repository's ./features: os apps, loaded by the OS at boot.
-var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "features"));
+var features = builder.Configuration[featuresKey] is { Length: > 0 } configuredFeatures
+    ? Path.GetFullPath(configuredFeatures)
+    : Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "features"));
+if (File.Exists(features)) { throw new InvalidOperationException($"{featuresKey} must name a directory, not a file: {features}"); }
 
+var frontEnabled = builder.Configuration.GetValue(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.FrontEnabledKey, true);
 var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);
 var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
@@ -70,16 +74,20 @@ var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
         ? Primary(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
         : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.IntoChat_OS_Kernel>(name))
             .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(featuresKey), features))).ToArray();
-var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("https")));
+if (frontEnabled)
+{
+    var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("https")));
+    intoChatOS.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
+}
 
 // The front keeps a stable TLS endpoint across a single-runtime restart.
-intoChatOS.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
+
 
 var mcps = AspireModuleHosting.InstanceNames("intochat-os-mcp").Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "mcp", "IntoChat.OS.Mcp.dll") is { } live
         ? Mcp(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
         : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.IntoChat_OS_Mcp>(name)))).ToArray();
-AspireModuleHosting.AddFront(builder, "intochat-os-mcp", mcpPort, mcps.Select(mcp => mcp.GetEndpoint("http")));
+if (frontEnabled) { AspireModuleHosting.AddFront(builder, "intochat-os-mcp", mcpPort, mcps.Select(mcp => mcp.GetEndpoint("http"))); }
 
 builder.Build().Run();
 return 0;

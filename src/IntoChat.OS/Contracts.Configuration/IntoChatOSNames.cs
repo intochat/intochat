@@ -43,6 +43,7 @@ public static class IntoChatOSNames
     public const string BrainStorageOwnershipWriterLock = "WriterLock";
     public const string IntegrationsSectionName = "IntoChatOS:Integrations";
     public const string ShellEnabledKey = "IntoChatOS:Shell:Enabled";
+    public const string FrontEnabledKey = "IntoChatOS:Http:Front";
     public const string LocalGpuKey = "IntoChatOS:Local:Gpu";
     public const string LocalModelKey = "IntoChatOS:Local:Model";
     public const string LocalOllamaEndpointKey = "http://localhost:11434";
