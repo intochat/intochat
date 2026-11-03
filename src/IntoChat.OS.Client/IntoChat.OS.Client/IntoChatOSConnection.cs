@@ -1,7 +1,9 @@
+using System.Runtime.CompilerServices;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Signals.Watch;
 using IntoChat.OS;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Runtime;
-using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Client;
 
@@ -15,11 +17,13 @@ public sealed class IntoChatOSConnection : ISignalWatch, ISelectiveWatch, IAsync
     private readonly BehaviorTrace _trace;
     private readonly string? _assignmentHash;
     private readonly string? _assignmentRevision;
+    private readonly bool _ownsSession;
+    private readonly ConditionalWeakTable<object, CapabilityCaller> _provenance = new();
     private readonly AsyncLocal<int> _nestedWait = new();
     private readonly Lock _initialGate = new();
     private Task? _initialized;
 
-    internal IntoChatOSConnection(SessionConnection session, string behavior, IReadOnlyDictionary<string, string> settings, CancellationToken stopping, BehaviorTrace trace, string? assignmentHash = null, string? assignmentRevision = null)
+    internal IntoChatOSConnection(SessionConnection session, string behavior, IReadOnlyDictionary<string, string> settings, CancellationToken stopping, BehaviorTrace trace, string? assignmentHash = null, string? assignmentRevision = null, bool ownsSession = false)
     {
         _session = session;
         _behavior = behavior;
@@ -28,6 +32,35 @@ public sealed class IntoChatOSConnection : ISignalWatch, ISelectiveWatch, IAsync
         _trace = trace;
         _assignmentHash = assignmentHash;
         _assignmentRevision = assignmentRevision;
+        _ownsSession = ownsSession;
+    }
+
+    public static async Task<IntoChatOSConnection> OpenAsync(
+        Uri edge,
+        string token,
+        string behavior,
+        HttpMessageHandler? handler = null,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await SessionConnection.OpenAsync(
+            edge,
+            token,
+            ContractsFingerprint.Of([typeof(IBrain).Assembly]),
+            handler,
+            cancellationToken).ConfigureAwait(false);
+        return new IntoChatOSConnection(
+            session,
+            behavior,
+            new Dictionary<string, string>(StringComparer.Ordinal),
+            session.Stopping,
+            new BehaviorTrace(),
+            ownsSession: true);
+    }
+
+    public CapabilityCaller? Provenance(object signal)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        return _provenance.TryGetValue(signal, out var caller) ? caller : null;
     }
 
     public CancellationToken Stopping { get; }
@@ -70,7 +103,7 @@ public sealed class IntoChatOSConnection : ISignalWatch, ISelectiveWatch, IAsync
         if (source is not NeuronProxy neuron) { throw new ArgumentException("Watch a neuron obtained from this connection's Get.", nameof(source)); }
         return new WatchStream<T>(async ct =>
         {
-            var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, _trace, ct, selector).ConfigureAwait(false);
+            var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, _trace, ct, selector, (signal, caller) => _provenance.AddOrUpdate(signal, caller)).ConfigureAwait(false);
             return (subscription.ReadAllAsync(ct), subscription);
         }, cancellationToken, Stopping, async () =>
         {
@@ -90,7 +123,7 @@ public sealed class IntoChatOSConnection : ISignalWatch, ISelectiveWatch, IAsync
     public Task React<T>(Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : DigitalBrain.Signal
         => Sources.React<T>(this, sources, rebuild, cancellationToken);
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => _ownsSession ? _session.DisposeAsync() : ValueTask.CompletedTask;
 
     IDisposable IInitialSignalWait.SuppressInitialWait()
     {

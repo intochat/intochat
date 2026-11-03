@@ -286,7 +286,8 @@ internal sealed class CompiledAppsHost(
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
-            if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
+            var baseCaller = await HostCaller.ForBrain(services, brain);
+            if (baseCaller is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
             var appKey = IApp.Key(brain, appName);
             var gate = _gates.GetOrAdd(appKey, static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync(ct);
@@ -297,6 +298,12 @@ internal sealed class CompiledAppsHost(
                 if (turns.Definition.FindOperation(request.Operation) is { } method)
                 {
                     await turns.Request(request.Operation, ParseArgument(method, request.Input), ct);
+                    var appNeuron = SiloNeurons.Get<IApp>(services, appKey);
+                    var currentSnapshot = await appNeuron.Read();
+                    using var appScope = baseCaller is not null ? CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, appKey)) : null;
+                    await appNeuron.SaveRuntimeState(
+                        JsonSerializer.Serialize(new { request.Operation, request.RequestId }),
+                        currentSnapshot.RuntimeStateRevision);
                 }
 
                 var title = HostedByName.TryGetValue(appName, out var spec) ? spec.Bundle.Manifest.Title : appName;

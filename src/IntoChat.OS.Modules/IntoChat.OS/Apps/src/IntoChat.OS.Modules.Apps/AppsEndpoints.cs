@@ -248,6 +248,15 @@ internal static class AppsEndpoints
     internal static async Task<IResult> Respond(Func<Task<IResult>> handler)
     {
         try { return await handler(); }
+        catch (DigitalBrain.Rules.RuleViolationException error)
+        {
+            return Results.Conflict(new
+            {
+                operation = error.Rejected.Operation,
+                rules = error.Rejected.Rules,
+                messages = error.Rejected.Messages,
+            });
+        }
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
         catch (UnauthorizedAccessException error) { return Results.Json(new { error = error.Message }, statusCode: 403); }
         catch (KeyNotFoundException error) { return Results.NotFound(new { error = error.Message }); }

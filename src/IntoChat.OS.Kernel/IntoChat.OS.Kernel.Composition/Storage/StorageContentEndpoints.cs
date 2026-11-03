@@ -173,7 +173,11 @@ public sealed class StorageContentModule : DigitalBrain.Module, IHttpModule
 {
     public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 
-    public void Configure(IEndpointRouteBuilder endpoints) => StorageContentEndpoints.Map(endpoints);
+    public void Configure(IEndpointRouteBuilder endpoints)
+    {
+        StorageContentEndpoints.Map(endpoints);
+        LocalRuntimeSessionEndpoints.Map(endpoints);
+    }
 
     public void ConfigureServices(IServiceCollection services)
     {
@@ -185,5 +189,7 @@ public sealed class StorageContentModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<UploadPlanBook>();
         services.TryAddSingleton<ContentUploadLog>();
         services.TryAddSingleton<IStorageContentAuthorizer, BrokerStorageAuthorizer>();
+        services.TryAddSingleton<LocalRuntimeSessionHub>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILifecycleParticipant<ISiloLifecycle>, LocalRuntimeSessionStartup>());
     }
 }

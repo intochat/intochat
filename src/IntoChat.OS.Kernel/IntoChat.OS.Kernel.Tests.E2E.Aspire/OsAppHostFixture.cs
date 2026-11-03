@@ -5,6 +5,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Client;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.Apps;
@@ -45,6 +46,8 @@ public sealed class OsAppHostFixture : IAsyncLifetime
 
     public HttpClient Os { get; private set; } = null!;
 
+    public IntoChatOSConnection Connection { get; private set; } = null!;
+
     public string Home => _home.Path;
 
     public string Scope { get; } = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
@@ -76,6 +79,11 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             await App.StartAsync(startTimeout.Token);
             Os = App.CreateHttpClient("OperatingSystem-a", "http");
             await Healthy(startTimeout.Token);
+            Connection = await IntoChatOSConnection.OpenAsync(
+                new Uri(Os.BaseAddress!, $"/brains/{Scope}/"),
+                "local-session",
+                $"{Scope}/apps/settings",
+                cancellationToken: startTimeout.Token);
             StartupDuration = DateTimeOffset.UtcNow - started;
         }
         catch
@@ -123,6 +131,17 @@ public sealed class OsAppHostFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        if (Connection is not null)
+        {
+            try
+            {
+                await Connection.DisposeAsync();
+            }
+            catch
+            {
+            }
+        }
+
         try
         {
             Os?.Dispose();

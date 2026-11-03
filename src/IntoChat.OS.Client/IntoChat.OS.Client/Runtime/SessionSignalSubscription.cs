@@ -2,9 +2,10 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Signals.Watch;
 using IntoChat.OS;
 using IntoChat.OS.Client.Runtime.V1;
-using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Client.Runtime;
 
@@ -17,21 +18,23 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
 {
     private readonly SharedSubscription.Reader _reader;
     private readonly BehaviorTrace _trace;
+    private readonly Action<T, CapabilityCaller>? _onProvenance;
 
-    private SessionSignalSubscription(SharedSubscription.Reader reader, BehaviorTrace trace)
+    private SessionSignalSubscription(SharedSubscription.Reader reader, BehaviorTrace trace, Action<T, CapabilityCaller>? onProvenance)
     {
         _reader = reader;
         _trace = trace;
+        _onProvenance = onProvenance;
     }
 
-    public static async Task<SessionSignalSubscription<T>> OpenAsync(SessionConnection session, string behavior, NeuronProxy source, BehaviorTrace trace, CancellationToken cancellationToken, string? selector = null)
+    public static async Task<SessionSignalSubscription<T>> OpenAsync(SessionConnection session, string behavior, NeuronProxy source, BehaviorTrace trace, CancellationToken cancellationToken, string? selector = null, Action<T, CapabilityCaller>? onProvenance = null)
     {
         var signal = typeof(DigitalBrain.Signal).IsAssignableFrom(typeof(T))
             ? typeof(T).GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias
                 ?? throw new ArgumentException($"{typeof(T).Name} is not a [Signal] record.")
             : typeof(T).Name;
         var id = await session.SubscribeAsync(new SubscribeReport(behavior, source.Contract.FullName!, source.Key, signal, selector), cancellationToken).ConfigureAwait(false);
-        return new SessionSignalSubscription<T>(session.Join(id), trace);
+        return new SessionSignalSubscription<T>(session.Join(id), trace, onProvenance);
     }
 
     public async IAsyncEnumerable<T> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -48,6 +51,10 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
             foreach (var json in batch.Signals)
             {
                 var signal = JsonSerializer.Deserialize<T>(json, RuntimeProtocol.Json)!;
+                if (_onProvenance is not null && TryReadProvenance(json) is { } caller)
+                {
+                    _onProvenance(signal, caller);
+                }
                 yield return signal;
                 skipped &= SignalDeliveries.WasSkipped(signal);
             }
@@ -56,6 +63,25 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
             var cpuMicros = wallMicros;
             await _reader.AcknowledgeAsync(batch.Watermark, cpuMicros, wallMicros, skipped, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private static CapabilityCaller? TryReadProvenance(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("provenance", out var prop)
+                && prop.ValueKind == JsonValueKind.Object)
+            {
+                return prop.Deserialize<CapabilityCaller>(RuntimeProtocol.Json);
+            }
+        }
+        catch (JsonException error)
+        {
+            _ = error.Message;
+        }
+        return null;
     }
 
     public ValueTask DisposeAsync()

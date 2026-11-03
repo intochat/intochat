@@ -81,6 +81,7 @@ public static class ServerHostingExtensions
         // connector's connection signals (ConnectionConnected and the rest, 06-08) in IntoChat.OS.Connections.
         var signalAssemblies = neuronModules.Select(static module => module.Assembly)
             .Concat(modules.Where(static module => module.Neurons is not null).Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
+            .Append(typeof(DigitalBrain.Signal).Assembly)
             .Append(typeof(IBrain).Assembly)
             .Append(typeof(IntoChat.OS.Connections.Platform.Connections.IConnection).Assembly)
             // The Authority's connection requests publish ConnectionsChanged and ConnectionRequested (06-08).
