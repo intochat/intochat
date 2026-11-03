@@ -1,8 +1,10 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Apps.Rules;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flame;
 using Microsoft.Extensions.Configuration;
@@ -88,8 +90,7 @@ internal sealed partial class AppNeuron(
     public async Task<AppSnapshot> Create(AppManifest manifest, string spec)
     {
         ArgumentNullException.ThrowIfNull(manifest);
-        if (Snapshot.Manifest is not null)
-        { throw new InvalidOperationException($"You already have an app named {Name()}. Open it in the Creator, or describe this one differently."); }
+        await Check("Create", new AppNameIsFree(Name(), Snapshot.Manifest is not null));
         var next = Snapshot.Clone();
         next.Manifest = manifest.Validated();
         next.BrainScopeId = BrainId();
@@ -107,8 +108,9 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> SaveSpec(string spec, Guid operationId)
     {
-        RequireRunningProgram();
-        RequireCreated();
+        await Check("SaveSpec",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null));
         ArgumentException.ThrowIfNullOrWhiteSpace(spec);
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
@@ -123,8 +125,9 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId)
     {
-        RequireRunningProgram();
-        RequireCreated();
+        await Check("SaveManifest",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null));
         ArgumentNullException.ThrowIfNull(manifest);
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
@@ -143,15 +146,15 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId)
     {
-        RequireCreated();
-        RequireRunningProgram();
+        await Check("WriteBehavior",
+            new AppExists(Name(), Snapshot.Manifest is not null),
+            new ProgramIsNotPaused(Snapshot.MigrationPaused));
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (path == AppFiles.DeclarationPath) { throw new ArgumentException($"{AppFiles.DeclarationPath} is the app's declaration: change it through SaveManifest and SaveSpec."); }
-        if (!AppFiles.IsProgram(path)) { throw new ArgumentException("A program file is a .cs file: a synapse (top-level statements) or a shared class."); }
+        await Check("WriteBehavior", new ProgramPathIsWritable(path ?? ""));
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
-        next.PutFile(path, source);
+        next.PutFile(path!, source);
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         Receipt(next, operationId);
@@ -166,18 +169,19 @@ internal sealed partial class AppNeuron(
         }
         // A fast-path write names its deployed synapse on the request; CompleteSynapse lands the outcome.
         var requested = Array.FindIndex(next.Synapses, synapse => synapse.OperationId == operationId && synapse.Status == SynapseStatus.Requested);
-        if (requested >= 0) { next.Synapses[requested] = next.Synapses[requested] with { Path = path, Hash = hashes?.GetValueOrDefault(path) }; }
+        if (requested >= 0) { next.Synapses[requested] = next.Synapses[requested] with { Path = path!, Hash = hashes?.GetValueOrDefault(path!) }; }
         await Persist(next);
         return Describe(Snapshot);
     }
 
     public async Task<AppSnapshot> WriteFile(string path, string source, Guid operationId)
     {
-        RequireRunningProgram();
-        RequireCreated();
+        await Check("WriteFile",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null));
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (path.EndsWith(".cs", StringComparison.Ordinal)) { throw new ArgumentException("Programs are written through WriteBehavior; app.cs through SaveManifest and SaveSpec."); }
+        await Check("WriteFile", new FilePathIsNotAProgram(path));
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
@@ -191,8 +195,9 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)
     {
-        RequireRunningProgram();
-        RequireCreated();
+        await Check("Configure",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null));
         // A storage hook vetoes a binding change its data depends on, before anything changes.
         foreach (var (slot, id) in connections ?? [])
         {
@@ -213,10 +218,12 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> Rollback(string version)
     {
-        RequireRunningProgram();
-        RequireCreated();
-        var record = Snapshot.History.FirstOrDefault(item => item.Version == version)
-            ?? throw new ArgumentException($"No version {version}. This app has: {string.Join(", ", Snapshot.History.Select(item => item.Version))}.");
+        string[] known = [.. Snapshot.History.Select(item => item.Version)];
+        await Check("Rollback",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null),
+            new VersionExists(version, known));
+        var record = Snapshot.History.First(item => item.Version == version);
         var next = Snapshot.Clone();
         next.Edited = true;
         next.Manifest = record.Manifest;
@@ -233,11 +240,12 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> BeginBuild(string? instruction)
     {
-        RequireRunningProgram();
-        RequireCreated();
-        if (Snapshot.Status == AppStatus.Building
-            && clock.GetUtcNow() - Snapshot.BuildStartedAt < TimeSpan.FromSeconds(options.Value.BuildFreshForSeconds))
-        { throw new InvalidOperationException("The Builder is already working on this app."); }
+        var building = Snapshot.Status == AppStatus.Building
+            && clock.GetUtcNow() - Snapshot.BuildStartedAt < TimeSpan.FromSeconds(options.Value.BuildFreshForSeconds);
+        await Check("BeginBuild",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null),
+            new BuilderIsIdle(building));
         var next = Snapshot.Clone();
         next.Status = AppStatus.Building;
         next.BuildAttempt = Guid.NewGuid();
@@ -275,17 +283,20 @@ internal sealed partial class AppNeuron(
     {
         // A background writer may report after deletion; activity must not recreate its app record.
         if (Snapshot.Manifest is null) { return; }
-        if (!AppActivity.States.Contains(state, StringComparer.Ordinal))
-        { throw new ArgumentException($"'{state}' is not an activity state: {string.Join(", ", AppActivity.States)}.", nameof(state)); }
+        var declared = Snapshot.Presentation?.Root?.Sphere?.BlackboardKeys;
+        var keyRules = declared is not null && blackboard is { Count: > 0 }
+            ? blackboard.Keys.Select(key => (Rule)new BlackboardKeyIsDeclared(key, declared)).ToArray()
+            : [];
+        await Check("Progress", [new ActivityStateIsKnown(state ?? ""), .. keyRules]);
         detail = (detail ?? "").Trim();
         // In-memory update without Snapshot.Clone() or Save() disk flushes
         var building = Snapshot.Status == AppStatus.Building && detail.Length > 0
             && Snapshot.Activity.LastOrDefault() != detail;
         if (building) { State.Activity = [.. State.Activity.TakeLast(MaxActivity - 1), detail]; }
-        var activity = new AppActivity(Name(), state, detail);
+        var activity = new AppActivity(Name(), state!, detail);
         State.ActivitySequence++;
         State.LastActivity = activity;
-        var presentation = ApplyActivityPresentation(State, state, blackboard);
+        var presentation = ApplyActivityPresentation(State, state!, blackboard);
         await PublishEphemeral(activity);
         if (presentation is not null)
         { await PublishEphemeral(presentation); }
@@ -297,20 +308,11 @@ internal sealed partial class AppNeuron(
         var attention = state == "attention" ? "true" : "false";
         var current = next.Presentation ?? new(next.ProgramRevision, 0, null, null, new(StringComparer.Ordinal));
         var declared = current.Root?.Sphere?.BlackboardKeys;
-        if (extra is { Count: > 0 })
+        if (extra is { Count: > 0 } && declared is null)
         {
             // The sphere is published by another behavior. Until it exists, the activity still commits
             // and keys that have nowhere to go wait for a later write.
-            if (declared is null) { extra = null; }
-            else
-            {
-                foreach (var key in extra.Keys)
-                {
-                    if (FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal)
-                        || !declared.Contains(key, StringComparer.Ordinal))
-                    { throw new ArgumentException($"'{key}' is not a script-writable declared blackboard key.", nameof(extra)); }
-                }
-            }
+            extra = null;
         }
         var board = new Dictionary<string, string>(current.Blackboard, StringComparer.Ordinal)
         { ["running"] = running, ["attention"] = attention };
@@ -370,7 +372,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppBundle> Export()
     {
-        RequireCreated();
+        await RequireCreated("Export");
         await RequireCompiles();
         var manifest = Snapshot.Manifest!;
         return new AppBundle(Name(), Snapshot.Version, manifest, Snapshot.Spec,
@@ -379,18 +381,17 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> Publish()
     {
-        RequireRunningProgram();
-        RequireCreated();
+        await Check("Publish",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null));
         await RequireCompiles();
-        if (!CallerContextStamper.TryGet(out var caller))
-        { throw new InvalidOperationException("Publishing needs a signed-in publisher."); }
-        if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != BrainId())
+        CallerContextStamper.TryGet(out var caller);
+        await Check("Publish", new PublisherIsSignedIn(caller?.PersonId));
+        if (BrainScope.Create(caller!.AccountId, caller.BrainId).Id != BrainId())
         { throw new UnauthorizedAccessException("Only the brain that owns an app can publish it."); }
         // A listing is one app: the same name from another of the publisher's brains is refused,
         // never a silent takeover of what installers already trust.
-        if (await Marketplace.Read(caller.PersonId, Name()) is { } listed
-            && listed.Source.Scope() != BrainId())
-        { throw new InvalidOperationException($"{caller.PersonId}/{Name()} is already published from another brain."); }
+        var listed = await Marketplace.Read(caller.PersonId, Name());
         var next = Snapshot.Clone();
         var manifest = next.Manifest!;
         next.PublishedVersion = next.Version;
@@ -399,8 +400,9 @@ internal sealed partial class AppNeuron(
         var releases = Releases();
         var release = Release(next.Published, caller.PersonId, new AppSource.Brain(caller.AccountId, caller.BrainId));
         var existing = releases.FirstOrDefault(item => item.Bundle.Version == next.Version);
-        if (existing is not null && existing.Publication.Reference != release.Publication.Reference)
-        { throw new InvalidOperationException("This version has already been published with different content. Create a new version."); }
+        await Check("Publish",
+            new PublicationIsNotForeign(listed?.Source.Scope(), BrainId()),
+            new VersionContentIsUnchanged(existing is null || existing.Publication.Reference == release.Publication.Reference));
         next.Releases = existing is null ? [.. releases, release] : releases;
         if (existing is not null)
         { next.Published = next.Published with { SavedAt = existing.Publication.PublishedAt }; }
@@ -421,32 +423,31 @@ internal sealed partial class AppNeuron(
             : new AppBundle(Name(), record.Version, record.Manifest, record.Spec, new(record.Files, StringComparer.Ordinal)));
     }
 
-    public Task<AppBundle> ExportPublished()
+    public async Task<AppBundle> ExportPublished()
     {
-        if (Snapshot.Published is not { } published)
-        { throw new InvalidOperationException($"{Name()} has no published version."); }
-        return Task.FromResult(new AppBundle(Name(), published.Version, published.Manifest, published.Spec,
-            new(published.Files, StringComparer.Ordinal)));
+        await Check("ExportPublished", new HasPublishedVersion(Snapshot.Published is not null));
+        var published = Snapshot.Published!;
+        return new AppBundle(Name(), published.Version, published.Manifest, published.Spec,
+            new(published.Files, StringComparer.Ordinal));
     }
 
     public async Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
-        RequireBundleFor(bundle);
+        await RequireBundleFor("Import", bundle);
         if (installation is not null)
         {
-            ValidateInstallation(bundle, origin, installation);
+            await ValidateInstallation("Import", bundle, origin, installation);
             if (Snapshot.Manifest is not null && Snapshot.Installation == installation)
             {
                 if (Snapshot.Edited || Snapshot.Status == AppStatus.Live) { return Describe(Snapshot); }
                 var held = new AppBundle(Name(), Snapshot.Version, Snapshot.Manifest, Snapshot.Spec, new(Snapshot.Files, StringComparer.Ordinal));
-                if (held.Version != installation.Publication.Version || AppPublicationDigest.Of(held) != installation.Publication.Digest)
-                { throw new InvalidOperationException("This installed copy has changed; it cannot resume the original install."); }
+                var changed = held.Version != installation.Publication.Version || AppPublicationDigest.Of(held) != installation.Publication.Digest;
+                await Check("Import", new InstalledCopyIsUnchanged(changed));
                 return await Land(Snapshot.Clone());
             }
         }
-        if (Snapshot.Manifest is not null)
-        { throw new InvalidOperationException($"You already have an app named {Name()}."); }
+        await Check("Import", new AppNameIsFree(Name(), Snapshot.Manifest is not null));
         var next = Snapshot.Clone();
         next.BrainScopeId = BrainId();
         next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
@@ -473,8 +474,10 @@ internal sealed partial class AppNeuron(
     public async Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
-        RequireCreated();
-        RequireBundleFor(bundle);
+        await Check("Replace",
+            new AppExists(Name(), Snapshot.Manifest is not null),
+            new BundleNameIsValid(bundle.Name, Name()),
+            new BundleVersionIsSemantic(bundle.Version));
         // A retried update at the version already held, with the same program, changes nothing.
         if (bundle.Version == Snapshot.Version && bundle.Spec == Snapshot.Spec
             && bundle.Files.Count == Snapshot.Files.Count
@@ -543,14 +546,10 @@ internal sealed partial class AppNeuron(
         return Describe(Snapshot);
     }
 
-    private void RequireBundleFor(AppBundle bundle)
-    {
-        if (bundle.Name != Name() || string.IsNullOrWhiteSpace(bundle.Name)
-            || bundle.Name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
-        { throw new InvalidDataException($"'{bundle.Name}' is not a valid app name: lowercase letters, digits and dashes, matching the key."); }
-        if (bundle.Version.Split('.') is not { Length: 3 } parts || parts.Any(part => !part.All(char.IsAsciiDigit) || part.Length == 0))
-        { throw new InvalidDataException($"'{bundle.Version}' is not a version of the form major.minor.patch."); }
-    }
+    private Task RequireBundleFor(string operation, AppBundle bundle)
+        => Check(operation,
+            new BundleNameIsValid(bundle.Name, Name()),
+            new BundleVersionIsSemantic(bundle.Version));
 
     public async Task RecordOrigin(AppOrigin origin)
     {
@@ -559,7 +558,7 @@ internal sealed partial class AppNeuron(
         // an app behind the proxy (itself included) must never write its own.
         if (CallerContextStamper.TryGet(out var caller) && caller.StampedBy == TrustedEdge.AppProxy)
         { throw new UnauthorizedAccessException("Only the kernel or a person records where an app came from."); }
-        RequireCreated();
+        await RequireCreated("RecordOrigin");
         var next = Snapshot.Clone();
         next.Origin = origin;
         next.Edited = false;
@@ -570,12 +569,13 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> SaveToSource()
     {
-        RequireRunningProgram();
-        RequireCreated();
-        if (ServiceProvider.GetService<IHostEnvironment>() is not { } environment || !environment.IsDevelopment())
-        { throw new InvalidOperationException("Save to source is only available in development."); }
-        if (Snapshot.Origin is not { Source: AppSource.Shipped } origin)
-        { throw new InvalidOperationException($"{Name()} is not a copy of a feature from the features folder, so it has no source to save to."); }
+        var development = ServiceProvider.GetService<IHostEnvironment>() is { } environment && environment.IsDevelopment();
+        var fromFeature = Snapshot.Origin is { Source: AppSource.Shipped };
+        await Check("SaveToSource",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null),
+            new SaveToSourceIsAvailable(development, fromFeature, Name()));
+        var origin = Snapshot.Origin!;
         var catalog = ServiceProvider.GetRequiredService<FeatureCatalog>();
         var exported = await Export();
         var shipped = await catalog.Find(origin.Publisher, origin.Name);
@@ -595,7 +595,7 @@ internal sealed partial class AppNeuron(
 
     public async Task Delete()
     {
-        RequireRunningProgram();
+        await Check("Delete", new ProgramIsNotPaused(Snapshot.MigrationPaused));
         if (Snapshot.Manifest is null) { return; }
         var key = Key;
         // Only this app's own listing comes down with it.
@@ -620,15 +620,13 @@ internal sealed partial class AppNeuron(
 
     public async Task<Guid> Request(string operation, string input)
     {
-        RequireCreated();
+        await RequireCreated("Request");
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         ArgumentNullException.ThrowIfNull(input);
-        if (!Snapshot.Manifest!.Operations.Any(candidate => candidate.Name == operation))
-        {
-            throw new ArgumentException(
-                $"{operation} is not an operation of {Name()}. It offers: {string.Join(", ", Snapshot.Manifest.Operations.Select(candidate => candidate.Name))}.");
-        }
-        if (input.Length > MaxPayloadLength) { throw new ArgumentException("A request input is at most 64 KiB."); }
+        string[] operations = [.. Snapshot.Manifest!.Operations.Select(candidate => candidate.Name)];
+        await Check("Request",
+            new OperationIsDeclared(operation, operations, Name()),
+            new RequestPayloadFits(input.Length));
         var id = Guid.NewGuid();
         if (Snapshot.MigrationTarget is { } target)
         {
@@ -640,7 +638,7 @@ internal sealed partial class AppNeuron(
         {
             await Publish(new AppRejected(operation, rejected));
             await Progress("attention", $"{rejected.Rule} refused {operation}: {rejected.Reason}");
-            throw new ArgumentException($"{rejected.Rule} refused {operation}: {rejected.Reason}");
+            throw new RuleViolationException(new Rejected(operation, [rejected.Rule], [rejected.Reason]));
         }
         // A request is a fact for the app's synapses; it is published for whoever is watching and kept
         // for whoever subscribes later, so a synapse that starts after the request still gets it.
@@ -657,15 +655,16 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId)
     {
-        RequireRunningProgram();
-        RequireCreated();
+        await Check("WriteSynapse",
+            new ProgramIsNotPaused(Snapshot.MigrationPaused),
+            new AppExists(Name(), Snapshot.Manifest is not null));
         ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
-        if (sentence.Length > MaxSentenceLength) { throw new ArgumentException($"Say the synapse in at most {MaxSentenceLength} characters."); }
         string[] keys = [.. (focus ?? []).Where(key => !string.IsNullOrWhiteSpace(key)).Distinct(StringComparer.Ordinal)];
-        if (keys.Length > MaxFocus) { throw new ArgumentException($"Focus on at most {MaxFocus} neurons."); }
-        if (keys.Any(key => key.Length > MaxFocusKeyLength)) { throw new ArgumentException($"A focus key is at most {MaxFocusKeyLength} characters."); }
+        await Check("WriteSynapse",
+            new SynapseSentenceFits(sentence.Length),
+            new FocusFits(keys));
         if (Replayed(operationId) || Snapshot.Synapses.Any(synapse => synapse.OperationId == operationId)) { return Describe(Snapshot); }
-        if (ServiceProvider.GetService<IScriptSandbox>()?.CanRun != true) { throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing); }
+        await Check("WriteSynapse", new SandboxIsAvailable(ServiceProvider.GetService<IScriptSandbox>()?.CanRun == true));
         var next = Snapshot.Clone();
         next.Synapses = [.. next.Synapses.TakeLast(MaxSynapses - 1),
             new AppSynapse(operationId, sentence.Trim(), keys, SynapseStatus.Requested, clock.GetUtcNow(), [])];
@@ -677,16 +676,16 @@ internal sealed partial class AppNeuron(
 
     public async Task<StagedProgram> Stage(Guid operationId, string path, string source)
     {
-        RequireCreated();
-        RequireRunningProgram();
+        await Check("Stage",
+            new AppExists(Name(), Snapshot.Manifest is not null),
+            new ProgramIsNotPaused(Snapshot.MigrationPaused));
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (path == AppFiles.DeclarationPath) { throw new ArgumentException($"{AppFiles.DeclarationPath} is the app's declaration: change it through SaveManifest and SaveSpec."); }
-        if (!AppFiles.IsProgram(path)) { throw new ArgumentException("A program file is a .cs file: a synapse (top-level statements) or a shared class."); }
         var index = Array.FindIndex(Snapshot.Synapses, synapse => synapse.OperationId == operationId);
-        if (index < 0 || Snapshot.Synapses[index].Status != SynapseStatus.Requested)
-        { throw new InvalidOperationException("No requested synapse waits under that operation id."); }
+        await Check("Stage",
+            new ProgramPathIsWritable(path ?? ""),
+            new SynapseRequestIsPending(index >= 0 && Snapshot.Synapses[index].Status == SynapseStatus.Requested));
         var sources = Sources(Snapshot);
-        sources[path] = source;
+        sources[path!] = source;
         var entry = Snapshot.Synapses[index];
         if (entry.Path != path || entry.Source != source)
         {
@@ -901,16 +900,8 @@ internal sealed partial class AppNeuron(
         next.Receipts = [.. next.Receipts.Append(new OperationReceipt(operationId)).TakeLast(MaxReceipts)];
     }
 
-    private void RequireCreated()
-    {
-        if (Snapshot.Manifest is null)
-        { throw new InvalidOperationException($"No app named {Name()} exists in this brain."); }
-    }
-
-    private void RequireRunningProgram()
-    {
-        if (Snapshot.MigrationPaused) { throw new InvalidOperationException("The app program is paused for migration."); }
-    }
+    private Task RequireCreated(string operation)
+        => Check(operation, new AppExists(Name(), Snapshot.Manifest is not null));
 
     // The publish gate: every script in the bundle compiles against the installed contracts. A host
     // without a script compiler cannot run apps either, so it has nothing to refuse.
@@ -929,6 +920,7 @@ internal sealed partial class AppNeuron(
         try { check = await sandbox.Compile(scripts, CancellationToken.None); }
         catch (InvalidOperationException) { return; }
         if (check.Success) { return; }
+        // build outcome, caught by Build
         throw new InvalidOperationException($"Version {Snapshot.Version} does not compile: "
             + string.Join("; ", check.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}")));
     }
@@ -1005,4 +997,3 @@ internal sealed partial class AppNeuron(
         state.RuntimeStateJson,
         state.RuntimeStateRevision);
 }
-

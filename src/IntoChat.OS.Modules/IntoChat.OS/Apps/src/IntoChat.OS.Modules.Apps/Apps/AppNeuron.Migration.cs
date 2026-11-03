@@ -1,3 +1,5 @@
+using DigitalBrain.Rules;
+using IntoChat.OS.Modules.Apps.Rules;
 using IntoChat.OS.Modules.Apps.Signals;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -7,8 +9,7 @@ internal sealed partial class AppNeuron
     public async Task Pause(string migration)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(migration);
-        if (Snapshot.Migration is { } existing && existing != migration)
-        { throw new InvalidOperationException("Another app migration is already recorded."); }
+        await Check("Pause", new MigrationIsSingle(Snapshot.Migration is { } existing && existing != migration));
         if (Snapshot.Migration is null)
         {
             var next = Snapshot.Clone();
@@ -32,19 +33,20 @@ internal sealed partial class AppNeuron
         { await runtime.Retire(Key, CancellationToken.None); }
     }
 
-    public Task<AppState> Archive(string migration)
+    public async Task<AppState> Archive(string migration)
     {
-        CheckMigration(migration);
-        return Task.FromResult(Snapshot.MigrationArchive!.Clone());
+        await Check("Archive", new MigrationIsPausedFirst(Snapshot.Migration == migration && Snapshot.MigrationArchive is not null));
+        return Snapshot.MigrationArchive!.Clone();
     }
 
     public async Task Adopt(string migration, string source)
     {
-        CheckMigration(migration);
-        CheckSibling(source);
-        if (Snapshot.MigrationSource is { } adopted)
+        await Check("Adopt",
+            new MigrationIsPausedFirst(Snapshot.Migration == migration && Snapshot.MigrationArchive is not null),
+            new MigrationTargetIsSibling(source == Key ? "" : source, BrainId()),
+            new MigrationAdoptsOneSource(Snapshot.MigrationSource, source));
+        if (Snapshot.MigrationSource is not null)
         {
-            if (adopted != source) { throw new InvalidOperationException("This migration already adopted another source."); }
             return;
         }
         var original = await Get<IAppMigration>(AppId(source)).Archive(migration);
@@ -61,10 +63,10 @@ internal sealed partial class AppNeuron
 
     public async Task Redirect(string migration, string target)
     {
-        CheckMigration(migration);
-        CheckSibling(target);
-        if (Snapshot.MigrationTarget is { } existing && existing != target)
-        { throw new InvalidOperationException("This migration already redirects elsewhere."); }
+        await Check("Redirect",
+            new MigrationIsPausedFirst(Snapshot.Migration == migration && Snapshot.MigrationArchive is not null),
+            new MigrationTargetIsSibling(target == Key ? "" : target, BrainId()),
+            new MigrationRedirectsOnce(Snapshot.MigrationTarget is { } existing && existing != target));
         var next = Snapshot.Clone();
         next.MigrationTarget = target;
         await Persist(next);
@@ -75,8 +77,9 @@ internal sealed partial class AppNeuron
 
     public async Task Resume(string migration)
     {
-        CheckMigration(migration);
-        if (Snapshot.MigrationTarget is not null) { throw new InvalidOperationException("An alias cannot run its retired program."); }
+        await Check("Resume",
+            new MigrationIsPausedFirst(Snapshot.Migration == migration && Snapshot.MigrationArchive is not null),
+            new AliasDoesNotRun(Snapshot.MigrationTarget is not null));
         var next = Snapshot.Clone();
         next.MigrationPaused = false;
         next.Status = AppStatus.Deploying;
@@ -97,7 +100,7 @@ internal sealed partial class AppNeuron
 
     public async Task MergeRequests(RetainedRequest[] requests)
     {
-        if (Snapshot.Migration is null) { throw new InvalidOperationException("Request adoption requires a migration."); }
+        await Check("MergeRequests", new MigrationIsRecorded(Snapshot.Migration is not null));
         foreach (var request in requests.Select(item => item.Request))
         {
             await Accept(request.Operation, request.Input, request.RequestId);
@@ -123,39 +126,27 @@ internal sealed partial class AppNeuron
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         ArgumentNullException.ThrowIfNull(input);
-        if (input.Length > MaxPayloadLength) { throw new ArgumentException("A request input is at most 64 KiB."); }
-        if (requestId == Guid.Empty) { throw new ArgumentException("A request identity is required."); }
         var prior = Snapshot.RequestRetention.Select(item => item.Request)
             .Concat(Snapshot.MigrationRequests).FirstOrDefault(item => item.RequestId == requestId);
+        await Check("Accept",
+            new RequestPayloadFits(input.Length),
+            new RequestIdIsPresent(requestId),
+            new RequestIdIsFresh(prior is not null && (prior.Operation != operation || prior.Input != input)));
         if (prior is not null)
         {
-            if (prior.Operation != operation || prior.Input != input)
-            { throw new InvalidOperationException("A request identity cannot be reused for another command."); }
             return;
         }
         var request = new AppRequested(operation, input, requestId);
         if (!Snapshot.MigrationPaused)
         {
-            if (Snapshot.Manifest is null || !Snapshot.Manifest.Operations.Any(candidate => candidate.Name == operation))
-            { throw new ArgumentException($"{operation} is not an operation of {Name()}."); }
+            string[] operations = [.. (Snapshot.Manifest?.Operations ?? []).Select(candidate => candidate.Name)];
+            await Check("Accept", new OperationIsDeclared(operation, operations, Name()));
             if (await Rejection(request) is { } rejected)
-            { throw new ArgumentException($"{rejected.Rule} refused {operation}: {rejected.Reason}"); }
+            { throw new RuleViolationException(new Rejected(operation, [rejected.Rule], [rejected.Reason])); }
         }
         var next = Snapshot.Clone();
         next.RequestSequence++;
         next.RequestRetention = [.. next.RequestRetention.TakeLast(2 * RetainedCapacity - 1), new(next.RequestSequence, request)];
         await Save(next, new AppRequested(operation, input, requestId));
-    }
-
-    private void CheckMigration(string migration)
-    {
-        if (Snapshot.Migration != migration || Snapshot.MigrationArchive is null)
-        { throw new InvalidOperationException("Pause this app under the same migration first."); }
-    }
-
-    private void CheckSibling(string key)
-    {
-        if (IApp.NameOf(BrainId(), key) is null || key == Key)
-        { throw new ArgumentException("A migration target must be another app in the same brain."); }
     }
 }

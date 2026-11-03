@@ -1,0 +1,5 @@
+[*.cs]
+dotnet_diagnostic.DB0040.severity = warning
+
+[Files/*.cs]
+dotnet_diagnostic.DB0040.severity = none
