@@ -26,6 +26,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Identity.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.Identity.Tests.Integration" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Integration" />
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.E2E" />

@@ -118,6 +118,9 @@
   <Folder Name="/Modules/IntoChat.OS/Circles/src/">
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Circles/src/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
   </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Identity/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Identity/tests/IntoChat.OS.Modules.Identity.Tests.Integration/IntoChat.OS.Modules.Identity.Tests.Integration.csproj" />
+  </Folder>
   <Folder Name="/Modules/IntoChat.OS/Identity/Contracts/">
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
   </Folder>
