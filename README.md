@@ -76,10 +76,10 @@ IntoChat OS is MIT licensed, and the circle server module ships in this reposito
 
 ## Packages and images
 
-- NuGet packages (GitHub Packages): `https://nuget.pkg.github.com/intochat/index.json`
+- NuGet packages (GitHub Packages, prereleases on `main`/`master` and stable on release): `https://nuget.pkg.github.com/intochat/index.json`
 - Container images: `ghcr.io/intochat/os` (kernel), `ghcr.io/intochat/os-ui` (Flutter web shell), `ghcr.io/intochat/os-sandbox` (C# sandbox)
 
-Releases are tagged `v<VERSION>` from the [`VERSION`](VERSION) file. See the [changelog](CHANGELOG.md).
+Releases are tagged `v<VERSION>` from the [`VERSION`](VERSION) file, versioned independently of `digitalbrain` and `modules`. See the [changelog](CHANGELOG.md).
 
 ## Documentation
 

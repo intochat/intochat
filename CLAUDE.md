@@ -16,7 +16,7 @@ OS and SDK documentation lives in the sibling public repository `E:/intochat/os.
 - Keep C# wire records and Dart mirrors aligned.
 - Use concrete arrays in persisted state. Avoid self-calls on non-reentrant grains. Renew observer leases.
 - Never wipe user state, replace custody keys or assume stored data is disposable. Coordinate changes to persisted formats explicitly.
-- DigitalBrain is an independent sibling repository (`E:/intochat/digitalbrain`) consumed strictly via NuGet packages from the local feed (`../nuget`). Framework changes are built, tested, and packed in `digitalbrain`, then consumed here via updated package version pins in `Directory.Packages.props`.
+- DigitalBrain is an independent sibling repository (`E:/intochat/digitalbrain`) consumed via nuget.org previews, or a developer feed named only in the git-ignored `Directory.Build.local.props`. Framework changes are built, tested, and packed in `digitalbrain`, then consumed here via updated package version pins in `Directory.Packages.props`.
 - Warnings are errors, nullable is enabled and package versions are central. Avoid boilerplate XML summaries; keep comments accurate.
 
 ## Documentation inputs retained here
