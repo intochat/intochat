@@ -3504,11 +3504,16 @@ class _InoParsedTurn {
   }
 
   String? get routedAppId {
+    if (routeHint == 'postgres:query' || routeHint == 'chart:qa') {
+      return 'data';
+    }
     if (routeHint.startsWith('routed:')) {
       final rest = routeHint.substring('routed:'.length);
       final dot = rest.indexOf('.');
       final app = dot > 0 ? rest.substring(0, dot) : rest;
       if (const {
+        'markdraw',
+        'data',
         'photocraft',
         'filmcraft',
         'settings',
@@ -3521,6 +3526,8 @@ class _InoParsedTurn {
   }
 
   String get routedAppLabel => switch (routedAppId) {
+    'markdraw' => 'Markdraw Studio',
+    'data' => 'Data Studio',
     'photocraft' => 'PhotoCraft Studio',
     'filmcraft' => 'FilmCraft Studio',
     'settings' => 'Settings',
@@ -3592,6 +3599,54 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
   bool _showSlashMenu = false;
   bool _showResourceMenu = false;
   _InoResourceSpec? _attachedResource;
+  String? _pendingUserPrompt;
+  String? _pendingStageLabel;
+  int _turnsAtSubmit = 0;
+  int _cardsAtSubmit = 0;
+  String _convIdAtSubmit = '';
+  Timer? _thinkingTimeout;
+
+  bool get _isBackendThinking =>
+      widget.statusText.startsWith('Thinking') ||
+      widget.statusText.startsWith('Processing');
+
+  bool get _isThinking => _pendingUserPrompt != null || _isBackendThinking;
+
+  String get _effectiveStatusText =>
+      _pendingStageLabel ??
+      (_isBackendThinking ? widget.statusText : widget.statusText);
+
+  static String _describeThinkingStage(String prompt) {
+    final lower = prompt.toLowerCase();
+    if (lower.startsWith('/')) {
+      return 'Processing command $prompt…';
+    }
+    if (lower.contains('chart') ||
+        lower.contains('cahrt') ||
+        lower.contains('chrat') ||
+        lower.contains('plot') ||
+        lower.contains('select ') ||
+        lower.contains('visualize')) {
+      return 'Thinking · Querying data & building chart…';
+    }
+    if (lower.contains('markdraw') ||
+        lower.contains('excalidraw') ||
+        lower.contains('diagram') ||
+        lower.contains('flowchart') ||
+        lower.contains('canvas')) {
+      return 'Thinking · Co-drawing on Markdraw canvas…';
+    }
+    if (lower.contains('photocraft') || lower.contains('background')) {
+      return 'Thinking · Dispatching to PhotoCraft Studio…';
+    }
+    if (lower.contains('filmcraft') || lower.contains('timeline')) {
+      return 'Thinking · Dispatching to FilmCraft Studio…';
+    }
+    if (lower.contains('neuron://') || lower.contains('[file preview]')) {
+      return 'Thinking · Inspecting workspace file…';
+    }
+    return 'Thinking · Processing request…';
+  }
 
   static const List<_InoResourceSpec> _workspaceResources = [
     _InoResourceSpec(
@@ -3670,10 +3725,57 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
   ];
 
   @override
+  void didUpdateWidget(_InoChatDesktopWorkspace oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_pendingUserPrompt != null) {
+      final turnAdded = widget.turns.length != _turnsAtSubmit;
+      final cardAdded = widget.cards.length != _cardsAtSubmit;
+      final convChanged = widget.activeConversationId != _convIdAtSubmit;
+      final matchedLastTurn = widget.turns.isNotEmpty &&
+          widget.turns.last.userMessage == _pendingUserPrompt;
+      if (turnAdded || cardAdded || convChanged || matchedLastTurn) {
+        _thinkingTimeout?.cancel();
+        _pendingUserPrompt = null;
+        _pendingStageLabel = null;
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    _thinkingTimeout?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _submitWithThinking(String payload) {
+    final trimmed = payload.trim();
+    if (trimmed.isEmpty) return;
+    _thinkingTimeout?.cancel();
+    setState(() {
+      if (!trimmed.startsWith('/clear') && !trimmed.startsWith('/new') && !trimmed.startsWith('/pin')) {
+        _pendingUserPrompt = trimmed;
+        _pendingStageLabel = _describeThinkingStage(trimmed);
+        _turnsAtSubmit = widget.turns.length;
+        _cardsAtSubmit = widget.cards.length;
+        _convIdAtSubmit = widget.activeConversationId;
+      } else {
+        _pendingUserPrompt = null;
+        _pendingStageLabel = null;
+      }
+    });
+    if (_pendingUserPrompt != null) {
+      _thinkingTimeout = Timer(const Duration(seconds: 25), () {
+        if (mounted && _pendingUserPrompt != null) {
+          setState(() {
+            _pendingUserPrompt = null;
+            _pendingStageLabel = null;
+          });
+        }
+      });
+    }
+    widget.onSubmitPrompt(trimmed);
   }
 
   void _sendCurrentText([String? overrideText]) {
@@ -3699,7 +3801,7 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
       _showSlashMenu = false;
       _showResourceMenu = false;
     });
-    widget.onSubmitPrompt(payload);
+    _submitWithThinking(payload);
   }
 
   @override
@@ -3728,7 +3830,9 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
                       showSidebarToggle: !canShowSidebar,
                     ),
                     Expanded(
-                      child: widget.turns.isEmpty && widget.cards.isEmpty
+                      child: widget.turns.isEmpty &&
+                              widget.cards.isEmpty &&
+                              _pendingUserPrompt == null
                           ? _buildEmptyState(c)
                           : _buildConversationStream(c),
                     ),
@@ -3833,21 +3937,36 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: widget.isListening ? c.working : c.done,
-                    shape: BoxShape.circle,
+                if (_isThinking)
+                  SizedBox(
+                    width: 10,
+                    height: 10,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.6,
+                      color: c.working,
+                    ),
+                  )
+                else
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: widget.isListening ? c.working : c.done,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    widget.statusText,
+                    _effectiveStatusText,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IcType.text(11.5, color: c.textMuted, tnum: true),
+                    style: IcType.text(
+                      11.5,
+                      weight: _isThinking ? FontWeight.w600 : FontWeight.w400,
+                      color: _isThinking ? c.working : c.textMuted,
+                      tnum: true,
+                    ),
                   ),
                 ),
               ],
@@ -3901,7 +4020,14 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
               ),
             ),
           ),
-          if (waitingCard != null) ...[
+          if (_isThinking) ...[
+            const SizedBox(width: 10),
+            TagPill(
+              label: _effectiveStatusText,
+              tone: TagTone.working,
+              icon: LucideIcons.loader,
+            ),
+          ] else if (waitingCard != null) ...[
             const SizedBox(width: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -4034,7 +4160,7 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
                         icon: s.icon,
                         title: s.title,
                         subtitle: s.subtitle,
-                        onTap: () => widget.onSubmitPrompt(s.prompt),
+                        onTap: () => _submitWithThinking(s.prompt),
                       ),
                     ),
                 ],
@@ -4050,6 +4176,7 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
 
   Widget _buildConversationStream(IcColors c) {
     final hasTurns = widget.turns.isNotEmpty;
+    final pendingPrompt = _pendingUserPrompt;
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 18, 24, 20),
       children: [
@@ -4073,6 +4200,86 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
                 if (!hasTurns)
                   for (final card in widget.cards)
                     _buildInlineCardMessage(c, card),
+                if (pendingPrompt != null) ...[
+                  _buildUserTurnBubble(
+                    c,
+                    _InoParsedTurn(
+                      userMessage: pendingPrompt,
+                      reply: '',
+                      routeHint: 'working',
+                    ),
+                  ),
+                  _buildThinkingTurnBlock(
+                    c,
+                    _pendingStageLabel ?? 'Thinking · Processing request…',
+                  ),
+                ] else if (_isBackendThinking)
+                  _buildThinkingTurnBlock(c, widget.statusText),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThinkingTurnBlock(IcColors c, String stageLabel) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          margin: const EdgeInsets.only(top: 2),
+          decoration: BoxDecoration(
+            color: c.accentTint,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: c.accent.withValues(alpha: 0.35)),
+          ),
+          alignment: Alignment.center,
+          child: SizedBox(
+            width: 13,
+            height: 13,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.8,
+              color: c.accent,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: c.surfaceSunk,
+              borderRadius: BorderRadius.circular(IcRadius.card),
+              border: Border.all(color: c.borderHairline),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.sparkles, size: 14, color: c.working),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ino is thinking…',
+                        style: IcType.text(
+                          13,
+                          weight: FontWeight.w600,
+                          color: c.textStrong,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        stageLabel,
+                        style: IcType.mono(11.5, color: c.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                const TagPill(label: 'Working', tone: TagTone.working),
               ],
             ),
           ),
@@ -4357,15 +4564,25 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
                         child: Container(
                           width: 30,
                           height: 30,
+                          alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: c.accent,
+                            color: _isThinking ? c.working : c.accent,
                             borderRadius: BorderRadius.circular(9),
                           ),
-                          child: const Icon(
-                            LucideIcons.arrowUp,
-                            size: 15,
-                            color: Colors.white,
-                          ),
+                          child: _isThinking
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.8,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  LucideIcons.arrowUp,
+                                  size: 15,
+                                  color: Colors.white,
+                                ),
                         ),
                       ),
                     ),
@@ -4566,7 +4783,7 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
                   _showSlashMenu = false;
                   if (_controller.text == '/') _controller.clear();
                 });
-                widget.onSubmitPrompt(cmd);
+                _submitWithThinking(cmd);
               },
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,

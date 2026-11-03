@@ -48,6 +48,19 @@ public static partial class DataAnalyticsEngine
         "€",
         "customer account(s)");
 
+    private static readonly DatasetRecord BuiltInFunDataset = new(
+        ["Beverage", "Team", "Vibe", "WeeklyCups"],
+        [
+            ["Quantum Espresso", "Kernel Lab", "Hyperfocus", "420"],
+            ["Nebula Cold Brew", "Flutter UI", "Flow State", "360"],
+            ["Matcha Overdrive", "Data Guild", "Zen Mode", "290"],
+            ["Midnight Cortado", "Orleans Silo", "Zero-Latency", "240"],
+            ["Oat Cloud Latte", "Design Studio", "Sparkles", "195"],
+        ],
+        "Cosmic Coffee & Developer Velocity",
+        "",
+        "fun data point(s)");
+
     public static async Task<DataQueryResult> ExecuteAsync(
         string queryOrPrompt,
         string database,
@@ -77,12 +90,44 @@ public static partial class DataAnalyticsEngine
             }
         }
 
-        // 2. Otherwise use built-in relational tables (opportunities / customers)
+        // 2. Check if the user provided inline "Label: Value" or "Label = Value" data pairs in the prompt
+        if (!queryOrPrompt.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
+            && TryParseInlinePromptDataset(queryOrPrompt) is { } inlineDataset)
+        {
+            return RunRelationalPipeline(
+                inlineDataset,
+                queryOrPrompt,
+                chartKind,
+                sourceLabel: "inline prompt data",
+                sourceUri: "neuron://local/apps/ino/chart#inline",
+                preserveExactBuiltInSummary: false);
+        }
+
+        return ExecuteBuiltIn(queryOrPrompt, database);
+    }
+
+    public static DataQueryResult ExecuteBuiltIn(string queryOrPrompt, string database)
+    {
+        var chartKind = InferChartKind(queryOrPrompt);
         var isCustomerTable = queryOrPrompt.Contains("customer", StringComparison.OrdinalIgnoreCase)
             || (queryOrPrompt.Contains("account", StringComparison.OrdinalIgnoreCase)
                 && !queryOrPrompt.Contains("opportunit", StringComparison.OrdinalIgnoreCase));
 
-        var dataset = isCustomerTable ? BuiltInCustomers : BuiltInOpportunities;
+        var isFunOrSampleRequest = !queryOrPrompt.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
+            && !queryOrPrompt.Contains("opportunit", StringComparison.OrdinalIgnoreCase)
+            && !queryOrPrompt.Contains("customer", StringComparison.OrdinalIgnoreCase)
+            && !queryOrPrompt.Contains("pipeline", StringComparison.OrdinalIgnoreCase)
+            && (queryOrPrompt.Contains("fun", StringComparison.OrdinalIgnoreCase)
+                || queryOrPrompt.Contains("test", StringComparison.OrdinalIgnoreCase)
+                || queryOrPrompt.Contains("sample", StringComparison.OrdinalIgnoreCase)
+                || queryOrPrompt.Contains("demo", StringComparison.OrdinalIgnoreCase)
+                || queryOrPrompt.Contains("random", StringComparison.OrdinalIgnoreCase));
+
+        var dataset = isCustomerTable
+            ? BuiltInCustomers
+            : isFunOrSampleRequest
+                ? BuiltInFunDataset
+                : BuiltInOpportunities;
         var hasCustomFilterOrGroup = HasAnalyticalClauses(queryOrPrompt);
 
         return RunRelationalPipeline(
@@ -94,23 +139,36 @@ public static partial class DataAnalyticsEngine
             preserveExactBuiltInSummary: !hasCustomFilterOrGroup);
     }
 
-    public static DataQueryResult ExecuteBuiltIn(string queryOrPrompt, string database)
+    private static DatasetRecord? TryParseInlinePromptDataset(string prompt)
     {
-        var chartKind = InferChartKind(queryOrPrompt);
-        var isCustomerTable = queryOrPrompt.Contains("customer", StringComparison.OrdinalIgnoreCase)
-            || (queryOrPrompt.Contains("account", StringComparison.OrdinalIgnoreCase)
-                && !queryOrPrompt.Contains("opportunit", StringComparison.OrdinalIgnoreCase));
+        var matches = InlineKeyValueRegex().Matches(prompt);
+        if (matches.Count < 2)
+        {
+            return null;
+        }
 
-        var dataset = isCustomerTable ? BuiltInCustomers : BuiltInOpportunities;
-        var hasCustomFilterOrGroup = HasAnalyticalClauses(queryOrPrompt);
+        var rows = new List<string[]>();
+        foreach (Match match in matches)
+        {
+            var label = match.Groups["label"].Value.Trim();
+            var value = match.Groups["val"].Value.Trim();
+            if (!string.IsNullOrWhiteSpace(label))
+            {
+                rows.Add([label, value]);
+            }
+        }
 
-        return RunRelationalPipeline(
-            dataset,
-            queryOrPrompt,
-            chartKind,
-            sourceLabel: database,
-            sourceUri: "neuron://local/postgres/main#query-result",
-            preserveExactBuiltInSummary: !hasCustomFilterOrGroup);
+        if (rows.Count < 2)
+        {
+            return null;
+        }
+
+        return new DatasetRecord(
+            ["Category", "Value"],
+            rows,
+            "Custom Inline Chart",
+            DetectCurrencyPrefix(rows),
+            "data point(s)");
     }
 
     public static string? TryExtractDatasetFileToken(string text)
@@ -625,4 +683,7 @@ public static partial class DataAnalyticsEngine
 
     [GeneratedRegex(@"\bLIMIT\s+(?<n>\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex LimitRegex();
+
+    [GeneratedRegex(@"(?<label>[A-Za-z][A-Za-z0-9#+\- ]{0,24}?)\s*[:=]\s*(?<val>[€$]?\d+(?:[.,]\d+)?)", RegexOptions.Compiled)]
+    private static partial Regex InlineKeyValueRegex();
 }

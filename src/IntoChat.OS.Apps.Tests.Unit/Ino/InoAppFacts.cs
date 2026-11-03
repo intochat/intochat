@@ -201,4 +201,43 @@ public sealed class InoAppFacts
         Assert.StartsWith("routed:task.create:", ino.App.State.Turns[^1].RouteHint, StringComparison.Ordinal);
         Assert.Contains(ino.App.State.ActiveCards, c => c.Kind == "task" && c.SourceNeuronUri.StartsWith("neuron://local/tasks.task/", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task InoDrawsFunAndInlineChartsInChatAndNeverLeaksRecursiveCapabilityEpisodes()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>();
+
+        var ino = await os.Install<InoApp>();
+
+        // 1. Ask capability question first so it is recorded in MemoryNeuron
+        await ino.Request("send", new InoSend("hey, what can you do?"));
+        Assert.Contains("Installed IntoChat OS Brain Capabilities", ino.App.State.Turns[^1].Reply, StringComparison.Ordinal);
+
+        // 2. Ask "Can you draw me a test cahrt with some fun data" (including the "cahrt" typo)
+        await ino.Request("send", new InoSend("Can you draw me a test cahrt with some fun data"));
+        var funChartCard = ino.App.State.ActiveCards.LastOrDefault(c => c.Kind == "chart");
+        Assert.NotNull(funChartCard);
+        Assert.Contains("Cosmic Coffee", funChartCard.Title, StringComparison.Ordinal);
+        Assert.NotEmpty(funChartCard.ChartPoints ?? []);
+
+        // 3. Ask for an inline custom pie chart
+        await ino.Request("send", new InoSend("Draw a pie chart: Espresso=42, Matcha=29, ColdBrew=55"));
+        var inlineChartCard = ino.App.State.ActiveCards.LastOrDefault(c => c.Kind == "chart");
+        Assert.NotNull(inlineChartCard);
+        Assert.Equal("pie", inlineChartCard.ChartKind);
+        Assert.Equal(3, inlineChartCard.ChartPoints?.Length);
+
+        // 4. Subsequent general chat turns must never contain recursive "(recalled ... (recalled" or capability dumps
+        await ino.Request("send", new InoSend("hello there"));
+        await ino.Request("send", new InoSend("how is the weather today"));
+        var finalReply = ino.App.State.Turns[^1].Reply;
+        Assert.DoesNotContain("Installed IntoChat OS Brain Capabilities", finalReply, StringComparison.Ordinal);
+        var firstRecalledIdx = finalReply.IndexOf("(recalled ", StringComparison.Ordinal);
+        if (firstRecalledIdx >= 0)
+        {
+            Assert.Equal(-1, finalReply.IndexOf("(recalled ", firstRecalledIdx + 10, StringComparison.Ordinal));
+        }
+    }
 }

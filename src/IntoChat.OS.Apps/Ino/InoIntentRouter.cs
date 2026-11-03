@@ -63,24 +63,10 @@ internal static class InoIntentRouter
 
             if (decision.Confidence < 0.8 || decision.Choice == "general.chat")
             {
-                if (InoSettingsHandler.TryResolveSettingsNavigation(text, out _, out _, out _, out _))
+                var deterministic = ClassifyDeterministicFallback(text);
+                if (deterministic.Choice != "general.chat")
                 {
-                    return new DecisionResult("settings.navigate", 0.95, DecisionMode.Reactive);
-                }
-
-                if (InoStudioHandler.TryMatchExplicitStudioIntent(text, out var studioApp))
-                {
-                    return new DecisionResult(studioApp, 0.95, DecisionMode.Reactive);
-                }
-
-                if (InoFilesHandler.TryParseFileIntent(text, out _))
-                {
-                    return new DecisionResult("file.resource", 0.95, DecisionMode.Reactive);
-                }
-
-                if (TryParseTaskIntent(text, out _, out _))
-                {
-                    return new DecisionResult("task.create", 0.95, DecisionMode.Reactive);
+                    return new DecisionResult(deterministic.Choice, 0.95, DecisionMode.Reactive);
                 }
 
                 return new DecisionResult("general.chat", decision.Confidence, DecisionMode.Reactive);

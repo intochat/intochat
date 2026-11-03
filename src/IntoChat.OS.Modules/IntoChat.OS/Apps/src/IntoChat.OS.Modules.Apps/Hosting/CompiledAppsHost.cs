@@ -347,6 +347,8 @@ internal sealed class CompiledAppsHost(
             if (submission is null || string.IsNullOrWhiteSpace(submission.Text)) { return; }
 
             await composer.Settle(signal.RequestId);
+            var shortText = submission.Text.Length <= 42 ? submission.Text : submission.Text[..42] + "…";
+            await SiloNeurons.Get<IApp>(services, appKey).Progress("working", $"Thinking · Processing '{shortText}'…");
             InoTurn? latestTurn = null;
             var gate = _gates.GetOrAdd(appKey, static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync(ct);

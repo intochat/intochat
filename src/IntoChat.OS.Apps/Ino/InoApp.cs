@@ -118,6 +118,9 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var text = string.IsNullOrWhiteSpace(request.EffectiveMessage) ? "hello" : request.EffectiveMessage.Trim();
+        var shortPrompt = text.Length <= 42 ? text : text[..42] + "…";
+        Set(State with { Status = $"Thinking · Processing '{shortPrompt}'…" });
+
         var memory = TryGetMemory();
         var recalled = memory is null ? [] : await memory.Recall(text, 3);
         var settings = await Get<IUserSettings>("settings").Read();
@@ -250,9 +253,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         var routeHint = text.StartsWith("open ", StringComparison.OrdinalIgnoreCase)
             ? $"routed:{text[5..].Trim()}.open"
             : $"agent:{settings.DefaultModel}";
-        var contextSummary = recalled.Length > 0
-            ? $" (recalled {recalled.Length} memory item(s): {recalled[0].Text})"
-            : string.Empty;
+        var contextSummary = FormatRecalledContextSummary(recalled);
         var activeChart = State.ActiveCards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
         var activeTable = State.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Rows is { Length: > 0 });
 
@@ -275,15 +276,18 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 
         var reply = isCapabilityInquiry && !string.IsNullOrWhiteSpace(liveCapabilityContext)
             ? (generated is { Length: > 0 }
-                ? $"Ino ({settings.DefaultModel}): {generated}\n\n{liveCapabilityContext}{contextSummary}"
-                : $"Ino ({settings.DefaultModel}): Here is what I can do across your IntoChat OS brain:\n\n{liveCapabilityContext}{contextSummary}")
+                ? $"Ino ({settings.DefaultModel}): {generated}\n\n{liveCapabilityContext}"
+                : $"Ino ({settings.DefaultModel}): Here is what I can do across your IntoChat OS brain:\n\n{liveCapabilityContext}")
             : (generated is { Length: > 0 }
-                ? $"Ino ({settings.DefaultModel}): {generated}{contextSummary}"
+                ? $"Ino ({settings.DefaultModel}): {generated}"
                 : $"Ino ({settings.DefaultModel}): Answered '{text}'{contextSummary}");
 
         if (memory is not null)
         {
-            await memory.CaptureEpisode("ino", $"User: {text} | Reply: {reply}", importance: 5);
+            var episodeSummary = isCapabilityInquiry
+                ? "Presented live IntoChat OS brain capabilities."
+                : SanitizeEpisodeSummary(generated ?? $"Answered '{text}'");
+            await memory.CaptureEpisode("ino", $"User: {text} | Reply: {episodeSummary}", importance: 5);
         }
 
         var title = State.Turns.Length == 0
@@ -734,5 +738,55 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Turns = turns,
             Cards = [.. State.ActiveCards, card],
         };
+    }
+
+    private static string FormatRecalledContextSummary(MemoryRecallHit[] recalled)
+    {
+        if (recalled.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var candidate = recalled
+            .Select(r => r.Text)
+            .FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)
+                && !t.Contains("Installed IntoChat OS Brain Capabilities", StringComparison.Ordinal)
+                && !t.StartsWith("User:", StringComparison.Ordinal))
+            ?? recalled[0].Text;
+
+        var clean = SanitizeEpisodeSummary(candidate);
+        if (string.IsNullOrWhiteSpace(clean))
+        {
+            return string.Empty;
+        }
+
+        return $" (recalled {recalled.Length} memory item(s): {clean})";
+    }
+
+    private static string SanitizeEpisodeSummary(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        var text = raw;
+        var recalledIdx = text.IndexOf(" (recalled ", StringComparison.Ordinal);
+        if (recalledIdx >= 0)
+        {
+            text = text[..recalledIdx];
+        }
+
+        var capIdx = text.IndexOf("Installed IntoChat OS Brain Capabilities", StringComparison.Ordinal);
+        if (capIdx >= 0)
+        {
+            text = text[..capIdx];
+        }
+
+        var singleLine = text
+            .Replace("\r\n", " ", StringComparison.Ordinal)
+            .Replace('\n', ' ')
+            .Trim();
+        return singleLine.Length <= 140 ? singleLine : singleLine[..140] + "…";
     }
 }
