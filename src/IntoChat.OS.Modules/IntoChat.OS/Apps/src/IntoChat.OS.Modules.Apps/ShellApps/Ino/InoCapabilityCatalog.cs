@@ -17,7 +17,7 @@ internal static class InoCapabilityCatalog
         ("files", FilesRequests.Bundle),
         ("photocraft", PhotoCraftApp.Bundle),
         ("filmcraft", FilmCraftApp.Bundle),
-        ("settings", SettingsApp.Bundle),
+        ("settings", ShellPrograms.Load("Settings")),
         ("creator", CreatorApp.Bundle),
         ("gallery", GalleryApp.Bundle),
         ("post", PostApp.Bundle),

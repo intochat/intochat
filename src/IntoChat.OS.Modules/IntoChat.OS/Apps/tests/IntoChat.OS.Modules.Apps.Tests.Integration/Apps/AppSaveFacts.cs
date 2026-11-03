@@ -98,6 +98,7 @@ public sealed class AppSaveFacts
         var ct = TestContext.Current.CancellationToken;
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var proceed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var signalObserved = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var slowRuntime = new SlowDeployRuntime(entered, proceed);
         await using var fixture = new AppSaveFixture(slowRuntime);
         await using var runtime = await fixture.Start(kind, ct);
@@ -108,7 +109,6 @@ public sealed class AppSaveFacts
 
         await writer.Create(new AppManifest("Notes", "Notes", [], [], []), "v1");
 
-        string? versionSeenOnSignal = null;
         var listeners = runtime.Services.GetService<IClusterListeners>();
         IAsyncDisposable? subscription = null;
         if (listeners is not null)
@@ -117,7 +117,11 @@ public sealed class AppSaveFacts
             {
                 if (source == id && signal.Version == "0.1.1")
                 {
-                    versionSeenOnSignal = (await reader.Read()).Version;
+                    // On Silo, ClusterListeners.Offer enqueues on the thread pool during HostNeuronState.Announce
+                    // before Context.State.Save returns to Neuron<TState>.Save to assign State = next; yield once
+                    // so the grain turn finishes its synchronous post-save assignment before we call [ReadOnly] Read().
+                    await Task.Yield();
+                    signalObserved.TrySetResult((await reader.Read()).Version);
                 }
             });
         }
@@ -140,11 +144,9 @@ public sealed class AppSaveFacts
 
         if (subscription is not null)
         {
-            await subscription.DisposeAsync();
-        }
-        if (versionSeenOnSignal is not null)
-        {
+            var versionSeenOnSignal = await signalObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
             Assert.Equal("0.1.1", versionSeenOnSignal);
+            await subscription.DisposeAsync();
         }
     }
 

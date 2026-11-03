@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>First-party compiled shell apps for IntoChat OS.</Description>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
+    <PackageReference Include="DigitalBrain.Runtime.Apps" />
+    <PackageReference Include="DigitalBrain.UI" />
+    <PackageReference Include="DigitalBrain.Graph" />
+    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
+    <PackageReference Include="IntoChat.OS.Modules.AI.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.ArtCraft" />
+    <PackageReference Include="IntoChat.OS.Modules.LocalDisk" />
+    <PackageReference Include="IntoChat.OS.Modules.Mcp.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Aspire.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.CSharp.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Tools.Contracts" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+  </ItemGroup>
+</Project>

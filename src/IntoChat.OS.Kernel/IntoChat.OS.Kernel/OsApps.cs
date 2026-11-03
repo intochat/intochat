@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
@@ -49,6 +50,7 @@ public static class OsAppsHosting
         ArgumentNullException.ThrowIfNull(services);
         if (configure is not null) { services.Configure(configure); }
         services.AddOptions<OsAppsOptions>();
+        services.AddSingleton(new CompiledAppsRegistration(typeof(SettingsApp).Assembly));
         services.TryAddSingleton<OsDefaults>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICreationHandler, OsDefaults>(provider => provider.GetRequiredService<OsDefaults>()));
         return services;

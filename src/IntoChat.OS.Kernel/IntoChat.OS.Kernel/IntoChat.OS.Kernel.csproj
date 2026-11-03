@@ -23,6 +23,7 @@
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Integration" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>

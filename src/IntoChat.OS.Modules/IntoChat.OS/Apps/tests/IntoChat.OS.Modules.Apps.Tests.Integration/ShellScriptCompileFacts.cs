@@ -7,10 +7,10 @@ namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 public sealed class ShellScriptCompileFacts
 {
     [Fact]
-    public void WorkspaceDesktopAndSettingsCompile()
+    public void WorkspaceAndDesktopCompile()
     {
         var check = new CSharpScriptCheck();
-        foreach (var appType in new[] { typeof(WorkspaceApp), typeof(DesktopApp), typeof(SettingsApp) })
+        foreach (var appType in new[] { typeof(WorkspaceApp), typeof(DesktopApp) })
         {
             var appAttr = appType.GetCustomAttribute<DigitalBrain.AppAttribute>();
             Assert.NotNull(appAttr);

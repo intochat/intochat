@@ -1,5 +1,6 @@
-using DigitalBrain.UI;
+using DigitalBrain;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
@@ -152,31 +153,41 @@ public sealed class SideloadFacts : IDisposable
     }
 
     [Fact]
-    public async Task SettingsPresentsTheListTheInstallAndTheClone()
+    public async Task SideloadNeuronListsInstallsAndClones()
     {
         WriteApp("notes", "static class Note { }\n");
         var calls = new List<string>();
-        var board = new Board();
-        var app = new SettingsApp(board, new SideloadDesk(Installer(calls)));
+        var services = new ServiceCollection()
+            .AddSingleton(Installer(calls))
+            .BuildServiceProvider();
+        await using var os = DigitalBrain.Testing.TestOS.Local(o => o.Services = services);
+        os.Register<SideloadNeuron>();
+        var neuron = os.Get<ISideload>(new NeuronId(new BrainId("local"), "apps.sideload", "sideload"));
 
-        await app.SideloadList(new SettingsSideloadList());
-        var listed = Assert.IsType<Collection>(board.Main!.Root);
-        var entry = Assert.Single(listed.Entries);
-        Assert.Equal("notes", entry.Id);
-        Assert.Equal("not installed", entry.Subtitle);
+        var rows = await neuron.List();
+        var entry = Assert.Single(rows);
+        Assert.Equal("notes", entry.Name);
+        Assert.False(entry.Installed);
 
-        await app.SideloadInstall(new SettingsSideloadInstall("notes"));
-        Assert.Equal("Installed notes.", Assert.IsType<Text>(board.Main.Root).Value);
+        var installed = await neuron.Install("notes");
+        Assert.True(installed.Ok);
+        Assert.Equal("Installed notes.", installed.Message);
         Assert.Equal(["sideload/notes"], calls);
 
         var git = new GitSideload(Record, GitSideload.MaxBytes);
-        var adding = new SettingsApp(board, new SideloadDesk(new SideloadInstaller(Catalog(git), git, (request, _) =>
-        {
-            calls.Add(request.Ref.Publisher + "/" + request.Ref.App);
-            return Task.FromResult(InstallOutcome.Installed(request.Ref.App));
-        })));
-        await adding.SideloadAddGit(new SettingsSideloadAddGit("https://example.com/notes.git"));
-        Assert.Equal("Cloned notes.", Assert.IsType<Text>(board.Main.Root).Value);
+        var gitServices = new ServiceCollection()
+            .AddSingleton(new SideloadInstaller(Catalog(git), git, (request, _) =>
+            {
+                calls.Add(request.Ref.Publisher + "/" + request.Ref.App);
+                return Task.FromResult(InstallOutcome.Installed(request.Ref.App));
+            }))
+            .BuildServiceProvider();
+        await using var gitOs = DigitalBrain.Testing.TestOS.Local(o => o.Services = gitServices);
+        gitOs.Register<SideloadNeuron>();
+        var adding = gitOs.Get<ISideload>(new NeuronId(new BrainId("local"), "apps.sideload", "sideload"));
+        var cloned = await adding.AddGit("https://example.com/notes.git");
+        Assert.True(cloned.Ok);
+        Assert.Equal("Cloned notes.", cloned.Message);
         Assert.NotNull(await Catalog(git).Find(FeatureCatalog.SideloadOwner, "notes"));
     }
 
@@ -226,13 +237,6 @@ public sealed class SideloadFacts : IDisposable
         Directory.CreateDirectory(target);
         File.WriteAllBytes(Path.Combine(target, "blob.bin"), [1, 2, 3, 4, 5]);
         return Task.FromResult(0);
-    }
-
-    private sealed class Board : DigitalBrain.UI.IPresenter
-    {
-        public DigitalBrain.UI.View? Main { get; private set; }
-        public void Present(DigitalBrain.UI.View? side, DigitalBrain.UI.View? main) => Main = main;
-        public void Toast(Toast toast) => _ = toast;
     }
 
     private sealed class Gate : IScriptSandbox

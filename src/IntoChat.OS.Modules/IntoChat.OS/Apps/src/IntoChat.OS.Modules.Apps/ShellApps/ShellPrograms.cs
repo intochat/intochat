@@ -4,9 +4,9 @@ using System.Text;
 namespace IntoChat.OS.Modules.Apps;
 
 // The shell apps' script sources, embedded from Shell/{Folder}. They stay programs the sandbox runs.
-internal static class ShellPrograms
+public static class ShellPrograms
 {
-    internal static AppBundle Load(string folder)
+    public static AppBundle Load(string folder)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
         var assembly = typeof(ShellPrograms).Assembly;

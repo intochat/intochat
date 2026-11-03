@@ -1,7 +1,5 @@
 namespace IntoChat.OS.Modules.Apps;
 
-public sealed record SideloadRow(string Name, string Title, bool Installed);
-
 public sealed record SideloadInstallResult(bool Ok, string Message)
 {
     public static SideloadInstallResult Done(string message) => new(true, message);

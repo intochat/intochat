@@ -1,4 +1,5 @@
 using DigitalBrain.Testing;
+using IntoChat.OS.Modules.LocalDisk;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
@@ -7,8 +8,6 @@ public sealed class ShellAppFacts
     public static IEnumerable<TheoryDataRow<AppOperationCase>> WorkspaceOperations => AppBaseline.Cases(typeof(WorkspaceApp));
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> DesktopOperations => AppBaseline.Cases(typeof(DesktopApp));
-
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> SettingsOperations => AppBaseline.Cases(typeof(SettingsApp));
 
     public static IEnumerable<TheoryDataRow<AppOperationCase>> InoOperations
         => AppBaseline.Cases(typeof(InoApp), os => os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>());
@@ -36,9 +35,6 @@ public sealed class ShellAppFacts
     [Theory, MemberData(nameof(DesktopOperations))]
     public Task DesktopBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
-    [Theory, MemberData(nameof(SettingsOperations))]
-    public Task SettingsBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
-
     [Theory, MemberData(nameof(InoOperations))]
     public Task InoBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
@@ -58,16 +54,8 @@ public sealed class ShellAppFacts
     public Task FilmCraftStudioBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
 
     [Fact]
-    public void SettingsCarriesTheFlutterTreesAndTheAppsLibrary()
+    public void WorkspaceAndDesktopCarryTheFlutterTrees()
     {
-        var bundle = SettingsApp.Bundle;
-        Assert.Equal("settings", bundle.Name);
-        Assert.Contains("No modules are loaded.", bundle.Files["SettingsView.cs"], StringComparison.Ordinal);
-        Assert.Contains("/apps-view", bundle.Files["Apps.cs"], StringComparison.Ordinal);
-        // One [App] program serves the operations and watches both tabs; the Apps tab is never presented on its own.
-        Assert.Contains("[DigitalBrain.App(\"settings\")]", bundle.Files["SettingsProgram.cs"], StringComparison.Ordinal);
-        Assert.Contains("\"apps-view\"", bundle.Files["SettingsProgram.cs"], StringComparison.Ordinal);
-        Assert.DoesNotContain(bundle.Files.Values, source => source.Contains("Apps.Present(", StringComparison.Ordinal) && !source.Contains("public static Task Present", StringComparison.Ordinal));
         Assert.Equal("workspace", WorkspaceApp.Bundle.Name);
         Assert.Equal("desktop", DesktopApp.Bundle.Name);
         Assert.Contains("Apps", DesktopApp.Bundle.Files["DesktopLayout.cs"], StringComparison.Ordinal);
@@ -97,16 +85,48 @@ public sealed class ShellAppFacts
     }
 
     [Fact]
-    public async Task SettingsInoAndPostBddScenariosAndSystemNeuronsPass()
+    public async Task TheAppsRootIsTheSideloadDirectory()
+    {
+        var root = Directory.CreateTempSubdirectory("apps-root-").FullName;
+        try
+        {
+            var disk = new Disk();
+            var full = AppsDirectoryRoot.Prepare(root);
+            await AppsDirectoryRoot.Allow(disk, root);
+            Assert.Equal(AppsDirectoryRoot.Label, "Apps");
+            Assert.Equal(full, disk.Allowed);
+            Assert.True(Directory.Exists(full));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task InoAutonomouslyRoutesSettingsNavigationAndGatesDestructiveSettingsActions()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("Where do I set up my local Ollama server?"));
+        Assert.Equal("routed:settings.navigate:models:local-server", ino.App.State.Turns[^1].RouteHint);
+        Assert.Contains(ino.App.State.ActiveCards, c => c.Kind == "settings" && c.SourceNeuronUri == "neuron://local/apps/settings");
+
+        await ino.Request("send", new InoSend("Open Google Drive connection sheet in settings"));
+        Assert.Equal("routed:settings.navigate:connections:google_drive:google_drive", ino.App.State.Turns[^1].RouteHint);
+
+        await ino.Request("send", new InoSend("Revoke API key in settings"));
+        Assert.Equal("routed:settings.navigate:keys", ino.App.State.Turns[^1].RouteHint);
+        var approval = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "approval" && c.SourceNeuronUri == "neuron://local/os.settings/settings");
+        Assert.Equal("pending", approval.Status);
+    }
+
+    [Fact]
+    public async Task InoAndPostBddScenariosAndSystemNeuronsPass()
     {
         var ct = TestContext.Current.CancellationToken;
         var desktopReport = await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct);
         Assert.True(desktopReport.Passed);
         Assert.Single(desktopReport.Scenarios);
-
-        var settingsReport = await BddRunner.VerifyAsync<SettingsApp>(cancellationToken: ct);
-        Assert.True(settingsReport.Passed);
-        Assert.Single(settingsReport.Scenarios);
 
         var galleryReport = await BddRunner.VerifyAsync<GalleryApp>(cancellationToken: ct);
         Assert.True(galleryReport.Passed);
@@ -188,10 +208,6 @@ public sealed class ShellAppFacts
         await inoInstalled.Request("send", new InoSend("https://intochat.app/a/tripletex-sync"));
         Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Tripletex Accounting Sync (v1.4.0)", StringComparison.Ordinal));
 
-        Assert.Equal(13, SettingsApp.SearchIndex.Count);
-        Assert.Contains(SettingsApp.SearchIndex, s => s.ActionUri == "os://window/secure");
-        Assert.Contains(SettingsApp.SearchIndex, s => s.ActionUri == "os://window/profile");
-
         var photoCraftInstalled = await os.Install<PhotoCraftApp>();
         Assert.Equal("http://localhost:18082", photoCraftInstalled.App.State.WebUrl);
         await photoCraftInstalled.Request("remove-background", new PhotoCraftRemoveBackground("/work/hero.png", "native-linux"));
@@ -240,5 +256,13 @@ public sealed class ShellAppFacts
 
         await creatorInstalled.Request("rollback", new CreatorRollback("1.0.0"));
         Assert.Equal("1.0.0", creatorInstalled.App.State.CurrentVersion);
+    }
+
+    private sealed class Disk : ILocalDisk
+    {
+        public string? Allowed { get; private set; }
+        public Task<string[]> Roots() => Task.FromResult(Allowed is null ? [] : new[] { Allowed });
+        public Task AllowRoot(string path) { Allowed = path; return Task.CompletedTask; }
+        public Task RevokeRoot(string path) => Task.CompletedTask;
     }
 }

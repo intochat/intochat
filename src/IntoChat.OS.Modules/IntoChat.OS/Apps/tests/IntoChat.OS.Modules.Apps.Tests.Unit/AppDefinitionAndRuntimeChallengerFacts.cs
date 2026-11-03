@@ -22,7 +22,6 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     [InlineData(typeof(GalleryApp), "gallery", "#22C55E", "Studio", "GalleryApp")]
     [InlineData(typeof(InoApp), "ino", "#3D7EFF", "Intelligence", "InoApp")]
     [InlineData(typeof(PostApp), "post", "#FB7185", "Reach", "PostApp")]
-    [InlineData(typeof(SettingsApp), "settings", "#64748B", "System", "SettingsApp")]
     [InlineData(typeof(WorkspaceApp), "workspace", "#A855F7", "Social", "WorkspaceApp")]
     [InlineData(typeof(BrainScene), "brain", null, null, "BrainScene")]
     [InlineData(typeof(FilesApp), "files", "#F6B73C", "Workspace", "FilesApp")]

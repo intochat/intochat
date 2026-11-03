@@ -2,6 +2,9 @@ using System.Reflection;
 
 namespace IntoChat.OS.Modules.Apps;
 
+// Registers an assembly whose compiled [App] types ship in FeatureCatalog.
+public sealed record CompiledAppsRegistration(Assembly Assembly);
+
 // Compiled apps in a module assembly: each [App] whose bundle is a public static AppBundle Bundle
 // on a type in that assembly. The script folder does not carry them.
 internal static class CompiledApps

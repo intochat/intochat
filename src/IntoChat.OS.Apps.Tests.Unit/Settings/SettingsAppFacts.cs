@@ -1,9 +1,52 @@
+using DigitalBrain;
 using DigitalBrain.Testing;
+using DigitalBrain.UI;
+using IntoChat.OS.Apps.Settings;
+using IntoChat.OS.Modules.Apps;
 
-namespace IntoChat.OS.Modules.Apps.Tests.Unit;
+namespace IntoChat.OS.Apps.Tests.Unit.Settings;
 
-public sealed class SettingsNavigationFacts
+public sealed class SettingsAppFacts
 {
+    public static IEnumerable<TheoryDataRow<AppOperationCase>> Operations
+        => AppBaseline.Cases(typeof(SettingsApp), os => os.Register(typeof(AppsModule).Assembly));
+
+    [Theory, MemberData(nameof(Operations))]
+    public Task Baseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+
+    [Fact]
+    public async Task SettingsBddScenariosPass()
+    {
+        var report = await BddRunner.VerifyAsync<SettingsApp>(
+            fakes: os => os.Register(typeof(AppsModule).Assembly),
+            cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(report.Passed);
+        Assert.Single(report.Scenarios);
+    }
+
+    [Fact]
+    public void SettingsDefinitionMetadataMatchesContract()
+    {
+        var definition = SettingsApp.Definition;
+        Assert.Equal("settings", definition.Id);
+        Assert.Equal("#64748B", definition.Accent);
+        Assert.Equal("System", definition.Category);
+        Assert.Equal("SettingsApp", definition.Name);
+        Assert.Equal(typeof(SettingsApp), definition.AppType);
+    }
+
+    [Fact]
+    public void SettingsCarriesTheFlutterTreesAndTheAppsLibrary()
+    {
+        var bundle = SettingsApp.Bundle;
+        Assert.Equal("settings", bundle.Name);
+        Assert.Contains("No modules are loaded.", bundle.Files["SettingsView.cs"], StringComparison.Ordinal);
+        Assert.Contains("/apps-view", bundle.Files["Apps.cs"], StringComparison.Ordinal);
+        Assert.Contains("[DigitalBrain.App(\"settings\")]", bundle.Files["SettingsProgram.cs"], StringComparison.Ordinal);
+        Assert.Contains("\"apps-view\"", bundle.Files["SettingsProgram.cs"], StringComparison.Ordinal);
+        Assert.DoesNotContain(bundle.Files.Values, source => source.Contains("Apps.Present(", StringComparison.Ordinal) && !source.Contains("public static Task Present", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void SettingsNavigationAndBackstackTracksHistory()
     {
@@ -65,6 +108,9 @@ public sealed class SettingsNavigationFacts
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
         Assert.Equal(13, SettingsApp.SearchIndex.Count);
+        Assert.Contains(SettingsApp.SearchIndex, s => s.ActionUri == "os://window/secure");
+        Assert.Contains(SettingsApp.SearchIndex, s => s.ActionUri == "os://window/profile");
+
         foreach (var section in sections)
         {
             app.Navigate(new SettingsNavigate(section));
@@ -75,7 +121,6 @@ public sealed class SettingsNavigationFacts
             Assert.Contains(SettingsApp.SearchIndex.Single(s => s.SectionId == section).Title, json, StringComparison.Ordinal);
         }
 
-        // Subpages: AppPage, MemoryPage, ConnectionPage, PersonPage, LocalServerPage
         (string Section, string SubPage, string ExpectedMarker)[] subPages =
         [
             ("apps", "ino", "AppPage · ino"),
@@ -94,7 +139,6 @@ public sealed class SettingsNavigationFacts
             Assert.Contains(marker, json, StringComparison.Ordinal);
         }
 
-        // Modal sheet & search filter
         app.Navigate(new SettingsNavigate("connections", SubPage: "google_drive", Sheet: "google_drive", SearchQuery: "Ollama"));
         Assert.Equal("google_drive", app.State.Sheet);
         var sheetJson = System.Text.Json.JsonSerializer.Serialize(AppNeuron.MapView(app.Render(), "owner"), jsonOptions);
@@ -106,22 +150,35 @@ public sealed class SettingsNavigationFacts
     }
 
     [Fact]
-    public async Task InoAutonomouslyRoutesSettingsNavigationAndGatesDestructiveSettingsActions()
+    public async Task SettingsPresentsTheSideloadListInstallAndCloneThroughTheNeuron()
     {
         await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
+        os.Register<FakeSideloadNeuron>();
+        var installed = await os.Install<SettingsApp>();
 
-        var ino = await os.Install<InoApp>();
-        await ino.Request("send", new InoSend("Where do I set up my local Ollama server?"));
-        Assert.Equal("routed:settings.navigate:models:local-server", ino.App.State.Turns[^1].RouteHint);
-        Assert.Contains(ino.App.State.ActiveCards, c => c.Kind == "settings" && c.SourceNeuronUri == "neuron://local/apps/settings");
+        await installed.Request("sideload-list", new SettingsSideloadList());
+        var listed = Assert.IsType<Collection>(installed.App.State.OverrideBody);
+        var entry = Assert.Single(listed.Entries);
+        Assert.Equal("notes", entry.Id);
+        Assert.Equal("not installed", entry.Subtitle);
 
-        await ino.Request("send", new InoSend("Open Google Drive connection sheet in settings"));
-        Assert.Equal("routed:settings.navigate:connections:google_drive:google_drive", ino.App.State.Turns[^1].RouteHint);
+        await installed.Request("sideload-install", new SettingsSideloadInstall("notes"));
+        Assert.Equal("Installed notes.", Assert.IsType<Text>(installed.App.State.OverrideBody).Value);
 
-        await ino.Request("send", new InoSend("Revoke API key in settings"));
-        Assert.Equal("routed:settings.navigate:keys", ino.App.State.Turns[^1].RouteHint);
-        var approval = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "approval" && c.SourceNeuronUri == "neuron://local/os.settings/settings");
-        Assert.Equal("pending", approval.Status);
+        await installed.Request("sideload-add-git", new SettingsSideloadAddGit("https://example.com/notes.git"));
+        Assert.Equal("Cloned notes.", Assert.IsType<Text>(installed.App.State.OverrideBody).Value);
+    }
+
+    [Neuron("apps.sideload")]
+    private sealed class FakeSideloadNeuron : Neuron, ISideload
+    {
+        public Task<SideloadRow[]> List()
+            => Task.FromResult<SideloadRow[]>([new SideloadRow("notes", "Notes", false)]);
+
+        public Task<SideloadResult> Install(string? name, string? consent = null)
+            => Task.FromResult(new SideloadResult(true, $"Installed {name}."));
+
+        public Task<SideloadResult> AddGit(string? url)
+            => Task.FromResult(new SideloadResult(true, "Cloned notes."));
     }
 }

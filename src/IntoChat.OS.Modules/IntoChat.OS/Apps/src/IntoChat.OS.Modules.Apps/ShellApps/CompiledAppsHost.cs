@@ -28,10 +28,22 @@ internal sealed class CompiledAppsHost(
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };
 
+    private static (string Name, Type AppType, AppBundle Bundle) ResolveSettings()
+    {
+        var type = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(a => a.GetType("IntoChat.OS.Apps.Settings.SettingsApp", throwOnError: false))
+            .FirstOrDefault(t => t is not null);
+        if (type is not null && type.GetProperty("Bundle", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is AppBundle bundle)
+        {
+            return ("settings", type, bundle);
+        }
+        return ("settings", typeof(InoApp), ShellPrograms.Load("Settings"));
+    }
+
     private static readonly (string Name, Type AppType, AppBundle Bundle)[] Hosted =
     [
         ("ino", typeof(InoApp), InoApp.Bundle),
-        ("settings", typeof(SettingsApp), SettingsApp.Bundle),
+        ResolveSettings(),
     ];
 
     private static readonly IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName =
@@ -208,7 +220,7 @@ internal sealed class CompiledAppsHost(
 
     private async Task<DigitalBrain.Apps.Hosting.AppTurns> EnsureAssignedAsync(string brain, string appName, string appKey, CancellationToken ct)
     {
-        var spec = HostedByName[appName];
+        var spec = appName == "settings" ? ResolveSettings() : HostedByName[appName];
         var app = SiloNeurons.Get<IApp>(services, appKey);
         var snapshot = await app.Read();
         if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
@@ -247,7 +259,7 @@ internal sealed class CompiledAppsHost(
         try
         {
             if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
-            var spec = HostedByName[appName];
+            var spec = appName == "settings" ? ResolveSettings() : HostedByName[appName];
             var appKey = IApp.Key(brain, appName);
             var gate = _gates.GetOrAdd(appKey, static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync(ct);
@@ -316,7 +328,7 @@ internal sealed class CompiledAppsHost(
     {
         string? studioApp = latestTurn.RouteHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
             ? "photocraft"
-            : latestTurn.RouteHint.StartsWith("routed:filmcraft.", StringComparison.Ordinal)
+            : latestTurn.StartsWithStudio("filmcraft")
                 ? "filmcraft"
                 : null;
         if (studioApp is null) { return; }
@@ -343,7 +355,13 @@ internal sealed class CompiledAppsHost(
         if (parameter is null) { return null; }
         var targetType = parameter.ParameterType;
         if (targetType == typeof(string)) { return string.IsNullOrEmpty(input) ? null : Uri.UnescapeDataString(input); }
-        if (string.IsNullOrWhiteSpace(input)) { return null; }
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            var emptyCtor = targetType.GetConstructor(Type.EmptyTypes);
+            if (emptyCtor is not null) { return emptyCtor.Invoke(null); }
+            var defaultCtor = targetType.GetConstructors().FirstOrDefault(c => c.GetParameters().All(p => p.HasDefaultValue));
+            return defaultCtor?.Invoke([.. defaultCtor.GetParameters().Select(p => p.DefaultValue)]);
+        }
 
         var trimmed = input.Trim();
         if (trimmed.StartsWith('{') && trimmed.EndsWith('}')) { return JsonSerializer.Deserialize(trimmed, targetType, Json); }
@@ -363,22 +381,31 @@ internal sealed class CompiledAppsHost(
             return new InoApproveCard(cardId, approved);
         }
         if (targetType == typeof(InoMake)) { return new InoMake(unquoted); }
-        if (targetType == typeof(SettingsOpen)) { return new SettingsOpen(unquoted); }
-        if (targetType == typeof(SettingsRead)) { return new SettingsRead(); }
-        if (targetType == typeof(SettingsNavigate)) { return new SettingsNavigate(segs.ElementAtOrDefault(0), segs.ElementAtOrDefault(1), segs.ElementAtOrDefault(2)); }
-        if (targetType == typeof(SettingsSavePreferences))
+
+        // Generic positional record constructor fallback for Settings* and other compiled apps
+        var ctor = targetType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
+        if (ctor is not null)
         {
-            return new SettingsSavePreferences(
-                segs.ElementAtOrDefault(0), segs.ElementAtOrDefault(1), segs.ElementAtOrDefault(2), segs.ElementAtOrDefault(3), segs.ElementAtOrDefault(4),
-                segs.ElementAtOrDefault(5), segs.ElementAtOrDefault(6), segs.ElementAtOrDefault(7), segs.ElementAtOrDefault(8), segs.ElementAtOrDefault(9));
+            var ctorParams = ctor.GetParameters();
+            if (ctorParams.Length == 0) { return ctor.Invoke(null); }
+            if (ctorParams.Length == 1 && ctorParams[0].ParameterType == typeof(string)) { return ctor.Invoke([unquoted]); }
+            var args = new object?[ctorParams.Length];
+            for (var i = 0; i < ctorParams.Length; i++)
+            {
+                args[i] = ctorParams[i].ParameterType == typeof(string)
+                    ? segs.ElementAtOrDefault(i) ?? (ctorParams[i].HasDefaultValue ? ctorParams[i].DefaultValue : null)
+                    : ctorParams[i].HasDefaultValue ? ctorParams[i].DefaultValue : null;
+            }
+            return ctor.Invoke(args);
         }
-        if (targetType == typeof(SettingsGoBack)) { return new SettingsGoBack(); }
-        if (targetType == typeof(SettingsRefreshConnections)) { return new SettingsRefreshConnections(unquoted); }
-        if (targetType == typeof(SettingsSideloadList)) { return new SettingsSideloadList(); }
-        if (targetType == typeof(SettingsSideloadInstall)) { return new SettingsSideloadInstall(unquoted); }
-        if (targetType == typeof(SettingsSideloadAddGit)) { return new SettingsSideloadAddGit(unquoted); }
         return null;
     }
+}
+
+file static class InoTurnRoutingExtensions
+{
+    public static bool StartsWithStudio(this InoTurn turn, string studio)
+        => turn.RouteHint.StartsWith($"routed:{studio}.", StringComparison.Ordinal);
 }
 
 internal sealed class CompiledAppsLifecycle(IServiceProvider services) : ILifecycleParticipant<ISiloLifecycle>

@@ -86,37 +86,34 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SettingsRunsOnTheInProcessHost()
+    public async Task CompiledAppRunsOnTheInProcessHost()
     {
-        const string brain = "settingsbrain";
+        const string brain = "inprocbrain";
         using var _ = StampCaller(brain);
 
-        var appKey = IApp.Key(brain, "settings");
+        var appKey = IApp.Key(brain, "post");
         var appNeuron = SiloNeurons.Get<IApp>(Services, appKey);
-        var bundle = SettingsApp.Bundle with
+        var bundle = PostApp.Bundle with
         {
             Files = new Dictionary<string, string>(StringComparer.Ordinal),
-            CompiledType = typeof(SettingsApp).AssemblyQualifiedName,
+            CompiledType = typeof(PostApp).AssemblyQualifiedName,
         };
-        await appNeuron.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "settings", bundle.Version));
+        await appNeuron.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "post", bundle.Version));
 
         var host = Services.GetRequiredService<InProcessAppHost>();
-        await host.AssignType(appKey, typeof(SettingsApp), new Dictionary<string, string>(StringComparer.Ordinal), TestContext.Current.CancellationToken);
-        await host.Request(appKey, "open", new SettingsOpen(), TestContext.Current.CancellationToken);
+        await host.AssignType(appKey, typeof(PostApp), new Dictionary<string, string>(StringComparer.Ordinal), TestContext.Current.CancellationToken);
+        await host.Request(appKey, "open", new PostOpen(), TestContext.Current.CancellationToken);
 
         var snapshot = await appNeuron.Read();
         Assert.NotNull(snapshot.Presentation);
         var mainView = await SiloNeurons.Get<IView>(Services, appKey + "/view").Read();
         Assert.NotNull(mainView?.Root);
 
-        // SideloadDesk still answers through the hosted SettingsApp.
-        await host.Request(appKey, "sideload-list", new SettingsSideloadList(), TestContext.Current.CancellationToken);
-        var turns = host.TryGetTurns(appKey);
-        Assert.NotNull(turns);
-        var settingsInstance = Assert.IsType<SettingsApp>(turns.App);
-        var overrideBody = Assert.IsType<Collection>(settingsInstance.State.OverrideBody);
-        var entry = Assert.Single(overrideBody.Entries);
-        Assert.Equal("notes", entry.Id);
+        // SideloadNeuron answers on the silo.
+        var sideload = SiloNeurons.Get<ISideload>(Services, $"{brain}/sideload");
+        var rows = await sideload.List();
+        var entry = Assert.Single(rows);
+        Assert.Equal("notes", entry.Name);
     }
 
     [Fact]

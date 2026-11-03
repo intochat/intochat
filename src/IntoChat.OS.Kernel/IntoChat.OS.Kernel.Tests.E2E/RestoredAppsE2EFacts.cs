@@ -20,6 +20,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
+using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
@@ -261,7 +262,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         {
             await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct),
             await BddRunner.VerifyAsync<WorkspaceApp>(cancellationToken: ct),
-            await BddRunner.VerifyAsync<SettingsApp>(cancellationToken: ct),
+            await BddRunner.VerifyAsync<SettingsApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<GalleryApp>(cancellationToken: ct),
             await BddRunner.VerifyAsync<PhotoCraftApp>(cancellationToken: ct),
             await BddRunner.VerifyAsync<FilmCraftApp>(cancellationToken: ct),

@@ -12,6 +12,8 @@
     <PackageReference Include="DigitalBrain.Apps.Packaging" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Apps.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Integration" />
     <ProjectReference Include="../../../Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
     <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
     <PackageReference Include="IntoChat.OS.Modules.LocalDisk" />

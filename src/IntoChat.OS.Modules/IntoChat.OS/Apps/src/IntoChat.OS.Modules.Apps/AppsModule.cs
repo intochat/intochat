@@ -41,13 +41,13 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IIncomingGrainCallFilter, MarketplaceWriteGuard>();
         services.TryAddSingleton<GitSideload>();
+        services.AddSingleton(new CompiledAppsRegistration(typeof(AppsModule).Assembly));
         services.TryAddSingleton(FeatureCatalog.From);
         services.TryAddSingleton<FeatureLoader>();
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
         services.TryAddSingleton<SideloadInstaller>();
-        services.TryAddSingleton<SideloadDesk>();
         services.TryAddSingleton<AppPresentationSink>();
         services.TryAddSingleton<IPresentationSink>(sp => sp.GetRequiredService<AppPresentationSink>());
         services.TryAddSingleton<InProcessAppHost>(sp => new InProcessAppHost(
@@ -67,8 +67,6 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, BrainSceneLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, CompiledAppsLifecycle>();
-        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, SettingsModulesLifecycle>();
-        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, SettingsSideloadLifecycle>();
         services.AddSingleton<DevAppGate>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, InProcessAppRuntime>());
@@ -83,7 +81,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
             : DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current is { BrainId: { Length: > 0 } b }
                 ? b
                 : "owner";
-        var fullKey = neuronKey.Contains('/', StringComparison.Ordinal) && BrainKey.BrainOf(neuronKey).Length > 0
+        var fullKey = neuronKey.Contains('/', StringComparison.Ordinal) && string.Equals(BrainKey.BrainOf(neuronKey), brain, StringComparison.Ordinal)
             ? neuronKey
             : $"{brain}/{neuronKey}";
         if (contractType.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is not null)

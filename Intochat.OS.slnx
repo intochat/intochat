@@ -158,5 +158,7 @@
     <File Path="Directory.Packages.props" />
   </Folder>
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
+  <Project Path="src/IntoChat.OS.Apps.Tests.Unit/IntoChat.OS.Apps.Tests.Unit.csproj" />
+  <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
   <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
 </Solution>

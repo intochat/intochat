@@ -20,7 +20,7 @@ public sealed class FeatureCatalog
 
     private readonly FeatureDirectory? _directory;
     private readonly IScriptSandbox? _sandbox;
-    private readonly Assembly? _modules;
+    private readonly Assembly[] _modules;
     private readonly FeatureDirectory? _dev;
     private readonly SideloadDirectory? _sideload;
     private readonly GitSideload? _git;
@@ -28,13 +28,16 @@ public sealed class FeatureCatalog
     private Task<Loaded>? _loaded;
 
     public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
-        : this(directory, sandbox, null, dev, sideload, git) { }
+        : this(directory, sandbox, Array.Empty<Assembly>(), dev, sideload, git) { }
 
     internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, Assembly? modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
+        : this(directory, sandbox, modules is null ? [] : [modules], dev, sideload, git) { }
+
+    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, IEnumerable<Assembly> modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
     {
         _directory = directory;
         _sandbox = sandbox;
-        _modules = modules;
+        _modules = [.. (modules ?? []).Where(a => a is not null).Distinct()];
         _dev = dev;
         _sideload = sideload;
         _git = git;
@@ -48,7 +51,12 @@ public sealed class FeatureCatalog
         var development = services.GetService<IHostEnvironment>()?.IsDevelopment() == true;
         if (string.IsNullOrWhiteSpace(path)) { path = DefaultScriptFolder(development); }
         var directory = new FeatureDirectory(System.IO.Path.GetFullPath(path, AppContext.BaseDirectory), development);
-        return new(directory, services.GetService<IScriptSandbox>(), typeof(AppsModule).Assembly, DevDirectory(services), SideloadRoot(services), services.GetService<GitSideload>());
+        var registered = services.GetServices<CompiledAppsRegistration>().Select(r => r.Assembly).ToList();
+        if (!registered.Contains(typeof(AppsModule).Assembly))
+        {
+            registered.Insert(0, typeof(AppsModule).Assembly);
+        }
+        return new(directory, services.GetService<IScriptSandbox>(), registered, DevDirectory(services), SideloadRoot(services), services.GetService<GitSideload>());
     }
 
     // IntoChatOS:Apps:SideloadDirectory, or <Home>/apps. Missing until a folder or a git URL is dropped.
@@ -315,23 +323,26 @@ public sealed class FeatureCatalog
             { added = new(Nothing.Bundles, [new(SideloadOwner, "", "", error.Message)], Nothing.Origins); }
             scripts = Merge(scripts, added, SideloadOwner);
         }
-        if (_modules is null) { return scripts; }
+        if (_modules.Length == 0) { return scripts; }
         var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>(scripts.Bundles.ToDictionary());
         var origins = scripts.Origins.ToDictionary();
         List<FeatureFailure> failures = [.. scripts.Failures];
-        foreach (var compiled in CompiledApps.Of(_modules))
+        foreach (var moduleAssembly in _modules)
         {
-            var key = (compiled.Owner, compiled.Bundle.Name);
-            if (bundles.ContainsKey(key))
+            foreach (var compiled in CompiledApps.Of(moduleAssembly))
             {
-                var reason = $"{compiled.Owner}/{compiled.Bundle.Name} ships twice: the features folder and {compiled.Origin.Assembly.GetName().Name}.";
-                failures.Add(new(compiled.Owner, compiled.Bundle.Name, compiled.Bundle.Version, reason));
-                bundles.Remove(key);
-                origins.Remove(key);
-                continue;
+                var key = (compiled.Owner, compiled.Bundle.Name);
+                if (bundles.ContainsKey(key))
+                {
+                    var reason = $"{compiled.Owner}/{compiled.Bundle.Name} ships twice: the features folder and {compiled.Origin.Assembly.GetName().Name}.";
+                    failures.Add(new(compiled.Owner, compiled.Bundle.Name, compiled.Bundle.Version, reason));
+                    bundles.Remove(key);
+                    origins.Remove(key);
+                    continue;
+                }
+                bundles[key] = compiled.Bundle;
+                origins[key] = compiled.Origin;
             }
-            bundles[key] = compiled.Bundle;
-            origins[key] = compiled.Origin;
         }
         return new(bundles, [.. failures], origins);
     }

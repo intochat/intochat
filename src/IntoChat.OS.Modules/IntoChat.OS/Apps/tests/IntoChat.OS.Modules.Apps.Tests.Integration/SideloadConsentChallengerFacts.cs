@@ -1,4 +1,6 @@
+using DigitalBrain;
 using DigitalBrain.UI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
@@ -182,32 +184,30 @@ public sealed class SideloadConsentChallengerFacts : IDisposable
     }
 
     [Fact]
-    public async Task SideloadDeskAndSettingsApp_PropagateConsentProperly()
+    public async Task SideloadNeuron_PropagatesConsentProperly()
     {
         var requires = new AppRequirements(SemanticTypes: ["camera.access"]);
         WriteAppBundle("camera-app", requires);
         var installer = CreateInstaller();
-        var desk = new SideloadDesk(installer);
-        var board = new ChallengerBoard();
-        var settingsApp = new SettingsApp(board, desk);
+        var services = new ServiceCollection()
+            .AddSingleton(installer)
+            .BuildServiceProvider();
+        await using var os = DigitalBrain.Testing.TestOS.Local(o => o.Services = services);
+        os.Register<SideloadNeuron>();
+        var neuron = os.Get<ISideload>(new NeuronId(new BrainId("local"), "apps.sideload", "sideload"));
 
-        // 1. SettingsApp install without consent -> blocked
-        await settingsApp.SideloadInstall(new SettingsSideloadInstall("camera-app", Consent: null));
-        Assert.Equal("Consent required: camera-app requests capabilities that require human approval.", Assert.IsType<Text>(board.Main!.Root).Value);
+        // 1. SideloadNeuron install without consent -> blocked
+        var denied = await neuron.Install("camera-app", consent: null);
+        Assert.False(denied.Ok);
+        Assert.Equal("Consent required: camera-app requests capabilities that require human approval.", denied.Message);
         Assert.Empty(_installedCalls);
 
-        // 2. SettingsApp install with valid consent -> succeeds
+        // 2. SideloadNeuron install with valid consent -> succeeds
         var validConsent = AppConsent.Of(requires);
-        await settingsApp.SideloadInstall(new SettingsSideloadInstall("camera-app", Consent: validConsent));
-        Assert.Equal("Installed camera-app.", Assert.IsType<Text>(board.Main.Root).Value);
+        var allowed = await neuron.Install("camera-app", consent: validConsent);
+        Assert.True(allowed.Ok);
+        Assert.Equal("Installed camera-app.", allowed.Message);
         Assert.Single(_installedCalls, "sideload/camera-app");
-    }
-
-    private sealed class ChallengerBoard : IPresenter
-    {
-        public View? Main { get; private set; }
-        public void Present(View? side, View? main) => Main = main;
-        public void Toast(Toast toast) => _ = toast;
     }
 
     private sealed class PassGate : IScriptSandbox

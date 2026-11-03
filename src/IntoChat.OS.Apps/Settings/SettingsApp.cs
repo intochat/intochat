@@ -9,8 +9,9 @@ Owns the 13 settings sections, master-detail subpages (AppPage, MemoryPage, Conn
 modal sheets, search index, and navigation backstack. Preferences read and persist through UserSettingsNeuron (IUserSettings).
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Apps;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Apps.Settings;
 
 [DigitalBrain.Signal("settings.open")]
 public sealed record SettingsOpen(string? Section = null) : DigitalBrain.Signal;
@@ -131,7 +132,7 @@ public sealed record SettingsAppState(
 }
 
 [DigitalBrain.App("settings", Accent = "#64748B", Category = "System")]
-public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? sideload = null) : DigitalBrain.App<SettingsAppState>
+public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
 {
     public static IReadOnlyList<SettingsSearchEntry> SearchIndex { get; } =
     [
@@ -152,7 +153,10 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(SettingsApp));
 
-    public static AppBundle Bundle { get; } = ShellPrograms.Load("Settings");
+    public static AppBundle Bundle { get; } = ShellPrograms.Load("Settings") with
+    {
+        CompiledType = typeof(SettingsApp).AssemblyQualifiedName,
+    };
 
     public static string NormalizeSection(string? section) => (section ?? "general").Trim().ToLowerInvariant() switch
     {
@@ -448,9 +452,7 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
     public async Task SideloadList(SettingsSideloadList request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var view = sideload is null
-            ? new View("Sideload", new Collection([]))
-            : await sideload.List(CancellationToken.None);
+        var view = await SettingsSideload.List(Get<ISideload>("apps/sideload"));
         Update(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
@@ -458,9 +460,7 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
     public async Task SideloadInstall(SettingsSideloadInstall request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var view = sideload is null
-            ? new View("Sideload", new Text(string.IsNullOrWhiteSpace(request.Name) ? "Name an app." : request.Name))
-            : await sideload.Install(request.Name, request.Consent, CancellationToken.None);
+        var view = await SettingsSideload.Install(Get<ISideload>("apps/sideload"), request.Name, request.Consent);
         Update(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
@@ -468,9 +468,7 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
     public async Task SideloadAddGit(SettingsSideloadAddGit request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var view = sideload is null
-            ? new View("Sideload", new Text(string.IsNullOrWhiteSpace(request.Url) ? "Name a git URL." : request.Url))
-            : await sideload.AddGit(request.Url, CancellationToken.None);
+        var view = await SettingsSideload.AddGit(Get<ISideload>("apps/sideload"), request.Url);
         Update(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
@@ -972,14 +970,7 @@ public sealed class SettingsApp(IPresenter? presenter = null, SideloadDesk? side
         Kind: SurfaceKind.Elevated,
         Title: "Danger zone");
 
-    private void Update(SettingsAppState next)
-    {
-        Set(next);
-        if (presenter is not null)
-        {
-            Present(presenter.Present, RenderSide, Render);
-        }
-    }
+    private void Update(SettingsAppState next) => Set(next);
 
     [DigitalBrain.Scenario("Saving user preferences and navigating across the 13 sections updates UserSettingsNeuron and view")]
     public async Task VerifySavePreferencesScenario()
