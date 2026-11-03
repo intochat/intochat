@@ -28,7 +28,7 @@ internal sealed partial class AppNeuron
     // authority, or a brain nobody owns yet, records none; the app proxy still stamps the app principal.
     private async Task EnsureAppPrincipal()
     {
-        if (ServiceProvider.GetService<ICapabilityBroker>() is not { } broker || Snapshot.Manifest is not { } manifest) { return; }
+        if (ServiceProvider.GetService<ICapabilityBroker>() is not { } broker || State.Manifest is not { } manifest) { return; }
         var brain = BrainId();
         IIdentity directory;
         try { directory = await broker.Identity(); }

@@ -1,4 +1,4 @@
-﻿using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
 using System.Globalization;
 using System.Text.Json;
@@ -41,39 +41,39 @@ internal sealed partial class AppNeuron
                 : Math.Max(1, views.Length);
         var declaredKeys = presentation.Sphere?.BlackboardKeys ?? [];
         var slotRules = new[] { presentation.Side, presentation.Main }.OfType<UiChildRef>().Concat(views.Where(v => v?.Root is not null).Select(view => view.Root))
-            .Select(slot => (Rule)new SlotNamesABrainNeuron(string.IsNullOrWhiteSpace(slot.Kind) ? "" : slot.Name, Snapshot.BrainScopeId ?? ""));
+            .Select(slot => (Rule)new SlotNamesABrainNeuron(string.IsNullOrWhiteSpace(slot.Kind) ? "" : slot.Name, State.BrainScopeId ?? ""));
         await Check("Present",
             [new PresentationHasViews(viewCount), .. slotRules, new BlackboardKeysAreDeclarable(declaredKeys)]);
         if (presentation.Sphere?.Tree is { } tree) { FlameSchema.CheckTree(tree, declaredKeys); }
-        var current = Snapshot.Presentation;
+        var current = State.Presentation;
         if (current is { Root: { } root, Error: null } && JsonSerializer.Serialize(root) == JsonSerializer.Serialize(presentation))
-        { return Describe(Snapshot); }
+        { return Describe(State); }
         var keys = declaredKeys.Concat(FlameSchema.ReservedBlackboardKeys).ToHashSet(StringComparer.Ordinal);
         var blackboard = (current?.Blackboard ?? []).Where(pair => keys.Contains(pair.Key)).ToDictionary(StringComparer.Ordinal);
-        await SavePresentation(new(Snapshot.ProgramRevision, (current?.Revision ?? 0) + 1, presentation, null, blackboard));
-        return Describe(Snapshot);
+        await SavePresentation(new(State.ProgramRevision, (current?.Revision ?? 0) + 1, presentation, null, blackboard));
+        return Describe(State);
     }
 
     public async Task<AppSnapshot> FailPresentation(long expectedProgramRevision, string error)
     {
         await RequireExecutingAssignment("FailPresentation", expectedProgramRevision);
         ArgumentException.ThrowIfNullOrWhiteSpace(error);
-        var current = Snapshot.Presentation;
-        if (current is { Root: null } && current.Error == error) { return Describe(Snapshot); }
-        await SavePresentation(new(Snapshot.ProgramRevision, (current?.Revision ?? 0) + 1, null, error, new(current?.Blackboard ?? [], StringComparer.Ordinal)));
-        return Describe(Snapshot);
+        var current = State.Presentation;
+        if (current is { Root: null } && current.Error == error) { return Describe(State); }
+        await SavePresentation(new(State.ProgramRevision, (current?.Revision ?? 0) + 1, null, error, new(current?.Blackboard ?? [], StringComparer.Ordinal)));
+        return Describe(State);
     }
 
     public async Task<AppSnapshot> WriteBlackboard(long expectedProgramRevision, Dictionary<string, string> values)
     {
         await RequireExecutingAssignment("WriteBlackboard", expectedProgramRevision);
         ArgumentNullException.ThrowIfNull(values);
-        await Check("WriteBlackboard", new PresentationIsPublished(Snapshot.Presentation is not null));
-        var current = Snapshot.Presentation!;
+        await Check("WriteBlackboard", new PresentationIsPublished(State.Presentation is not null));
+        var current = State.Presentation!;
         var declared = current.Root?.Sphere?.BlackboardKeys ?? [];
         await Check("WriteBlackboard", [.. values.Keys.Select(key => (Rule)new BlackboardKeyIsDeclared(key, declared))]);
         await WriteValues(current, values);
-        return Describe(Snapshot);
+        return Describe(State);
     }
 
     public async Task Stamp(string key, string value)
@@ -82,7 +82,7 @@ internal sealed partial class AppNeuron
         { throw new UnauthorizedAccessException("Only the module may stamp reserved blackboard keys."); }
         await RequireCreated("Stamp");
         await Check("Stamp", new BlackboardKeysAreDeclarable(FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal) ? ["ok"] : [""]));
-        var current = Snapshot.Presentation ?? new(Snapshot.ProgramRevision, 0, null, null, new(StringComparer.Ordinal));
+        var current = State.Presentation ?? new(State.ProgramRevision, 0, null, null, new(StringComparer.Ordinal));
         await WriteValues(current, new() { [key] = value });
     }
 
@@ -600,7 +600,7 @@ internal sealed partial class AppNeuron
 
     private Task SavePresentation(AppPresentation presentation)
     {
-        var next = Snapshot.Clone();
+        var next = State.Clone();
         next.Presentation = presentation;
         return Save(next, new PresentationChanged(Key, next.ProgramRevision, presentation.Revision));
     }
@@ -611,7 +611,7 @@ internal sealed partial class AppNeuron
             || !string.Equals(caller.AppId, Key, StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("Only this app's executing assignment may publish its presentation."); }
         return Check(operation,
-            new AppExists(Name(), Snapshot.Manifest is not null),
-            new AssignmentIsCurrent(expectedProgramRevision != Snapshot.ProgramRevision));
+            new AppExists(Name(), State.Manifest is not null),
+            new AssignmentIsCurrent(expectedProgramRevision != State.ProgramRevision));
     }
 }

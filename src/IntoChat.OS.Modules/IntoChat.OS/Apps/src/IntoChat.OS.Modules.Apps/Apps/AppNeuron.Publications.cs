@@ -15,11 +15,11 @@ internal sealed partial class AppNeuron
 
     private AppReleaseRecord[] Releases()
     {
-        if (Snapshot.Published is not { } held || Snapshot.Publisher is not { } publisher
-            || Snapshot.Principal is not { } principal
-            || Snapshot.Releases.Any(release => release.Bundle.Version == held.Version))
-        { return Snapshot.Releases; }
-        return [.. Snapshot.Releases, Release(held, publisher, new AppSource.Brain(principal.AccountId, principal.BrainId))];
+        if (State.Published is not { } held || State.Publisher is not { } publisher
+            || State.Principal is not { } principal
+            || State.Releases.Any(release => release.Bundle.Version == held.Version))
+        { return State.Releases; }
+        return [.. State.Releases, Release(held, publisher, new AppSource.Brain(principal.AccountId, principal.BrainId))];
     }
 
     private AppReleaseRecord Release(AppVersionRecord version, string publisher, AppSource.Brain source)
