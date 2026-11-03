@@ -186,11 +186,7 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
     }
 
     private static IDisposable StampCaller(string brain)
-    {
-        var caller = CapabilityCallers.Of(brain, brain, brain);
-        CallerContextStamper.Stamp(caller);
-        return RuntimeCallerContext.Stamp(caller);
-    }
+        => RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
 
     private static byte[] CompilePrebuiltCalculatorAssembly()
     {
