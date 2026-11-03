@@ -10,7 +10,7 @@ OS and SDK documentation lives in the sibling public repository `E:/intochat/os.
 - Preserve per-brain ownership and kernel-stamped signal provenance. Do not derive authority from settings.
 - Contracts belong in src/IntoChat.OS and module Contracts assemblies; generic runtime implementation belongs in the DigitalBrain packages (sibling repository); OS-only hosting belongs in src/IntoChat.OS/Hosting/IntoChat.OS.Framework; platform authorities belong in the Identity module's Authority tree.
 - First-party app source and executable prompts live in features/{owner}/{App}. Inline app specifications and runtime prompts are source inputs and remain here.
-- Use shared module-owned testing infrastructure for engineering changes. Build individual projects on Windows rather than the solution.
+- Use shared module-owned testing infrastructure for engineering changes. Build individual projects on Windows rather than the solution. Tiers prove one subject: Unit = facts on TestOS, Integration = the same on a real silo through Testing.Silo, E2E = the product on an in-process host without Docker, Browser = the shell in a browser (nightly). CI enforces a time budget per tier.
 - Product assessment and documentation work does not authorize running tests or starting the product. Follow the user's requested verification scope.
 - For runtime behavior changes, completion requires observed behavior and telemetry as well as appropriate automated checks; do not describe source inspection as live verification.
 - Keep C# wire records and Dart mirrors aligned.

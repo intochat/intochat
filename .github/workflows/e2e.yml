@@ -107,8 +107,18 @@ jobs:
             docker inspect --format '{{index .RepoDigests 0}}' "$image"
           done
 
-      - name: Test Framework E2E
-        run: dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.Integration/IntoChat.OS.Kernel.Tests.Integration.csproj -c Release --no-build
+      # The product tier (E2E projects that need no Docker) runs in ci.yml (`product` job).
+      # Nightly e2e runs only E2E projects that reference Aspire hosting (cloud topology and images).
+      - name: Test Aspire E2E (cloud topology and images)
+        run: |
+          found=0
+          for proj in $(find src -name '*.Tests.E2E.csproj'); do
+            if grep -q 'Aspire\.Hosting' "$proj"; then
+              found=1
+              dotnet test --project "$proj" -c Release --no-build
+            fi
+          done
+          if [ "$found" -eq 0 ]; then echo "No Aspire-hosted E2E projects in this checkout."; fi
 
   browser:
     name: browser

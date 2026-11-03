@@ -110,29 +110,69 @@ jobs:
         continue-on-error: true
         run: dotnet run intochat.cs preflight --no-fail
 
-      - name: Test (Unit)
-        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:CodeGraphRefresh=false --filter "Tier=Unit" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
-
-      - name: Test (Integration)
-        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:CodeGraphRefresh=false --filter "Tier=Integration" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
-
-      - name: Report TRX failures as annotations
-        if: failure()
-        run: |
-          python3 -c '
-          import glob, xml.etree.ElementTree as ET
-          for p in glob.glob("artifacts/trx/**/*.trx", recursive=True):
-              root = ET.parse(p).getroot()
-              for r in root.findall(".//{*}UnitTestResult[@outcome=\"Failed\"]"):
-                  name = r.attrib.get("testName", "unknown")
-                  msg_el = r.find(".//{*}Message")
-                  msg = (msg_el.text or "").replace("\n", " ").replace("\r", " ")[:400] if msg_el is not None else ""
-                  print(f"::error title={name}::{msg}")
-          '
-
       - name: Validate NuGet packages
         run: |
           dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
+
+      - name: Upload built artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-bin
+          path: artifacts/bin
+
+  facts:
+    name: facts
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Download built artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-bin
+          path: artifacts/bin
+      - name: Test (Unit)
+        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:CodeGraphRefresh=false --filter "Tier=Unit" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+
+  runtime:
+    name: runtime
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Download built artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-bin
+          path: artifacts/bin
+      - name: Test (Integration)
+        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:CodeGraphRefresh=false --filter "Tier=Integration" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+
+  product:
+    name: product
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Download built artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-bin
+          path: artifacts/bin
+      - name: Test (Product E2E)
+        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=E2E -p:CodeGraphRefresh=false --filter "Tier=E2E" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
 
   # Blob storage@1 against Azurite. The default Integration tier skips when port 10000 is closed.
   blob-storage:
@@ -163,7 +203,7 @@ jobs:
   # tier job reports the whole run instead of only the rerun jobs (attempts/N/jobs lists only that attempt's jobs).
   report:
     name: report
-    needs: [format, build, blob-storage]
+    needs: [format, build, facts, runtime, product, blob-storage]
     if: always()
     continue-on-error: true
     runs-on: ubuntu-24.04
@@ -190,7 +230,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [format, build, blob-storage]
+    needs: [format, build, facts, runtime, product, blob-storage]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -198,7 +238,7 @@ jobs:
       - name: Gate
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
         run: |
-          echo "format=${{ needs.format.result }} build=${{ needs.build.result }} blob-storage=${{ needs.blob-storage.result }}"
+          echo "format=${{ needs.format.result }} build=${{ needs.build.result }} facts=${{ needs.facts.result }} runtime=${{ needs.runtime.result }} product=${{ needs.product.result }} blob-storage=${{ needs.blob-storage.result }}"
           exit 1
 
   # Prerelease packages to GitHub Packages, only after the aggregate ci job succeeded on a master push.
