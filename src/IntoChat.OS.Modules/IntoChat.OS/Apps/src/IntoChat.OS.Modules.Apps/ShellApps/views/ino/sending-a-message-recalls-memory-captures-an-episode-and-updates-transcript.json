@@ -1,0 +1,599 @@
+{
+  "appId": "ino",
+  "scenario": "Sending a message recalls memory, captures an episode, and updates transcript",
+  "side": {
+    "title": "Chats",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Ino · Arc Sidebar",
+                  "tone": "accent",
+                  "icon": "sparkles"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "6 turn(s)",
+                  "tone": "neutral",
+                  "icon": null
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "Remove Background (AI Subject Alpha Mask) (native-linux) -> /work/portrait.nobg.png",
+              "tone": "muted",
+              "tabular": true,
+              "mono": false
+            },
+            {
+              "kind": "button",
+              "label": "+ New Session",
+              "action": {
+                "neuron": "apps/ino",
+                "operation": "new",
+                "arguments": []
+              },
+              "enabled": true,
+              "tone": "accent",
+              "style": "secondary",
+              "icon": "plus",
+              "small": true
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "Tell me about my UI preference",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "divider",
+          "label": "PINNED SESSIONS"
+        },
+        {
+          "kind": "navItem",
+          "key": "arc-q4-renewal",
+          "label": "Nordlys Q4 Renewal",
+          "icon": "sparkles",
+          "action": "send:/scenario q4-renewal",
+          "selected": false,
+          "badge": "Needs you"
+        },
+        {
+          "kind": "navItem",
+          "key": "arc-morning-brief",
+          "label": "Morning Brief",
+          "icon": "sun",
+          "action": "send:/scenario morning-brief",
+          "selected": false,
+          "badge": "3"
+        },
+        {
+          "kind": "divider",
+          "label": "TODAY"
+        },
+        {
+          "kind": "navItem",
+          "key": "arc-invoice-check",
+          "label": "Tripletex Invoice Check",
+          "icon": "key-round",
+          "action": "send:/scenario invoice-check",
+          "selected": false,
+          "badge": "Vault"
+        },
+        {
+          "kind": "navItem",
+          "key": "arc-first-run",
+          "label": "Ino Setup · First Run",
+          "icon": "compass",
+          "action": "send:/scenario first-run",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "collection",
+          "entries": [
+            {
+              "id": "main",
+              "title": "Tell me about my UI preference",
+              "subtitle": "6 turn(s)"
+            }
+          ]
+        }
+      ],
+      "gap": 8,
+      "padding": 0
+    }
+  },
+  "main": {
+    "title": "Ino",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Ino Assistant",
+                  "tone": "accent",
+                  "icon": "bot"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "Ready",
+                  "tone": "ok",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "main:db.nordlys.internal/nordlys_crm",
+                  "tone": "info",
+                  "icon": "database"
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "Remove Background (AI Subject Alpha Mask) (native-linux) -> /work/portrait.nobg.png",
+              "tone": "neutral",
+              "tabular": true,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "Tell me about my UI preference",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "text",
+          "value": "[db-connection:connected] PostgreSQL Connected: nordlys_crm (db.nordlys.internal) (neuron://local/postgres/main | scope:neuron://local/apps/ino#db-1)",
+          "tone": "muted",
+          "tabular": true,
+          "mono": true
+        },
+        {
+          "kind": "recordCard",
+          "objectLabel": "db-connection",
+          "name": "PostgreSQL Connected: nordlys_crm (db.nordlys.internal)",
+          "fields": [
+            {
+              "label": "Status",
+              "value": "connected",
+              "warn": false
+            },
+            {
+              "label": "Neuron URI",
+              "value": "neuron://local/postgres/main",
+              "warn": false
+            },
+            {
+              "label": "Scope",
+              "value": "neuron://local/apps/ino#db-1",
+              "warn": false
+            }
+          ],
+          "subtitle": "Connection sealed in neuron://local/postgres/main. Ready for read-only SQL, tables, and chart visualizations.",
+          "linkLabel": "Open Neuron",
+          "onOpen": null
+        },
+        {
+          "kind": "text",
+          "value": "[table:ready] Pipeline Opportunities by Amount — Table (5 rows from main:db.nordlys.internal/nordlys_crm) (neuron://local/postgres/main#query-result | scope:neuron://local/apps/ino#table-2)",
+          "tone": "muted",
+          "tabular": true,
+          "mono": true
+        },
+        {
+          "kind": "dataTable",
+          "title": "Pipeline Opportunities by Amount — Table (5 rows from main:db.nordlys.internal/nordlys_crm)",
+          "columns": [
+            "Opportunity",
+            "Account",
+            "Stage",
+            "Amount"
+          ],
+          "rows": [
+            [
+              "Havbris pilot",
+              "Havbris AS",
+              "Proposal",
+              "€240,000"
+            ],
+            [
+              "Depot software, phase 2",
+              "Acme Logistics",
+              "Negotiation",
+              "€186,000"
+            ],
+            [
+              "Fjordline renewal",
+              "Fjordline",
+              "Contract",
+              "€96,000"
+            ],
+            [
+              "Nordkapp second region",
+              "Nordkapp Shipping",
+              "Discovery",
+              "€74,500"
+            ],
+            [
+              "Cold-chain sensors",
+              "Lofoten Seafood",
+              "Proposal",
+              "€31,200"
+            ]
+          ],
+          "sourceNeuronUri": "neuron://local/postgres/main#query-result",
+          "from": "Postgres"
+        },
+        {
+          "kind": "text",
+          "value": "[chart:ready] Pipeline Opportunities by Amount (neuron://local/apps/ino/chart | scope:neuron://local/apps/ino#chart-3)",
+          "tone": "muted",
+          "tabular": true,
+          "mono": true
+        },
+        {
+          "kind": "chart",
+          "chartKind": "pie",
+          "title": "Pipeline Opportunities by Amount",
+          "points": [
+            {
+              "label": "Havbris pilot",
+              "value": 240000
+            },
+            {
+              "label": "Depot software, phase 2",
+              "value": 186000
+            },
+            {
+              "label": "Fjordline renewal",
+              "value": 96000
+            },
+            {
+              "label": "Nordkapp second region",
+              "value": 74500
+            },
+            {
+              "label": "Cold-chain sensors",
+              "value": 31200
+            }
+          ],
+          "comparePoints": null,
+          "seriesName": "Current",
+          "compareName": "",
+          "sourceNeuronUri": "neuron://local/apps/ino/chart",
+          "from": "Postgres",
+          "prefix": "€"
+        },
+        {
+          "kind": "text",
+          "value": "[photocraft:completed] Remove Background (AI Subject Alpha Mask) [native-linux] (neuron://local/apps/photocraft | scope:neuron://local/apps/ino#studio-6)",
+          "tone": "muted",
+          "tabular": true,
+          "mono": true
+        },
+        {
+          "kind": "recordCard",
+          "objectLabel": "PhotoCraft · Image Studio",
+          "name": "Remove Background (AI Subject Alpha Mask) [native-linux]",
+          "fields": [
+            {
+              "label": "Status",
+              "value": "completed",
+              "warn": false
+            },
+            {
+              "label": "Studio Neuron",
+              "value": "neuron://local/apps/photocraft",
+              "warn": false
+            },
+            {
+              "label": "Scope",
+              "value": "neuron://local/apps/ino#studio-6",
+              "warn": false
+            }
+          ],
+          "subtitle": "Executed `layer.removeBackground` (Remove Background (AI Subject Alpha Mask)) via **Native Linux CLI (photocraft-cli)** · Input: `/work/portrait.png` -> Output: `/work/portrait.nobg.png` · CLI: photocraft-cli run /work/portrait.png --cmd layer.removeBackground --params '{\"featherPx\":1,\"output\":\"layer-mask\"}' --out /work/portrait.nobg.png --format png",
+          "linkLabel": "Open PhotoCraft Studio",
+          "onOpen": {
+            "neuron": "apps/photocraft",
+            "operation": "open",
+            "arguments": []
+          }
+        },
+        {
+          "kind": "webBrowser",
+          "key": "studio-6-studio",
+          "url": "http://localhost:18082",
+          "title": "Remove Background (AI Subject Alpha Mask) [native-linux]",
+          "height": 420,
+          "executionMode": "wasm-ui"
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Turn 1",
+                  "tone": "neutral",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "agent:qwen3.5:4b",
+                  "tone": "accent",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "1 memory hit(s)",
+                  "tone": "ok",
+                  "icon": "brain"
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "heading",
+              "value": "Tell me about my UI preference",
+              "level": 3,
+              "subtitle": null
+            },
+            {
+              "kind": "text",
+              "value": "Ino (qwen3.5:4b): Answered 'Tell me about my UI preference' (recalled 1 memory item(s): preference: User prefers concise dark-mode UI)",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "elevated",
+          "title": "Tell me about my UI preference",
+          "subtitle": "agent:qwen3.5:4b",
+          "padding": 18
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Turn 2",
+                  "tone": "neutral",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "postgres:main",
+                  "tone": "accent",
+                  "icon": null
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "heading",
+              "value": "Connect database (db.nordlys.internal/nordlys_crm)",
+              "level": 3,
+              "subtitle": null
+            },
+            {
+              "kind": "text",
+              "value": "Connected to PostgreSQL database 'nordlys_crm' on 'db.nordlys.internal' (neuron://local/postgres/main). Ask me to query or visualize any table or chart.",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "elevated",
+          "title": "Connect database (db.nordlys.internal/nordlys_crm)",
+          "subtitle": "postgres:main",
+          "padding": 18
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Turn 3",
+                  "tone": "neutral",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "postgres:query",
+                  "tone": "accent",
+                  "icon": null
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "heading",
+              "value": "SELECT opportunity, account, stage, amount FROM opportunities",
+              "level": 3,
+              "subtitle": null
+            },
+            {
+              "kind": "text",
+              "value": "Queried 5 opportunity row(s) totaling €627,700 from main:db.nordlys.internal/nordlys_crm. Rendered interactive UI Table (5 rows) and bar Chart ('Pipeline Opportunities by Amount', 5 points) from neuron://local/postgres/main.",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "elevated",
+          "title": "SELECT opportunity, account, stage, amount FROM opportunities",
+          "subtitle": "postgres:query",
+          "padding": 18
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Turn 4",
+                  "tone": "neutral",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "chart:qa",
+                  "tone": "accent",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "3 memory hit(s)",
+                  "tone": "ok",
+                  "icon": "brain"
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "heading",
+              "value": "What are top 3 on the chart I see?",
+              "level": 3,
+              "subtitle": null
+            },
+            {
+              "kind": "text",
+              "value": "Ino (qwen3.5:4b): Top 3 on **Pipeline Opportunities by Amount**: 1. **Havbris pilot** (€240,000), 2. **Depot software, phase 2** (€186,000), 3. **Fjordline renewal** (€96,000).",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "elevated",
+          "title": "What are top 3 on the chart I see?",
+          "subtitle": "chart:qa",
+          "padding": 18
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Turn 5",
+                  "tone": "neutral",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "chart:qa",
+                  "tone": "accent",
+                  "icon": null
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "heading",
+              "value": "Switch the chart I see to a pie chart",
+              "level": 3,
+              "subtitle": null
+            },
+            {
+              "kind": "text",
+              "value": "Ino (qwen3.5:4b): Switched **Pipeline Opportunities by Amount** to a **pie** chart with 5 data points.",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "elevated",
+          "title": "Switch the chart I see to a pie chart",
+          "subtitle": "chart:qa",
+          "padding": 18
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Turn 6",
+                  "tone": "neutral",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "routed:photocraft.layer.removeBackground",
+                  "tone": "accent",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "1 memory hit(s)",
+                  "tone": "ok",
+                  "icon": "brain"
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "heading",
+              "value": "Remove background from portrait.png",
+              "level": 3,
+              "subtitle": null
+            },
+            {
+              "kind": "text",
+              "value": "Ino (qwen3.5:4b): Executed `layer.removeBackground` (Remove Background (AI Subject Alpha Mask)) via **Native Linux CLI (photocraft-cli)** · Input: `/work/portrait.png` -> Output: `/work/portrait.nobg.png`\n\n- **Command**: `layer.removeBackground` (Remove Background (AI Subject Alpha Mask))\n- **Execution Mode**: `native-linux` (`photocraft-cli run /work/portrait.png --cmd layer.removeBackground --params '{\"featherPx\":1,\"output\":\"layer-mask\"}' --out /work/portrait.nobg.png --format png`)\n- **Output Artifact**: `/work/portrait.nobg.png`\n- **Layers / Tracks**: Subject Cutout (Alpha Mask · 100%), Original Background (Hidden · 0%), Transparency Grid (Checkerboard)",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "elevated",
+          "title": "Remove background from portrait.png",
+          "subtitle": "routed:photocraft.layer.removeBackground",
+          "padding": 18
+        }
+      ],
+      "gap": 12,
+      "padding": 0
+    }
+  }
+}

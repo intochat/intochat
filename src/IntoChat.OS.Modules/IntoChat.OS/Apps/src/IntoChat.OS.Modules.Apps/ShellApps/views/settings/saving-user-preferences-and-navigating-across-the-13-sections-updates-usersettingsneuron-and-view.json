@@ -1,0 +1,664 @@
+{
+  "appId": "settings",
+  "scenario": "Saving user preferences and navigating across the 13 sections updates UserSettingsNeuron and view",
+  "side": {
+    "title": "Settings Sections",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "tagPill",
+              "label": "spatial-glass · floating-glass",
+              "tone": "accent",
+              "icon": "palette"
+            },
+            {
+              "kind": "text",
+              "value": "Alice · gpt-5",
+              "tone": "muted",
+              "tabular": true,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "DigitalBrain Settings (13 Sections)",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "textField",
+          "name": "settings-search",
+          "value": "",
+          "placeholder": "Search settings...",
+          "onSubmit": {
+            "neuron": "settings",
+            "operation": "navigate",
+            "arguments": [
+              "general",
+              "",
+              ""
+            ]
+          }
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-general",
+          "label": "General",
+          "icon": "sliders-horizontal",
+          "action": "navigate:general",
+          "selected": true,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-desktop",
+          "label": "Desktop & Dock",
+          "icon": "monitor",
+          "action": "navigate:desktop",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-apps",
+          "label": "Apps",
+          "icon": "layout-grid",
+          "action": "navigate:apps",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-connections",
+          "label": "Connections",
+          "icon": "plug",
+          "action": "navigate:connections",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-files",
+          "label": "Files",
+          "icon": "folder",
+          "action": "navigate:files",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-models",
+          "label": "AI models",
+          "icon": "sparkles",
+          "action": "navigate:models",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-keys",
+          "label": "API keys",
+          "icon": "key-round",
+          "action": "navigate:keys",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-variables",
+          "label": "Variables and secrets",
+          "icon": "braces",
+          "action": "navigate:variables",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-billing",
+          "label": "Billing",
+          "icon": "credit-card",
+          "action": "navigate:billing",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-team",
+          "label": "Team and permissions",
+          "icon": "users",
+          "action": "navigate:team",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-notifications",
+          "label": "Notifications",
+          "icon": "bell",
+          "action": "navigate:notifications",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-keyboard",
+          "label": "Keyboard",
+          "icon": "keyboard",
+          "action": "navigate:keyboard",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "nav-danger",
+          "label": "Danger zone",
+          "icon": "triangle-alert",
+          "action": "navigate:danger",
+          "selected": false,
+          "badge": "!"
+        },
+        {
+          "kind": "collection",
+          "entries": [
+            {
+              "id": "general",
+              "title": "General",
+              "subtitle": "appearance theme dark light auto glass acrylic spatial cyber synaptic warm paper midnight nordic language timezone date format"
+            },
+            {
+              "id": "desktop",
+              "title": "Desktop & Dock",
+              "subtitle": "dock pinned apps bar widgets notifications tokens clock background tone cream sand peat ink"
+            },
+            {
+              "id": "apps",
+              "title": "Apps",
+              "subtitle": "installed apps store link install sideload git permissions capabilities memory ino"
+            },
+            {
+              "id": "connections",
+              "title": "Connections",
+              "subtitle": "postgres salesforce google drive github slack integrations webhook oauth reconnect"
+            },
+            {
+              "id": "files",
+              "title": "Files",
+              "subtitle": "storage drive local computer root desktop mode synced folders conflict naming"
+            },
+            {
+              "id": "models",
+              "title": "AI models",
+              "subtitle": "ollama lm studio claude gpt gemini local inference reasoning effort default model"
+            },
+            {
+              "id": "keys",
+              "title": "API keys",
+              "subtitle": "personal api key secrets token encryption vault anthropic openai groq mistral google"
+            },
+            {
+              "id": "variables",
+              "title": "Variables and secrets",
+              "subtitle": "environment variables key value table sealed secret vault scope local brain system"
+            },
+            {
+              "id": "billing",
+              "title": "Billing",
+              "subtitle": "tokens consumption credits balance auto top-up monthly spend limit payment invoices compute"
+            },
+            {
+              "id": "team",
+              "title": "Team and permissions",
+              "subtitle": "teammates roster owner member guest invite person capability grants lfp circles"
+            },
+            {
+              "id": "notifications",
+              "title": "Notifications",
+              "subtitle": "alerts approvals failed jobs mentions quiet hours schedule"
+            },
+            {
+              "id": "keyboard",
+              "title": "Keyboard",
+              "subtitle": "shortcuts hotkeys desktop conversation editor command palette"
+            },
+            {
+              "id": "danger",
+              "title": "Danger zone",
+              "subtitle": "export archive zip delete account reset brain"
+            }
+          ]
+        }
+      ],
+      "gap": 8,
+      "padding": 0
+    }
+  },
+  "main": {
+    "title": "Settings · general",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "heading",
+              "value": "General",
+              "level": 2,
+              "subtitle": "appearance theme dark light auto glass acrylic spatial cyber synaptic warm paper midnight nordic language timezone date format"
+            },
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Preferences",
+                  "tone": "neutral",
+                  "icon": "sliders-horizontal"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "spatial-glass · light",
+                  "tone": "accent",
+                  "icon": "palette"
+                },
+                {
+                  "kind": "text",
+                  "value": "Back to general",
+                  "tone": "muted",
+                  "tabular": true,
+                  "mono": false
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "General",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "column",
+          "children": [
+            {
+              "kind": "grid",
+              "columns": 3,
+              "children": [
+                {
+                  "kind": "statCard",
+                  "key": "stat-preset",
+                  "label": "Active UI Identity",
+                  "value": "spatial-glass",
+                  "delta": "floating-glass",
+                  "tone": 1,
+                  "icon": "palette"
+                },
+                {
+                  "kind": "statCard",
+                  "key": "stat-model",
+                  "label": "Default Brain Model",
+                  "value": "gpt-5",
+                  "delta": "Local + Cloud",
+                  "tone": 2,
+                  "icon": "cpu"
+                },
+                {
+                  "kind": "statCard",
+                  "key": "stat-vault",
+                  "label": "Zero-Leakage Vault",
+                  "value": "4 Secrets Sealed",
+                  "delta": "2FA Active",
+                  "tone": 0,
+                  "icon": "key-round"
+                }
+              ],
+              "gap": 12
+            },
+            {
+              "kind": "surface",
+              "children": [
+                {
+                  "kind": "heading",
+                  "value": "Appearance & Theme Mode",
+                  "level": 3,
+                  "subtitle": "How IntoChat looks and reads for you."
+                },
+                {
+                  "kind": "row",
+                  "children": [
+                    {
+                      "kind": "button",
+                      "label": "Light",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "light",
+                          "gpt-5",
+                          "spatial-glass",
+                          "floating-glass",
+                          "light"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "accent",
+                      "style": "secondary",
+                      "icon": "sun",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Dark",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "dark",
+                          "gpt-5",
+                          "spatial-glass",
+                          "floating-glass",
+                          "dark"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "moon",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Auto",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "light",
+                          "gpt-5",
+                          "spatial-glass",
+                          "floating-glass",
+                          "auto"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "sparkles",
+                      "small": true
+                    }
+                  ],
+                  "gap": 8,
+                  "padding": 0
+                },
+                {
+                  "kind": "heading",
+                  "value": "Theme & UI Identity Presets",
+                  "level": 3,
+                  "subtitle": "Switch live Acrylic glass presets, colour themes, and adaptive OS bar layouts."
+                },
+                {
+                  "kind": "row",
+                  "children": [
+                    {
+                      "kind": "button",
+                      "label": "Fluent Acrylic",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "light",
+                          "gpt-5",
+                          "fluent-acrylic",
+                          "floating-glass"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Spatial Glass",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "light",
+                          "gpt-5",
+                          "spatial-glass",
+                          "floating-glass"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "accent",
+                      "style": "secondary",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Cyber Synaptic",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "light",
+                          "gpt-5",
+                          "cyber-synaptic",
+                          "floating-glass"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Warm Paper",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "light",
+                          "gpt-5",
+                          "warm-paper",
+                          "floating-glass"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Midnight",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "light",
+                          "gpt-5",
+                          "midnight",
+                          "floating-glass"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Nordic",
+                      "action": {
+                        "neuron": "settings",
+                        "operation": "save-preferences",
+                        "arguments": [
+                          "Alice",
+                          "light",
+                          "gpt-5",
+                          "nordic",
+                          "floating-glass"
+                        ]
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true
+                    }
+                  ],
+                  "gap": 8,
+                  "padding": 0
+                },
+                {
+                  "kind": "recordCard",
+                  "objectLabel": "Locale & Regional Formatting",
+                  "name": "English",
+                  "fields": [
+                    {
+                      "label": "Language",
+                      "value": "English",
+                      "warn": false
+                    },
+                    {
+                      "label": "Time Zone",
+                      "value": "UTC",
+                      "warn": false
+                    },
+                    {
+                      "label": "Date Format",
+                      "value": "17 Oct 2026",
+                      "warn": false
+                    },
+                    {
+                      "label": "Desktop Tone",
+                      "value": "sand",
+                      "warn": false
+                    }
+                  ],
+                  "subtitle": "General Preferences",
+                  "linkLabel": "Open Neuron",
+                  "onOpen": null
+                }
+              ],
+              "surfaceKind": "acrylic",
+              "title": "1 · General & Appearance",
+              "subtitle": null,
+              "padding": 18
+            },
+            {
+              "kind": "surface",
+              "children": [
+                {
+                  "kind": "heading",
+                  "value": "Quick OS Windows & Security Sheets",
+                  "level": 3,
+                  "subtitle": "Declarative os:// window and sheet protocol across Profile, Secure Vault, App Store & File Conflict."
+                },
+                {
+                  "kind": "row",
+                  "children": [
+                    {
+                      "kind": "button",
+                      "label": "Open Profile & 2FA",
+                      "action": {
+                        "neuron": "os://window/profile",
+                        "operation": "os://window/profile",
+                        "arguments": []
+                      },
+                      "enabled": true,
+                      "tone": "accent",
+                      "style": "secondary",
+                      "icon": "user",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Open Secure Vault",
+                      "action": {
+                        "neuron": "os://window/secure",
+                        "operation": "os://window/secure",
+                        "arguments": []
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "key-round",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Install App by Link",
+                      "action": {
+                        "neuron": "os://sheet/install",
+                        "operation": "os://sheet/install",
+                        "arguments": []
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "package-plus",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Review Update Consent",
+                      "action": {
+                        "neuron": "os://sheet/reconsent",
+                        "operation": "os://sheet/reconsent",
+                        "arguments": []
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "shield-check",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "label": "Resolve File Conflict",
+                      "action": {
+                        "neuron": "os://sheet/conflict",
+                        "operation": "os://sheet/conflict",
+                        "arguments": []
+                      },
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "git-compare",
+                      "small": true
+                    }
+                  ],
+                  "gap": 8,
+                  "padding": 0
+                }
+              ],
+              "surfaceKind": "elevated",
+              "title": "2 · Profile, Secure Vault & Modal Sheets",
+              "subtitle": null,
+              "padding": 18
+            }
+          ],
+          "gap": 12,
+          "padding": 0
+        }
+      ],
+      "gap": 14,
+      "padding": 0
+    }
+  }
+}

@@ -1,0 +1,468 @@
+{
+  "appId": "desktop",
+  "scenario": "Smart Desktop renders 3D BrainScene, UI identity preset, and launcher apps",
+  "side": {
+    "title": "Launcher",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "divider",
+          "label": "PINNED & SHELL APPS"
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-ino",
+          "label": "Ino Assistant",
+          "icon": "sparkles",
+          "action": "pin:ino",
+          "selected": true,
+          "badge": "PIN"
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-files",
+          "label": "Files",
+          "icon": "folder",
+          "action": "pin:files",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-photocraft",
+          "label": "PhotoCraft",
+          "icon": "image",
+          "action": "pin:photocraft",
+          "selected": true,
+          "badge": "PIN"
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-filmcraft",
+          "label": "FilmCraft",
+          "icon": "film",
+          "action": "pin:filmcraft",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-gallery",
+          "label": "UI Gallery",
+          "icon": "layout-grid",
+          "action": "pin:gallery",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-creator",
+          "label": "Creator 3D Loop",
+          "icon": "cpu",
+          "action": "pin:creator",
+          "selected": true,
+          "badge": "PIN"
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-post",
+          "label": "Post",
+          "icon": "send",
+          "action": "pin:post",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-settings",
+          "label": "Settings",
+          "icon": "settings",
+          "action": "pin:settings",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "collection",
+          "entries": [
+            {
+              "id": "ino",
+              "title": "Ino Assistant",
+              "subtitle": "neuron://local/apps/ino"
+            },
+            {
+              "id": "files",
+              "title": "Files",
+              "subtitle": "neuron://local/apps/files"
+            },
+            {
+              "id": "photocraft",
+              "title": "PhotoCraft",
+              "subtitle": "neuron://local/apps/photocraft"
+            },
+            {
+              "id": "filmcraft",
+              "title": "FilmCraft",
+              "subtitle": "neuron://local/apps/filmcraft"
+            },
+            {
+              "id": "gallery",
+              "title": "UI Gallery",
+              "subtitle": "neuron://local/apps/gallery"
+            },
+            {
+              "id": "creator",
+              "title": "Creator 3D Loop",
+              "subtitle": "neuron://local/apps/creator"
+            },
+            {
+              "id": "post",
+              "title": "Post",
+              "subtitle": "neuron://local/apps/post"
+            },
+            {
+              "id": "settings",
+              "title": "Settings",
+              "subtitle": "neuron://local/apps/settings"
+            }
+          ]
+        }
+      ],
+      "gap": 6,
+      "padding": 0
+    }
+  },
+  "main": {
+    "title": "Desktop",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "grid",
+          "columns": 3,
+          "children": [
+            {
+              "kind": "statCard",
+              "key": "desk-neurons",
+              "label": "Active Neurons",
+              "value": "9",
+              "delta": "3D Graph",
+              "tone": 2,
+              "icon": "cpu"
+            },
+            {
+              "kind": "statCard",
+              "key": "desk-pinned",
+              "label": "Pinned Sticky-Notes",
+              "value": "3",
+              "delta": "Locked",
+              "tone": 1,
+              "icon": "pin"
+            },
+            {
+              "kind": "statCard",
+              "key": "desk-preset",
+              "label": "Theme Preset",
+              "value": "fluent-acrylic",
+              "delta": "floating-glass",
+              "tone": 1,
+              "icon": "palette"
+            }
+          ],
+          "gap": 10
+        },
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "fluent-acrylic",
+                  "tone": "accent",
+                  "icon": "palette"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "floating-glass",
+                  "tone": "neutral",
+                  "icon": "layout"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "9 active neurons",
+                  "tone": "ok",
+                  "icon": "cpu"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "3 Pinned Sticky-Notes",
+                  "tone": "accent",
+                  "icon": "pin"
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "Desktop",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": false
+            },
+            {
+              "kind": "text",
+              "value": "Whiteboard Auto-Arranged · 3 pinned sticky-note app(s) locked on top (ino, creator, photocraft) · fluent-acrylic · floating-glass · 3D BrainScene (9 neurons)",
+              "tone": "neutral",
+              "tabular": true,
+              "mono": false
+            },
+            {
+              "kind": "text",
+              "value": "Whiteboard Sticky-Note Pins (Locked & Always-on-Top): ino, creator, photocraft",
+              "tone": "neutral",
+              "tabular": true,
+              "mono": false
+            },
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "button",
+                  "label": "Auto-Arrange",
+                  "action": {
+                    "neuron": "desktop",
+                    "operation": "auto-arrange",
+                    "arguments": []
+                  },
+                  "enabled": true,
+                  "tone": "accent",
+                  "style": "secondary",
+                  "icon": "layout-grid",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Pin PhotoCraft",
+                  "action": {
+                    "neuron": "desktop",
+                    "operation": "pin",
+                    "arguments": [
+                      "photocraft",
+                      "true"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "pin",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Pin FilmCraft",
+                  "action": {
+                    "neuron": "desktop",
+                    "operation": "pin",
+                    "arguments": [
+                      "filmcraft",
+                      "true"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "pin",
+                  "small": true
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox",
+              "tone": "neutral",
+              "tabular": false,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "Ino · DigitalBrain OS",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "brainScene",
+          "nodes": [
+            {
+              "id": "os",
+              "label": "OperatingSystem",
+              "uri": "neuron://local/os",
+              "kind": "core",
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "status": "working",
+              "subtitle": null,
+              "onSelect": null
+            },
+            {
+              "id": "ino",
+              "label": "Ino Assistant",
+              "uri": "neuron://local/apps/ino",
+              "kind": "agent",
+              "x": 110,
+              "y": 35,
+              "z": -20,
+              "status": "working",
+              "subtitle": null,
+              "onSelect": null
+            },
+            {
+              "id": "files",
+              "label": "Files",
+              "uri": "neuron://local/apps/files",
+              "kind": "storage",
+              "x": -115,
+              "y": 25,
+              "z": 15,
+              "status": "idle",
+              "subtitle": null,
+              "onSelect": null
+            },
+            {
+              "id": "photocraft",
+              "label": "PhotoCraft",
+              "uri": "neuron://local/apps/photocraft",
+              "kind": "studio",
+              "x": 125,
+              "y": -35,
+              "z": 20,
+              "status": "idle",
+              "subtitle": null,
+              "onSelect": null
+            },
+            {
+              "id": "filmcraft",
+              "label": "FilmCraft",
+              "uri": "neuron://local/apps/filmcraft",
+              "kind": "studio",
+              "x": -125,
+              "y": -30,
+              "z": -15,
+              "status": "idle",
+              "subtitle": null,
+              "onSelect": null
+            },
+            {
+              "id": "gallery",
+              "label": "UI Gallery",
+              "uri": "neuron://local/apps/gallery",
+              "kind": "ui",
+              "x": 85,
+              "y": -60,
+              "z": 25,
+              "status": "idle",
+              "subtitle": null,
+              "onSelect": null
+            },
+            {
+              "id": "creator",
+              "label": "Creator 3D Loop",
+              "uri": "neuron://local/apps/creator",
+              "kind": "studio",
+              "x": -90,
+              "y": -55,
+              "z": -25,
+              "status": "working",
+              "subtitle": null,
+              "onSelect": null
+            }
+          ],
+          "synapses": [
+            {
+              "fromId": "os",
+              "toId": "ino",
+              "signalLabel": "InoSend",
+              "active": true
+            },
+            {
+              "fromId": "ino",
+              "toId": "files",
+              "signalLabel": "FilesSearch",
+              "active": false
+            },
+            {
+              "fromId": "ino",
+              "toId": "photocraft",
+              "signalLabel": "PhotoCraftEdit",
+              "active": true
+            },
+            {
+              "fromId": "ino",
+              "toId": "filmcraft",
+              "signalLabel": "FilmCraftEdit",
+              "active": false
+            },
+            {
+              "fromId": "os",
+              "toId": "creator",
+              "signalLabel": "CreatorInspect",
+              "active": true
+            }
+          ],
+          "selectedId": "os",
+          "pauseRotation": false,
+          "targetZoom": 1
+        },
+        {
+          "kind": "approvalCard",
+          "id": "smart-desktop-signal-1",
+          "title": "Live Smart App Signal",
+          "summary": "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox",
+          "rows": [
+            {
+              "label": "Signal",
+              "oldValue": "Pending",
+              "newValue": "Opportunity Stage -> Closed Won",
+              "amount": "$420,000",
+              "warn": false
+            },
+            {
+              "label": "Inbox",
+              "oldValue": "local",
+              "newValue": "neuron://local/os.confirmations/inbox",
+              "amount": null,
+              "warn": false
+            }
+          ],
+          "valueLabel": "Value",
+          "systemName": "Ino",
+          "status": "pending",
+          "onApprove": {
+            "neuron": "apps/ino",
+            "operation": "approve-card",
+            "arguments": [
+              "card-1",
+              "true"
+            ]
+          },
+          "onReject": {
+            "neuron": "apps/ino",
+            "operation": "approve-card",
+            "arguments": [
+              "card-1",
+              "false"
+            ]
+          },
+          "sourceNeuronUri": "neuron://local/os.confirmations/inbox"
+        }
+      ],
+      "gap": 14,
+      "padding": 0
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "appId": "photocraft",
+  "scenario": "PhotoCraft executes background removal in Native Linux CLI mode and switches to MCP mode",
+  "side": null,
+  "main": {
+    "title": "PhotoCraft",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "text",
+          "value": "Executed `layer.newFillLayer.gradient` (New Fill Layer: Gradient (Blue -> Orange)) via **MCP Server (photocraft-mcp)** · Input: `/work/gradient-512x512.psd` -> Output: `/work/gradient-512x512.png` · /work/gradient-512x512.psd -> /work/gradient-512x512.png",
+          "tone": "muted",
+          "tabular": true,
+          "mono": false
+        },
+        {
+          "kind": "webBrowser",
+          "key": "photocraft-wasm",
+          "url": "http://localhost:18082",
+          "title": "PhotoCraft WASM Studio",
+          "height": 0,
+          "executionMode": "mcp"
+        }
+      ],
+      "gap": 4,
+      "padding": 0,
+      "extents": [
+        24,
+        0
+      ]
+    }
+  }
+}

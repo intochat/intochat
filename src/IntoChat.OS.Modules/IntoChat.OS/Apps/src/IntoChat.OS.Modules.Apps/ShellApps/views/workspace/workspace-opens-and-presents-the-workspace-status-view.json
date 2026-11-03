@@ -1,0 +1,15 @@
+{
+  "appId": "workspace",
+  "scenario": "Workspace opens and presents the Workspace status view",
+  "side": null,
+  "main": {
+    "title": "Workspace",
+    "root": {
+      "kind": "text",
+      "value": "Workspace",
+      "tone": "neutral",
+      "tabular": false,
+      "mono": false
+    }
+  }
+}

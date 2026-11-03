@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
@@ -11,6 +12,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
+using DigitalBrain.Testing.Views;
 using DigitalBrain.UI;
 using IntoChat.Files;
 using IntoChat.OS.Authority;
@@ -253,10 +255,12 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var brain = fixture.NewBrain("bddsuite");
         using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
         var ct = TestContext.Current.CancellationToken;
+        var viewsRoot = ResolveViewsRoot();
 
         var reports = new[]
         {
             await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct),
+            await BddRunner.VerifyAsync<WorkspaceApp>(cancellationToken: ct),
             await BddRunner.VerifyAsync<SettingsApp>(cancellationToken: ct),
             await BddRunner.VerifyAsync<GalleryApp>(cancellationToken: ct),
             await BddRunner.VerifyAsync<PhotoCraftApp>(cancellationToken: ct),
@@ -270,6 +274,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         {
             Assert.True(report.Passed, $"{report.AppId} failed BDD verification: {report.BaselineError}");
             Assert.NotEmpty(report.Scenarios);
+            ViewFixtures.Verify(report, Path.Combine(viewsRoot, report.AppId));
 
             var siloBdd = SiloNeurons.Get<IBdd>(fixture.Services, new NeuronId(new BrainId(brain), "bdd", report.AppId));
             await siloBdd.Record(report, ct);
@@ -279,6 +284,22 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
             Assert.Equal(report.AppId, stored.AppId);
             Assert.Equal(report.Scenarios.Count, stored.Scenarios.Count);
         }
+    }
+
+    private static string ResolveViewsRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Intochat.OS.slnx")))
+        {
+            dir = dir.Parent;
+        }
+        var root = dir?.FullName ?? throw new InvalidOperationException("Could not locate Intochat.OS.slnx.");
+        var slnx = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx"));
+        var appsProjectRel = slnx.Descendants("Project")
+            .Select(p => p.Attribute("Path")?.Value)
+            .First(p => p is not null && p.EndsWith("/IntoChat.OS.Modules.Apps.csproj", StringComparison.Ordinal))!;
+        var appsProjectDir = Path.GetDirectoryName(Path.Combine(root, appsProjectRel.Replace('/', Path.DirectorySeparatorChar)))!;
+        return Path.Combine(appsProjectDir, "ShellApps", "views");
     }
 
     [Fact]

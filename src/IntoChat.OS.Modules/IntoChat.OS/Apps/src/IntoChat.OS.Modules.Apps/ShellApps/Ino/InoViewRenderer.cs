@@ -329,7 +329,7 @@ internal static class InoViewRenderer
                 Subtitle: card.Summary,
                 LinkLabel: label,
                 OnOpen: new ButtonAction($"apps/{targetApp}", "open", []));
-            yield return new WebBrowser(targetApp == "photocraft" ? "http://localhost:18082" : "http://localhost:18083", card.Title, $"{card.Id}-studio", 420, "wasm-ui");
+            yield return Ui.WebBrowser(targetApp == "photocraft" ? "http://localhost:18082" : "http://localhost:18083", card.Title, $"{card.Id}-studio", 420, "wasm-ui");
         }
         else
         {

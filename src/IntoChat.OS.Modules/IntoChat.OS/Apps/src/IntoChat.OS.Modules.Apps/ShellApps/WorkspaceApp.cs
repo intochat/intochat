@@ -41,4 +41,7 @@ public sealed class WorkspaceApp(IPresenter presenter) : DigitalBrain.App
         Present(presenter.Present, static () => null, () => new View(title, new Text(title)));
         return Task.CompletedTask;
     }
+
+    [DigitalBrain.Scenario("Workspace opens and presents the Workspace status view")]
+    public Task VerifyWorkspaceOpenScenario() => Open(new WorkspaceOpen());
 }
