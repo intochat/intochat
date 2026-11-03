@@ -185,4 +185,20 @@ public sealed class InoAppFacts
         await creatorInstalled.Request("rollback", new CreatorRollback("1.0.0"));
         Assert.Equal("1.0.0", creatorInstalled.App.State.CurrentVersion);
     }
+
+    [Fact]
+    public async Task InoRoutesTaskCreateIntentAndHandsOffToTaskExecutor()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<IntoChat.OS.Modules.AI.Tasks.TaskNeuron>();
+        os.Register<IntoChat.OS.Modules.AI.Tasks.TaskDirectoryNeuron>();
+        os.Register<IntoChat.OS.Modules.AI.Tasks.TaskExecutorNeuron>();
+
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("create task: Open files -> [Confirm] Merge PR"));
+
+        Assert.StartsWith("routed:task.create:", ino.App.State.Turns[^1].RouteHint, StringComparison.Ordinal);
+        Assert.Contains(ino.App.State.ActiveCards, c => c.Kind == "task" && c.SourceNeuronUri.StartsWith("neuron://local/tasks.task/", StringComparison.Ordinal));
+    }
 }

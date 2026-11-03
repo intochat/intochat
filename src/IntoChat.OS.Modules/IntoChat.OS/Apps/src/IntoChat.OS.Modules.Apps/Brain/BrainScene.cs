@@ -2,7 +2,7 @@
 # Brain
 Role: Default
 Shipped: true
-Operations: open
+Operations: open, work
 
 The brain app draws the current brain: one sphere for each neuron and one path for each synapse.
 A delivered signal runs particles along that path. A tap zooms the camera.
@@ -41,14 +41,31 @@ public sealed class BrainScene : DigitalBrain.App
         new AppManifest(
             Title: "Brain",
             Description: "The neurons and synapses of this brain.",
-            Operations: [new("open", "Show the brain.")],
+            Operations:
+            [
+                new("open", "Show the brain."),
+                new("work", "Show active tasks, steps, and runs in the brain."),
+            ],
             Settings: [],
-            Slots: []),
+            Slots: [],
+            Toolbar:
+            [
+                new("open", Icon: "hub", Label: "Brain"),
+                new("work", Icon: "checklist", Label: "Work"),
+            ]),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal));
 
     [DigitalBrain.On]
     public Task Open(BrainSceneOpen request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
+    [DigitalBrain.On]
+    public Task Work(BrainSceneWork request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
@@ -234,7 +251,10 @@ public sealed class BrainScene : DigitalBrain.App
 }
 
 [DigitalBrain.Signal("apps.brain-opened")]
-public sealed record BrainSceneOpen : DigitalBrain.Signal;
+public sealed record BrainSceneOpen(string? Focus = null) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("apps.brain-work")]
+public sealed record BrainSceneWork : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("apps.synaptic-pulse")]
 public sealed record SynapticPulse(

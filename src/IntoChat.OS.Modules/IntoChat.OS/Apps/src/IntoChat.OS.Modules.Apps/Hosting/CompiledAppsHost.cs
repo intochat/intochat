@@ -144,7 +144,7 @@ internal sealed class CompiledAppsHost(
             var initialWindows = new (string WinId, string AppId, string Title)[]
             {
                 ("w-1", "files", "Files"),
-                ("w-2", "photocraft", "PhotoCraft"),
+                ("w-2", "markdraw", "Markdraw"),
                 ("w-3", "ino", "Ino"),
             };
 
@@ -181,6 +181,7 @@ internal sealed class CompiledAppsHost(
                 [
                     Ui.Button("dock-ino", "Ino", "open:ino", style: UiStyle.Primary, icon: "ino"),
                     Ui.Button("dock-files", "Files", "open:files", style: UiStyle.Ghost),
+                    Ui.Button("dock-markdraw", "Markdraw", "open:markdraw", style: UiStyle.Ghost),
                     Ui.Button("dock-photocraft", "PhotoCraft", "open:photocraft", style: UiStyle.Ghost),
                     Ui.Button("dock-filmcraft", "FilmCraft", "open:filmcraft", style: UiStyle.Ghost),
                     Ui.Button("dock-creator", "Creator", "open:creator", style: UiStyle.Ghost),
@@ -266,7 +267,12 @@ internal sealed class CompiledAppsHost(
             if (type is not null)
             {
                 await host.AssignType(appKey, type, new Dictionary<string, string>(unhostedSnapshot.Settings, StringComparer.Ordinal), ct);
-                return host.TryGetTurns(appKey);
+                var assignedTurns = host.TryGetTurns(appKey);
+                if (assignedTurns is not null)
+                {
+                    WireInoServices(brain, assignedTurns.App);
+                }
+                return assignedTurns;
             }
         }
         return null;
@@ -365,6 +371,17 @@ internal sealed class CompiledAppsHost(
 
     private async Task ForwardStudioPromptIfRoutedAsync(string brain, InoTurn latestTurn, CancellationToken ct)
     {
+        if (latestTurn.StartsWithStudio("markdraw"))
+        {
+            var markdrawOp = latestTurn.RouteHint["routed:markdraw.".Length..];
+            if (string.IsNullOrWhiteSpace(markdrawOp))
+            {
+                markdrawOp = "patch-elements";
+            }
+            await SiloNeurons.Get<IApp>(services, IApp.Key(brain, "markdraw")).Request(markdrawOp, latestTurn.UserMessage);
+            return;
+        }
+
         string? studioApp = latestTurn.RouteHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
             ? "photocraft"
             : latestTurn.StartsWithStudio("filmcraft")
@@ -415,7 +432,8 @@ internal sealed class CompiledAppsHost(
             var approved = segs.Length < 2 || !bool.TryParse(segs[1], out var parsedApproved) || parsedApproved;
             return Activator.CreateInstance(targetType, cardId, approved);
         }
-        if (targetType.Name is "InoOpen" or "InoSend" or "InoConnectDb" or "InoQueryDb" or "InoMake")
+        if (targetType.Name is "InoOpen" or "InoSend" or "InoConnectDb" or "InoQueryDb" or "InoMake"
+            or "MarkdrawOpen" or "MarkdrawReadCanvas" or "MarkdrawSyncScene" or "MarkdrawPatchElements" or "MarkdrawFromData" or "MarkdrawSave" or "MarkdrawExport")
         {
             var firstCtor = targetType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
             var parameters = firstCtor.GetParameters();

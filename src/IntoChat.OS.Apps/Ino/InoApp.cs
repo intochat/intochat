@@ -137,6 +137,21 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             case "connection.string":
                 await ConnectDb(new InoConnectDb(text, "main"));
                 return;
+            case "markdraw":
+                Set(await InoStudioHandler.ExecuteAsync(
+                    State,
+                    "markdraw",
+                    text,
+                    settings,
+                    recalled,
+                    memory,
+                    KnowledgeStore,
+                    FilesVfs,
+                    TryGetArtCraftStudio(),
+                    TryGetMcpServer,
+                    TryGetApp,
+                    (err, reason) => Swallow(err, reason)));
+                return;
             case "photocraft":
                 Set(await InoStudioHandler.ExecuteAsync(
                     State,
@@ -168,7 +183,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                     (err, reason) => Swallow(err, reason)));
                 return;
             case "chart.mutation":
-                Set(await InoDatabaseChartHandler.ApplyChartMutationOrFilterAsync(State, text, settings, memory));
+                Set(await InoDatabaseChartHandler.ApplyChartMutationOrFilterAsync(State, text, settings, memory, FilesVfs));
                 return;
             case "chart.question":
                 Set(await InoDatabaseChartHandler.AnswerChartQuestionAsync(
@@ -220,6 +235,9 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                     return;
                 }
                 break;
+            case "task.create":
+                Set(await ExecuteTaskCreateAsync(text, settings, recalled, memory));
+                return;
         }
 
         var routeHint = text.StartsWith("open ", StringComparison.OrdinalIgnoreCase)
@@ -360,7 +378,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task QueryDb(InoQueryDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(await InoDatabaseChartHandler.QueryDbAsync(State, request, TryGetMemory()));
+        Set(await InoDatabaseChartHandler.QueryDbAsync(State, request, TryGetMemory(), FilesVfs));
     }
 
     [DigitalBrain.On]
@@ -631,5 +649,77 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Swallow(error, "McpServerNeuron is optional when running InoApp without McpModule registered.");
             return null;
         }
+    }
+
+    private async Task<InoAppState> ExecuteTaskCreateAsync(
+        string text,
+        UserSettingsState settings,
+        MemoryRecallHit[] recalled,
+        IMemory? memory)
+    {
+        if (!InoIntentRouter.TryParseTaskIntent(text, out var taskTitle, out var stepDefs))
+        {
+            taskTitle = text.Length <= 52 ? text : text[..52];
+            stepDefs = [new TaskStepDefinition(taskTitle, text, "app.execute")];
+        }
+
+        var taskId = $"t-{Guid.NewGuid():N}"[..10];
+        if (TaskEngine is not null)
+        {
+            try
+            {
+                var created = await TaskEngine.CreateTaskAsync(new CreateTaskRequest(taskTitle, text, settings.DisplayName, stepDefs));
+                taskId = created.TaskId;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "TaskEngine creation fallback to direct task neuron.");
+            }
+        }
+        else
+        {
+            try
+            {
+                var created = await Get<ITaskNeuron>(taskId).InitializeAsync(new CreateTaskRequest(taskTitle, text, settings.DisplayName, stepDefs));
+                await Get<ITaskDirectoryNeuron>("default").RegisterTaskAsync(created);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "TaskNeuron is optional when running InoApp in standalone unit tests.");
+            }
+        }
+
+        try
+        {
+            _ = Get<ITaskExecutorNeuron>("default").ExecuteNextStepAsync(taskId);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "TaskExecutorNeuron is optional when running InoApp in standalone unit tests.");
+        }
+
+        if (memory is not null)
+        {
+            await memory.CaptureEpisode("ino.task", $"Created task '{taskTitle}' ({taskId}) with {stepDefs.Length} step(s).", importance: 6);
+        }
+
+        var routeHint = $"routed:task.create:{taskId}";
+        var reply = $"Created task **{taskTitle}** (`{taskId}`) with {stepDefs.Length} step(s) and handed off to `tasks.executor`.";
+        var card = new InoCard(
+            $"task-{taskId}",
+            "task",
+            $"Task: {taskTitle}",
+            $"{stepDefs.Length} step(s) queued on tasks.executor",
+            $"neuron://local/tasks.task/{taskId}",
+            "running",
+            $"neuron://local/apps/ino#task-{taskId}");
+        var turns = State.Turns.Append(new InoTurn(text, reply, routeHint, recalled.Length)).ToArray();
+        return State with
+        {
+            Title = State.Turns.Length == 0 ? taskTitle : State.Title,
+            Status = routeHint,
+            Turns = turns,
+            Cards = [.. State.ActiveCards, card],
+        };
     }
 }

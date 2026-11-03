@@ -93,4 +93,38 @@ public sealed class BrainSceneGraphFacts
         Assert.Single(path.Children);
         Assert.Equal("2", path.Parameters["weight"]);
     }
+
+    [Fact]
+    public void ActiveRunPulsesTargetNodeAndNavigationsEmitNavigatesPath()
+    {
+        var brain = new BrainId("ada");
+        var sink = new GraphSink();
+        sink.Node("ada", GraphNodeKind.Brain, "ada");
+        var app = sink.Node("ada/apps/notes", GraphNodeKind.App, "notes");
+        var op = sink.Node("ada/apps/notes#open", GraphNodeKind.Operation, "notes/open");
+        var run = sink.Node("ada/agent.run/r-1", GraphNodeKind.Run, "run/r-1");
+        sink.Edge(app, op, GraphEdgeKind.Owns);
+        sink.Edge(run, app, GraphEdgeKind.WorksOn, 1f);
+
+        var snapshot = GraphCompute.Build(sink, brain);
+        var nav = new AppNavigated("ada/apps/notes", "list", "detail", "open");
+        var scene = BrainSceneGraph.Compose(snapshot, GraphLevel.Neurons, null, [], 1, [nav]);
+
+        var appSphere = scene.Nodes.Single(n => n.Type == "sphere" && n.Parameters["graphId"] == "ada/apps/notes");
+        var runSphere = scene.Nodes.Single(n => n.Type == "sphere" && n.Parameters["graphId"] == "ada/agent.run/r-1");
+        var opSphere = scene.Nodes.Single(n => n.Type == "sphere" && n.Parameters["graphId"] == "ada/apps/notes#open");
+
+        Assert.Equal("true", appSphere.Parameters["pulse"]);
+        Assert.Equal("working", appSphere.Parameters["activity"]);
+        Assert.Equal("true", runSphere.Parameters["pulse"]);
+        Assert.False(opSphere.Parameters.ContainsKey("pulse"));
+
+        var navPath = Assert.Single(scene.Nodes, n => n.Type == "path" && n.Parameters.TryGetValue("kind", out var k) && k == "navigates");
+        Assert.Equal("open", navPath.Parameters["cause"]);
+        Assert.Equal("detail", navPath.Parameters["toView"]);
+        Assert.Single(navPath.Children);
+
+        Assert.Equal("tasks", BrainSceneHost.ExtractFocus("{\"focus\":\"tasks\"}"));
+        Assert.Equal("ada/apps/notes", BrainSceneHost.ResolveFocusNode("ada", "notes"));
+    }
 }

@@ -1,5 +1,6 @@
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Decision;
+using IntoChat.OS.Modules.AI.Tasks;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -7,6 +8,7 @@ internal static class InoIntentRouter
 {
     public static readonly string[] Candidates =
     [
+        "markdraw",
         "photocraft",
         "filmcraft",
         "chart.mutation",
@@ -16,6 +18,7 @@ internal static class InoIntentRouter
         "file.resource",
         "connection.string",
         "app.install",
+        "task.create",
         "general.chat",
     ];
 
@@ -65,14 +68,19 @@ internal static class InoIntentRouter
                     return new DecisionResult("settings.navigate", 0.95, DecisionMode.Reactive);
                 }
 
+                if (InoStudioHandler.TryMatchExplicitStudioIntent(text, out var studioApp))
+                {
+                    return new DecisionResult(studioApp, 0.95, DecisionMode.Reactive);
+                }
+
                 if (InoFilesHandler.TryParseFileIntent(text, out _))
                 {
                     return new DecisionResult("file.resource", 0.95, DecisionMode.Reactive);
                 }
 
-                if (InoStudioHandler.TryMatchExplicitStudioIntent(text, out var studioApp))
+                if (TryParseTaskIntent(text, out _, out _))
                 {
-                    return new DecisionResult(studioApp, 0.95, DecisionMode.Reactive);
+                    return new DecisionResult("task.create", 0.95, DecisionMode.Reactive);
                 }
 
                 return new DecisionResult("general.chat", decision.Confidence, DecisionMode.Reactive);
@@ -131,6 +139,64 @@ internal static class InoIntentRouter
             return new DecisionResult("file.resource", 1.0, DecisionMode.Reactive);
         }
 
+        if (TryParseTaskIntent(text, out _, out _))
+        {
+            return new DecisionResult("task.create", 1.0, DecisionMode.Reactive);
+        }
+
         return new DecisionResult("general.chat", 0.5, DecisionMode.Reactive);
+    }
+
+    public static bool TryParseTaskIntent(string text, out string title, out TaskStepDefinition[] steps)
+    {
+        title = string.Empty;
+        steps = [];
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var trimmed = text.Trim();
+        string? body = null;
+        string[] prefixes = ["create task:", "create task ", "start task:", "start task ", "run task:", "run task ", "new task:", "new task "];
+        foreach (var prefix in prefixes)
+        {
+            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                body = trimmed[prefix.Length..].Trim();
+                break;
+            }
+        }
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return false;
+        }
+
+        var rawSteps = body
+            .Split(["->", ";", " then "], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToArray();
+        title = rawSteps.Length > 0 ? rawSteps[0] : body;
+        if (rawSteps.Length <= 1)
+        {
+            steps = [new TaskStepDefinition(title, body, InferCapability(body))];
+            return true;
+        }
+
+        steps = rawSteps
+            .Select(stepText => new TaskStepDefinition(stepText, stepText, InferCapability(stepText)))
+            .ToArray();
+        return true;
+    }
+
+    private static string InferCapability(string stepText)
+    {
+        var lower = stepText.ToLowerInvariant();
+        if (lower.Contains("merge", StringComparison.Ordinal)) { return "github.merge"; }
+        if (lower.Contains("rollout", StringComparison.Ordinal) || lower.Contains("deploy", StringComparison.Ordinal)) { return "cluster.rollout"; }
+        if (lower.Contains("file", StringComparison.Ordinal)) { return "files.open"; }
+        if (lower.Contains("note", StringComparison.Ordinal)) { return "notes.open"; }
+        if (lower.Contains("setting", StringComparison.Ordinal)) { return "settings.open"; }
+        return "app.execute";
     }
 }

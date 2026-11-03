@@ -1,6 +1,8 @@
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Graph;
+using DigitalBrain.Runtime.Apps;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using IntoChat.OS.Framework;
@@ -21,9 +23,25 @@ internal sealed class BrainSceneHost(
     private readonly Lock _gate = new();
     private readonly HashSet<string> _pumps = new(StringComparer.Ordinal);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (GraphLevel Level, string? Focus)> _views = new(StringComparer.Ordinal);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<AppNavigated>> _navigations = new(StringComparer.Ordinal);
 
     public async Task Execute(CancellationToken cancellationToken)
     {
+        if (services.GetService<InProcessAppHost>() is { } inProcessHost)
+        {
+            inProcessHost.Navigated += OnNavigated;
+        }
+        try
+        {
+            _ = await listeners.Listen<AppNavigated>(nameof(BrainSceneHost), (publisher, signal, _) =>
+            {
+                OnNavigated(signal with { App = string.IsNullOrWhiteSpace(signal.App) ? publisher.ToString() : signal.App });
+                return Task.CompletedTask;
+            });
+        }
+        catch (ArgumentException error)
+        { logger.LogDebug(error, "AppNavigated listener will attach when registered."); }
+
         _ = await listeners.Listen<Activated>(nameof(BrainSceneHost), (publisher, _, _) =>
         {
             var brain = publisher.Brain.Value;
@@ -32,8 +50,31 @@ internal sealed class BrainSceneHost(
         });
         _ = await listeners.Listen<AppRequested>(nameof(BrainSceneHost), (publisher, signal, token) =>
         {
-            if (publisher.Key != "apps/brain" || signal.Operation != "open") { return Task.CompletedTask; }
-            _ = OpenAsync(publisher.Brain.Value, token);
+            if (publisher.Key != "apps/brain") { return Task.CompletedTask; }
+            var brain = publisher.Brain.Value;
+            if (signal.Operation == "work")
+            {
+                _views[brain] = (GraphLevel.Cluster, "tasks");
+                _ = OpenAsync(brain, token);
+                return Task.CompletedTask;
+            }
+            if (signal.Operation == "open")
+            {
+                var focus = ExtractFocus(signal.Input);
+                if (string.Equals(focus, "tasks", StringComparison.OrdinalIgnoreCase))
+                {
+                    _views[brain] = (GraphLevel.Cluster, "tasks");
+                }
+                else if (!string.IsNullOrWhiteSpace(focus))
+                {
+                    _views[brain] = (GraphLevel.Neurons, ResolveFocusNode(brain, focus));
+                }
+                else if (_views.TryGetValue(brain, out var existing) && existing == (GraphLevel.Cluster, "tasks"))
+                {
+                    _views[brain] = (GraphLevel.Brain, null);
+                }
+                _ = OpenAsync(brain, token);
+            }
             return Task.CompletedTask;
         });
         try
@@ -149,7 +190,64 @@ internal sealed class BrainSceneHost(
     {
         var graph = SiloNeurons.Get<IBrainGraph>(services, brain + "/default");
         var snapshot = await graph.Snapshot(view.Level, view.Focus);
-        return BrainSceneGraph.Compose(snapshot, view.Level, view.Focus, trail, zoom);
+        IReadOnlyList<AppNavigated> navigations = [];
+        if (_navigations.TryGetValue(brain, out var list))
+        {
+            lock (_gate)
+            {
+                navigations = [.. list];
+            }
+        }
+        return BrainSceneGraph.Compose(snapshot, view.Level, view.Focus, trail, zoom, navigations);
+    }
+
+    private void OnNavigated(AppNavigated navigated)
+    {
+        var brain = BrainKey.BrainOf(navigated.App);
+        if (string.IsNullOrWhiteSpace(brain)) { brain = "local"; }
+        var list = _navigations.GetOrAdd(brain, _ => new List<AppNavigated>(BrainScene.MaxTrailSteps));
+        lock (_gate)
+        {
+            list.Insert(0, navigated);
+            if (list.Count > BrainScene.MaxTrailSteps)
+            {
+                list.RemoveRange(BrainScene.MaxTrailSteps, list.Count - BrainScene.MaxTrailSteps);
+            }
+        }
+    }
+
+    internal static string? ExtractFocus(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) { return null; }
+        var trimmed = input.Trim();
+        if (trimmed == "{}") { return null; }
+        if (trimmed.StartsWith('{') && trimmed.EndsWith('}'))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(trimmed);
+                if (doc.RootElement.TryGetProperty("focus", out var prop) && prop.ValueKind == JsonValueKind.String)
+                {
+                    return prop.GetString();
+                }
+                if (doc.RootElement.TryGetProperty("Focus", out var prop2) && prop2.ValueKind == JsonValueKind.String)
+                {
+                    return prop2.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+            return null;
+        }
+        return trimmed.Trim('"');
+    }
+
+    internal static string ResolveFocusNode(string brain, string focus)
+    {
+        if (focus.Contains('/', StringComparison.Ordinal)) { return focus; }
+        return IApp.Key(brain, focus);
     }
 
     private async Task SetAsync(string brain, CapabilityCaller caller, SceneDefinition definition, CancellationToken cancellationToken)

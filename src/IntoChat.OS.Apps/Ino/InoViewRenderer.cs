@@ -1,5 +1,6 @@
-using IntoChat.OS.Modules.Apps;
 using DigitalBrain.UI;
+using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -314,6 +315,50 @@ internal static class InoViewRenderer
                 SourceNeuronUri: card.SourceNeuronUri,
                 From: "Postgres",
                 Prefix: "€");
+        }
+        else if (card.Kind == "markdraw")
+        {
+            var activeDoc = card.Columns is { Length: >= 1 } && !string.IsNullOrWhiteSpace(card.Columns[0])
+                ? card.Columns[0]
+                : "/work/architecture.markdraw";
+            var format = card.Columns is { Length: >= 2 } && !string.IsNullOrWhiteSpace(card.Columns[1])
+                ? card.Columns[1]
+                : "markdraw";
+            var rev = card.Columns is { Length: >= 3 } && int.TryParse(card.Columns[2], out var parsedRev)
+                ? parsedRev
+                : 1;
+            var content = card.Columns is { Length: >= 4 } && !string.IsNullOrWhiteSpace(card.Columns[3])
+                ? card.Columns[3]
+                : MarkdrawApp.DefaultArchitectureScene;
+            var exportPath = card.Columns is { Length: >= 5 } && !string.IsNullOrWhiteSpace(card.Columns[4])
+                ? card.Columns[4]
+                : null;
+            var elements = MarkdrawApp.ParseSceneElements(content);
+
+            yield return new RecordCardNode(
+                "Markdraw · Diagram & Canvas Studio",
+                card.Title,
+                [
+                    new RecordFieldNode("Status", card.Status),
+                    new RecordFieldNode("Workspace File", activeDoc),
+                    new RecordFieldNode("Elements", $"{elements.Length} item(s) · rev {rev}"),
+                ],
+                Subtitle: card.Summary,
+                LinkLabel: "Open Markdraw Studio",
+                OnOpen: new ButtonAction("apps/markdraw", "open", [activeDoc]));
+
+            yield return MarkdrawApp.BuildMarkdrawCanvasCard(
+                key: $"{card.Id}-canvas-rev-{rev}",
+                title: card.Title,
+                activeDocument: activeDoc,
+                format: format,
+                content: content,
+                revision: rev,
+                status: card.Summary,
+                elements: elements,
+                workspaceDrawings: [activeDoc, "/work/architecture.markdraw", "/work/pipeline-flow.markdraw"],
+                lastExportPath: exportPath,
+                height: 460);
         }
         else if (card.Kind is "photocraft" or "filmcraft")
         {

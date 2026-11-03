@@ -133,12 +133,41 @@ class IcAppIcon extends StatelessWidget {
       gradientBottom: Color(0xFF0284C7),
       icon: LucideIcons.chartSpline,
     ),
+    'markdraw': IcAppIconSpec(
+      appId: 'markdraw',
+      title: 'Markdraw',
+      category: 'Studio',
+      gradientTop: Color(0xFF10B981),
+      gradientBottom: Color(0xFF047857),
+      icon: LucideIcons.penTool,
+    ),
+    'photocraft': IcAppIconSpec(
+      appId: 'photocraft',
+      title: 'PhotoCraft',
+      category: 'Studio',
+      gradientTop: Color(0xFF38BDF8),
+      gradientBottom: Color(0xFF0369A1),
+      icon: LucideIcons.image,
+    ),
+    'filmcraft': IcAppIconSpec(
+      appId: 'filmcraft',
+      title: 'FilmCraft',
+      category: 'Studio',
+      gradientTop: Color(0xFFF43F5E),
+      gradientBottom: Color(0xFFBE123C),
+      icon: LucideIcons.film,
+    ),
   };
 
   static String normalizeAppId(String raw) {
     final lower = raw.trim().toLowerCase();
     if (lower.contains('ino') || lower == 'assistant') return 'ino';
     if (lower.contains('file')) return 'files';
+    if (lower.contains('markdraw') || lower.contains('excalidraw')) {
+      return 'markdraw';
+    }
+    if (lower.contains('photocraft')) return 'photocraft';
+    if (lower.contains('filmcraft')) return 'filmcraft';
     if (lower.contains('creat')) return 'creator';
     if (lower.contains('galler')) return 'gallery';
     if (lower.contains('post') || lower.contains('publish')) return 'post';

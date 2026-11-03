@@ -1,17 +1,24 @@
-using IntoChat.OS.Modules.Apps;
+using System.Reflection;
 using System.Text;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Tasks;
 
 namespace IntoChat.OS.Apps.Ino;
 
-internal sealed record DiscoveredAppCapability(
+public sealed record DiscoveredOperationParameter(
+    string Name,
+    string TypeName,
+    bool IsOptional);
+
+public sealed record DiscoveredAppCapability(
     string AppId,
     string Title,
     string Description,
-    AppOperation[] Operations);
+    AppOperation[] Operations,
+    IReadOnlyDictionary<string, DiscoveredOperationParameter[]>? OperationParameters = null);
 
-internal static class InoCapabilityCatalog
+public static class InoCapabilityCatalog
 {
     private static readonly AppBundle FilesBundle = new(
         "files", "3.0.1",
@@ -51,6 +58,7 @@ internal static class InoCapabilityCatalog
     private static readonly (string AppId, AppBundle FallbackBundle)[] KnownApps =
     [
         ("files", FilesBundle),
+        ("markdraw", IntoChat.OS.Apps.Markdraw.MarkdrawApp.Bundle),
         ("photocraft", IntoChat.OS.Apps.PhotoCraft.PhotoCraftApp.Bundle),
         ("filmcraft", IntoChat.OS.Apps.FilmCraft.FilmCraftApp.Bundle),
         ("settings", IntoChat.OS.Apps.Settings.SettingsApp.Bundle),
@@ -59,6 +67,9 @@ internal static class InoCapabilityCatalog
         ("post", IntoChat.OS.Apps.Post.PostApp.Bundle),
         ("ino", InoApp.Bundle),
     ];
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, DiscoveredOperationParameter[]>> ReflectedSignalSchemas =
+        ReflectCompiledAppSignalSchemas();
 
     public static async Task<IReadOnlyList<DiscoveredAppCapability>> DiscoverAppsAsync(
         Func<string, IApp?> tryGetApp,
@@ -87,11 +98,13 @@ internal static class InoCapabilityCatalog
             }
 
             seen.Add(appId);
+            ReflectedSignalSchemas.TryGetValue(appId, out var opParams);
             results.Add(new DiscoveredAppCapability(
                 appId,
                 manifest.Title,
                 manifest.Description,
-                manifest.Operations));
+                manifest.Operations,
+                opParams));
         }
 
         if (tryGetAppStore?.Invoke() is { } store)
@@ -107,11 +120,13 @@ internal static class InoCapabilityCatalog
                         continue;
                     }
 
+                    ReflectedSignalSchemas.TryGetValue(installedId, out var opParams);
                     results.Add(new DiscoveredAppCapability(
                         installedId,
                         entry.Title,
                         entry.Description,
-                        []));
+                        [],
+                        opParams));
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -126,7 +141,16 @@ internal static class InoCapabilityCatalog
     public static IReadOnlyDictionary<string, string> BuildCandidateDescriptions(
         IReadOnlyList<DiscoveredAppCapability>? discoveredApps = null)
     {
-        var byId = (discoveredApps ?? KnownApps.Select(k => new DiscoveredAppCapability(k.AppId, k.FallbackBundle.Manifest.Title, k.FallbackBundle.Manifest.Description, k.FallbackBundle.Manifest.Operations)).ToArray())
+        var byId = (discoveredApps ?? KnownApps.Select(k =>
+            {
+                ReflectedSignalSchemas.TryGetValue(k.AppId, out var opParams);
+                return new DiscoveredAppCapability(
+                    k.AppId,
+                    k.FallbackBundle.Manifest.Title,
+                    k.FallbackBundle.Manifest.Description,
+                    k.FallbackBundle.Manifest.Operations,
+                    opParams);
+            }).ToArray())
             .ToDictionary(a => a.AppId, StringComparer.OrdinalIgnoreCase);
 
         string DescribeApp(string id, string usageConstraint)
@@ -144,6 +168,9 @@ internal static class InoCapabilityCatalog
 
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["markdraw"] = DescribeApp(
+                "markdraw",
+                "Use when the user asks to open Markdraw/Excalidraw, draw or co-draw an architecture diagram, flowchart, ERD, or whiteboard canvas, add/connect/remove nodes on the canvas, diagram a dataset, or save/export .markdraw and .excalidraw files."),
             ["photocraft"] = DescribeApp(
                 "photocraft",
                 "Use ONLY when the user explicitly asks to edit an image/photo, remove background, cutout, select subject/sky, desaturate, flip, rotate, or generate a gradient/poster canvas."),
@@ -156,11 +183,12 @@ internal static class InoCapabilityCatalog
             ["settings.navigate"] = DescribeApp(
                 "settings",
                 "Use when the user asks to open or navigate OS Settings, configure local Ollama server or AI models, manage OAuth connections (Google Drive, GitHub, Slack, Notion), API keys, variables, billing, team, or revoke/clear settings."),
-            ["database.query"] = "PostgreSQL / Supabase read-only SQL query and data table/chart visualization. Use when the user provides a SELECT query or asks to query/visualize database tables, opportunities, or customer accounts.",
-            ["chart.mutation"] = "Mutate or filter an active UI Chart or Table card (e.g. switch chart to pie/line/bar, or filter rows by stage/account).",
-            ["chart.question"] = "Answer analytical questions about the currently visible UI Chart or Table (e.g. top 3, highest/lowest values).",
+            ["database.query"] = "PostgreSQL / Supabase / CSV / JSON data analytics and interactive table/chart visualization. Use when the user provides a SELECT query or asks to query/visualize/analyze database tables, CSV/JSON datasets, opportunities, or customer accounts.",
+            ["chart.mutation"] = "Mutate, filter, or group an active UI Chart or Table card (e.g. switch chart to pie/line/bar, filter rows by stage/account, or group by column).",
+            ["chart.question"] = "Answer analytical questions about the currently visible UI Chart or Table (e.g. top 3, average, total, highest/lowest values).",
             ["connection.string"] = "Connect a PostgreSQL database using an explicit Host=/Server=/postgres:// connection string.",
             ["app.install"] = "Install or review a Smart App from an intochat.app/a/ link.",
+            ["task.create"] = "Create a multi-step autonomous task in ITaskEngine and hand it off to tasks.executor when the user asks to create/start/run a task or workflow.",
             ["tasks"] = "Create, list, or verify autonomous self-improvement tasks via ITaskEngine.",
             ["general.chat"] = "General conversational response, greetings ('hey', 'hello', 'good morning'), capability/meta questions ('hey, what can you do?', 'help', 'who are you?', 'what apps are installed?'), and general Q&A that do not explicitly invoke a specialized tool operation on a target artifact.",
         };
@@ -248,9 +276,78 @@ internal static class InoCapabilityCatalog
             }
         }
 
-        var dbStatus = string.IsNullOrWhiteSpace(connectedDatabase) ? "Ready to connect PostgreSQL (`connect-db` / `query-db`)" : $"Connected to `{connectedDatabase}`";
+        var dbStatus = string.IsNullOrWhiteSpace(connectedDatabase) ? "Ready to connect PostgreSQL (`connect-db` / `query-db`) and analyze CSV/JSON files" : $"Connected to `{connectedDatabase}`";
         sb.AppendLine($"- **Database & Charts**: {dbStatus}.");
 
         return sb.ToString().Trim();
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, DiscoveredOperationParameter[]>> ReflectCompiledAppSignalSchemas()
+    {
+        var result = new Dictionary<string, IReadOnlyDictionary<string, DiscoveredOperationParameter[]>>(StringComparer.OrdinalIgnoreCase);
+        var assembly = typeof(InoCapabilityCatalog).Assembly;
+
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type.IsAbstract || !typeof(DigitalBrain.App).IsAssignableFrom(type))
+            {
+                continue;
+            }
+
+            var appAttr = type.GetCustomAttribute<DigitalBrain.AppAttribute>(inherit: false);
+            if (appAttr is null || string.IsNullOrWhiteSpace(appAttr.Id))
+            {
+                continue;
+            }
+
+            var opMap = new Dictionary<string, DiscoveredOperationParameter[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            {
+                if (method.GetCustomAttribute<DigitalBrain.OnAttribute>(inherit: false) is null)
+                {
+                    continue;
+                }
+
+                var parameters = method.GetParameters();
+                if (parameters.Length == 1 && typeof(DigitalBrain.Signal).IsAssignableFrom(parameters[0].ParameterType))
+                {
+                    var signalType = parameters[0].ParameterType;
+                    var signalCtor = signalType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
+                    var signalParams = signalCtor is null
+                        ? []
+                        : signalCtor.GetParameters()
+                            .Select(p => new DiscoveredOperationParameter(
+                                p.Name ?? "value",
+                                Nullable.GetUnderlyingType(p.ParameterType)?.Name ?? p.ParameterType.Name,
+                                p.HasDefaultValue))
+                            .ToArray();
+                    opMap[ToKebabCase(method.Name)] = signalParams;
+                }
+            }
+
+            result[appAttr.Id] = opMap;
+        }
+
+        return result;
+    }
+
+    private static string ToKebabCase(string pascalName)
+    {
+        if (string.IsNullOrWhiteSpace(pascalName))
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder(pascalName.Length + 4);
+        for (var i = 0; i < pascalName.Length; i++)
+        {
+            var ch = pascalName[i];
+            if (char.IsUpper(ch) && i > 0)
+            {
+                sb.Append('-');
+            }
+            sb.Append(char.ToLowerInvariant(ch));
+        }
+        return sb.ToString();
     }
 }

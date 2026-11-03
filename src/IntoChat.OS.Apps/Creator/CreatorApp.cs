@@ -174,6 +174,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
     public async Task Prompt(CreatorPrompt request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var target = string.IsNullOrWhiteSpace(request.TargetApp) ? State.TargetApp : request.TargetApp.Trim().ToLowerInvariant();
         var instruction = string.IsNullOrWhiteSpace(request.Instruction) ? "Create clean App<TState>" : request.Instruction.Trim();
         var (resources, errors) = await ReadTelemetryAsync(null);
@@ -190,25 +191,41 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                 Swallow(error, "AppStudioNeuron requires a live model and sandbox; showing an offline preview instead.");
             }
         }
+        if (built is null && TryGetApp(target) is { } existingApp)
+        {
+            try
+            {
+                var snap = await existingApp.Read();
+                if (snap.Activity.Length > 0) { built = snap; }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "Reading target app activity is optional in standalone tests.");
+            }
+        }
 
         string source;
         bool compiled;
         string[] diagnostics;
-        if (built is not null)
+        string[] activity;
+        if (built is not null && built.Files.Count > 0)
         {
             target = built.Name;
             source = string.Join("\n\n", built.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).Select(file => file.Value));
             compiled = built.Status == AppStatus.Live;
             diagnostics = compiled ? [] : [.. built.Activity.TakeLast(5)];
+            activity = built.Activity;
         }
         else
         {
             source = CreatorSession.SynthesizeAppSource(target, instruction, errors);
             (compiled, diagnostics) = CreatorSession.CompileInMemory(source);
+            activity = built?.Activity ?? [];
         }
 
+        var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
         var lang = CreatorSession.NormalizeLanguage(request.Language ?? State.BddLanguage);
-        var steps = CreatorSession.BuildLocalizedSteps(lang, target, instruction, compiled);
+        var steps = CreatorSession.BuildActivitySteps(activity, lang, target, instruction, compiled, diagnostics, elapsed);
         var nextVersion = compiled ? CreatorSession.BumpMinorVersion(State.CurrentVersion) : State.CurrentVersion;
         var historyList = State.VersionHistory is { Length: > 0 } ? State.VersionHistory.ToList() : ["1.0.0"];
         if (compiled && !historyList.Contains(nextVersion, StringComparer.Ordinal))
@@ -224,7 +241,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
                 var sessionState = await session.RecordPrompt(target, instruction, source, compiled, diagnostics, lang);
                 nextVersion = sessionState.CurrentVersion;
                 history = sessionState.VersionHistory;
-                steps = sessionState.ScenarioSteps;
+                if (activity.Length == 0) { steps = sessionState.ScenarioSteps; }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -232,15 +249,15 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             }
         }
 
-        var scenarioTitle = $"Self-improving verification for {target}: {instruction}";
+        var verdicts = steps
+            .Select(s => new ScenarioVerdict(s.Step, Passed: s.Passed, Error: s.Error, Elapsed: s.Elapsed))
+            .ToArray();
         var report = new BddReport(
             target,
-            [
-                new ScenarioVerdict(scenarioTitle, Passed: compiled, Error: compiled ? null : string.Join("; ", diagnostics), Elapsed: TimeSpan.FromMilliseconds(4)),
-            ],
+            verdicts,
             BaselinePassed: compiled,
             BaselineError: compiled ? null : string.Join("; ", diagnostics),
-            Elapsed: TimeSpan.FromMilliseconds(4));
+            Elapsed: elapsed);
 
         if (TryGetBdd() is { } bdd)
         {
@@ -281,7 +298,19 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         ArgumentNullException.ThrowIfNull(request);
         var lang = CreatorSession.NormalizeLanguage(request.Language);
         var target = string.IsNullOrWhiteSpace(State.TargetApp) ? "scratch" : State.TargetApp;
-        var steps = CreatorSession.BuildLocalizedSteps(lang, target, "Verify BDD Scenario", State.SandboxCompiled);
+        string[] activity = [];
+        if (TryGetApp(target) is { } existingApp)
+        {
+            try
+            {
+                activity = (await existingApp.Read()).Activity;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "Reading target app activity is optional in standalone tests.");
+            }
+        }
+        var steps = CreatorSession.BuildActivitySteps(activity, lang, target, "Verify BDD Scenario", State.SandboxCompiled, State.RoslynDiagnostics);
 
         if (TryGetSession() is { } session)
         {
@@ -298,12 +327,10 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         var existingReport = State.LastBddReport;
         var updatedReport = existingReport ?? new BddReport(
             target,
-            [
-                new ScenarioVerdict($"Self-improving verification for {target}", Passed: true, Error: null, Elapsed: TimeSpan.FromMilliseconds(4)),
-            ],
-            BaselinePassed: true,
+            steps.Select(s => new ScenarioVerdict(s.Step, Passed: s.Passed, Error: s.Error, Elapsed: s.Elapsed)).ToArray(),
+            BaselinePassed: State.SandboxCompiled,
             BaselineError: null,
-            Elapsed: TimeSpan.FromMilliseconds(4));
+            Elapsed: TimeSpan.Zero);
 
         Set(State with
         {
@@ -502,32 +529,29 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
             {
-                Swallow(error, "The brain graph is unavailable; the Creator scene falls back to the studio graph.");
+                Swallow(error, "The brain graph is unavailable; the Creator scene builds a local graph snapshot.");
             }
         }
-        return ComposeFallbackScene();
-    }
 
-    private SceneDefinition ComposeFallbackScene()
-    {
         var activeTarget = string.IsNullOrWhiteSpace(State.TargetApp) ? "scratch" : State.TargetApp;
         var appKey = $"app.{activeTarget}";
-        var neurons = new BrainInstance[]
-        {
-            new("IntoChat.OS.Studio", "creator", DateTimeOffset.UnixEpoch, null),
-            new("DigitalBrain.Bdd", "bdd", DateTimeOffset.UnixEpoch, null),
-            new("Microsoft.Aspire", "aspire", DateTimeOffset.UnixEpoch, null),
-            new("IntoChat.OS.AI.Memory", "memory", DateTimeOffset.UnixEpoch, null),
-            new("IntoChat.OS.Sandbox", appKey, DateTimeOffset.UnixEpoch, null),
-        };
-        var synapses = new ObservedSynapse[]
-        {
-            new("creator", "bdd", "bdd.verified"),
-            new("creator", "aspire", "aspire.telemetry.changed"),
-            new("creator", "memory", "memory.recall"),
-            new("creator", appKey, "app.promoted"),
-        };
-        return BrainScene.Compose(neurons, synapses, live: null, zoom: 1.0);
+        var sink = new DigitalBrain.Graph.GraphSink();
+        sink.Node("local", DigitalBrain.Graph.GraphNodeKind.Brain, "local");
+        var creatorNode = sink.Node("creator", DigitalBrain.Graph.GraphNodeKind.App, "creator");
+        var bddNode = sink.Node("bdd", DigitalBrain.Graph.GraphNodeKind.Neuron, "bdd");
+        var aspireNode = sink.Node("aspire", DigitalBrain.Graph.GraphNodeKind.Neuron, "aspire");
+        var memoryNode = sink.Node("memory", DigitalBrain.Graph.GraphNodeKind.Neuron, "memory");
+        var targetNode = sink.Node(appKey, DigitalBrain.Graph.GraphNodeKind.App, appKey);
+        sink.Edge(creatorNode, bddNode, DigitalBrain.Graph.GraphEdgeKind.Calls);
+        sink.Edge(creatorNode, aspireNode, DigitalBrain.Graph.GraphEdgeKind.Subscribes);
+        sink.Edge(creatorNode, memoryNode, DigitalBrain.Graph.GraphEdgeKind.Calls);
+        sink.Edge(creatorNode, targetNode, DigitalBrain.Graph.GraphEdgeKind.Produced);
+        return BrainSceneGraph.Compose(
+            DigitalBrain.Graph.GraphCompute.Build(sink),
+            DigitalBrain.Graph.GraphLevel.Neurons,
+            null,
+            [],
+            1.0);
     }
 
     private async Task<(string[] Resources, string[] Errors)> ReadTelemetryAsync(string? resourceFilter)

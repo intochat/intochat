@@ -38,7 +38,7 @@ public sealed record DesktopAppState(
     string Status,
     string[] PinnedApps)
 {
-    public DesktopAppState() : this("smart-desktop", false, "fluent-acrylic", "floating-glass", 9, "Smart Desktop Ready", ["ino", "creator"]) { }
+    public DesktopAppState() : this("smart-desktop", false, "fluent-acrylic", "floating-glass", 10, "Smart Desktop Ready", ["ino", "creator"]) { }
 }
 
 [DigitalBrain.App("desktop")]
@@ -130,6 +130,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         {
             ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles"),
             ("files", "Files", "neuron://local/apps/files", "folder"),
+            ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool"),
             ("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "image"),
             ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film"),
             ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid"),
@@ -187,6 +188,11 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                             Icon = "layout-grid",
                             Small = true,
                         },
+                        new Button("Pin Markdraw", new ButtonAction("desktop", "pin", ["markdraw", "true"]))
+                        {
+                            Icon = "pin",
+                            Small = true,
+                        },
                         new Button("Pin PhotoCraft", new ButtonAction("desktop", "pin", ["photocraft", "true"]))
                         {
                             Icon = "pin",
@@ -207,6 +213,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     new BrainGraphNode("os", "OperatingSystem", "neuron://local/os", "core", 0, 0, 0, "working"),
                     new BrainGraphNode("ino", "Ino Assistant", "neuron://local/apps/ino", "agent", 110, 35, -20, "working"),
                     new BrainGraphNode("files", "Files", "neuron://local/apps/files", "storage", -115, 25, 15, "idle"),
+                    new BrainGraphNode("markdraw", "Markdraw", "neuron://local/apps/markdraw", "studio", 45, 70, 30, "working"),
                     new BrainGraphNode("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "studio", 125, -35, 20, "idle"),
                     new BrainGraphNode("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "studio", -125, -30, -15, "idle"),
                     new BrainGraphNode("gallery", "UI Gallery", "neuron://local/apps/gallery", "ui", 85, -60, 25, "idle"),
@@ -215,6 +222,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                 [
                     new BrainGraphSynapse("os", "ino", "InoSend", true),
                     new BrainGraphSynapse("ino", "files", "FilesSearch", false),
+                    new BrainGraphSynapse("ino", "markdraw", "MarkdrawPatchElements", true),
                     new BrainGraphSynapse("ino", "photocraft", "PhotoCraftEdit", true),
                     new BrainGraphSynapse("ino", "filmcraft", "FilmCraftEdit", false),
                     new BrainGraphSynapse("os", "creator", "CreatorInspect", true),
@@ -276,7 +284,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             IsNarrow = narrow,
             StylePreset = preset,
             BarLayout = barLayout,
-            ActiveNeurons = 9,
+            ActiveNeurons = 10,
             Status = narrow ? "Smart Desktop (Compact)" : $"Smart Desktop ({layoutMode})",
         });
     }

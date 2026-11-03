@@ -24,14 +24,21 @@ internal static class InoDatabaseChartHandler
             && (text.Contains("table", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("chart", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("Proposal", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("Negotiation", StringComparison.OrdinalIgnoreCase)));
+                || text.Contains("Negotiation", StringComparison.OrdinalIgnoreCase)))
+        || ((text.Contains("group", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("aggregate", StringComparison.OrdinalIgnoreCase))
+            && (text.Contains("chart", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("table", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("by stage", StringComparison.OrdinalIgnoreCase)));
 
     public static bool IsChartQuestion(string text)
         => (text.Contains("chart", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("table", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("top 3", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("top three", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("highest", StringComparison.OrdinalIgnoreCase))
+                || text.Contains("highest", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("average", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("total", StringComparison.OrdinalIgnoreCase))
             && (text.Contains("what", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("which", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("top", StringComparison.OrdinalIgnoreCase)
@@ -46,6 +53,7 @@ internal static class InoDatabaseChartHandler
             || text.Contains("from supabase", StringComparison.OrdinalIgnoreCase)
             || text.Contains("from opportunities", StringComparison.OrdinalIgnoreCase)
             || text.Contains("visualize", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("analyze ", StringComparison.OrdinalIgnoreCase)
             || text.Contains("show me a chart", StringComparison.OrdinalIgnoreCase)
             || text.Contains("show chart", StringComparison.OrdinalIgnoreCase)
             || text.Contains("show table", StringComparison.OrdinalIgnoreCase)
@@ -53,7 +61,16 @@ internal static class InoDatabaseChartHandler
             || text.Contains("chart and table", StringComparison.OrdinalIgnoreCase)
             || text.Contains("plot ", StringComparison.OrdinalIgnoreCase)
             || text.Contains("opportunities", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("customer accounts", StringComparison.OrdinalIgnoreCase);
+            || text.Contains("customer accounts", StringComparison.OrdinalIgnoreCase)
+            || ((text.Contains(".csv", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains(".tsv", StringComparison.OrdinalIgnoreCase))
+                && (text.Contains("query", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("chart", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("table", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("analyze", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("plot", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("sum", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("group", StringComparison.OrdinalIgnoreCase)));
 
     public static async Task<InoAppState> ConnectDbAsync(
         InoAppState currentState,
@@ -108,7 +125,7 @@ internal static class InoDatabaseChartHandler
         var turns = currentState.Turns.Append(new InoTurn(
             $"Connect database ({hostName}/{dbName})",
             $"Connected to PostgreSQL database '{dbName}' on '{hostName}' (neuron://local/postgres/{alias}). Ask me to query or visualize any table or chart.",
-            $"postgres:{alias}",
+            "postgres:" + alias,
             0)).ToArray();
 
         return currentState with
@@ -123,7 +140,8 @@ internal static class InoDatabaseChartHandler
     public static async Task<InoAppState> QueryDbAsync(
         InoAppState currentState,
         InoQueryDb request,
-        IMemory? memory)
+        IMemory? memory,
+        IFilesVfsService? filesVfs = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         var sql = string.IsNullOrWhiteSpace(request.Sql)
@@ -133,7 +151,15 @@ internal static class InoDatabaseChartHandler
             ? "supabase:supabase/postgres"
             : currentState.ConnectedDatabase;
 
-        var (chartTitle, columns, rows, chartKind, chartPoints, summary) = ExecuteDatasetQuery(sql, database);
+        var queryResult = await DataAnalyticsEngine.ExecuteAsync(sql, database, filesVfs);
+        var (chartTitle, columns, rows, chartKind, chartPoints, summary) = (
+            queryResult.ChartTitle,
+            queryResult.Columns,
+            queryResult.Rows,
+            queryResult.ChartKind,
+            queryResult.ChartPoints,
+            queryResult.Summary);
+
         if (memory is not null)
         {
             await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {rows.Length} | Chart: {chartTitle}", importance: 6);
@@ -145,7 +171,7 @@ internal static class InoDatabaseChartHandler
             "table",
             $"{chartTitle} — Table ({rows.Length} rows from {database})",
             summary,
-            "neuron://local/postgres/main#query-result",
+            queryResult.SourceUri,
             "ready",
             $"neuron://local/apps/ino#{tableCardId}",
             columns,
@@ -182,7 +208,8 @@ internal static class InoDatabaseChartHandler
         InoAppState currentState,
         string text,
         UserSettingsState settings,
-        IMemory? memory)
+        IMemory? memory,
+        IFilesVfsService? filesVfs = null)
     {
         var cards = currentState.ActiveCards;
         var database = string.IsNullOrWhiteSpace(currentState.ConnectedDatabase)
@@ -220,7 +247,25 @@ internal static class InoDatabaseChartHandler
         }
 
         string reply;
-        if (text.Contains("filter", StringComparison.OrdinalIgnoreCase))
+        if (text.Contains("group", StringComparison.OrdinalIgnoreCase) || text.Contains("aggregate", StringComparison.OrdinalIgnoreCase))
+        {
+            var grouped = await DataAnalyticsEngine.ExecuteAsync(text, database, filesVfs);
+            tableCard = tableCard with
+            {
+                Title = $"{grouped.ChartTitle} — Table ({grouped.Rows.Length} groups)",
+                Columns = grouped.Columns,
+                Rows = grouped.Rows,
+                Summary = grouped.Summary,
+            };
+            chartCard = chartCard with
+            {
+                Title = grouped.ChartTitle,
+                ChartPoints = grouped.ChartPoints,
+                Summary = $"Live {chartCard.ChartKind ?? "bar"} chart ({grouped.ChartPoints.Length} aggregated series points).",
+            };
+            reply = $"Ino ({settings.DefaultModel}): Aggregated **{grouped.ChartTitle}** into {grouped.Rows.Length} group(s): {string.Join(", ", grouped.ChartPoints.Select(p => $"{p.Label} (€{p.Value:N0})"))}.";
+        }
+        else if (text.Contains("filter", StringComparison.OrdinalIgnoreCase))
         {
             var (baseTitle, baseCols, baseRows, _, basePoints, _) = ExecuteDatasetQuery("SELECT * FROM opportunities", database);
             var filterTerm = ExtractFilterTerm(text);
@@ -330,16 +375,24 @@ internal static class InoDatabaseChartHandler
             cards = [.. cards, tableCard, chartCard];
         }
 
-        var topPoints = (chartCard.ChartPoints ?? [])
+        var points = chartCard.ChartPoints ?? [];
+        var topPoints = points
             .OrderByDescending(p => p.Value)
             .Take(3)
             .Select((p, idx) => $"{idx + 1}. **{p.Label}** (€{p.Value:N0})")
             .ToArray();
         var topSummary = $"Top 3 on **{chartCard.Title}**: {string.Join(", ", topPoints)}.";
 
+        if (text.Contains("average", StringComparison.OrdinalIgnoreCase) || text.Contains("total", StringComparison.OrdinalIgnoreCase))
+        {
+            var total = points.Sum(p => p.Value);
+            var avg = points.Length > 0 ? points.Average(p => p.Value) : 0;
+            topSummary = $"{topSummary} Total: **€{total:N0}** · Average: **€{avg:N0}** across {points.Length} item(s).";
+        }
+
         var generated = await generateReplyAsync(text, chartCard, tableCard);
         var reply = generated is { Length: > 0 }
-            ? (generated.Contains(chartCard.ChartPoints![0].Label, StringComparison.OrdinalIgnoreCase)
+            ? (points.Length > 0 && generated.Contains(points[0].Label, StringComparison.OrdinalIgnoreCase)
                 ? $"Ino ({settings.DefaultModel}): {generated}"
                 : $"Ino ({settings.DefaultModel}): {generated}\n\n{topSummary}")
             : $"Ino ({settings.DefaultModel}): {topSummary}";
@@ -422,49 +475,7 @@ internal static class InoDatabaseChartHandler
 
     internal static (string ChartTitle, string[] Columns, string[][] Rows, string ChartKind, InoChartPoint[] ChartPoints, string Summary) ExecuteDatasetQuery(string sql, string database)
     {
-        var chartKind = sql.Contains("pie", StringComparison.OrdinalIgnoreCase)
-            ? "pie"
-            : sql.Contains("line", StringComparison.OrdinalIgnoreCase)
-                ? "line"
-                : "bar";
-
-        if (sql.Contains("customer", StringComparison.OrdinalIgnoreCase) || (sql.Contains("account", StringComparison.OrdinalIgnoreCase) && !sql.Contains("opportunit", StringComparison.OrdinalIgnoreCase)))
-        {
-            string[] cols = ["Account", "City", "Owner", "AnnualRevenue"];
-            string[][] rows =
-            [
-                ["Acme Logistics", "Oslo", "Maja Berg", "€312,000"],
-                ["Havbris AS", "Bergen", "Jeff Tilley", "€240,000"],
-                ["Fjordline", "Stavanger", "Erik Nilsen", "€192,000"],
-                ["Nordkapp Shipping", "Tromsø", "Maja Berg", "€148,500"],
-            ];
-            InoChartPoint[] points =
-            [
-                new("pt-1", "Acme Logistics", 312000),
-                new("pt-2", "Havbris AS", 240000),
-                new("pt-3", "Fjordline", 192000),
-                new("pt-4", "Nordkapp Shipping", 148500),
-            ];
-            return ("Customer Accounts by Annual Revenue", cols, rows, chartKind, points, $"Queried 4 customer account(s) totaling €892,500 from {database}.");
-        }
-
-        string[] defaultCols = ["Opportunity", "Account", "Stage", "Amount"];
-        string[][] defaultRows =
-        [
-            ["Havbris pilot", "Havbris AS", "Proposal", "€240,000"],
-            ["Depot software, phase 2", "Acme Logistics", "Negotiation", "€186,000"],
-            ["Fjordline renewal", "Fjordline", "Contract", "€96,000"],
-            ["Nordkapp second region", "Nordkapp Shipping", "Discovery", "€74,500"],
-            ["Cold-chain sensors", "Lofoten Seafood", "Proposal", "€31,200"],
-        ];
-        InoChartPoint[] defaultPoints =
-        [
-            new("pt-1", "Havbris pilot", 240000),
-            new("pt-2", "Depot software, phase 2", 186000),
-            new("pt-3", "Fjordline renewal", 96000),
-            new("pt-4", "Nordkapp second region", 74500),
-            new("pt-5", "Cold-chain sensors", 31200),
-        ];
-        return ("Pipeline Opportunities by Amount", defaultCols, defaultRows, chartKind, defaultPoints, $"Queried 5 opportunity row(s) totaling €627,700 from {database}.");
+        var result = DataAnalyticsEngine.ExecuteBuiltIn(sql, database);
+        return (result.ChartTitle, result.Columns, result.Rows, result.ChartKind, result.ChartPoints, result.Summary);
     }
 }

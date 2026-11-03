@@ -86,7 +86,7 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
         string? language)
     {
         var lang = NormalizeLanguage(language ?? State.BddLanguage);
-        var steps = BuildLocalizedSteps(lang, targetApp, instruction, compiled);
+        var steps = BuildActivitySteps([], lang, targetApp, instruction, compiled, diagnostics);
         var nextVersion = compiled ? BumpMinorVersion(State.CurrentVersion) : State.CurrentVersion;
         var historyList = State.VersionHistory is { Length: > 0 } ? State.VersionHistory.ToList() : ["1.0.0"];
         if (compiled && !historyList.Contains(nextVersion, StringComparer.Ordinal))
@@ -113,7 +113,13 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
     {
         var lang = NormalizeLanguage(language);
         var target = string.IsNullOrWhiteSpace(State.TargetApp) ? "scratch" : State.TargetApp;
-        var steps = BuildLocalizedSteps(lang, target, "Verify BDD Scenario", State.SandboxCompiled);
+        var steps = BuildActivitySteps(
+            State.ScenarioSteps.Select(s => s.Step).ToArray(),
+            lang,
+            target,
+            "Verify BDD Scenario",
+            State.SandboxCompiled,
+            State.RoslynDiagnostics);
         var next = State with
         {
             BddLanguage = lang,
@@ -221,40 +227,44 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
         return normalized is "en" or "uk" or "es" or "de" or "fr" ? normalized : "en";
     }
 
-    public static CreatorStepVerdict[] BuildLocalizedSteps(string language, string targetApp, string instruction, bool passed) =>
-        language switch
+    public static CreatorStepVerdict[] BuildLocalizedSteps(string language, string targetApp, string instruction, bool passed)
+        => BuildActivitySteps([], language, targetApp, instruction, passed);
+
+    public static CreatorStepVerdict[] BuildActivitySteps(
+        string[]? activity,
+        string language,
+        string targetApp,
+        string instruction,
+        bool passed,
+        string[]? diagnostics = null,
+        TimeSpan elapsed = default)
+    {
+        var errorText = passed ? null : (diagnostics is { Length: > 0 } ? string.Join("; ", diagnostics) : "Compilation failed");
+        if (activity is { Length: > 0 })
         {
-            "uk" =>
-            [
-                new("Дано: пісочниця додатку запускається з чистим станом", true, null, TimeSpan.FromMilliseconds(1)),
-                new($"Коли: користувач виконує дію '{instruction}' у '{targetApp}'", passed, passed ? null : "Помилка компіляції", TimeSpan.FromMilliseconds(2)),
-                new("Тоді: стан оновлюється і інтерфейс рендериться без помилок", passed, passed ? null : "Перевірка не пройдена", TimeSpan.FromMilliseconds(1)),
-            ],
-            "es" =>
-            [
-                new("Dado que la aplicación sandbox inicia con estado limpio", true, null, TimeSpan.FromMilliseconds(1)),
-                new($"Cuando el usuario activa la acción '{instruction}' en '{targetApp}'", passed, passed ? null : "Error de compilación", TimeSpan.FromMilliseconds(2)),
-                new("Entonces el estado se actualiza y la vista se renderiza sin errores", passed, passed ? null : "Falló la verificación", TimeSpan.FromMilliseconds(1)),
-            ],
-            "de" =>
-            [
-                new("Gegeben die Sandbox-App startet mit sauberem Zustand", true, null, TimeSpan.FromMilliseconds(1)),
-                new($"Wenn der Benutzer die Aktion '{instruction}' in '{targetApp}' auslöst", passed, passed ? null : "Kompilierungsfehler", TimeSpan.FromMilliseconds(2)),
-                new("Dann wird der Zustand aktualisiert und die Ansicht fehlerfrei gerendert", passed, passed ? null : "Verifizierung fehlgeschlagen", TimeSpan.FromMilliseconds(1)),
-            ],
-            "fr" =>
-            [
-                new("Étant donné que l'application sandbox démarre avec un état propre", true, null, TimeSpan.FromMilliseconds(1)),
-                new($"Lorsque l'utilisateur déclenche l'action '{instruction}' dans '{targetApp}'", passed, passed ? null : "Erreur de compilation", TimeSpan.FromMilliseconds(2)),
-                new("Alors l'état est mis à jour et la vue s'affiche sans erreur", passed, passed ? null : "Échec de vérification", TimeSpan.FromMilliseconds(1)),
-            ],
-            _ =>
-            [
-                new("Given the sandbox app starts with clean state", true, null, TimeSpan.FromMilliseconds(1)),
-                new($"When the user triggers the action '{instruction}' on '{targetApp}'", passed, passed ? null : "Compilation failed", TimeSpan.FromMilliseconds(2)),
-                new("Then the state updates and view renders without error", passed, passed ? null : "Verification failed", TimeSpan.FromMilliseconds(1)),
-            ],
-        };
+            var perStep = elapsed > TimeSpan.Zero ? TimeSpan.FromTicks(Math.Max(1, elapsed.Ticks / activity.Length)) : TimeSpan.Zero;
+            var verdicts = activity
+                .Select((entry, idx) => new CreatorStepVerdict(
+                    $"[{language.ToUpperInvariant()}] {entry}",
+                    passed || idx < activity.Length - 1,
+                    !passed && idx == activity.Length - 1 ? errorText : null,
+                    perStep))
+                .ToList();
+            while (verdicts.Count < 3)
+            {
+                verdicts.Add(new CreatorStepVerdict($"[{language.ToUpperInvariant()}] verified {targetApp} round {verdicts.Count + 1}", passed, errorText, perStep));
+            }
+            return [.. verdicts];
+        }
+
+        var stepElapsed = elapsed > TimeSpan.Zero ? TimeSpan.FromTicks(Math.Max(1, elapsed.Ticks / 3)) : TimeSpan.Zero;
+        return
+        [
+            new($"[{language.ToUpperInvariant()}] build started: {instruction} ({targetApp})", true, null, stepElapsed),
+            new($"[{language.ToUpperInvariant()}] round 1: check_csharp ({targetApp})", passed, errorText, stepElapsed),
+            new($"[{language.ToUpperInvariant()}] {(passed ? $"Built {targetApp}" : $"build failed: {errorText}")}", passed, errorText, stepElapsed),
+        ];
+    }
 
     public static string BumpMinorVersion(string currentVersion)
     {

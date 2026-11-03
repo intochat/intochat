@@ -1137,6 +1137,54 @@ class _ImmutableView extends StatelessWidget {
           children: widgets,
         );
 
+      case 'markdraw':
+        final activeDoc =
+            meta['activeDocument'] as String? ?? '/work/architecture.markdraw';
+        final format = meta['format'] as String? ?? 'markdraw';
+        final rawContent = meta['content'] as String? ?? '';
+        final rev = (meta['revision'] as num?)?.toInt() ?? 1;
+        final statusText = meta['status'] as String? ?? '';
+        final lastExport = meta['lastExportPath'] as String?;
+        final cardHeight = (meta['height'] as num?)?.toDouble() ?? 540.0;
+        return _InteractiveMarkdrawStudioCard(
+          key: ValueKey('markdraw-studio-$activeDoc'),
+          title:
+              (meta['title'] as String?) ??
+              (text.isNotEmpty ? text : 'Markdraw Studio'),
+          activeDocument: activeDoc,
+          format: format,
+          content: rawContent,
+          revision: rev,
+          status: statusText,
+          lastExportPath: lastExport,
+          height: cardHeight,
+          onSyncScene: (serializedContent, docPath) {
+            final encoded = Uri.encodeComponent(serializedContent);
+            unawaited(
+              dispatch({
+                'kind': 'view',
+                'name': 'apps/markdraw/view',
+                'revision': generation,
+                'field': 'markdraw-sync',
+                'action': 'sync-scene:$encoded',
+                'operationId': _operationId(),
+              }).catchError((Object _) {}),
+            );
+          },
+          onExport: (exportFormat) {
+            unawaited(
+              dispatch({
+                'kind': 'view',
+                'name': 'apps/markdraw/view',
+                'revision': generation,
+                'field': 'markdraw-export',
+                'action': 'export:$exportFormat',
+                'operationId': _operationId(),
+              }).catchError((Object _) {}),
+            );
+          },
+        );
+
       case 'neuronRef':
         final copyAction = _childAction(context, children, '.copy');
         final embeddedRefs = [
@@ -2392,6 +2440,7 @@ class _ImmutableView extends StatelessWidget {
             'datatable',
             'chart',
             'webbrowser',
+            'markdraw',
             'neuronRef',
           }.contains(uiKind)) {
             final k = pendingCardKind ?? uiKind;
@@ -4937,6 +4986,195 @@ class _StudioNavRailItemState extends State<_StudioNavRailItem> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _InteractiveMarkdrawStudioCard extends StatefulWidget {
+  const _InteractiveMarkdrawStudioCard({
+    super.key,
+    required this.title,
+    required this.activeDocument,
+    required this.format,
+    required this.content,
+    required this.revision,
+    required this.status,
+    this.lastExportPath,
+    required this.height,
+    required this.onSyncScene,
+    required this.onExport,
+  });
+
+  final String title;
+  final String activeDocument;
+  final String format;
+  final String content;
+  final int revision;
+  final String status;
+  final String? lastExportPath;
+  final double height;
+  final void Function(String serializedContent, String documentPath) onSyncScene;
+  final void Function(String format) onExport;
+
+  @override
+  State<_InteractiveMarkdrawStudioCard> createState() =>
+      _InteractiveMarkdrawStudioCardState();
+}
+
+class _InteractiveMarkdrawStudioCardState
+    extends State<_InteractiveMarkdrawStudioCard> {
+  late final md.MarkdrawController _controller = md.MarkdrawController(
+    config: const md.MarkdrawEditorConfig(
+      initialBackground: '#0f172a',
+    ),
+  );
+  String _lastLoadedContent = '';
+  int _lastLoadedRevision = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadScene(widget.content, widget.activeDocument, widget.revision);
+  }
+
+  @override
+  void didUpdateWidget(_InteractiveMarkdrawStudioCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.revision != _lastLoadedRevision ||
+        widget.activeDocument != oldWidget.activeDocument ||
+        (widget.content != oldWidget.content &&
+            widget.content != _lastLoadedContent)) {
+      _loadScene(widget.content, widget.activeDocument, widget.revision);
+    }
+  }
+
+  void _loadScene(String rawContent, String docPath, int rev) {
+    if (rawContent.trim().isEmpty) return;
+    try {
+      final fileName = docPath.endsWith('.excalidraw')
+          ? docPath
+          : '$docPath.markdraw';
+      _controller.loadFromContent(rawContent, fileName);
+      _lastLoadedContent = rawContent;
+      _lastLoadedRevision = rev;
+    } catch (_) {
+      // Ignore transient parse errors if partial markdown is being streamed
+    }
+  }
+
+  void _syncLiveCanvasToBackend() {
+    try {
+      final docFormat = widget.activeDocument.endsWith('.excalidraw')
+          ? md.DocumentFormat.excalidraw
+          : md.DocumentFormat.markdraw;
+      final serialized = _controller.serializeScene(format: docFormat);
+      _lastLoadedContent = serialized;
+      widget.onSyncScene(serialized, widget.activeDocument);
+      if (mounted) {
+        showKitToast(
+          context,
+          'Synced Markdraw canvas to ${widget.activeDocument}',
+        );
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IcTheme.of(context);
+    return IcAcrylicBox(
+      padding: const EdgeInsets.all(12),
+      borderRadius: BorderRadius.circular(IcRadius.card),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const IcAppIcon(appId: 'markdraw', size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IcType.text(
+                        13,
+                        weight: FontWeight.w700,
+                        color: c.textStrong,
+                      ),
+                    ),
+                    Text(
+                      '${widget.activeDocument} · rev ${widget.revision}${widget.lastExportPath != null ? ' · exported ${widget.lastExportPath}' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IcType.code(11, color: c.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Btn(
+                label: 'Sync Canvas',
+                small: true,
+                primary: true,
+                icon: LucideIcons.refreshCw,
+                onTap: _syncLiveCanvasToBackend,
+              ),
+              const SizedBox(width: 6),
+              Btn(
+                label: '.excalidraw',
+                small: true,
+                icon: LucideIcons.fileCode,
+                onTap: () {
+                  final json = _controller.serializeScene(
+                    format: md.DocumentFormat.excalidraw,
+                  );
+                  Clipboard.setData(ClipboardData(text: json));
+                  widget.onExport('excalidraw');
+                  showKitToast(
+                    context,
+                    'Exported .excalidraw to Files & copied JSON',
+                  );
+                },
+              ),
+              const SizedBox(width: 6),
+              Btn(
+                label: '.svg',
+                small: true,
+                icon: LucideIcons.image,
+                onTap: () {
+                  final svg = _controller.exportSvg(selectedOnly: false);
+                  Clipboard.setData(ClipboardData(text: svg));
+                  widget.onExport('svg');
+                  showKitToast(context, 'Exported .svg to Files & copied SVG');
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: widget.height,
+            width: double.infinity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(IcRadius.sm),
+              child: md.MarkdrawEditor(
+                controller: _controller,
+                onSave: _syncLiveCanvasToBackend,
+                onExportSvg: () => widget.onExport('svg'),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

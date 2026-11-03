@@ -323,14 +323,14 @@ internal static class InoFilesHandler
             reply =
                 $"Ino ({settings.DefaultModel}): Analyzed **{fileName}** (`{resourceUri}`) — {lines.Length} non-empty line(s), {previewSnippet.Length} chars.\n\n"
                 + $"{previewExcerpt}\n\n"
-                + "**Suggested actions:** Ask me to *extract a table*, *edit in PhotoCraft/FilmCraft*, or *rewrite key sections* from this file.";
+                + "**Suggested actions:** Ask me to *extract a table*, *co-draw in Markdraw*, *edit in PhotoCraft/FilmCraft*, or *rewrite key sections* from this file.";
         }
         else
         {
             reply =
                 $"Ino ({settings.DefaultModel}): Attached **{fileName}** (`{resourceUri}`) from **Files**.\n\n"
                 + "- **Source URI**: `" + resourceUri + "`\n"
-                + "- **Ready for**: Summarization, key takeaway extraction, table conversion, or cross-app workflow routing.";
+                + "- **Ready for**: Summarization, key takeaway extraction, table conversion, Markdraw co-drawing, or cross-app workflow routing.";
         }
 
         if (memory is not null)
@@ -432,13 +432,33 @@ internal static class InoFilesHandler
 
     internal static string? ExtractFileNameToken(string text)
     {
-        string[] extensions = [".txt", ".md", ".json", ".csv", ".cs", ".xml", ".yaml", ".yml", ".log", ".html", ".png", ".jpg", ".jpeg", ".webp", ".psd", ".mp4", ".mov", ".fcproj"];
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
         foreach (var rawToken in text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var token = rawToken.Trim('"', '\'', ',', ';', '(', ')', '[', ']', '`', ':');
-            if (extensions.Any(ext => token.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
+            if (string.IsNullOrWhiteSpace(token)
+                || token.Contains("://", StringComparison.Ordinal)
+                || token.StartsWith("intochat.app", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("layer.", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("timeline.", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("color.", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("sequence.", StringComparison.OrdinalIgnoreCase))
             {
-                return token;
+                continue;
+            }
+
+            var ext = Path.GetExtension(token);
+            if (ext.Length is >= 2 and <= 12 && ext[1..].All(char.IsLetterOrDigit))
+            {
+                var stem = Path.GetFileNameWithoutExtension(token);
+                if (!string.IsNullOrWhiteSpace(stem) && stem.Any(char.IsLetterOrDigit))
+                {
+                    return token;
+                }
             }
         }
         return null;
