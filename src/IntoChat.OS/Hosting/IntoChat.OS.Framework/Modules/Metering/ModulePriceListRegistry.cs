@@ -1,5 +1,5 @@
 // os-only: os module price-list registry for metering.
-using IntoChat.OS.Contracts.Compute;
+using DigitalBrain.Capabilities.Compute;
 
 namespace IntoChat.OS.Framework.Modules.Metering;
 

@@ -1,3 +1,6 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
@@ -28,7 +31,7 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider se
     public IIntegration Integration(string integrationId) => Resolve<IIntegration>(IntegrationNeuron.KeyPrefix + integrationId);
     public IConnectionIndex Connections(string brainId) => SiloNeurons.Get<IConnectionIndex>(services, IConnectionIndex.Key(brainId));
     public IntoChat.OS.Connections.Platform.Entries.IBrainEntries Entries(string brainId) => Resolve<IntoChat.OS.Connections.Platform.Entries.IBrainEntries>(brainId);
-    public IntoChat.OS.Integrations.IConnectionRequests ConnectionRequests(string brainId) => SiloNeurons.Get<IntoChat.OS.Integrations.IConnectionRequests>(services, IntoChat.OS.Integrations.IConnectionRequests.Key(brainId));
+    public DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests ConnectionRequests(string brainId) => SiloNeurons.Get<DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests>(services, DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests.Key(brainId));
     // Connection neurons keep the Framework's connector-aware resolution; a key from a caller goes
     // through the manifest check, not straight to a grain type. 06-08 repoints this seam in the composition (R4-24).
     public IConnection Connection(string connectionKey) => services.GetConnection(connectionKey);

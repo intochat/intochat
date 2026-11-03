@@ -1,3 +1,6 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Capabilities.Connections.Requests;
 using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
@@ -13,7 +16,6 @@ using DigitalBrain.UI;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Modules.AI;

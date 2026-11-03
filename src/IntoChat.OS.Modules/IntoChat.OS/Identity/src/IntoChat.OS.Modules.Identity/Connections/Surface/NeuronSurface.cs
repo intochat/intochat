@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Contracts;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
@@ -79,7 +81,7 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        return IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(type, key).ToString();
+        return DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, key).ToString();
     }
 
     public async Task<JsonElement?> Call(string contract, string key, string method, string arguments, CancellationToken ct)
@@ -124,7 +126,7 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        return IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) ? IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(type, key) : null;
+        return DigitalBrain.Contracts.PlainNeuronContracts.Is(type) ? DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, key) : null;
     }
 
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);
@@ -168,12 +170,12 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
     // the brain's reason, not a reflection wrapper, so it can switch to the hit's own contract.
     private object Neuron(Type contract, string key)
     {
-        if (IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract))
+        if (DigitalBrain.Contracts.PlainNeuronContracts.Is(contract))
         {
-            try { return SiloNeurons.Get(Plain(), contract, IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(contract, key)); }
+            try { return SiloNeurons.Get(Plain(), contract, DigitalBrain.Contracts.PlainNeuronContracts.IdOf(contract, key)); }
             catch (ArgumentException error) { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.Message}", error); }
         }
-        try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [IntoChat.OS.Runtime.PlainNeuronContracts.IdOf(contract, key)])!; }
+        try { return GetNeuron.MakeGenericMethod(contract).Invoke(brain, [DigitalBrain.Contracts.PlainNeuronContracts.IdOf(contract, key)])!; }
         catch (TargetInvocationException error) when (error.InnerException is not null)
         { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.InnerException.Message}", error.InnerException); }
     }

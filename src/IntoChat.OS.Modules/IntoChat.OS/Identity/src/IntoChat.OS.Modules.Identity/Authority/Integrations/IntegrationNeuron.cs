@@ -1,10 +1,13 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Capabilities.Connections.Sealing;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Integrations;

@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain.Identity.Local.Custody;
 using IntoChat.OS.Authority.Storage;
-using IntoChat.OS.Framework.Parts;
 
 namespace IntoChat.OS.Authority.Keys;
 

@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -250,7 +252,7 @@ internal sealed partial class AppNeuron
         values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // The host's public origin (empty when unset): Settings opens the account page there, Apps builds share links.
         var configuration = ServiceProvider.GetService<IConfiguration>();
-        values["PublicOrigin"] = configuration?[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey] ?? "";
+        values["PublicOrigin"] = configuration?[DigitalBrain.Modules.Configuration.ModuleConfiguration.ConnectionsPublicOriginKey] ?? "";
         // Cloud sign-in contributes an account surface. The literal matches AuthIdentityProvider.AccountSurfaceSetting (view|surface).
         if (WritesAccountSurface(Name(), configuration?["IntoChatOS:Topology"]))
         {

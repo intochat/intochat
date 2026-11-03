@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Capabilities;

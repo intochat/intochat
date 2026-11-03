@@ -6,7 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
-    <PackageReference Include="IntoChat.OS.Modules.AI.Contracts" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
     <PackageReference Include="DigitalBrain.Testing" />
     <PackageReference Include="DigitalBrain.Testing.Silo" />
     <PackageReference Include="DigitalBrain.Runtime.Orleans" />

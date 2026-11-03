@@ -4,6 +4,11 @@ namespace IntoChat.OS.Kernel.Composition;
 
 public static class OsRuntimeOptions
 {
+    static OsRuntimeOptions()
+    {
+        DigitalBrain.Modules.Configuration.ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
+    }
+
     public static RuntimeOptions Value { get; } = new()
     {
         TopologyKey = "IntoChatOS:Topology",
@@ -13,6 +18,7 @@ public static class OsRuntimeOptions
         CloudKeyVaultKey = "IntoChatOS:Cloud:KeyVault",
         CloudServerAddressKey = "IntoChatOS:Cloud:ServerAddress",
         MasterKeyKey = "IntoChatOS:MasterKey",
+        CustodyConfigurationKey = "IntoChatOS:Platform:Storage:Custody",
         CloudSectionPrefix = "IntoChatOS:Cloud:",
         SignallingSection = "IntoChatOS:Signalling",
         RetentionSection = "IntoChatOS:Signalling:Retention",

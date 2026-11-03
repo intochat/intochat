@@ -1,3 +1,4 @@
+using DigitalBrain.Errors;
 using System.Text.Json;
 using IntoChat.OS;
 using IntoChat.OS.Modules.Apps.Signals;

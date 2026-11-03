@@ -1,8 +1,9 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Authority.Integrations;

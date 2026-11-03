@@ -1,9 +1,8 @@
+using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp;
 
@@ -17,7 +16,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     public override void Configure(IntoChatOSBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
-        if (brain.ApplicationBuilder.Configuration[$"{IntoChatOSConfiguration.ModuleSection("csharp")}:Enabled"] == "false") { return; }
+        if (brain.ApplicationBuilder.Configuration[$"{ModuleConfiguration.ModuleSection("csharp")}:Enabled"] == "false") { return; }
         // The image builds from the repository (or its sibling modules repository); a host composed without one has no container.
         if (RepositoryRoot.Find() is not { } repository) { return; }
         var contextPath = repository;
@@ -86,7 +85,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
             => builder.WithEnvironment(
-                IntoChatOSConfiguration.EnvironmentName(CSharpOptions.SectionName, nameof(CSharpOptions.SandboxUrl)), sandbox.GetEndpoint("http"))
+                ModuleConfiguration.EnvironmentName(CSharpOptions.SectionName, nameof(CSharpOptions.SandboxUrl)), sandbox.GetEndpoint("http"))
                 .WithAnnotation(new WaitAnnotation(sandbox.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
     }
 }

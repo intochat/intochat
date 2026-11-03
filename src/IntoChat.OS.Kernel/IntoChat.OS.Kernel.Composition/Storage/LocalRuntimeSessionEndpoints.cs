@@ -1,3 +1,5 @@
+using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Collections.Concurrent;
 using System.Net.ServerSentEvents;
 using System.Reflection;

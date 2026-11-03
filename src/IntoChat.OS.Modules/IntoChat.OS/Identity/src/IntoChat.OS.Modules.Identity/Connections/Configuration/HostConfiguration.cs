@@ -1,9 +1,9 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
 using System.Reflection;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Connections.Configuration;
@@ -84,6 +84,6 @@ public static class HostConfiguration
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(option);
-        return !string.IsNullOrWhiteSpace(configuration[$"{IntoChatOSConfiguration.ModuleOptionsSection(moduleId)}:{option}"]);
+        return !string.IsNullOrWhiteSpace(configuration[$"{ModuleConfiguration.ModuleOptionsSection(moduleId)}:{option}"]);
     }
 }

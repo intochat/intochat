@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;

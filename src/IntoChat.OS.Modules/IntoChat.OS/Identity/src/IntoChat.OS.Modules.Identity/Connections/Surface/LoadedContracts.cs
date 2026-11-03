@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using System.Collections.Concurrent;
 using System.Reflection;
 using IntoChat.OS.Framework;
@@ -19,7 +20,7 @@ internal static class LoadedContracts
 
     private static Type? Loaded(string name) => AppDomain.CurrentDomain.GetAssemblies()
         .Where(assembly => !assembly.IsDynamic).Select(assembly => assembly.GetType(name, throwOnError: false))
-        .FirstOrDefault(type => type is not null && IntoChat.OS.Runtime.PlainNeuronContracts.Is(type));
+        .FirstOrDefault(type => type is not null && DigitalBrain.Contracts.PlainNeuronContracts.Is(type));
 
     // Referenced contract assemblies load lazily; load what the entry assembly and base directory deploy, transitively.
     private static bool LoadReferenced()

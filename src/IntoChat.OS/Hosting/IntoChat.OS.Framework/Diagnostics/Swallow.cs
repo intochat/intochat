@@ -1,4 +1,5 @@
 // os-only: os logging convention for deliberately swallowed failures; the framework has no equivalent yet.
+using DigitalBrain.Log;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Logging;
 

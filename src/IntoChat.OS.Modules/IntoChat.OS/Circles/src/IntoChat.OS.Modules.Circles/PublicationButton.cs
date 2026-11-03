@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using System.Security.Cryptography;
 using System.Text;

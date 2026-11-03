@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.State;

@@ -1,3 +1,8 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Requests;
+using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
@@ -85,10 +90,10 @@ public static class ServerHostingExtensions
             .Append(typeof(IBrain).Assembly)
             .Append(typeof(IntoChat.OS.Connections.Platform.Connections.IConnection).Assembly)
             // The Authority's connection requests publish ConnectionsChanged and ConnectionRequested (06-08).
-            .Append(typeof(IntoChat.OS.Integrations.IConnectionRequests).Assembly)
+            .Append(typeof(DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests).Assembly)
             .Distinct()
             .ToArray();
-        builder.Services.TryAddSingleton<IBrainKeyCustody>(static services => new OsBrainKeyCustody(services.GetRequiredService<IntoChat.OS.Framework.Parts.IMasterKeyCustody>()));
+        builder.Services.TryAddSingleton<IBrainKeyCustody>(static services => new OsBrainKeyCustody(services.GetRequiredService<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>()));
         builder.UseClusterStore(new BrainStorageRegistration(signalAssemblies));
         // Capabilities (05-07): the registry accepts the os storage binding before ConfigureTopologySilo validates every module's
         // Provides, and the kernel lists and binds connections for the runtime broker.
@@ -180,7 +185,7 @@ public static class ServerHostingExtensions
     {
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _ = services.GetRequiredService<IntoChat.OS.Framework.Modules.IBrainAccess>();
+            _ = services.GetRequiredService<DigitalBrain.Runtime.Http.Surface.IBrainAccess>();
             if (!services.GetServices<IntoChat.OS.Framework.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddIntoChatOSPlatform before starting the server."); }
             return Task.CompletedTask;

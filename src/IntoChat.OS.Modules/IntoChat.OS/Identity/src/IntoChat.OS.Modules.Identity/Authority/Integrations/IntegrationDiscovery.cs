@@ -1,5 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Authority.Integrations;
 

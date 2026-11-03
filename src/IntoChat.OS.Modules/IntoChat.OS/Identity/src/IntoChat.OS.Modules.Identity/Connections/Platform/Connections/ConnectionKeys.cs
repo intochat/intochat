@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Connections.Platform.Connections;

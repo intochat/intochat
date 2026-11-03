@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;

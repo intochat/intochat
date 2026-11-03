@@ -1,5 +1,5 @@
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using DigitalBrain.Signals.Watch;
@@ -22,7 +22,7 @@ internal static class LocalRunDefaults
         configuration.Sources.Insert(0, new MemoryConfigurationSource
         {
             InitialData = IntoChatOSNames.LocalDisabledModules.ToDictionary(
-                static id => IntoChatOSConfiguration.ModuleSection(id) + ":Enabled",
+                static id => ModuleConfiguration.ModuleSection(id) + ":Enabled",
                 static _ => (string?)"false",
                 StringComparer.OrdinalIgnoreCase),
         });

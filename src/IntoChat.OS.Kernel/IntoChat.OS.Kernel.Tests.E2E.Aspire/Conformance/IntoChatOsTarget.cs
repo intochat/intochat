@@ -1,3 +1,7 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Capabilities.Connections.Requests;
 using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
@@ -9,7 +13,6 @@ using DigitalBrain.Spi;
 using DigitalBrain.Testing.Conformance.Host;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Kernel.Composition.Storage;

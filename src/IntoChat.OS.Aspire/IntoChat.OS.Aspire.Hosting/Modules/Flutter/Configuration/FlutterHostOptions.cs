@@ -1,3 +1,5 @@
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
 using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
@@ -5,7 +7,7 @@ namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 public sealed class FlutterHostOptions
 {
     public static readonly string SectionName =
-        IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(new IntoChat.OS.Framework.Modules.ModuleId("flutter")) + ":Hosting";
+        DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(new DigitalBrain.Modules.Options.ModuleId("flutter")) + ":Hosting";
     public static readonly string WebContainerKey = SectionName + ":WebContainer";
 
     // Overlays the module options (IntoChatOS:Modules:flutter:Options:Hosting) onto host options.
@@ -13,7 +15,7 @@ public sealed class FlutterHostOptions
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(configuration);
-        var hosting = IntoChat.OS.Framework.Modules.Configuration.ModuleOptionsSerialization
+        var hosting = DigitalBrain.Modules.Options.ModuleOptionsSerialization
             .GetModuleOptions<IntoChat.OS.Modules.Flutter.FlutterModuleOptions>(configuration, "flutter").Hosting;
         options.ResourceName = hosting.ResourceName;
         options.ShellName = hosting.ShellName;

@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Modules.Configuration;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Aspire.Hosting;
@@ -7,7 +9,6 @@ using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Client;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.Apps;
 using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 
@@ -57,7 +58,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         var started = DateTimeOffset.UtcNow;
-        var featuresKey = IntoChatOSConfiguration.ModuleOptionsSection("apps") + ":Features";
+        var featuresKey = ModuleConfiguration.ModuleOptionsSection("apps") + ":Features";
         var args = new List<string>
         {
             $"--{IntoChatOSNames.HomeKey}={Home}",
@@ -68,7 +69,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         };
         foreach (var module in DisabledModules)
         {
-            args.Add($"--{IntoChatOSConfiguration.ModuleSection(module)}:Enabled=false");
+            args.Add($"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false");
         }
 
         try

@@ -1,10 +1,9 @@
+using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Voice;
 using Microsoft.Extensions.Configuration;
@@ -74,18 +73,18 @@ public static partial class AIHostingExtensions
             {
                 builder
                     .WithAnnotation(new WaitAnnotation(resource.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
-                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AIKeys.OllamaEndpoint), resource.Resource.Parent.UriExpression)
-                    .WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AIKeys.OllamaModels, $"{marker.Name}:Model"), resource.Resource.ModelName);
+                    .WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.OllamaEndpoint), resource.Resource.Parent.UriExpression)
+                    .WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.OllamaModels, $"{marker.Name}:Model"), resource.Resource.ModelName);
             }
 
             if (_defaultLlmMarker is { } llmMarker)
             {
-                builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AIKeys.DefaultModel), llmMarker.Name);
+                builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.DefaultModel), llmMarker.Name);
             }
 
             if (_defaultEmbeddingMarker is { } embeddingMarker)
             {
-                builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AIKeys.DefaultEmbedding), embeddingMarker.Name);
+                builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AIKeys.DefaultEmbedding), embeddingMarker.Name);
             }
         }
 
@@ -149,7 +148,7 @@ public static partial class AIHostingExtensions
         // One key for every transcription model, matching the default model and
         // embedding keys. The provider on the model picks the implementation.
         private static readonly string TranscriptionEnvironmentKey =
-            IntoChatOSConfiguration.EnvironmentName(AIKeys.DefaultTranscription);
+            ModuleConfiguration.EnvironmentName(AIKeys.DefaultTranscription);
         private TranscriptionModel? _model;
         private IResourceBuilder<FoundryLocalModelResource>? _whisper;
 

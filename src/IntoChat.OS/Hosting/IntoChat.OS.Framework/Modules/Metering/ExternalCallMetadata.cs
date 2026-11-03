@@ -1,5 +1,5 @@
 // os-only: os external-call metering metadata (Funding, CostSubject).
-using IntoChat.OS.Contracts.Compute;
+using DigitalBrain.Capabilities.Compute;
 
 namespace IntoChat.OS.Framework.Modules.Metering;
 

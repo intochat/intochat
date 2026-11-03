@@ -1,8 +1,9 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
 using System.Globalization;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Modules.ClickHouse.Aspire.Hosting;
 
@@ -90,7 +91,7 @@ public static class ClickHouseHostingExtensions
 
             // Waiting on the database resource covers server health and the CREATE DATABASE step.
             builder
-                .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.Key("clickhouse", "ConnectionString")), _database.Resource.ConnectionStringExpression)
+                .WithEnvironment(DigitalBrain.Modules.Configuration.ModuleConfiguration.EnvironmentName(IntegrationSchema.Key("clickhouse", "ConnectionString")), _database.Resource.ConnectionStringExpression)
                 .WithAnnotation(new WaitAnnotation(_database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
         }
     }

@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
@@ -5,9 +6,7 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
 
@@ -41,19 +40,19 @@ internal static class AuthPosture
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
-            builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(Key), posture);
+            builder.WithEnvironment(ModuleConfiguration.EnvironmentName(Key), posture);
             // The server has no Aspire execution context. An Aspire run starts its processes on this host, so they get the local
             // topology, where Open posture may listen on loopback only and IntoChatOS:Bind widens binding (BindPolicy, D-21).
             // A run on Azurite declares Topology=cloud itself (the orleans module projection); that one is kept.
             if (runMode)
             {
                 builder.WithEnvironment(context => context.EnvironmentVariables.TryAdd(
-                    IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), IntoChatOSNames.TopologyLocal));
+                    ModuleConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), IntoChatOSNames.TopologyLocal));
             }
             if (password is not null)
             {
-                builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username))), username);
-                builder.WithEnvironment(context => context.EnvironmentVariables[IntoChatOSConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Password)))] = password);
+                builder.WithEnvironment(ModuleConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username))), username);
+                builder.WithEnvironment(context => context.EnvironmentVariables[ModuleConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Password)))] = password);
             }
         }
     }

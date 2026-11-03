@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Integrations;
 using System.Text;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework;

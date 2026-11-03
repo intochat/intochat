@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Capabilities;
 #pragma warning disable xUnit1051, IDE0062, IDE0200
 using System.Diagnostics;
 using System.Reflection;
@@ -716,7 +717,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_04_FrameworkAssembly_ExportsCanonicalConfigurationTypes()
     {
-        var assembly = typeof(IntoChat.OS.Framework.CallerContextStamper).Assembly;
+        var assembly = typeof(DigitalBrain.Runtime.Orleans.Capabilities.CallerContextStamper).Assembly;
         var exportedTypes = assembly.GetExportedTypes().Select(t => t.Name).ToList();
         Assert.Contains("CallerContextStamper", exportedTypes);
         Assert.Contains("CallRequest", exportedTypes);
@@ -727,7 +728,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_05_CleanNamespaceIsolation_NoObsoleteShims()
     {
-        var types = typeof(IntoChat.OS.Framework.CallerContextStamper).Assembly.GetTypes();
+        var types = typeof(DigitalBrain.Runtime.Orleans.Capabilities.CallerContextStamper).Assembly.GetTypes();
         Assert.DoesNotContain(types, t => t.Name.Contains("NamesForward", StringComparison.OrdinalIgnoreCase));
     }
 

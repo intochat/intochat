@@ -1,3 +1,6 @@
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Capabilities.Connections.Requests;
 using System.Collections.Concurrent;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
@@ -9,7 +12,6 @@ using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Integrations;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

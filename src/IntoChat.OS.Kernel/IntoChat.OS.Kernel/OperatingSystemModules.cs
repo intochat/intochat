@@ -95,6 +95,10 @@ public static class OperatingSystemModules
         foreach (var module in selected) { server.AddModule(module); }
         server.ConfigureServices(services =>
         {
+            services.AddSingleton<IntoChat.OS.Modules.Postgres.Tables.ITablesSlot, IntoChat.OS.Modules.Postgres.AppTablesSlot>();
+            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddEnumerable(
+                services,
+                ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.IAppStorageHook, IntoChat.OS.Modules.Postgres.Tables.TableStorageHook>());
             services.AddMeteredHttpPipelines(selected);
             services.AddOperatingSystemApps();
         });

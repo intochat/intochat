@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Capabilities.Connections;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Capabilities;
@@ -13,7 +15,6 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Metering;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 

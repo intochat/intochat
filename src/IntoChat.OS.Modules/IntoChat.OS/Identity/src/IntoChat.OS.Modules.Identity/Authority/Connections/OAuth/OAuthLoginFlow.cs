@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Capabilities;

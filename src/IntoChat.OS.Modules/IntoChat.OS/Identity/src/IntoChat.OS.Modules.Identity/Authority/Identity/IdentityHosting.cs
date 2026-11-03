@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Authority.Identity.Directory;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Identity.Configuration;
@@ -28,8 +29,8 @@ public static class IdentityHosting
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AuthOptions>, External.TrustedIssuersValidation>());
         services.TryAddSingleton<External.TrustedIssuerKeys>();
         // External sign-in's throttle: per network prefix, per silo.
-        services.TryAddSingleton<IntoChat.OS.Framework.Modules.Http.IRequestThrottle>(provider =>
-            new IntoChat.OS.Framework.Modules.Http.SlidingWindowThrottle(30, TimeSpan.FromMinutes(1), provider.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton<DigitalBrain.Runtime.Http.Surface.IRequestThrottle>(provider =>
+            new DigitalBrain.Runtime.Http.Surface.SlidingWindowThrottle(30, TimeSpan.FromMinutes(1), provider.GetRequiredService<TimeProvider>()));
         services.AddOptions<IdentityHostOptions>().BindConfiguration(IdentityHostOptions.SectionName)
             .Validate(options => options.Validate(), "Identity host names must not be empty.")
             .ValidateOnStart();

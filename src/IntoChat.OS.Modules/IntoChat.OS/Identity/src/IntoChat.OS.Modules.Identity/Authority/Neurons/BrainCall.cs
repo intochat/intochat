@@ -1,3 +1,6 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Errors;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using Grpc.Core;

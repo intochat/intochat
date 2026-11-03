@@ -1,3 +1,6 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -6,7 +9,6 @@ using DigitalBrain.State;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles.Rules;

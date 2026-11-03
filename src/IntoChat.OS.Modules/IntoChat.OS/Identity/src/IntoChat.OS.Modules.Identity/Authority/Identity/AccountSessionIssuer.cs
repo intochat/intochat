@@ -1,9 +1,9 @@
+using DigitalBrain.Log;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Diagnostics;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;

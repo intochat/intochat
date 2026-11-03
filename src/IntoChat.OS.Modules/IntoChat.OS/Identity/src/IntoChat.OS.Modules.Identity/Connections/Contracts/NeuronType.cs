@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Modules.Options;
 using DigitalBrain;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

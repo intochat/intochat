@@ -1,4 +1,3 @@
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 

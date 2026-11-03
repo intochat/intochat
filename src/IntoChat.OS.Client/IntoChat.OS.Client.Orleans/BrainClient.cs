@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;

@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Errors;
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Capabilities;

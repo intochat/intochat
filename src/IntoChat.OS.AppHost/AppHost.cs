@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using System.Reflection;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -12,10 +13,10 @@ using Microsoft.Extensions.Configuration.UserSecrets;
 using DigitalBrain.Signals.Watch;
 
 // The AppHost owns its deployment keys: the published ports, and the features folder it hands the OS
-// (the apps module's Features option, under IntoChatOSConfiguration.ModuleOptionsSection).
+// (the apps module's Features option, under ModuleConfiguration.ModuleOptionsSection).
 const string UiPortKey = "IntoChatOS:Http:UiPort";
 const string McpPortKey = "IntoChatOS:Http:McpPort";
-var featuresKey = IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("apps") + ":Features";
+var featuresKey = DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection("apps") + ":Features";
 
 var builder = DistributedApplication.CreateBuilder(args);
 // Legacy product-name settings stop the app host outside Development (the app host has no AddServiceDefaults).
@@ -73,7 +74,7 @@ var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.
         ? Primary(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
         : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.IntoChat_OS_Kernel>(name))
-            .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(featuresKey), features))).ToArray();
+            .WithEnvironment(DigitalBrain.Modules.Configuration.ModuleConfiguration.EnvironmentName(featuresKey), features))).ToArray();
 if (frontEnabled)
 {
     var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("https")));
@@ -95,16 +96,16 @@ return 0;
 // A live build is an executable the proxy reaches through a bare port (ASPNETCORE_HTTP_PORTS), which binds every interface; the
 // loopback-only rule for Open posture cannot be met there, so the opt-in is explicit (live builds are the candidate pipeline's).
 IResourceBuilder<T> AllowLiveBuildOnNetwork<T>(IResourceBuilder<T> live) where T : IResourceWithEnvironment
-    => live.WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(
+    => live.WithEnvironment(DigitalBrain.Modules.Configuration.ModuleConfiguration.EnvironmentName(
         IntoChat.OS.Connections.Identity.Configuration.AuthOptions.Key(nameof(IntoChat.OS.Connections.Identity.Configuration.AuthOptions.AllowOpenOnNetwork))), "true");
 
 IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     // One encrypted local brain store for this deployment.
     silo.WithReference(intoChatOS)
-        .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey), topology)
-        .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey), home)
-        .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ConnectionsPublicOriginKey), $"http://localhost:{uiPort}".ToString())
+        .WithEnvironment(DigitalBrain.Modules.Configuration.ModuleConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey), topology)
+        .WithEnvironment(DigitalBrain.Modules.Configuration.ModuleConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.HomeKey), home)
+        .WithEnvironment(DigitalBrain.Modules.Configuration.ModuleConfiguration.EnvironmentName(DigitalBrain.Modules.Configuration.ModuleConfiguration.ConnectionsPublicOriginKey), $"http://localhost:{uiPort}".ToString())
         .WithDisabledModules(builder.Configuration)
         .WithHttpHealthCheck("/health", endpointName: "http");
     if (cookieProtection is not null) { silo.WaitFor(cookieProtection); }
@@ -136,7 +137,7 @@ IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) wh
 IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     mcp.WithReference(intoChatOS.AsClient(shareHttpIdentity: true))
-        .WithEnvironment(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey), topology)
+        .WithEnvironment(DigitalBrain.Modules.Configuration.ModuleConfiguration.EnvironmentName(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey), topology)
         .WithDisabledModules(builder.Configuration)
         .WithHttpHealthCheck("/health", endpointName: "http");
     for (var index = 0; index < silos.Length; index++)

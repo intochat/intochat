@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Contracts;
 using System.Reflection;
 using DigitalBrain.Signals.Watch;
 using DigitalBrain.Spi;
@@ -76,10 +78,10 @@ public sealed class VocabularyRingFacts
         // The Orleans-bound half stays legacy in IntoChat.OS.Runtime; the pure half comes from the DigitalBrain package (03-03 name map).
         Assert.Equal(
             [
-                "IntoChat.OS.Runtime.ConnectionContractAttribute",
+                "DigitalBrain.Contracts.ConnectionContractAttribute",
                 "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
                 "IntoChat.OS.Runtime.IRuntimeBuilder",
-                "IntoChat.OS.Runtime.NeuronProxies", "IntoChat.OS.Runtime.PlainNeuronContracts"],
+                "IntoChat.OS.Runtime.NeuronProxies", "DigitalBrain.Contracts.PlainNeuronContracts"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
             ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.State.IStateCodec", "DigitalBrain.State.StoredRecord", "DigitalBrain.State.WriteResult"],
@@ -107,7 +109,7 @@ public sealed class VocabularyRingFacts
     private static IEnumerable<Type> PublicTypes() => Vocabulary.GetExportedTypes()
         .Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true);
 
-    private static bool IsContract(Type t) => Roots.Contains(t) || (t.IsInterface && IntoChat.OS.Runtime.PlainNeuronContracts.Is(t));
+    private static bool IsContract(Type t) => Roots.Contains(t) || (t.IsInterface && DigitalBrain.Contracts.PlainNeuronContracts.Is(t));
 
     private static bool IsRuntimeSpi(Type t) => t.Namespace == RuntimeNamespace;
 

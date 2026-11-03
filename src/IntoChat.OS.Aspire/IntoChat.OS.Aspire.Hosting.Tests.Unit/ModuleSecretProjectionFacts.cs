@@ -1,6 +1,6 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 

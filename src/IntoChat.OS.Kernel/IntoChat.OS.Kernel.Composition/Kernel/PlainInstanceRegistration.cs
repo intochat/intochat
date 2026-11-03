@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;

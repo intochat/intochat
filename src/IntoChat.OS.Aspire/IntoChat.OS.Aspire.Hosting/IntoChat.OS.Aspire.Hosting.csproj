@@ -17,13 +17,13 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
-    <PackageReference Include="IntoChat.OS.Modules.AI" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/AI/src/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
     <PackageReference Include="IntoChat.OS.Modules.ArtCraft" />
     <PackageReference Include="IntoChat.OS.Modules.ClickHouse" />
-    <PackageReference Include="IntoChat.OS.Modules.Flutter" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Flutter/src/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Aspire" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.CSharp" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Aspire/src/IntoChat.OS.Modules.Microsoft.Aspire/IntoChat.OS.Modules.Microsoft.Aspire.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
     <PackageReference Include="IntoChat.OS.Modules.Microsoft.GitHub" />
     <ProjectReference Include="../../IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
     <PackageReference Include="IntoChat.OS.Modules.Postgres" />

@@ -1,7 +1,6 @@
+using DigitalBrain.Modules.Options;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;

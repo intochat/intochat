@@ -1,5 +1,6 @@
 // os-only: os module price-list registration for metering.
-using IntoChat.OS.Contracts.Compute;
+using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Modules.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

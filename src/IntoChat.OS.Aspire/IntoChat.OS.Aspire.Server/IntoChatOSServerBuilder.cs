@@ -1,11 +1,10 @@
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -75,7 +74,7 @@ public sealed class IntoChatOSServerBuilder
     public ModuleSelection SelectModules(IConfiguration configuration)
     {
         // Configuration keys are case-insensitive, so the ids match that way too.
-        var sections = configuration.GetSection(IntoChatOSConfiguration.ModulesSectionName).GetChildren().ToArray();
+        var sections = configuration.GetSection(ModuleConfiguration.ModulesSectionName).GetChildren().ToArray();
         var registered = _modules.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var section in sections)
         {
@@ -91,7 +90,7 @@ public sealed class IntoChatOSServerBuilder
             if (disabled.Contains(key)) { statuses.Add(new ModuleStatus(module.Id, ModuleState.Disabled, null)); continue; }
             if (module.LicenseProduct is { } product && Unlicensed(module, product, configuration) is { } reason)
             {
-                if (configuration.GetValue<bool?>(IntoChatOSConfiguration.ModuleSection(key) + ":Required") == true)
+                if (configuration.GetValue<bool?>(ModuleConfiguration.ModuleSection(key) + ":Required") == true)
                 { throw new InvalidOperationException($"Module '{key}' is required but unlicensed: {reason}"); }
                 statuses.Add(new ModuleStatus(module.Id, ModuleState.Unlicensed, reason));
                 continue;

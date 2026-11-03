@@ -1,7 +1,8 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,7 +19,7 @@ public sealed class OrleansModule : DigitalBrain.Module, ITopologyModule
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<OrleansOptions>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection(OrleansIntegrationNames.Id))],
+        Settings: [DigitalBrain.Setting.Of<OrleansOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(OrleansIntegrationNames.Id))],
         Secrets: []);
 
     // Clustering, grain state and reminders are no longer integration fields: IntoChatOS:Topology selects them (03-12).

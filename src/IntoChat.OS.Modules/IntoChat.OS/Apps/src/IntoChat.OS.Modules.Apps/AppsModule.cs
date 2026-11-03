@@ -1,3 +1,8 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
+using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Reflection;
 using DigitalBrain.Apps.Hosting;
 using DigitalBrain.Contracts;
@@ -7,9 +12,7 @@ using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.AI.Agents;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -29,7 +32,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<AppsOptions>(IntoChatOSConfiguration.ModuleOptionsSection(new ModuleId("apps")))],
+        Settings: [DigitalBrain.Setting.Of<AppsOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId("apps")))],
         Secrets: []);
 
     public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Modules.Apps.IApp).Assembly;

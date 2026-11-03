@@ -1,3 +1,4 @@
+using DigitalBrain.Brains;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Flame;

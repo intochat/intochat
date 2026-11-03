@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Apps;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;

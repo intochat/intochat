@@ -1,6 +1,6 @@
+using DigitalBrain.Capabilities.Connections.Requests;
 using System.Globalization;
 using IntoChat.OS.Client;
-using IntoChat.OS.Integrations;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter.Button;

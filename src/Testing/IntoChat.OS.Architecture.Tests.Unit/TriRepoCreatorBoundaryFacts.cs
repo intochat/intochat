@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Apps.Creator;

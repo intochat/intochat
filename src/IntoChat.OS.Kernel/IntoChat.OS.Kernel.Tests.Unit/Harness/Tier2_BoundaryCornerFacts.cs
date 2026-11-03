@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Capabilities;
 #pragma warning disable xUnit1051, IDE0062, IDE0200
 using System.Diagnostics;
 using System.Reflection;

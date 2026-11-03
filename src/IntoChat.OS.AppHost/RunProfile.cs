@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
@@ -5,8 +6,6 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Aspire.Hosting;
 using IntoChat.OS.Modules.AI.Models;
@@ -74,15 +73,15 @@ public static class RunProfile
     public static IReadOnlyList<string> DisabledModuleKeys(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        return [.. configuration.GetSection(IntoChatOSConfiguration.ModulesSectionName).GetChildren()
-            .Select(module => IntoChatOSConfiguration.ModuleSection(module.Key) + ":Enabled")
+        return [.. configuration.GetSection(ModuleConfiguration.ModulesSectionName).GetChildren()
+            .Select(module => ModuleConfiguration.ModuleSection(module.Key) + ":Enabled")
             .Where(key => configuration.GetValue<bool?>(key) == false)
             .Order(StringComparer.Ordinal)];
     }
 
     public static IResourceBuilder<T> WithDisabledModules<T>(this IResourceBuilder<T> resource, IConfiguration configuration) where T : IResourceWithEnvironment
     {
-        foreach (var key in DisabledModuleKeys(configuration)) { resource.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(key), "false"); }
+        foreach (var key in DisabledModuleKeys(configuration)) { resource.WithEnvironment(ModuleConfiguration.EnvironmentName(key), "false"); }
         return resource;
     }
 
@@ -120,7 +119,7 @@ public static class RunProfile
     // The module defaults of a topology as configuration entries (IntoChatOS:Modules:<id>:Enabled=false).
     public static IEnumerable<KeyValuePair<string, string?>> ModuleDefaults(string topology)
         => (IsCloud(topology) ? CloudDisabledModules : LocalDisabledModules)
-            .Select(module => new KeyValuePair<string, string?>(IntoChatOSConfiguration.ModuleSection(module) + ":Enabled", "false"));
+            .Select(module => new KeyValuePair<string, string?>(ModuleConfiguration.ModuleSection(module) + ":Enabled", "false"));
 
     public static void CopyOnto(AIOptions target, AIOptions source)
     {

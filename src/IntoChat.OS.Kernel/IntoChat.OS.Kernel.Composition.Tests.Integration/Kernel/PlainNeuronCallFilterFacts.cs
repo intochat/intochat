@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Capabilities;
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans;
@@ -9,7 +10,6 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,6 +1,8 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Log;
 using System.Text.Json;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework.Diagnostics;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
@@ -18,7 +20,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
     // The agent is a plain neuron (06-06d): the chat holds a synapse on its signals.
     public ChatAgentSubscription Subscription(string key)
     {
-        var brain = IntoChat.OS.Framework.BrainKey.BrainOf(key);
+        var brain = DigitalBrain.Brains.BrainKey.BrainOf(key);
         return new(new(new DigitalBrain.BrainId(brain), IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.NeuronType, key[(brain.Length + 1)..]),
             IntoChat.OS.Modules.AI.Agents.Signals.AgentSignals.All);
     }
@@ -53,7 +55,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
     // Each card is named from its app's manifest at read time: an app without a title is not installed.
     private async Task<ChatEntry[]> Named(string key, ChatEntry[] entries)
     {
-        var scope = key.IndexOf("/apps/", StringComparison.Ordinal) is var cut and > 0 ? key[..cut] : IntoChat.OS.Framework.BrainKey.BrainOf(key);
+        var scope = key.IndexOf("/apps/", StringComparison.Ordinal) is var cut and > 0 ? key[..cut] : DigitalBrain.Brains.BrainKey.BrainOf(key);
         var manifests = new Dictionary<string, AppManifest?>(StringComparer.Ordinal);
         IReadOnlyList<(string Publisher, string Name)>? listed = null;
         for (var i = 0; i < entries.Length; i++)

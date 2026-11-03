@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Http.Surface;
 using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -5,7 +6,6 @@ using System.Text;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Http;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

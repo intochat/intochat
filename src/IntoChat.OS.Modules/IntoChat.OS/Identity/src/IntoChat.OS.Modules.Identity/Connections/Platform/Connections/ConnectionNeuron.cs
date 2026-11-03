@@ -1,6 +1,9 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Authority.Identity.Rules;
-using IntoChat.OS.Connections.Platform.Connections.Signals;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

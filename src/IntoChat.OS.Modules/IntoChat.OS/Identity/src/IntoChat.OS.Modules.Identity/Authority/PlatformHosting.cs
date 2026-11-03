@@ -1,3 +1,10 @@
+using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Capabilities.Connections.Sealing;
+using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Authority.Hosting;
 using IntoChat.OS.Authority.Identity;
@@ -12,9 +19,7 @@ using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Metering;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,12 +40,12 @@ public static class PlatformHosting
         silo.AddStartupTask<IdentityStartup>();
         services.AddMasterKeyWrapper();
         // Pricing and the compute ledger are 0.8.0. External calls are not charged.
-        services.TryAddSingleton<IntoChat.OS.Framework.Modules.Metering.ModulePriceListRegistry>();
+        services.TryAddSingleton<DigitalBrain.Capabilities.Compute.ModulePriceListRegistry>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key)
             .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? new() { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" }).State);
         services.AddSiloDiagnostics();
-        services.TryAddSingleton<IntoChat.OS.Framework.Parts.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
+        services.TryAddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<Storage.BrainStorageKeys>();
         services.TryAddSingleton<EdgeGrantsCache>();

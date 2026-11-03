@@ -1,6 +1,7 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Options;
+using DigitalBrain.Runtime.Http.Surface;
 using System.Reflection;
-using IntoChat.OS.Framework.Modules.Configuration;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.Logging;
 

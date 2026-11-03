@@ -1,3 +1,4 @@
+using DigitalBrain.Brains;
 using System.Collections.Concurrent;
 using DigitalBrain;
 using IntoChat.OS.Framework.Modules;

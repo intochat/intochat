@@ -1,10 +1,12 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans;
@@ -12,7 +14,7 @@ namespace IntoChat.OS.Modules.Microsoft.Orleans;
 public sealed class OrleansModuleHosting : ModuleHosting<OrleansModule>
 {
     private static readonly string GrainStateContainerKey =
-        $"{IntoChatOSConfiguration.ModuleOptionsSection("orleans")}:{nameof(OrleansOptions.GrainStateContainer)}";
+        $"{ModuleConfiguration.ModuleOptionsSection("orleans")}:{nameof(OrleansOptions.GrainStateContainer)}";
 
     public override void Configure(IntoChatOSBuilder brain)
     {
@@ -58,17 +60,17 @@ public sealed class OrleansModuleHosting : ModuleHosting<OrleansModule>
     private sealed class GrainStateContainer(string container) : IntoChatOSModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(GrainStateContainerKey), container);
+            => builder.WithEnvironment(ModuleConfiguration.EnvironmentName(GrainStateContainerKey), container);
     }
 
     private sealed class CloudTopology(IResourceWithConnectionString account, string? keyVault) : IntoChatOSModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
-            builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), IntoChatOSNames.TopologyCloud);
-            builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudStorageConfigurationKey), account.ConnectionStringExpression);
+            builder.WithEnvironment(ModuleConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), IntoChatOSNames.TopologyCloud);
+            builder.WithEnvironment(ModuleConfiguration.EnvironmentName(IntoChatOSNames.CloudStorageConfigurationKey), account.ConnectionStringExpression);
             if (!string.IsNullOrWhiteSpace(keyVault))
-            { builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(IntoChatOSNames.CloudKeyVaultConfigurationKey), keyVault); }
+            { builder.WithEnvironment(ModuleConfiguration.EnvironmentName(IntoChatOSNames.CloudKeyVaultConfigurationKey), keyVault); }
         }
     }
 }

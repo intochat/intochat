@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Sealing;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 

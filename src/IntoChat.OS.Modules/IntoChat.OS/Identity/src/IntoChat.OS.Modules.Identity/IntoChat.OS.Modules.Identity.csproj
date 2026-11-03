@@ -17,6 +17,9 @@
   <ItemGroup>
     <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.Identity.Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
     <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="DigitalBrain.Capabilities.Compute" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Identity.Local" />
     <ProjectReference Include="../../../../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../../../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../../../../IntoChat.OS/Contracts.Configuration/IntoChat.OS.Contracts.Configuration.csproj" />

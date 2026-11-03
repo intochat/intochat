@@ -11,9 +11,9 @@
     <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Flame/src/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
-    <PackageReference Include="IntoChat.OS.Modules.AI" />
-    <PackageReference Include="IntoChat.OS.Modules.Flutter" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Aspire" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/AI/src/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Flutter/src/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Aspire/src/IntoChat.OS.Modules.Microsoft.Aspire/IntoChat.OS.Modules.Microsoft.Aspire.csproj" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />
   </ItemGroup>
 </Project>

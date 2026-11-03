@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;

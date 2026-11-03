@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Options;
 using DigitalBrain;
 using IntoChat.OS.Framework.Modules;
 

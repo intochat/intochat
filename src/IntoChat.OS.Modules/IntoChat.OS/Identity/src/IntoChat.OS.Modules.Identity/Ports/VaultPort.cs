@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Sealing;
+using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -38,7 +40,7 @@ public sealed class VaultPort(
         if (string.IsNullOrWhiteSpace(caller.AppId) || configuration is null) { return null; }
         var colon = name.IndexOf(':', StringComparison.Ordinal);
         var declared = colon < 0 ? name : name[..colon];
-        return configuration[IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleSection(caller.AppId) + ":Secrets:" + declared];
+        return configuration[DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleSection(caller.AppId) + ":Secrets:" + declared];
     }
 
     public async Task<SecretVaultResult> Set(CapabilityCaller caller, string name, string label, string value, CancellationToken cancellationToken)

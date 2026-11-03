@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Options;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;

@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
 using IntoChat.OS.Authority;
@@ -13,7 +14,7 @@ public sealed class AuthorityVaultNamedFacts
         new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(pair => pair.Key, pair => (string?)pair.Value)).Build());
 
     // The variable the installer renders for a module's declared secret (ManifestEnvironment.SecretVariable).
-    private static string Key(string module, string secret) => IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleSection(module) + ":Secrets:" + secret;
+    private static string Key(string module, string secret) => DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleSection(module) + ":Secrets:" + secret;
 
     private static CapabilityCaller Auth { get; } = new("auth", "auth", "system", "auth");
 

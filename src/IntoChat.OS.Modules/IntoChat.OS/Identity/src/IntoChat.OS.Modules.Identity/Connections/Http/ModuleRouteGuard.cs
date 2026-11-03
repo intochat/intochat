@@ -1,3 +1,4 @@
+using DigitalBrain.Errors;
 using DigitalBrain;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

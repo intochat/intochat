@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Contracts;
 using System.ComponentModel;
 using System.Reflection;
 using DigitalBrain;
@@ -69,7 +71,7 @@ public sealed class CompiledTypes
     }
 
     private static string? TypeOf(Func<Type, string?> stillGrainType, Type contract)
-        => IntoChat.OS.Runtime.PlainNeuronContracts.Is(contract) ? IntoChat.OS.Runtime.PlainNeuronContracts.TypeOf(contract) : stillGrainType(contract);
+        => DigitalBrain.Contracts.PlainNeuronContracts.Is(contract) ? DigitalBrain.Contracts.PlainNeuronContracts.TypeOf(contract) : stillGrainType(contract);
 
     // A legacy grain contract, or a migrated plain contract that names its [Neuron] type (06-03). IRetainsSignals is the legacy
     // retention side-interface every retaining grain adds, never a neuron of its own: once one grain is left implementing it
@@ -77,7 +79,7 @@ public sealed class CompiledTypes
     // A plain contract marked [Internal] as a whole (the connection index, 06-08) is module plumbing no edge caller reaches, so no
     // script compiles against it either.
     private static bool IsNeuron(Type type)
-        => IntoChat.OS.Runtime.PlainNeuronContracts.Is(type) && !type.IsDefined(typeof(DigitalBrain.Access.InternalAttribute), inherit: false);
+        => DigitalBrain.Contracts.PlainNeuronContracts.Is(type) && !type.IsDefined(typeof(DigitalBrain.Access.InternalAttribute), inherit: false);
 
     private static bool IsSignal(Type type)
         => !type.IsAbstract && typeof(DigitalBrain.Signal).IsAssignableFrom(type) && type != typeof(DigitalBrain.Signal)

@@ -1,3 +1,4 @@
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;

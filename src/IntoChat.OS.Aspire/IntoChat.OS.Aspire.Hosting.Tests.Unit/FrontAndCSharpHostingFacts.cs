@@ -1,8 +1,8 @@
+using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Yarp;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Modules.Microsoft.CSharp;
 using Microsoft.Extensions.Configuration;
@@ -26,7 +26,7 @@ public sealed class FrontAndCSharpHostingFacts
     public void DisablingCSharpModuleAddsNoSandboxContainer()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration[IntoChatOSConfiguration.ModuleSection("csharp") + ":Enabled"] = "false";
+        builder.Configuration[ModuleConfiguration.ModuleSection("csharp") + ":Enabled"] = "false";
         builder.AddIntoChatOS("modules", new IntoChatOSHostingOptions())
             .WithHosting<CSharpModuleHosting>();
 

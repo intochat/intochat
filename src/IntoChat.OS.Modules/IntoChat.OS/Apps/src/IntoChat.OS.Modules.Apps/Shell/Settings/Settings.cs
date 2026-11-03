@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Requests;
 using System.Globalization;
 using System.Text.Json;
 using IntoChat.OS.Modules.AI.Models;
@@ -10,7 +11,6 @@ using IntoChat.OS.Modules.Flutter.Entries;
 using IntoChat.OS.Modules.Flutter.Preferences;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Integrations;
 using DigitalBrain.Signals.Watch;
 
 // Durable view state ({app}/view-state), so a reconnect shows the same tab. ArchivedTake is the end of the archived page shown.

@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Contracts;
 using DigitalBrain.Capabilities;
 using System.Text.Json.Serialization;
 using DigitalBrain.Access;
@@ -20,7 +22,7 @@ public enum ConnectionStatus
 // its credential as sealed state. The shell, the assistant and module tools talk to this face.
 // A plain contract (06-08) that every connector's neuron implements, so it names no neuron type: the connection key's connector
 // does (ConnectionGrains resolves it, R4-21(2)).
-[DigitalBrain.Contracts.NeuronAlias("connection"), IntoChat.OS.Runtime.ConnectionContract]
+[DigitalBrain.Contracts.NeuronAlias("connection"), DigitalBrain.Contracts.ConnectionContract]
 public interface IConnection
 {
     [DigitalBrain.ReadOnlyCall] Task<ConnectionView> Read();
@@ -58,7 +60,7 @@ public interface IConnection
 
 // Reached only by the Platform OAuth callback, which stamps the owner recorded at login start. A plain contract (06-08) of every
 // connection neuron, addressed by the connection key's connector like IConnection.
-[DigitalBrain.Contracts.NeuronAlias("connection.inbound"), IntoChat.OS.Runtime.ConnectionContract]
+[DigitalBrain.Contracts.NeuronAlias("connection.inbound"), DigitalBrain.Contracts.ConnectionContract]
 public interface IConnectionInbound
 {
     Task<ConnectionView> AcceptGrant(OAuthGrant grant);

@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Options;
 using System.Reflection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -14,7 +15,7 @@ public sealed class StorageRingFacts
     public void NeuronsPersistInClusterStorageAndPlatformGrainsInPlatformStorage()
     {
         var platform = typeof(IntoChat.OS.Authority.PlatformHosting).Assembly;
-        var sites = new[] { typeof(IntoChat.OS.Framework.Modules.ModuleId).Assembly, platform, Apps }
+        var sites = new[] { typeof(DigitalBrain.Modules.Options.ModuleId).Assembly, platform, Apps }
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsClass: true, IsAbstract: false })
             .SelectMany(type => type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)

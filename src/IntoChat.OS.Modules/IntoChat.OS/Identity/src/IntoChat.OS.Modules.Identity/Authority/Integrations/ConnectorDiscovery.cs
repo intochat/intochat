@@ -1,9 +1,8 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
-using IntoChat.OS.Integrations;
 
 namespace IntoChat.OS.Authority.Integrations;
 

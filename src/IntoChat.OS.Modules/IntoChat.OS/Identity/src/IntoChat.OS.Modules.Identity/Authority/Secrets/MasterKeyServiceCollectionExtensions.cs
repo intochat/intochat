@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Sealing;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;

@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
 using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -6,9 +8,6 @@ using Aspire.Hosting.Yarp.Transforms;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Connections.Configuration;
-using IntoChat.OS.Framework.Configuration;
-using IntoChat.OS.Framework.Modules.Configuration;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.ServiceDefaults;
 using AspireSdk = Aspire;
@@ -162,27 +161,27 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     public const int ConsecutiveFailures = 2;
     // The drain outlasts the probes that take the instance out: each comes an interval apart and may run its timeout.
     public static readonly TimeSpan DrainDelay = (ProbeInterval + ProbeTimeout) * ConsecutiveFailures;
-    public static string DrainDelayVariable => IntoChatOSConfiguration.EnvironmentName(HealthProbes.DrainDelayKey);
+    public static string DrainDelayVariable => ModuleConfiguration.EnvironmentName(HealthProbes.DrainDelayKey);
 
     public const string OtlpHttpEndpoint = IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
     public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";
     public const string DotnetContentRoot = "DOTNET_CONTENTROOT";
     public const string FeaturesFolder = "features";
-    public static string FeaturesKey => IntoChatOSConfiguration.ModuleOptionsSection("apps") + ":Features";
+    public static string FeaturesKey => ModuleConfiguration.ModuleOptionsSection("apps") + ":Features";
 
     // The model Integrations a candidate keeps (the AI module's provider ids); every other Integration it boots
     // with is its own.
     public static readonly string[] ModelIntegrations = ["openai", "anthropic", "google", "xai", "openrouter", "typesafe"];
 
-    public static string CandidateModelVariable => IntoChatOSConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.CandidateModelField));
-    public static string FeaturesVariable => IntoChatOSConfiguration.EnvironmentName(FeaturesKey);
-    public static string IntegrationVariable(string id, string field) => IntoChatOSConfiguration.IntegrationEnvironmentName(id, field);
+    public static string CandidateModelVariable => ModuleConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.CandidateModelField));
+    public static string FeaturesVariable => ModuleConfiguration.EnvironmentName(FeaturesKey);
+    public static string IntegrationVariable(string id, string field) => ModuleConfiguration.IntegrationEnvironmentName(id, field);
 
     private sealed class Workdir(string path) : IntoChatOSModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
             => ResourceBuilderExtensions.WithEnvironment(builder,
-                IntoChatOSConfiguration.EnvironmentName(AspireModule.Integration.Key("Workdir")), path);
+                ModuleConfiguration.EnvironmentName(AspireModule.Integration.Key("Workdir")), path);
     }
 
     // Run mode only (candidates are local): reads the silo's own environment as composed so far, so this
@@ -204,7 +203,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     }
 
     private const string FrontSuffix = "-front";
-    public static string FrontsVariable => IntoChatOSConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.FrontsField));
+    public static string FrontsVariable => ModuleConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.FrontsField));
 
     // The callback only gathers references: the values (parameters, connection strings of resources not yet
     // allocated) resolve when the orchestrator starts the resource, never while the environment is built.
@@ -214,7 +213,7 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
             => ResourceBuilderExtensions.WithEnvironment(builder, context =>
             {
                 if (!context.ExecutionContext.IsRunMode) { return; }
-                var prefixes = ModelIntegrations.Select(id => IntoChatOSConfiguration.EnvironmentName(IntegrationSchema.SectionName, id) + "__").ToArray();
+                var prefixes = ModelIntegrations.Select(id => ModuleConfiguration.EnvironmentName(IntegrationSchema.SectionName, id) + "__").ToArray();
                 var model = context.EnvironmentVariables
                     .Where(variable => prefixes.Any(prefix => variable.Key.StartsWith(prefix, StringComparison.Ordinal)))
                     .ToArray();

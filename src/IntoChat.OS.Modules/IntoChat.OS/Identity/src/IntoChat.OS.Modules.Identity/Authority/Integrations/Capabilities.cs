@@ -1,3 +1,6 @@
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;

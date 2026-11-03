@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Requests;
 using System.Globalization;
 using System.Text.Json;
 using IntoChat.OS.Modules.Apps;
@@ -7,7 +8,6 @@ using IntoChat.OS.Modules.Flutter.Button;
 using IntoChat.OS.Modules.Flutter.Select;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
-using IntoChat.OS.Integrations;
 
 // Durable view state ({app}/view-state): what is shown (AppsTarget's text, "" for the library), whether Remove is
 // being confirmed, and a toast.

@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
 using System.Reflection;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -6,10 +8,7 @@ using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -110,17 +109,17 @@ public static class IntoChatOSHostingExtensions
         }
 
         foreach (var pair in brain.Settings)
-        { builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(pair.Key), pair.Value ?? ""); }
+        { builder.WithEnvironment(ModuleConfiguration.EnvironmentName(pair.Key), pair.Value ?? ""); }
 
         foreach (var pair in brain.ApplicationBuilder.Configuration.GetSection(IntegrationSchema.SectionName).AsEnumerable())
         {
             if (string.IsNullOrWhiteSpace(pair.Value) || pair.Key.Equals(IntegrationSchema.SectionName, StringComparison.OrdinalIgnoreCase))
             { continue; }
-            builder.WithEnvironment(IntoChatOSConfiguration.EnvironmentName(pair.Key), pair.Value);
+            builder.WithEnvironment(ModuleConfiguration.EnvironmentName(pair.Key), pair.Value);
         }
         builder.WithEnvironment(context =>
         {
-            var origin = IntoChatOSConfiguration.EnvironmentName(IntoChatOSConfiguration.ConnectionsPublicOriginKey);
+            var origin = ModuleConfiguration.EnvironmentName(ModuleConfiguration.ConnectionsPublicOriginKey);
             if (!context.EnvironmentVariables.ContainsKey(origin))
             { context.EnvironmentVariables[origin] = builder.GetEndpoint("http"); }
         });

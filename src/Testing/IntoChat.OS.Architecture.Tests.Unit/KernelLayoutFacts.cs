@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using System.Text.Json;
 using System.Xml.Linq;
 
@@ -64,7 +65,7 @@ public sealed class KernelLayoutFacts
     public void F10_05_SystemOneHostingState_UsesIntoChatOSConfiguration()
     {
         var content = File.ReadAllText(SystemOneHostingStatePath());
-        Assert.Contains("IntoChatOSConfiguration.EnvironmentName", content, StringComparison.Ordinal);
+        Assert.Contains("ModuleConfiguration.EnvironmentName", content, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Runtime.Http.Surface;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;

@@ -1,3 +1,6 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Security.Claims;
 using DigitalBrain.Runtime.Http;
 using IntoChat.OS.Connections;

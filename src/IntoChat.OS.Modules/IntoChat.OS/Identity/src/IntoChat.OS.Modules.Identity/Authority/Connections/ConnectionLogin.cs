@@ -1,3 +1,6 @@
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Connections.OAuth;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Connections.Platform.Connections;

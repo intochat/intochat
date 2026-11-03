@@ -1,3 +1,6 @@
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;

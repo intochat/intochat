@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections;
 using System.Collections.Frozen;
 using System.Reflection;
 using DigitalBrain.State;

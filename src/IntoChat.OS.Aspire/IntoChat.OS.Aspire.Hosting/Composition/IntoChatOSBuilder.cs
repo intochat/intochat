@@ -1,3 +1,5 @@
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
@@ -7,9 +9,7 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -40,7 +40,7 @@ public sealed class IntoChatOSBuilder
         => WithHosting(new THosting());
 
     public IntoChatOSBuilder WithHosting<THosting, TOptions>(Action<TOptions>? configure = null)
-        where THosting : IIntoChatOSModuleHosting, new() where TOptions : class, IntoChat.OS.Framework.Modules.IModuleOptions, new()
+        where THosting : IIntoChatOSModuleHosting, new() where TOptions : class, DigitalBrain.Modules.Options.IModuleOptions, new()
     {
         var hosting = new THosting();
         var options = new TOptions();
@@ -51,7 +51,7 @@ public sealed class IntoChatOSBuilder
 
     public IntoChatOSBuilder WithHosting<THosting, TOptions>(TOptions options)
         where THosting : IIntoChatOSModuleHosting, new()
-        where TOptions : class, IntoChat.OS.Framework.Modules.IModuleOptions, new()
+        where TOptions : class, DigitalBrain.Modules.Options.IModuleOptions, new()
     {
         ArgumentNullException.ThrowIfNull(options);
         var hosting = new THosting();
@@ -76,14 +76,14 @@ public sealed class IntoChatOSBuilder
     {
         var moduleId = id.ToString();
         if (_modules.Contains(moduleId, StringComparer.Ordinal)) { throw new InvalidOperationException($"Module '{moduleId}' is already selected."); }
-        var replaceOptions = ApplicationBuilder.Configuration.GetValue<bool>(IntoChatOSConfiguration.ModuleSection(id) + ":ReplaceOptions");
+        var replaceOptions = ApplicationBuilder.Configuration.GetValue<bool>(ModuleConfiguration.ModuleSection(id) + ":ReplaceOptions");
         var values = new Dictionary<string, string?>(replaceOptions ? [] : settings ?? new Dictionary<string, string?>(), StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in ApplicationBuilder.Configuration.GetSection(IntoChatOSConfiguration.ModuleOptionsSection(id)).AsEnumerable())
+        foreach (var pair in ApplicationBuilder.Configuration.GetSection(ModuleConfiguration.ModuleOptionsSection(id)).AsEnumerable())
         { if (pair.Value is not null) { values[pair.Key] = pair.Value; } }
-        var scopedPrefix = IntoChatOSConfiguration.CompositionModuleOptionsSection(Name, id);
+        var scopedPrefix = ModuleConfiguration.CompositionModuleOptionsSection(Name, id);
         foreach (var pair in ApplicationBuilder.Configuration.GetSection(scopedPrefix).AsEnumerable())
         {
-            if (pair.Value is not null) { values[IntoChatOSConfiguration.ModuleOptionsSection(id) + pair.Key[scopedPrefix.Length..]] = pair.Value; }
+            if (pair.Value is not null) { values[ModuleConfiguration.ModuleOptionsSection(id) + pair.Key[scopedPrefix.Length..]] = pair.Value; }
         }
         _compiledConfiguration[moduleId] = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
         _modules.Add(moduleId);

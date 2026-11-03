@@ -1,11 +1,10 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
 using System.Reflection;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS.Connections.Configuration;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
-using IntoChat.OS.Framework.Modules.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -43,7 +42,7 @@ internal sealed class ModuleSecretProjection : IntoChatOSModuleProjection
             foreach (var secret in manifest.Secrets)
             {
                 var name = $"{moduleId}-{secret.Name}".ToLowerInvariant();
-                var key = IntoChatOSConfiguration.ModuleSection(moduleId) + ":Secrets:" + secret.Name;
+                var key = ModuleConfiguration.ModuleSection(moduleId) + ":Secrets:" + secret.Name;
                 state.AddSecret(brain, configuration, name, key);
             }
         }
@@ -51,7 +50,7 @@ internal sealed class ModuleSecretProjection : IntoChatOSModuleProjection
 
     private void AddSecret(IntoChatOSBuilder brain, IConfiguration configuration, string parameterName, string configurationKey)
     {
-        var variable = IntoChatOSConfiguration.EnvironmentName(configurationKey);
+        var variable = ModuleConfiguration.EnvironmentName(configurationKey);
         if (!_variables.Add(variable)) { return; }
         if (string.IsNullOrEmpty(HostConfiguration.Parameter(configuration, parameterName) ?? configuration[configurationKey])) { return; }
 

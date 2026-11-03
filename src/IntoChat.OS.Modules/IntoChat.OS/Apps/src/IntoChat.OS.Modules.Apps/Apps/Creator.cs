@@ -1,3 +1,6 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Log;
+using DigitalBrain.Modules.Options;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Invocation;
@@ -6,7 +9,6 @@ using DigitalBrain.Spi;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Diagnostics;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.Flutter;

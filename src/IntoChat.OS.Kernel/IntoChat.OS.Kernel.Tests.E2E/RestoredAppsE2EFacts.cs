@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections;
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
@@ -18,7 +19,6 @@ using IntoChat.Files;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Data;

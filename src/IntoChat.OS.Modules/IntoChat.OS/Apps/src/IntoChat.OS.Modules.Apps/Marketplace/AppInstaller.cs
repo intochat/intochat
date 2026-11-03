@@ -1,3 +1,5 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -7,7 +9,6 @@ using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Integrations;
 using Microsoft.Extensions.Options;
 using Idn = DigitalBrain.Capabilities.Identity;
 

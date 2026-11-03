@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using System.Text.RegularExpressions;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
@@ -22,7 +23,7 @@ public sealed partial class ModuleKeyGrammarFacts
 
         Assert.True(offenders.Length == 0,
             "Module-owned configuration lives under IntoChatOS:Modules:{id}; derive keys from "
-            + "IntoChatOSConfiguration.ModuleSection/ModuleOptionsSection instead of a private root:\n"
+            + "ModuleConfiguration.ModuleSection/ModuleOptionsSection instead of a private root:\n"
             + string.Join('\n', offenders));
     }
 }

@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Options;
 using System.Text;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
@@ -15,7 +16,6 @@ using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Organisations;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Http;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

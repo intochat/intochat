@@ -1,10 +1,12 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Runtime.Http.Surface;
 using System.Diagnostics;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
-using IntoChat.OS.Contracts.Compute;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Compute;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

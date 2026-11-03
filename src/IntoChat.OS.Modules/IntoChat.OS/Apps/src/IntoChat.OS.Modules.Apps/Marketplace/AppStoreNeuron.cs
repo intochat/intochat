@@ -1,3 +1,6 @@
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Connections.Requests;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
@@ -6,7 +9,6 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Integrations;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

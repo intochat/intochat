@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -50,7 +51,7 @@ public static class ContractsHost
     {
         ArgumentNullException.ThrowIfNull(assembly);
         var exported = assembly.GetExportedTypes().Where(type => type.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true).ToHashSet();
-        var seen = new HashSet<Type>(exported.Where(type => IntoChat.OS.Runtime.PlainNeuronContracts.Is(type)
+        var seen = new HashSet<Type>(exported.Where(type => DigitalBrain.Contracts.PlainNeuronContracts.Is(type)
             || (typeof(DigitalBrain.Signal).IsAssignableFrom(type) && type != typeof(DigitalBrain.Signal) && type.IsDefined(typeof(DigitalBrain.SignalAttribute), inherit: false))));
         var queue = new Queue<Type>(seen);
         while (queue.TryDequeue(out var type))

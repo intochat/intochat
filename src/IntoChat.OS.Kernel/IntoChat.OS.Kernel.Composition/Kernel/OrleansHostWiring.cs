@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
@@ -33,7 +34,7 @@ public static class OrleansHostWiring
         services.TryAddSingleton<IClusterMembershipFeed, ClusterMembershipFeed>();
         services.AddOptions<Orleans.Hosting.ReminderOptions>().Configure<Microsoft.Extensions.Configuration.IConfiguration>((options, configuration) =>
         {
-            var period = configuration.GetValue<TimeSpan?>(IntoChat.OS.Framework.Modules.Configuration.IntoChatOSConfiguration.ModuleOptionsSection("time") + ":MinimumReminderPeriod");
+            var period = configuration.GetValue<TimeSpan?>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection("time") + ":MinimumReminderPeriod");
             if (period is { } value && value > TimeSpan.Zero) { options.MinimumReminderPeriod = value; }
         });
     }

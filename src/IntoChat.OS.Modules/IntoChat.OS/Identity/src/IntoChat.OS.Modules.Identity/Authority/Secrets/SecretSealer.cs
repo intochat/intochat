@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Connections.Sealing;
 using IntoChat.OS.Connections.Platform.Connections;
 
 namespace IntoChat.OS.Authority.Secrets;

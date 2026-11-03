@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using IntoChat.OS;
@@ -6,9 +7,7 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -299,7 +298,7 @@ public static class ShellHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            var corsOrigin = IntoChatOSConfiguration.EnvironmentName(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.SectionName, nameof(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
+            var corsOrigin = ModuleConfiguration.EnvironmentName(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.SectionName, nameof(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
 
             if (_shellContainer is not null)
             {

@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
 using System.Text.RegularExpressions;
 using IntoChat.OS.Contracts.Configuration;
 
@@ -12,7 +14,7 @@ public sealed record IntegrationSchema(string Id, string DisplayName, string[] S
     // spelled here and nowhere else.
     public const string SectionName = IntoChatOSNames.IntegrationsSectionName;
 
-    public static string Key(string id, string field) => IntoChat.OS.Contracts.Configuration.ConfigurationKeyGrammar.IntegrationKey(id, field);
+    public static string Key(string id, string field) => DigitalBrain.Modules.Configuration.ConfigurationKeyGrammar.IntegrationKey(id, field);
 
     public string Key(string field) => Key(Id, field);
 

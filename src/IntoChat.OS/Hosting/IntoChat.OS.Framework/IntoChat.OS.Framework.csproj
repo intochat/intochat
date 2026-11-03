@@ -9,6 +9,10 @@
     <PackageReference Include="Microsoft.Orleans.Server" />
     <!-- Topology selection, validation and the local profiles (Phase 3 R4-04); the os Framework stays the transitional runtime. -->
     <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="DigitalBrain.Capabilities.Compute" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Identity.Local" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS.csproj" />

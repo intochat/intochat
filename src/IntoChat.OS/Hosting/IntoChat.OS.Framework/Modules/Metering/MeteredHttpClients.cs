@@ -1,5 +1,4 @@
-using IntoChat.OS.Contracts.Compute;
-using IntoChat.OS.Framework.Modules.Metering;
+using DigitalBrain.Capabilities.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
