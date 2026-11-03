@@ -81,25 +81,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The AppHosts build the shell and sandbox images themselves; these run the SAME Dockerfiles
-      # over the SAME contexts, so the in-test builds hit a warm layer cache instead of a cold build
-      # inside a fact's HTTP timeout.
-      - name: Warm the shell image layer cache
-        run: docker build -f ui/shell/Dockerfile ui
-
-      - name: Check out intochat/modules for sandbox Dockerfile
-        uses: actions/checkout@v7
-        with:
-          repository: intochat/modules
-          path: modules
-          token: ${{ secrets.DEPLOYMENT_VALUES_TOKEN || github.token }}
-
-      - name: Warm the sandbox image layer cache
-        run: |
-          mkdir -p modules/.nuget-local
-          cp ../nuget/*.nupkg modules/.nuget-local/
-          docker build -f modules/src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile modules
-
       - name: Pull the ArtCraft images
         run: |
           for image in             ghcr.io/intochat/os-artcraft-photocraft-mcp:d7d5c6069c8f             ghcr.io/intochat/os-artcraft-photocraft-web:d7d5c6069c8f             ghcr.io/intochat/os-artcraft-filmcraft-mcp:7b6c13447228             ghcr.io/intochat/os-artcraft-filmcraft-web:7b6c13447228; do
@@ -108,17 +89,9 @@ jobs:
           done
 
       # The product tier (E2E projects that need no Docker) runs in ci.yml (`product` job).
-      # Nightly e2e runs only E2E projects that reference Aspire hosting (cloud topology and images).
-      - name: Test Aspire E2E (cloud topology and images)
-        run: |
-          found=0
-          for proj in $(find src -name '*.Tests.E2E.csproj'); do
-            if grep -q 'Aspire\.Hosting' "$proj"; then
-              found=1
-              dotnet test --project "$proj" -c Release --no-build
-            fi
-          done
-          if [ "$found" -eq 0 ]; then echo "No Aspire-hosted E2E projects in this checkout."; fi
+      # Nightly e2e runs only journeys in the Aspire E2E project that require the ArtCraft containers (--filter "needs=artcraft").
+      - name: Test Aspire E2E (ArtCraft container journeys)
+        run: dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release --no-build -p:CodeGraphRefresh=false -- --filter-trait "needs=artcraft" --ignore-exit-code 8
 
   browser:
     name: browser

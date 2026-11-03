@@ -160,7 +160,7 @@ jobs:
     name: product
     needs: [build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -172,7 +172,10 @@ jobs:
           name: build-bin
           path: artifacts/bin
       - name: Test (Product E2E)
-        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=E2E -p:CodeGraphRefresh=false --filter "Tier=E2E" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+        run: |
+          # --filter "needs!=artcraft" (MTP: --filter-not-trait "needs=artcraft")
+          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj -c Release --no-build -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release --no-build -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
 
   # Blob storage@1 against Azurite. The default Integration tier skips when port 10000 is closed.
   blob-storage:
