@@ -10,7 +10,7 @@ public sealed class TopologyKeysMatchRuntimeFacts
     [Fact]
     public void TheOsTopologyNamesAreTheRuntimeNames()
     {
-        var runtime = RuntimeOptions.IntoChatCompatible;
+        var runtime = IntoChat.OS.Kernel.Composition.OsRuntimeOptions.Value;
         Assert.Equal(OsNames.TopologyKey, runtime.TopologyKey);
         Assert.Equal(OsNames.HomeKey, runtime.HomeKey);
         Assert.Equal(OsNames.BindKey, runtime.BindKey);

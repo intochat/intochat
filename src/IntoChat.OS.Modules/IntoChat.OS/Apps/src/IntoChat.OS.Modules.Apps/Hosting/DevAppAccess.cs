@@ -11,14 +11,14 @@ using Orleans.Hosting;
 namespace IntoChat.OS.Modules.Apps;
 
 // The per-run bearer for PUT /dev/apps. The silo writes it when it becomes active. It is never logged.
-internal sealed class DevAppGate(IConfiguration configuration)
+internal sealed class DevAppGate(IConfiguration configuration, DigitalBrain.Runtime.Orleans.RuntimeOptions? runtimeOptions = null)
 {
     internal string? Secret { get; private set; }
     internal string? TrustedGateway { get; } = configuration["IntoChatOS:Dev:TrustedGateway"];
 
     internal void Rotate()
     {
-        var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible);
+        var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, runtimeOptions ?? new() { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" });
         Secret = DevAppAccess.Rotate(Path.Combine(home.Path, "dev-token"));
     }
 

@@ -67,7 +67,7 @@ public sealed class FeatureCatalog
             var configuration = services.GetService<MicrosoftSdk.Extensions.Configuration.IConfiguration>();
             var configured = configuration?["IntoChatOS:Apps:SideloadDirectory"];
             if (!string.IsNullOrWhiteSpace(configured)) { return new SideloadDirectory(System.IO.Path.GetFullPath(configured)); }
-            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible);
+            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, services.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? new() { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" });
             return new SideloadDirectory(home.Apps);
         }
         catch (Exception error) when (error is InvalidOperationException or IOException)
@@ -80,7 +80,7 @@ public sealed class FeatureCatalog
         try
         {
             var configuration = services.GetService<MicrosoftSdk.Extensions.Configuration.IConfiguration>();
-            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible);
+            var home = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, services.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? new() { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" });
             return new FeatureDirectory(System.IO.Path.Combine(home.Path, "dev-apps"), writable: true);
         }
         catch (Exception error) when (error is InvalidOperationException or IOException)

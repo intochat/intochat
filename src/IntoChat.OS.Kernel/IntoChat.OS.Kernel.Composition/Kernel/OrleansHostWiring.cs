@@ -14,11 +14,12 @@ public static class OrleansHostWiring
     // The cloud topology comes from DigitalBrain.Runtime.Orleans.Azure, which only the composition references. The production
     // path never replaces the Key Vault source (T-03-59).
     public static IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles { get; } =
-        [DigitalBrain.Runtime.Orleans.Azure.CloudTopologyExtensions.AddCloudTopology()];
+        [new DigitalBrain.Runtime.Orleans.Azure.CloudProfile(OsRuntimeOptions.Value, null)];
 
     public static void ConfigureServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton(OsRuntimeOptions.Value);
         if (CloudStorage.IsCloud(services)) { CloudStorage.ConfigureServices(services); }
         if (services.Any(descriptor => !descriptor.IsKeyedService && descriptor.ImplementationInstance is
             DigitalBrain.Runtime.Orleans.ITopologyProfile { Topology: DigitalBrain.Runtime.Orleans.Topology.Local or DigitalBrain.Runtime.Orleans.Topology.LocalCloud }))

@@ -93,7 +93,7 @@ public static class ServerHostingExtensions
         // Capabilities (05-07): the registry accepts the os storage binding before ConfigureTopologySilo validates every module's
         // Provides, and the kernel lists and binds connections for the runtime broker.
         IntoChat.OS.Kernel.Composition.Capabilities.KernelCapabilities.AddKernelCapabilities(builder);
-        TopologyHosting.UseRuntimeOptions(builder, DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible);
+        TopologyHosting.UseRuntimeOptions(builder, OsRuntimeOptions.Value);
         TopologyHosting.UseModuleTopology(builder, neuronModules, RetiredTopologySettings,
             [.. modules.SelectMany(static module => module.TopologyProfiles)]);
         builder.UseOrleans(silo =>

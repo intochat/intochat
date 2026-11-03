@@ -11,7 +11,7 @@ public static class IntoChatOSNames
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
     public const string PlatformGrainStorage = "platform";
-    // Pinned equal to DigitalBrain.Runtime.Orleans.RuntimeOptions.IntoChatCompatible (and Topology.ToConfigValue()) by TopologyKeysMatchRuntimeFacts.
+    // Pinned equal to IntoChat.OS.Kernel.Composition.OsRuntimeOptions.Value (and Topology.ToConfigValue()) by TopologyKeysMatchRuntimeFacts.
     // Kept because their consumers (ServiceDefaults, AppHost, Aspire hosting, module installers) stay Orleans-free (03-13).
     // Where local state lives (<Home>/state, <Home>/secrets); unset means ~/.intochat.
     public const string HomeKey = "IntoChatOS:Home";
@@ -25,7 +25,7 @@ public static class IntoChatOSNames
     // interface). Unset means loopback only.
     public const string BindKey = "IntoChatOS:Bind";
     // Topology=cloud: the one storage account (tables, blobs, queues) and the Key Vault the cloud topology reads
-    // (the same strings as DigitalBrain.Runtime.Orleans RuntimeOptions.IntoChatCompatible.CloudStorageKey and CloudKeyVaultKey, P2-D-22).
+    // (the same strings as IntoChat.OS.Kernel.Composition.OsRuntimeOptions.Value.CloudStorageKey and CloudKeyVaultKey, P2-D-22).
     public const string CloudStorageConfigurationKey = "IntoChatOS:Cloud:Storage";
     public const string CloudKeyVaultConfigurationKey = "IntoChatOS:Cloud:KeyVault";
     public const string MasterKeyConfigurationKey = "IntoChatOS:MasterKey";

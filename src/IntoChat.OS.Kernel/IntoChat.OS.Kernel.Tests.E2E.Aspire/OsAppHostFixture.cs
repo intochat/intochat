@@ -60,7 +60,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         var featuresKey = IntoChatOSConfiguration.ModuleOptionsSection("apps") + ":Features";
         var args = new List<string>
         {
-            $"--{RuntimeOptions.IntoChatCompatible.HomeKey}={Home}",
+            $"--{IntoChatOSNames.HomeKey}={Home}",
             $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
             $"--{IntoChatOSNames.ShellEnabledKey}=false",
             $"--{IntoChatOSNames.FrontEnabledKey}=false",
