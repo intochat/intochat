@@ -284,7 +284,7 @@ public sealed class AppRunner : IAsyncDisposable
     {
         try
         {
-            var contractType = sub.ContractType ?? typeof(IntoChat.OS.IBrain);
+            var contractType = sub.ContractType ?? typeof(DigitalBrain.Brains.IBrain);
             var sourceNeuron = ResolveNeuron(brain, contractType, sub.SourceKey);
             await foreach (var signal in brain.On<TSignal>(sourceNeuron, stopping).ConfigureAwait(false))
             {
@@ -503,14 +503,15 @@ public sealed class AppRunner : IAsyncDisposable
                 {
                     var updated = await saveTask.ConfigureAwait(false);
                     if (updated.GetType().GetProperty("RuntimeStateRevision")?.GetValue(updated) is long newRev)
-                {
-                    // The app neuron ignores a save behind its revision: another writer saved first, so this state was not kept.
-                    if (newRev != _stateRevision + 1)
                     {
-                        _lastSavedState = null;
-                        AppLog.Log($"State save at revision {_stateRevision} was not kept; the app holds revision {newRev}. Another runner may be writing this app.");
+                        // The app neuron ignores a save behind its revision: another writer saved first, so this state was not kept.
+                        if (newRev != _stateRevision + 1)
+                        {
+                            _lastSavedState = null;
+                            AppLog.Log($"State save at revision {_stateRevision} was not kept; the app holds revision {newRev}. Another runner may be writing this app.");
+                        }
+                        _stateRevision = newRev;
                     }
-                    _stateRevision = newRev;
                 }
             }
         }

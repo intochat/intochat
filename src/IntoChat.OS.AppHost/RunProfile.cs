@@ -45,6 +45,7 @@ public sealed record BrainProfile
 
 public static class RunProfile
 {
+    static RunProfile() => ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
     public static BrainProfile Local => Base() with { Ai = LocalAi() };
     public static string DefaultLocalModel => new Qwen35().Id;
 

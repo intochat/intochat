@@ -93,29 +93,24 @@ public sealed record MarkdrawAppState(
 [DigitalBrain.App("markdraw", Accent = "#10B981", Category = "Studio")]
 public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
 {
-    public const string DefaultArchitectureScene = """
-        # IntoChat Neuron & Data Architecture
-
-        Interactive `.markdraw` canvas shared between you and **Ino**. Draw freely on the canvas or ask Ino to add nodes, connect arrows, or diagram any dataset.
-
-        ```markdraw
-        @background #0f172a
-        @grid 20
-
-        frame "DigitalBrain OS · Live Co-Drawing Canvas" id=os-frame at 40,40 size 880x440
-        rect "Ino Assistant (apps/ino)" id=ino-agent at 80,110 size 220x80 fill=#1e1b4b color=#818cf8 rounded=12
-        rect "Files VFS (/work/*)" id=files-vfs at 370,110 size 210x80 fill=#064e3b color=#34d399 rounded=12
-        rect "Data Analytics Engine" id=data-engine at 650,110 size 220x80 fill=#1e3a8a color=#60a5fa rounded=12
-        rect "Markdraw Studio (apps/markdraw)" id=markdraw-studio at 220,280 size 240x84 fill=#065f46 color=#10b981 rounded=12
-        diamond "Interactive Charts & Tables" id=chart-view at 560,280 size 230x84 fill=#3b0764 color=#c084fc
-
-        arrow ino-agent -> files-vfs "Read / Write VFS" color=#34d399
-        arrow files-vfs -> data-engine "CSV / JSON / SQL" color=#60a5fa
-        arrow ino-agent -> markdraw-studio "patch-elements" color=#10b981
-        arrow data-engine -> chart-view "Visualize" color=#c084fc
-        arrow data-engine -> markdraw-studio "from-data" color=#38bdf8
-        ```
-        """;
+    public const string DefaultArchitectureScene =
+        "# IntoChat Neuron & Data Architecture\n\n" +
+        "Interactive `.markdraw` canvas shared between you and **Ino**. Draw freely on the canvas or ask Ino to add nodes, connect arrows, or diagram any dataset.\n\n" +
+        "```markdraw\n" +
+        "@background #0f172a\n" +
+        "@grid 20\n\n" +
+        "frame \"DigitalBrain OS · Live Co-Drawing Canvas\" id=os-frame at 40,40 size 880x440\n" +
+        "rect \"Ino Assistant (apps/ino)\" id=ino-agent at 80,110 size 220x80 fill=#1e1b4b color=#818cf8 rounded=12\n" +
+        "rect \"Files VFS (/work/*)\" id=files-vfs at 370,110 size 210x80 fill=#064e3b color=#34d399 rounded=12\n" +
+        "rect \"Data Analytics Engine\" id=data-engine at 650,110 size 220x80 fill=#1e3a8a color=#60a5fa rounded=12\n" +
+        "rect \"Markdraw Studio (apps/markdraw)\" id=markdraw-studio at 220,280 size 240x84 fill=#065f46 color=#10b981 rounded=12\n" +
+        "diamond \"Interactive Charts & Tables\" id=chart-view at 560,280 size 230x84 fill=#3b0764 color=#c084fc\n\n" +
+        "arrow ino-agent -> files-vfs \"Read / Write VFS\" color=#34d399\n" +
+        "arrow files-vfs -> data-engine \"CSV / JSON / SQL\" color=#60a5fa\n" +
+        "arrow ino-agent -> markdraw-studio \"patch-elements\" color=#10b981\n" +
+        "arrow data-engine -> chart-view \"Visualize\" color=#c084fc\n" +
+        "arrow data-engine -> markdraw-studio \"from-data\" color=#38bdf8\n" +
+        "```";
 
     public const string DefaultPipelineScene = """
         # Nordlys Q4 Data & Deal Pipeline Flow

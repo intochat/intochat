@@ -10,9 +10,14 @@ namespace IntoChat.OS.Kernel;
 // (IntoChatOSNames.LocalDisabledModules). Lowest precedence, so an explicit Enabled still wins. Cloud does not apply them.
 internal static class LocalRunDefaults
 {
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void InitModuleConfiguration()
+        => ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
+
     public static void Apply(ConfigurationManager configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
         var topology = configuration[IntoChatOSNames.TopologyKey];
         if (topology is { Length: > 0 }
             && !string.Equals(topology, IntoChatOSNames.TopologyLocal, StringComparison.OrdinalIgnoreCase)

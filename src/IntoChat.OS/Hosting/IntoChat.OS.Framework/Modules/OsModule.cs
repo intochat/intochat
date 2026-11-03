@@ -11,6 +11,7 @@ namespace IntoChat.OS.Framework.Modules;
 // Callers read id, contracts and topology from here. The module class itself is not a service locator.
 public sealed class OsModule
 {
+    static OsModule() => DigitalBrain.Modules.Configuration.ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
     private OsModule(Type type, ModuleId id, bool requiresContainer, int order, string? licenseProduct,
         Assembly? contracts, Type? neurons, IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> topologyProfiles,
         IReadOnlyList<IntegrationSchema>? integrationSchemas = null)
