@@ -1,0 +1,112 @@
+using DigitalBrain.Testing;
+using IntoChat.OS.Apps.Data;
+using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Modules.Apps;
+
+namespace IntoChat.OS.Apps.Tests.Unit.Data;
+
+public sealed class DataStudioAppFacts
+{
+    public static IEnumerable<TheoryDataRow<AppOperationCase>> DataStudioOperations
+        => AppBaseline.Cases(
+            typeof(DataStudioApp),
+            os => os.Register(typeof(AppsModule).Assembly));
+
+    [Theory, MemberData(nameof(DataStudioOperations))]
+    public Task DataStudioBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+
+    [Fact]
+    public async Task DataStudioBddScenarioPasses()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var report = await BddRunner.VerifyAsync<DataStudioApp>(
+            fakes: os => os.Register(typeof(AppsModule).Assembly),
+            cancellationToken: ct);
+
+        Assert.True(report.Passed);
+        Assert.Single(report.Scenarios);
+    }
+
+    [Fact]
+    public async Task DataStudioQueriesCsvGroupsByColumnSwitchesChartExportsAndDiagramsInMarkdraw()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var vfs = new WorkspaceFilesService();
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+
+        var dataStudio = await os.Install<DataStudioApp>();
+        dataStudio.App.FilesVfs = vfs;
+
+        await dataStudio.Request("open", new DataStudioOpen("/work/q4-opportunities.csv"));
+        Assert.Equal("/work/q4-opportunities.csv", dataStudio.App.State.ActiveSource);
+        Assert.Equal(5, dataStudio.App.State.Rows.Length);
+        Assert.Equal(627700, dataStudio.App.State.Total);
+
+        // Filter via WHERE predicate
+        await dataStudio.Request("query", new DataStudioQuery("SELECT Opportunity, Account, Stage, Amount FROM /work/q4-opportunities.csv WHERE Amount > 80000"));
+        Assert.Equal(3, dataStudio.App.State.Rows.Length);
+        Assert.Equal(514500, dataStudio.App.State.Total);
+
+        // Group by Stage
+        await dataStudio.Request("group-by", new DataStudioGroupBy("Stage", "SUM"));
+        Assert.Contains("SUM by Stage", dataStudio.App.State.ChartTitle, StringComparison.OrdinalIgnoreCase);
+
+        // Switch chart kind to pie
+        await dataStudio.Request("switch-chart", new DataStudioSwitchChart("pie"));
+        Assert.Equal("pie", dataStudio.App.State.ChartKind);
+
+        // Export CSV to Files VFS
+        await dataStudio.Request("export-csv", new DataStudioExportCsv("/work/stage-summary.csv"));
+        Assert.Equal("/work/stage-summary.csv", dataStudio.App.State.LastExportPath);
+        var exportedCsv = await vfs.ReadTextAsync("/work/stage-summary.csv", ct);
+        Assert.NotNull(exportedCsv);
+        Assert.Contains("Stage,Count,SUM(Amount)", exportedCsv, StringComparison.Ordinal);
+
+        // Generate Markdraw data-lineage diagram in Files VFS
+        await dataStudio.Request("to-markdraw", new DataStudioToMarkdraw("/work/stage-lineage.markdraw"));
+        Assert.Equal("/work/stage-lineage.markdraw", dataStudio.App.State.LastMarkdrawPath);
+        var lineageText = await vfs.ReadTextAsync("/work/stage-lineage.markdraw", ct);
+        Assert.NotNull(lineageText);
+        Assert.Contains("```markdraw", lineageText, StringComparison.Ordinal);
+        Assert.Contains("SUM by Stage", lineageText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InoDataStudioAndMarkdrawShareLiveDatasetsAndLineageInVfs()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var vfs = new WorkspaceFilesService();
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+
+        var dataStudio = await os.Install<DataStudioApp>();
+        dataStudio.App.FilesVfs = vfs;
+        await dataStudio.Request("open", new DataStudioOpen("/work/customer-arr.csv"));
+        Assert.Equal(4, dataStudio.App.State.Rows.Length);
+        Assert.Equal(430500, dataStudio.App.State.Total);
+
+        var ino = await os.Install<InoApp>();
+        ino.App.FilesVfs = vfs;
+        await ino.Request("send", new InoSend("SELECT Account, Owner, ARR FROM /work/customer-arr.csv GROUP BY Owner"));
+        var chartCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "chart");
+        Assert.NotNull(chartCard.ChartPoints);
+        Assert.Equal("Marte L.", chartCard.ChartPoints![0].Label);
+        Assert.Equal(242500, chartCard.ChartPoints[0].Value);
+
+        await ino.Request("send", new InoSend("Switch chart to line chart"));
+        chartCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "chart");
+        Assert.Equal("line", chartCard.ChartKind);
+
+        var markdraw = await os.Install<MarkdrawApp>();
+        markdraw.App.FilesVfs = vfs;
+        await ino.Request("send", new InoSend("Diagram the data lineage flow for this chart in Markdraw"));
+        await markdraw.Request("open", new MarkdrawOpen("/work/data-lineage.markdraw"));
+        Assert.Contains(markdraw.App.State.Elements, e => e.Id == "source-node");
+        Assert.Contains("customer-arr", markdraw.App.State.Content, StringComparison.OrdinalIgnoreCase);
+
+        var savedLineage = await vfs.ReadTextAsync("/work/data-lineage.markdraw", ct);
+        Assert.NotNull(savedLineage);
+    }
+}

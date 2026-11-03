@@ -1,0 +1,429 @@
+{
+  "appId": "data",
+  "scenario": "open",
+  "side": {
+    "title": "Data Sources",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Data Studio",
+                  "tone": "accent",
+                  "icon": "bar-chart-2"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "5 rows",
+                  "tone": "ok",
+                  "icon": null
+                }
+              ],
+              "gap": 6,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "/work/q4-opportunities.csv",
+              "tone": "neutral",
+              "tabular": true,
+              "mono": true
+            },
+            {
+              "kind": "text",
+              "value": "Total €627,700 · Avg €125,540",
+              "tone": "muted",
+              "tabular": true,
+              "mono": false
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "Active Dataset",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "divider",
+          "label": "DATASETS & TABLES"
+        },
+        {
+          "kind": "navItem",
+          "key": "ds-work-q4-opportunities-csv",
+          "label": "q4-opportunities.csv",
+          "icon": "file-spreadsheet",
+          "action": "open:/work/q4-opportunities.csv",
+          "selected": true,
+          "badge": "ACTIVE"
+        },
+        {
+          "kind": "navItem",
+          "key": "ds-work-customer-arr-csv",
+          "label": "customer-arr.csv",
+          "icon": "file-spreadsheet",
+          "action": "open:/work/customer-arr.csv",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "ds-postgres-opportunities",
+          "label": "postgres:opportunities",
+          "icon": "database",
+          "action": "open:postgres:opportunities",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "ds-postgres-customers",
+          "label": "postgres:customers",
+          "icon": "database",
+          "action": "open:postgres:customers",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "divider",
+          "label": "QUICK ANALYTICS"
+        },
+        {
+          "kind": "navItem",
+          "key": "q-stage",
+          "label": "Group by Stage",
+          "icon": "pie-chart",
+          "action": "group-by:Stage:SUM",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "q-top3",
+          "label": "Top 3 Opportunities",
+          "icon": "trending-up",
+          "action": "query:SELECT Opportunity, Account, Stage, Amount FROM /work/q4-opportunities.csv LIMIT 3",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "q-markdraw",
+          "label": "Diagram Data Lineage",
+          "icon": "pen-tool",
+          "action": "to-markdraw:/work/data-lineage.markdraw",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "collection",
+          "entries": [
+            {
+              "id": "/work/q4-opportunities.csv",
+              "title": "q4-opportunities.csv",
+              "subtitle": "5 row(s)"
+            },
+            {
+              "id": "/work/customer-arr.csv",
+              "title": "customer-arr.csv",
+              "subtitle": "5 row(s)"
+            },
+            {
+              "id": "postgres:opportunities",
+              "title": "postgres:opportunities",
+              "subtitle": "5 row(s)"
+            },
+            {
+              "id": "postgres:customers",
+              "title": "postgres:customers",
+              "subtitle": "5 row(s)"
+            }
+          ]
+        }
+      ],
+      "gap": 8,
+      "padding": 0
+    }
+  },
+  "main": {
+    "title": "Data Studio",
+    "root": {
+      "kind": "column",
+      "children": [
+        {
+          "kind": "surface",
+          "children": [
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "tagPill",
+                  "label": "Data Studio · Live Analytics",
+                  "tone": "accent",
+                  "icon": "bar-chart-2"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "/work/q4-opportunities.csv",
+                  "tone": "info",
+                  "icon": "database"
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "Total €627,700",
+                  "tone": "ok",
+                  "icon": null
+                },
+                {
+                  "kind": "tagPill",
+                  "label": "Avg €125,540 · Max €240,000",
+                  "tone": "neutral",
+                  "icon": null
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            },
+            {
+              "kind": "text",
+              "value": "Queried 5 opportunity row(s) totaling €627,700 from /work/q4-opportunities.csv.",
+              "tone": "neutral",
+              "tabular": true,
+              "mono": false
+            },
+            {
+              "kind": "text",
+              "value": "SELECT * FROM /work/q4-opportunities.csv",
+              "tone": "muted",
+              "tabular": false,
+              "mono": true
+            },
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "button",
+                  "label": "Bar",
+                  "action": {
+                    "neuron": "apps/data",
+                    "operation": "switch-chart",
+                    "arguments": [
+                      "bar"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "accent",
+                  "style": "secondary",
+                  "icon": "bar-chart-2",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Line",
+                  "action": {
+                    "neuron": "apps/data",
+                    "operation": "switch-chart",
+                    "arguments": [
+                      "line"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "trending-up",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Pie",
+                  "action": {
+                    "neuron": "apps/data",
+                    "operation": "switch-chart",
+                    "arguments": [
+                      "pie"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "pie-chart",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Group by Opportunity",
+                  "action": {
+                    "neuron": "apps/data",
+                    "operation": "group-by",
+                    "arguments": [
+                      "Opportunity",
+                      "SUM"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "layers",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Group by Account",
+                  "action": {
+                    "neuron": "apps/data",
+                    "operation": "group-by",
+                    "arguments": [
+                      "Account",
+                      "SUM"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "layers",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Group by Stage",
+                  "action": {
+                    "neuron": "apps/data",
+                    "operation": "group-by",
+                    "arguments": [
+                      "Stage",
+                      "SUM"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "layers",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Export CSV",
+                  "action": {
+                    "neuron": "apps/data",
+                    "operation": "export-csv",
+                    "arguments": []
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "download",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Diagram in Markdraw",
+                  "action": {
+                    "neuron": "apps/data",
+                    "operation": "to-markdraw",
+                    "arguments": [
+                      "/work/data-lineage.markdraw"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "pen-tool",
+                  "small": true
+                }
+              ],
+              "gap": 8,
+              "padding": 0
+            }
+          ],
+          "surfaceKind": "acrylic",
+          "title": "Pipeline Opportunities by Amount",
+          "subtitle": null,
+          "padding": 18
+        },
+        {
+          "kind": "chart",
+          "chartKind": "bar",
+          "title": "Pipeline Opportunities by Amount",
+          "points": [
+            {
+              "label": "Havbris pilot",
+              "value": 240000
+            },
+            {
+              "label": "Depot software, phase 2",
+              "value": 186000
+            },
+            {
+              "label": "Fjordline renewal",
+              "value": 96000
+            },
+            {
+              "label": "Nordkapp second region",
+              "value": 74500
+            },
+            {
+              "label": "Cold-chain sensors",
+              "value": 31200
+            }
+          ],
+          "comparePoints": null,
+          "seriesName": "Current",
+          "compareName": "",
+          "sourceNeuronUri": "neuron://local/postgres/main#query-result",
+          "from": "/work/q4-opportunities.csv",
+          "prefix": "€"
+        },
+        {
+          "kind": "dataTable",
+          "title": "Pipeline Opportunities by Amount (5 row(s))",
+          "columns": [
+            "Opportunity",
+            "Account",
+            "Stage",
+            "Amount"
+          ],
+          "rows": [
+            [
+              "Havbris pilot",
+              "Havbris AS",
+              "Proposal",
+              "€240,000"
+            ],
+            [
+              "Depot software, phase 2",
+              "Acme Logistics",
+              "Negotiation",
+              "€186,000"
+            ],
+            [
+              "Fjordline renewal",
+              "Fjordline",
+              "Contract",
+              "€96,000"
+            ],
+            [
+              "Nordkapp second region",
+              "Nordkapp Shipping",
+              "Discovery",
+              "€74,500"
+            ],
+            [
+              "Cold-chain sensors",
+              "Lofoten Seafood",
+              "Proposal",
+              "€31,200"
+            ]
+          ],
+          "sourceNeuronUri": "neuron://local/postgres/main#query-result",
+          "from": "/work/q4-opportunities.csv"
+        }
+      ],
+      "gap": 12,
+      "padding": 0
+    }
+  }
+}

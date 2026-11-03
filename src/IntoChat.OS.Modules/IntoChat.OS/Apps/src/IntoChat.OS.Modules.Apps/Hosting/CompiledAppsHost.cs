@@ -181,6 +181,7 @@ internal sealed class CompiledAppsHost(
                 [
                     Ui.Button("dock-ino", "Ino", "open:ino", style: UiStyle.Primary, icon: "ino"),
                     Ui.Button("dock-files", "Files", "open:files", style: UiStyle.Ghost),
+                    Ui.Button("dock-data", "Data Studio", "open:data", style: UiStyle.Ghost),
                     Ui.Button("dock-markdraw", "Markdraw", "open:markdraw", style: UiStyle.Ghost),
                     Ui.Button("dock-photocraft", "PhotoCraft", "open:photocraft", style: UiStyle.Ghost),
                     Ui.Button("dock-filmcraft", "FilmCraft", "open:filmcraft", style: UiStyle.Ghost),
@@ -405,7 +406,7 @@ internal sealed class CompiledAppsHost(
         return HandleAppRequestedAsync(brain, appName, new AppRequested(parts[0], parts.Length > 1 ? parts[1] : string.Empty, signal.RequestId), ct);
     }
 
-    private static object? ParseArgument(MethodInfo method, string input)
+    internal static object? ParseArgument(MethodInfo method, string input)
     {
         var parameter = method.GetParameters().FirstOrDefault(p => p.ParameterType != typeof(CancellationToken));
         if (parameter is null) { return null; }
@@ -426,43 +427,101 @@ internal sealed class CompiledAppsHost(
         var unescaped = Uri.UnescapeDataString(trimmed);
         var unquoted = unescaped.Length >= 2 && unescaped[0] == '"' && unescaped[^1] == '"' ? unescaped[1..^1] : unescaped;
 
-        if (targetType.Name == "InoApproveCard")
+        var ctor = targetType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
+        if (ctor is null) { return null; }
+
+        var ctorParams = ctor.GetParameters();
+        if (ctorParams.Length == 0) { return ctor.Invoke(null); }
+
+        if (ctorParams.Length == 1 || ShouldBindEntireInputToFirstParameter(ctorParams, segs))
         {
-            var cardId = segs.ElementAtOrDefault(0) ?? unquoted;
-            var approved = segs.Length < 2 || !bool.TryParse(segs[1], out var parsedApproved) || parsedApproved;
-            return Activator.CreateInstance(targetType, cardId, approved);
-        }
-        if (targetType.Name is "InoOpen" or "InoSend" or "InoConnectDb" or "InoQueryDb" or "InoMake"
-            or "MarkdrawOpen" or "MarkdrawReadCanvas" or "MarkdrawSyncScene" or "MarkdrawPatchElements" or "MarkdrawFromData" or "MarkdrawSave" or "MarkdrawExport")
-        {
-            var firstCtor = targetType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
-            var parameters = firstCtor.GetParameters();
-            var args = new object?[parameters.Length];
-            args[0] = unquoted;
-            for (var i = 1; i < parameters.Length; i++)
+            var singleArgs = new object?[ctorParams.Length];
+            singleArgs[0] = ConvertSegment(unquoted, ctorParams[0]);
+            for (var i = 1; i < ctorParams.Length; i++)
             {
-                args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
+                singleArgs[i] = ctorParams[i].HasDefaultValue ? ctorParams[i].DefaultValue : GetDefaultForType(ctorParams[i].ParameterType);
             }
-            return firstCtor.Invoke(args);
+            return ctor.Invoke(singleArgs);
         }
 
-        var ctor = targetType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
-        if (ctor is not null)
+        var args = new object?[ctorParams.Length];
+        for (var i = 0; i < ctorParams.Length; i++)
         {
-            var ctorParams = ctor.GetParameters();
-            if (ctorParams.Length == 0) { return ctor.Invoke(null); }
-            if (ctorParams.Length == 1 && ctorParams[0].ParameterType == typeof(string)) { return ctor.Invoke([unquoted]); }
-            var args = new object?[ctorParams.Length];
-            for (var i = 0; i < ctorParams.Length; i++)
-            {
-                args[i] = ctorParams[i].ParameterType == typeof(string)
-                    ? segs.ElementAtOrDefault(i) ?? (ctorParams[i].HasDefaultValue ? ctorParams[i].DefaultValue : null)
-                    : ctorParams[i].HasDefaultValue ? ctorParams[i].DefaultValue : null;
-            }
-            return ctor.Invoke(args);
+            args[i] = i < segs.Length
+                ? ConvertSegment(segs[i], ctorParams[i])
+                : (ctorParams[i].HasDefaultValue ? ctorParams[i].DefaultValue : GetDefaultForType(ctorParams[i].ParameterType));
         }
-        return null;
+        return ctor.Invoke(args);
     }
+
+    private static bool ShouldBindEntireInputToFirstParameter(ParameterInfo[] ctorParams, string[] segs)
+    {
+        if (segs.Length <= 1)
+        {
+            return true;
+        }
+
+        if (!ctorParams.Skip(1).All(p => p.HasDefaultValue))
+        {
+            return false;
+        }
+
+        var firstParamName = ctorParams[0].Name ?? string.Empty;
+        if (firstParamName.Equals("Text", StringComparison.OrdinalIgnoreCase)
+            || firstParamName.Equals("Prompt", StringComparison.OrdinalIgnoreCase)
+            || firstParamName.Equals("Query", StringComparison.OrdinalIgnoreCase)
+            || firstParamName.Equals("Sql", StringComparison.OrdinalIgnoreCase)
+            || firstParamName.Equals("Content", StringComparison.OrdinalIgnoreCase)
+            || firstParamName.Equals("ConnectionString", StringComparison.OrdinalIgnoreCase)
+            || firstParamName.Equals("Sentence", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static object? ConvertSegment(string raw, ParameterInfo param)
+    {
+        var underlying = Nullable.GetUnderlyingType(param.ParameterType) ?? param.ParameterType;
+        if (underlying == typeof(string))
+        {
+            return raw;
+        }
+        if (underlying == typeof(bool))
+        {
+            return bool.TryParse(raw, out var b)
+                ? b
+                : (param.HasDefaultValue ? param.DefaultValue : true);
+        }
+        if (underlying == typeof(int))
+        {
+            return int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n)
+                ? n
+                : (param.HasDefaultValue ? param.DefaultValue : 0);
+        }
+        if (underlying == typeof(long))
+        {
+            return long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var l)
+                ? l
+                : (param.HasDefaultValue ? param.DefaultValue : 0L);
+        }
+        if (underlying == typeof(double))
+        {
+            return double.TryParse(raw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d)
+                ? d
+                : (param.HasDefaultValue ? param.DefaultValue : 0.0);
+        }
+        if (underlying.IsEnum && Enum.TryParse(underlying, raw, ignoreCase: true, out var enumVal))
+        {
+            return enumVal;
+        }
+
+        return param.HasDefaultValue ? param.DefaultValue : GetDefaultForType(param.ParameterType);
+    }
+
+    private static object? GetDefaultForType(Type type) =>
+        type.IsValueType ? Activator.CreateInstance(type) : null;
 }
 
 file static class InoTurnRoutingExtensions

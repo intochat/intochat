@@ -176,7 +176,7 @@
                 },
                 {
                   "kind": "tagPill",
-                  "label": "BDD Gate: 1/1 Passed",
+                  "label": "BDD Gate: 3/3 Passed",
                   "tone": "ok",
                   "icon": "circle-check"
                 }
@@ -608,7 +608,7 @@
                   },
                   {
                     "kind": "text",
-                    "value": "Дано: пісочниця додатку запускається з чистим станом",
+                    "value": "[UK] build started: Add memory recall button to calculator (calculator)",
                     "tone": "neutral",
                     "tabular": true,
                     "mono": false
@@ -628,7 +628,7 @@
                   },
                   {
                     "kind": "text",
-                    "value": "Коли: користувач виконує дію 'Add memory recall button to calculator' у 'calculator'",
+                    "value": "[UK] round 1: check_csharp (calculator)",
                     "tone": "neutral",
                     "tabular": true,
                     "mono": false
@@ -648,7 +648,7 @@
                   },
                   {
                     "kind": "text",
-                    "value": "Тоді: стан оновлюється і інтерфейс рендериться без помилок",
+                    "value": "[UK] Built calculator",
                     "tone": "neutral",
                     "tabular": true,
                     "mono": false
@@ -666,7 +666,7 @@
                 "children": [
                   {
                     "kind": "text",
-                    "value": "using DigitalBrain;\r\nusing DigitalBrain.UI;\r\n\r\n// Diagnosed from IAspire: [OperatingSystem] DivideByZeroException in calculator; [trace:calculator.divide] Attempted to divide by zero.\npublic sealed record CalculatorState(int Count, string Status)\r\n{\r\n    public CalculatorState() : this(0, \"Ready\") { }\r\n}\r\n\r\n[App(\"calculator\")]\r\npublic sealed class CalculatorApp : App<CalculatorState>\r\n{\r\n    // Instruction: Add memory recall button to calculator\r\n    public View Render() => new(\"calculator\", new Text(\"Verified\"));\r\n}",
+                    "value": "using DigitalBrain;\nusing DigitalBrain.UI;\n\n// Diagnosed from IAspire: [OperatingSystem] DivideByZeroException in calculator; [trace:calculator.divide] Attempted to divide by zero.\npublic sealed record CalculatorState(int Count, string Status)\n{\n    public CalculatorState() : this(0, \"Ready\") { }\n}\n\n[App(\"calculator\")]\npublic sealed class CalculatorApp : App<CalculatorState>\n{\n    // Instruction: Add memory recall button to calculator\n    public View Render() => new(\"calculator\", new Text(\"Verified\"));\n}",
                     "tone": "neutral",
                     "tabular": true,
                     "mono": true
@@ -679,8 +679,22 @@
               },
               {
                 "kind": "infoBar",
-                "title": "Self-improving verification for calculator: Add memory recall button to calculator",
-                "message": "Passed in 4 ms · Hot-reloaded into DigitalBrain (UK)",
+                "title": "[UK] build started: Add memory recall button to calculator (calculator)",
+                "message": "Passed in 0 ms · Hot-reloaded into DigitalBrain (UK)",
+                "tone": "ok",
+                "action": null
+              },
+              {
+                "kind": "infoBar",
+                "title": "[UK] round 1: check_csharp (calculator)",
+                "message": "Passed in 0 ms · Hot-reloaded into DigitalBrain (UK)",
+                "tone": "ok",
+                "action": null
+              },
+              {
+                "kind": "infoBar",
+                "title": "[UK] Built calculator",
+                "message": "Passed in 0 ms · Hot-reloaded into DigitalBrain (UK)",
                 "tone": "ok",
                 "action": null
               }

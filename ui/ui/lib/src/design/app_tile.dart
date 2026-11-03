@@ -125,6 +125,14 @@ class IcAppIcon extends StatelessWidget {
       gradientBottom: Color(0xFF0F766E),
       icon: LucideIcons.calculator,
     ),
+    'data': IcAppIconSpec(
+      appId: 'data',
+      title: 'Data Studio',
+      category: 'Analytics',
+      gradientTop: Color(0xFF38BDF8),
+      gradientBottom: Color(0xFF0284C7),
+      icon: LucideIcons.chartSpline,
+    ),
     'datavisualizer': IcAppIconSpec(
       appId: 'datavisualizer',
       title: 'Data Visualizer',

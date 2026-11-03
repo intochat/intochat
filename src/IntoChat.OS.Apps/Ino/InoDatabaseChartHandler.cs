@@ -141,7 +141,9 @@ internal static class InoDatabaseChartHandler
         InoAppState currentState,
         InoQueryDb request,
         IMemory? memory,
-        IFilesVfsService? filesVfs = null)
+        IFilesVfsService? filesVfs = null,
+        Func<string, IApp?>? tryGetApp = null,
+        Action<Exception, string>? onRecoverableError = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         var sql = string.IsNullOrWhiteSpace(request.Sql)
@@ -152,6 +154,20 @@ internal static class InoDatabaseChartHandler
             : currentState.ConnectedDatabase;
 
         var queryResult = await DataAnalyticsEngine.ExecuteAsync(sql, database, filesVfs);
+        if (tryGetApp is not null)
+        {
+            try
+            {
+                if (tryGetApp("apps/data") is { } dataStudioNeuron)
+                {
+                    await dataStudioNeuron.Request("query", sql);
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                onRecoverableError?.Invoke(error, "DataStudioApp neuron is optional during Ino QueryDbAsync.");
+            }
+        }
         var (chartTitle, columns, rows, chartKind, chartPoints, summary) = (
             queryResult.ChartTitle,
             queryResult.Columns,
@@ -209,7 +225,9 @@ internal static class InoDatabaseChartHandler
         string text,
         UserSettingsState settings,
         IMemory? memory,
-        IFilesVfsService? filesVfs = null)
+        IFilesVfsService? filesVfs = null,
+        Func<string, IApp?>? tryGetApp = null,
+        Action<Exception, string>? onRecoverableError = null)
     {
         var cards = currentState.ActiveCards;
         var database = string.IsNullOrWhiteSpace(currentState.ConnectedDatabase)
@@ -315,6 +333,27 @@ internal static class InoDatabaseChartHandler
         var updatedCards = cards
             .Select(c => c.Id == tableCard.Id ? tableCard : c.Id == chartCard.Id ? chartCard : c)
             .ToArray();
+        if (tryGetApp is not null)
+        {
+            try
+            {
+                if (tryGetApp("apps/data") is { } dataStudioNeuron)
+                {
+                    if (text.Contains("group", StringComparison.OrdinalIgnoreCase) || text.Contains("aggregate", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await dataStudioNeuron.Request("query", text);
+                    }
+                    else if (!text.Contains("filter", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(chartCard.ChartKind))
+                    {
+                        await dataStudioNeuron.Request("switch-chart", chartCard.ChartKind);
+                    }
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                onRecoverableError?.Invoke(error, "DataStudioApp neuron is optional during ApplyChartMutationOrFilterAsync.");
+            }
+        }
         if (memory is not null)
         {
             await memory.CaptureEpisode("ino.chart-mutate", $"User: {text} | Reply: {reply}", importance: 6);

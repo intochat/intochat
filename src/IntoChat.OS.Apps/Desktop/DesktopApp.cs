@@ -130,6 +130,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         {
             ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles"),
             ("files", "Files", "neuron://local/apps/files", "folder"),
+            ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2"),
             ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool"),
             ("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "image"),
             ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film"),
@@ -213,6 +214,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     new BrainGraphNode("os", "OperatingSystem", "neuron://local/os", "core", 0, 0, 0, "working"),
                     new BrainGraphNode("ino", "Ino Assistant", "neuron://local/apps/ino", "agent", 110, 35, -20, "working"),
                     new BrainGraphNode("files", "Files", "neuron://local/apps/files", "storage", -115, 25, 15, "idle"),
+                    new BrainGraphNode("data", "Data Studio", "neuron://local/apps/data", "analytics", 15, -75, 20, "working"),
                     new BrainGraphNode("markdraw", "Markdraw", "neuron://local/apps/markdraw", "studio", 45, 70, 30, "working"),
                     new BrainGraphNode("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "studio", 125, -35, 20, "idle"),
                     new BrainGraphNode("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "studio", -125, -30, -15, "idle"),

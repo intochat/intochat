@@ -21,10 +21,12 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Integrations;
 using IntoChat.OS.Kernel.Composition.Confirmations;
 using IntoChat.OS.Apps.Creator;
+using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.Gallery;
+using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Apps.Settings;
@@ -181,6 +183,23 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", film.RenderSide(), film.Render());
         var filmView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read();
         Assert.NotNull(filmView?.Root);
+
+        // 6. MarkdrawApp and DataStudioApp lifecycle on the real silo.
+        var markdraw = fixture.AttachSilo(new MarkdrawApp(), brain);
+        await markdraw.Open(new MarkdrawOpen("/work/system-architecture.markdraw", "flow"));
+        await markdraw.PatchElements(new MarkdrawPatchElements("add rectangle \"API Gateway\" at 140,120 180x84 color #38bdf8", "ino"));
+        Assert.True(markdraw.State.Elements.Length >= 5);
+        await fixture.PublishAppViewToSiloAsync(brain, "markdraw", markdraw.RenderSide(), markdraw.Render());
+        var markdrawView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/markdraw/view").Read();
+        Assert.NotNull(markdrawView?.Root);
+
+        var dataStudio = fixture.AttachSilo(new DataStudioApp(), brain);
+        await dataStudio.Open(new DataStudioOpen("/work/q4-opportunities.csv"));
+        await dataStudio.Query(new DataStudioQuery("SELECT stage, SUM(amount) FROM /work/q4-opportunities.csv GROUP BY stage"));
+        Assert.NotEmpty(dataStudio.State.Rows);
+        await fixture.PublishAppViewToSiloAsync(brain, "data", dataStudio.RenderSide(), dataStudio.Render());
+        var dataView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/data/view").Read();
+        Assert.NotNull(dataView?.Root);
     }
 
     [Fact]
@@ -279,6 +298,8 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
                 cancellationToken: ct),
             await BddRunner.VerifyAsync<PhotoCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<FilmCraftApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
+            await BddRunner.VerifyAsync<MarkdrawApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
+            await BddRunner.VerifyAsync<DataStudioApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<PostApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct),
             await BddRunner.VerifyAsync<InoApp>(
                 fakes: os =>
@@ -374,6 +395,18 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
             {
                 var app = fixture.AttachSilo(new FilmCraftApp(), brain);
                 await app.Open(new FilmCraftStudioOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("markdraw", async () =>
+            {
+                var app = fixture.AttachSilo(new MarkdrawApp(), brain);
+                await app.Open(new MarkdrawOpen());
+                return (app.RenderSide(), app.Render());
+            }),
+            ("data", async () =>
+            {
+                var app = fixture.AttachSilo(new DataStudioApp(), brain);
+                await app.Open(new DataStudioOpen());
                 return (app.RenderSide(), app.Render());
             }),
         };

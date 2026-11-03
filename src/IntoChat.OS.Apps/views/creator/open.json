@@ -608,7 +608,7 @@
                   },
                   {
                     "kind": "text",
-                    "value": "Given the sandbox app starts with clean state",
+                    "value": "[EN] build started: Verify BDD Scenario (scratch)",
                     "tone": "neutral",
                     "tabular": true,
                     "mono": false
@@ -628,7 +628,7 @@
                   },
                   {
                     "kind": "text",
-                    "value": "When the user triggers the action 'Verify BDD Scenario' on 'scratch'",
+                    "value": "[EN] round 1: check_csharp (scratch)",
                     "tone": "neutral",
                     "tabular": true,
                     "mono": false
@@ -648,7 +648,7 @@
                   },
                   {
                     "kind": "text",
-                    "value": "Then the state updates and view renders without error",
+                    "value": "[EN] Built scratch",
                     "tone": "neutral",
                     "tabular": true,
                     "mono": false
@@ -666,7 +666,7 @@
                 "children": [
                   {
                     "kind": "text",
-                    "value": "[App(\"elon-tracker\", Title = \"X Post Tracker\", Icon = \"radar\", Accent = \"#5B8CFF\", Category = \"Intelligence\")]\r\npublic sealed class ElonTrackerApp : App<TrackerState>\r\n{\r\n    [On(\"x.feed\", Contract = typeof(IXFeed))]\r\n    public async Task OnNewPost(XPostReceived? post)\r\n    {\r\n        if (post is null) return;\r\n        await Get<IMemory>(\"memory\").Remember(post.Text, [\"x\", \"elon\"]);\r\n        Set(State with { Count = State.Count + 1, Latest = post.Text });\r\n    }\r\n\r\n    public View Render() => new(\r\n        \"Tracker\",\r\n        Ui.AppShell(\r\n            \"tracker-shell\",\r\n            sidebar: Ui.NavItem(\"nav-feed\", \"Live Feed\", \"radio\", \"feed\", selected: true, badge: $\"{State.Count}\"),\r\n            body: Ui.StatCard(\"kpi-posts\", \"Tracked X Signals\", $\"{State.Count}\", \"+1 live\", BadgeTone.Accent, \"zap\")));\r\n\r\n    [Scenario(\"Live X signal increments state and stores memory\")]\r\n    public async Task VerifySignalHandling()\r\n    {\r\n        await OnNewPost(new XPostReceived(\"Mars update\"));\r\n        if (State.Count != 1) throw new InvalidOperationException(\"Expected count 1.\");\r\n    }\r\n}",
+                    "value": "[App(\"elon-tracker\", Title = \"X Post Tracker\", Icon = \"radar\", Accent = \"#5B8CFF\", Category = \"Intelligence\")]\npublic sealed class ElonTrackerApp : App<TrackerState>\n{\n    [On(\"x.feed\", Contract = typeof(IXFeed))]\n    public async Task OnNewPost(XPostReceived? post)\n    {\n        if (post is null) return;\n        await Get<IMemory>(\"memory\").Remember(post.Text, [\"x\", \"elon\"]);\n        Set(State with { Count = State.Count + 1, Latest = post.Text });\n    }\n\n    public View Render() => new(\n        \"Tracker\",\n        Ui.AppShell(\n            \"tracker-shell\",\n            sidebar: Ui.NavItem(\"nav-feed\", \"Live Feed\", \"radio\", \"feed\", selected: true, badge: $\"{State.Count}\"),\n            body: Ui.StatCard(\"kpi-posts\", \"Tracked X Signals\", $\"{State.Count}\", \"+1 live\", BadgeTone.Accent, \"zap\")));\n\n    [Scenario(\"Live X signal increments state and stores memory\")]\n    public async Task VerifySignalHandling()\n    {\n        await OnNewPost(new XPostReceived(\"Mars update\"));\n        if (State.Count != 1) throw new InvalidOperationException(\"Expected count 1.\");\n    }\n}",
                     "tone": "neutral",
                     "tabular": true,
                     "mono": true

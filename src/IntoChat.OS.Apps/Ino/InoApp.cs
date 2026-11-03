@@ -183,7 +183,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                     (err, reason) => Swallow(err, reason)));
                 return;
             case "chart.mutation":
-                Set(await InoDatabaseChartHandler.ApplyChartMutationOrFilterAsync(State, text, settings, memory, FilesVfs));
+                Set(await InoDatabaseChartHandler.ApplyChartMutationOrFilterAsync(
+                    State,
+                    text,
+                    settings,
+                    memory,
+                    FilesVfs,
+                    TryGetApp,
+                    (err, reason) => Swallow(err, reason)));
                 return;
             case "chart.question":
                 Set(await InoDatabaseChartHandler.AnswerChartQuestionAsync(
@@ -378,7 +385,13 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task QueryDb(InoQueryDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(await InoDatabaseChartHandler.QueryDbAsync(State, request, TryGetMemory(), FilesVfs));
+        Set(await InoDatabaseChartHandler.QueryDbAsync(
+            State,
+            request,
+            TryGetMemory(),
+            FilesVfs,
+            TryGetApp,
+            (err, reason) => Swallow(err, reason)));
     }
 
     [DigitalBrain.On]

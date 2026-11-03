@@ -30,6 +30,24 @@
         },
         {
           "kind": "navItem",
+          "key": "launch-data",
+          "label": "Data Studio",
+          "icon": "bar-chart-2",
+          "action": "pin:data",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
+          "key": "launch-markdraw",
+          "label": "Markdraw",
+          "icon": "pen-tool",
+          "action": "pin:markdraw",
+          "selected": false,
+          "badge": null
+        },
+        {
+          "kind": "navItem",
           "key": "launch-photocraft",
           "label": "PhotoCraft",
           "icon": "image",
@@ -96,6 +114,16 @@
               "subtitle": "neuron://local/apps/files"
             },
             {
+              "id": "data",
+              "title": "Data Studio",
+              "subtitle": "neuron://local/apps/data"
+            },
+            {
+              "id": "markdraw",
+              "title": "Markdraw",
+              "subtitle": "neuron://local/apps/markdraw"
+            },
+            {
               "id": "photocraft",
               "title": "PhotoCraft",
               "subtitle": "neuron://local/apps/photocraft"
@@ -145,7 +173,7 @@
               "kind": "statCard",
               "key": "desk-neurons",
               "label": "Active Neurons",
-              "value": "9",
+              "value": "10",
               "delta": "3D Graph",
               "tone": 2,
               "icon": "cpu"
@@ -191,7 +219,7 @@
                 },
                 {
                   "kind": "tagPill",
-                  "label": "9 active neurons",
+                  "label": "10 active neurons",
                   "tone": "ok",
                   "icon": "cpu"
                 },
@@ -214,7 +242,7 @@
             },
             {
               "kind": "text",
-              "value": "Smart Desktop (smart-desktop) · fluent-acrylic · floating-glass · 3D BrainScene (9 neurons)",
+              "value": "Smart Desktop (smart-desktop) · fluent-acrylic · floating-glass · 3D BrainScene (10 neurons)",
               "tone": "neutral",
               "tabular": true,
               "mono": false
@@ -241,6 +269,23 @@
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "layout-grid",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "label": "Pin Markdraw",
+                  "action": {
+                    "neuron": "desktop",
+                    "operation": "pin",
+                    "arguments": [
+                      "markdraw",
+                      "true"
+                    ]
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "pin",
                   "small": true
                 },
                 {
@@ -334,6 +379,30 @@
               "onSelect": null
             },
             {
+              "id": "data",
+              "label": "Data Studio",
+              "uri": "neuron://local/apps/data",
+              "kind": "analytics",
+              "x": 15,
+              "y": -75,
+              "z": 20,
+              "status": "working",
+              "subtitle": null,
+              "onSelect": null
+            },
+            {
+              "id": "markdraw",
+              "label": "Markdraw",
+              "uri": "neuron://local/apps/markdraw",
+              "kind": "studio",
+              "x": 45,
+              "y": 70,
+              "z": 30,
+              "status": "working",
+              "subtitle": null,
+              "onSelect": null
+            },
+            {
               "id": "photocraft",
               "label": "PhotoCraft",
               "uri": "neuron://local/apps/photocraft",
@@ -394,6 +463,12 @@
               "toId": "files",
               "signalLabel": "FilesSearch",
               "active": false
+            },
+            {
+              "fromId": "ino",
+              "toId": "markdraw",
+              "signalLabel": "MarkdrawPatchElements",
+              "active": true
             },
             {
               "fromId": "ino",

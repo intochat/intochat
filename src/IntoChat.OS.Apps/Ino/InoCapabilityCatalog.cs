@@ -58,6 +58,7 @@ public static class InoCapabilityCatalog
     private static readonly (string AppId, AppBundle FallbackBundle)[] KnownApps =
     [
         ("files", FilesBundle),
+        ("data", IntoChat.OS.Apps.Data.DataStudioApp.Bundle),
         ("markdraw", IntoChat.OS.Apps.Markdraw.MarkdrawApp.Bundle),
         ("photocraft", IntoChat.OS.Apps.PhotoCraft.PhotoCraftApp.Bundle),
         ("filmcraft", IntoChat.OS.Apps.FilmCraft.FilmCraftApp.Bundle),

@@ -15,6 +15,7 @@ internal static class ShippedGrants
             $"chat/{brain}/apps/ino/transcript", $"agent/{brain}/*", $"textfield/{brain}/settings/workspace/new-tab-app"]),
         "settings" => Tuples(brain, app, [Apps(brain), $"apps.store/{brain}/*", $"apps.installed-modules/{brain}/*", $"apps.sideload/{brain}/*",
             $"integrations.accounts/{brain}/*", $"ai.models/{brain}/*", $"chat-index/{brain}/*", $"textfield/{brain}/settings/*"]),
+        "data" => Tuples(brain, app, [$"files.vfs/{brain}/*"]),
         "markdraw" => Tuples(brain, app, [$"files.vfs/{brain}/*"]),
         "photocraft" => Tuples(brain, app, [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*"]),
         "filmcraft" => Tuples(brain, app, [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*"]),
