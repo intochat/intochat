@@ -1,3 +1,4 @@
+// os-only: canonical "{brain}/{key}" neuron key formatting for IntoChat OS modules
 using DigitalBrain;
 
 namespace IntoChat.OS;

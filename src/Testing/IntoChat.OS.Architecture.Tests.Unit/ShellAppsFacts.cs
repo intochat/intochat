@@ -9,13 +9,7 @@ public sealed class ShellAppsFacts
     [Fact]
     public void TheAppsModuleHasNoShellAppsFolder()
     {
-        var shellAppsDir = Path.Combine(
-            Repository.ModulesRoot,
-            "IntoChat.OS",
-            "Apps",
-            "src",
-            "IntoChat.OS.Modules.Apps",
-            "ShellApps");
+        var shellAppsDir = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Modules.Apps").Directory, "ShellApps");
 
         Assert.False(
             Directory.Exists(shellAppsDir),

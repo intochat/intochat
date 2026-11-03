@@ -31,6 +31,7 @@ public sealed class VocabularyRingFacts
     private static readonly Dictionary<Type, string> Allowlist = new()
     {
         [typeof(NeuronAliases)] = "A type's effective alias across [NeuronAlias] (DigitalBrain.Contracts) and the Orleans [Alias]; the Orleans half keeps it out of the core package (03-03).",
+        [typeof(NeuronKeys)] = "Canonical '{brain}/{key}' neuron key formatting across OS modules (phase 3 Task 6).",
         [typeof(Trace)] = "The compute-cost record (alias brain.trace). Origin is a DigitalBrain.NeuronId. Signal traces are Activity.Current.",
     };
 
