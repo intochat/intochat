@@ -25,9 +25,6 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     // The state, as the connectors read and change it in place before a save.
     protected TState Snapshot => State;
 
-    // The os full key "{brain}/{key}" the neuron was addressed by as a grain.
-    protected string FullKey => $"{Id.Brain.Value}/{Id.Key}";
-
     protected IServiceProvider ServiceProvider => Context.Services;
 
     // Facts fault the writes of a connection here (IConnectionWriteFaults); a production silo registers none.
@@ -36,18 +33,18 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     protected async Task PublishAsync(DigitalBrain.Signal signal)
     {
         var faults = Faults;
-        if (faults is not null) { await faults.BeforeWrite(FullKey, null, [signal]); }
+        if (faults is not null) { await faults.BeforeWrite(Id.FullKey(), null, [signal]); }
         await Publish(signal);
-        if (faults is not null) { await faults.AfterWrite(FullKey, null, [signal]); }
+        if (faults is not null) { await faults.AfterWrite(Id.FullKey(), null, [signal]); }
     }
 
     // Every save of a connection: the state and its signals as one journal entry.
     protected async Task Commit(TState next, params DigitalBrain.Signal[] signals)
     {
         var faults = Faults;
-        if (faults is not null) { await faults.BeforeWrite(FullKey, next, signals); }
+        if (faults is not null) { await faults.BeforeWrite(Id.FullKey(), next, signals); }
         await Save(next, signals);
-        if (faults is not null) { await faults.AfterWrite(FullKey, next, signals); }
+        if (faults is not null) { await faults.AfterWrite(Id.FullKey(), next, signals); }
     }
 
     // There is no save without a signal (06-08): a change that moves no status says the connection was updated.
@@ -56,7 +53,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     // The state as loaded is the facts' view of the last committed state; the connector's own activation runs after.
     protected sealed override Task OnActivate(CancellationToken cancellationToken)
     {
-        Faults?.Loaded(FullKey, State);
+        Faults?.Loaded(Id.FullKey(), State);
         return Activated(cancellationToken);
     }
 
@@ -78,7 +75,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     // a key reaching another type (an explicit GetGrain) is refused rather than served as the wrong connector.
     private (string, string, string) OwnKey()
     {
-        var key = ConnectionKeys.Parse(FullKey);
+        var key = ConnectionKeys.Parse(Id.FullKey());
         if (key.ConnectorId != Id.Type)
         { throw new ArgumentException("A connection key must name the connector this neuron serves.", "key"); }
         return key;
@@ -100,7 +97,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
     protected virtual Task<OAuthGrant> RefreshAsync(Credential credential, CancellationToken ct)
         => credential.Refresh is null
             ? throw new InvalidOperationException("The connection has no refresh token.")
-            : ServiceProvider.GetRequiredService<IOAuthTokenExchange>().RefreshAsync(FullKey, Snapshot.AuthMethodId, credential.Refresh, ct);
+            : ServiceProvider.GetRequiredService<IOAuthTokenExchange>().RefreshAsync(Id.FullKey(), Snapshot.AuthMethodId, credential.Refresh, ct);
 
     protected virtual Task OnConnectedAsync() => Task.CompletedTask;
     protected virtual Task OnDisconnectedAsync() => Task.CompletedTask;
@@ -169,7 +166,7 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
         Snapshot.ExpiresAt = null;
         Snapshot.Account = null;
         await Transition(ConnectionStatus.Disconnected, null, notifyCatalog: false);
-        await Context.Get<IConnectionIndex>(IConnectionIndex.Id(Key.Brain)).Untrack(FullKey);
+        await Context.Get<IConnectionIndex>(IConnectionIndex.Id(Key.Brain)).Untrack(Id.FullKey());
         await NotifyCatalog();
     }
 
@@ -367,32 +364,19 @@ public abstract class ConnectionNeuron<TState> : DigitalBrain.Neuron<TState>, IC
         if (notifyCatalog) { await NotifyCatalog(); }
     }
 
-    private Task NotifyCatalog() => Context.Get<IConnectionCatalogUpdates>(IConnectionCatalogUpdates.Id(Key.Brain)).Changed(FullKey);
+    private Task NotifyCatalog() => Context.Get<IConnectionCatalogUpdates>(IConnectionCatalogUpdates.Id(Key.Brain)).Changed(Id.FullKey());
 
-    private Task Track() => Context.Get<IConnectionIndex>(IConnectionIndex.Id(Key.Brain)).Track(FullKey);
+    private Task Track() => Context.Get<IConnectionIndex>(IConnectionIndex.Id(Key.Brain)).Track(Id.FullKey());
 
     private Task RequireAuthMethod(string operation, string authMethodId)
         => Check(operation, new AuthMethodIsOffered(Key.Connector, authMethodId, Connector.AuthMethods.Contains(authMethodId, StringComparer.Ordinal)));
 
     // Members of the brain named in the key; never an installed app.
     private void RequireMember()
-    {
-        CapabilityCaller caller;
-        try { caller = CallerContextStamper.Require(); }
-        catch (UntrustedCallerException error) { throw new UnauthorizedAccessException(error.Message, error); }
-        if (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy || AppPrincipal.IsApp(caller.PrincipalId)
-            || BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
-        { throw new UnauthorizedAccessException($"Only a member of the owning brain can manage connection {Key.Connector}/{Key.Connection}."); }
-    }
+        => CallerAdmission.RequireBrainMember(Key.Brain, $"Only a member of the owning brain can manage connection {Key.Connector}/{Key.Connection}.");
 
     private static void RequireNotAppCaller()
-    {
-        if (CallerContextStamper.TryGet(out var caller)
-            && (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy || AppPrincipal.IsApp(caller.PrincipalId)))
-        {
-            throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app callers cannot export or import raw connection secrets.");
-        }
-    }
+        => CallerAdmission.RequireNotAppCaller("Zero-token auth enforcement: sandbox and app callers cannot export or import raw connection secrets.");
 
     private ConnectionView View() => new(Key.Connector, Key.Connection, Snapshot.AuthMethodId, Snapshot.Status, Snapshot.Account, Snapshot.ExpiresAt, Snapshot.LastProbedAt, Snapshot.Detail);
 }

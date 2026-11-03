@@ -357,8 +357,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
 
     private void RequireAccess()
     {
-        var caller = CallerContextStamper.Require();
-        if (caller.BrainId != Id.Brain.Value || caller.Kind == CallerKind.App && caller.AppId != AppKey)
-        { throw new UnauthorizedAccessException("This Files workspace belongs to its brain and app."); }
+        _ = CallerContextStamper.Require();
+        CallerAdmission.RequireSameBrain(Id.Brain.Value, AppKey, "this Files workspace");
     }
 }

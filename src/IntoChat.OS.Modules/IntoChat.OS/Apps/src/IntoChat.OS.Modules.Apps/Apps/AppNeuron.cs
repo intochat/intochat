@@ -28,7 +28,7 @@ internal sealed partial class AppNeuron(
     private bool Exists => State.Manifest is not null;
     private IServiceProvider ServiceProvider => Context.Services;
     // The os full key "{brain}/apps/{name}" the app was addressed by as a grain.
-    private string Key => $"{Id.Brain.Value}/{Id.Key}";
+    private string Key => Id.FullKey();
 
     // Every activation reconciles an interrupted turn, then queues the program's restore as its own turn.
     protected override async Task OnActivate(CancellationToken cancellationToken)

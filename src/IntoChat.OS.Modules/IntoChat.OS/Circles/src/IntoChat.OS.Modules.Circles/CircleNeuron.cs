@@ -49,8 +49,6 @@ internal sealed class CircleNeuron(
 {
     private string CircleBrain => Id.Brain.Value;
 
-    private string FullKey => $"{Id.Brain.Value}/{Id.Key}";
-
     private CircleRecord Snapshot => base.State;
 
     // A founded circle has its creator; a deleted one is saved empty.
@@ -266,11 +264,7 @@ internal sealed class CircleNeuron(
 
     // R126: inviting and accepting are a person's, on the /brains/{circle} route; an app's script is refused them.
     private static void RequirePerson()
-    {
-        var caller = Caller();
-        if (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy)
-        { throw new UnauthorizedAccessException("Inviting to a circle and accepting an invitation are a person's own; a script may not."); }
-    }
+        => CallerAdmission.RequirePerson("Inviting to a circle and accepting an invitation are a person's own; a script may not.");
 
     private static CapabilityCaller Caller()
         => CallerContextStamper.TryGet(out var caller) ? caller : throw new UnauthorizedAccessException("A circle acts only on a stamped caller.");
