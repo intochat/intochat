@@ -1,6 +1,6 @@
 # IntoChat.OS.Modules.Flame
 
-Flame module: scene neurons the Flutter shell renders with Flame.
+Flame module: scene neurons the Flutter shell renders with Flame. Invariants are rules in `Rules/` and `DB0040` is on.
 
 Module id: `flame`.
 

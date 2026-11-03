@@ -1,6 +1,6 @@
 # IntoChat.OS.Modules.Apps
 
-App manifests, install, versions and Save as app.
+App manifests, install, versions and Save as app. Invariants are rules in `Rules/` and `DB0040` is on.
 
 Module id: `apps`.
 
@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Apps.Contracts` (`IAppRuntime`, `IAppStorageHook`, `IAppStore`, `IAppStudio`, `IApp`, `IFeatureReconciler`, `IFilesNeuron`, `IFilesWorkspace`, `IMarketplace`, `IProfile`, `IScriptSandbox`, `IUserSettings`, `IVfsNeuron`).
+Contracts: assembly `IntoChat.OS.Modules.Apps.Contracts` (`IAppRuntime`, `IAppStorageHook`, `IAppStore`, `IAppStudio`, `IApp`, `IArtCraftEngine`, `IFeatureReconciler`, `IFilesNeuron`, `IFilesWorkspace`, `IInstalledModules`, `IMarketplace`, `IProfile`, `IScriptSandbox`, `ISideload`, `IUserSettings`, `IVfsNeuron`).
 Hosting: runs in process.
 <!-- END GENERATED -->

@@ -1,6 +1,6 @@
 # IntoChat.OS.Modules.Identity
 
-identity@1 and secrets@1: accounts, brains, grants, sessions and the vault.
+identity@1 and secrets@1: accounts, brains, grants, sessions and the vault. Invariants are rules in `Rules/` and `DB0040` is on.
 
 Module id: `authority`.
 

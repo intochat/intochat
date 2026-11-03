@@ -1,6 +1,6 @@
 # IntoChat.OS.Modules.Circles
 
-Circles: brains that share apps, a chat and a share of the owner's compute.
+Circles: brains that share apps, a chat and a share of the owner's compute. Invariants are rules in `Rules/` and `DB0040` is on.
 
 Module id: `circles`.
 
