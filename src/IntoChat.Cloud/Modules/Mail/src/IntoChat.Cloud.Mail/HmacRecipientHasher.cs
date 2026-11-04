@@ -3,7 +3,7 @@ using System.Text;
 
 namespace IntoChat.Cloud.Mail;
 
-internal sealed class HmacRecipientHasher : IRecipientHasher
+internal sealed class HmacRecipientHasher(MailSecrets? secrets = null) : IRecipientHasher
 {
     private byte[]? key;
 
@@ -15,6 +15,15 @@ internal sealed class HmacRecipientHasher : IRecipientHasher
 
     public string Hash(string purpose, string email)
     {
+        if (key is null && secrets is not null)
+        {
+            var loaded = Task.Run(() => secrets.Named(MailSecrets.RecipientHashing)).GetAwaiter().GetResult();
+            if (!string.IsNullOrWhiteSpace(loaded))
+            {
+                UseKey(loaded);
+            }
+        }
+
         if (key is not { } secret)
         {
             throw new InvalidOperationException("Mail recipient-hashing key is not configured.");

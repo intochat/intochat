@@ -58,6 +58,24 @@ public sealed class MailFacts
     }
 
     [Fact]
+    public void TheHasherResolvesKeyFromBuiltServiceProvider()
+    {
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var secrets = new StubSecrets();
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddKeyedSingleton<DigitalBrain.Capabilities.Secrets.ISecrets>(
+            services,
+            DigitalBrain.Capabilities.Capability.Secrets.V1Id,
+            secrets);
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<IMailHost, NoHost>(services);
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<MailSecrets>(services);
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<HmacRecipientHasher>(services);
+        using var provider = Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
+        var hasher = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<HmacRecipientHasher>(provider);
+        var hash = hasher.Hash("mail-rate", "Ada@Example.com");
+        Assert.NotEmpty(hash);
+    }
+
+    [Fact]
     public async Task AcsWithoutAConnectionStringDoesNotSend()
     {
         var sender = new AcsMailSender(
@@ -123,5 +141,16 @@ public sealed class MailFacts
     private sealed class SingleProxy(IMailRate rate) : INeuronProxies
     {
         public T Get<T>(NeuronId id) where T : class => (T)(object)rate;
+    }
+
+    private sealed class StubSecrets : DigitalBrain.Capabilities.Secrets.ISecrets
+    {
+        public Task<DigitalBrain.Capabilities.Secrets.SecretRef> Set(string name, string label, string value, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task Remove(string name, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<string> Resolve(DigitalBrain.Capabilities.Secrets.SecretRef secret, CancellationToken cancellationToken = default) => Task.FromResult("test-recipient-key");
+        public Task<DigitalBrain.Capabilities.Secrets.SealedSecret> Seal(string context, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<byte[]> Open(string context, DigitalBrain.Capabilities.Secrets.SealedSecret sealedSecret, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<DigitalBrain.Capabilities.Secrets.SecretRef> Named(string name, CancellationToken cancellationToken = default)
+            => Task.FromResult(new DigitalBrain.Capabilities.Secrets.SecretRef { Reference = "named:" + name, Label = name, Status = DigitalBrain.Capabilities.Secrets.SecretStatus.Set });
     }
 }
