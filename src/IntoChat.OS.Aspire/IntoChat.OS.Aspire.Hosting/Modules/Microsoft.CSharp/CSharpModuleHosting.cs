@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Xml.Linq;
 using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -32,7 +34,6 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
                 return;
             }
         }
-        EnsureDockerNugetFeed(repository, contextPath);
         var sandbox = brain.ApplicationBuilder.AddDockerfile(ResourceName, contextPath, dockerfilePath: Dockerfile)
             .WithHttpEndpoint(targetPort: 8080, name: "http")
             .WithHttpHealthCheck("/health")
@@ -42,43 +43,67 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
             // Linux engines only resolve host.docker.internal, which sessions dial back to the brain on, with this mapping.
             .WithContainerRuntimeArgs("--add-host", "host.docker.internal:host-gateway")
             .WithParentRelationship(brain.Resource);
+        if (ResolveGitHubPackagesToken() is { Length: > 0 } token)
+        {
+            sandbox.WithBuildArg("NUGET_TOKEN", token);
+        }
         brain.AddProjection(new SandboxUrlProjection(sandbox));
     }
 
-    private static void EnsureDockerNugetFeed(string repository, string contextPath)
+    private static string? ResolveGitHubPackagesToken()
     {
-        var sharedNuget = Path.GetFullPath(Path.Combine(repository, "..", "nuget"));
-        if (!Directory.Exists(sharedNuget))
+        foreach (var variable in new[] { "NUGET_AUTH_TOKEN", "NUGET_TOKEN", "GITHUB_TOKEN", "GH_TOKEN" })
         {
-            return;
+            if (Environment.GetEnvironmentVariable(variable) is { Length: > 0 } envToken)
+            {
+                return envToken;
+            }
         }
 
-        var dockerNuget = Path.Combine(contextPath, ".nuget-local");
-        Directory.CreateDirectory(dockerNuget);
-        foreach (var nupkg in Directory.EnumerateFiles(sharedNuget, "*.nupkg"))
+        string[] configs =
+        [
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NuGet", "NuGet.Config"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "NuGet", "NuGet.Config"),
+        ];
+        foreach (var config in configs.Where(File.Exists))
         {
-            var fileName = Path.GetFileName(nupkg);
-            if (!fileName.StartsWith("DigitalBrain.", StringComparison.OrdinalIgnoreCase)
-                && !fileName.StartsWith("IntoChat.OS.", StringComparison.OrdinalIgnoreCase))
+            var password = XDocument.Load(config).Root?
+                .Element("packageSourceCredentials")?
+                .Element("github")?
+                .Elements("add")
+                .FirstOrDefault(element => string.Equals(element.Attribute("key")?.Value, "ClearTextPassword", StringComparison.OrdinalIgnoreCase))?
+                .Attribute("value")?.Value;
+            if (!string.IsNullOrWhiteSpace(password))
             {
-                continue;
-            }
-
-            if (fileName.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase)
-                && !fileName.StartsWith("IntoChat.OS.Modules.Apps.", StringComparison.OrdinalIgnoreCase)
-                && !fileName.StartsWith("IntoChat.OS.Modules.Circles.", StringComparison.OrdinalIgnoreCase)
-                && !fileName.StartsWith("IntoChat.OS.Modules.Flame.", StringComparison.OrdinalIgnoreCase)
-                && !fileName.StartsWith("IntoChat.OS.Modules.Identity.", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var destination = Path.Combine(dockerNuget, fileName);
-            if (!File.Exists(destination) || File.GetLastWriteTimeUtc(nupkg) > File.GetLastWriteTimeUtc(destination))
-            {
-                File.Copy(nupkg, destination, overwrite: true);
+                return password;
             }
         }
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo("gh", "auth token")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            if (process is not null)
+            {
+                var output = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit(3000);
+                if (process.ExitCode == 0 && output.Length > 0)
+                {
+                    return output;
+                }
+            }
+        }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+
+        return null;
     }
 
     private sealed class SandboxUrlProjection(IResourceBuilder<ContainerResource> sandbox) : IntoChatOSModuleProjection

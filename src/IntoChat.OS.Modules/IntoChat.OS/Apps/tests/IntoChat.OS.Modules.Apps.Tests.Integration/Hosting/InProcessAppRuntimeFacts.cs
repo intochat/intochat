@@ -43,7 +43,7 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
             typeof(IApp).Assembly,
             typeof(FlutterModule).Assembly,
             typeof(IView).Assembly,
-            typeof(Activated).Assembly,
+            typeof(DigitalBrain.Signals.Activated).Assembly,
         }.Distinct().ToArray();
 
         var factory = new LocalSiloHostFactory(

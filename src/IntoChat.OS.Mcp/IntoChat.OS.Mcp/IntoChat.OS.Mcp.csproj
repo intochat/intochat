@@ -8,6 +8,16 @@
     <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Client/IntoChat.OS.Aspire.Client.csproj" />
     <!-- Every module Contracts project, by convention: the host reads a neuron contract from its own loaded assemblies. -->
     <ProjectReference Include="../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Contracts.csproj" Exclude="../../IntoChat.OS.Modules/**/tests/**" />
+    <PackageReference Include="IntoChat.OS.Modules.ClickHouse.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Mcp.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Azure.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.GitHub.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Orleans.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Playwright.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Roslyn.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Postgres.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Salesforce.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Tools.Contracts" />
     <!-- A module that hosts its own contracts (IntoChatOSContractsHost) has no Contracts project for the glob above: reference it itself. -->
     <PackageReference Include="IntoChat.OS.Modules.ArtCraft" />
     <PackageReference Include="IntoChat.OS.Modules.Google.Gmail" />

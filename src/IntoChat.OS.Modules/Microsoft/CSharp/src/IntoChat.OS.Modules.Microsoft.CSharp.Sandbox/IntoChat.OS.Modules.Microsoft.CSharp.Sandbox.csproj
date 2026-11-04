@@ -12,13 +12,34 @@
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Capabilities.Compute" />
     <PackageReference Include="DigitalBrain.Capabilities.Connections" />
-    <!-- What an [App] program is run against: its app's requests and the shell's view tree (contracts only). -->
-    <ProjectReference Include="../../../../IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
+    <!-- What an [App] program is run against: every module Contracts assembly in this repository and from IntoChat.Modules. -->
     <PackageReference Include="DigitalBrain.Capabilities.Storage" />
+    <ProjectReference Include="../../../../AI/Contracts/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
     <ProjectReference Include="../../../../Google/Flutter/Contracts/IntoChat.OS.Modules.Flutter.Contracts/IntoChat.OS.Modules.Flutter.Contracts.csproj" />
-    <ProjectReference Include="../../../../IntoChat.OS/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Circles/Contracts/IntoChat.OS.Modules.Circles.Contracts/IntoChat.OS.Modules.Circles.Contracts.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
+    <ProjectReference Include="../../../../IntoChat.OS/Identity/Contracts/IntoChat.OS.Modules.Identity.Contracts/IntoChat.OS.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../../../Aspire/Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts.csproj" />
+    <ProjectReference Include="../../Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.Cloud/Modules/Auth/Contracts/IntoChat.Cloud.Auth.Contracts/IntoChat.Cloud.Auth.Contracts.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.Cloud/Modules/Circle/Contracts/IntoChat.Cloud.Circle.Contracts/IntoChat.Cloud.Circle.Contracts.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.Cloud/Modules/Mail/Contracts/IntoChat.Cloud.Mail.Contracts/IntoChat.Cloud.Mail.Contracts.csproj" />
+    <ProjectReference Include="../../../../../IntoChat.Cloud/Modules/Organisations/Contracts/IntoChat.Cloud.Organisations.Contracts/IntoChat.Cloud.Organisations.Contracts.csproj" />
+    <PackageReference Include="IntoChat.OS.Modules.ArtCraft" />
+    <PackageReference Include="IntoChat.OS.Modules.ClickHouse.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Google.Gmail" />
+    <PackageReference Include="IntoChat.OS.Modules.Mcp.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Azure.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.GitHub.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Orleans.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Playwright.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Roslyn.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Windows" />
+    <PackageReference Include="IntoChat.OS.Modules.Postgres.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Salesforce.Contracts" />
+    <PackageReference Include="IntoChat.OS.Modules.Time" />
+    <PackageReference Include="IntoChat.OS.Modules.Tools.Contracts" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />

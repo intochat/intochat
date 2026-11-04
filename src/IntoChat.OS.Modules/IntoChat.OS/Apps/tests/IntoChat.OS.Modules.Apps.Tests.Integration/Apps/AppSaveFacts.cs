@@ -86,7 +86,7 @@ public sealed class AppSaveFacts
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
             services.AddJournalPayloads(typeof(FlutterModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly);
-            services.AddJournalPayloads(typeof(Activated).Assembly);
+            services.AddJournalPayloads(typeof(DigitalBrain.Signals.Activated).Assembly);
             services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
             services.TryAddSingleton<ICallFilter, CallFilter>();
             services.AddSingleton(runtime);

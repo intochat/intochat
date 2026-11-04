@@ -26,7 +26,7 @@ jobs:
   flutter:
     name: Flutter analyze and web build
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
 
@@ -34,7 +34,7 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.2'
-          cache: false
+          cache: true
 
       - name: Resolve Flutter workspace
         working-directory: ui
@@ -55,9 +55,26 @@ jobs:
         working-directory: ui/shell
         run: flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub
 
+  flutter-test:
+    name: Flutter widget and client tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Resolve Flutter workspace
+        working-directory: ui
+        run: flutter pub get --enforce-lockfile
+
       - name: Flutter widget and client tests
         working-directory: ui
         run: |
-          (cd core && flutter test --no-pub)
-          (cd ui && flutter test --no-pub --exclude-tags golden)
-          (cd shell && flutter test --no-pub)
+          (cd core && flutter test --no-pub --concurrency=4)
+          (cd ui && flutter test --no-pub --exclude-tags golden --concurrency=4)
+          (cd shell && flutter test --no-pub --concurrency=4)

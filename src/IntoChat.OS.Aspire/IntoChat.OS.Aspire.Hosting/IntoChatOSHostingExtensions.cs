@@ -17,6 +17,13 @@ public static class IntoChatOSHostingExtensions
 {
     private const string OrleansResourceSuffix = "intochat-os";
 
+    static IntoChatOSHostingExtensions() => InitializeConfigurationRoot();
+
+#pragma warning disable CA2255
+    [System.Runtime.CompilerServices.ModuleInitializer]
+#pragma warning restore CA2255
+    internal static void InitializeConfigurationRoot() => ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
+
     // A vendor credential the host can run without. An empty value is not seeded, so the integration
     // stays unconfigured instead of the whole operating system refusing to start.
     public static IResourceBuilder<ParameterResource> AddOptionalParameter(this IDistributedApplicationBuilder builder, string name, bool secret = false)

@@ -11,6 +11,7 @@ namespace IntoChat.OS.Aspire.Hosting;
 
 public static class HostingModuleOptions
 {
+    static HostingModuleOptions() => ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
     internal static Dictionary<string, string?> Flatten<T>(T options, string id) where T : notnull, new()
     {
         // Only values the deployment actually decided become configuration; defaults stay the

@@ -72,13 +72,18 @@ jobs:
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Build solution
-        run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
+        run: |
+          dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release -v quiet -p:CodeGraphRefresh=false
+          dotnet build src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -c Release -v quiet -p:CodeGraphRefresh=false
 
       - name: Deploy scripts and workflow facts
         run: python3 -m unittest discover -s scripts/deploy -p 'test_*.py'
 
       - name: Validate NuGet packages
-        run: dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
+        run: |
+          for project in $(grep -rl '<IsPackable>true</IsPackable>' src | sort); do
+            dotnet pack "$project" -c Release -v quiet -o artifacts/packages -p:CodeGraphRefresh=false
+          done
 
   facts:
     name: facts
@@ -93,13 +98,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-      - name: Restore solution
-        run: dotnet restore Intochat.OS.slnx -v quiet
       - name: Test (Unit)
-        run: |
-          for project in $(find src -name '*.Tests.Unit.csproj' | sort); do
-            dotnet test --project "$project" -c Release --no-restore -p:CodeGraphRefresh=false -- --report-xunit-trx --results-directory "$PWD/artifacts/trx"
-          done
+        run: dotnet test --solution Intochat.OS.slnx -c Release -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:CodeGraphRefresh=false
 
   runtime:
     name: runtime
@@ -114,13 +114,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-      - name: Restore solution
-        run: dotnet restore Intochat.OS.slnx -v quiet
       - name: Test (Integration)
-        run: |
-          for project in $(find src -name '*.Tests.Integration.csproj' ! -name 'IntoChat.Cloud.Blob.Tests.Integration.csproj' | sort); do
-            dotnet test --project "$project" -c Release --no-restore -p:CodeGraphRefresh=false -- --report-xunit-trx --results-directory "$PWD/artifacts/trx"
-          done
+        run: dotnet test --solution Intochat.OS.slnx -c Release -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:CodeGraphRefresh=false
 
   product:
     name: product
@@ -138,8 +133,8 @@ jobs:
       - name: Test (Product E2E)
         run: |
           # --filter "needs!=artcraft" (MTP: --filter-not-trait "needs=artcraft")
-          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj -c Release -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
-          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj -c Release -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft"
+          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft"
 
   # Blob storage@1 against Azurite. The default Integration tier skips when port 10000 is closed.
   blob-storage:
@@ -158,7 +153,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - name: Blob storage conformance
-        run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false -- --report-xunit-trx --results-directory artifacts/blob-storage-results
+        run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false
 
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
