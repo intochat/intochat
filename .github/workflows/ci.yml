@@ -36,15 +36,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Restore NuGet package cache
-        id: nuget-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
@@ -52,13 +43,6 @@ jobs:
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
-
-      - name: Save NuGet package cache
-        if: steps.nuget-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
 
       - name: Format code
         run: dotnet format whitespace Intochat.OS.slnx --verify-no-changes --no-restore --verbosity minimal
@@ -87,14 +71,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
-      - name: Restore NuGet package cache
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
       - name: Build solution
         run: |
           dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release -v quiet -p:CodeGraphRefresh=false
@@ -122,15 +98,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-      - name: Restore NuGet package cache
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
       - name: Test (Unit)
-        run: dotnet test --solution Intochat.OS.slnx -c Release -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:RunAnalyzers=false -p:CodeGraphRefresh=false
+        run: dotnet test --solution Intochat.OS.slnx -c Release --max-parallel-test-modules 8 -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:RunAnalyzers=false -p:CodeGraphRefresh=false
 
   runtime:
     name: runtime
@@ -145,15 +114,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-      - name: Restore NuGet package cache
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
       - name: Test (Integration)
-        run: dotnet test --solution Intochat.OS.slnx -c Release -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:RunAnalyzers=false -p:CodeGraphRefresh=false
+        run: dotnet test --solution Intochat.OS.slnx -c Release --max-parallel-test-modules 8 -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:RunAnalyzers=false -p:CodeGraphRefresh=false
 
   product:
     name: product
@@ -168,13 +130,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-      - name: Restore NuGet package cache
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
       - name: Test (Product E2E)
         run: |
           # --filter "needs!=artcraft" (MTP: --filter-not-trait "needs=artcraft")
@@ -263,15 +218,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Restore NuGet package cache
-        id: nuget-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
@@ -280,18 +226,13 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
 
-      - name: Save NuGet package cache
-        if: steps.nuget-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json') }}
-
       - name: Pack prerelease packages
-        run: dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false -p:VersionSuffix=pre.${{ github.run_number }}
+        run: dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:RunAnalyzers=false -p:CodeGraphRefresh=false -p:VersionSuffix=pre.${{ github.run_number }}
 
       # Separate from pack so --skip-duplicate cannot mask a pack failure.
       - name: Push packages to GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget push "artifacts/*.nupkg" --source https://nuget.pkg.github.com/intochat/index.json --api-key "${GITHUB_TOKEN}" --skip-duplicate
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          dotnet nuget push "artifacts/*.nupkg" --source https://nuget.pkg.github.com/intochat/index.json --api-key "${GITHUB_TOKEN}" --skip-duplicate
