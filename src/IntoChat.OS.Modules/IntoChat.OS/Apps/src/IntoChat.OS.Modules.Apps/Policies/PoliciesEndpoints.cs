@@ -1,0 +1,48 @@
+using DigitalBrain;
+using DigitalBrain.Spi;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Runtime;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
+namespace IntoChat.OS.Modules.Apps;
+
+public static class PoliciesEndpoints
+{
+    public sealed record TextRequest(string? Text);
+
+    public static void Map(IEndpointRouteBuilder endpoints)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        var policies = BrainRoutes.Group(endpoints, "/policies").AddEndpointFilter(ModuleRouteGuard.Guard);
+
+        policies.MapPost("", (TextRequest request, [FromServices] PolicyWriter writer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
+            var outcome = await writer.Write(BrainScope.CurrentId(), request.Text, ct);
+            return outcome.Status == ProposalStatus.Refused
+                ? Results.UnprocessableEntity(outcome)
+                : Results.Ok(outcome);
+        }));
+
+        policies.MapGet("", (INeuronProxies brain, CancellationToken ct) => AppsEndpoints.Respond(async ()
+            => Results.Ok(await Policies(brain).List(ct))));
+
+        policies.MapGet("/actions", (INeuronProxies brain, CancellationToken ct) => AppsEndpoints.Respond(async ()
+            => Results.Ok(await Policies(brain).Actions(ct))));
+
+        policies.MapDelete("/{id}", (string id, INeuronProxies brain, CancellationToken ct) => AppsEndpoints.Respond(async () =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(id);
+            await Policies(brain).Retire(id, ct);
+            return Results.Ok(new { retired = id });
+        }));
+    }
+
+    private static IPolicies Policies(INeuronProxies brain)
+        => brain.Get<IPolicies>(NeuronId.Parse(IPolicies.Key(BrainScope.CurrentId())));
+}

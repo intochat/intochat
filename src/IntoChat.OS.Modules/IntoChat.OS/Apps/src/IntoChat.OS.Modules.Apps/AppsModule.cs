@@ -68,6 +68,9 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<Creator>();
         services.TryAddSingleton(ReactionExamples.Create);
         services.TryAddSingleton<ReactionWriter>();
+        services.AddNeuronProxies();
+        services.TryAddSingleton<IPolicyModel, CreatorPolicyModel>();
+        services.TryAddSingleton<PolicyWriter>();
         // FeatureBoot runs once the silo is active, as an Orleans startup task did.
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FeatureBootLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, BrainSceneLifecycle>();
@@ -109,6 +112,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         endpoints.MapGet("/session/capabilities", static (IServiceProvider services) =>
             Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
+        PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
         DevAppEndpoints.Map(endpoints);
     }
