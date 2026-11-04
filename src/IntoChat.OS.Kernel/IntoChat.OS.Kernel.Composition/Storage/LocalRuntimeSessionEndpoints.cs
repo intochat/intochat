@@ -38,7 +38,7 @@ internal sealed class LocalRuntimeSessionHub
         await listeners.Listen<Rejected>("kernel.session.rejected", OnSignalAsync).ConfigureAwait(false);
         var signalTypes = AppDomain.CurrentDomain.GetAssemblies()
             .Where(static a => !a.IsDynamic)
-            .SelectMany( SafeGetTypes)
+            .SelectMany(SafeGetTypes)
             .Where(static t => t is { IsClass: true, IsAbstract: false }
                 && typeof(DigitalBrain.Signal).IsAssignableFrom(t)
                 && t != typeof(Rejected)

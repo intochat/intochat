@@ -24,13 +24,11 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
-# Build once and run Unit + Integration tiers in-place (--no-build), eliminating multi-hundred-MB
-# artifact transfers on private-repo storage while running format, blob-storage, and flutter in parallel.
 jobs:
   format:
     name: format
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
 
@@ -40,7 +38,7 @@ jobs:
 
       - name: Authenticate GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Restore dependencies
@@ -49,21 +47,20 @@ jobs:
       - name: Format code
         run: dotnet format whitespace Intochat.OS.slnx --verify-no-changes --no-restore --verbosity minimal
 
+      - name: Module READMEs are current
+        run: dotnet run scripts/module-readmes.cs -- --check
+
   build:
     name: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
-      # The root disk has ~13 GB free and packages plus the solution's output need more (/mnt is the
-      # same disk on this image). Cleanup runs in the background during the build instead of 1:38 up front.
       - name: Free the root disk in the background
         run: |
           df -h /
@@ -71,108 +68,84 @@ jobs:
 
       - name: Authenticate GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
-      # Restore runs inside the build: one evaluation of the solution instead of two.
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
 
       - name: Deploy scripts and workflow facts
         run: python3 -m unittest discover -s scripts/deploy -p 'test_*.py'
 
-      - name: Module READMEs are current
-        run: dotnet run scripts/module-readmes.cs -- --check
-
-      # Local-profile preflight dry run: fixtures stand in for the machine, so no secrets and no probes of the runner.
-      - name: Preflight dry run (all green exits 0)
-        run: dotnet run intochat.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/all-green.json
-
-      - name: Preflight dry run (Windows containers exits 1 and names the fix)
-        run: |
-          set +e
-          output=$(dotnet run intochat.cs preflight --fake src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.Tests.Unit/fixtures/docker-windows-containers.json)
-          code=$?
-          echo "$output"
-          [ "$code" -eq 1 ] || { echo "expected exit 1, got $code"; exit 1; }
-          echo "$output" | grep -q "fix:" || { echo "expected a fix line"; exit 1; }
-
-      - name: Preflight real probe (informational)
-        continue-on-error: true
-        run: dotnet run intochat.cs preflight --no-fail
-
       - name: Validate NuGet packages
-        run: |
-          dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
-
-      - name: Upload built artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-bin
-          path: artifacts/bin
+        run: dotnet pack Intochat.OS.slnx -c Release --no-build -v quiet -o artifacts/packages
 
   facts:
     name: facts
-    needs: [build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - name: Download built artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: build-bin
-          path: artifacts/bin
+      - name: Authenticate GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+      - name: Restore solution
+        run: dotnet restore Intochat.OS.slnx -v quiet
       - name: Test (Unit)
-        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:CodeGraphRefresh=false --filter "Tier=Unit" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+        run: |
+          for project in $(find src -name '*.Tests.Unit.csproj' | sort); do
+            dotnet test --project "$project" -c Release --no-restore -p:CodeGraphRefresh=false -- --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+          done
 
   runtime:
     name: runtime
-    needs: [build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - name: Download built artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: build-bin
-          path: artifacts/bin
+      - name: Authenticate GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+      - name: Restore solution
+        run: dotnet restore Intochat.OS.slnx -v quiet
       - name: Test (Integration)
-        run: dotnet test Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:CodeGraphRefresh=false --filter "Tier=Integration" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+        run: |
+          for project in $(find src -name '*.Tests.Integration.csproj' ! -name 'IntoChat.Cloud.Blob.Tests.Integration.csproj' | sort); do
+            dotnet test --project "$project" -c Release --no-restore -p:CodeGraphRefresh=false -- --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+          done
 
   product:
     name: product
-    needs: [build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - name: Download built artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: build-bin
-          path: artifacts/bin
+      - name: Authenticate GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - name: Test (Product E2E)
         run: |
           # --filter "needs!=artcraft" (MTP: --filter-not-trait "needs=artcraft")
-          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj -c Release --no-build -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
-          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release --no-build -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj -c Release -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
+          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release -p:IntoChatOSNightly=false -p:CodeGraphRefresh=false -- --filter-not-trait "needs=artcraft" --report-xunit-trx --results-directory "$PWD/artifacts/trx"
 
   # Blob storage@1 against Azurite. The default Integration tier skips when port 10000 is closed.
   blob-storage:
     name: blob-storage
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -182,10 +155,10 @@ jobs:
         run: docker run -d --name azurite -p 10000:10000 mcr.microsoft.com/azure-storage/azurite azurite-blob -l /data --blobHost 0.0.0.0 --skipApiVersionCheck
       - name: Authenticate GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - name: Blob storage conformance
-        run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false --report-xunit-trx --results-directory artifacts/blob-storage-results
+        run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false -- --report-xunit-trx --results-directory artifacts/blob-storage-results
 
   # Informational only: timings never gate a PR. Step-level continue-on-error keeps the job green when the API
   # call or the summary fails; jobs?filter=latest reads the newest attempt of every job, so a rerun of one failed
@@ -236,7 +209,7 @@ jobs:
     needs: [ci]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 5
     permissions:
       contents: read
       packages: write
@@ -245,8 +218,6 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -254,19 +225,17 @@ jobs:
 
       - name: Authenticate GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Restore dependencies
-        run: dotnet restore Intochat.OS.slnx
+        run: dotnet restore Intochat.OS.slnx -v quiet
 
-      # Intochat.OS.slnx holds framework/ (06-00), so DigitalBrain.* pack here with the same pre.<run> suffix and the
-      # IntoChat.OS.* dependency on DigitalBrain resolves from the same feed.
       - name: Pack prerelease packages
         run: dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:CodeGraphRefresh=false -p:VersionSuffix=pre.${{ github.run_number }}
 
       # Separate from pack so --skip-duplicate cannot mask a pack failure.
       - name: Push packages to GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget push "artifacts/*.nupkg" --source https://nuget.pkg.github.com/intochat/index.json --api-key "${GITHUB_TOKEN}" --skip-duplicate

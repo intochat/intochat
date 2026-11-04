@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../models/ui_part.dart';
@@ -7,11 +8,7 @@ import '../../theme/ui_theme.dart';
 /// Interactive Knowledge Graph component displaying nodes, edges,
 /// and an interactive property inspector for the selected node.
 class UiGraph extends StatefulWidget {
-  const UiGraph({
-    super.key,
-    required this.part,
-    this.height = 360,
-  });
+  const UiGraph({super.key, required this.part, this.height = 360});
 
   final UiGraphPart part;
   final double height;
@@ -36,9 +33,9 @@ class _UiGraphState extends State<UiGraph> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final selectedNode = widget.part.nodes.cast<UiGraphNode?>().firstWhere(
-          (n) => n?.id == _selectedNodeId,
-          orElse: () => null,
-        );
+      (n) => n?.id == _selectedNodeId,
+      orElse: () => null,
+    );
 
     return Container(
       height: widget.height,
@@ -57,10 +54,7 @@ class _UiGraphState extends State<UiGraph> {
           Expanded(
             child: Row(
               children: [
-                Expanded(
-                  flex: 3,
-                  child: _buildGraphCanvas(isDark),
-                ),
+                Expanded(flex: 3, child: _buildGraphCanvas(isDark)),
                 if (selectedNode != null) ...[
                   const VerticalDivider(width: 1, thickness: 1),
                   Expanded(
@@ -81,11 +75,7 @@ class _UiGraphState extends State<UiGraph> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Icon(
-            Icons.hub_outlined,
-            size: 18,
-            color: theme.colorScheme.primary,
-          ),
+          Icon(Icons.hub_outlined, size: 18, color: theme.colorScheme.primary),
           const SizedBox(width: 8),
           Text(
             widget.part.title,
@@ -107,15 +97,17 @@ class _UiGraphState extends State<UiGraph> {
 
   Widget _buildGraphCanvas(bool isDark) {
     if (widget.part.nodes.isEmpty) {
-      return const Center(
-        child: Text('No nodes in graph'),
-      );
+      return const Center(child: Text('No nodes in graph'));
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final center = Offset(constraints.maxWidth / 2, constraints.maxHeight / 2);
-        final radius = math.min(constraints.maxWidth, constraints.maxHeight) * 0.38;
+        final center = Offset(
+          constraints.maxWidth / 2,
+          constraints.maxHeight / 2,
+        );
+        final radius =
+            math.min(constraints.maxWidth, constraints.maxHeight) * 0.38;
 
         // Position nodes evenly in a circle for deterministic, stable visualization
         final nodePositions = <String, Offset>{};
@@ -175,7 +167,9 @@ class _UiGraphState extends State<UiGraph> {
             border: Border.all(
               color: isSelected
                   ? primaryColor
-                  : (isDark ? const Color(0xFF444558) : const Color(0xFFCBD0D8)),
+                  : (isDark
+                        ? const Color(0xFF444558)
+                        : const Color(0xFFCBD0D8)),
               width: isSelected ? 2 : 1,
             ),
             boxShadow: [

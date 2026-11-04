@@ -122,49 +122,49 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
                 return (text with { Value = newText }, true);
 
             case Column col:
-            {
-                var children = col.Children.ToArray();
-                for (var i = 0; i < children.Length; i++)
                 {
-                    var (next, changed) = MutateNode(children[i], newText);
-                    if (changed)
+                    var children = col.Children.ToArray();
+                    for (var i = 0; i < children.Length; i++)
                     {
-                        children[i] = next;
-                        return (col with { Children = children }, true);
+                        var (next, changed) = MutateNode(children[i], newText);
+                        if (changed)
+                        {
+                            children[i] = next;
+                            return (col with { Children = children }, true);
+                        }
                     }
+                    return (col, false);
                 }
-                return (col, false);
-            }
 
             case Row row:
-            {
-                var children = row.Children.ToArray();
-                for (var i = 0; i < children.Length; i++)
                 {
-                    var (next, changed) = MutateNode(children[i], newText);
-                    if (changed)
+                    var children = row.Children.ToArray();
+                    for (var i = 0; i < children.Length; i++)
                     {
-                        children[i] = next;
-                        return (row with { Children = children }, true);
+                        var (next, changed) = MutateNode(children[i], newText);
+                        if (changed)
+                        {
+                            children[i] = next;
+                            return (row with { Children = children }, true);
+                        }
                     }
+                    return (row, false);
                 }
-                return (row, false);
-            }
 
             case Surface surface:
-            {
-                var children = surface.Children.ToArray();
-                for (var i = 0; i < children.Length; i++)
                 {
-                    var (next, changed) = MutateNode(children[i], newText);
-                    if (changed)
+                    var children = surface.Children.ToArray();
+                    for (var i = 0; i < children.Length; i++)
                     {
-                        children[i] = next;
-                        return (surface with { Children = children }, true);
+                        var (next, changed) = MutateNode(children[i], newText);
+                        if (changed)
+                        {
+                            children[i] = next;
+                            return (surface with { Children = children }, true);
+                        }
                     }
+                    return (surface, false);
                 }
-                return (surface, false);
-            }
 
             default:
                 return (node, false);

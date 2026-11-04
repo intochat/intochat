@@ -473,12 +473,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       if (viewportRef == null) continue;
 
       final appId = _inferAppId(title, pinNode);
-      if (appId == 'photocraft' || appId == 'filmcraft') {
+      if (appId == 'photocraft' || appId == 'filmcraft' || appId == 'brain') {
         viewportRef = <String, dynamic>{
           'kind': 'view',
           'name': '${widget.brain}/apps/$appId/view',
         };
-      } else if (appId == 'files' && (viewportRef['name'] as String? ?? '').endsWith('/apps/files/main')) {
+      } else if (appId == 'files' &&
+          (viewportRef['name'] as String? ?? '').endsWith('/apps/files/main')) {
         viewportRef = <String, dynamic>{
           'kind': 'view',
           'name': '${widget.brain}/apps/files/view',
@@ -778,6 +779,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
             'application': appId,
             'operation': 'open',
             'input': openInput,
+          });
+          setState(() {
+            _windowStates[w.windowId]?.reloadEpoch++;
           });
         }
         return;

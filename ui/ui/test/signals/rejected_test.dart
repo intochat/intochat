@@ -5,12 +5,10 @@ import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 void main() {
   test('decodes a rule.rejected payload', () {
-    final json =
-        jsonDecode(
-              '{ "operation": "add", "rules": ["positive"], '
-              '"messages": ["-1 is not positive."] }',
-            )
-            as Map<String, dynamic>;
+    final json = jsonDecode(
+      '{ "operation": "add", "rules": ["positive"], '
+      '"messages": ["-1 is not positive."] }',
+    ) as Map<String, dynamic>;
 
     final rejected = Rejected.fromJson(json);
 

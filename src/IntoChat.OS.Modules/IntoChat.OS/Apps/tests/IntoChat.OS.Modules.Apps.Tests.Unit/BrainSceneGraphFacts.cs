@@ -126,5 +126,14 @@ public sealed class BrainSceneGraphFacts
 
         Assert.Equal("tasks", BrainSceneHost.ExtractFocus("{\"focus\":\"tasks\"}"));
         Assert.Equal("ada/apps/notes", BrainSceneHost.ResolveFocusNode("ada", "notes"));
+
+        var uiRoot = BrainSceneGraph.BuildUiRoot(scene, GraphLevel.Neurons, "ada/apps/notes");
+        Assert.Equal("brain-root", uiRoot.Key);
+        var sceneCard = uiRoot.Children.Single(c => c.Key == "brain-scene");
+        Assert.NotNull(sceneCard.Detail);
+        Assert.Contains("\"brain3d\"", sceneCard.Detail);
+        Assert.Contains("\"selectedId\":\"ada/apps/notes\"", sceneCard.Detail);
+        Assert.Contains("\"zoomTargetId\":\"ada/apps/notes\"", sceneCard.Detail);
+        Assert.Contains("\"fromId\":\"ada/apps/notes\"", sceneCard.Detail);
     }
 }

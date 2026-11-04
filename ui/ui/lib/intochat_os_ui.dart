@@ -62,6 +62,7 @@ export 'src/controls/ic_files_finder_view.dart';
 export 'package:lucide_icons_flutter/lucide_icons.dart';
 
 export 'src/design/app_tile.dart';
+
 export 'package:intochat_design_ui/intochat_design_ui.dart'
     show
         BrainScene3D,
@@ -81,5 +82,6 @@ export 'package:intochat_design_ui/intochat_design_ui.dart'
         GraphGroup,
         GraphSnapshot,
         brainSceneFromSnapshot;
+
 export 'src/design/copy/ino_copy.dart';
 export 'src/design/cards/cards.dart';

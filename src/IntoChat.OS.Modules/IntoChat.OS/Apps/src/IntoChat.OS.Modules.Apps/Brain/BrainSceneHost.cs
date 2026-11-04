@@ -10,6 +10,8 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flame.Scene.Signals;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
@@ -58,6 +60,19 @@ internal sealed class BrainSceneHost(
                 _ = OpenAsync(brain, token);
                 return Task.CompletedTask;
             }
+            if (signal.Operation == "drill" && !string.IsNullOrWhiteSpace(signal.Input))
+            {
+                var current = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
+                _views[brain] = BrainSceneGraph.Next(signal.Input.Trim(), current.Level, current.Focus);
+                _ = OpenAsync(brain, token);
+                return Task.CompletedTask;
+            }
+            if (signal.Operation == "focus" && !string.IsNullOrWhiteSpace(signal.Input))
+            {
+                _views[brain] = (GraphLevel.Neurons, ResolveFocusNode(brain, signal.Input.Trim()));
+                _ = OpenAsync(brain, token);
+                return Task.CompletedTask;
+            }
             if (signal.Operation == "open")
             {
                 var focus = ExtractFocus(signal.Input);
@@ -69,7 +84,7 @@ internal sealed class BrainSceneHost(
                 {
                     _views[brain] = (GraphLevel.Neurons, ResolveFocusNode(brain, focus));
                 }
-                else if (_views.TryGetValue(brain, out var existing) && existing == (GraphLevel.Cluster, "tasks"))
+                else
                 {
                     _views[brain] = (GraphLevel.Brain, null);
                 }
@@ -77,6 +92,47 @@ internal sealed class BrainSceneHost(
             }
             return Task.CompletedTask;
         });
+        try
+        {
+            _ = await listeners.Listen<ViewAction>(nameof(BrainSceneHost), (publisher, signal, token) =>
+            {
+                if (publisher.Key != "apps/brain/view" || string.IsNullOrWhiteSpace(signal.Action))
+                {
+                    return Task.CompletedTask;
+                }
+                var brain = publisher.Brain.Value;
+                var act = signal.Action.Trim();
+                if (string.Equals(act, "open", StringComparison.OrdinalIgnoreCase))
+                {
+                    _views[brain] = (GraphLevel.Brain, null);
+                    _ = OpenAsync(brain, token);
+                }
+                else if (string.Equals(act, "work", StringComparison.OrdinalIgnoreCase))
+                {
+                    _views[brain] = (GraphLevel.Cluster, "tasks");
+                    _ = OpenAsync(brain, token);
+                }
+                else if (act.StartsWith("drill:", StringComparison.Ordinal))
+                {
+                    var drill = act["drill:".Length..];
+                    var current = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
+                    _views[brain] = BrainSceneGraph.Next(drill, current.Level, current.Focus);
+                    _ = OpenAsync(brain, token);
+                }
+                else if (act.StartsWith("focus:", StringComparison.Ordinal))
+                {
+                    var focusTarget = act["focus:".Length..];
+                    if (!string.IsNullOrWhiteSpace(focusTarget))
+                    {
+                        _views[brain] = (GraphLevel.Neurons, ResolveFocusNode(brain, focusTarget));
+                        _ = OpenAsync(brain, token);
+                    }
+                }
+                return Task.CompletedTask;
+            });
+        }
+        catch (ArgumentException error)
+        { logger.LogDebug(error, "ViewAction listener for BrainSceneHost will attach when registered."); }
         try
         {
             _ = await listeners.Listen<SceneInput>(nameof(BrainSceneHost), (publisher, signal, token) =>
@@ -90,6 +146,7 @@ internal sealed class BrainSceneHost(
         }
         catch (ArgumentException error)
         { logger.LogWarning(error, "The brain scene will not zoom until Flame signals are registered."); }
+        _ = Task.Run(() => EnsureAsync("owner"), CancellationToken.None);
         cancellationToken.ThrowIfCancellationRequested();
     }
 
@@ -98,22 +155,51 @@ internal sealed class BrainSceneHost(
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
-            if (await HostCaller.ForBrain(services, brain) is { } caller)
+            var caller = await HostCaller.ForBrain(services, brain);
+            if (caller is not null)
             {
                 CallerContextStamper.Stamp(caller);
             }
-            var app = SiloNeurons.Get<IApp>(services, IApp.Key(brain, "brain"));
-            if ((await app.Read()).Manifest is { Title.Length: > 0 }) { return; }
-            await app.Import(BrainScene.Bundle);
+            var appKey = IApp.Key(brain, "brain");
+            var app = SiloNeurons.Get<IApp>(services, appKey);
+            var snapshot = await app.Read();
+            if (snapshot.Manifest is not { Title.Length: > 0 })
+            {
+                await app.Import(BrainScene.Bundle);
+                snapshot = await app.Read();
+            }
+            if (snapshot.Presentation is null && caller is not null)
+            {
+                using var appScope = CallerContextStamper.StampScope(HostCaller.AsApp(caller, appKey));
+                var viewRef = new UiChildRef(UIVocabulary.ViewType, appKey + "/view");
+                await app.Present(
+                    Math.Max(1L, snapshot.ProgramRevision),
+                    new Presentation(
+                        new Sphere("hub", []),
+                        Main: viewRef,
+                        Views: [new PresentationView("full", viewRef)]));
+            }
+            if (caller is not null && caller.BrainId == brain)
+            {
+                var viewNeuron = SiloNeurons.Get<IView>(services, appKey + "/view");
+                var currentView = await viewNeuron.Read();
+                if (currentView is null || currentView.Generation <= 0 || currentView.Root is null)
+                {
+                    var view = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
+                    var definition = await ComposeAsync(brain, view, [], 1);
+                    await PublishUiViewAsync(brain, caller, view, definition);
+                }
+            }
         }
         catch (Exception error) when (error is not OperationCanceledException)
-        { logger.LogWarning(error, "The brain app was not installed in {Brain}.", brain); }
+        { logger.LogWarning(error, "The brain app was not initialized in {Brain}.", brain); }
     }
 
     private async Task OpenAsync(string brain, CancellationToken cancellationToken)
     {
         try
         {
+            await EnsureAsync(brain);
             if (await HostCaller.ForBrain(services, brain) is not { } caller || caller.BrainId != brain) { return; }
             CallerContextStamper.Stamp(caller);
             var view = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
@@ -190,6 +276,22 @@ internal sealed class BrainSceneHost(
     {
         var graph = SiloNeurons.Get<IBrainGraph>(services, brain + "/default");
         var snapshot = await graph.Snapshot(view.Level, view.Focus);
+        if (view.Level == GraphLevel.Neurons && !string.IsNullOrWhiteSpace(view.Focus) && snapshot.IndexOf(view.Focus) < 0)
+        {
+            await graph.Rebuild();
+            snapshot = await graph.Snapshot(view.Level, view.Focus);
+            if (snapshot.IndexOf(view.Focus) < 0 && view.Focus.EndsWith("/apps/datavisualizer", StringComparison.OrdinalIgnoreCase))
+            {
+                var alt = IApp.Key(brain, "data");
+                var altSnap = await graph.Snapshot(view.Level, alt);
+                if (altSnap.IndexOf(alt) >= 0)
+                {
+                    view = (view.Level, alt);
+                    _views[brain] = view;
+                    snapshot = altSnap;
+                }
+            }
+        }
         IReadOnlyList<AppNavigated> navigations = [];
         if (_navigations.TryGetValue(brain, out var list))
         {
@@ -250,8 +352,26 @@ internal sealed class BrainSceneHost(
         return IApp.Key(brain, focus);
     }
 
+    private async Task PublishUiViewAsync(string brain, CapabilityCaller caller, (GraphLevel Level, string? Focus) view, SceneDefinition definition)
+    {
+        CallerContextStamper.Stamp(caller);
+        var uiScene = definition;
+        if (view.Level == GraphLevel.Brain && string.IsNullOrWhiteSpace(view.Focus) && definition.Nodes.Count(n => n.Type == "sphere") < 3)
+        {
+            uiScene = await ComposeAsync(brain, (GraphLevel.Neurons, null), [], definition.Camera.Zoom);
+        }
+        var uiRoot = BrainSceneGraph.BuildUiRoot(uiScene, view.Level, view.Focus);
+        var viewNeuron = SiloNeurons.Get<IView>(services, IApp.Key(brain, "brain") + "/view");
+        var currentView = await viewNeuron.Read();
+        var gen = currentView is { Generation: > 0 } ? currentView.Generation : 1L;
+        var nextVersion = (currentView?.Version ?? 0L) + 1L;
+        await viewNeuron.Publish(new UiView(gen, nextVersion, uiRoot));
+    }
+
     private async Task SetAsync(string brain, CapabilityCaller caller, SceneDefinition definition, CancellationToken cancellationToken)
     {
+        var view = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
+        await PublishUiViewAsync(brain, caller, view, definition);
         var scene = SiloNeurons.Get<IScene>(services, IScene.Key(brain, "brain", BrainScene.SceneName));
         for (var attempt = 0; attempt < 2; attempt++)
         {

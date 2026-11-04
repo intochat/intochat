@@ -614,11 +614,7 @@ class _ImmutableView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            UiInfoBar(
-              severity: severity,
-              title: infoTitle,
-              body: infoBody,
-            ),
+            UiInfoBar(severity: severity, title: infoTitle, body: infoBody),
             if (widgets.isNotEmpty) ...[
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 6, children: widgets),
@@ -724,8 +720,10 @@ class _ImmutableView extends StatelessWidget {
         final stateRaw = (meta['state'] as String? ?? 'pending').toLowerCase();
         if (approvalId.startsWith('change')) {
           final changeState = switch (stateRaw) {
-            'approved' || 'applied' || 'settled' || 'done' =>
-              ChangeState.applied,
+            'approved' ||
+            'applied' ||
+            'settled' ||
+            'done' => ChangeState.applied,
             'rejected' || 'denied' || 'cancelled' => ChangeState.cancelled,
             _ => ChangeState.pending,
           };
@@ -923,7 +921,8 @@ class _ImmutableView extends StatelessWidget {
                   const FileChip(
                     file: FileRef(
                       name: 'nordlys-arr-2026.csv',
-                      path: 'neuron://nordlys/storage.files/nordlys-arr-2026.csv',
+                      path:
+                          'neuron://nordlys/storage.files/nordlys-arr-2026.csv',
                       icon: LucideIcons.fileSpreadsheet,
                       size: '48 KB',
                       where: '30 Projects › Nordlys AS',
@@ -933,10 +932,7 @@ class _ImmutableView extends StatelessWidget {
               ),
               FileCard(
                 source: _cardSource(context, 'Files Vault'),
-                data: FileCardData(
-                  file: fileRef,
-                  note: note,
-                ),
+                data: FileCardData(file: fileRef, note: note),
                 state: FileCardState.saved,
                 onOpen: openAction,
                 onReveal: openAction,
@@ -956,7 +952,8 @@ class _ImmutableView extends StatelessWidget {
                 RecordField(
                   '${f['key'] ?? ''}',
                   '${f['value'] ?? ''}',
-                  warn: '${f['value'] ?? ''}'.toLowerCase().contains('ago') ||
+                  warn:
+                      '${f['value'] ?? ''}'.toLowerCase().contains('ago') ||
                       '${f['value'] ?? ''}'.toLowerCase().contains('overdue'),
                 ),
             ],
@@ -1018,6 +1015,14 @@ class _ImmutableView extends StatelessWidget {
         final rawNodes = (meta['nodes'] as List? ?? const [])
             .whereType<Map>()
             .toList();
+        var maxCoord = 1.0;
+        for (final n in rawNodes) {
+          final rx = ((n['x'] as num?)?.toDouble() ?? 0.0).abs();
+          final ry = ((n['y'] as num?)?.toDouble() ?? 0.0).abs();
+          final rz = ((n['z'] as num?)?.toDouble() ?? 0.0).abs();
+          maxCoord = max(maxCoord, max(rx, max(ry, rz)));
+        }
+        final coordScale = maxCoord > 1.5 ? max(120.0, maxCoord * 1.15) : 1.0;
         final nodes3d = <BrainNode3D>[
           for (var i = 0; i < rawNodes.length; i++)
             () {
@@ -1031,7 +1036,7 @@ class _ImmutableView extends StatelessWidget {
                 final rz = (n['z'] as num?)?.toDouble() ?? 0.0;
                 final scale =
                     (rx.abs() > 1.5 || ry.abs() > 1.5 || rz.abs() > 1.5)
-                    ? 120.0
+                    ? coordScale
                     : 1.0;
                 pos = (rx / scale, ry / scale, rz / scale);
               } else {
@@ -1050,6 +1055,22 @@ class _ImmutableView extends StatelessWidget {
                       );
               }
               final nodeId = '${n['id'] ?? ''}';
+              final kindRaw = '${n['kind'] ?? 'app'}'.toLowerCase();
+              final nodeKind = switch (kindRaw) {
+                'assistant' || 'run' => BrainNodeKind.assistant,
+                'storage' || 'secret' => BrainNodeKind.storage,
+                'compute' || 'neuron' => BrainNodeKind.compute,
+                'model' => BrainNodeKind.model,
+                'workflow' || 'operation' || 'signal' => BrainNodeKind.workflow,
+                _ => BrainNodeKind.app,
+              };
+              final explicitAppId = n['appId'] as String?;
+              final resolvedAppId =
+                  (explicitAppId != null && explicitAppId.isNotEmpty)
+                  ? explicitAppId
+                  : (nodeId.startsWith('app.')
+                        ? nodeId.substring(4)
+                        : (nodeKind == BrainNodeKind.app ? nodeId : null));
               final sigs =
                   (n['signalsPerMin'] as num?)?.toInt() ??
                   switch (nodeId) {
@@ -1064,11 +1085,11 @@ class _ImmutableView extends StatelessWidget {
                 uri:
                     '${n['uri'] ?? n['subtitle'] ?? 'neuron://owner/${n['category'] ?? 'os'}/$nodeId'}',
                 label: '${n['label'] ?? ''}',
-                kind: BrainNodeKind.app,
+                kind: nodeKind,
                 moduleId: '${n['category'] ?? 'DigitalBrain'}',
                 subtitle: n['subtitle'] as String?,
                 signalsPerMin: sigs,
-                appId: nodeId.startsWith('app.') ? nodeId.substring(4) : nodeId,
+                appId: resolvedAppId,
                 position: pos,
                 status: switch ('${n['status'] ?? 'healthy'}'.toLowerCase()) {
                   'pulse' || 'working' => BrainNodeStatus.working,
@@ -1390,11 +1411,12 @@ class _ImmutableView extends StatelessWidget {
             children[0]['key'] == 'side' &&
             children[1]['key'] == 'root') {
           final c = UiColors.of(context);
-          final sideWidth =
-              switch ((node['extents'] as List?)?.elementAtOrNull(0)) {
-                final num w when w > 1 => w.toDouble(),
-                _ => 260.0,
-              };
+          final sideWidth = switch ((node['extents'] as List?)?.elementAtOrNull(
+            0,
+          )) {
+            final num w when w > 1 => w.toDouble(),
+            _ => 260.0,
+          };
           content = LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth < 720) {
@@ -1446,7 +1468,10 @@ class _ImmutableView extends StatelessWidget {
             extents[0] is num &&
             (extents[0] as num) >= 400 &&
             (extents[1] as num? ?? 0) == 0) {
-          final splitGap = (node['gap'] as num? ?? 14).toDouble().clamp(0.0, 32.0);
+          final splitGap = (node['gap'] as num? ?? 14).toDouble().clamp(
+            0.0,
+            32.0,
+          );
           final trailingWidth = (extents[0] as num) >= 500 ? 284.0 : 360.0;
           content = LayoutBuilder(
             builder: (context, constraints) {
@@ -1586,7 +1611,9 @@ class _ImmutableView extends StatelessWidget {
             'error' || 'danger' => TagTone.error,
             _ => TagTone.neutral,
           };
-          final iconSlug = node['icon'] is String ? node['icon'] as String : null;
+          final iconSlug = node['icon'] is String
+              ? node['icon'] as String
+              : null;
           content = TagPill(
             label: text,
             tone: pillTone,
@@ -3731,7 +3758,8 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
       final turnAdded = widget.turns.length != _turnsAtSubmit;
       final cardAdded = widget.cards.length != _cardsAtSubmit;
       final convChanged = widget.activeConversationId != _convIdAtSubmit;
-      final matchedLastTurn = widget.turns.isNotEmpty &&
+      final matchedLastTurn =
+          widget.turns.isNotEmpty &&
           widget.turns.last.userMessage == _pendingUserPrompt;
       if (turnAdded || cardAdded || convChanged || matchedLastTurn) {
         _thinkingTimeout?.cancel();
@@ -3754,7 +3782,9 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
     if (trimmed.isEmpty) return;
     _thinkingTimeout?.cancel();
     setState(() {
-      if (!trimmed.startsWith('/clear') && !trimmed.startsWith('/new') && !trimmed.startsWith('/pin')) {
+      if (!trimmed.startsWith('/clear') &&
+          !trimmed.startsWith('/new') &&
+          !trimmed.startsWith('/pin')) {
         _pendingUserPrompt = trimmed;
         _pendingStageLabel = _describeThinkingStage(trimmed);
         _turnsAtSubmit = widget.turns.length;
@@ -3830,7 +3860,8 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
                       showSidebarToggle: !canShowSidebar,
                     ),
                     Expanded(
-                      child: widget.turns.isEmpty &&
+                      child:
+                          widget.turns.isEmpty &&
                               widget.cards.isEmpty &&
                               _pendingUserPrompt == null
                           ? _buildEmptyState(c)
@@ -4240,10 +4271,7 @@ class _InoChatDesktopWorkspaceState extends State<_InoChatDesktopWorkspace> {
           child: SizedBox(
             width: 13,
             height: 13,
-            child: CircularProgressIndicator(
-              strokeWidth: 1.8,
-              color: c.accent,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 1.8, color: c.accent),
           ),
         ),
         const SizedBox(width: 12),
@@ -5231,7 +5259,8 @@ class _InteractiveMarkdrawStudioCard extends StatefulWidget {
   final String status;
   final String? lastExportPath;
   final double height;
-  final void Function(String serializedContent, String documentPath) onSyncScene;
+  final void Function(String serializedContent, String documentPath)
+  onSyncScene;
   final void Function(String format) onExport;
 
   @override
@@ -5242,9 +5271,7 @@ class _InteractiveMarkdrawStudioCard extends StatefulWidget {
 class _InteractiveMarkdrawStudioCardState
     extends State<_InteractiveMarkdrawStudioCard> {
   late final md.MarkdrawController _controller = md.MarkdrawController(
-    config: const md.MarkdrawEditorConfig(
-      initialBackground: '#0f172a',
-    ),
+    config: const md.MarkdrawEditorConfig(initialBackground: '#0f172a'),
   );
   String _lastLoadedContent = '';
   int _lastLoadedRevision = -1;

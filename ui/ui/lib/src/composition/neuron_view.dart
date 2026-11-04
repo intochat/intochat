@@ -7,6 +7,7 @@ import '../components/kit/kit_toast.dart';
 import '../components/kit/ui_kit_surface.dart';
 import '../components/kit/ui_kit_switch.dart';
 import '../design/app_tile.dart';
+
 import 'package:intochat_design_ui/intochat_design_ui.dart'
     show
         BrainScene3D,
@@ -16,6 +17,7 @@ import 'package:intochat_design_ui/intochat_design_ui.dart'
         BrainNodeKind,
         defaultBrainNodes,
         defaultBrainSynapses;
+
 import '../design/cards/cards.dart';
 import '../design/controls.dart';
 import '../design/copy/ino_copy.dart';
@@ -1165,9 +1167,7 @@ class _NeuronViewState extends State<NeuronView> {
           children: children,
         );
       case 'graph':
-        return UiGraph(
-          part: UiGraphPart.fromMetadata(definition),
-        );
+        return UiGraph(part: UiGraphPart.fromMetadata(definition));
       default:
         return _FallbackRenderer(kind: widget.kind);
     }

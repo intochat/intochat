@@ -636,8 +636,9 @@ class _NeuronSynapticBackgroundState extends State<_NeuronSynapticBackground>
   @override
   void initState() {
     super.initState();
-    final isTest =
-        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    final isTest = WidgetsBinding.instance.runtimeType.toString().contains(
+      'Test',
+    );
     if (!isTest) {
       _ticker.repeat();
     }

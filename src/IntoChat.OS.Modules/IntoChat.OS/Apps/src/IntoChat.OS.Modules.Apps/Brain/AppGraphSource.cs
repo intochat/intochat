@@ -3,6 +3,8 @@ using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Graph;
 using DigitalBrain.Runtime.Apps;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
@@ -18,33 +20,83 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
     public async Task Contribute(BrainId brain, GraphSink sink, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sink);
-        var kernel = services.GetRequiredService<IBrainObserver>();
-        var proxies = services.GetRequiredService<INeuronProxies>();
+        var kernel = services.GetService<IBrainObserver>();
+        var proxies = services.GetService<INeuronProxies>();
         var inProcess = services.GetService<InProcessAppHost>();
-        List<(string Name, AppSnapshot Snapshot)> apps = [];
-        try
+        if (!RuntimeCallerContext.TryGet(out var existingCaller) || existingCaller.BrainId != brain.Value)
         {
-            await foreach (var instance in kernel.Instances<IApp>(cancellationToken).ConfigureAwait(false))
+            if (await HostCaller.ForBrain(services, brain.Value).ConfigureAwait(false) is { } caller)
             {
-                if (IApp.NameOf(brain.Value, instance.Key) is not { } name || sink.IndexOf(instance.Key) < 0) { continue; }
-                apps.Add((name, await proxies.Get<IApp>(instance.Key).Read().WaitAsync(cancellationToken).ConfigureAwait(false)));
+                RuntimeCallerContext.Stamp(caller);
             }
         }
-        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or UnauthorizedAccessException)
+        List<(string Name, AppSnapshot Snapshot)> apps = [];
+        if (kernel is not null)
         {
-            // No kernel or app neuron for this brain (a minimal host), or no right to read one: the apps stay plain nodes.
-            return;
-        }
-        Contribute(brain, sink, apps);
-        if (inProcess is not null)
-        {
-            foreach (var (name, _) in apps)
+            try
             {
-                var key = IApp.Key(brain.Value, name);
-                if (inProcess.TryGetTurns(key) is { } turns)
+                await foreach (var instance in kernel.Instances<IApp>(cancellationToken).ConfigureAwait(false))
                 {
-                    ContributeSubscriptions(brain, sink, key, turns.Definition.SignalSubscriptions, turns.App.DeclaredWatches());
+                    if (IApp.NameOf(brain.Value, instance.Key) is not { } name || sink.IndexOf(instance.Key) < 0) { continue; }
+                    var appProxy = proxies is not null
+                        ? proxies.Get<IApp>(instance.Key)
+                        : SiloNeurons.Get<IApp>(services, instance.Key);
+                    apps.Add((name, await appProxy.Read().WaitAsync(cancellationToken).ConfigureAwait(false)));
                 }
+            }
+            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or UnauthorizedAccessException)
+            {
+                // No kernel or app neuron for this brain (a minimal host), or no right to read one: fall back to compiled registrations.
+            }
+        }
+
+        var compiledTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
+        var rootIdx = sink.IndexOf(brain.Value);
+        foreach (var assembly in services.GetServices<CompiledAppsRegistration>().Select(r => r.Assembly).Append(typeof(AppsModule).Assembly).Distinct())
+        {
+            foreach (var compiled in CompiledApps.Of(assembly))
+            {
+                var name = compiled.Bundle.Name;
+                var key = IApp.Key(brain.Value, name);
+                if (sink.IndexOf(key) < 0)
+                {
+                    var nodeIdx = sink.Node(key, GraphNodeKind.App, string.IsNullOrWhiteSpace(compiled.Bundle.Manifest.Title) ? "apps/" + name : compiled.Bundle.Manifest.Title);
+                    if (rootIdx >= 0) { sink.Edge(rootIdx, nodeIdx, GraphEdgeKind.Owns); }
+                }
+                if (apps.All(a => !string.Equals(a.Name, name, StringComparison.Ordinal)))
+                {
+                    apps.Add((name, new AppSnapshot(
+                        name,
+                        compiled.Bundle.Manifest,
+                        compiled.Bundle.Spec,
+                        [],
+                        [],
+                        [],
+                        compiled.Bundle.Version,
+                        AppStatus.Live,
+                        [],
+                        [])));
+                }
+                if (!string.IsNullOrWhiteSpace(compiled.Bundle.CompiledType)
+                    && Type.GetType(compiled.Bundle.CompiledType, throwOnError: false) is { } resolvedType)
+                {
+                    compiledTypes[name] = resolvedType;
+                }
+            }
+        }
+
+        Contribute(brain, sink, apps);
+        foreach (var (name, _) in apps)
+        {
+            var key = IApp.Key(brain.Value, name);
+            if (inProcess?.TryGetTurns(key) is { } turns)
+            {
+                ContributeSubscriptions(brain, sink, key, turns.Definition.SignalSubscriptions, turns.App.DeclaredWatches());
+            }
+            else if (compiledTypes.TryGetValue(name, out var appType))
+            {
+                var def = new AppDefinition(appType);
+                ContributeSubscriptions(brain, sink, key, def.SignalSubscriptions, []);
             }
         }
     }

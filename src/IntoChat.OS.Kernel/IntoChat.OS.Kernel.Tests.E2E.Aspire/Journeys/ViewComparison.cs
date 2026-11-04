@@ -58,55 +58,55 @@ public static class ViewComparison
         switch (expected.ValueKind)
         {
             case JsonValueKind.Object:
-            {
-                var expectedProps = expected.EnumerateObject().ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal);
-                var actualProps = actual.EnumerateObject().ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal);
-
-                foreach (var prop in expected.EnumerateObject())
                 {
-                    var childPointer = $"{currentPointer}/{EscapePointerSegment(prop.Name)}";
-                    if (!actualProps.TryGetValue(prop.Name, out var actualVal))
-                    {
-                        return childPointer;
-                    }
-                    if (FindFirstDiffPointer(prop.Value, actualVal, childPointer) is { } diff)
-                    {
-                        return diff;
-                    }
-                }
+                    var expectedProps = expected.EnumerateObject().ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal);
+                    var actualProps = actual.EnumerateObject().ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal);
 
-                foreach (var prop in actual.EnumerateObject())
-                {
-                    if (!expectedProps.ContainsKey(prop.Name))
+                    foreach (var prop in expected.EnumerateObject())
                     {
-                        return $"{currentPointer}/{EscapePointerSegment(prop.Name)}";
+                        var childPointer = $"{currentPointer}/{EscapePointerSegment(prop.Name)}";
+                        if (!actualProps.TryGetValue(prop.Name, out var actualVal))
+                        {
+                            return childPointer;
+                        }
+                        if (FindFirstDiffPointer(prop.Value, actualVal, childPointer) is { } diff)
+                        {
+                            return diff;
+                        }
                     }
-                }
 
-                return null;
-            }
+                    foreach (var prop in actual.EnumerateObject())
+                    {
+                        if (!expectedProps.ContainsKey(prop.Name))
+                        {
+                            return $"{currentPointer}/{EscapePointerSegment(prop.Name)}";
+                        }
+                    }
+
+                    return null;
+                }
 
             case JsonValueKind.Array:
-            {
-                var expectedItems = expected.EnumerateArray().ToArray();
-                var actualItems = actual.EnumerateArray().ToArray();
-                var minLen = Math.Min(expectedItems.Length, actualItems.Length);
-                for (var i = 0; i < minLen; i++)
                 {
-                    var childPointer = $"{currentPointer}/{i}";
-                    if (FindFirstDiffPointer(expectedItems[i], actualItems[i], childPointer) is { } diff)
+                    var expectedItems = expected.EnumerateArray().ToArray();
+                    var actualItems = actual.EnumerateArray().ToArray();
+                    var minLen = Math.Min(expectedItems.Length, actualItems.Length);
+                    for (var i = 0; i < minLen; i++)
                     {
-                        return diff;
+                        var childPointer = $"{currentPointer}/{i}";
+                        if (FindFirstDiffPointer(expectedItems[i], actualItems[i], childPointer) is { } diff)
+                        {
+                            return diff;
+                        }
                     }
-                }
 
-                if (expectedItems.Length != actualItems.Length)
-                {
-                    return $"{currentPointer}/{minLen}";
-                }
+                    if (expectedItems.Length != actualItems.Length)
+                    {
+                        return $"{currentPointer}/{minLen}";
+                    }
 
-                return null;
-            }
+                    return null;
+                }
 
             default:
                 return string.Equals(expected.GetRawText(), actual.GetRawText(), StringComparison.Ordinal)

@@ -1,8 +1,11 @@
 using System.Globalization;
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Graph;
 using IntoChat.OS.Modules.Flame.Scene;
+using IntoChat.OS.Modules.Flutter.Views;
 using DigitalBrain.Signals.Watch;
+using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -86,6 +89,8 @@ public static partial class BrainSceneGraph
                 var pathParameters = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["d"] = string.Create(CultureInfo.InvariantCulture, $"M {a.X:0.###} {a.Y:0.###} L {b.X:0.###} {b.Y:0.###}"),
+                    ["from"] = graph.Ids[from],
+                    ["to"] = graph.Ids[to],
                     ["kind"] = kind.ToString().ToLowerInvariant(),
                     ["color"] = lit ? BrainScene.GoldTrailColor : ColorOf(kind),
                     ["weight"] = graph.Weights[e].ToString("0.##", CultureInfo.InvariantCulture),
@@ -124,10 +129,13 @@ public static partial class BrainSceneGraph
                 var nav = navigations[n];
                 var appId = ResolveAppNode(at, nav.App);
                 if (appId is null || !at.TryGetValue(appId, out var a)) { continue; }
+                var navTargetId = at.ContainsKey(appId + "#" + nav.Cause) ? appId + "#" + nav.Cause : appId;
                 var b = at.TryGetValue(appId + "#" + nav.Cause, out var opPos) ? opPos : (X: a.X + 36, Y: a.Y - 24);
                 var navPathParams = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["d"] = string.Create(CultureInfo.InvariantCulture, $"M {a.X:0.###} {a.Y:0.###} L {b.X:0.###} {b.Y:0.###}"),
+                    ["from"] = appId,
+                    ["to"] = navTargetId,
                     ["kind"] = "navigates",
                     ["color"] = BrainScene.GoldTrailColor,
                     ["cause"] = nav.Cause,
@@ -289,5 +297,125 @@ public static partial class BrainSceneGraph
         if (drill.StartsWith("cluster:", StringComparison.Ordinal)) { return (GraphLevel.Cluster, drill["cluster:".Length..]); }
         if (drill.StartsWith("neurons:", StringComparison.Ordinal)) { return (GraphLevel.Neurons, drill["neurons:".Length..]); }
         return (level, focus);
+    }
+
+    public static UiNode BuildUiRoot(SceneDefinition definition, GraphLevel level, string? focus)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        var spheres = definition.Nodes.Where(n => n.Type == "sphere").ToArray();
+        var paths = definition.Nodes.Where(n => n.Type == "path").ToArray();
+        var isWorkMode = string.Equals(focus, "tasks", StringComparison.OrdinalIgnoreCase);
+
+        string? selectedId = null;
+        string? zoomTargetId = null;
+        if (!string.IsNullOrWhiteSpace(focus))
+        {
+            var matched = spheres.FirstOrDefault(s =>
+                string.Equals(s.Parameters.GetValueOrDefault("graphId"), focus, StringComparison.Ordinal)
+                || string.Equals(s.Parameters.GetValueOrDefault("neuron"), focus, StringComparison.Ordinal));
+            selectedId = matched?.Parameters.GetValueOrDefault("graphId") ?? spheres.FirstOrDefault()?.Parameters.GetValueOrDefault("graphId") ?? focus;
+            zoomTargetId = selectedId;
+        }
+        else if (spheres.Length > 0)
+        {
+            selectedId = spheres[0].Parameters.GetValueOrDefault("graphId", spheres[0].Id);
+        }
+
+        var nodesMeta = spheres.Select((s, index) =>
+        {
+            var id = s.Parameters.GetValueOrDefault("graphId", s.Id);
+            var label = s.Parameters.GetValueOrDefault("title", id);
+            var category = s.Parameters.GetValueOrDefault("kind", "neuron");
+            var neuron = s.Parameters.GetValueOrDefault("neuron", id);
+            var uri = neuron.StartsWith("neuron://", StringComparison.Ordinal) ? neuron : "neuron://" + neuron;
+            var subtitle = s.Parameters.GetValueOrDefault("description", uri);
+            var pulsing = s.Parameters.TryGetValue("pulse", out var p) && string.Equals(p, "true", StringComparison.OrdinalIgnoreCase);
+            var isFocused = !string.IsNullOrWhiteSpace(focus) && string.Equals(id, focus, StringComparison.Ordinal);
+            var status = pulsing ? "working" : (isFocused ? "done" : "healthy");
+            return new
+            {
+                id,
+                label,
+                category,
+                uri,
+                subtitle,
+                status,
+                x = Math.Round(s.Transform.X, 2),
+                y = Math.Round(s.Transform.Y, 2),
+                z = Math.Round(Math.Sin(index * 1.1) * 45.0, 2),
+            };
+        }).ToArray();
+
+        var synapsesMeta = paths
+            .Where(e => e.Parameters.ContainsKey("from") && e.Parameters.ContainsKey("to"))
+            .Select(e =>
+            {
+                var fromId = e.Parameters.GetValueOrDefault("from", string.Empty);
+                var toId = e.Parameters.GetValueOrDefault("to", string.Empty);
+                var signalType = e.Parameters.TryGetValue("cause", out var cause) && !string.IsNullOrWhiteSpace(cause)
+                    ? $"navigates:{cause}"
+                    : e.Parameters.GetValueOrDefault("kind", "signal");
+                int? trailStep = e.Parameters.TryGetValue("step", out var stepStr)
+                    && int.TryParse(stepStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedStep)
+                    ? parsedStep
+                    : null;
+                return new
+                {
+                    fromId,
+                    toId,
+                    active = true,
+                    signalType,
+                    trailStep,
+                };
+            }).ToArray();
+
+        var metaJson = JsonSerializer.Serialize(new
+        {
+            _ui = "brain3d",
+            selectedId,
+            pauseRotation = !string.IsNullOrWhiteSpace(focus),
+            zoomTargetId,
+            targetZoom = !string.IsNullOrWhiteSpace(focus) ? 1.75 : Math.Max(1.0, definition.Camera.Zoom),
+            height = 520.0,
+            interactive = true,
+            showHud = true,
+            nodes = nodesMeta,
+            synapses = synapsesMeta,
+        });
+
+        var nodeButtons = spheres.Select((s, index) =>
+        {
+            var id = s.Parameters.GetValueOrDefault("graphId", s.Id);
+            var label = s.Parameters.GetValueOrDefault("title", id);
+            var action = s.Parameters.TryGetValue(DrillParameter, out var drill) && !string.IsNullOrWhiteSpace(drill)
+                ? $"drill:{drill}"
+                : $"focus:{id}";
+            return Ui.Button($"brain-scene.node.{index}", string.IsNullOrWhiteSpace(label) ? id : label, action);
+        }).ToArray();
+
+        UiNode[] toolbarChildren = !string.IsNullOrWhiteSpace(focus)
+            ?
+            [
+                Ui.Button("brain-mode-all", "Brain", "open", style: isWorkMode ? UiStyle.Secondary : UiStyle.Primary, icon: "hub"),
+                Ui.Button("brain-mode-work", "Work", "work", style: isWorkMode ? UiStyle.Primary : UiStyle.Secondary, icon: "checklist"),
+                Ui.Button("brain-reset-focus", $"Focus: {focus} ×", "open", style: UiStyle.Ghost),
+                Ui.Badge("brain-level-badge", $"Level: {level}", UiTone.Working),
+                Ui.Badge("brain-counts-badge", $"{spheres.Length} neurons · {paths.Length} synapses", UiTone.Neutral),
+            ]
+            :
+            [
+                Ui.Button("brain-mode-all", "Brain", "open", style: isWorkMode ? UiStyle.Secondary : UiStyle.Primary, icon: "hub"),
+                Ui.Button("brain-mode-work", "Work", "work", style: isWorkMode ? UiStyle.Primary : UiStyle.Secondary, icon: "checklist"),
+                Ui.Badge("brain-level-badge", $"Level: {level}", UiTone.Working),
+                Ui.Badge("brain-counts-badge", $"{spheres.Length} neurons · {paths.Length} synapses", UiTone.Neutral),
+            ];
+
+        return Ui.Column(
+            "brain-root",
+            [
+                Ui.Row("brain-toolbar", toolbarChildren, gap: 8),
+                Ui.Card("brain-scene", "Brain Scene 3D", metaJson, nodeButtons),
+            ],
+            gap: 12);
     }
 }

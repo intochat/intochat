@@ -909,7 +909,10 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Container(
-                      constraints: const BoxConstraints(minWidth: 248, maxWidth: 280),
+                      constraints: const BoxConstraints(
+                        minWidth: 248,
+                        maxWidth: 280,
+                      ),
                       padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
                       decoration: BoxDecoration(
                         color: c.surfaceCard,
@@ -1506,8 +1509,7 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
       'ico' ||
       'avif' ||
       'tiff' ||
-      'tif' =>
-        'image',
+      'tif' => 'image',
       'mp3' || 'wav' || 'ogg' || 'flac' || 'm4a' || 'aac' || 'wma' => 'audio',
       'mp4' || 'webm' || 'mov' || 'mkv' || 'avi' || 'm4v' => 'video',
       'pdf' => 'pdf',
@@ -1537,8 +1539,7 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
       'h' ||
       'env' ||
       'ini' ||
-      'conf' =>
-        'code',
+      'conf' => 'code',
       _ => 'text',
     };
   }
@@ -1635,7 +1636,10 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
           ),
           if (widget.previewNote != null) ...[
             const SizedBox(height: 4),
-            Text(widget.previewNote!, style: IcType.text(11, color: c.textMuted)),
+            Text(
+              widget.previewNote!,
+              style: IcType.text(11, color: c.textMuted),
+            ),
           ],
         ],
       );
@@ -1677,7 +1681,10 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
           ),
           if (widget.previewNote != null) ...[
             const SizedBox(height: 4),
-            Text(widget.previewNote!, style: IcType.text(11, color: c.textMuted)),
+            Text(
+              widget.previewNote!,
+              style: IcType.text(11, color: c.textMuted),
+            ),
           ],
         ],
       );
@@ -1714,7 +1721,10 @@ class _IcFilesFinderViewState extends State<IcFilesFinderView> {
           ),
           if (widget.previewNote != null) ...[
             const SizedBox(height: 4),
-            Text(widget.previewNote!, style: IcType.text(11, color: c.textMuted)),
+            Text(
+              widget.previewNote!,
+              style: IcType.text(11, color: c.textMuted),
+            ),
           ],
         ],
       );
@@ -1756,7 +1766,8 @@ class _FinderAudioPreviewCard extends StatefulWidget {
   final IcColors colors;
 
   @override
-  State<_FinderAudioPreviewCard> createState() => _FinderAudioPreviewCardState();
+  State<_FinderAudioPreviewCard> createState() =>
+      _FinderAudioPreviewCardState();
 }
 
 class _FinderAudioPreviewCardState extends State<_FinderAudioPreviewCard> {
@@ -1766,7 +1777,9 @@ class _FinderAudioPreviewCardState extends State<_FinderAudioPreviewCard> {
   Widget build(BuildContext context) {
     final c = widget.colors;
     final dot = widget.name.lastIndexOf('.');
-    final ext = dot >= 0 ? widget.name.substring(dot + 1).toUpperCase() : 'AUDIO';
+    final ext = dot >= 0
+        ? widget.name.substring(dot + 1).toUpperCase()
+        : 'AUDIO';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1798,7 +1811,11 @@ class _FinderAudioPreviewCardState extends State<_FinderAudioPreviewCard> {
                       widget.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IcType.text(12.5, weight: FontWeight.w600, color: c.textStrong),
+                      style: IcType.text(
+                        12.5,
+                        weight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -1907,7 +1924,9 @@ class _FinderVideoPreviewCard extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.85),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(IcRadius.sm)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(IcRadius.sm),
+                ),
               ),
               child: Center(
                 child: GestureDetector(
@@ -1939,7 +1958,11 @@ class _FinderVideoPreviewCard extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IcType.text(12.5, weight: FontWeight.w600, color: c.textStrong),
+                  style: IcType.text(
+                    12.5,
+                    weight: FontWeight.w600,
+                    color: c.textStrong,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -2003,7 +2026,11 @@ class _FinderPdfPreviewCard extends StatelessWidget {
                   color: Colors.red.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(IcRadius.xs),
                 ),
-                child: const Icon(LucideIcons.fileSpreadsheet, size: 20, color: Colors.red),
+                child: const Icon(
+                  LucideIcons.fileSpreadsheet,
+                  size: 20,
+                  color: Colors.red,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -2014,7 +2041,11 @@ class _FinderPdfPreviewCard extends StatelessWidget {
                       name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IcType.text(12.5, weight: FontWeight.w600, color: c.textStrong),
+                      style: IcType.text(
+                        12.5,
+                        weight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(

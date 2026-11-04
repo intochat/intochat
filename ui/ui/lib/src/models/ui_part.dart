@@ -711,23 +711,24 @@ final class UiGraphPart extends UiPart {
   String get kind => kindName;
 
   @override
-  String get copyText => '$title (${nodes.length} nodes, ${edges.length} edges)';
+  String get copyText =>
+      '$title (${nodes.length} nodes, ${edges.length} edges)';
 
   factory UiGraphPart.fromMetadata(Map<String, dynamic> metadata) {
     final rawNodes = metadata['nodes'];
     final nodes = rawNodes is List
         ? rawNodes
-            .whereType<Map>()
-            .map((n) => UiGraphNode.fromJson(Map<String, dynamic>.from(n)))
-            .toList(growable: false)
+              .whereType<Map>()
+              .map((n) => UiGraphNode.fromJson(Map<String, dynamic>.from(n)))
+              .toList(growable: false)
         : const <UiGraphNode>[];
 
     final rawEdges = metadata['edges'];
     final edges = rawEdges is List
         ? rawEdges
-            .whereType<Map>()
-            .map((e) => UiGraphEdge.fromJson(Map<String, dynamic>.from(e)))
-            .toList(growable: false)
+              .whereType<Map>()
+              .map((e) => UiGraphEdge.fromJson(Map<String, dynamic>.from(e)))
+              .toList(growable: false)
         : const <UiGraphEdge>[];
 
     return UiGraphPart(
@@ -745,4 +746,3 @@ final class UiGraphPart extends UiPart {
     'edges': [for (final edge in edges) edge.toJson()],
   };
 }
-

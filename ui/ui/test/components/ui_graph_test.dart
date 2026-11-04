@@ -4,7 +4,9 @@ import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:intochat_os_ui/src/components/graph/ui_graph.dart';
 
 void main() {
-  testWidgets('UiGraph renders title, nodes, and property inspector', (tester) async {
+  testWidgets('UiGraph renders title, nodes, and property inspector', (
+    tester,
+  ) async {
     const part = UiGraphPart(
       title: 'Neural Network',
       nodes: [
@@ -36,9 +38,7 @@ void main() {
 
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(
-          body: UiGraph(part: part),
-        ),
+        home: Scaffold(body: UiGraph(part: part)),
       ),
     );
     await tester.pumpAndSettle();

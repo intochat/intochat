@@ -118,6 +118,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
       });
     }
   }
+
   @override
   void initState() {
     super.initState();
@@ -416,6 +417,17 @@ class WorkspaceAppState extends State<WorkspaceApp>
           'activate',
           jsonEncode(action),
         );
+        if (_isDesktopRoot) {
+          if (action['operation'] case final String operation
+              when app != null && app != receiver) {
+            await client.requestApp(
+              brain,
+              app,
+              operation,
+              action['input'] as String? ?? '',
+            );
+          }
+        }
         return;
       }
       if (neuron != null && !changingBrain) {

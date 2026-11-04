@@ -52,7 +52,8 @@ final class UiImage extends StatelessWidget {
     final c = UiColors.of(context);
     final type = UiType.of(context);
     final remote = _remote;
-    final isSvg = (url?.toLowerCase().contains('.svg') ?? false) ||
+    final isSvg =
+        (url?.toLowerCase().contains('.svg') ?? false) ||
         (remote?.path.toLowerCase().endsWith('.svg') ?? false);
 
     Widget loading(BuildContext context, Widget child, int? frame, bool sync) =>
@@ -75,10 +76,7 @@ final class UiImage extends StatelessWidget {
     Widget? image;
     if (isSvg) {
       if (bytes != null) {
-        image = SvgPicture.memory(
-          bytes!,
-          fit: BoxFit.contain,
-        );
+        image = SvgPicture.memory(bytes!, fit: BoxFit.contain);
       } else if (remote != null) {
         image = SvgPicture.network(
           remote.toString(),

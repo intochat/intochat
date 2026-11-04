@@ -83,6 +83,7 @@ internal sealed class CompiledAppsHost(
             TriggerEnsureAll(publisher.Brain.Value);
             if (!publisher.Key.StartsWith("apps/", StringComparison.Ordinal)) { return Task.CompletedTask; }
             var appName = publisher.Key["apps/".Length..];
+            if (appName == "brain") { return Task.CompletedTask; }
             if (appName == "desktop")
             {
                 _ = Task.Run(() => EnsureDesktopViewAsync(publisher.Brain.Value), CancellationToken.None);
@@ -107,10 +108,15 @@ internal sealed class CompiledAppsHost(
             var slash = rest.IndexOf('/', StringComparison.Ordinal);
             if (slash <= 0) { return Task.CompletedTask; }
             var appName = rest[..slash];
+            if (appName == "brain") { return Task.CompletedTask; }
             if (!HostedByName.ContainsKey(appName))
             {
                 _ = Task.Run(async () =>
                 {
+                    if (await HostCaller.ForBrain(services, publisher.Brain.Value) is { } caller)
+                    {
+                        CallerContextStamper.Stamp(caller);
+                    }
                     var app = SiloNeurons.Get<IApp>(services, IApp.Key(publisher.Brain.Value, appName));
                     var parts = signal.Action.Split(':', 2, StringSplitOptions.TrimEntries);
                     await app.Request(parts[0], parts.Length > 1 ? parts[1] : string.Empty);
@@ -188,6 +194,7 @@ internal sealed class CompiledAppsHost(
                     Ui.Button("dock-creator", "Creator", "open:creator", style: UiStyle.Ghost),
                     Ui.Button("dock-gallery", "Gallery", "open:gallery", style: UiStyle.Ghost),
                     Ui.Button("dock-post", "Post", "open:post", style: UiStyle.Ghost),
+                    Ui.Button("dock-brain", "Brain", "open:brain", style: UiStyle.Ghost),
                     Ui.Button("dock-settings", "Settings", "open:settings", style: UiStyle.Ghost),
                     Ui.IconButton("newtab", "plus", "New tab", "newtab"),
                 ], gap: 4),
