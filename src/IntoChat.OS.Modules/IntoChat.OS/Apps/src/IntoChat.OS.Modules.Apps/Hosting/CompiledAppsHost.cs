@@ -134,7 +134,7 @@ internal sealed class CompiledAppsHost(
     private async Task EnsureAllAsync(string brain)
     {
         foreach (var (name, _, _) in Hosted) { await EnsureAppAsync(brain, name); }
-        if (brain == "owner") { await EnsureDesktopViewAsync(brain); }
+        await EnsureDesktopViewAsync(brain);
     }
 
     private async Task EnsureDesktopViewAsync(string brain)
@@ -145,7 +145,7 @@ internal sealed class CompiledAppsHost(
             if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
             var view = SiloNeurons.Get<IView>(services, $"{brain}/apps/desktop/view");
             var current = await view.Read();
-            if (current?.Root is not null) { return; }
+            if (current?.Root is { Key: "desktop" }) { return; }
 
             var initialWindows = new (string WinId, string AppId, string Title)[]
             {
@@ -206,7 +206,9 @@ internal sealed class CompiledAppsHost(
                 ], gap: 4),
             ], extents: [0, 360]);
 
-            await view.Publish(new UiView(1L, 1L, Ui.Column("desktop", [windows, dock], extents: [0, 68])));
+            var gen = current is { Generation: > 0 } ? current.Generation : 1L;
+            var nextVer = (current?.Generation == gen ? current.Version : 0L) + 1L;
+            await view.Publish(new UiView(gen, nextVer, Ui.Column("desktop", [windows, dock], extents: [0, 68])));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -307,6 +309,10 @@ internal sealed class CompiledAppsHost(
             await gate.WaitAsync(ct);
             try
             {
+                if (appName == "desktop")
+                {
+                    await EnsureDesktopViewAsync(brain);
+                }
                 var turns = await EnsureAssignedAsync(brain, appName, appKey, ct);
                 if (turns is null) { return; }
                 if (turns.Definition.FindOperation(request.Operation) is { } method)
@@ -318,6 +324,10 @@ internal sealed class CompiledAppsHost(
                     await appNeuron.SaveRuntimeState(
                         JsonSerializer.Serialize(new { request.Operation, request.RequestId }),
                         currentSnapshot.RuntimeStateRevision);
+                }
+                if (appName == "desktop")
+                {
+                    await EnsureDesktopViewAsync(brain);
                 }
 
                 var title = HostedByName.TryGetValue(appName, out var spec) ? spec.Bundle.Manifest.Title : appName;

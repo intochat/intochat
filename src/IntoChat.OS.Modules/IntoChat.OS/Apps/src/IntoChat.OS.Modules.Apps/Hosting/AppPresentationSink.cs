@@ -89,9 +89,12 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
 
             var mainNeuron = SiloNeurons.Get<IView>(services, appKey + "/view");
             var currentMain = await mainNeuron.Read();
-            var mainGen = currentMain is { Generation: > 0 } ? Math.Max(generation, currentMain.Generation) : generation;
-            var nextMainVersion = (currentMain?.Generation == mainGen ? currentMain.Version : 0L) + 1L;
-            await mainNeuron.Publish(new UiView(mainGen, nextMainVersion, mainTree));
+            if (appName != "desktop" || currentMain?.Root is not { Key: "desktop" })
+            {
+                var mainGen = currentMain is { Generation: > 0 } ? Math.Max(generation, currentMain.Generation) : generation;
+                var nextMainVersion = (currentMain?.Generation == mainGen ? currentMain.Version : 0L) + 1L;
+                await mainNeuron.Publish(new UiView(mainGen, nextMainVersion, mainTree));
+            }
         }
 
         var icon = string.IsNullOrWhiteSpace(snapshot.Manifest.Icon) ? "icon.svg" : snapshot.Manifest.Icon;
