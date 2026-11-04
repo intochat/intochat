@@ -4,7 +4,7 @@
 useDefault = true
 
 [allowlist]
-description = "Azurite well-known development storage key, Auth test hashing keys, and Identity grant test fixtures"
+description = "Azurite well-known development storage key, Azure built-in RBAC role GUIDs, Auth test hashing keys, and Identity grant test fixtures"
 commits = [
   "5947a731031e53c66a41b720fd6331510e7d6338",
   "16f94509427027c713ba9fa8979d23d31135771d",
@@ -16,4 +16,6 @@ regexes = [
   '''(?i)Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==''',
   '''dGVzdC1oYXNoaW5nLWtleS0zMi1ieXRlcy1sb25nISE=''',
   '''YXV0aC10ZXN0LWhhc2hpbmcta2V5LTMyLWJ5dGVzLWxvbmch''',
+  '''b86a8fe4-44ce-4948-aee5-eccb2c155cd7''',
+  '''4633458b-17de-408a-b874-0445c86b69e6''',
 ]

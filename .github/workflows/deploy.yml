@@ -22,7 +22,7 @@ permissions:
 
 env:
   NUGET_GITHUB_USERNAME: ${{ secrets.NUGET_GITHUB_USERNAME || github.actor }}
-  NUGET_GITHUB_TOKEN: ${{ secrets.NUGET_GITHUB_TOKEN || secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || github.token }}
+  NUGET_GITHUB_TOKEN: ${{ secrets.NUGET_GITHUB_TOKEN || secrets.PACKAGE_TOKEN || github.token }}
 
 jobs:
   test:
@@ -63,7 +63,7 @@ jobs:
           global-json-file: global.json
       - name: Authenticate GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -149,7 +149,7 @@ jobs:
           global-json-file: global.json
       - name: Authenticate GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - uses: azure/login@v2
         with:
