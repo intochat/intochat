@@ -52,7 +52,7 @@ jobs:
           [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
 
