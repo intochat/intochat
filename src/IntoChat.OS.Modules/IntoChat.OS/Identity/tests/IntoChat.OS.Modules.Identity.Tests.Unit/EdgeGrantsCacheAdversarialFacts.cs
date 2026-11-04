@@ -85,11 +85,17 @@ public sealed class EdgeGrantsCacheAdversarialFacts
         cache.Invalidate(brain);
 
         const int workerCount = 80;
-        using var startBarrier = new Barrier(workerCount);
+        var readyCount = 0;
+        var startGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var tasks = Enumerable.Range(0, workerCount).Select(i => Task.Run(async () =>
         {
-            startBarrier.SignalAndWait(ct);
+            if (Interlocked.Increment(ref readyCount) == workerCount)
+            {
+                startGate.TrySetResult();
+            }
+
+            await startGate.Task.WaitAsync(ct);
             var friendApp = $"{brain}/apps/friend-{i % 10}";
             var connKey = $"{brain}/connection/postgres/db-{i % 5}";
             var caller = CreateAppCaller(friendApp, brain);
@@ -182,4 +188,3 @@ public sealed class EdgeGrantsCacheAdversarialFacts
         Assert.True(await cache.IsConnectionBoundAsync(alphaBrain, callerAlpha1, sameNested, ct));
     }
 }
-

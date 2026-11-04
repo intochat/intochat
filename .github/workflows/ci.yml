@@ -88,7 +88,7 @@ jobs:
   facts:
     name: facts
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -99,7 +99,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - name: Test (Unit)
-        run: dotnet test --solution Intochat.OS.slnx -c Release --max-parallel-test-modules 8 -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:RunAnalyzers=false -p:CodeGraphRefresh=false
+        run: dotnet test --solution Intochat.OS.slnx -c Release -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:CodeGraphRefresh=false
 
   runtime:
     name: runtime
@@ -115,7 +115,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
       - name: Test (Integration)
-        run: dotnet test --solution Intochat.OS.slnx -c Release --max-parallel-test-modules 8 -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:RunAnalyzers=false -p:CodeGraphRefresh=false
+        run: dotnet test --solution Intochat.OS.slnx -c Release -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:CodeGraphRefresh=false
 
   product:
     name: product
