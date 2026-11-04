@@ -248,7 +248,7 @@ void main() {
     (tester) async {
       // 1. Audio preview
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: IcTheme(
             colors: IcColors.dark,
             child: Scaffold(
@@ -256,9 +256,9 @@ void main() {
                 width: 1180,
                 height: 680,
                 child: IcFilesFinderView(
-                  storages: const [],
-                  breadcrumbs: const [],
-                  items: const [],
+                  storages: [],
+                  breadcrumbs: [],
+                  items: [],
                   selectedName: 'track.mp3',
                   selectedMeta: 'MP3 file · 3.5 MB',
                   previewUrl: '/brains/b1/storage/local/items/i1/content',
@@ -275,7 +275,7 @@ void main() {
 
       // 2. Video preview
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: IcTheme(
             colors: IcColors.dark,
             child: Scaffold(
@@ -283,9 +283,9 @@ void main() {
                 width: 1180,
                 height: 680,
                 child: IcFilesFinderView(
-                  storages: const [],
-                  breadcrumbs: const [],
-                  items: const [],
+                  storages: [],
+                  breadcrumbs: [],
+                  items: [],
                   selectedName: 'screencast.mp4',
                   selectedMeta: 'MP4 file · 12.0 MB',
                   previewUrl: '/brains/b1/storage/local/items/i2/content',
@@ -302,7 +302,7 @@ void main() {
 
       // 3. PDF preview
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: IcTheme(
             colors: IcColors.dark,
             child: Scaffold(
@@ -310,9 +310,9 @@ void main() {
                 width: 1180,
                 height: 680,
                 child: IcFilesFinderView(
-                  storages: const [],
-                  breadcrumbs: const [],
-                  items: const [],
+                  storages: [],
+                  breadcrumbs: [],
+                  items: [],
                   selectedName: 'document.pdf',
                   selectedMeta: 'PDF file · 1.2 MB',
                   previewUrl: '/brains/b1/storage/local/items/i3/content',
@@ -329,7 +329,7 @@ void main() {
 
       // 4. Code preview
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: IcTheme(
             colors: IcColors.dark,
             child: Scaffold(
@@ -337,9 +337,9 @@ void main() {
                 width: 1180,
                 height: 680,
                 child: IcFilesFinderView(
-                  storages: const [],
-                  breadcrumbs: const [],
-                  items: const [],
+                  storages: [],
+                  breadcrumbs: [],
+                  items: [],
                   selectedName: 'program.cs',
                   selectedMeta: 'CS file · 500 B',
                   previewText: 'Console.WriteLine("Hello World");',

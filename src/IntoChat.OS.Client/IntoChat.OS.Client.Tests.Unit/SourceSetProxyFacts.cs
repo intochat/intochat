@@ -4,6 +4,8 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DigitalBrain;
+using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Client.Runtime;
 using IntoChat.OS.Client.Runtime.V1;
 using static IntoChat.OS.Client.Tests.Unit.SessionConnectionFacts;
@@ -18,7 +20,7 @@ public sealed class SourceSetProxyFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = new SetBrain();
-        await using var session = await SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(IBrain).Assembly]), brain, ct);
+        await using var session = await SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(Neuron).Assembly]), brain, ct);
         await using var connection = await Connect(session, ct);
         var sources = Sources.Of(connection.Get<ISource>("set-proxy-a"), connection.Get<ISource>("set-proxy-a"), connection.Get<ISource>("set-proxy-b"));
 

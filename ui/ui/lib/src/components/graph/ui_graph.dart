@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/ui_part.dart';
-import '../../theme/ui_theme.dart';
 
 /// Interactive Knowledge Graph component displaying nodes, edges,
 /// and an interactive property inspector for the selected node.
