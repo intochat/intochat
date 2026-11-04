@@ -1,14 +1,17 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Capabilities.Connections.Broker;
-using DigitalBrain.Capabilities.Connections.Requests;
+using System.Collections.Concurrent;
 using System.Reflection;
 using DigitalBrain;
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Contracts;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Operations;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
@@ -18,6 +21,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Confirmations;
+using IntoChat.OS.Kernel.Tests.E2E.Policies;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
@@ -25,8 +29,11 @@ using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Orleans.Runtime;
 using Orleans.Serialization.Cloning;
 using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
@@ -36,7 +43,10 @@ public sealed class ProductHostFixture : IAsyncLifetime
 {
     private readonly FakeStorage _storage = new("Workspace Disk");
     private readonly SingleStorageConnections _connections;
+    private readonly QueuedPolicyModel _policyModel = new();
     private IInProcessHost? _host;
+    private WebApplication? _webApp;
+    private HttpClient? _httpClient;
     private int _counter;
 
     public ProductHostFixture()
@@ -47,16 +57,23 @@ public sealed class ProductHostFixture : IAsyncLifetime
 
     public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Silo host is not started.")).Services;
 
+    public HttpClient Http => _httpClient ?? throw new InvalidOperationException("HTTP host is not started.");
+
     public IReadOnlyList<(BrainId Brain, string ConnectionKey, string CallerApp)> BoundStorageCalls => _connections.BoundCalls;
 
     public string NewBrain(string prefix)
         => $"{prefix}{Interlocked.Increment(ref _counter)}";
 
+    public void EnqueuePolicyReply(params string[] replies)
+        => _policyModel.Enqueue(replies);
+
     public async ValueTask InitializeAsync()
     {
         var signalAssemblies = new[]
         {
+            typeof(DigitalBrain.Signal).Assembly,
             typeof(ProductHostTestModule).Assembly,
+            typeof(ChargesTestModule).Assembly,
             typeof(BddVerified).Assembly,
             typeof(AppsModule).Assembly,
             typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly,
@@ -78,9 +95,15 @@ public sealed class ProductHostFixture : IAsyncLifetime
             services =>
             {
                 services.AddSingleton<ICapabilityConnections>(_connections);
+                services.TryAddSingleton(TimeProvider.System);
+                services.AddOptions<ConfirmationOptions>();
+                services.TryAddSingleton<IConfirmationContexts, KernelConfirmations>();
                 services.TryAddSingleton<ICallFilter, CallFilter>();
                 services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainNeuronCallFilter>());
                 services.TryAddSingleton<IDeepCopier<IntoChat.OS.Modules.AI.Context.ContextSlice>>(new ShallowCopier<IntoChat.OS.Modules.AI.Context.ContextSlice>());
+                services.AddNeuronProxies();
+                services.AddSingleton<IPolicyModel>(_policyModel);
+                services.TryAddSingleton<PolicyWriter>();
             });
 
         _host = await factory.Start(
@@ -89,6 +112,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
                 Modules =
                 [
                     typeof(ProductHostTestModule),
+                    typeof(ChargesTestModule),
                     typeof(AppsModule),
                     typeof(AuthorityPlainNeurons),
                     typeof(AIModule),
@@ -99,10 +123,52 @@ public sealed class ProductHostFixture : IAsyncLifetime
                 ],
             },
             CancellationToken.None);
+
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = "Development",
+            ApplicationName = typeof(ProductHostFixture).Assembly.GetName().Name,
+            ContentRootPath = Path.GetTempPath(),
+        });
+        builder.WebHost.UseSetting(WebHostDefaults.PreventHostingStartupKey, "true");
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddSingleton<IBrainAccess>(new AllowAllBrainAccess());
+        builder.Services.AddSingleton(_host.Services.GetRequiredService<INeuronProxies>());
+        builder.Services.AddSingleton(_host.Services.GetRequiredService<PolicyWriter>());
+        builder.Services.AddSingleton<IPolicyModel>(_policyModel);
+
+        var app = builder.Build();
+        app.UseRouting();
+        app.Use(async (http, next) =>
+        {
+            if (http.Request.RouteValues.TryGetValue("brainId", out var raw) && raw is string { Length: > 0 } brainId)
+            {
+                RequestContext.Set(KernelInvocationSink.CallerKey, "");
+                using (RuntimeCallerContext.Stamp(CapabilityCallers.Of(brainId, brainId, brainId)))
+                {
+                    await next(http);
+                }
+
+                return;
+            }
+
+            await next(http);
+        });
+        PoliciesEndpoints.Map(app);
+        await app.StartAsync();
+
+        _webApp = app;
+        _httpClient = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
     }
 
     public async ValueTask DisposeAsync()
     {
+        _httpClient?.Dispose();
+        if (_webApp is not null)
+        {
+            await _webApp.DisposeAsync();
+        }
+
         if (_host is not null)
         {
             await _host.DisposeAsync();
@@ -155,6 +221,37 @@ public sealed class ProductHostFixture : IAsyncLifetime
             Needs: [],
             Settings: [],
             Secrets: []);
+    }
+
+    private sealed class AllowAllBrainAccess : IBrainAccess
+    {
+        public ValueTask<bool> CanAccessAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(string.Equals(accountId, brainId, StringComparison.Ordinal));
+    }
+
+    private sealed class QueuedPolicyModel : IPolicyModel
+    {
+        private readonly ConcurrentQueue<string> _replies = new();
+
+        public void Enqueue(params string[] replies)
+        {
+            ArgumentNullException.ThrowIfNull(replies);
+            foreach (var reply in replies)
+            {
+                _replies.Enqueue(reply);
+            }
+        }
+
+        public Task<string> Complete(string brainId, string system, string prompt, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!_replies.TryDequeue(out var reply))
+            {
+                throw new InvalidOperationException("QueuedPolicyModel has no queued reply.");
+            }
+
+            return Task.FromResult(reply);
+        }
     }
 
     private sealed class SingleStorageConnections(string key, string label, IStorage storage) : ICapabilityConnections

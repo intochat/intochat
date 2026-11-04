@@ -78,6 +78,14 @@ public sealed class GrantsNeuronAdversarialFacts
         }
 
         public Task<JsonElement?> InspectState(CancellationToken cancellationToken = default) => Task.FromResult<JsonElement?>(null);
+
+        public Task<DigitalBrain.Runtime.Orleans.Synapses.GateVerdict> Gate(string signalAlias, JsonElement signal, Guid attempt, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task Committed(string signalAlias, JsonElement signal, JsonElement next, Guid ticket, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Aborted(string signalAlias, JsonElement signal, Guid ticket, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Reload() => Task.CompletedTask;
     }
 
     private sealed class TestGrainFactory(Func<Type, string, IGrain> hostFactory, INeuronHostCatalog catalog) : IGrainFactory
