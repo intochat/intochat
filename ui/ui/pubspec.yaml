@@ -17,7 +17,7 @@ dependencies:
   intochat_os_flutter:
     path: ../core
   intochat_design_ui:
-    path: ../../../design/packages/ui
+    path: ../design_ui
   forui: ^0.26.0
   material_ui: ^1.2.0
   gpt_markdown: ^1.2.1

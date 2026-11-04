@@ -63,7 +63,7 @@ jobs:
 
       - name: Authenticate GitHub Packages
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Restore dependencies
@@ -111,7 +111,7 @@ jobs:
       - name: Publish sandbox image
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          NUGET_GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.DEPLOYMENT_VALUES_TOKEN || secrets.GITHUB_TOKEN }}
+          NUGET_GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           docker build --secret id=nuget,env=NUGET_GITHUB_TOKEN \
             -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \

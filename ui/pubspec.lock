@@ -477,13 +477,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.20.3"
-  intochat_design_ui:
-    dependency: transitive
-    description:
-      path: "../../design/packages/ui"
-      relative: true
-    source: path
-    version: "0.1.0"
   io:
     dependency: transitive
     description:

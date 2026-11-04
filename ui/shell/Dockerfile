@@ -22,6 +22,7 @@ WORKDIR /workspace
 # Pubspecs first: a source edit then reuses the resolved-packages layer.
 COPY pubspec.yaml pubspec.lock ./
 COPY core/pubspec.yaml core/
+COPY design_ui/pubspec.yaml design_ui/
 COPY ui/pubspec.yaml ui/
 COPY shell/pubspec.yaml shell/
 RUN flutter pub get --enforce-lockfile

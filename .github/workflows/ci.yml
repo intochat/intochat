@@ -39,7 +39,12 @@ jobs:
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+        run: |
+          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          for i in $(seq 1 25); do
+            curl -fsSL -u "${{ github.actor }}:${GITHUB_TOKEN}" "https://nuget.pkg.github.com/intochat/download/intochat.os.modules.snowflake/index.json" | grep -q '"0.13.0"' && break
+            sleep 2
+          done
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
@@ -54,6 +59,9 @@ jobs:
     name: build
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7
 
@@ -69,7 +77,20 @@ jobs:
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          PUSH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          if ! curl -fsSL -u "${{ github.actor }}:${GITHUB_TOKEN}" "https://nuget.pkg.github.com/intochat/download/intochat.os.modules.snowflake/index.json" | grep -q '"0.13.0"'; then
+            mkdir -p "$RUNNER_TEMP/sync-pkgs"
+            for repo in intochat/digitalbrain intochat/modules; do
+              for url in $(curl -fsSL "https://api.github.com/repos/$repo/releases/tags/v0.13.0" | jq -r '.assets[].browser_download_url | select(endswith(".nupkg"))'); do
+                curl -fsSL -o "$RUNNER_TEMP/sync-pkgs/$(basename "$url")" "$url"
+              done
+            done
+            for pkg in "$RUNNER_TEMP/sync-pkgs"/*.nupkg; do
+              dotnet nuget push "$pkg" --source https://nuget.pkg.github.com/intochat/index.json --api-key "${PUSH_TOKEN}" --skip-duplicate || true
+            done
+          fi
 
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=false
@@ -92,7 +113,12 @@ jobs:
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+        run: |
+          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          for i in $(seq 1 25); do
+            curl -fsSL -u "${{ github.actor }}:${GITHUB_TOKEN}" "https://nuget.pkg.github.com/intochat/download/intochat.os.modules.snowflake/index.json" | grep -q '"0.13.0"' && break
+            sleep 2
+          done
       - name: Restore solution
         run: dotnet restore Intochat.OS.slnx -v quiet
       - name: Test (Unit)
@@ -113,7 +139,12 @@ jobs:
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+        run: |
+          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          for i in $(seq 1 25); do
+            curl -fsSL -u "${{ github.actor }}:${GITHUB_TOKEN}" "https://nuget.pkg.github.com/intochat/download/intochat.os.modules.snowflake/index.json" | grep -q '"0.13.0"' && break
+            sleep 2
+          done
       - name: Restore solution
         run: dotnet restore Intochat.OS.slnx -v quiet
       - name: Test (Integration)
@@ -134,7 +165,12 @@ jobs:
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+        run: |
+          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          for i in $(seq 1 25); do
+            curl -fsSL -u "${{ github.actor }}:${GITHUB_TOKEN}" "https://nuget.pkg.github.com/intochat/download/intochat.os.modules.snowflake/index.json" | grep -q '"0.13.0"' && break
+            sleep 2
+          done
       - name: Test (Product E2E)
         run: |
           # --filter "needs!=artcraft" (MTP: --filter-not-trait "needs=artcraft")
@@ -156,7 +192,12 @@ jobs:
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+        run: |
+          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          for i in $(seq 1 25); do
+            curl -fsSL -u "${{ github.actor }}:${GITHUB_TOKEN}" "https://nuget.pkg.github.com/intochat/download/intochat.os.modules.snowflake/index.json" | grep -q '"0.13.0"' && break
+            sleep 2
+          done
       - name: Blob storage conformance
         run: dotnet test --project src/IntoChat.Cloud/Modules/Blob/tests/IntoChat.Cloud.Blob.Tests.Integration/IntoChat.Cloud.Blob.Tests.Integration.csproj -c Release -p:CodeGraphRefresh=false -- --report-xunit-trx --results-directory artifacts/blob-storage-results
 
@@ -226,7 +267,12 @@ jobs:
       - name: Authenticate GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+        run: |
+          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+          for i in $(seq 1 25); do
+            curl -fsSL -u "${{ github.actor }}:${GITHUB_TOKEN}" "https://nuget.pkg.github.com/intochat/download/intochat.os.modules.snowflake/index.json" | grep -q '"0.13.0"' && break
+            sleep 2
+          done
 
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
