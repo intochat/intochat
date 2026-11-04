@@ -726,4 +726,101 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'LiveDesktopShell opens no windows or widgets by default when state is empty, and persists widget/window open & close actions',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final actions = <Map<String, dynamic>>[];
+      final emptyTree = <String, dynamic>{
+        'generation': 1,
+        'root': {
+          'kind': 2,
+          'key': 'desktop',
+          'extents': [0, 32],
+          'children': [
+            {'kind': 2, 'key': 'windows', 'children': <Map<String, dynamic>>[]},
+            {
+              'kind': 1,
+              'key': 'dock',
+              'children': [
+                {
+                  'kind': 3,
+                  'key': 'dock-ino',
+                  'text': 'Ino',
+                  'action': 'open:ino',
+                  'enabled': true,
+                },
+                {
+                  'kind': 0,
+                  'key': 'open-widgets',
+                  'text': '',
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.dark('fluent-acrylic'),
+          builder: (context, child) => IcTheme(
+            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: LiveDesktopShell(
+              brain: 'brain-1',
+              name: 'brain-1/apps/desktop/view',
+              load: (kind, name) async => emptyTree,
+              watch: null,
+              onAction: (action) async => actions.add(action),
+              onActivate: (_) {},
+              stylePreset: IcStylePreset.fluentAcrylic,
+              barLayout: BarLayout.floatingGlass,
+              paletteOpen: false,
+              onTogglePalette: () {},
+              onSelectPreset: (_) {},
+              onCycleBarLayout: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // No windows or sticky-note widgets open by default
+      expect(find.byType(WindowFrame), findsNothing);
+      expect(find.byKey(const ValueKey('sticky-card-launcher')), findsNothing);
+      expect(find.byKey(const ValueKey('sticky-card-signal')), findsNothing);
+      expect(find.byKey(const ValueKey('sticky-card-identity')), findsNothing);
+      expect(find.byKey(const ValueKey('sticky-card-apps')), findsNothing);
+
+      // Open Widgets menu and toggle Ino Launcher widget
+      await tester.tap(find.byKey(const ValueKey('whiteboard-widgets-btn')));
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('whiteboard-widget-toggle-launcher')),
+      );
+      await tester.pump();
+      expect(find.byKey(const ValueKey('sticky-card-launcher')), findsOneWidget);
+      expect(
+        actions.any((a) => a['action'] == 'widget-open:launcher'),
+        isTrue,
+      );
+
+      // Close the sticky-note widget via its X button
+      await tester.tap(find.byKey(const ValueKey('sticky-card-close-launcher')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('sticky-card-launcher')), findsNothing);
+      expect(
+        actions.any((a) => a['action'] == 'widget-close:launcher'),
+        isTrue,
+      );
+    },
+  );
 }

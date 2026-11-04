@@ -144,6 +144,9 @@ class SmartDesktop extends StatefulWidget {
     this.onToggleDark,
     this.onAutoArrange,
     this.onToast,
+    this.openCardIds,
+    this.onOpenCard,
+    this.onCloseCard,
   });
 
   final bool hasOpenWindows;
@@ -159,6 +162,9 @@ class SmartDesktop extends StatefulWidget {
   final VoidCallback? onToggleDark;
   final VoidCallback? onAutoArrange;
   final ValueChanged<String>? onToast;
+  final List<String>? openCardIds;
+  final ValueChanged<String>? onOpenCard;
+  final ValueChanged<String>? onCloseCard;
 
   @override
   State<SmartDesktop> createState() => SmartDesktopState();
@@ -172,19 +178,68 @@ class SmartDesktopState extends State<SmartDesktop> {
     'apps',
   ];
 
+  static const Map<String, String> cardLabels = {
+    'launcher': 'Ino Launcher',
+    'signal': 'Live Signal',
+    'identity': 'Theme & Identity',
+    'apps': 'Smart Apps',
+  };
+
   String _selectedNeuronId = 'ino';
   bool _briefApproved = false;
   bool _initializedBounds = false;
+  bool _widgetsMenuOpen = false;
 
   final Map<String, Rect> _cardBounds = {};
   final Set<String> _pinnedCardIds = {};
+  final Set<String> _localClosedCardIds = {};
+  final Set<String> _localOpenedCardIds = {};
 
   Map<String, Rect> get cardBounds => Map.unmodifiable(_cardBounds);
   Set<String> get pinnedCardIds => Set.unmodifiable(_pinnedCardIds);
 
+  List<String> get visibleCardIds {
+    if (widget.openCardIds != null) {
+      return [
+        for (final id in cardOrder)
+          if (widget.openCardIds!.contains(id)) id,
+      ];
+    }
+    return [
+      for (final id in cardOrder)
+        if (!_localClosedCardIds.contains(id) ||
+            _localOpenedCardIds.contains(id))
+          id,
+    ];
+  }
+
   bool isCardPinned(String cardId) => _pinnedCardIds.contains(cardId);
 
   Rect? boundsForCard(String cardId) => _cardBounds[cardId];
+
+  void closeCard(String cardId) {
+    setState(() {
+      _localClosedCardIds.add(cardId);
+      _localOpenedCardIds.remove(cardId);
+    });
+    widget.onCloseCard?.call(cardId);
+  }
+
+  void openCard(String cardId) {
+    setState(() {
+      _localClosedCardIds.remove(cardId);
+      _localOpenedCardIds.add(cardId);
+    });
+    widget.onOpenCard?.call(cardId);
+  }
+
+  void toggleCard(String cardId) {
+    if (visibleCardIds.contains(cardId)) {
+      closeCard(cardId);
+    } else {
+      openCard(cardId);
+    }
+  }
 
   void togglePinCard(String cardId) {
     setState(() {
@@ -343,45 +398,90 @@ class SmartDesktopState extends State<SmartDesktop> {
               ),
             ),
 
-            // 2. Whiteboard Desk Toolbar (Auto-Arrange + Pin Status)
+            // 2. Whiteboard Desk Toolbar (Widgets + Auto-Arrange + Pin Status)
             Positioned(
               top: 12,
               right: 24,
-              child: IcAcrylicBox(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                borderRadius: BorderRadius.circular(IcRadius.pill),
-                shadows: IcShadow.md(c),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TagPill(
-                      key: const ValueKey('whiteboard-pinned-pill'),
-                      label: '${_pinnedCardIds.length} pinned',
-                      tone: _pinnedCardIds.isNotEmpty
-                          ? TagTone.done
-                          : TagTone.neutral,
-                      icon: _pinnedCardIds.isNotEmpty
-                          ? LucideIcons.pin
-                          : LucideIcons.pinOff,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IcAcrylicBox(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
                     ),
-                    const SizedBox(width: 8),
-                    Btn(
-                      key: const ValueKey('whiteboard-auto-arrange-btn'),
-                      label: 'Auto-Arrange',
-                      small: true,
-                      icon: LucideIcons.layoutGrid,
-                      onTap: () => autoArrangeWhiteboard(canvas),
+                    borderRadius: BorderRadius.circular(IcRadius.pill),
+                    shadows: IcShadow.md(c),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TagPill(
+                          key: const ValueKey('whiteboard-pinned-pill'),
+                          label: '${_pinnedCardIds.length} pinned',
+                          tone: _pinnedCardIds.isNotEmpty
+                              ? TagTone.done
+                              : TagTone.neutral,
+                          icon: _pinnedCardIds.isNotEmpty
+                              ? LucideIcons.pin
+                              : LucideIcons.pinOff,
+                        ),
+                        const SizedBox(width: 8),
+                        Btn(
+                          key: const ValueKey('whiteboard-widgets-btn'),
+                          label: 'Widgets (${visibleCardIds.length})',
+                          small: true,
+                          icon: LucideIcons.stickyNote,
+                          onTap: () => setState(
+                            () => _widgetsMenuOpen = !_widgetsMenuOpen,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Btn(
+                          key: const ValueKey('whiteboard-auto-arrange-btn'),
+                          label: 'Auto-Arrange',
+                          small: true,
+                          icon: LucideIcons.layoutGrid,
+                          onTap: () => autoArrangeWhiteboard(canvas),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_widgetsMenuOpen) ...[
+                    const SizedBox(height: 8),
+                    IcAcrylicBox(
+                      key: const ValueKey('whiteboard-widgets-menu'),
+                      padding: const EdgeInsets.all(10),
+                      borderRadius: BorderRadius.circular(IcRadius.card),
+                      shadows: IcShadow.lg(c),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final id in cardOrder)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Btn(
+                                key: ValueKey('whiteboard-widget-toggle-$id'),
+                                label: cardLabels[id] ?? id,
+                                small: true,
+                                primary: visibleCardIds.contains(id),
+                                icon: visibleCardIds.contains(id)
+                                    ? LucideIcons.check
+                                    : LucideIcons.plus,
+                                onTap: () => toggleCard(id),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
 
             // 3. Resizable, Draggable Sticky-Note Smart Cards Layer
-            for (final id in cardOrder)
+            for (final id in visibleCardIds)
               Positioned.fromRect(
                 key: ValueKey('sticky-card-pos-$id'),
                 rect: _cardBounds[id]!,
@@ -392,6 +492,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                     cardId: id,
                     pinned: _pinnedCardIds.contains(id),
                     onTogglePin: () => togglePinCard(id),
+                    onClose: () => closeCard(id),
                     onMove: (delta) => _moveCard(id, delta, canvas),
                     onResize: (delta) => _resizeCard(id, delta, canvas),
                     child: switch (id) {
@@ -709,6 +810,7 @@ class _StickyWhiteboardCard extends StatelessWidget {
     required this.cardId,
     required this.pinned,
     required this.onTogglePin,
+    required this.onClose,
     required this.onMove,
     required this.onResize,
     required this.child,
@@ -717,6 +819,7 @@ class _StickyWhiteboardCard extends StatelessWidget {
   final String cardId;
   final bool pinned;
   final VoidCallback onTogglePin;
+  final VoidCallback onClose;
   final ValueChanged<Offset> onMove;
   final ValueChanged<Offset> onResize;
   final Widget child;
@@ -794,6 +897,31 @@ class _StickyWhiteboardCard extends StatelessWidget {
                                 pinned ? LucideIcons.pin : LucideIcons.pinOff,
                                 size: 12.5,
                                 color: pinned ? c.accent : c.textMuted,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Tooltip(
+                        message: 'Close sticky note',
+                        child: GestureDetector(
+                          key: ValueKey('sticky-card-close-$cardId'),
+                          onTap: onClose,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(
+                                  IcRadius.xs,
+                                ),
+                              ),
+                              child: Icon(
+                                LucideIcons.x,
+                                size: 12.5,
+                                color: c.textMuted,
                               ),
                             ),
                           ),

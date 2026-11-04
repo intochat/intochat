@@ -102,6 +102,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   final List<String> _zOrder = [];
   final List<String> _clientOpenedApps = [];
   final Set<String> _clientClosedWindowIds = {};
+  final Set<String> _clientOpenedWidgets = {};
+  final Set<String> _clientClosedWidgets = {};
   bool _showDesktopOnly = false;
 
   DesktopPopoverKind _popover = DesktopPopoverKind.none;
@@ -144,6 +146,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _zOrder.clear();
       _clientOpenedApps.clear();
       _clientClosedWindowIds.clear();
+      _clientOpenedWidgets.clear();
+      _clientClosedWidgets.clear();
       _reload();
       _subscribe();
     }
@@ -414,12 +418,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       collectFrames(windowsNode);
     }
 
+    final serverWindowKeys = <String>{};
+    final serverAppIds = <String>{};
     final result = <_ParsedDesktopWindow>[];
     for (var i = 0; i < frameNodes.length; i++) {
       final frame = frameNodes[i];
       final frameKey = frame['key'] as String;
       final winId = frameKey.substring('frame-'.length);
-      if (_clientClosedWindowIds.contains(winId)) continue;
 
       final numericId =
           int.tryParse(winId.replaceAll(RegExp(r'[^0-9]'), '')) ?? (i + 1);
@@ -473,6 +478,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       if (viewportRef == null) continue;
 
       final appId = _inferAppId(title, pinNode);
+      final winKey = '$winId:$appId';
+      serverWindowKeys.add(winKey);
+      serverAppIds.add(appId);
+      if (_clientClosedWindowIds.contains(winKey) ||
+          _clientClosedWindowIds.contains(winId)) {
+        continue;
+      }
+
       if (appId == 'photocraft' || appId == 'filmcraft' || appId == 'brain') {
         viewportRef = <String, dynamic>{
           'kind': 'view',
@@ -503,11 +516,19 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       );
     }
 
+    _clientClosedWindowIds.removeWhere(
+      (k) => !k.startsWith('local-') && !serverWindowKeys.contains(k),
+    );
+    _clientOpenedApps.removeWhere(serverAppIds.contains);
+
     for (var i = 0; i < _clientOpenedApps.length; i++) {
       final appId = _clientOpenedApps[i];
       if (result.any((w) => w.appId == appId)) continue;
       final localWinId = 'local-$appId';
-      if (_clientClosedWindowIds.contains(localWinId)) continue;
+      if (_clientClosedWindowIds.contains('$localWinId:$appId') ||
+          _clientClosedWindowIds.contains(localWinId)) {
+        continue;
+      }
       result.add(
         _ParsedDesktopWindow(
           windowId: localWinId,
@@ -525,6 +546,37 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
 
     return result;
+  }
+
+  List<String> _parseOpenWidgets(Map root) {
+    String? rawText;
+    void walk(Map node) {
+      if (rawText != null) return;
+      if (node['key'] == 'open-widgets') {
+        rawText = node['text'] as String? ?? '';
+        return;
+      }
+      for (final child
+          in (node['children'] as List? ?? const []).whereType<Map>()) {
+        walk(child);
+      }
+    }
+
+    walk(root);
+    final serverWidgets = <String>{
+      if (rawText != null && rawText!.trim().isNotEmpty)
+        for (final part in rawText!.split(','))
+          if (part.trim().isNotEmpty) part.trim().toLowerCase(),
+    };
+    _clientOpenedWidgets.removeWhere(serverWidgets.contains);
+    _clientClosedWidgets.removeWhere((id) => !serverWidgets.contains(id));
+
+    return [
+      for (final id in SmartDesktopState.cardOrder)
+        if ((serverWidgets.contains(id) || _clientOpenedWidgets.contains(id)) &&
+            !_clientClosedWidgets.contains(id))
+          id,
+    ];
   }
 
   Map<String, Map<String, dynamic>> _parseDockButtons(Map root) {
@@ -572,14 +624,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   }
 
   void _syncWindowStates(List<_ParsedDesktopWindow> parsed, Size desk) {
-    final activeIds = {for (final w in parsed) w.windowId};
-    _windowStates.removeWhere((id, state) {
-      final gone = !activeIds.contains(id);
-      if (gone) state.dispose();
-      return gone;
-    });
-    _zOrder.removeWhere((id) => !activeIds.contains(id));
-
     for (var i = 0; i < parsed.length; i++) {
       final spec = parsed[i];
       final existing = _windowStates[spec.windowId];
@@ -587,15 +631,23 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         'unpin-',
       );
       if (existing == null) {
+        final optimisticId = 'local-${spec.appId}';
+        final optimistic = spec.windowId == optimisticId
+            ? null
+            : _windowStates[optimisticId];
         _windowStates[spec.windowId] = DesktopWindowState(
           id: spec.numericId,
           appId: spec.appId,
           title: spec.title,
           neuronUri: spec.neuronUri,
-          bounds: _initialWindowBounds(i, desk),
-          isPinned: nodePinned,
+          bounds: optimistic?.bounds ?? _initialWindowBounds(i, desk),
+          minimized: optimistic?.minimized ?? false,
+          isPinned: (optimistic?.isPinned ?? false) || nodePinned,
         );
-        if (!_zOrder.contains(spec.windowId)) {
+        final optIdx = _zOrder.indexOf(optimisticId);
+        if (optIdx >= 0 && !_zOrder.contains(spec.windowId)) {
+          _zOrder[optIdx] = spec.windowId;
+        } else if (!_zOrder.contains(spec.windowId)) {
           _zOrder.add(spec.windowId);
         }
       } else {
@@ -605,6 +657,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         }
       }
     }
+
+    final activeIds = {for (final w in parsed) w.windowId};
+    _windowStates.removeWhere((id, state) {
+      final gone = !activeIds.contains(id);
+      if (gone) state.dispose();
+      return gone;
+    });
+    _zOrder.removeWhere((id) => !activeIds.contains(id));
     _normalizeZOrder();
   }
 
@@ -625,9 +685,16 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   void _closeWindow(_ParsedDesktopWindow spec) {
     setState(() {
       _clientOpenedApps.remove(spec.appId);
-      _clientClosedWindowIds.add(spec.windowId);
+      _clientClosedWindowIds.add('${spec.windowId}:${spec.appId}');
     });
-    _dispatchViewNode(spec.closeNode);
+    _dispatchViewNode(
+      spec.closeNode ??
+          <String, dynamic>{
+            'key': 'close-${spec.windowId}',
+            'action': 'close-app:${spec.appId}',
+            'enabled': true,
+          },
+    );
   }
 
   /// Auto-arranges all unpinned windows into a clean grid while strictly
@@ -790,7 +857,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     setState(() {
       final localWinId = 'local-$appId';
       _clientClosedWindowIds.removeWhere(
-        (id) => id == localWinId || _windowStates[id]?.appId == appId,
+        (id) =>
+            id == localWinId ||
+            id == '$localWinId:$appId' ||
+            id.endsWith(':$appId') ||
+            _windowStates[id]?.appId == appId,
       );
       if (!_clientOpenedApps.contains(appId)) {
         _clientOpenedApps.add(appId);
@@ -799,10 +870,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _zOrder.add(localWinId);
       _normalizeZOrder();
     });
-    final dockBtn = dockButtons['dock-$appId'];
-    if (dockBtn != null) {
-      _dispatchViewNode(dockBtn);
-    }
+    final dockBtn =
+        dockButtons['dock-$appId'] ??
+        <String, dynamic>{
+          'key': 'dock-$appId',
+          'action': 'open:$appId',
+          'enabled': true,
+        };
+    _dispatchViewNode(dockBtn);
     if (appId == 'settings') {
       widget.onActivate({
         'kind': 'settings',
@@ -854,6 +929,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     final c = IcTheme.of(context);
     final windows = _parseWindows(effectiveRoot);
     final dockButtons = _parseDockButtons(effectiveRoot);
+    final openWidgets = _parseOpenWidgets(effectiveRoot);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -927,6 +1003,29 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   hasOpenWindows: visibleWindows.isNotEmpty,
                   stylePreset: widget.stylePreset,
                   barLayout: widget.barLayout,
+                  openCardIds: openWidgets,
+                  onOpenCard: (cardId) {
+                    setState(() {
+                      _clientClosedWidgets.remove(cardId);
+                      _clientOpenedWidgets.add(cardId);
+                    });
+                    _dispatchViewNode(<String, dynamic>{
+                      'key': 'widget-open-$cardId',
+                      'action': 'widget-open:$cardId',
+                      'enabled': true,
+                    });
+                  },
+                  onCloseCard: (cardId) {
+                    setState(() {
+                      _clientOpenedWidgets.remove(cardId);
+                      _clientClosedWidgets.add(cardId);
+                    });
+                    _dispatchViewNode(<String, dynamic>{
+                      'key': 'widget-close-$cardId',
+                      'action': 'widget-close:$cardId',
+                      'enabled': true,
+                    });
+                  },
                   onLaunchApp: (appId) =>
                       _launchOrFocusApp(appId, windows, dockButtons),
                   onOpenPalette: widget.onTogglePalette,
