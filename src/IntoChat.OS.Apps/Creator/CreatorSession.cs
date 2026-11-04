@@ -302,6 +302,6 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
                 // Instruction: {{instruction}}
                 public View Render() => new("{{target}}", new Text("Verified"));
             }
-            """;
+            """.Replace("\r\n", "\n", StringComparison.Ordinal);
     }
 }

@@ -286,9 +286,10 @@ internal sealed partial class AppNeuron
         if (ServiceProvider.GetService<ICapabilityBroker>() is not { } broker || State.Manifest is not { } manifest) { return; }
         var brain = BrainId();
         IIdentity directory;
-        try { directory = await broker.Identity(); }
-        catch (InvalidOperationException) { return; }
-        if (await directory.OwnerOfBrain(brain) is not { } account) { return; }
+        Account? account;
+        try { directory = await broker.Identity(); account = await directory.OwnerOfBrain(brain); }
+        catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException) { return; }
+        if (account is null) { return; }
         // Host install runs with the caller removed. Membership changes require the brain owner.
         // AppId stays empty: the directory accepts the owner, and a platform sentinel is not the owner.
         using var owner = RuntimeCallerContext.Stamp(CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain));
@@ -309,9 +310,10 @@ internal sealed partial class AppNeuron
         var brain = BrainId();
         var principal = AppPrincipal.Id(Key);
         IIdentity directory;
-        try { directory = await broker.Identity(); }
-        catch (InvalidOperationException) { return; }
-        if (await directory.OwnerOfBrain(brain) is not { } account) { return; }
+        Account? account;
+        try { directory = await broker.Identity(); account = await directory.OwnerOfBrain(brain); }
+        catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException) { return; }
+        if (account is null) { return; }
         if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
         using var owner = RuntimeCallerContext.Stamp(CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain));
         await directory.RemovePrincipalMember(brain, principal);

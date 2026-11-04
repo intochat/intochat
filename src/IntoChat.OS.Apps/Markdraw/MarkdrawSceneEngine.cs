@@ -179,7 +179,7 @@ public static partial class MarkdrawSceneEngine
             summaryParts.Add("inspected canvas");
         }
 
-        return (builder.ToString().TrimEnd(), $"Co-drawing patch ({string.Join(", ", summaryParts)})");
+        return (builder.ToString().Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd(), $"Co-drawing patch ({string.Join(", ", summaryParts)})");
     }
 
     public static string BuildDataLineageMarkdraw(

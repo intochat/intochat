@@ -8,6 +8,10 @@ namespace IntoChat.OS.Modules.AI;
 // construction-time consumers. Ollama model markers bind natively under Options:Ollama:Models.
 internal static class AIOptionsRuntime
 {
+#pragma warning disable CA2255
+    [System.Runtime.CompilerServices.ModuleInitializer]
+#pragma warning restore CA2255
+    internal static void InitializeConfigurationRoot() => DigitalBrain.Modules.Configuration.ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
     internal static AIOptions Read(IConfiguration configuration)
         => configuration.GetModuleOptions<AIOptions>("ai");
 }

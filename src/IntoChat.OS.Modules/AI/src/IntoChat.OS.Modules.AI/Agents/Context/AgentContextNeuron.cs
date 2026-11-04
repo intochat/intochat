@@ -52,9 +52,16 @@ internal sealed class AgentContextNeuron
         var activeNeurons = new List<string>();
         if (Context.Services.GetService<IBrainObserver>() is { } observer)
         {
-            await foreach (var instance in observer.Instances(null))
+            try
             {
-                activeNeurons.Add($"{instance.Type}:{instance.Key}");
+                await foreach (var instance in observer.Instances(null))
+                {
+                    activeNeurons.Add($"{instance.Type}:{instance.Key}");
+                }
+            }
+            catch (InvalidOperationException error)
+            {
+                _ = error.Message;
             }
         }
 

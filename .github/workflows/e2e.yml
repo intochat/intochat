@@ -61,10 +61,10 @@ jobs:
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
       - name: Restore dependencies
-        run: dotnet restore Intochat.OS.slnx -v quiet
+        run: dotnet restore src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -v quiet
 
-      - name: Build solution
-        run: dotnet build Intochat.OS.slnx -c Release -v quiet -p:CodeGraphRefresh=false
+      - name: Build Aspire E2E
+        run: dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release --no-restore -v quiet -p:CodeGraphRefresh=false
 
       # ArtCraft images are built once per pinned ref by artcraft-images.yml and pulled here; the tags are the first
       # 12 characters of the refs in ArtCraftModuleHosting (E2EWarmUpFacts pins them). A missing tag fails the step:
@@ -120,26 +120,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
-      - name: Restore dependencies
-        run: dotnet restore Intochat.OS.slnx -v quiet
-
-      - name: Build solution
-        run: dotnet build Intochat.OS.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=true
-
-      # Ubuntu 24.04 blocks unprivileged user namespaces; Chromium's sandbox (kept on in product code) needs them.
-      - name: Allow the Chromium sandbox
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-
-      - name: Install Playwright browsers
+      - name: Test Browser
         run: |
+          if [ "$(find src -name '*.Tests.Browser.csproj' | wc -l)" -eq 0 ]; then
+            echo "Browser test modules live in intochat/modules; skipping."
+            exit 0
+          fi
+          dotnet restore Intochat.OS.slnx -v quiet
+          dotnet build Intochat.OS.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false -p:IntoChatOSNightly=true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           if [ -f artifacts/bin/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser/release/playwright.ps1 ]; then
             pwsh artifacts/bin/IntoChat.OS.Modules.Microsoft.Playwright.Tests.Browser/release/playwright.ps1 install --with-deps chromium
           fi
-
-      - name: Test Browser
-        run: |
-          count=$(find artifacts/bin -mindepth 3 -maxdepth 3 -path '*/release/*' -name '*.Tests.Browser.dll' | wc -l)
-          if [ "$count" -eq 0 ]; then echo "Browser test modules live in intochat/modules; skipping."; exit 0; fi
           dotnet test --test-modules "artifacts/bin/**/*.Tests.Browser.dll"
 
   # Nightly red blocks tags, not merges: record it on one issue per day.

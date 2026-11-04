@@ -17,6 +17,15 @@
     <PackageReference Include="DigitalBrain.Analyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
 
+  <PropertyGroup Condition="'$(IntoChatOSOnlyTier)' != '' And '$(IntoChatOSTestTier)' != '' And '$(IntoChatOSTestTier)' != '$(IntoChatOSOnlyTier)'">
+    <RunAnalyzers>false</RunAnalyzers>
+    <OrleansGenerateCode>false</OrleansGenerateCode>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IntoChatOSOnlyTier)' != '' And '$(IntoChatOSTestTier)' != '' And '$(IntoChatOSTestTier)' != '$(IntoChatOSOnlyTier)'">
+    <Compile Remove="*.cs;**/*.cs" />
+    <ProjectReference Remove="@(ProjectReference)" />
+  </ItemGroup>
+
   <!-- Pinned to CodeGraph 1.6.0 in Directory.Build.props until the Windows fix ships:
        https://github.com/colbymchenry/codegraph/issues/2094 -->
   <Target Name="RefreshCodeGraph"

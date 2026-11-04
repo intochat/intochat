@@ -21,10 +21,10 @@ internal static class HostCaller
         RuntimeCallerContext.Stamp(fallback);
         if (services.GetService<ICapabilityBroker>() is { } broker)
         {
-            IIdentity directory;
-            try { directory = await broker.Identity(); }
-            catch (InvalidOperationException) { return fallback; }
-            if (await directory.OwnerOfBrain(brain) is { } account)
+            Account? account;
+            try { account = await (await broker.Identity()).OwnerOfBrain(brain); }
+            catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException) { return fallback; }
+            if (account is not null)
             {
                 var ownerCaller = CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain);
                 RuntimeCallerContext.Stamp(ownerCaller);

@@ -127,9 +127,9 @@ internal static class CreatorRendering
                     "ok"),
             ];
 
-        var activeCode = string.IsNullOrWhiteSpace(state.GeneratedSource)
+        var activeCode = (string.IsNullOrWhiteSpace(state.GeneratedSource)
             ? CreatorSession.DefaultSandboxCode
-            : state.GeneratedSource;
+            : state.GeneratedSource).Replace("\r\n", "\n", StringComparison.Ordinal);
         var historyText = string.Join(" -> ", state.VersionHistory ?? ["1.0.0"]);
 
         return new(
