@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'credential_store.dart' as store;
 import 'login_screen.dart';
@@ -188,7 +189,7 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     final client = widget.createClient(null);
     final target = client.baseUri.resolve('/auth/google/start');
     client.close();
-    local.openAuthUrl(target);
+    unawaited(launchUrl(target, webOnlyWindowName: '_self'));
   }
 
   Future<String?> _signIn(

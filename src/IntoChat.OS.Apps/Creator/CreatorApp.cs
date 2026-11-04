@@ -520,12 +520,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         {
             try
             {
-                var snapshot = await graph.Snapshot(DigitalBrain.Graph.GraphLevel.Brain, null);
-                var composed = BrainSceneGraph.Compose(snapshot, DigitalBrain.Graph.GraphLevel.Brain, null, [], 1.0);
-                if (composed.Nodes.Length > 0)
-                {
-                    return composed;
-                }
+                _ = await graph.Snapshot(DigitalBrain.Graph.GraphLevel.Brain, null);
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
             {
