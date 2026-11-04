@@ -97,11 +97,12 @@ internal sealed class LogMailSender(MailTemplateRenderer renderer, ILogger<LogMa
     }
 }
 
-internal sealed class RateLimitedMailSender(IMailSender inner, IRecipientHasher hasher, INeuronProxies neurons) : IMailSender
+internal sealed class RateLimitedMailSender(IMailSender inner, IRecipientHasher hasher, INeuronProxies neurons, IMailHost? host = null) : IMailSender
 {
     public async Task<MailSendResult> SendAsync(MailMessage message, CancellationToken ct)
     {
         var recipientHash = hasher.Hash("mail-rate", message.To);
+        using var stamp = host?.StampModule();
         var decision = await neurons.Get<IMailRate>(MailIds.Of(IMailRate.Type, IMailRate.Key(recipientHash, message.Template))).TryAcquire(message.Template);
         return decision.Allowed
             ? await inner.SendAsync(message, ct)

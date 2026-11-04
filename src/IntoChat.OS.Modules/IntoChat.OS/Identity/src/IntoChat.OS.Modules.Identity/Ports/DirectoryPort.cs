@@ -10,7 +10,7 @@ using OsGrantMode = IntoChat.OS.Connections.Identity.GrantMode;
 namespace IntoChat.OS.Authority;
 
 // identity@1's directory port over the local directory. Membership changes need the brain's owner as the stamped caller.
-public sealed class DirectoryPort(IIdentityClient identity) : IIdentityDirectoryPort
+public sealed class DirectoryPort(IIdentityClient identity, Identity.IBrainBirths? births = null) : IIdentityDirectoryPort
 {
     public async Task<Account?> ReadAccount(string accountId, CancellationToken cancellationToken)
         => ToAccount(await identity.ReadAccount(accountId).WaitAsync(cancellationToken).ConfigureAwait(false));
@@ -48,12 +48,20 @@ public sealed class DirectoryPort(IIdentityClient identity) : IIdentityDirectory
 
     // Idempotent as identity@1 requires: a principal already on record answers its own brain again, not new.
     public async Task<BrainProvision> RegisterPrincipal(string principalId, string displayName, CancellationToken cancellationToken)
-        => await identity.CompleteRegistration(principalId).WaitAsync(cancellationToken).ConfigureAwait(false) is { } existing
-            ? ToProvision(existing with { NewBrain = false })
-            : ToProvision(await identity.RegisterPrincipal(principalId, displayName).WaitAsync(cancellationToken).ConfigureAwait(false));
+    {
+        var provision = await identity.CompleteRegistration(principalId).WaitAsync(cancellationToken).ConfigureAwait(false) is { } existing
+            ? existing with { NewBrain = false }
+            : await identity.RegisterPrincipal(principalId, displayName).WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (births is not null) { await births.Born(provision).WaitAsync(cancellationToken).ConfigureAwait(false); }
+        return ToProvision(provision);
+    }
 
     public async Task<BrainProvision?> CompleteRegistration(string principalId, CancellationToken cancellationToken)
-        => await identity.CompleteRegistration(principalId).WaitAsync(cancellationToken).ConfigureAwait(false) is { } provision ? ToProvision(provision) : null;
+    {
+        if (await identity.CompleteRegistration(principalId).WaitAsync(cancellationToken).ConfigureAwait(false) is not { } provision) { return null; }
+        if (births is not null) { await births.Born(provision).WaitAsync(cancellationToken).ConfigureAwait(false); }
+        return ToProvision(provision);
+    }
 
     public async Task<IReadOnlyList<BrainEntry>> BrainsOf(string principalId, CancellationToken cancellationToken)
         => [.. (await identity.BrainsOf(principalId).WaitAsync(cancellationToken).ConfigureAwait(false)).Select(entry => new BrainEntry(entry.Id, (BrainKind)(int)entry.Kind))];

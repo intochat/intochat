@@ -142,7 +142,20 @@ render_config() {
 render_config
 
 installer() { dotnet run -c Release --no-build --project "$kernel" -- install --env "$env_name" --config "$work/install.json" "$@"; }
-install() { installer; }
+update_ui() {
+  local ui_app="$prefix-$env_name-os-ui"
+  local desired="$server/os-ui:$image_tag"
+  local current latest rev
+  current="$(az containerapp show -g "$group" -n "$ui_app" --query 'properties.template.containers[0].image' -o tsv 2>/dev/null || true)"
+  if [[ -n "$current" && "$current" != "$desired" ]]; then
+    az containerapp update -g "$group" -n "$ui_app" --image "$desired" -o none
+    latest="$(az containerapp show -g "$group" -n "$ui_app" --query 'properties.latestReadyRevisionName' -o tsv)"
+    while IFS= read -r rev; do
+      [[ -n "$rev" && "$rev" != "$latest" ]] && az containerapp revision deactivate -g "$group" -n "$ui_app" --revision "$rev" -o none || true
+    done < <(az containerapp revision list -g "$group" -n "$ui_app" --query '[?properties.active].name' -o tsv)
+  fi
+}
+install() { installer && update_ui; }
 snapshot_revisions() {
   local app
   for app in os os-ui; do

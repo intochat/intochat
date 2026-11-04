@@ -154,7 +154,7 @@ final class IntoChatOSUiClient {
       'POST',
       register ? '/identity/register' : '/identity/login',
       body: {'principalId': username, 'password': password},
-      timeout: const Duration(seconds: 15),
+      timeout: const Duration(seconds: 60),
     );
     _useSession(jsonDecode(response.body) as Map<String, dynamic>);
   }
@@ -165,7 +165,7 @@ final class IntoChatOSUiClient {
       'POST',
       '/identity/brains',
       body: const {},
-      timeout: const Duration(seconds: 15),
+      timeout: const Duration(seconds: 60),
     );
     return (jsonDecode(response.body) as Map<String, dynamic>)['brainId']
         as String;
@@ -190,7 +190,7 @@ final class IntoChatOSUiClient {
         'POST',
         '/identity/login',
         body: {'principalId': username, 'password': password},
-        timeout: const Duration(seconds: 15),
+        timeout: const Duration(seconds: 60),
       );
     } on UiRequestException catch (error) {
       if (error.statusCode != 401) rethrow;
@@ -198,7 +198,7 @@ final class IntoChatOSUiClient {
         'POST',
         '/identity/register',
         body: {'principalId': username, 'password': password},
-        timeout: const Duration(seconds: 15),
+        timeout: const Duration(seconds: 60),
       );
     }
     final Object? session;

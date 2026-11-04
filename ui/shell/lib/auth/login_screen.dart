@@ -7,11 +7,13 @@ final class LoginScreen extends StatefulWidget {
     super.key,
     required this.onSubmit,
     this.onRegister,
+    this.onGoogleSignIn,
     this.initialUsername = '',
     this.errorMessage,
   });
   final Future<String?> Function(String username, String password) onSubmit;
   final Future<String?> Function(String username, String password)? onRegister;
+  final VoidCallback? onGoogleSignIn;
   final String initialUsername;
   final String? errorMessage;
   @override
@@ -157,6 +159,39 @@ final class _LoginScreenState extends State<LoginScreen> {
                       style: type.bodyMuted,
                     ),
                     const SizedBox(height: 28),
+                    if (widget.onGoogleSignIn != null) ...[
+                      UiKitButton(
+                        key: const Key('login-google'),
+                        label: 'Continue with Google',
+                        style: UiKitButtonStyle.secondary,
+                        onPressed: _busy ? null : widget.onGoogleSignIn,
+                        fullWidth: true,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(
+                              color: colors.hairline,
+                              height: 1,
+                              thickness: 1,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('or', style: type.bodyMuted),
+                          ),
+                          Expanded(
+                            child: Divider(
+                              color: colors.hairline,
+                              height: 1,
+                              thickness: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     UiKitField(
                       key: const Key('login-username'),
                       label: 'Username',

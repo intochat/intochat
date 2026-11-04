@@ -114,7 +114,7 @@ public static class InstallPlan
         if (c.Registry.Enabled) { specs.Add(Grant("registry-pull", AcrPull, registryScope)); }
         // Losing the master key loses the brain: a later install never overwrites it.
         specs.Add(In(new SecretSpec { Name = MasterKeySecret, Vault = vault, Overwrite = false }));
-        // The installer fills the value when the secrets file has one; the token is then replaced.
+        // The installer fills the value when the secrets file carries one; the token is then replaced.
         if (c.GhcrUsername.Length > 0) { specs.Add(In(new SecretSpec { Name = GhcrTokenSecret, Vault = vault, Overwrite = true })); }
         specs.Add(In(new ContainerAppSpec
         {
@@ -204,6 +204,12 @@ public static class InstallPlan
             // A hosted deployment declares its topology: the hosted posture rules apply, not the local loopback rule (D-21).
             [Variable(IntoChatOSNames.TopologyKey)] = IntoChatOSNames.TopologyCloud,
             ["IntoChatOS__Auth__Posture"] = "Secured",
+            ["IntoChatOS__ForwardedHeaders__ForwardLimit"] = "2",
+            ["IntoChatOS__ForwardedHeaders__KnownNetworks__0"] = "10.0.0.0/8",
+            ["IntoChatOS__ForwardedHeaders__KnownNetworks__1"] = "100.64.0.0/10",
+            ["IntoChatOS__ForwardedHeaders__KnownNetworks__2"] = "172.16.0.0/12",
+            ["IntoChatOS__ForwardedHeaders__KnownNetworks__3"] = "192.168.0.0/16",
+            ["IntoChatOS__ForwardedHeaders__KnownNetworks__4"] = "127.0.0.0/8",
             ["IntoChatOS__Modules__apps__Options__Features"] = "features",
             ["IntoChatOS__Modules__artcraft__Enabled"] = "false",
             ["IntoChatOS__Modules__clickhouse__Enabled"] = "false",
@@ -225,6 +231,13 @@ public static class InstallPlan
             [Variable(IntoChatOSNames.BrainStorageOwnershipKindConfigurationKey)] = IntoChatOSNames.BrainStorageOwnershipBlobLease,
             [Variable(IntoChatOSNames.BrainStorageOwnershipContainerUriConfigurationKey)] = blobs + lease,
         };
+        if (c.SettingsFor("auth").Get("PublicBaseUrl") is { Length: > 0 } publicBaseUrl
+            && Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var publicUri))
+        {
+            variables["IntoChatOS__ForwardedHeaders__AllowedHosts__0"] = publicUri.Host;
+            variables["IntoChatOS__ForwardedHeaders__AllowedHosts__1"] = c.OsName;
+            variables["IntoChatOS__Connections__PublicOrigin"] = $"{publicUri.Scheme}://{publicUri.Authority}";
+        }
         if (!c.Postgres.Enabled)
         {
             variables["IntoChatOS__Modules__postgres__Enabled"] = "false";

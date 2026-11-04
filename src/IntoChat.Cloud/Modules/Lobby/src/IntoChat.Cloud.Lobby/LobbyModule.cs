@@ -48,6 +48,7 @@ public sealed class LobbyModuleOptions
 {
     public int VisitorsPerPrefix { get; set; } = 20;
     public string BrainId { get; set; } = "lobby";
+    public bool Chromeless { get; set; }
 }
 
 // Auth stays behind this seam so the lobby project does not reference the Auth implementation.

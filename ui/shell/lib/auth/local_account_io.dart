@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:url_launcher/url_launcher.dart';
 
 import 'local_account.dart';
 
@@ -32,4 +35,8 @@ Future<LocalAccount?> readLocalAccount(
     // Never expose a credential-file parse error (which can contain its content).
   }
   throw StateError('The local account file could not be read.');
+}
+
+void openAuthUrl(Uri url) {
+  unawaited(launchUrl(url, mode: LaunchMode.externalApplication));
 }

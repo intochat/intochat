@@ -177,8 +177,12 @@ public sealed class StorageContentModule : DigitalBrain.Module, IHttpModule
 
     public void Configure(IEndpointRouteBuilder endpoints)
     {
+        ArgumentNullException.ThrowIfNull(endpoints);
         StorageContentEndpoints.Map(endpoints);
-        LocalRuntimeSessionEndpoints.Map(endpoints);
+        if (endpoints.ServiceProvider.GetServices<IHttpModule>().All(static m => m.GetType().Name != "CSharpModule"))
+        {
+            LocalRuntimeSessionEndpoints.Map(endpoints);
+        }
     }
 
     public void ConfigureServices(IServiceCollection services)

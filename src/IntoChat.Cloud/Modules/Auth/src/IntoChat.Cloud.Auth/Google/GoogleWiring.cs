@@ -31,6 +31,7 @@ internal static class GoogleWiring
                 options.SaveTokens = false;
                 options.Scope.Add("openid");
                 options.ClaimActions.MapJsonKey("email_verified", "email_verified");
+                options.ClaimActions.MapJsonKey("email_verified", "verified_email");
                 options.Events.OnRemoteFailure = context =>
                 {
                     context.Response.Redirect("/?auth_error=google");

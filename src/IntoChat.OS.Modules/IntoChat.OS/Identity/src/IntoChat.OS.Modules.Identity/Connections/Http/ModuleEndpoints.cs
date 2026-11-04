@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,7 @@ public static class ModuleEndpoints
     public static WebApplication MapIntoChatOSModules(this WebApplication app)
     {
         foreach (var http in app.Services.GetServices<IHttpModule>()) { http.Configure(app); }
+        app.MapModuleHttpSurfaces();
         return app;
     }
 }

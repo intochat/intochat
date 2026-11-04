@@ -113,9 +113,13 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
         store.clearStoredCredentials();
       }
       if (mounted && !inLobby) {
+        final googleFailed =
+            fromStartup && Uri.base.queryParameters['auth_error'] == 'google';
         setState(() {
           _phase = _Phase.login;
-          _loginError = fromStartup && credentials == null
+          _loginError = googleFailed
+              ? 'Google sign-in failed. Please try again.'
+              : fromStartup && credentials == null
               ? null
               : 'Sign in failed. Check the username and password.';
         });
@@ -178,6 +182,13 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
       _client = client;
       _statusMessage = statusMessage;
     });
+  }
+
+  void _signInWithGoogle() {
+    final client = widget.createClient(null);
+    final target = client.baseUri.resolve('/auth/google/start');
+    client.close();
+    local.openAuthUrl(target);
   }
 
   Future<String?> _signIn(
@@ -320,6 +331,7 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
               onSubmit: _signIn,
               onRegister: (username, password) =>
                   _signIn(username, password, register: true),
+              onGoogleSignIn: _signInWithGoogle,
               initialUsername: _lastUsername,
               errorMessage: _loginError,
             )

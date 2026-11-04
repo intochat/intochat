@@ -101,12 +101,14 @@ internal sealed class KernelAuthHost : IAuthHostSeam
 
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
-    public IDisposable StampModuleCaller(CapabilityCaller module) => RuntimeCallerContext.Stamp(module);
+    public IDisposable StampModuleCaller(CapabilityCaller module) => new ModuleScope(RuntimeCallerContext.Stamp(module));
 
-    public Task<T> InModuleCall<T>(Func<Task<T>> call)
+    public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        return call();
+        using var stamp = RuntimeCallerContext.Current is null ? RuntimeCallerContext.Stamp(Module) : null;
+        using var scope = new ModuleScope(null);
+        return await call().ConfigureAwait(false);
     }
 }
 
@@ -116,18 +118,22 @@ internal sealed class KernelOrganisationHost : IOrganisationHost
 
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
-    public IDisposable StampModule() => RuntimeCallerContext.Stamp(Module);
+    public IDisposable StampModule() => new ModuleScope(RuntimeCallerContext.Stamp(Module));
 
     public async Task InModuleCall(Func<Task> call)
     {
         ArgumentNullException.ThrowIfNull(call);
+        using var stamp = RuntimeCallerContext.Current is null ? RuntimeCallerContext.Stamp(Module) : null;
+        using var scope = new ModuleScope(null);
         await call().ConfigureAwait(false);
     }
 
-    public Task<T> InModuleCall<T>(Func<Task<T>> call)
+    public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        return call();
+        using var stamp = RuntimeCallerContext.Current is null ? RuntimeCallerContext.Stamp(Module) : null;
+        using var scope = new ModuleScope(null);
+        return await call().ConfigureAwait(false);
     }
 }
 
@@ -135,7 +141,36 @@ internal sealed class KernelMailHost : IMailHost
 {
     private static readonly CapabilityCaller Module = CapabilityCallers.Of(MailModule.Id, MailModule.Id, "system", CallerKind.App, MailModule.Id);
 
-    public IDisposable StampModule() => RuntimeCallerContext.Stamp(Module);
+    public IDisposable StampModule() => new ModuleScope(RuntimeCallerContext.Stamp(Module));
+}
+
+internal sealed class ModuleScope : IDisposable
+{
+    private readonly IDisposable? inner;
+    private readonly object? previous;
+    private bool disposed;
+
+    public ModuleScope(IDisposable? inner)
+    {
+        this.inner = inner;
+        previous = Orleans.Runtime.RequestContext.Get(RuntimeCallerContext.ModuleCallKey);
+        Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.ModuleCallKey, true);
+    }
+
+    public void Dispose()
+    {
+        if (disposed) { return; }
+        disposed = true;
+        if (previous is null)
+        {
+            Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.ModuleCallKey);
+        }
+        else
+        {
+            Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.ModuleCallKey, previous);
+        }
+        inner?.Dispose();
+    }
 }
 
 internal sealed class CloudLobbyAuth(ICloudSignIn signIn) : ILobbyAuth

@@ -24,9 +24,8 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
         var credential = Credential(principalId);
         if (await credential.Hash() is { } existing)
         {
-            // A registration interrupted before its brain was provisioned resumes with the same password.
-            if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed || await identity.IsRegistered(principalId)
-               )
+            // A registration interrupted before its brain or session was provisioned resumes with the same password.
+            if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed)
             { throw new InvalidOperationException("That username is unavailable."); }
             return await births.Born((await identity.CompleteRegistration(principalId))
                 ?? await identity.RegisterPrincipal(principalId, displayName));
