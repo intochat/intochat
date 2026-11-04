@@ -123,17 +123,20 @@ warm_azure_tokens
 # The installer reads an install config: the private values file with what only Azure and this run know filled in.
 # Nothing secret is rendered here; the file lives in the temporary directory and is removed on exit.
 render_config() {
-  local subscription principal
+  local subscription principal os_url
   subscription="$(az account show --query id -o tsv)"
   # The object id of whoever is signed in (the OIDC service principal in CI), from the token's oid claim.
   principal="$(az account get-access-token --resource https://management.azure.com --query accessToken -o tsv \
     | python3 -c 'import base64,json,sys; p=sys.stdin.read().strip().split(".")[1]; print(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))).get("oid",""))')"
   [[ -n "$subscription" && -n "$principal" ]] || { echo 'deploy: could not read the signed-in Azure subscription and principal.' >&2; exit 1; }
-  jq --arg sub "$subscription" --arg principal "$principal" --arg group "$group" --arg registry "$registry" --arg server "$server" --arg tag "$image_tag" --arg sandbox "$server/os-sandbox:$image_tag" --arg role "0fb8eba5-a2bb-4abe-b1c1-49dfad359bb0" \
+  os_url="$(field .osUrl)"
+  jq --arg sub "$subscription" --arg principal "$principal" --arg group "$group" --arg registry "$registry" --arg server "$server" --arg tag "$image_tag" --arg sandbox "$server/os-sandbox:$image_tag" --arg role "0fb8eba5-a2bb-4abe-b1c1-49dfad359bb0" --arg os_url "$os_url" \
     '{subscription: $sub, location: .location, prefix: .prefix, env: .env, resourceGroup: $group,
       osImage: ($server + "/os:" + $tag), names: {registry: $registry}, registryServer: $server,
       registry: {enabled: true, sku: "Basic"}, installerPrincipalId: $principal,
-      modules: ((.modules // {}) | .csharp = ((.csharp // {}) + {sandboxImage: (.csharp.sandboxImage // $sandbox), sessionExecutorRoleId: (.csharp.sessionExecutorRoleId // $role)}))}
+      modules: ((.modules // {})
+        | .auth = ((.auth // {}) + {Posture: (.auth.Posture // "Secured"), PublicBaseUrl: (.auth.PublicBaseUrl // $os_url)})
+        | .csharp = ((.csharp // {}) + {sandboxImage: (.csharp.sandboxImage // $sandbox), sessionExecutorRoleId: (.csharp.sessionExecutorRoleId // $role), edgeUrl: (.csharp.edgeUrl // $os_url)}))}
      + (with_entries(select(.key | IN("cpu", "memory", "storageQuotaGb", "postgres"))))' "$input" > "$work/install.json"
 }
 render_config

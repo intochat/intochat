@@ -203,6 +203,13 @@ public static class InstallPlan
             ["ASPNETCORE_ENVIRONMENT"] = "Production",
             // A hosted deployment declares its topology: the hosted posture rules apply, not the local loopback rule (D-21).
             [Variable(IntoChatOSNames.TopologyKey)] = IntoChatOSNames.TopologyCloud,
+            ["IntoChatOS__Auth__Posture"] = "Secured",
+            ["IntoChatOS__Modules__apps__Options__Features"] = "features",
+            ["IntoChatOS__Modules__artcraft__Enabled"] = "false",
+            ["IntoChatOS__Modules__clickhouse__Enabled"] = "false",
+            ["IntoChatOS__Modules__qdrant__Enabled"] = "false",
+            ["IntoChatOS__Modules__supabase__Enabled"] = "false",
+            ["Logging__LogLevel__IntoChat.OS.Authority.Integrations.IntegrationSeeder"] = "Information",
             // DefaultAzureCredential picks the user-assigned identity by this client id (Orleans stores, lease, vault).
             ["AZURE_CLIENT_ID"] = ContainerAppSpec.IdentityClientIdToken,
             // The cloud topology's account (its blob URI: tables and queues derive from it, token auth with the identity) and vault (P2-D-22).
@@ -218,6 +225,10 @@ public static class InstallPlan
             [Variable(IntoChatOSNames.BrainStorageOwnershipKindConfigurationKey)] = IntoChatOSNames.BrainStorageOwnershipBlobLease,
             [Variable(IntoChatOSNames.BrainStorageOwnershipContainerUriConfigurationKey)] = blobs + lease,
         };
+        if (!c.Postgres.Enabled)
+        {
+            variables["IntoChatOS__Modules__postgres__Enabled"] = "false";
+        }
         foreach (var (name, value) in extra) { variables[name] = value; }
         return variables;
     }
