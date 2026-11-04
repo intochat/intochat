@@ -64,6 +64,7 @@ warm_azure_tokens() {
   }
   az account get-access-token --resource https://management.azure.com --output none 2>/dev/null || true
   az account get-access-token --resource https://management.azure.com/ --output none 2>/dev/null || true
+  az account get-access-token --resource https://management.core.windows.net/ --output none 2>/dev/null || true
   az account get-access-token --resource https://vault.azure.net --output none 2>/dev/null || true
 }
 # Cache Azure audiences while the workflow's OIDC assertion is fresh.
@@ -143,20 +144,22 @@ render_config
 
 installer() { dotnet run -c Release --no-build --project "$kernel" -- install --env "$env_name" --config "$work/install.json" "$@"; }
 update_ui() {
+  warm_azure_tokens
   local ui_app="$prefix-$env_name-os-ui"
   local desired="$server/os-ui:$image_tag"
   local current latest rev
   current="$(az containerapp show -g "$group" -n "$ui_app" --query 'properties.template.containers[0].image' -o tsv 2>/dev/null || true)"
   if [[ -n "$current" && "$current" != "$desired" ]]; then
     az containerapp update -g "$group" -n "$ui_app" --image "$desired" -o none
-    latest="$(az containerapp show -g "$group" -n "$ui_app" --query 'properties.latestReadyRevisionName' -o tsv)"
+    latest="$(az containerapp show -g "$group" -n "$ui_app" --query 'properties.latestRevisionName' -o tsv)"
     while IFS= read -r rev; do
       [[ -n "$rev" && "$rev" != "$latest" ]] && az containerapp revision deactivate -g "$group" -n "$ui_app" --revision "$rev" -o none || true
     done < <(az containerapp revision list -g "$group" -n "$ui_app" --query '[?properties.active].name' -o tsv)
   fi
 }
-install() { installer && update_ui; }
+install() { warm_azure_tokens && installer && update_ui; }
 snapshot_revisions() {
+  warm_azure_tokens
   local app
   for app in os os-ui; do
     printf '%s\n' "$app"

@@ -137,30 +137,31 @@ void main() {
     expect(field.autofillHints, contains(AutofillHints.password));
   });
 
-  testWidgets('google sign-in button invokes callback in login and register modes', (
-    tester,
-  ) async {
-    var googleClicks = 0;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: LoginScreen(
-          onSubmit: (_, _) async => null,
-          onRegister: (_, _) async => null,
-          onGoogleSignIn: () => googleClicks++,
+  testWidgets(
+    'google sign-in button invokes callback in login and register modes',
+    (tester) async {
+      var googleClicks = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LoginScreen(
+            onSubmit: (_, _) async => null,
+            onRegister: (_, _) async => null,
+            onGoogleSignIn: () => googleClicks++,
+          ),
         ),
-      ),
-    );
-    expect(find.byKey(const Key('login-google')), findsOneWidget);
-    expect(find.text('Continue with Google'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('login-google')));
-    await tester.pump();
-    expect(googleClicks, 1);
+      );
+      expect(find.byKey(const Key('login-google')), findsOneWidget);
+      expect(find.text('Continue with Google'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('login-google')));
+      await tester.pump();
+      expect(googleClicks, 1);
 
-    await tester.tap(find.text('Create account'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('login-google')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('login-google')));
-    await tester.pump();
-    expect(googleClicks, 2);
-  });
+      await tester.tap(find.text('Create account'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('login-google')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('login-google')));
+      await tester.pump();
+      expect(googleClicks, 2);
+    },
+  );
 }
