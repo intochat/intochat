@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: none.
+Contracts: assembly `IntoChat.Cloud.Circle.Contracts` (`ICircleConnection`, `IComputeDelegate`, `INonceCache`).
 Hosting: runs in process.
 <!-- END GENERATED -->

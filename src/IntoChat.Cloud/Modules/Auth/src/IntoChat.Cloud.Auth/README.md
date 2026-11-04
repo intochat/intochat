@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: none.
+Contracts: assembly `IntoChat.Cloud.Auth.Contracts` (`IAuthAuditLog`).
 Hosting: runs in process.
 <!-- END GENERATED -->

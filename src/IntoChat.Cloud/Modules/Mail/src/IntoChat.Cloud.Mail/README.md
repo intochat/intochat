@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: none.
+Contracts: assembly `IntoChat.Cloud.Mail.Contracts` (`IMailRate`, `IMailSender`, `IRecipientHasher`).
 Hosting: runs in process.
 <!-- END GENERATED -->
