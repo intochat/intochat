@@ -16,6 +16,8 @@ public sealed class MailModule : Module
     public const string Id = "mail";
     public const string OptionsSection = "IntoChatOS:Modules:" + Id + ":Options";
 
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(IMailRate).Assembly;
+
     public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     public static ModuleManifest Manifest { get; } = new(
@@ -45,7 +47,7 @@ public sealed class MailModule : Module
             IMailSender inner = options.Provider == MailProvider.Log
                 ? provider.GetRequiredService<LogMailSender>()
                 : provider.GetRequiredService<AcsMailSender>();
-            return new RateLimitedMailSender(inner, provider.GetRequiredService<IRecipientHasher>(), provider.GetRequiredService<INeuronProxies>());
+            return new RateLimitedMailSender(inner, provider.GetRequiredService<IRecipientHasher>(), provider.GetRequiredService<INeuronProxies>(), provider.GetService<IMailHost>());
         });
     }
 }

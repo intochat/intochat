@@ -25,6 +25,7 @@ public sealed class AuthModule : Module
     public const string Id = "auth";
     public const string OptionsSection = "IntoChatOS:Modules:" + Id + ":Options";
     // Composed only when Topology=cloud. A local kernel lists the module and does not load it.
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(IAuthAuditLog).Assembly;
     public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     // Auth requires identity@1 (it provisions the verified principal) and secrets@1. It does not list identity@1 under Provides: the

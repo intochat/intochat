@@ -16,6 +16,8 @@ public sealed class OrganisationsModule : Module
     public const string Id = "organisations";
     public const string OptionsSection = "IntoChatOS:Modules:" + Id + ":Options";
 
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(IOrganisation).Assembly;
+
     public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     public static ModuleManifest Manifest { get; } = new(

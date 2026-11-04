@@ -30,6 +30,7 @@ public sealed partial class CircleServerModule : Module
         Settings: [Setting.Of<CircleServerOptions>(OptionsSection)],
         Secrets: [Secret.Named("circle-deployment-key")]);
 
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(ICircleConnection).Assembly;
     public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), CloudTopology, StringComparison.OrdinalIgnoreCase);
 
     // The module for this host's configuration, or null for any topology but cloud.
