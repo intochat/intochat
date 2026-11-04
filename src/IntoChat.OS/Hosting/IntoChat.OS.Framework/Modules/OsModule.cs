@@ -16,7 +16,7 @@ public sealed class OsModule
 #pragma warning disable CA2255
     [System.Runtime.CompilerServices.ModuleInitializer]
 #pragma warning restore CA2255
-    internal static void InitializeConfigurationRoot() => DigitalBrain.Modules.Configuration.ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
+    public static void InitializeConfigurationRoot() => DigitalBrain.Modules.Configuration.ModuleConfigurationOptions.Current = new() { Root = "IntoChatOS" };
     private OsModule(Type type, ModuleId id, bool requiresContainer, int order, string? licenseProduct,
         Assembly? contracts, Type? neurons, IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> topologyProfiles,
         IReadOnlyList<IntegrationSchema>? integrationSchemas = null)

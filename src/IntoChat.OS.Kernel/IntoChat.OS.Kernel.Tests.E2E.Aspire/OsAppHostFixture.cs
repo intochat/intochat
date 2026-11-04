@@ -55,8 +55,12 @@ public sealed class OsAppHostFixture : IAsyncLifetime
 
     public TimeSpan StartupDuration { get; private set; }
 
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void InitializeConfigurationRoot() => IntoChat.OS.Framework.Modules.OsModule.InitializeConfigurationRoot();
+
     public async ValueTask InitializeAsync()
     {
+        InitializeConfigurationRoot();
         var started = DateTimeOffset.UtcNow;
         var featuresKey = ModuleConfiguration.ModuleOptionsSection("apps") + ":Features";
         var args = new List<string>

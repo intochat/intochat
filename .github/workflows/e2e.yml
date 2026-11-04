@@ -86,7 +86,10 @@ jobs:
       # The product tier (E2E projects that need no Docker) runs in ci.yml (`product` job).
       # Nightly e2e runs only journeys in the Aspire E2E project that require the ArtCraft containers (--filter "needs=artcraft").
       - name: Test Aspire E2E (ArtCraft container journeys)
-        run: dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release --no-build -p:CodeGraphRefresh=false -- --filter-trait "needs=artcraft" --ignore-exit-code 8
+        run: |
+          rc=0
+          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release --no-build -p:CodeGraphRefresh=false -- --filter-trait "needs=artcraft" --ignore-exit-code 8 || rc=$?
+          [ "$rc" -eq 0 ] || [ "$rc" -eq 8 ]
 
   browser:
     name: browser
