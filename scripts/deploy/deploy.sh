@@ -51,10 +51,23 @@ fi
 if [[ "$check_only" == 1 ]]; then echo "deploy: $env_name input validated."; exit 0; fi
 
 for tool in dotnet az curl python3; do command -v "$tool" >/dev/null || { echo "deploy: required command missing: $tool" >&2; exit 2; }; done
-# Cache the Log Analytics audience while the workflow's OIDC assertion is fresh.
-az account get-access-token --resource https://api.loganalytics.io --output none 2>/dev/null || {
-  echo 'deploy: Log Analytics authentication preflight failed.' >&2; exit 1;
+warm_azure_tokens() {
+  local sp_file="${AZURE_CONFIG_DIR:-$HOME/.azure}/service_principal_entries.json" oidc_token
+  if [[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" && -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" && -f "$sp_file" ]]; then
+    oidc_token="$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | jq -r '.value // empty' || true)"
+    if [[ -n "$oidc_token" ]]; then
+      jq --arg token "$oidc_token" 'map(if has("client_assertion") then .client_assertion = $token else . end)' "$sp_file" > "$sp_file.tmp" && mv "$sp_file.tmp" "$sp_file"
+    fi
+  fi
+  az account get-access-token --resource https://api.loganalytics.io --output none 2>/dev/null || {
+    echo 'deploy: Log Analytics authentication preflight failed.' >&2; exit 1;
+  }
+  az account get-access-token --resource https://management.azure.com --output none 2>/dev/null || true
+  az account get-access-token --resource https://management.azure.com/ --output none 2>/dev/null || true
+  az account get-access-token --resource https://vault.azure.net --output none 2>/dev/null || true
 }
+# Cache Azure audiences while the workflow's OIDC assertion is fresh.
+warm_azure_tokens
 restore_args=()
 if [[ -n "${NUGET_CONFIG:-}" ]]; then restore_args+=("-p:RestoreConfigFile=$NUGET_CONFIG"); fi
 work="$(mktemp -d)"
@@ -105,13 +118,15 @@ fi
 # RID-less build for the install step below (dotnet run --no-build).
 dotnet build "$kernel" -c Release "${restore_args[@]}"
 
+warm_azure_tokens
+
 # The installer reads an install config: the private values file with what only Azure and this run know filled in.
 # Nothing secret is rendered here; the file lives in the temporary directory and is removed on exit.
 render_config() {
   local subscription principal
   subscription="$(az account show --query id -o tsv)"
   # The object id of whoever is signed in (the OIDC service principal in CI), from the token's oid claim.
-  principal="$(az account get-access-token --resource https://management.azure.com/ --query accessToken -o tsv \
+  principal="$(az account get-access-token --resource https://management.azure.com --query accessToken -o tsv \
     | python3 -c 'import base64,json,sys; p=sys.stdin.read().strip().split(".")[1]; print(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))).get("oid",""))')"
   [[ -n "$subscription" && -n "$principal" ]] || { echo 'deploy: could not read the signed-in Azure subscription and principal.' >&2; exit 1; }
   jq --arg sub "$subscription" --arg principal "$principal" --arg group "$group" --arg registry "$registry" --arg server "$server" --arg tag "$image_tag" --arg sandbox "$server/os-sandbox:$image_tag" --arg role "0fb8eba5-a2bb-4abe-b1c1-49dfad359bb0" \
@@ -172,5 +187,6 @@ for app in os os-ui; do
   count="$(az containerapp revision list -g "$group" -n "$prefix-$env_name-$app" --query 'length([?properties.active])' -o tsv)"
   [[ "$count" == 1 ]] || { echo "deploy: $app must have exactly one active revision." >&2; exit 1; }
 done
+warm_azure_tokens
 python3 scripts/deploy/deploy_seeding_check.py --resource-group "$group" --app "$prefix-$env_name-os"
 echo "deploy: completed $env_name image tag $image_tag"

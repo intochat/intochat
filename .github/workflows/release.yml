@@ -96,8 +96,7 @@ jobs:
             -c Release -r linux-x64 /t:PublishContainer \
             -p:PublishProfile=Container \
             -p:EnableSdkContainerSupport=true \
-            -p:CodeGraphRefresh=false \
-            -p:ContainerImageTags="${VERSION}%3Blatest"
+            -p:CodeGraphRefresh=false
 
       - name: Publish UI image
         env:
