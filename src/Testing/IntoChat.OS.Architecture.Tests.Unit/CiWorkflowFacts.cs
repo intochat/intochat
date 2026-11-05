@@ -2,8 +2,11 @@ using System.Text.RegularExpressions;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// Workflow guard rails that no run can prove while Actions is unavailable: nightly e2e never gates a PR or push,
-// the timing report never blocks ci, and ArtCraft images come from GHCR instead of being built in e2e.
+// Workflow guard rails that no run can prove while Actions is unavailable:
+// Only ci.yml, release.yml, and artcraft-images.yml exist in .github/workflows/.
+// ci.yml runs unit, integration, e2e, and flutter jobs against a single build.
+// release.yml builds images once and deploys test then prod via Kernel install with zero scripts.
+// No workflow references scripts/ directory or PACKAGE_TOKEN or DEPLOYMENT_VALUES_TOKEN.
 public sealed partial class CiWorkflowFacts
 {
     private static string Workflow(string name) => File.ReadAllText(Path.Combine(Repository.Root, ".github", "workflows", name));
@@ -16,54 +19,121 @@ public sealed partial class CiWorkflowFacts
         return match.Groups["body"].Value;
     }
 
-    [GeneratedRegex(@"^\s*(push|pull_request|pull_request_target)\s*:", RegexOptions.Multiline)]
-    private static partial Regex GatingTrigger();
-
     [Fact]
-    public void E2EIsNightlyOrDispatchedOnly()
+    public void OnlyCiReleaseAndArtcraftWarmWorkflowsExist()
     {
-        var workflow = Workflow("e2e.yml");
-        var on = workflow[workflow.IndexOf("\non:", StringComparison.Ordinal)..workflow.IndexOf("\npermissions:", StringComparison.Ordinal)];
-        Assert.Contains("schedule:", on, StringComparison.Ordinal);
-        Assert.Contains("workflow_dispatch:", on, StringComparison.Ordinal);
-        Assert.DoesNotMatch(GatingTrigger(), on);
+        var workflows = Directory.EnumerateFiles(Path.Combine(Repository.Root, ".github", "workflows"), "*.yml")
+            .Select(Path.GetFileName)
+            .Order()
+            .ToArray();
+
+        string[] expected = ["artcraft-images.yml", "ci.yml", "release.yml"];
+        Assert.Equal(expected, workflows);
     }
 
     [Fact]
-    public void E2EDoesNotBuildArtCraftFromSource()
+    public void CiRunsUnitIntegrationE2EAndFlutterJobsAgainstSingleBuild()
     {
-        var workflow = Workflow("e2e.yml");
-        Assert.DoesNotContain("craft-mcp.Dockerfile", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("craft-web.Dockerfile", workflow, StringComparison.Ordinal);
-        Assert.Contains("ghcr.io/intochat/os-artcraft", workflow, StringComparison.Ordinal);
+        var ci = Workflow("ci.yml");
+
+        // Single compilation in build job
+        var build = Job(ci, "build");
+        Assert.Contains("dotnet build Intochat.OS.slnx", build, StringComparison.Ordinal);
+        Assert.Contains("gitleaks", build, StringComparison.Ordinal);
+        Assert.Contains("upload-artifact", build, StringComparison.Ordinal);
+
+        // Test jobs run with --no-build and download-artifact
+        var testUnit = Job(ci, "test-unit");
+        Assert.Contains("needs: [build]", testUnit, StringComparison.Ordinal);
+        Assert.Contains("--no-build", testUnit, StringComparison.Ordinal);
+        Assert.Contains("-p:IntoChatOSOnlyTier=Unit", testUnit, StringComparison.Ordinal);
+        Assert.Contains("download-artifact", testUnit, StringComparison.Ordinal);
+
+        var testIntegration = Job(ci, "test-integration");
+        Assert.Contains("needs: [build]", testIntegration, StringComparison.Ordinal);
+        Assert.Contains("--no-build", testIntegration, StringComparison.Ordinal);
+        Assert.Contains("-p:IntoChatOSOnlyTier=Integration", testIntegration, StringComparison.Ordinal);
+        Assert.Contains("azurite", testIntegration, StringComparison.Ordinal);
+        Assert.Contains("postgres:16", testIntegration, StringComparison.Ordinal);
+        Assert.Contains("qdrant", testIntegration, StringComparison.Ordinal);
+
+        var e2e = Job(ci, "e2e");
+        Assert.Contains("needs: [build]", e2e, StringComparison.Ordinal);
+        Assert.Contains("--no-build", e2e, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.Kernel.Tests.E2E.csproj", e2e, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj", e2e, StringComparison.Ordinal);
+        Assert.DoesNotContain("--filter-trait \"needs=artcraft\"", e2e, StringComparison.Ordinal);
+
+        var flutter = Job(ci, "flutter");
+        Assert.Contains("flutter test", flutter, StringComparison.Ordinal);
+
+        // Gating ci job needs all parallel jobs
+        var gatingCi = Job(ci, "ci");
+        var needsMatch = Regex.Match(gatingCi, @"(?m)^\s*needs:\s*\[(?<list>[^\]]*)\]");
+        Assert.True(needsMatch.Success, "ci job must list its needs inline");
+        var needs = needsMatch.Groups["list"].Value.Split(',').Select(n => n.Trim()).ToArray();
+        Assert.Contains("build", needs);
+        Assert.Contains("test-unit", needs);
+        Assert.Contains("test-integration", needs);
+        Assert.Contains("e2e", needs);
+        Assert.Contains("flutter", needs);
     }
 
     [Fact]
-    public void TheReportJobNeverBlocksCi()
+    public void ReleaseBuildsImagesOnceAndDeploysTestThenProdViaKernelInstallWithZeroScripts()
     {
-        var workflow = Workflow("ci.yml");
-        Assert.Matches(@"(?m)^\s*continue-on-error:\s*true\s*$", Job(workflow, "report"));
-        var needs = Regex.Match(Job(workflow, "ci"), @"(?m)^\s*needs:\s*\[(?<list>[^\]]*)\]");
-        Assert.True(needs.Success, "ci job must list its needs inline");
-        Assert.DoesNotContain("report", needs.Groups["list"].Value.Split(',').Select(n => n.Trim()));
+        var release = Workflow("release.yml");
+
+        // Gating check-run verification
+        var package = Job(release, "package");
+        Assert.Contains("check-runs", package, StringComparison.Ordinal);
+
+        // Builds images once with BuildKit GHA cache
+        Assert.Contains("type=gha", package, StringComparison.Ordinal);
+        Assert.Contains("acrintochattest.azurecr.io/os:", package, StringComparison.Ordinal);
+        Assert.Contains("acrintochattest.azurecr.io/os-ui:", package, StringComparison.Ordinal);
+        Assert.Contains("acrintochattest.azurecr.io/os-sandbox:", package, StringComparison.Ordinal);
+        Assert.Contains("release-manifest.json", package, StringComparison.Ordinal);
+
+        // deploy-test uses pre-built Kernel binary install
+        var deployTest = Job(release, "deploy-test");
+        Assert.Contains("IntoChat.OS.Kernel install --env test --config deploy/test.json --manifest release-manifest.json", deployTest, StringComparison.Ordinal);
+
+        // deploy-prod uses environment: production and promote-from
+        var deployProd = Job(release, "deploy-prod");
+        Assert.Contains("environment: production", deployProd, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.Kernel install --env prod --config deploy/prod.json --manifest release-manifest.json --promote-from", deployProd, StringComparison.Ordinal);
+
+        // rollback_tag support
+        Assert.Contains("rollback_tag", release, StringComparison.Ordinal);
     }
 
     [Fact]
-    // The platform downstream build moved to digitalbrain's downstream job, which builds os (03-13, R4-03).
-    public void TheDownstreamJobLivesInDigitalbrainNotHere()
+    public void NoWorkflowReferencesScriptsDirectoryOrPackageTokenOrDeploymentValuesToken()
     {
-        var workflow = Workflow("ci.yml");
-        Assert.DoesNotMatch(@"(?m)^  downstream:", workflow);
-        Assert.DoesNotContain("PLATFORM_READ_TOKEN", workflow, StringComparison.Ordinal);
+        var workflows = Directory.EnumerateFiles(Path.Combine(Repository.Root, ".github", "workflows"), "*.yml");
+        foreach (var file in workflows)
+        {
+            var content = File.ReadAllText(file);
+            var relativeName = Repository.Relative(file);
+
+            Assert.False(content.Contains("scripts/", StringComparison.OrdinalIgnoreCase),
+                $"Workflow {relativeName} references scripts/ directory.");
+            Assert.False(content.Contains("PACKAGE_TOKEN", StringComparison.Ordinal),
+                $"Workflow {relativeName} references PACKAGE_TOKEN.");
+            Assert.False(content.Contains("DEPLOYMENT_VALUES_TOKEN", StringComparison.Ordinal),
+                $"Workflow {relativeName} references DEPLOYMENT_VALUES_TOKEN.");
+        }
     }
 
     [Fact]
     public void OnlyTheWarmWorkflowMayWritePackages()
     {
         Assert.Contains("packages: write", Workflow("artcraft-images.yml"), StringComparison.Ordinal);
-        var e2e = Workflow("e2e.yml");
-        Assert.Contains("packages: read", e2e, StringComparison.Ordinal);
-        Assert.DoesNotContain("packages: write", e2e, StringComparison.Ordinal);
+        var release = Workflow("release.yml");
+        Assert.DoesNotContain("packages: write", release, StringComparison.Ordinal);
+        var ci = Workflow("ci.yml");
+        Assert.DoesNotContain("packages: write", ci, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -81,8 +151,7 @@ public sealed partial class CiWorkflowFacts
             .Where(path =>
             {
                 var text = File.ReadAllText(path);
-                return text.Contains("gh release download", StringComparison.Ordinal)
-                    || text.Contains("../nuget", StringComparison.Ordinal)
+                return text.Contains("../nuget", StringComparison.Ordinal)
                     || text.Contains(".nuget-local", StringComparison.Ordinal);
             })
             .Select(Repository.Relative)

@@ -1,129 +1,224 @@
 name: release
 
-# Owner rule: a release is created only as a GitHub release (gh release create v<VERSION>), never by pushing a tag, and
-# publishing it is also what starts the deployment (deploy.yml): test first, then prod, one run per release.
-# Create a GitHub release whose tag is v<VERSION> (the VERSION file). Publishing that
-# release starts this workflow. It packs, pushes packages and GHCR images, and uploads
-# the packages onto that release. No tests: ci.yml owns them.
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      rollback_tag:
+        description: 'Tag of the prior release to roll back to (e.g. v0.14.1)'
+        required: false
+        type: string
 
 permissions:
   contents: write
-  packages: write
+  packages: read
+  id-token: write
   checks: read
   actions: read
-  issues: write
 
 env:
   DOTNET_NOLOGO: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
-  e2e-latest:
-    uses: ./.github/workflows/e2e.yml
-    secrets: inherit
-  release:
-    name: release
-    needs: [ci, e2e-latest]
+  package:
+    name: package
+    if: inputs.rollback_tag == '' || inputs.rollback_tag == null
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      # Releases only ship commits the ci aggregate job passed.
-      - name: Require ci success for this commit
+      - name: Verify CI check-run status
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ok="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '[.check_runs[]|select(.name=="ci" or .name=="ci / ci")|.conclusion]|index("success")')"
-          [ "${ok}" != "null" ] && [ -n "${ok}" ] || { echo "::error::ci has not succeeded for this commit"; exit 1; }
+          [ "${ok}" != "null" ] && [ -n "${ok}" ] || { echo "::error::ci has not succeeded for commit ${{ github.sha }}"; exit 1; }
 
-      # Must stay first: nothing is logged in, packed or pushed for a mismatched tag.
       - name: Guard tag matches VERSION
         id: version
         run: |
           version="$(tr -d '[:space:]' < VERSION)"
-          [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
+          if [ "${{ github.event_name }}" = "release" ]; then
+            [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
+          fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
-      - name: Free space for native dependencies and container builds
-        run: |
-          sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup
-          df -h /
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Authenticate GitHub Packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-
-      - name: Restore dependencies
-        run: dotnet restore Intochat.OS.slnx
-
-      - name: Pack release packages
-        run: dotnet pack Intochat.OS.slnx -c Release --no-restore -o artifacts -p:RunAnalyzers=false -p:CodeGraphRefresh=false
-
-      # Separate from pack so --skip-duplicate cannot mask a pack failure.
-      - name: Push packages to GitHub Packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-          dotnet nuget push "artifacts/*.nupkg" --source https://nuget.pkg.github.com/intochat/index.json --api-key "${GITHUB_TOKEN}" --skip-duplicate
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
+      - name: Log in to Azure Container Registry (Test)
+        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: acrintochattest.azurecr.io
+          username: ${{ secrets.AZURE_CLIENT_ID }}
+          password: ${{ secrets.AZURE_CLIENT_SECRET }}
 
-      # Registry and repository (ghcr.io/intochat/os) come from Properties/PublishProfiles/Container.pubxml.
-      - name: Publish kernel image
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+      - name: Publish IntoChat.OS.Kernel binary
         run: |
           dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
-            -c Release -r linux-x64 /t:PublishContainer \
-            -p:PublishProfile=Container \
-            -p:EnableSdkContainerSupport=true \
-            -p:CodeGraphRefresh=false
+            -c Release -r linux-x64 --self-contained \
+            -o artifacts/kernel-bin -p:CodeGraphRefresh=false
 
-      - name: Publish UI image
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+      - name: Build and push OS container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Dockerfile
+          push: true
+          tags: |
+            acrintochattest.azurecr.io/os:${{ steps.version.outputs.version }}
+            acrintochattest.azurecr.io/os:latest
+          cache-from: type=gha,scope=os
+          cache-to: type=gha,mode=max,scope=os
+
+      - name: Build and push OS-UI container image
+        uses: docker/build-push-action@v6
+        with:
+          context: ui
+          file: ui/shell/Dockerfile
+          push: true
+          tags: |
+            acrintochattest.azurecr.io/os-ui:${{ steps.version.outputs.version }}
+            acrintochattest.azurecr.io/os-ui:latest
+          cache-from: type=gha,scope=os-ui
+          cache-to: type=gha,mode=max,scope=os-ui
+
+      - name: Build and push OS-Sandbox container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile
+          push: true
+          tags: |
+            acrintochattest.azurecr.io/os-sandbox:${{ steps.version.outputs.version }}
+            acrintochattest.azurecr.io/os-sandbox:latest
+          cache-from: type=gha,scope=os-sandbox
+          cache-to: type=gha,mode=max,scope=os-sandbox
+
+      - name: Write release manifest
+        id: manifest
         run: |
-          docker build -f ui/shell/Dockerfile \
-            -t ghcr.io/intochat/os-ui:${VERSION} \
-            -t ghcr.io/intochat/os-ui:latest \
-            ui
-          docker push --all-tags ghcr.io/intochat/os-ui
+          VERSION="${{ steps.version.outputs.version }}"
+          COMMIT="${{ github.sha }}"
+          OS_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' acrintochattest.azurecr.io/os:${VERSION})
+          UI_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' acrintochattest.azurecr.io/os-ui:${VERSION})
+          SANDBOX_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' acrintochattest.azurecr.io/os-sandbox:${VERSION})
+          cat <<EOF > release-manifest.json
+          {
+            "version": "${VERSION}",
+            "commit": "${COMMIT}",
+            "osImage": "${OS_DIGEST}",
+            "uiImage": "${UI_DIGEST}",
+            "sandboxImage": "${SANDBOX_DIGEST}"
+          }
+          EOF
+          cat release-manifest.json
 
-      # Built from the same commit as the kernel, so its contracts match the brains that run its sessions.
-      - name: Publish sandbox image
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          NUGET_GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          docker build --secret id=nuget,env=NUGET_GITHUB_TOKEN \
-            -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
-            -t ghcr.io/intochat/os-sandbox:${VERSION} \
-            -t ghcr.io/intochat/os-sandbox:latest .
-          bash scripts/check-sandbox-image.sh "ghcr.io/intochat/os-sandbox:${VERSION}"
-          docker push --all-tags ghcr.io/intochat/os-sandbox
+      - name: Upload release manifest and Kernel binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            release-manifest.json
+            artifacts/kernel-bin/IntoChat.OS.Kernel
+          retention-days: 30
 
-      # The release already exists: publishing it is what started this workflow.
-      - name: Upload packages to the GitHub release
+      - name: Attach release manifest to GitHub Release
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" artifacts/*.nupkg --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" release-manifest.json --clobber
+
+  deploy-test:
+    name: deploy-test
+    needs: [package]
+    if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+    runs-on: ubuntu-24.04
+    environment: test
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: ./artifacts-in
+
+      - name: Prepare installer binary and manifest
+        run: |
+          cp ./artifacts-in/release-manifest.json ./release-manifest.json
+          cp ./artifacts-in/artifacts/kernel-bin/IntoChat.OS.Kernel ./IntoChat.OS.Kernel
+          chmod +x ./IntoChat.OS.Kernel
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy test environment
+        env:
+          OS_DEPLOY_SECRETS_JSON: ${{ secrets.OS_DEPLOY_SECRETS_JSON }}
+        run: |
+          ./IntoChat.OS.Kernel install --env test --config deploy/test.json --manifest release-manifest.json
+
+  deploy-prod:
+    name: deploy-prod
+    needs: [package, deploy-test]
+    if: always() && (needs.deploy-test.result == 'success' || (inputs.rollback_tag != '' && inputs.rollback_tag != null))
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download rollback manifest from prior release
+        if: inputs.rollback_tag != '' && inputs.rollback_tag != null
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+        run: |
+          gh release download "$ROLLBACK_TAG" --pattern "release-manifest.json" --output release-manifest.json
+          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+            -c Release -r linux-x64 --self-contained \
+            -o ./kernel-build -p:CodeGraphRefresh=false
+          cp ./kernel-build/IntoChat.OS.Kernel ./IntoChat.OS.Kernel
+          chmod +x ./IntoChat.OS.Kernel
+
+      - name: Use artifacts from package job
+        if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: ./artifacts-in
+
+      - name: Prepare installer binary and manifest
+        if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+        run: |
+          cp ./artifacts-in/release-manifest.json ./release-manifest.json
+          cp ./artifacts-in/artifacts/kernel-bin/IntoChat.OS.Kernel ./IntoChat.OS.Kernel
+          chmod +x ./IntoChat.OS.Kernel
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy production environment
+        env:
+          OS_DEPLOY_SECRETS_JSON: ${{ secrets.OS_DEPLOY_SECRETS_JSON }}
+        run: |
+          ./IntoChat.OS.Kernel install --env prod --config deploy/prod.json --manifest release-manifest.json --promote-from /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-intochat-test/providers/Microsoft.ContainerRegistry/registries/acrintochattest

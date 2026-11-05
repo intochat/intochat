@@ -29,6 +29,9 @@ updates:
       interval: weekly
     open-pull-requests-limit: 15
     groups:
+      digitalbrain:
+        patterns:
+          - 'DigitalBrain*'
       aspire:
         patterns:
           - 'Aspire.*'
