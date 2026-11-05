@@ -12,6 +12,7 @@ public sealed record InstallConfig
     public string Prefix { get; init; } = "";
     public string Env { get; init; } = "";
     public string OsImage { get; init; } = "";
+    public string UiImage { get; init; } = "";
     public double Cpu { get; init; } = 0.5;
     public string Memory { get; init; } = "1Gi";
     public int StorageQuotaGb { get; init; } = 20;
@@ -56,6 +57,8 @@ public sealed record InstallConfig
 
     public string OsName => Named("os", ResourceNames.App(Prefix, Env, "os"));
 
+    public string UiName => Named("ui", ResourceNames.App(Prefix, Env, "ui"));
+
     // names.registry, else the first label of registryServer (an install config that already names its registry), else derived.
     public string RegistryName => Named("registry", RegistryServer.Length > 0 ? RegistryServer.Split('.')[0] : ResourceNames.Registry(Prefix, Env));
 
@@ -68,6 +71,26 @@ public sealed record InstallConfig
     {
         var entry = Names.FirstOrDefault(pair => string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase));
         return string.IsNullOrWhiteSpace(entry.Value) ? derived : entry.Value;
+    }
+
+    public InstallConfig WithManifest(ReleaseManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        var modules = new Dictionary<string, Dictionary<string, string>>(Modules, StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(manifest.SandboxImage))
+        {
+            var csharp = modules.TryGetValue("csharp", out var existing)
+                ? new Dictionary<string, string>(existing, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            csharp["sandboxImage"] = manifest.SandboxImage;
+            modules["csharp"] = csharp;
+        }
+        return this with
+        {
+            OsImage = !string.IsNullOrWhiteSpace(manifest.OsImage) ? manifest.OsImage : OsImage,
+            UiImage = !string.IsNullOrWhiteSpace(manifest.UiImage) ? manifest.UiImage : UiImage,
+            Modules = modules,
+        };
     }
 
     public ModuleSettings SettingsFor(string module)

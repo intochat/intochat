@@ -39,6 +39,10 @@ internal sealed class RecordingAzure : IAzureArm
     public Task Remove(string subscription, ResourceRef resource, CancellationToken ct) => Task.CompletedTask;
 
     public Task<ResourceRef[]> List(string subscription, string tagValue, CancellationToken ct) => Task.FromResult<ResourceRef[]>([]);
+
+    public ValueTask<string> CurrentPrincipalObjectId(CancellationToken ct) => ValueTask.FromResult("00000000-0000-0000-0000-000000000002");
+
+    public Task ImportImage(string subscription, string targetGroup, string targetRegistry, string sourceRegistryResourceId, string sourceImage, CancellationToken ct) => Task.CompletedTask;
 }
 
 // The connection neuron is plain (06-08): a fact attaches it to a fake context keyed as an Azure connection.

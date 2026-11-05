@@ -78,6 +78,10 @@ public sealed class AspireCloud(string localHost = "localhost", int basePort = 1
             endpoint = $"http://{localHost}:{port}/";
             _containers.Add(new LocalContainerBinding(pool.Name, pool.Image, port, pool.TargetPort, pool.MaxSessions, pool.ReadySessions));
         }
+        else if (spec is ContainerAppSpec)
+        {
+            endpoint = $"{spec.Name}.local.azurecontainerapps.io";
+        }
         else if (spec is RegistrySpec)
         {
             endpoint = $"{localHost}:5000";
@@ -121,6 +125,12 @@ public sealed class AspireCloud(string localHost = "localhost", int basePort = 1
 
     public Task<ResourceRef[]> List(string subscription, string tagValue, CancellationToken ct)
         => Task.FromResult(_resources.Values.ToArray());
+
+    public ValueTask<string> CurrentPrincipalObjectId(CancellationToken ct)
+        => ValueTask.FromResult("00000000-0000-0000-0000-000000000001");
+
+    public Task ImportImage(string subscription, string targetGroup, string targetRegistry, string sourceRegistryResourceId, string sourceImage, CancellationToken ct)
+        => Task.CompletedTask;
 }
 
 public sealed record LocalContainerBinding(

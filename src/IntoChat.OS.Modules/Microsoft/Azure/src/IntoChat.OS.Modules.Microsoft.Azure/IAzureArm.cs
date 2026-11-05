@@ -13,4 +13,8 @@ public interface IAzureArm
     Task Remove(string subscription, ResourceRef resource, CancellationToken ct);
 
     Task<ResourceRef[]> List(string subscription, string tagValue, CancellationToken ct);
+
+    ValueTask<string> CurrentPrincipalObjectId(CancellationToken ct);
+
+    Task ImportImage(string subscription, string targetGroup, string targetRegistry, string sourceRegistryResourceId, string sourceImage, CancellationToken ct);
 }

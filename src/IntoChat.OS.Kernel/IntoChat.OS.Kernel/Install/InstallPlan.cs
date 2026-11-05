@@ -39,6 +39,31 @@ public static class InstallPlan
     public static ContainerAppSpec OsApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<SecretRef> secrets) =>
         (ContainerAppSpec)Build(config, variables, secrets)[^1];
 
+    public static ContainerAppSpec UiApp(InstallConfig config, string osFqdn)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var c = config.Validated();
+        return new ContainerAppSpec
+        {
+            Name = c.UiName,
+            ResourceGroup = c.GroupName,
+            Location = c.Location,
+            Env = c.Env,
+            Owner = Owner,
+            Environment = c.EnvironmentName,
+            Identity = c.IdentityName,
+            Image = c.UiImage,
+            Cpu = 0.25,
+            Memory = "0.5Gi",
+            IngressPort = 80,
+            RegistryServer = c.LoginServer,
+            Variables = new Dictionary<string, string>
+            {
+                ["KERNEL_ORIGIN"] = $"https://{osFqdn}",
+            },
+        };
+    }
+
     public static FoundationRefs Refs(InstallConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -172,12 +197,20 @@ public static class InstallPlan
         for (var i = 0; i < c.Postgres.Databases.Length; i++)
         {
             var database = c.Postgres.Databases[i];
+            var connectionString = $"Host={PostgresHost(c)};Database={database};Username={c.Postgres.AdminLogin};Password={SecretSpec.Reference(PostgresPasswordSecret)}";
             yield return new SecretSpec
             {
                 Name = i == 0 ? DbConnectionSecret : $"{DbConnectionSecret}-{database}",
                 Vault = vault,
                 Overwrite = true,
-                Value = $"Host={PostgresHost(c)};Database={database};Username={c.Postgres.AdminLogin};Password={SecretSpec.Reference(PostgresPasswordSecret)}",
+                Value = connectionString,
+            };
+            yield return new SecretSpec
+            {
+                Name = i == 0 ? "postgres-connectionstring" : $"postgres-connectionstring-{database}",
+                Vault = vault,
+                Overwrite = true,
+                Value = connectionString,
             };
         }
     }

@@ -1,0 +1,34 @@
+{
+  "subscription": "00000000-0000-0000-0000-000000000000",
+  "location": "polandcentral",
+  "prefix": "intochat",
+  "env": "prod",
+  "resourceGroup": "rg-intochat-prod",
+  "osImage": "acrintochatprod.azurecr.io/os:latest",
+  "uiImage": "acrintochatprod.azurecr.io/os-ui:latest",
+  "registryServer": "acrintochatprod.azurecr.io",
+  "registry": {
+    "enabled": true,
+    "sku": "Basic"
+  },
+  "postgres": {
+    "enabled": true,
+    "sku": "Standard_B1ms",
+    "tier": "Burstable",
+    "storageGb": 32,
+    "adminLogin": "intochat",
+    "databases": [
+      "intochat"
+    ]
+  },
+  "modules": {
+    "auth": {
+      "Posture": "Secured",
+      "PublicBaseUrl": "https://ca-intochat-prod-os.polandcentral.azurecontainerapps.io"
+    },
+    "csharp": {
+      "sandboxImage": "acrintochatprod.azurecr.io/os-sandbox:latest",
+      "sessionExecutorRoleId": "0fb8eba5-a2bb-4abe-b1c1-49dfad359bb0"
+    }
+  }
+}

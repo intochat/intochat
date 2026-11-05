@@ -463,10 +463,10 @@ public sealed class ArmAzure : IAzureArm
         using var existingJson = existing.HasValue ? JsonDocument.Parse(ModelReaderWriter.Write(existing.Value!.Data).ToString()) : null;
         if (existingJson is not null && MatchesDesired(desiredJson.RootElement, existingJson.RootElement))
         {
-            return Ref(existing.Value!.Id, spec, spec.Name);
+            return Ref(existing.Value!.Id, spec, spec.Name) with { Endpoint = existing.Value!.Data.Configuration?.Ingress?.Fqdn ?? "" };
         }
         var made = await rg.GetContainerApps().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
-        return Ref(made.Value.Id, spec, spec.Name);
+        return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.Configuration?.Ingress?.Fqdn ?? "" };
     }
 
     private static bool MatchesDesired(JsonElement desired, JsonElement current)
@@ -600,5 +600,44 @@ public sealed class ArmAzure : IAzureArm
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{scope}|{principal}|{role}".ToLowerInvariant()));
         return new Guid(hash.AsSpan(0, 16)).ToString();
+    }
+
+    public async ValueTask<string> CurrentPrincipalObjectId(CancellationToken ct)
+    {
+        var token = await _credential.GetTokenAsync(new TokenRequestContext(["https://management.azure.com/.default"]), ct);
+        var parts = token.Token.Split('.');
+        if (parts.Length < 2)
+        {
+            throw new InvalidOperationException("Current token credential returned an invalid JWT format.");
+        }
+        var base64 = parts[1].Replace('-', '+').Replace('_', '/');
+        switch (base64.Length % 4)
+        {
+            case 2: base64 += "=="; break;
+            case 3: base64 += "="; break;
+        }
+        var json = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("oid", out var oidProp) && oidProp.GetString() is { Length: > 0 } oid)
+        {
+            return oid;
+        }
+        throw new InvalidOperationException("Current token credential does not contain an 'oid' claim.");
+    }
+
+    public async Task ImportImage(string subscription, string targetGroup, string targetRegistry, string sourceRegistryResourceId, string sourceImage, CancellationToken ct)
+    {
+        var sub = Subscription(subscription);
+        var rg = (await sub.GetResourceGroupAsync(targetGroup, ct)).Value;
+        var registry = (await rg.GetContainerRegistryAsync(targetRegistry, ct)).Value;
+        var source = new ContainerRegistryImportSource(sourceImage)
+        {
+            ResourceId = new ResourceIdentifier(sourceRegistryResourceId),
+        };
+        var content = new ContainerRegistryImportImageContent(source)
+        {
+            Mode = ContainerRegistryImportMode.Force,
+        };
+        await registry.ImportImageAsync(WaitUntil.Completed, content, ct);
     }
 }

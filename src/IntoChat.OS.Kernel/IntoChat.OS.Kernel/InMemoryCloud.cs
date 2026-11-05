@@ -42,6 +42,7 @@ public sealed class InMemoryCloud(bool autoSeedVaultSecrets = false) : IAzureArm
         {
             Endpoint = spec switch
             {
+                ContainerAppSpec => $"{spec.Name}.inmemory.{spec.Location}.azurecontainerapps.io",
                 SessionPoolSpec => $"https://{spec.Name}.inmemory.{spec.Location}.azurecontainerapps.io/",
                 RegistrySpec => $"{spec.Name}.azurecr.io",
                 _ => "",
@@ -80,4 +81,17 @@ public sealed class InMemoryCloud(bool autoSeedVaultSecrets = false) : IAzureArm
 
     public Task<ResourceRef[]> List(string subscription, string tagValue, CancellationToken ct)
         => Task.FromResult(_resources.Values.ToArray());
+
+    public string? CurrentPrincipalId { get; set; }
+
+    public List<(string TargetRegistry, string SourceRegistryResourceId, string SourceImage)> ImportedImages { get; } = [];
+
+    public ValueTask<string> CurrentPrincipalObjectId(CancellationToken ct)
+        => ValueTask.FromResult(CurrentPrincipalId ?? "00000000-0000-0000-0000-0000000000aa");
+
+    public Task ImportImage(string subscription, string targetGroup, string targetRegistry, string sourceRegistryResourceId, string sourceImage, CancellationToken ct)
+    {
+        ImportedImages.Add((targetRegistry, sourceRegistryResourceId, sourceImage));
+        return Task.CompletedTask;
+    }
 }

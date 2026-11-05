@@ -6,16 +6,22 @@ using Azure;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 
-// dotnet run --project IntoChat.OS.Kernel -- install --env test --config deployment/test.json [--dry-run] [--print-env] [--secrets-from file]
+// dotnet run --project IntoChat.OS.Kernel -- install --env test --config deployment/test.json [--manifest release-manifest.json] [--promote-from <id>] [--dry-run] [--print-env] [--secrets-from file]
 // Runs before any cluster exists: the specs are ensured straight against ARM, in dependency order, and the
 // deployments of the composed modules run after the foundation.
 public static class AzureInstaller
 {
     public const string MasterKeyVariable = "INTOCHATOS_MASTER_KEY";
+    public const string DeploySecretsJsonVariable = "OS_DEPLOY_SECRETS_JSON";
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     public static bool IsInstall(string[] args) => args is [var verb, ..] && verb == "install";
 
-    public static async Task<int> Run(string[] args, IAzureArm arm, IEnumerable<OsModule> modules, TextWriter output, TextWriter error, CancellationToken ct)
+    public static Task<int> Run(string[] args, IAzureArm arm, IEnumerable<OsModule> modules, TextWriter output, TextWriter error, CancellationToken ct) =>
+        Run(args, arm, modules, output, error, null, ct);
+
+    public static async Task<int> Run(string[] args, IAzureArm arm, IEnumerable<OsModule> modules, TextWriter output, TextWriter error, HttpClient? httpClient, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(arm);
@@ -24,15 +30,24 @@ public static class AzureInstaller
         ArgumentNullException.ThrowIfNull(error);
         InstallConfig config;
         bool dryRun, printEnv;
-        string? secretsFrom;
+        string? secretsFrom, manifestPath, promoteFrom;
+        ReleaseManifest? manifest = null;
         try
         {
             var options = Options.Parse(args);
-            (dryRun, secretsFrom, printEnv) = (options.DryRun, options.SecretsFrom, options.PrintEnv);
+            (dryRun, secretsFrom, printEnv, manifestPath, promoteFrom) = (options.DryRun, options.SecretsFrom, options.PrintEnv, options.Manifest, options.PromoteFrom);
             config = InstallConfig.Parse(await File.ReadAllTextAsync(options.Config, ct));
             if (!string.Equals(config.Env, options.Env, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException($"--env '{options.Env}' does not match the config's env '{config.Env}'.");
+            }
+
+            if (!string.IsNullOrEmpty(manifestPath))
+            {
+                var manifestJson = await File.ReadAllTextAsync(manifestPath, ct);
+                manifest = JsonSerializer.Deserialize<ReleaseManifest>(manifestJson, JsonOptions)
+                    ?? throw new InvalidOperationException($"Failed to deserialize release manifest from '{manifestPath}'.");
+                config = config.WithManifest(manifest);
             }
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or JsonException)
@@ -89,6 +104,25 @@ public static class AzureInstaller
 
         try
         {
+            // Resolve principal ID if not specified in config
+            if (string.IsNullOrWhiteSpace(config.InstallerPrincipalId))
+            {
+                current = "resolve current principal object id";
+                var principalId = await arm.CurrentPrincipalObjectId(ct);
+                config = config with { InstallerPrincipalId = principalId };
+            }
+
+            // If promoting from another registry, import all three images first
+            if (!string.IsNullOrEmpty(promoteFrom) && manifest is not null)
+            {
+                current = $"promote images from {promoteFrom}";
+                var targetGroup = config.GroupName;
+                var targetRegistry = config.RegistryName;
+                await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.OsImage, ct);
+                await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.UiImage, ct);
+                await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.SandboxImage, ct);
+            }
+
             // The foundation first, then each composed module's deployment, then the OS app with what they asked for.
             var foundation = InstallPlan.Refs(config);
             foreach (var spec in InstallPlan.Foundation(config))
@@ -148,10 +182,33 @@ public static class AzureInstaller
                 }
             }
             var osApp = InstallPlan.OsApp(config, variables, secrets);
-            await Ensure(osApp with { RegistryServer = foundation.RegistryServer }, ct);
-            if (dryRun) { await output.WriteLineAsync(InstallPlan.Summary(planned), ct); }
+            var osMade = await Ensure(osApp with { RegistryServer = foundation.RegistryServer }, ct);
+
+            string? uiFqdn = null;
+            if (!string.IsNullOrWhiteSpace(config.UiImage))
+            {
+                var osHost = HostOnly(osMade.Endpoint);
+                var uiApp = InstallPlan.UiApp(config, osHost);
+                var uiMade = await Ensure(uiApp with { RegistryServer = foundation.RegistryServer }, ct);
+                uiFqdn = HostOnly(uiMade.Endpoint);
+            }
+
+            if (dryRun)
+            {
+                await output.WriteLineAsync(InstallPlan.Summary(planned), ct);
+            }
+            else if (arm is not (IntoChat.OS.Kernel.InMemoryCloud or IntoChat.OS.Kernel.AspireCloud) || httpClient is not null)
+            {
+                var osHost = HostOnly(osMade.Endpoint);
+                if (!string.IsNullOrWhiteSpace(osHost))
+                {
+                    current = "smoke verification";
+                    using var client = httpClient is not null ? null : new HttpClient();
+                    await VerifySmokeAsync(httpClient ?? client!, osHost, uiFqdn, ct);
+                }
+            }
         }
-        catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException)
+        catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException or HttpRequestException)
         {
             await error.WriteLineAsync($"install: {current} failed: {ex.Message}", ct);
             return 1;
@@ -159,18 +216,80 @@ public static class AzureInstaller
         return 0;
     }
 
+    public static async Task VerifySmokeAsync(HttpClient client, string osHost, string? uiHost, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        if (string.IsNullOrWhiteSpace(osHost))
+        {
+            throw new InvalidOperationException("OS endpoint host is required for smoke verification.");
+        }
+
+        var osReadyUri = new Uri($"https://{osHost}/health/ready");
+        using (var response = await client.GetAsync(osReadyUri, ct))
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException($"OS ready check {osReadyUri} returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(uiHost))
+        {
+            var uiUri = new Uri($"https://{uiHost}/");
+            using var response = await client.GetAsync(uiUri, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException($"UI root check {uiUri} returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+            }
+        }
+    }
+
+    private static string HostOnly(string endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            return "";
+        }
+        if (endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Uri(endpoint).Host;
+        }
+        var slash = endpoint.IndexOf('/');
+        return slash >= 0 ? endpoint[..slash] : endpoint;
+    }
+
     // The master key comes from the file or the environment when given; otherwise the vault generates it once and keeps it. The Postgres admin password is generated once
     // when neither has it (the spec is Overwrite=false, so a later install keeps the stored one); the GHCR token is optional.
     private static async Task<Dictionary<string, string>> SecretValues(string? secretsFrom, CancellationToken ct)
     {
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (secretsFrom is not null)
+        var envSecretsJson = Environment.GetEnvironmentVariable(DeploySecretsJsonVariable);
+        if (!string.IsNullOrWhiteSpace(envSecretsJson))
         {
-            foreach (var (name, value) in JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(secretsFrom, ct)) ?? [])
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(envSecretsJson, JsonOptions);
+            if (parsed is not null)
             {
-                if (!string.IsNullOrWhiteSpace(value)) { values[name] = value; }
+                foreach (var (name, value) in parsed)
+                {
+                    if (!string.IsNullOrWhiteSpace(value)) { values[name] = value; }
+                }
             }
         }
+
+        if (secretsFrom is not null)
+        {
+            var fileJson = await File.ReadAllTextAsync(secretsFrom, ct);
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(fileJson, JsonOptions);
+            if (parsed is not null)
+            {
+                foreach (var (name, value) in parsed)
+                {
+                    if (!string.IsNullOrWhiteSpace(value)) { values[name] = value; }
+                }
+            }
+        }
+
         if (!values.ContainsKey(InstallPlan.MasterKeySecret))
         {
             var fromEnvironment = Environment.GetEnvironmentVariable(MasterKeyVariable);
@@ -204,11 +323,11 @@ public static class AzureInstaller
         });
     }
 
-    private sealed record Options(string Env, string Config, bool DryRun, string? SecretsFrom, bool PrintEnv)
+    private sealed record Options(string Env, string Config, bool DryRun, string? SecretsFrom, bool PrintEnv, string? Manifest, string? PromoteFrom)
     {
         public static Options Parse(string[] args)
         {
-            string? env = null, config = null, secrets = null;
+            string? env = null, config = null, secrets = null, manifest = null, promoteFrom = null;
             var dryRun = false;
             var printEnv = false;
             for (var i = 1; i < args.Length; i++)
@@ -218,6 +337,8 @@ public static class AzureInstaller
                     case "--env": env = Value(args, ref i); break;
                     case "--config": config = Value(args, ref i); break;
                     case "--secrets-from": secrets = Value(args, ref i); break;
+                    case "--manifest": manifest = Value(args, ref i); break;
+                    case "--promote-from": promoteFrom = Value(args, ref i); break;
                     case "--dry-run": dryRun = true; break;
                     case "--print-env": printEnv = true; break;
                     default: throw new ArgumentException($"Unknown install argument '{args[i]}'.");
@@ -228,7 +349,9 @@ public static class AzureInstaller
                 config ?? throw new ArgumentException("install needs --config."),
                 dryRun,
                 secrets,
-                printEnv);
+                printEnv,
+                manifest,
+                promoteFrom);
         }
 
         private static string Value(string[] args, ref int i) =>
