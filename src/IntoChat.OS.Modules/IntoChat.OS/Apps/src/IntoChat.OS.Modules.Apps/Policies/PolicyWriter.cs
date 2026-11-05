@@ -14,6 +14,12 @@ public sealed class PolicyWriter(
     public const int MaxRetries = 1;
     public const int MaxRequestLength = 1000;
 
+    /// <summary>The most characters of a refusal reason shown to the person; longer or multi-line text is cut here.</summary>
+    public const int MaxReasonLength = 200;
+
+    /// <summary>How long one model completion may take before the sentence is refused.</summary>
+    public static readonly TimeSpan ModelBudget = TimeSpan.FromSeconds(60);
+
     public async Task<ProposalOutcome> Write(string brainId, string sentence, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
@@ -30,11 +36,33 @@ public sealed class PolicyWriter(
         for (var attempt = 0; attempt <= MaxRetries; attempt++)
         {
             ct.ThrowIfCancellationRequested();
-            var reply = await model.Complete(brainId, PolicyPrompts.System, prompt, ct);
+            string reply;
+            try
+            {
+                using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                budget.CancelAfter(ModelBudget);
+                reply = await model.Complete(brainId, PolicyPrompts.System, prompt, budget.Token);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogWarning("PolicyWriter model did not answer within {Budget} for brain {BrainId}", ModelBudget, brainId);
+                return Refused("the model did not answer in time");
+            }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            {
+                // The provider's message is for the log, never for the person.
+                logger.LogWarning(error, "PolicyWriter model failed for brain {BrainId}", brainId);
+                return Refused("the model did not answer");
+            }
+
             if (Refusal(reply) is { } reason)
             {
                 logger.LogInformation("PolicyWriter refused sentence for brain {BrainId}: {Reason}", brainId, reason);
-                return new ProposalOutcome(ProposalStatus.Refused, null, string.Empty, null, reason);
+                return Refused(reason);
             }
 
             PolicyDraft draft;
@@ -52,7 +80,7 @@ public sealed class PolicyWriter(
                 }
 
                 logger.LogInformation(ex, "PolicyWriter exhausted retries on invalid JSON for brain {BrainId}", brainId);
-                return new ProposalOutcome(ProposalStatus.Refused, null, string.Empty, null, problem);
+                return Refused(problem);
             }
 
             var actionName = draft.Action?.Trim() ?? string.Empty;
@@ -61,7 +89,7 @@ public sealed class PolicyWriter(
             {
                 var unknown = $"unknown action '{actionName}'";
                 logger.LogInformation("PolicyWriter refused undeclared action {Action} for brain {BrainId}", actionName, brainId);
-                return new ProposalOutcome(ProposalStatus.Refused, null, string.Empty, null, unknown);
+                return Refused(unknown);
             }
 
             PolicyRule rule;
@@ -89,13 +117,22 @@ public sealed class PolicyWriter(
                 }
 
                 logger.LogInformation(ex, "PolicyWriter exhausted retries on grammar error for brain {BrainId}", brainId);
-                return new ProposalOutcome(ProposalStatus.Refused, null, string.Empty, null, ex.Message);
+                return Refused(ex.Message);
             }
 
             return await policies.Propose(rule, ct);
         }
 
-        return new ProposalOutcome(ProposalStatus.Refused, null, string.Empty, null, "grammar: unable to parse policy rule.");
+        return Refused("grammar: unable to parse policy rule.");
+    }
+
+    // Every refusal reason is one bounded line: model text and parser messages alike are cut before they reach the person.
+    private static ProposalOutcome Refused(string reason) => new(ProposalStatus.Refused, null, string.Empty, null, Bound(reason));
+
+    internal static string Bound(string reason)
+    {
+        var line = reason.ReplaceLineEndings(" ").Trim();
+        return line.Length <= MaxReasonLength ? line : line[..MaxReasonLength].TrimEnd() + "\u2026";
     }
 
     internal static string? Refusal(string reply)
