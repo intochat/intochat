@@ -27,6 +27,7 @@ public sealed partial class FrameworkBoundaryFacts
         "DigitalBrain.Runtime.Http",
         "DigitalBrain.Runtime.Orleans",
         "DigitalBrain.Runtime.Orleans.Azure",
+        "DigitalBrain.Runtime.Synapses",
         "DigitalBrain.Templates",
         "DigitalBrain.Testing",
         "DigitalBrain.Testing.Silo",

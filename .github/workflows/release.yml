@@ -1,6 +1,7 @@
 name: release
 
-# Agents: do not run this workflow, and do not push the tag yourself.
+# Owner rule: a release is created only as a GitHub release (gh release create v<VERSION>), never by pushing a tag, and
+# publishing it is also what starts the deployment (deploy.yml): test first, then prod, one run per release.
 # Create a GitHub release whose tag is v<VERSION> (the VERSION file). Publishing that
 # release starts this workflow. It packs, pushes packages and GHCR images, and uploads
 # the packages onto that release. No tests: ci.yml owns them.

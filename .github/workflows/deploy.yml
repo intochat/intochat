@@ -1,16 +1,18 @@
 name: deploy
 
+# Owner rule: a deployment starts only by publishing a GitHub release whose tag is v<VERSION>, and nothing else starts
+# one: not a push, not a manual trigger, not an agent. Every release owns exactly one deployment run, so the release
+# list is the deployment history. An emergency redeploy is a new release.
+#
 # One path for both environments: scripts/deploy/deploy.sh. Secrets live only in each environment's Key Vault; the workflow
 # holds the Azure OIDC identity and a read-only token for the private values repo, nothing else.
-#   test: a master push (after ci is green for that commit) builds the images, installs, verifies repeatability and
-#         records the image digests.
-#   prod: a published release promotes the digests test verified and installs them. There is no manual trigger: an
-#         emergency redeploy is a new `gh release` (owner rule: releases only through gh release).
+#   test: builds the images for the release commit (after ci is green for it), installs them on test, verifies
+#         repeatability and records the image digests.
+#   prod: runs after test in the same workflow run, promotes exactly the digests test verified and installs them.
+#         The production environment's protection rules, if any, are the only gate between the two.
 # Both jobs wait for the repository variable DEPLOY_ENABLED to be 'true'. It is unset until the owner has added every
-# secret and environment (09-DEPLOY-OPERATOR.md), so a merge before then starts no deployment.
+# secret and environment (09-DEPLOY-OPERATOR.md), so a release before then starts no deployment.
 on:
-  push:
-    branches: [master]
   release:
     types: [published]
 
@@ -26,7 +28,7 @@ env:
 
 jobs:
   test:
-    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'release'
     runs-on: ubuntu-latest
     environment: test
     timeout-minutes: 90
@@ -34,12 +36,18 @@ jobs:
       group: deploy-test
       cancel-in-progress: false
     env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
       DEPLOYMENT_VALUES_DIR: ${{ github.workspace }}/.deployment-values
     defaults:
       run:
         shell: bash
     steps:
+      - name: Validate release reference
+        run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]'
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
       # The private values repo (test.json, prod.json at its root) is read-only here and stays out of git (.deployment-values/ is ignored).
       - uses: actions/checkout@v4
         with:
@@ -53,6 +61,10 @@ jobs:
           df -h /
           sudo rm -rf /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/share/swift
           df -h /
+      - name: Guard tag matches VERSION
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          [ "v${version}" = "${RELEASE_TAG}" ] || { echo "::error::tag ${RELEASE_TAG} does not match VERSION ${version}"; exit 1; }
       - name: Require successful CI for this commit
         env:
           GH_TOKEN: ${{ github.token }}
@@ -90,6 +102,7 @@ jobs:
           retention-days: 90
 
   prod:
+    needs: [test]
     if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'release'
     runs-on: ubuntu-latest
     environment: production
@@ -133,18 +146,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/deploy/deployment_gate.py ci.yml "$DEPLOY_SHA" push
-      - name: Require successful test deployment of this commit
-        id: tested
+      # The digests come from the test job of this same run: a release promotes only what its own test deployment verified.
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-images
+          path: ${{ runner.temp }}/tested
+      - name: Validate tested image manifest
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/deploy/deployment_gate.py deploy.yml "$DEPLOY_SHA" deployment
-      - name: Download tested image manifest
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TEST_RUN_ID: ${{ steps.tested.outputs.run_id }}
         run: |
-          mkdir -p "$RUNNER_TEMP/tested"
-          gh run download "$TEST_RUN_ID" --repo "$GITHUB_REPOSITORY" --name tested-images --dir "$RUNNER_TEMP/tested"
           python3 scripts/deploy/release_manifest.py validate "$DEPLOY_SHA" "$RUNNER_TEMP/tested/tested-images.json"
           gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/tested/tested-images.json" --repo "$GITHUB_REPOSITORY" --clobber
       - uses: actions/setup-dotnet@v4
