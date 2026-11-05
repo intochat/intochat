@@ -59,6 +59,9 @@ public sealed class ProductHostFixture : IAsyncLifetime
 
     public HttpClient Http => _httpClient ?? throw new InvalidOperationException("HTTP host is not started.");
 
+    /// <summary>A request header naming the app key a test request should be stamped as, instead of the person.</summary>
+    public const string AppCallerHeader = "X-IntoChat-Test-App";
+
     public IReadOnlyList<(BrainId Brain, string ConnectionKey, string CallerApp)> BoundStorageCalls => _connections.BoundCalls;
 
     public string NewBrain(string prefix)
@@ -144,7 +147,11 @@ public sealed class ProductHostFixture : IAsyncLifetime
             if (http.Request.RouteValues.TryGetValue("brainId", out var raw) && raw is string { Length: > 0 } brainId)
             {
                 RequestContext.Set(KernelInvocationSink.CallerKey, "");
-                using (RuntimeCallerContext.Stamp(CapabilityCallers.Of(brainId, brainId, brainId)))
+                // The person by default; a request carrying the test app header arrives as that app through the app proxy.
+                var caller = http.Request.Headers.TryGetValue(AppCallerHeader, out var app) && app.ToString() is { Length: > 0 } appKey
+                    ? CapabilityCallers.Of(brainId, brainId, brainId, CallerKind.App, appKey)
+                    : CapabilityCallers.Of(brainId, brainId, brainId);
+                using (RuntimeCallerContext.Stamp(caller))
                 {
                     await next(http);
                 }

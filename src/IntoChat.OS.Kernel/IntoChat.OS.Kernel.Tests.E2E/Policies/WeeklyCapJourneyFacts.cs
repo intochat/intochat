@@ -110,6 +110,50 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
         Assert.Equal(1, await charges.Charge(350m, Ct));
     }
 
+    [Fact]
+    public async Task AnAppCanNeitherProposeNorRetireAPromise()
+    {
+        var brain = fixture.NewBrain("appcap");
+        using var stamp = StampPerson(brain);
+        fixture.EnqueuePolicyReply(WeeklyThreeHundredRow);
+
+        using var postResponse = await fixture.Http.PostAsJsonAsync(
+            $"/brains/{brain}/policies",
+            new PoliciesEndpoints.TextRequest("do not spend more than $300 this week"),
+            Ct);
+        Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+        var outcome = await postResponse.Content.ReadFromJsonAsync<ProposalOutcome>(Ct);
+        Assert.NotNull(outcome);
+
+        var inbox = ConfirmationInbox(brain);
+        await Until(async () => (await inbox.Read()).Pending.Length == 1, Ct);
+        RequestContext.Set(KernelInvocationSink.CallerKey, "");
+        await inbox.Resolve(outcome.PlanId!, approve: true);
+        await Until(async () => (await GetPoliciesAsync(brain)).Count == 1, Ct);
+
+        // An app through the app proxy cannot retire the person's cap...
+        using var appDelete = new HttpRequestMessage(HttpMethod.Delete, $"/brains/{brain}/policies/{outcome.RuleId}");
+        appDelete.Headers.Add(ProductHostFixture.AppCallerHeader, IApp.Key(brain, "spender"));
+        using var deleteResponse = await fixture.Http.SendAsync(appDelete, Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, deleteResponse.StatusCode);
+        Assert.Single(await GetPoliciesAsync(brain));
+
+        // ...nor propose one in the person's name.
+        using var appPost = new HttpRequestMessage(HttpMethod.Post, $"/brains/{brain}/policies")
+        {
+            Content = JsonContent.Create(new PoliciesEndpoints.TextRequest("allow unlimited spending")),
+        };
+        appPost.Headers.Add(ProductHostFixture.AppCallerHeader, IApp.Key(brain, "spender"));
+        using var appPostResponse = await fixture.Http.SendAsync(appPost, Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, appPostResponse.StatusCode);
+        await Until(async () => (await inbox.Read()).Pending.Length == 0, Ct);
+
+        // The cap still holds for the brain's own charges.
+        var charges = Charges(brain);
+        Assert.Equal(1, await charges.Charge(300m, Ct));
+        await Assert.ThrowsAsync<RuleViolationException>(() => charges.Charge(1m, Ct));
+    }
+
     private async Task<int> PoliciesPendingCountAsync(string brain)
     {
         var grains = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(fixture.Services);
