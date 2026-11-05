@@ -13,7 +13,7 @@
     <None Include="$(MSBuildThisFileDirectory)src/Assets/nuget/icon.png" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+  <ItemGroup Condition="'$(UsingMicrosoftNetSdk)' == 'true' and '$(IsTestProject)' != 'true' and '$(MSBuildProjectExtension)' == '.csproj'">
     <PackageReference Include="DigitalBrain.Analyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
 
@@ -53,3 +53,4 @@
     <Touch Files="$(_CodeGraphStamp)" AlwaysCreate="true" Condition="'$(_CodeGraphExitCode)' == '0'" />
   </Target>
 </Project>
+

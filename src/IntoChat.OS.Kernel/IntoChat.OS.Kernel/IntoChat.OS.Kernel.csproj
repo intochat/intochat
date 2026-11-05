@@ -36,25 +36,25 @@
                                ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Contracts.csproj;
                                ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Sandbox.csproj" />
     <!-- External modules from IntoChat.Modules consumed via NuGet. -->
-    <PackageReference Include="IntoChat.OS.Modules.ArtCraft" />
-    <PackageReference Include="IntoChat.OS.Modules.ClickHouse" />
-    <PackageReference Include="IntoChat.OS.Modules.Google.Auth" />
-    <PackageReference Include="IntoChat.OS.Modules.Google.Drive" />
-    <PackageReference Include="IntoChat.OS.Modules.Google.Gmail" />
-    <PackageReference Include="IntoChat.OS.Modules.LocalDisk" />
-    <PackageReference Include="IntoChat.OS.Modules.Mcp" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Azure" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.GitHub" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Orleans.Contracts" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Playwright" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Roslyn" />
-    <PackageReference Include="IntoChat.OS.Modules.Microsoft.Windows" />
-    <PackageReference Include="IntoChat.OS.Modules.Postgres" />
-    <PackageReference Include="IntoChat.OS.Modules.Qdrant" />
-    <PackageReference Include="IntoChat.OS.Modules.Salesforce" />
-    <PackageReference Include="IntoChat.OS.Modules.Supabase" />
-    <PackageReference Include="IntoChat.OS.Modules.Time" />
-    <PackageReference Include="IntoChat.OS.Modules.Tools" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/src/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/ClickHouse/src/IntoChat.OS.Modules.ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Auth/src/IntoChat.OS.Modules.Google.Auth/IntoChat.OS.Modules.Google.Auth.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Drive/src/IntoChat.OS.Modules.Google.Drive/IntoChat.OS.Modules.Google.Drive.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/src/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/LocalDisk/src/IntoChat.OS.Modules.LocalDisk/IntoChat.OS.Modules.LocalDisk.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/ModelContextProtocol/Mcp/src/IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Azure/src/IntoChat.OS.Modules.Microsoft.Azure/IntoChat.OS.Modules.Microsoft.Azure.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/GitHub/src/IntoChat.OS.Modules.Microsoft.GitHub/IntoChat.OS.Modules.Microsoft.GitHub.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Playwright/src/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Roslyn/src/IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/src/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/src/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Qdrant/src/IntoChat.OS.Modules.Qdrant/IntoChat.OS.Modules.Qdrant.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Salesforce/src/IntoChat.OS.Modules.Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Supabase/src/IntoChat.OS.Modules.Supabase/IntoChat.OS.Modules.Supabase.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Tools/src/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
     <!-- Cloud modules. Each declares LoadsUnder; the host skips a module whose LoadsUnder returns false. -->
     <ProjectReference Include="../../IntoChat.Cloud/Modules/Auth/src/IntoChat.Cloud.Auth/IntoChat.Cloud.Auth.csproj" />
     <ProjectReference Include="../../IntoChat.Cloud/Modules/Blob/src/IntoChat.Cloud.Blob/IntoChat.Cloud.Blob.csproj" />

@@ -4,18 +4,6 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 public sealed class PinCoherenceFacts
 {
-    private static readonly string[] OsOwnedModules =
-    [
-        "IntoChat.OS.Modules.Apps",
-        "IntoChat.OS.Modules.Apps.Contracts",
-        "IntoChat.OS.Modules.Circles",
-        "IntoChat.OS.Modules.Circles.Contracts",
-        "IntoChat.OS.Modules.Flame",
-        "IntoChat.OS.Modules.Flame.Contracts",
-        "IntoChat.OS.Modules.Identity",
-        "IntoChat.OS.Modules.Identity.Contracts",
-    ];
-
     [Fact]
     public void PinsAreCoherentPerFamily()
     {
@@ -31,21 +19,11 @@ public sealed class PinCoherenceFacts
             .ToArray();
         Assert.Single(digitalBrainVersions);
 
-        var modulePins = pins
-            .Where(pin => pin.Id.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
-            .ToArray();
-        var moduleVersions = modulePins
-            .Select(pin => pin.Version)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        Assert.Single(moduleVersions);
-        Assert.DoesNotContain(modulePins, pin => OsOwnedModules.Contains(pin.Id, StringComparer.Ordinal));
-
-        var otherIntoChatPins = pins
-            .Where(pin => pin.Id.StartsWith("IntoChat.", StringComparison.Ordinal) && !pin.Id.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
+        var intoChatPins = pins
+            .Where(pin => pin.Id.StartsWith("IntoChat.", StringComparison.Ordinal) || pin.Id.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
             .Select(pin => pin.Id)
             .ToArray();
-        Assert.Empty(otherIntoChatPins);
+        Assert.Empty(intoChatPins);
     }
 
     [Fact]

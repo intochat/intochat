@@ -1,0 +1,12 @@
+
+namespace IntoChat.OS.Modules.Microsoft.GitHub.Signals;
+
+[DigitalBrain.Signal("github.pull-request-changed")]
+public sealed record PullRequestChanged(
+    int Number,
+    string Version,
+    string SubjectKey,
+    string? CiStatus = null,
+    string? CommentAuthor = null,
+    string? CommentBody = null) : DigitalBrain.Signal;
+

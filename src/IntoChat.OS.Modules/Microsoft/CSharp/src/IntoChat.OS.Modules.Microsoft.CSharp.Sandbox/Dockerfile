@@ -3,16 +3,12 @@
 # contracts before loading anything. Build from the repository root:
 #   docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile -t csharp-sandbox .
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
-ARG NUGET_TOKEN=""
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_NOLOGO=1 \
     CodeGraphRefresh=false
 WORKDIR /src
 COPY . .
-RUN --mount=type=secret,id=nuget \
-    token="${NUGET_TOKEN:-$(cat /run/secrets/nuget 2>/dev/null || true)}" \
-    && if [ -n "$token" ]; then dotnet nuget update source github --username ci --password "$token" --store-password-in-clear-text --configfile nuget.config; fi \
-    && dotnet publish src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj -c Release -o /app \
+RUN dotnet publish src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj -c Release -o /app \
     && test -f /app/DigitalBrain.dll && test -f /app/DigitalBrain.UI.dll
 
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3

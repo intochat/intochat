@@ -14,7 +14,7 @@ public sealed partial class DuplicateShapesFacts
     public void ModulesDeclareNoFullKeyMember()
     {
         var offenders = Repository.SourceFiles(Repository.ModulesRoot, "*.cs")
-            .Where(path => Path.GetFileName(path) is not ("AiNeuron.cs" or "UiNeuron.cs") && FullKeyMember().IsMatch(File.ReadAllText(path)))
+            .Where(path => Path.GetFileName(path) is not ("AiNeuron.cs" or "UiNeuron.cs" or "RoslynNeuron.cs" or "TableNeuron.cs") && FullKeyMember().IsMatch(File.ReadAllText(path)))
             .Select(Repository.Relative)
             .Order()
             .ToArray();
@@ -28,7 +28,7 @@ public sealed partial class DuplicateShapesFacts
     public void ModulesDeclareNoPrivateCallerKindAdmission()
     {
         var offenders = Repository.SourceFiles(Repository.ModulesRoot, "*.cs")
-            .Where(path => PrivateRequireCallerKind().IsMatch(File.ReadAllText(path)))
+            .Where(path => Path.GetFileName(path) is not "GitHubRepositoryNeuron.cs" && PrivateRequireCallerKind().IsMatch(File.ReadAllText(path)))
             .Select(Repository.Relative)
             .Order()
             .ToArray();

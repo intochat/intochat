@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Local disks as storage@1: allowed roots, volume quota and confined filesystem access, with no connection flow.</Description>
+    <RootNamespace>IntoChat.OS.Modules.LocalDisk</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.LocalDisk.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Modules.LocalDisk.Tests.Integration" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+  </ItemGroup>
+</Project>

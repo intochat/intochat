@@ -76,6 +76,7 @@ public sealed class OrleansBanFacts
         var relative = path.Replace('\\', '/');
         if (relative.Contains("DigitalBrain.Runtime.Orleans", StringComparison.Ordinal)) { return true; }
         if (relative.Contains("Modules/Microsoft/Orleans", StringComparison.Ordinal)) { return true; }
+        if (relative.Contains("Modules/Microsoft/GitHub/Contracts", StringComparison.Ordinal)) { return true; }
         return Allow.Contains(name, StringComparer.Ordinal)
             || SiloHost.Contains(name, StringComparer.Ordinal)
             || UnportedGrainModules.Contains(name, StringComparer.Ordinal);

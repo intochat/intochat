@@ -178,7 +178,7 @@ public sealed partial class TestTierFacts
     [Fact]
     public void NoTestProjectIsEmpty()
     {
-        string[] attributes = ["[Fact", "[Theory", "[Scenario"];
+        string[] attributes = ["[Fact", "[Theory", "[Scenario", "StorageConformance<", "ModuleOnTestOSFacts<"];
         var offenders = new List<string>();
         foreach (var project in Repository.TestProjects())
         {
