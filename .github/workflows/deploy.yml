@@ -44,12 +44,12 @@ jobs:
     steps:
       - name: Validate release reference
         run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
       # The private values repo (test.json, prod.json at its root) is read-only here and stays out of git (.deployment-values/ is ignored).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: intochat/os-deployment
           ref: main
@@ -70,7 +70,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GATE_WAIT_SECONDS: '2400'
         run: python3 scripts/deploy/deployment_gate.py ci.yml "$GITHUB_SHA" push
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
       - name: Authenticate GitHub Packages
@@ -86,7 +86,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -95,7 +95,7 @@ jobs:
         run: bash scripts/deploy/deploy.sh --env test --verify-repeatability
       - name: Record tested image digests
         run: python3 scripts/deploy/release_manifest.py record "$GITHUB_SHA" "$RUNNER_TEMP/tested-images.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tested-images
           path: ${{ runner.temp }}/tested-images.json
@@ -124,11 +124,11 @@ jobs:
     steps:
       - name: Validate release reference
         run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: intochat/os-deployment
           ref: main
@@ -147,7 +147,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/deploy/deployment_gate.py ci.yml "$DEPLOY_SHA" push
       # The digests come from the test job of this same run: a release promotes only what its own test deployment verified.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: tested-images
           path: ${{ runner.temp }}/tested
@@ -157,7 +157,7 @@ jobs:
         run: |
           python3 scripts/deploy/release_manifest.py validate "$DEPLOY_SHA" "$RUNNER_TEMP/tested/tested-images.json"
           gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/tested/tested-images.json" --repo "$GITHUB_REPOSITORY" --clobber
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
       - name: Authenticate GitHub Packages
@@ -167,7 +167,7 @@ jobs:
           cp nuget.config "$RUNNER_TEMP/nuget.config"
           dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile "$RUNNER_TEMP/nuget.config"
           echo "NUGET_CONFIG=$RUNNER_TEMP/nuget.config" >> "$GITHUB_ENV"
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
