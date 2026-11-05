@@ -73,7 +73,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
                 services.AddSingleton(sp =>
                 {
                     var git = new GitSideload((_, _) => Task.FromResult(0), GitSideload.MaxBytes);
-                    return new SideloadInstaller(sp.GetRequiredService<FeatureCatalog>(), git, (req, _) => Task.FromResult(InstallOutcome.Installed(req.Ref.App)));
+                    return new SideloadInstaller(sp.GetRequiredService<FeatureCatalog>(), git, (req, _) => Task.FromResult(IntoChat.OS.Modules.Apps.InstallOutcome.Installed(req.Ref.App)));
                 });
             });
 
