@@ -753,11 +753,7 @@ void main() {
                   'action': 'open:ino',
                   'enabled': true,
                 },
-                {
-                  'kind': 0,
-                  'key': 'open-widgets',
-                  'text': '',
-                },
+                {'kind': 0, 'key': 'open-widgets', 'text': ''},
               ],
             },
           ],
@@ -807,14 +803,16 @@ void main() {
         find.byKey(const ValueKey('whiteboard-widget-toggle-launcher')),
       );
       await tester.pump();
-      expect(find.byKey(const ValueKey('sticky-card-launcher')), findsOneWidget);
       expect(
-        actions.any((a) => a['action'] == 'widget-open:launcher'),
-        isTrue,
+        find.byKey(const ValueKey('sticky-card-launcher')),
+        findsOneWidget,
       );
+      expect(actions.any((a) => a['action'] == 'widget-open:launcher'), isTrue);
 
       // Close the sticky-note widget via its X button
-      await tester.tap(find.byKey(const ValueKey('sticky-card-close-launcher')));
+      await tester.tap(
+        find.byKey(const ValueKey('sticky-card-close-launcher')),
+      );
       await tester.pump();
       expect(find.byKey(const ValueKey('sticky-card-launcher')), findsNothing);
       expect(
