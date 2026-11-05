@@ -30,18 +30,25 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class DeployWorkflowFacts(unittest.TestCase):
-    """D-16, 09-10: the deploy workflow has only the push and release triggers and starts nothing until the owner enables it."""
+    """D-16, 09-10: the deploy workflow is started only by a published release and starts nothing until the owner enables it."""
 
     @classmethod
     def setUpClass(cls):
         import yaml
         cls.workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8"))
 
-    def test_triggers_are_exactly_a_master_push_and_a_published_release(self):
+    def test_the_only_trigger_is_a_published_release(self):
+        # Owner rule (2026-11-05): a deployment starts only by publishing a release; a push deploys nothing.
         triggers = self.workflow.get("on", self.workflow.get(True))
-        self.assertEqual({"push", "release"}, set(triggers))
-        self.assertEqual({"branches": ["master"]}, triggers["push"])
+        self.assertEqual({"release"}, set(triggers))
         self.assertEqual({"types": ["published"]}, triggers["release"])
+
+    def test_prod_runs_after_test_in_the_same_run_and_promotes_its_artifact(self):
+        jobs = self.workflow["jobs"]
+        self.assertEqual(["test"], jobs["prod"]["needs"])
+        uses = [step.get("uses", "") for step in jobs["prod"]["steps"]]
+        self.assertTrue(any(use.startswith("actions/download-artifact@") for use in uses))
+        self.assertFalse(any("deployment_gate.py deploy.yml" in step.get("run", "") for step in jobs["prod"]["steps"]))
 
     def test_no_manual_trigger_and_no_dispatch_clause_anywhere(self):
         self.assertNotIn("workflow_dispatch", (ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8"))
