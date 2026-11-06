@@ -8,5 +8,5 @@ namespace IntoChat.OS.Modules.AI.Agents.Observers;
 public interface IToneObserver
 {
     // agentKey is the agent's key, with or without the brain prefix.
-    Task Watch(string agentKey);
+    Task Follow(string agentKey);
 }

@@ -53,7 +53,7 @@ public sealed class ToneObserverFacts(AiFixture fixture) : IClassFixture<AiFixtu
         var id = runtime.Id("agent", "agents/tone-" + name);
         var agent = runtime.Get<IAgent>(id);
         await agent.Configure(new(), 0);
-        await runtime.Get<IToneObserver>(runtime.Id("ai.tone-observer", "observer/tone/agents/tone-" + name)).Watch("agents/tone-" + name);
+        await runtime.Get<IToneObserver>(runtime.Id("ai.tone-observer", "observer/tone/agents/tone-" + name)).Follow("agents/tone-" + name);
         return (agent, id);
     }
 

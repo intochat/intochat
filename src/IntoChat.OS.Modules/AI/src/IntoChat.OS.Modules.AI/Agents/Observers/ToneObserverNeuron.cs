@@ -18,7 +18,7 @@ internal sealed class ToneObserverNeuron : StatelessAiNeuron, IToneObserver
     // The agent this observer watches, by the key it was created with.
     private NeuronId AgentId => new(Id.Brain, AgentSignals.NeuronType, Id.Key[KeyPrefix.Length..]);
 
-    public async Task Watch(string agentKey)
+    public async Task Follow(string agentKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentKey);
         var prefix = Id.Brain.Value + "/";

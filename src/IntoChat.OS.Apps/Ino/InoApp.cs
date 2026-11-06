@@ -212,7 +212,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         try { await agent.Configure(InoAgentDefinition.For(settings), 0); }
         catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
         // The tone observer follows this conversation's agent; an app cannot subscribe to it directly.
-        try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Watch(AgentKeyOf(State.ConversationId)); }
+        try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Follow(AgentKeyOf(State.ConversationId)); }
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The tone is a refinement; the agent answers without it."); }
     }
 

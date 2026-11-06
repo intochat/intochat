@@ -21,6 +21,8 @@ internal sealed record RouteRecord(
 internal sealed record RouterStorage
 {
     [Id(0)] public RouteRecord[] Recent { get; init; } = [];
+    // Id(1) retired: Asked is no longer written; kept so the persisted identity is unchanged.
+    [Id(1)] public object[] Asked { get; init; } = [];
 }
 
 [Signal("ai.router.decided")]
