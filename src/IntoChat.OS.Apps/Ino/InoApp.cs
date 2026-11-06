@@ -10,6 +10,7 @@ through the Ino tool contracts; tool results that carry a card render inline. Sl
 using DigitalBrain.UI;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
@@ -204,11 +205,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     }
 
     // Configure on first use; a revision conflict means another caller configured it first.
-    private static async Task EnsureConfiguredAsync(IAgent agent, UserSettingsState settings)
+    private async Task EnsureConfiguredAsync(IAgent agent, UserSettingsState settings)
     {
         if ((await agent.Read()).Revision != 0) { return; }
         try { await agent.Configure(InoAgentDefinition.For(settings), 0); }
         catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
+        // The tone observer follows this conversation's agent; an app cannot subscribe to it directly.
+        try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Watch(AgentKeyOf(State.ConversationId)); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The tone is a refinement; the agent answers without it."); }
     }
 
     private void Apply(AgentTurnEvent step)
@@ -245,6 +249,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     private const string DataKey = "ino/data";
 
     private static string AgentKeyOf(string conversationId) => $"ino/conversations/{conversationId}";
+
+    private static string ToneKeyOf(string conversationId) => $"observer/tone/{AgentKeyOf(conversationId)}";
 
     private async Task HandleSlashCommandAsync(string rawCommand, UserSettingsState settings)
     {

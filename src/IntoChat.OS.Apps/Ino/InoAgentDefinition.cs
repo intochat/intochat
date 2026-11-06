@@ -27,7 +27,7 @@ public static class InoAgentDefinition
             ],
             Contexts =
             [
-                .. new[] { "user.profile", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "memory.recall" }
+                .. new[] { "user.profile", "conversation.inference.tone", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "memory.recall" }
                     .Select(name => "context/" + name),
             ],
         };

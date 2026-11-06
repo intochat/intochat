@@ -11,7 +11,7 @@ public sealed class AiFixture : BothRuntimesFixture
 
     public GatedInference Inference { get; } = new();
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(AIModule)];
+    protected override IReadOnlyList<Type> Modules { get; } = [typeof(AIModule), typeof(IntoChat.OS.Authority.IdentityModule)];
 
     protected override void ConfigureTestOS(IServiceCollection services)
         => services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
@@ -20,6 +20,8 @@ public sealed class AiFixture : BothRuntimesFixture
     protected override void ConfigureSilo(IServiceCollection services)
     {
         services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Facts.IFacts).Assembly);
+        // The security posture neuron listens to the identity module's grants signal.
+        services.AddJournalPayloads(typeof(IntoChat.OS.Authority.Identity.Grants.GrantsChanged).Assembly);
         services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
     }
 }
