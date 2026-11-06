@@ -22,8 +22,7 @@ public sealed class InoSettingsNeuron : DigitalBrain.Neuron, IInoSettings
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            // The Settings app is optional; the card still tells the user where to look.
-            _ = error.Message;
+            return new InoToolResult($"Settings is unavailable, so I could not open {label}: {error.Message}");
         }
 
         var card = new InoCard(
@@ -41,9 +40,17 @@ public sealed class InoSettingsNeuron : DigitalBrain.Neuron, IInoSettings
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(modelId);
         var model = modelId.Trim();
-        var current = await Settings.Read();
-        await Settings.SetProfile(current.DisplayName, current.Theme, model);
-        await WriteInference(inference => inference["model"] = model);
+        try
+        {
+            var current = await Settings.Read();
+            await Settings.SetProfile(current.DisplayName, current.Theme, model);
+            await WriteInference(inference => inference["model"] = model);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return new InoToolResult($"Could not switch model to {model}: {error.Message}");
+        }
+
         return new InoToolResult($"Switched model to {model}.");
     }
 
@@ -54,13 +61,29 @@ public sealed class InoSettingsNeuron : DigitalBrain.Neuron, IInoSettings
             throw new ArgumentOutOfRangeException(nameof(temperature), "Temperature is between 0 and 2.");
         }
 
-        await WriteInference(inference => inference["temperature"] = temperature);
+        try
+        {
+            await WriteInference(inference => inference["temperature"] = temperature);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return new InoToolResult($"Could not set temperature to {temperature}: {error.Message}");
+        }
+
         return new InoToolResult($"Set temperature to {temperature}.");
     }
 
     public async Task<InoToolResult> SetVariable(string key, string value)
     {
-        await Settings.SetVariable(key, value);
+        try
+        {
+            await Settings.SetVariable(key, value);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return new InoToolResult($"Could not set variable {key}: {error.Message}");
+        }
+
         return new InoToolResult($"Set variable {key}.");
     }
 

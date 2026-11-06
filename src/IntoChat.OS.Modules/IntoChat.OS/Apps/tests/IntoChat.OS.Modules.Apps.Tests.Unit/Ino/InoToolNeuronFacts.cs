@@ -1,4 +1,5 @@
 using DigitalBrain;
+using global::Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Agents.Context;
 
@@ -8,9 +9,9 @@ public sealed class InoToolNeuronFacts
 {
     private static readonly BrainId Brain = new("local");
 
-    private static TestOS NewOs()
+    private static TestOS NewOs(IServiceProvider? services = null)
     {
-        var os = TestOS.Local();
+        var os = services is null ? TestOS.Local() : TestOS.Local(options => options.Services = services).Register<AppNeuron>();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         return os;
@@ -23,9 +24,12 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task NavigateReturnsASettingsCard()
     {
-        await using var os = NewOs();
+        using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection().AddOptions<AppsOptions>().Services.AddSingleton(TimeProvider.System).BuildServiceProvider();
+        await using var os = NewOs(services);
+        await os.Get<IApp>(new NeuronId(Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/settings"))
+            .Create(new AppManifest("Settings", "Settings", [new AppOperation("navigate", "Open a settings page")], [], []), "spec");
         var result = await Settings(os).Navigate("models", "local-server");
-        Assert.NotNull(result.Card);
+        Assert.True(result.Card is not null, result.Text);
         Assert.Equal("settings", result.Card.Kind);
         Assert.Equal("neuron://local/apps/settings", result.Card.SourceNeuronUri);
         Assert.Equal("Settings · models / local-server", result.Card.Title);
@@ -58,6 +62,29 @@ public sealed class InoToolNeuronFacts
         await Settings(os).SetVariable("region", "eu");
         var state = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
         Assert.Contains(state.Variables, v => v.Key == "region" && v.Value == "eu");
+    }
+
+    [Fact]
+    public async Task OpenReadsAFileTheStorageHolds()
+    {
+        var storage = new DigitalBrain.Testing.Conformance.Storage.InMemoryStorage("Documents");
+        storage.AddFile(storage.Root, "notes.md", "hello from storage"u8.ToArray());
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
+        var files = os.Get<IInoFiles>(new NeuronId(Brain, "ino.files", "ino/files"));
+
+        var opened = await files.Open("notes.md");
+        Assert.Contains("notes.md", opened.Text);
+        Assert.Equal("hello from storage", opened.Card!.Summary);
+        Assert.Contains("hello from storage", (await files.Summarize("notes.md")).Text);
+    }
+
+    [Fact]
+    public async Task NavigateWithoutASettingsAppSaysSoAndHasNoCard()
+    {
+        await using var os = NewOs();
+        var result = await Settings(os).Navigate("models");
+        Assert.Null(result.Card);
+        Assert.Contains("Settings is unavailable", result.Text);
     }
 
     [Fact]

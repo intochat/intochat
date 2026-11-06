@@ -1,9 +1,15 @@
 namespace IntoChat.OS.Modules.Apps;
 
+// VfsNeuron also builds its WorkspaceFilesService itself rather than getting a shared one, so this neuron builds one per
+// activation (not per call). Files that live in a connected storage are always visible; files written only into another
+// service instance's in-memory overlay (for example the compiled-app host's cached instance) with no storage connected
+// are not visible here.
 [DigitalBrain.Neuron("ino.files")]
 public sealed class InoFilesNeuron : DigitalBrain.Neuron, IInoFiles
 {
-    private IFilesVfsService Vfs => WorkspaceFilesService.ForBrain(Context.Services, Id.Brain.Value);
+    private IFilesVfsService? _vfs;
+
+    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(Context.Services, Id.Brain.Value);
 
     public async Task<InoToolResult> Find(string pattern)
     {
