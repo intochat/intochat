@@ -23,7 +23,7 @@ public sealed class CapabilitiesContextWriterFacts
         var entry = Assert.Single(CapabilitiesContextWriter.Entries([Notes(), ("empty", [])]));
         Assert.Equal("notes", entry.Name);
         Assert.Equal("notes.add: Add a note\nnotes.list", entry.Text);
-        Assert.Empty(entry.Contracts);
+        Assert.Equal([typeof(IntoChat.OS.Modules.Apps.IApp).FullName!], entry.Contracts);
     }
 
     [Fact]

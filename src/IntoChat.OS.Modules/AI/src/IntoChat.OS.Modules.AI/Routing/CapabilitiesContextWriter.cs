@@ -3,9 +3,11 @@ using IntoChat.OS.Modules.AI.Agents.Context;
 namespace IntoChat.OS.Modules.AI.Routing;
 
 // The apps capabilities context: one entry per app, one line per operation, so an agent knows what each app can do
-// without reading the menu. The catalog does not know an app's contract names, so entries carry none.
+// without reading the menu. An app operation runs through IApp.Request (as RouterNeuron.Route does it), so that is the contract named.
 internal static class CapabilitiesContextWriter
 {
+    private static readonly string[] AppContract = [typeof(IntoChat.OS.Modules.Apps.IApp).FullName!];
+
     public static ContextEntry[] Entries(IReadOnlyList<(string App, MenuOperation[] Operations)> apps)
         => [.. apps.Where(app => app.Operations.Length > 0).Select(app => Entry(app.App, app.Operations))];
 
@@ -23,5 +25,5 @@ internal static class CapabilitiesContextWriter
 
     private static ContextEntry Entry(string app, MenuOperation[] operations)
         => new(app, string.Join('\n', operations.Select(operation =>
-            string.IsNullOrWhiteSpace(operation.Description) ? $"{app}.{operation.Name}" : $"{app}.{operation.Name}: {operation.Description}")), []);
+            string.IsNullOrWhiteSpace(operation.Description) ? $"{app}.{operation.Name}" : $"{app}.{operation.Name}: {operation.Description}")), [.. AppContract]);
 }
