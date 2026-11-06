@@ -44,6 +44,10 @@ public sealed record TurnFailed(string AgentId, string RunId, string Error, bool
 [Signal("agent.transcript-cleared")]
 public sealed record TranscriptCleared(string AgentId, long Revision) : DigitalBrain.Signal;
 
+// The agent's listed contexts gained (Blocked) or lost their last trusted interrupt.
+[Signal("agent.blocked")]
+public sealed record AgentBlocked(string Agent, bool Blocked) : DigitalBrain.Signal;
+
 public static class AgentSignals
 {
     // The agent neuron's type.
@@ -51,5 +55,5 @@ public static class AgentSignals
 
     // Every signal an agent publishes: what a follower (a chat) holds its synapse on.
     public static Type[] All { get; } =
-        [typeof(AgentConfigured), typeof(TurnStarted), typeof(TurnProgressed), typeof(TurnCompleted), typeof(TurnFailed), typeof(TranscriptCleared)];
+        [typeof(AgentConfigured), typeof(TurnStarted), typeof(TurnProgressed), typeof(TurnCompleted), typeof(TurnFailed), typeof(TranscriptCleared), typeof(AgentBlocked)];
 }

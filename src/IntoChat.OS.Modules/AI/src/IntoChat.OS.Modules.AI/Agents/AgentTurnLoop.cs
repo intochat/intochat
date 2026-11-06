@@ -51,8 +51,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         string? currentCall = null;
         var contexts = await ReadContexts(plan.Contexts, ct);
         // An interrupt from a user or the platform stops the turn before anything else is prepared; one written by an app or the model is not an order.
-        if (contexts.FirstOrDefault(entry => entry.EffectiveTags.Contains(ContextTags.Interrupt)
-            && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform) is { } interrupt)
+        if (contexts.FirstOrDefault(IsTrustedInterrupt) is { } interrupt)
         {
             yield return new AgentTurnEvent.Failed("Blocked: " + interrupt.Text, false);
             yield break;
@@ -180,6 +179,9 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         }
         throw new InvalidOperationException("The agent reached its model-call budget.");
     }
+
+    internal static bool IsTrustedInterrupt(ContextEntry entry)
+        => entry.EffectiveTags.Contains(ContextTags.Interrupt) && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
 
     // A context that is missing or fails leaves the turn without it rather than failing the turn.
     private async Task<List<ContextEntry>> ReadContexts(string[] keys, CancellationToken ct)
