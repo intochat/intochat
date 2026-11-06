@@ -30,8 +30,5 @@
     <ProjectReference Include="../../IntoChat.OS.Modules/Qdrant/src/IntoChat.OS.Modules.Qdrant/IntoChat.OS.Modules.Qdrant.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Supabase/src/IntoChat.OS.Modules.Supabase/IntoChat.OS.Modules.Supabase.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Seeds/*.sql" LogicalName="Seeds/%(Filename)%(Extension)" />
-  </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="IntoChat.OS.Aspire.Hosting.Tests.Unit" /></ItemGroup>
 </Project>

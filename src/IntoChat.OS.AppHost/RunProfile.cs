@@ -15,18 +15,14 @@ using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 using IntoChat.OS.Modules.ClickHouse;
-using IntoChat.OS.Modules.ClickHouse.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Modules.Microsoft.CSharp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Modules.Microsoft.Playwright;
 using IntoChat.OS.Modules.Postgres;
-using IntoChat.OS.Modules.Postgres.Aspire.Hosting;
 using IntoChat.OS.Modules.Qdrant;
-using IntoChat.OS.Modules.Qdrant.Aspire.Hosting;
 using IntoChat.OS.Modules.Supabase;
-using IntoChat.OS.Modules.Supabase.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.AppHost;
@@ -149,10 +145,10 @@ public static class RunProfile
         if (!profile.Lean)
         {
             brain = brain
-                .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(profile.Postgres)
-                .WithHosting<QdrantModuleHosting, QdrantModuleOptions>(profile.Qdrant)
-                .WithHosting<ClickHouseModuleHosting, ClickHouseModuleOptions>(profile.ClickHouse)
-                .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(profile.Supabase);
+                .WithModule<PostgresModule, PostgresModuleOptions>(profile.Postgres)
+                .WithModule<QdrantModule, QdrantModuleOptions>(profile.Qdrant)
+                .WithModule<ClickHouseModule, ClickHouseModuleOptions>(profile.ClickHouse)
+                .WithModule<SupabaseModule, SupabaseModuleOptions>(profile.Supabase);
         }
         brain = brain.WithHosting<AIModuleHosting, AIOptions>(profile.Ai);
         if (!profile.Lean) { brain = brain.WithModule<GitHubModule>(); }

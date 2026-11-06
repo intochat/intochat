@@ -58,7 +58,7 @@ public sealed class IntoChatOSBuilder
         return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Module.ToString()));
     }
 
-    // A module the deployment configures but does not host (no containers): its typed options only.
+    // A module the deployment configures: its typed options and manifest-driven infrastructure.
     public IntoChatOSBuilder WithModule<TModule, TOptions>(Action<TOptions> configure)
         where TModule : class, new() where TOptions : class, IModuleOptions, new()
     {
@@ -66,6 +66,15 @@ public sealed class IntoChatOSBuilder
         var id = HostedModuleId.Of(typeof(TModule));
         var options = new TOptions();
         configure(options);
+        ModuleOptionsSerialization.Validate(options, id.ToString());
+        return Register(id, typeof(TModule), null, HostingModuleOptions.Flatten(options, id.ToString()));
+    }
+
+    public IntoChatOSBuilder WithModule<TModule, TOptions>(TOptions options)
+        where TModule : class, new() where TOptions : class, IModuleOptions, new()
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var id = HostedModuleId.Of(typeof(TModule));
         ModuleOptionsSerialization.Validate(options, id.ToString());
         return Register(id, typeof(TModule), null, HostingModuleOptions.Flatten(options, id.ToString()));
     }
@@ -89,7 +98,11 @@ public sealed class IntoChatOSBuilder
         Resource.WithAnnotation(new BrainModuleAnnotation(moduleId));
         GetOrAddModuleNode(moduleId);
         foreach (var pair in values) { _settings[pair.Key] = pair.Value; }
-        if (moduleType is not null) { ModuleSecretProjection.Project(this, moduleType); }
+        if (moduleType is not null)
+        {
+            ModuleSecretProjection.Project(this, moduleType);
+            ManifestHostingProjector.Project(this, moduleType);
+        }
         hosting?.Configure(this);
         return this;
     }
