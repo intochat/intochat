@@ -10,15 +10,29 @@ public interface ISynapseStudio
 {
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "ino.synapses", "ino/synapses");
 
-    // The idempotency key of a task step that deploys source as alias: the same source deploys once.
-    static string StepKey(string alias, string source)
-        => $"{alias}:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)))}";
+    // The task step capability the executor runs through Deploy: IdempotencyKey = StepKey(alias, source), Description = source.
+    const string DeployCapability = "synapse.deploy";
+
+    // The single file Deploy(alias, source) deploys.
+    static IReadOnlyDictionary<string, string> SingleFile(string alias, string source) => new Dictionary<string, string>(StringComparer.Ordinal) { [$"{alias}.cs"] = source };
+
+    // The idempotency key of a step that deploys source as alias: the same source deploys once.
+    static string StepKey(string alias, string source) => StepKey(alias, SingleFile(alias, source));
+
+    static string StepKey(string alias, IReadOnlyDictionary<string, string> files)
+    {
+        var text = string.Concat(files.OrderBy(file => file.Key, StringComparer.Ordinal).Select(file => $"{file.Key}\0{file.Value}\0"));
+        return $"{alias}:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)))}";
+    }
 
     // Compiles the unit with the synapse analyzers and returns their diagnostics.
     Task<InoToolResult> Check(string source);
 
-    // Deploys the unit; the text names the build hash.
+    // Deploys a one-file unit; the text names the build hash.
     Task<InoToolResult> Deploy(string alias, string source);
+
+    // Deploys a unit of several files, keyed by path.
+    Task<InoToolResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files);
 
     Task<InoToolResult> Retire(string alias);
 

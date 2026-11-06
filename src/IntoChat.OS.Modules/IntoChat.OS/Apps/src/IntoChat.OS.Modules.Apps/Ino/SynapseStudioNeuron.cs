@@ -16,35 +16,43 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
     public Task<InoToolResult> Check(string source)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (Context.Services.GetService<SynapseCompiler>() is not { } compiler) { return Task.FromResult(new InoToolResult(Unavailable)); }
+        if (Context.Services.GetService<SynapseCompiler>() is not { } compiler) { return Task.FromResult(new InoToolResult(Unavailable, Ok: false)); }
         var build = compiler.Compile(new SynapseSource("check", new Dictionary<string, string> { ["unit.cs"] = source }, null));
         return Task.FromResult(new InoToolResult(build.Diagnostics.Count == 0
             ? "No diagnostics; the unit compiles."
             : (build.Success ? "Compiles with diagnostics:\n" : "Does not compile:\n") + Describe(build.Diagnostics)));
     }
 
-    public async Task<InoToolResult> Deploy(string alias, string source)
+    public Task<InoToolResult> Deploy(string alias, string source)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (Host is not { } host) { return new InoToolResult(Unavailable); }
-        var step = ISynapseStudio.StepKey(alias, source);
+        return DeployFiles(alias, ISynapseStudio.SingleFile(alias, source));
+    }
+
+    public async Task<InoToolResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(alias);
+        ArgumentNullException.ThrowIfNull(files);
+        if (files.Count == 0) { return new InoToolResult($"Could not deploy {alias}: no files.", Ok: false); }
+        if (Host is not { } host) { return new InoToolResult(Unavailable, Ok: false); }
+        var step = ISynapseStudio.StepKey(alias, files);
         if (State.Deployed.TryGetValue(step, out var done)) { return new InoToolResult($"{alias} is already deployed (hash {done})."); }
         DeployOutcome outcome;
         try
         {
-            outcome = await host.Deploy(Id.Brain, new SynapseSource(alias, new Dictionary<string, string> { [$"{alias}.cs"] = source }, null),
+            outcome = await host.Deploy(Id.Brain, new SynapseSource(alias, new Dictionary<string, string>(files, StringComparer.Ordinal), null),
                 new Dictionary<string, IReadOnlyDictionary<string, string>>(), CancellationToken.None);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            return new InoToolResult($"Could not deploy {alias}: {error.Message}");
+            return new InoToolResult($"Could not deploy {alias}: {error.Message}", Ok: false);
         }
 
         if (outcome.Status is DeployStatus.Failed or DeployStatus.Refused)
         {
             return new InoToolResult($"Could not deploy {alias}: {outcome.Reason ?? outcome.Status.ToString()}"
-                + (outcome.Diagnostics.Count == 0 ? "" : "\n" + Describe(outcome.Diagnostics)));
+                + (outcome.Diagnostics.Count == 0 ? "" : "\n" + Describe(outcome.Diagnostics)), Ok: false);
         }
 
         var deployed = Without(alias);
@@ -56,15 +64,15 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
     public async Task<InoToolResult> Retire(string alias)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
-        if (Host is not { } host) { return new InoToolResult(Unavailable); }
+        if (Host is not { } host) { return new InoToolResult(Unavailable, Ok: false); }
         try
         {
             var outcome = await host.Retire(Id.Brain, alias, CancellationToken.None);
-            if (outcome.Status != DeployStatus.Retired) { return new InoToolResult($"Could not retire {alias}: {outcome.Reason ?? outcome.Status.ToString()}"); }
+            if (outcome.Status != DeployStatus.Retired) { return new InoToolResult($"Could not retire {alias}: {outcome.Reason ?? outcome.Status.ToString()}", Ok: false); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            return new InoToolResult($"Could not retire {alias}: {error.Message}");
+            return new InoToolResult($"Could not retire {alias}: {error.Message}", Ok: false);
         }
 
         await Save(State with { Deployed = Without(alias) }, new SynapseStudioChanged(alias));

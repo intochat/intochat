@@ -24,11 +24,21 @@ internal static class SynapseCheck
 // A headless app's build emits a synapse unit through the studio instead of an app program.
 internal static class HeadlessUnit
 {
-    // Null when the unit deployed, else the studio's reason.
-    public static async Task<string?> Deploy(ISynapseStudio studio, string alias, IReadOnlyDictionary<string, string> files)
+    // The live build hash when the unit deployed; else Failure is the studio's reason.
+    public static async Task<(string? Hash, string? Failure)> Deploy(ISynapseStudio studio, string alias, IReadOnlyDictionary<string, string> files)
     {
-        var source = string.Join("\n", files.OrderBy(file => file.Key, StringComparer.Ordinal).Select(file => file.Value));
-        var result = await studio.Deploy(alias, source);
-        return result.Text.StartsWith(alias + " is ", StringComparison.Ordinal) ? null : result.Text;
+        var result = await studio.DeployFiles(alias, files);
+        if (!result.Ok) { return (null, result.Text); }
+        var live = (await studio.List()).FirstOrDefault(unit => unit.SourceKey == alias);
+        return live is null ? (null, $"{alias} deployed but is not live.") : (live.Hash, null);
+    }
+
+    // Deploys the build's files and ends the attempt: Live with the unit's hash, or Failed with the reason.
+    public static async Task<string?> Complete(IApp app, Guid attempt, ISynapseStudio studio, string alias, IReadOnlyDictionary<string, string> files)
+    {
+        var (hash, failure) = await Deploy(studio, alias, files);
+        if (hash is not null) { await app.CompleteHeadlessBuild(attempt, hash); }
+        else { await app.CompleteBuild(attempt, null, failure); }
+        return failure;
     }
 }

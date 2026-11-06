@@ -351,6 +351,7 @@ public sealed class CompiledAppsHostAdversarialFacts
         public Task<AppSnapshot> Rollback(string version) => throw new NotImplementedException();
         public Task<AppSnapshot> BeginBuild(string? instruction) => throw new NotImplementedException();
         public Task<Guid> CurrentBuildAttempt() => throw new NotImplementedException();
+        public Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash) => throw new NotImplementedException();
         public Task Progress(string state, string detail) => throw new NotImplementedException();
         public Task Progress(string state, string detail, Dictionary<string, string> blackboard) => throw new NotImplementedException();
         public Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null) => throw new NotImplementedException();

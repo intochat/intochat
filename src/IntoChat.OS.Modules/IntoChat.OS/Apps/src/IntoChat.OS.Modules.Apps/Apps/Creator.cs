@@ -131,12 +131,10 @@ internal sealed class Creator(
             }
             if (snapshot.Manifest.Headless)
             {
-                // The unit's alias is the app name; no program files land on the app. AppNeuron has no headless terminal status
-                // yet, so a deployed unit is reported on the activity feed and only a failure completes the attempt.
+                // The unit's alias is the app name; no program files land on the app.
                 var unit = appKey[(appKey.LastIndexOf("/apps/", StringComparison.Ordinal) + "/apps/".Length)..];
                 var studio = SiloNeurons.Get<ISynapseStudio>(plain, ISynapseStudio.Key(BrainKey.BrainOf(appKey)).ToString());
-                var failure = await HeadlessUnit.Deploy(studio, unit, files);
-                if (failure is not null) { await app.CompleteBuild(attempt, null, failure); }
+                var failure = await HeadlessUnit.Complete(app, attempt, studio, unit, files);
                 await ReportIfCurrent(app, attempt, failure is null ? "completed" : "attention", failure ?? $"Deployed {snapshot.Manifest.Title} as a synapse unit", cancellationToken);
                 return;
             }

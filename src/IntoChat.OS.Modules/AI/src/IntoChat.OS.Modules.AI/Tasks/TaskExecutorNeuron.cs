@@ -102,14 +102,24 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
                 }
             }
 
-            var implementors = await FindCapabilityImplementorsAsync(nextStep.Capability).ConfigureAwait(false);
+            // A synapse-deploy step names its unit in the IdempotencyKey ({alias}:{hash}) and carries the source in its description.
+            var deploysSynapse = string.Equals(nextStep.Capability, ISynapseStudio.DeployCapability, StringComparison.Ordinal);
+            var implementors = deploysSynapse ? [] : await FindCapabilityImplementorsAsync(nextStep.Capability).ConfigureAwait(false);
             var appImplementor = implementors.FirstOrDefault(id =>
                 id.Contains("/apps/", StringComparison.Ordinal)
                 || (NeuronId.TryParse(id, out var parsed) && (parsed.Type == "app" || parsed.Type.StartsWith("app.", StringComparison.Ordinal))))
                 ?? implementors.FirstOrDefault();
 
             string output;
-            if (!string.IsNullOrWhiteSpace(appImplementor))
+            if (deploysSynapse)
+            {
+                var alias = (nextStep.IdempotencyKey ?? "").Split(':')[0];
+                var deployed = string.IsNullOrWhiteSpace(alias)
+                    ? new InoToolResult("A synapse deploy step needs IdempotencyKey = {alias}:{hash}.", Ok: false)
+                    : await Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value)).Deploy(alias, nextStep.Description).ConfigureAwait(false);
+                output = deployed.Text;
+            }
+            else if (!string.IsNullOrWhiteSpace(appImplementor))
             {
                 var operation = ExtractOperation(nextStep.Capability);
                 try

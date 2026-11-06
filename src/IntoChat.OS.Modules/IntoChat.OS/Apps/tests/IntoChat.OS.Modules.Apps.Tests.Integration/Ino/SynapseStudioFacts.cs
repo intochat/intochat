@@ -6,6 +6,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Flutter;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -144,15 +145,58 @@ public sealed class SynapseStudioFacts
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias));
         await app.Create(new AppManifest("Tick poller", "Polls every five minutes", [], [], [], Headless: true), "spec");
 
-        var error = await HeadlessUnit.Deploy(Studio(runtime), Alias, new Dictionary<string, string> { ["poller.cs"] = TickPoller });
+        await app.BeginBuild(null);
+        var attempt = await app.CurrentBuildAttempt();
 
-        Assert.Null(error);
+        var failure = await HeadlessUnit.Complete(app, attempt, Studio(runtime), Alias, new Dictionary<string, string> { ["poller.cs"] = TickPoller });
+
+        Assert.Null(failure);
         var unit = Assert.Single(await Studio(runtime).List());
         Assert.Equal(Alias, unit.SourceKey);
         Assert.Contains("ino.tick-poller", unit.Aliases);
-        Assert.Empty((await app.Read()).Files);
+        var snapshot = await app.Read();
+        Assert.Equal(AppStatus.Live, snapshot.Status);
+        Assert.Empty(snapshot.Files);
+        Assert.Contains(snapshot.Activity, line => line.Contains(unit.Hash, StringComparison.Ordinal));
     }
 
+    // Builder output is several files; each keeps its own file-scoped namespace.
+    [Fact]
+    public async Task AUnitOfTwoFilesDeploysWithEachNamespace()
+    {
+        await using var fixture = new StudioFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var signals = """
+            namespace Ino.Units.Signals;
+
+            [Signal("ino.two-file.polled")]
+            public sealed record Polled(DateTimeOffset At) : Signal;
+            """;
+        var poller = """
+            using DigitalBrain.Time;
+            using Ino.Units.Signals;
+
+            namespace Ino.Units;
+
+            [State("ino.two-file")]
+            public sealed record PollerState(int Polls = 0)
+            {
+                public PollerState() : this(0) { }
+            }
+
+            public static class TwoFilePoller
+            {
+                [Synapse(typeof(Tick), "ino.two-file", Every = "every 5m")]
+                public static Reaction<PollerState> Poll(Tick tick, PollerState state) =>
+                    Reaction<PollerState>.Of(state with { Polls = state.Polls + 1 }, new Polled(tick.At));
+            }
+            """;
+
+        var deployed = await Studio(runtime).DeployFiles("two-file", new Dictionary<string, string> { ["signals.cs"] = signals, ["poller.cs"] = poller });
+
+        Assert.True(deployed.Ok, deployed.Text);
+        Assert.Contains("ino.two-file", Assert.Single(await Studio(runtime).List()).Aliases);
+    }
     [Fact]
     public async Task DeployThenListShowsTheUnit()
     {
@@ -180,21 +224,28 @@ public sealed class SynapseStudioFacts
         Assert.Equal((before.SourceKey, before.Hash), (after.SourceKey, after.Hash));
     }
 
-    // A deploy step keyed {alias}:{hash} that runs twice (a re-advanced step) reaches the host once.
+    // The executor runs a synapse.deploy step through the studio; the same step advanced again is not rerun, so the host deploys once.
     [Fact]
     public async Task ATaskStepKeyedByHashIsNotRerun()
     {
         var host = new CountingHost();
-        await using var fixture = new StudioFixture();
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct, siloServices: services => services.AddSingleton<ISynapseHost>(host));
+        using var services = new ServiceCollection().AddSingleton<ISynapseHost>(host).BuildServiceProvider();
+        await using var os = TestOS.Local(options => options.Services = services);
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
+        var brain = new BrainId("local");
         var key = ISynapseStudio.StepKey(Alias, TickPoller);
+        var task = os.Get<ITaskNeuron>(new NeuronId(brain, "tasks.task", "deploy-tick"));
+        await task.InitializeAsync(new CreateTaskRequest("Deploy tick poller", "", "ino",
+            [new TaskStepDefinition("Deploy tick poller", TickPoller, ISynapseStudio.DeployCapability, IdempotencyKey: key)]));
+        var executor = os.Get<ITaskExecutorNeuron>(new NeuronId(brain, "tasks.executor", "default"));
 
-        var first = await Studio(runtime).Deploy(Alias, TickPoller);
-        var second = await Studio(runtime).Deploy(Alias, TickPoller);
+        var first = await executor.ExecuteNextStepAsync("deploy-tick");
+        await task.AdvanceStepAsync(0, TaskStepStatus.Running);
+        await executor.ExecuteNextStepAsync("deploy-tick");
 
-        Assert.StartsWith(Alias + ":", key, StringComparison.Ordinal);
+        Assert.Equal(TaskStepStatus.Completed, first!.Steps[0].Status);
+        Assert.Contains("deployed (hash h1)", first.Steps[0].Output, StringComparison.Ordinal);
         Assert.Equal(1, host.Deploys);
-        Assert.Contains("already deployed", second.Text, StringComparison.Ordinal);
-        Assert.DoesNotContain("already", first.Text, StringComparison.Ordinal);
     }
 }
