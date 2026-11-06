@@ -47,6 +47,28 @@ public sealed class InoToolNeuronFacts
     }
 
     [Fact]
+    public async Task SettingsChangedRewritesUserProfile()
+    {
+        await using var os = NewOs();
+        var profile = os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
+        await os.Get<IProfileContextWriter>(new NeuronId(Brain, "ino.profile-writer", "ino/profile-writer")).Ensure();
+        var settings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
+
+        await settings.SetProfile("Ada", "dark", "model-a");
+        await settings.SetPreferences(language: "Czech", timeZone: "Europe/Prague", dateFormat: "2026-10-17");
+        await os.Idle();
+        var entries = (await profile.Read()).Entries;
+        var text = Assert.Single(entries, entry => entry.Name == "profile").Text;
+        Assert.Contains("Ada", text);
+        Assert.Contains("Czech", text);
+        Assert.Contains("Europe/Prague", text);
+        Assert.Contains("2026-10-17", text);
+        var inference = Assert.Single(entries, entry => entry.Name == "inference");
+        Assert.Contains(ContextTags.Inference, inference.Tags!);
+        Assert.Equal("""{"model":"model-a"}""", inference.Text);
+    }
+
+    [Fact]
     public async Task SetTemperatureKeepsTheModel()
     {
         await using var os = NewOs();

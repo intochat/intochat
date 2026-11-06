@@ -108,6 +108,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         Set(State with { Status = status, AgentKey = migrate ? State.AgentKey : AgentKeyOf(State.ConversationId) });
         try
         {
+            // Nothing else wakes the profile writer: touching it makes its synapse on the settings and writes user.profile now.
+            await Get<IProfileContextWriter>("ino/profile-writer").Ensure();
             var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
             if (migrate)
             {
