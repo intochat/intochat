@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using DigitalBrain;
 using DigitalBrain.Apps.Hosting;
 using DigitalBrain.Capabilities;
-using DigitalBrain.Runtime.Apps;
+using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -266,3 +266,4 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
             => Task.CompletedTask;
     }
 }
+

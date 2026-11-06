@@ -1,6 +1,6 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Runtime.Apps;
+using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework;

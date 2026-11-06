@@ -9,7 +9,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="DigitalBrain.Capabilities.Storage" />
-    <PackageReference Include="DigitalBrain.Runtime.Apps" />
+    
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Graph" />
     <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />

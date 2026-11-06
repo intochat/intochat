@@ -9,7 +9,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Reflection;
 using DigitalBrain.Apps.Hosting;
 using DigitalBrain.Contracts;
-using DigitalBrain.Runtime.Apps;
+using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
 using IntoChat.OS.Connections;

@@ -2,7 +2,7 @@ using DigitalBrain.Brains;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Apps.Hosting;
-using DigitalBrain.Runtime.Apps;
+using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;

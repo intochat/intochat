@@ -2,7 +2,7 @@ using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Graph;
-using DigitalBrain.Runtime.Apps;
+using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;

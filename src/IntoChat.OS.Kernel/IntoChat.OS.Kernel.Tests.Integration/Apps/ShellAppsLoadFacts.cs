@@ -204,7 +204,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         };
         await appNeuron.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "settings", bundle.Version));
 
-        var host = Services.GetRequiredService<DigitalBrain.Runtime.Apps.InProcessAppHost>();
+        var host = Services.GetRequiredService<IntoChat.OS.Modules.Apps.Hosting.InProcess.InProcessAppHost>();
         await host.Request(appKey, "open", new SettingsOpen(), TestContext.Current.CancellationToken);
         await host.Request(appKey, "sideload-list", new SettingsSideloadList(), TestContext.Current.CancellationToken);
 
@@ -291,3 +291,4 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
             => Task.FromResult(true);
     }
 }
+

@@ -8,7 +8,7 @@
     <PackageReference Include="Aspire.Hosting.Yarp" />
     <PackageReference Include="DigitalBrain.Testing" />
     <PackageReference Include="DigitalBrain.Testing.Silo" />
-    <PackageReference Include="DigitalBrain.Runtime.Apps" />
+    
     <PackageReference Include="DigitalBrain.Runtime.Orleans" />
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />
