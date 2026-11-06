@@ -23,7 +23,6 @@ public static class PostgresHosting
         // Server
         services.TryAddSingleton<PostgresSourceRegistry>();
         services.TryAddSingleton<IPostgresSourceRegistry>(provider => provider.GetRequiredService<PostgresSourceRegistry>());
-        services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<PostgresSourceRegistry>());
         services.TryAddSingleton<IPostgresProvider, IntegrationPostgresProvider>();
         services.TryAddSingleton<IConnectionPostgresProviderFactory, ConnectionPostgresProviderFactory>();
         services.AddHealthChecks().AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
@@ -39,14 +38,14 @@ public static class PostgresHosting
 
     private sealed class PostgresRegistration;
 
-    private sealed class PostgresHealthCheck(IPostgresProvider provider) : IHealthCheck
+    internal sealed class PostgresHealthCheck(IPostgresProvider provider) : IHealthCheck
     {
         public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
         {
             var connection = await provider.PingAsync(cancellationToken).ConfigureAwait(false);
             return connection.Connected
                 ? HealthCheckResult.Healthy("Postgres is reachable.")
-                : HealthCheckResult.Unhealthy("Postgres is unreachable.");
+                : HealthCheckResult.Degraded("Postgres is unreachable.");
         }
     }
 }

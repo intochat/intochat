@@ -57,7 +57,7 @@ internal sealed class TableStore : ITableStore
                 SELECT a.attname, t.typname, a.attnotnull,
                     EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid=c.oid AND k.contype='p' AND a.attnum=ANY(k.conkey))
                 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-                JOIN pg_attribute a ON a.attrelid=c.oid JOIN pg_type t ON t.oid=a.atttypid
+                JOIN pg_attribute a JOIN pg_type t ON t.oid=a.atttypid
                 WHERE n.nspname='public' AND c.relname=$1 AND c.relkind='r' AND a.attnum>0 AND NOT a.attisdropped
                 ORDER BY a.attname COLLATE "C"
                 """, connection, transaction);
@@ -142,16 +142,12 @@ internal sealed class TableStore : ITableStore
             await transaction.CommitAsync(deadline.Token);
             return result;
         }
-        catch (PostgresException error) { throw Refusal(error); }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new PostgresQueryException("The table operation timed out."); }
-        catch (NpgsqlException) { throw new PostgresUnavailableException("Postgres is unreachable or the database connection failed."); }
+        catch (Exception error) when (error is NpgsqlException) { throw Refusal(error); }
     }
 
     // Connection-phase failures (08 connection, 28 authorization, 3D000 missing database, 57P0x
     // server shutdown/start) mean the placement is unreachable: 503, never a 409 query refusal.
-    internal static Exception Refusal(PostgresException error)
-        => error.SqlState.StartsWith("08", StringComparison.Ordinal) || error.SqlState.StartsWith("28", StringComparison.Ordinal)
-            || error.SqlState is "3D000" || error.SqlState.StartsWith("57P0", StringComparison.Ordinal)
-            ? new PostgresUnavailableException("This table's database is unreachable or refused the connection.")
-            : new PostgresQueryException($"PostgreSQL refused the table operation (SQLSTATE {error.SqlState}).");
+    internal static Exception Refusal(Exception error)
+        => PostgresExceptionClassifier.Classify(error);
 }

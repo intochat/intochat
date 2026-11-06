@@ -105,18 +105,13 @@ internal sealed class PostgresProvider([FromKeyedServices(PostgresHosting.DataSo
             // Disposal rolls back the read-only transaction before returning the connection to the pool.
             return (columns, rows, connection.Database);
         }
-        catch (PostgresException error)
-        {
-            // SQLSTATE is useful for correction without exposing server details, query data or credentials.
-            throw new PostgresQueryException($"PostgreSQL refused the query (SQLSTATE {error.SqlState}). Check table/column names, permissions and read-only SQL; narrow expensive queries.");
-        }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new PostgresQueryException("The query timed out. Narrow it with WHERE or LIMIT.");
         }
-        catch (NpgsqlException) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception error) when (error is NpgsqlException && !cancellationToken.IsCancellationRequested)
         {
-            throw new PostgresUnavailableException("Postgres is unreachable or the database connection failed. Check the configured connection string and network.");
+            throw PostgresExceptionClassifier.Classify(error);
         }
     }
 }

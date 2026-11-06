@@ -13,7 +13,7 @@ public interface IPostgresSourceRegistry
     Task<NpgsqlDataSource> Get(TablePlacement placement, CancellationToken ct = default);
 }
 
-internal sealed class PostgresSourceRegistry(IModuleIntegrations<PostgresModule> integrations, IOptions<PostgresModuleOptions> options) : IPostgresSourceRegistry, IAsyncDisposable, IIntegrationStartup
+internal sealed class PostgresSourceRegistry(IModuleIntegrations<PostgresModule> integrations, IOptions<PostgresModuleOptions> options) : IPostgresSourceRegistry, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<(long Revision, TablePlacement Placement), NpgsqlDataSource> _sources = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -21,9 +21,6 @@ internal sealed class PostgresSourceRegistry(IModuleIntegrations<PostgresModule>
     private NpgsqlConnectionStringBuilder? _admin;
     private long _revision = -1;
     private bool _adminMaterialized;
-
-    public async Task InitializeAsync(CancellationToken cancellationToken)
-        => _ = await Get(TablePlacement.Shared, cancellationToken);
 
     // Serves the deployment's own placements; a Connection placement runs inside its connection neuron.
     public async Task<NpgsqlDataSource> Get(TablePlacement placement, CancellationToken ct = default)
@@ -56,6 +53,10 @@ internal sealed class PostgresSourceRegistry(IModuleIntegrations<PostgresModule>
             var connection = new NpgsqlConnectionStringBuilder(settings.ConnectionString);
             if (placement.Kind == TablePlacementKind.BrainDatabase) { connection.Database = placement.Name; }
             return _sources.GetOrAdd((_revision, placement), _ => NpgsqlDataSource.Create(connection.ConnectionString));
+        }
+        catch (Exception ex) when (ex is not PostgresUnavailableException and not ArgumentException and not InvalidOperationException)
+        {
+            throw PostgresExceptionClassifier.Classify(ex, "The Postgres integration is unavailable.");
         }
         finally { _gate.Release(); }
     }
