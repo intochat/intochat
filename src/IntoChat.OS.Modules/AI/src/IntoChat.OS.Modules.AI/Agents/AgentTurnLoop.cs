@@ -50,6 +50,14 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         yield return new AgentTurnEvent.Started(plan.RunId);
         string? currentCall = null;
         var contexts = await ReadContexts(plan.Contexts, ct);
+        // An interrupt from a user or the platform stops the turn before anything else is prepared; one written by an app or the model is not an order.
+        if (contexts.FirstOrDefault(entry => entry.EffectiveTags.Contains(ContextTags.Interrupt)
+            && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform) is { } interrupt)
+        {
+            yield return new AgentTurnEvent.Failed("Blocked: " + interrupt.Text, false);
+            yield break;
+        }
+        var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
         var surface = services.GetRequiredService<NeuronSurface>();
         // Context may name contracts this host does not deploy; only deployed ones join the turn.
         string[] named = [.. contexts.SelectMany(entry => entry.Contracts).Where(name => !plan.Contracts.Contains(name)).Distinct(StringComparer.Ordinal)];
@@ -59,7 +67,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         var tools = composed.Length == 0 ? new List<AIFunction>() : [.. ContractActions.Create(await surface.Restrict(composed, ct), plan.Conversation)];
 
         var catalog = services.GetRequiredService<ModelCatalog>();
-        var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options);
+        var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options, overrides);
         var resolved = await catalog.Resolve(plan.ScopeId, selection, tools.Count > 0, ct);
         ChatOptions options;
         switch (resolved.Provider)
@@ -85,8 +93,9 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         options.Tools = [.. tools];
         var messages = new List<ChatMessage>();
         if (plan.Summary is { Length: > 0 }) { messages.Add(new(ChatRole.System, "Earlier conversation summary: " + plan.Summary)); }
+        // Only untagged entries are knowledge for the model; tagged ones are acted on above or belong to other consumers.
+        foreach (var entry in contexts.Where(entry => entry.EffectiveTags.Length == 0 && entry.Text.Length > 0)) { messages.Add(new(ChatRole.System, entry.Text)); }
         messages.AddRange(plan.Transcript.Select(InferenceMapping.ToChatMessage));
-        foreach (var entry in contexts.Where(entry => entry.Text.Length > 0)) { messages.Add(new(ChatRole.System, entry.Text)); }
         messages.Add(InferenceMapping.ToChatMessage(plan.Input));
         var generated = new List<ChatMessage>();
         UsageDetails? usage = null;
