@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using System.Runtime.Loader;
-using IntoChat.OS.Client.Runtime;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
+using IntoChat.OS.Modules.Microsoft.CSharp.Contracts.Runtime;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -22,7 +23,7 @@ public sealed class Sessions(HttpClient http, IOptions<SandboxOptions> options, 
 
     // The contracts this image carries, reported to every brain on connect.
     public static string Fingerprint { get; } = ResolveFromBaseDirectory() ?? ContractsFingerprint.Of(Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll")
-        .Where(path => Path.GetFileNameWithoutExtension(path) is "IntoChat.OS" or "IntoChat.OS.Client" or "DigitalBrain" or "DigitalBrain.UI"
+        .Where(path => Path.GetFileNameWithoutExtension(path) is "IntoChat.OS" or "DigitalBrain.Client" or "DigitalBrain" or "DigitalBrain.UI"
             || Path.GetFileNameWithoutExtension(path).EndsWith(".Contracts", StringComparison.Ordinal)
             || (Path.GetFileName(path).StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && ContractsHost.Declares(path)))
         .Select(path => AssemblyLoadContext.Default.Assemblies.FirstOrDefault(loaded => loaded.GetName().Name == Path.GetFileNameWithoutExtension(path))
@@ -80,7 +81,7 @@ public sealed class Sessions(HttpClient http, IOptions<SandboxOptions> options, 
                 var token = open.Token;
                 try
                 {
-                    connection = await SessionConnection.OpenAsync(edgeUrl, token, Fingerprint, edge, open.Lifetime.Token).ConfigureAwait(false);
+                    connection = await SessionConnection.OpenAsync(edgeUrl, token, edge, open.Lifetime.Token).ConfigureAwait(false);
                     break;
                 }
                 // An ensure can refresh credentials while the original handshake is in flight.

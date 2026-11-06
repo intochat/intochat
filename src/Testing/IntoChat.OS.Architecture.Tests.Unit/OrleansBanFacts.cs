@@ -22,7 +22,6 @@ public sealed class OrleansBanFacts
     [
         "IntoChat.OS",
         "IntoChat.OS.Framework",
-        "IntoChat.OS.Client",
         "IntoChat.OS.Client.Orleans",
         "IntoChat.OS.Aspire.Server",
         "IntoChat.OS.Aspire.Client",

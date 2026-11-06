@@ -66,8 +66,6 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<AppWorkQueue>();
         services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
-        services.TryAddSingleton(ReactionExamples.Create);
-        services.TryAddSingleton<ReactionWriter>();
         services.AddNeuronProxies();
         services.TryAddSingleton<IPolicyModel, CreatorPolicyModel>();
         services.TryAddSingleton<PolicyWriter>();

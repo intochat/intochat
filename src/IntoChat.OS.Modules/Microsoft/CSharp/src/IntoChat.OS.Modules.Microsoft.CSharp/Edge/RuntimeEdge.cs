@@ -1,3 +1,5 @@
+using SessionTokens = IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionTokens;
+using SessionClaims = IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionClaims;
 using DigitalBrain.Brains;
 using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -5,8 +7,9 @@ using System.Net.ServerSentEvents;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using IntoChat.OS.Client.Runtime;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Contracts;
@@ -61,7 +64,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
             Stamp(identity);
         }
 
-        if (invocation.Contract == RuntimeProtocol.KernelContract) { return await AskKernelAsync(brainId, caller, invocation, cancellationToken).ConfigureAwait(false); }
+        if (invocation.Contract == CSharpRuntimeProtocol.KernelContract) { return await AskKernelAsync(brainId, caller, invocation, cancellationToken).ConfigureAwait(false); }
         var contract = Callable(invocation.Contract);
         var method = contract.GetMethods().Concat(contract.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
             .Where(candidate => candidate.Name == invocation.Method)
@@ -99,19 +102,19 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
         object answer;
         switch (invocation.Method)
         {
-            case RuntimeProtocol.KernelTypes when invocation.Arguments.Length == 0:
+            case CSharpRuntimeProtocol.KernelTypes when invocation.Arguments.Length == 0:
                 answer = await kernel.Types(cancellationToken).ConfigureAwait(false);
                 break;
-            case RuntimeProtocol.KernelInstances when invocation.Arguments.Length == 2:
+            case CSharpRuntimeProtocol.KernelInstances when invocation.Arguments.Length == 2:
                 var type = Argument(0) is { } contract ? kernel.TypeOf(Callable(contract)) : Argument(1);
                 List<BrainInstance> listed = [];
                 await foreach (var instance in kernel.Instances(type, cancellationToken).ConfigureAwait(false)) { listed.Add(instance); }
                 answer = listed.ToArray();
                 break;
-            case RuntimeProtocol.KernelRunning when invocation.Arguments.Length == 0:
+            case CSharpRuntimeProtocol.KernelRunning when invocation.Arguments.Length == 0:
                 answer = await kernel.Running(cancellationToken).ConfigureAwait(false);
                 break;
-            case RuntimeProtocol.KernelBrains when invocation.Arguments.Length == 0:
+            case CSharpRuntimeProtocol.KernelBrains when invocation.Arguments.Length == 0:
                 answer = await kernel.Brains(cancellationToken).ConfigureAwait(false);
                 break;
             default:

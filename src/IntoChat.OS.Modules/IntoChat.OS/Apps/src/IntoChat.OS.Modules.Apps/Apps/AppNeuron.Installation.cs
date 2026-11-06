@@ -319,26 +319,11 @@ internal sealed partial class AppNeuron
         await directory.RemovePrincipalMember(brain, principal);
     }
 
-    public async Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId)
+    public Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId)
     {
-        await Check("WriteSynapse",
-            new ProgramIsNotPaused(State.MigrationPaused),
-            new AppExists(Name(), State.Manifest is not null));
-        ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
-        string[] keys = [.. (focus ?? []).Where(key => !string.IsNullOrWhiteSpace(key)).Distinct(StringComparer.Ordinal)];
-        await Check("WriteSynapse",
-            new SynapseSentenceFits(sentence.Length),
-            new FocusFits(keys));
-        if (Replayed(operationId) || State.Synapses.Any(synapse => synapse.OperationId == operationId)) { return Describe(State); }
-        await Check("WriteSynapse", new SandboxIsAvailable(ServiceProvider.GetService<IScriptSandbox>()?.CanRun == true));
-        var next = State.Clone();
-        next.Synapses = [.. next.Synapses.TakeLast(MaxSynapses - 1),
-            new AppSynapse(operationId, sentence.Trim(), keys, SynapseStatus.Requested, clock.GetUtcNow(), [])];
-        await Persist(next);
-        // The writer runs on the work queue, outside this turn, and calls back as an outside caller.
-        ServiceProvider.GetRequiredService<ReactionWriter>().Enqueue(Key, operationId, sentence.Trim(), keys);
-        return Describe(State);
+        throw new NotSupportedException("ReactionWriter has been replaced by PolicyWriter.");
     }
+
 
     public async Task<StagedProgram> Stage(Guid operationId, string path, string source)
     {

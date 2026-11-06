@@ -3,7 +3,9 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using Azure.Core;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
+using IntoChat.OS.Modules.Microsoft.CSharp.Contracts.Runtime;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Sessions;

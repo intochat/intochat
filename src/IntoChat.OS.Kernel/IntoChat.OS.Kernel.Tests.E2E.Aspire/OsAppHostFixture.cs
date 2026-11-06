@@ -7,7 +7,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Client;
+using DigitalBrain.Client;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
@@ -47,7 +47,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
 
     public HttpClient Os { get; private set; } = null!;
 
-    public IntoChatOSConnection Connection { get; private set; } = null!;
+    public DigitalBrainConnection Connection { get; private set; } = null!;
 
     public string Home => _home.Path;
 
@@ -84,7 +84,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             await App.StartAsync(startTimeout.Token);
             Os = App.CreateHttpClient("OperatingSystem-a", "http");
             await Healthy(startTimeout.Token);
-            Connection = await IntoChatOSConnection.OpenAsync(
+            Connection = await DigitalBrainConnection.OpenAsync(
                 new Uri(Os.BaseAddress!, $"/brains/{Scope}/"),
                 "local-session",
                 $"{Scope}/apps/settings",

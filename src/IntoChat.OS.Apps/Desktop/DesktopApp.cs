@@ -46,7 +46,24 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DesktopApp));
 
-    public static AppBundle Bundle { get; } = ShellPrograms.Load("Desktop") with
+    public static AppBundle Bundle { get; } = new(
+        "desktop",
+        "0.4.0",
+        new AppManifest(
+            Title: "Desktop",
+            Description: "Your apps in windows, with a dock.",
+            Operations:
+            [
+                new("start", "Compose the desktop from the open windows and installed apps."),
+                new("layout", "Choose the layout the next connect shows: desktop or classic."),
+                new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
+                new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise."),
+            ],
+            Settings: [],
+            Slots: [],
+            Icon: "icon.svg"),
+        "",
+        new Dictionary<string, string>(StringComparer.Ordinal))
     {
         CompiledType = typeof(DesktopApp).AssemblyQualifiedName,
     };

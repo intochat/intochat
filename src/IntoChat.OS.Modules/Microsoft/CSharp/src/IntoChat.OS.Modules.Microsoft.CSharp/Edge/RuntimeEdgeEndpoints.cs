@@ -1,7 +1,10 @@
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using DigitalBrain.Errors;
 using DigitalBrain;
 using System.Diagnostics;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Http;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -19,7 +22,7 @@ internal static class RuntimeEdgeEndpoints
     {
         // These routes authenticate their own brain/session token; the account-cookie gate must not intercept them.
         var edge = BrainRoutes.SessionGroup(endpoints).AllowAnonymous().ExcludeFromDescription();
-        edge.MapPost(RuntimeProtocol.Invoke, async Task<IResult> (HttpContext http, string brainId, RuntimeEdge runtime, CancellationToken cancellationToken) =>
+        edge.MapPost(CSharpRuntimeProtocol.Invoke, async Task<IResult> (HttpContext http, string brainId, RuntimeEdge runtime, CancellationToken cancellationToken) =>
         {
             try
             {
@@ -30,13 +33,13 @@ internal static class RuntimeEdgeEndpoints
             }
             catch (Exception error) { return Refusal(http, error); }
         });
-        edge.MapPost(RuntimeProtocol.Report, async Task<IResult> (HttpContext http, string brainId, RuntimeReport report, RuntimeEdge runtime) =>
+        edge.MapPost(CSharpRuntimeProtocol.Report, async Task<IResult> (HttpContext http, string brainId, RuntimeReport report, RuntimeEdge runtime) =>
         {
-            if (report.Heartbeat) { Activity.Current?.SetTag(RuntimeProtocol.ReportKindTag, RuntimeProtocol.HeartbeatReport); }
+            if (report.Heartbeat) { Activity.Current?.SetTag(CSharpRuntimeProtocol.ReportKindTag, CSharpRuntimeProtocol.HeartbeatReport); }
             try { return await runtime.ReportAsync(brainId, Bearer(http), report); }
             catch (Exception error) { return Refusal(http, error); }
         });
-        edge.MapGet(RuntimeProtocol.Stream, async Task<IResult> (HttpContext http, string brainId, RuntimeEdge runtime, CancellationToken cancellationToken) =>
+        edge.MapGet(CSharpRuntimeProtocol.Stream, async Task<IResult> (HttpContext http, string brainId, RuntimeEdge runtime, CancellationToken cancellationToken) =>
         {
             try { return TypedResults.ServerSentEvents(await runtime.OpenStreamAsync(brainId, Bearer(http), cancellationToken)); }
             catch (Exception error) { return Refusal(http, error); }
@@ -50,12 +53,12 @@ internal static class RuntimeEdgeEndpoints
     {
         if (error is RevisionConflictException conflict)
         {
-            http.Response.Headers[RuntimeProtocol.RefusalHeader] = RevisionConflictException.Code;
+            http.Response.Headers[CSharpRuntimeProtocol.RefusalHeader] = RevisionConflictException.Code;
             return Results.Json(new { message = conflict.Message, currentRevision = conflict.CurrentRevision }, statusCode: StatusCodes.Status409Conflict);
         }
         if (error is ServiceUnavailableException)
         {
-            http.Response.Headers[RuntimeProtocol.RefusalHeader] = error.GetType().Name;
+            http.Response.Headers[CSharpRuntimeProtocol.RefusalHeader] = error.GetType().Name;
             return Results.Text(error.Message, statusCode: 503);
         }
         return error switch

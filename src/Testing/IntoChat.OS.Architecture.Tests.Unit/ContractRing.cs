@@ -1,5 +1,5 @@
 using System.Reflection;
-using IntoChat.OS.Client.Runtime;
+using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

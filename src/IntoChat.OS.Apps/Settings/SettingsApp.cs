@@ -153,7 +153,25 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(SettingsApp));
 
-    public static AppBundle Bundle { get; } = ShellPrograms.Load("Settings") with
+    public static AppBundle Bundle { get; } = new(
+        "settings",
+        "2.1.0",
+        new AppManifest(
+            Title: "Settings",
+            Description: "Your preferences, models, keys, connections and archived chats.",
+            Operations:
+            [
+                new("open", "Show Settings on the tab the input names (general when empty or unknown)."),
+                new("read", "Publish the current preferences to {app}/preferences."),
+                new("refresh-connections", "Show the brain's connections and the host's connector offers again."),
+                new("save-preferences", "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."),
+                new("reload-preferences", "Discard editable drafts and load the stored preferences."),
+                new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),
+            ],
+            Settings: [],
+            Slots: []),
+        "",
+        new Dictionary<string, string>(StringComparer.Ordinal))
     {
         CompiledType = typeof(SettingsApp).AssemblyQualifiedName,
     };

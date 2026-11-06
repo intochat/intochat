@@ -4,7 +4,7 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Text;
 
-namespace IntoChat.OS.Client.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 // A module whose contracts no other module references keeps them in its own assembly. That assembly says so
 // with assembly metadata (set by the IntoChatOSContractsHost project property), so the sandbox image, the script

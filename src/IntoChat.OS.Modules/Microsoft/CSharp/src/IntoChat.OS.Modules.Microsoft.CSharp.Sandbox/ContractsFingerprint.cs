@@ -2,12 +2,8 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace IntoChat.OS.Client.Runtime;
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
-// What a brain and a sandbox host compare before a session may run behaviors: one "name=hash" line per
-// contract assembly, the hash taken over its public surface (types and member signatures). Separate
-// builds of the same source agree; a host built from other contracts does not. The host reports every
-// assembly it carries; the brain requires each of its own lines to be present.
 public static class ContractsFingerprint
 {
     public static string Of(IEnumerable<Assembly> assemblies)

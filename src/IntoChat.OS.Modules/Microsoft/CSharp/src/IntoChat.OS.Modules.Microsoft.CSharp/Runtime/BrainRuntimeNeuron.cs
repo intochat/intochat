@@ -1,3 +1,5 @@
+using SessionTokens = IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionTokens;
+using SessionClaims = IntoChat.OS.Modules.Microsoft.CSharp.Sessions.SessionClaims;
 using DigitalBrain.Capabilities.Compute;
 using Trace = DigitalBrain.Capabilities.Compute.Trace;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -8,8 +10,9 @@ using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Client.Runtime;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
+using IntoChat.OS.Modules.Microsoft.CSharp.Contracts.Runtime;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -562,7 +565,7 @@ internal sealed class BrainRuntimeNeuron(
     {
         RequireSpeaking(session);
         ArgumentNullException.ThrowIfNull(acknowledgements);
-        if (acknowledgements.Length is 0 or > RuntimeProtocol.MaximumAcknowledgements
+        if (acknowledgements.Length is 0 or > CSharpRuntimeProtocol.MaximumAcknowledgements
             || acknowledgements.Any(ack => ack is null || string.IsNullOrWhiteSpace(ack.Subscription) || ack.Watermark < 0
                 || ack.CpuMicroseconds < 0 || ack.WallMicroseconds < 0 || ack.Batches < 0))
         { throw new ArgumentException("An acknowledgement batch needs 1 to 256 valid subscription watermarks.", nameof(acknowledgements)); }

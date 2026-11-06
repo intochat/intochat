@@ -614,7 +614,7 @@ public sealed class EdgeSessionValidatorAdversarialFacts : IDisposable
         var edge = new RuntimeEdge(tokens, null!, null!, null!, null!, null!, validator);
 
         var token = tokens.IssueAppToken("brain-1", "legit-app", "sha-1");
-        var invocation = new IntoChat.OS.Client.Runtime.V1.RuntimeInvocation(
+        var invocation = new DigitalBrain.Invocation.RuntimeInvocation(
             "malicious-impersonator-app",
             "SomeContract",
             "SomeMethod",
@@ -635,7 +635,7 @@ public sealed class EdgeSessionValidatorAdversarialFacts : IDisposable
         var edge = new RuntimeEdge(tokens, null!, null!, null!, null!, null!, validator);
 
         var token = tokens.IssueAppToken("brain-A", "app-1", "sha-1");
-        var invocation = new IntoChat.OS.Client.Runtime.V1.RuntimeInvocation(
+        var invocation = new DigitalBrain.Invocation.RuntimeInvocation(
             "app-1",
             "SomeContract",
             "SomeMethod",
@@ -657,7 +657,7 @@ public sealed class EdgeSessionValidatorAdversarialFacts : IDisposable
 
         var token = tokens.IssueAppToken("brain-1", "app-1", "sha-1");
         var tamperedToken = token + "corrupted";
-        var invocation = new IntoChat.OS.Client.Runtime.V1.RuntimeInvocation(
+        var invocation = new DigitalBrain.Invocation.RuntimeInvocation(
             "app-1",
             "SomeContract",
             "SomeMethod",
@@ -680,7 +680,7 @@ public sealed class EdgeSessionValidatorAdversarialFacts : IDisposable
         var token = tokens.IssueAppToken("brain-1", "app-1", "sha-1");
         _time.Now += SessionTokens.Lifetime + TimeSpan.FromMinutes(1);
 
-        var invocation = new IntoChat.OS.Client.Runtime.V1.RuntimeInvocation(
+        var invocation = new DigitalBrain.Invocation.RuntimeInvocation(
             "app-1",
             "SomeContract",
             "SomeMethod",

@@ -25,7 +25,22 @@ public sealed class WorkspaceApp : DigitalBrain.App
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(WorkspaceApp));
 
-    public static AppBundle Bundle { get; } = ShellPrograms.Load("Workspace") with
+    public static AppBundle Bundle { get; } = new(
+        "workspace",
+        "0.4.0",
+        new AppManifest(
+            Title: "Workspace",
+            Description: "Your apps, in one quiet workspace.",
+            Operations:
+            [
+                new("open", "Rebuild without changing focus."),
+                new("navigate", "Apply a revision-bound navigation command."),
+                new("activate", "Open an app and dispatch an explicit user action."),
+            ],
+            Settings: [],
+            Slots: []),
+        "",
+        new Dictionary<string, string>(StringComparer.Ordinal))
     {
         CompiledType = typeof(WorkspaceApp).AssemblyQualifiedName,
     };

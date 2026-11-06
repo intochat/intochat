@@ -14,13 +14,12 @@ public sealed class BoundaryFacts
     private static readonly string[] KernelLayers =
     [
         "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Framework",
-        "IntoChat.OS.Client", "IntoChat.OS.Client.Orleans", "IntoChat.OS.Modules.Identity.Contracts", "IntoChat.OS.Modules.Identity"
+        "IntoChat.OS.Client.Orleans", "IntoChat.OS.Modules.Identity.Contracts", "IntoChat.OS.Modules.Identity"
     ];
 
     [Theory]
     [InlineData("DigitalBrain", "IntoChat.OS")]
     [InlineData("IntoChat.OS", "IntoChat.OS.Framework")]
-    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client")]
     [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client.Orleans")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))

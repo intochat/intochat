@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using IntoChat.OS.Connections.Caching;
-using IntoChat.OS.Client.Runtime;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
@@ -28,7 +27,7 @@ public sealed class CSharpScriptCheck
         global using System.Net.Http;
         global using System.Threading;
         global using System.Threading.Tasks;
-        global using IntoChat.OS.Client;
+        global using DigitalBrain.Client;
         global using IntoChat.OS;
         global using DigitalBrain;
         """;
@@ -187,7 +186,7 @@ public sealed class CSharpScriptCheck
         var carried = new HashSet<string>(available.Where(entry => Path.GetDirectoryName(entry.Value) == runtime).Select(entry => entry.Key), StringComparer.OrdinalIgnoreCase);
         // A contract assembly is a *.Contracts project or a module assembly that declares it hosts its own contracts;
         // the core vocabulary packages DigitalBrain and DigitalBrain.UI are seeded with IntoChat.OS.
-        var pending = new Stack<string>(available.Where(entry => entry.Key is "IntoChat.OS" or "IntoChat.OS.Client" or "DigitalBrain" or "DigitalBrain.UI"
+        var pending = new Stack<string>(available.Where(entry => entry.Key is "IntoChat.OS" or "DigitalBrain.Client" or "DigitalBrain" or "DigitalBrain.UI"
             || entry.Key.EndsWith(".Contracts", StringComparison.OrdinalIgnoreCase)
             || (entry.Key.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase) && ContractsHost.Declares(entry.Value))).Select(entry => entry.Key));
         while (pending.TryPop(out var name))

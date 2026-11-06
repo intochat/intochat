@@ -30,7 +30,7 @@ internal sealed class SessionStreams
         _logs[request] = answer;
         try
         {
-            if (!TryPush(session, "logs", new IntoChat.OS.Client.Runtime.V1.LogsRequestEvent(behavior, tail, request))) { return ""; }
+            if (!TryPush(session, "logs", new IntoChat.OS.Modules.Microsoft.CSharp.Contracts.Runtime.LogsRequestEvent(behavior, tail, request))) { return ""; }
             return await answer.Task.WaitAsync(cap).ConfigureAwait(false);
         }
         catch (TimeoutException) { return ""; }

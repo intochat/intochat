@@ -6,9 +6,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.UI;
-using IntoChat.OS.Client;
-using IntoChat.OS.Client.Runtime;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using Microsoft.Extensions.Logging;
@@ -190,7 +189,7 @@ public sealed class AppRunner : IAsyncDisposable
 
     public async Task<int> RunAsync(CancellationToken stopping)
     {
-        await using var brain = await IntoChatOSClient.ConnectAsync([], stopping).ConfigureAwait(false);
+        await using var brain = await SandboxBrainClient.ConnectAsync([], stopping).ConfigureAwait(false);
         var appKey = brain.Setting("App") ?? throw new InvalidOperationException("An [App] program is assigned with the Setting \"App\": its app key.");
         var definition = new AppDefinition(_appType);
         var presenter = new ViewPresenter(brain, appKey, long.Parse(brain.Setting("ProgramRevision") ?? "1", System.Globalization.CultureInfo.InvariantCulture));
@@ -220,13 +219,13 @@ public sealed class AppRunner : IAsyncDisposable
         return 0;
     }
 
-    private static object ResolveNeuron(IntoChatOSConnection brain, Type contractType, string key)
-        => typeof(IntoChatOSConnection)
-            .GetMethod(key.Contains('/') ? nameof(IntoChatOSConnection.Get) : nameof(IntoChatOSConnection.Neuron), [typeof(string)])!
+    private static object ResolveNeuron(DigitalBrainConnection brain, Type contractType, string key)
+        => typeof(DigitalBrainConnection)
+            .GetMethod(key.Contains('/') ? nameof(DigitalBrainConnection.Get) : nameof(DigitalBrainConnection.Neuron), [typeof(string)])!
             .MakeGenericMethod(contractType)
             .Invoke(brain, [key])!;
 
-    internal static object ResolveCapability(IntoChatOSConnection brain, AppSnapshot snapshot, Type capabilityType)
+    internal static object ResolveCapability(DigitalBrainConnection brain, AppSnapshot snapshot, Type capabilityType)
     {
         var capabilityAttr = capabilityType.GetCustomAttribute<DigitalBrain.CapabilityAttribute>(false);
         var capabilityName = capabilityAttr?.Name
@@ -259,7 +258,7 @@ public sealed class AppRunner : IAsyncDisposable
     }
 
     private Task ServeSignalSubscription(
-        IntoChatOSConnection brain,
+        DigitalBrainConnection brain,
         IApp app,
         AppDefinition definition,
         App instance,
@@ -273,7 +272,7 @@ public sealed class AppRunner : IAsyncDisposable
             .Invoke(this, [brain, app, definition, instance, presenter, sub, turns, stopping])!;
 
     private async Task ServeSignalGeneric<TSignal>(
-        IntoChatOSConnection brain,
+        DigitalBrainConnection brain,
         IApp app,
         AppDefinition definition,
         App instance,
@@ -318,7 +317,7 @@ public sealed class AppRunner : IAsyncDisposable
     }
 
     // A declared watch: one neuron, or the members its registry names (selected again on each registry change). Each signal is a turn.
-    private Task ServeWatch(IntoChatOSConnection brain, IApp app, AppDefinition definition, App instance, IPresenter presenter, AppWatch watch,
+    private Task ServeWatch(DigitalBrainConnection brain, IApp app, AppDefinition definition, App instance, IPresenter presenter, AppWatch watch,
         AppAddress address, SemaphoreSlim turns, CancellationToken stopping)
     {
         var source = ResolveNeuron(brain, watch.SourceType, watch.Key(address));
@@ -333,11 +332,11 @@ public sealed class AppRunner : IAsyncDisposable
             .Invoke(this, [brain, app, definition, instance, presenter, watch, source, address, turns, stopping])!;
     }
 
-    private Task ServeFixedWatch<TSignal>(IntoChatOSConnection brain, IApp app, AppDefinition definition, App instance, IPresenter presenter,
+    private Task ServeFixedWatch<TSignal>(DigitalBrainConnection brain, IApp app, AppDefinition definition, App instance, IPresenter presenter,
         AppWatch watch, object source, SemaphoreSlim turns, CancellationToken stopping) where TSignal : Signal
         => ServeWatchSignals(brain.On<TSignal>(source, stopping), app, definition, instance, presenter, watch, turns, stopping);
 
-    private Task ServeSetWatch<TRegistry, TChange, TMember, TSignal>(IntoChatOSConnection brain, IApp app, AppDefinition definition, App instance,
+    private Task ServeSetWatch<TRegistry, TChange, TMember, TSignal>(DigitalBrainConnection brain, IApp app, AppDefinition definition, App instance,
         IPresenter presenter, AppWatch watch, object source, AppAddress address, SemaphoreSlim turns, CancellationToken stopping)
         where TRegistry : class where TChange : Signal where TMember : class where TSignal : Signal
     {
@@ -370,7 +369,7 @@ public sealed class AppRunner : IAsyncDisposable
         catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
     }
 
-    private async Task Serve(IntoChatOSConnection brain, IApp app, AppDefinition definition, App instance, IPresenter presenter, string operation, SemaphoreSlim turns, CancellationToken stopping)
+    private async Task Serve(DigitalBrainConnection brain, IApp app, AppDefinition definition, App instance, IPresenter presenter, string operation, SemaphoreSlim turns, CancellationToken stopping)
     {
         try
         {

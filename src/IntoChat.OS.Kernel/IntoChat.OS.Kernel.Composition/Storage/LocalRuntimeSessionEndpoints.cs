@@ -9,7 +9,8 @@ using System.Threading.Channels;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
 using DigitalBrain.Spi;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
@@ -170,7 +171,7 @@ internal static class LocalRuntimeSessionEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var edge = BrainRoutes.SessionGroup(endpoints).AllowAnonymous().ExcludeFromDescription();
-        edge.MapPost(RuntimeProtocol.Report, (string brainId, RuntimeReport report, LocalRuntimeSessionHub hub) =>
+        edge.MapPost("runtime/v1/report", IResult (string brainId, RuntimeReport report, LocalRuntimeSessionHub hub) =>
         {
             if (report.Subscribe is { } subscribe)
             {
@@ -179,9 +180,9 @@ internal static class LocalRuntimeSessionEndpoints
             }
             return Results.Ok();
         });
-        edge.MapGet(RuntimeProtocol.Stream, (string brainId, LocalRuntimeSessionHub hub, CancellationToken cancellationToken) =>
+        edge.MapGet("runtime/v1/stream", IResult (string brainId, LocalRuntimeSessionHub hub, CancellationToken cancellationToken) =>
             TypedResults.ServerSentEvents(hub.StreamAsync(brainId, cancellationToken)));
-        edge.MapPost(RuntimeProtocol.Invoke, async (HttpContext http, string brainId, NeuronSurface surface, CancellationToken cancellationToken) =>
+        edge.MapPost("runtime/v1/invoke", async Task<IResult> (HttpContext http, string brainId, NeuronSurface surface, CancellationToken cancellationToken) =>
         {
             var invocation = await http.Request.ReadFromJsonAsync<RuntimeInvocation>(RuntimeProtocol.Json, cancellationToken).ConfigureAwait(false)
                 ?? throw new ArgumentException("An invocation is required.");

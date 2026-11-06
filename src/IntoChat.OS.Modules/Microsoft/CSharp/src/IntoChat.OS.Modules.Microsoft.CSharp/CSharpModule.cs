@@ -93,6 +93,7 @@ public sealed class CSharpModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<RuntimeDirectory>();
         services.TryAddSingleton<IWorkContinuation, RuntimeWorkContinuation>();
         services.TryAddTransient<RuntimeEdge>();
+        services.TryAddTransient<DigitalBrain.Runtime.Http.IRuntimeInvocationDispatcher, CSharpRuntimeInvocationDispatcher>();
         services.AddSingleton<IIncomingGrainCallFilter, BrainRunsGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Capabilities.Identity.ISignInHandler, RuntimeSignIn>());
         if (authoring)

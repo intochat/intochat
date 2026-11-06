@@ -43,7 +43,20 @@ internal sealed class CompiledAppsHost(
     private static readonly (string Name, Type AppType, AppBundle Bundle)[] Hosted =
     [
         ResolveHosted("ino", "IntoChat.OS.Apps.Ino.InoApp", new AppBundle("ino", "3.5.0", new AppManifest("Ino", "Talk to your brain, use its capabilities, query databases, and create apps.", [new("open", "Show Ino."), new("send", "Route or answer a message."), new("approve-card", "Approve or reject an inline LFP card."), new("connect-db", "Connect a PostgreSQL database via connection string."), new("query-db", "Execute a read-only SQL query against the connected database."), new("new", "Start a new conversation."), new("new-conversation", "Alias for new."), new("voice", "Begin voice input."), new("make", "Apply a sentence to the focused app, or Scratch.")], [new("Model", "Model catalog id; empty uses the default.", ""), new("RouteGate", "Confidence required for a direct route.", "0.8"), new("IntendGate", "Seconds to wait for Memory's brief before answering without it.", "8")], [], "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal))),
-        ResolveHosted("settings", "IntoChat.OS.Apps.Settings.SettingsApp", ShellPrograms.Load("Settings")),
+        ResolveHosted("settings", "IntoChat.OS.Apps.Settings.SettingsApp", new AppBundle("settings", "2.1.0", new AppManifest(
+            Title: "Settings",
+            Description: "Your preferences, models, keys, connections and archived chats.",
+            Operations:
+            [
+                new("open", "Show Settings on the tab the input names (general when empty or unknown)."),
+                new("read", "Publish the current preferences to {app}/preferences."),
+                new("refresh-connections", "Show the brain's connections and the host's connector offers again."),
+                new("save-preferences", "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."),
+                new("reload-preferences", "Discard editable drafts and load the stored preferences."),
+                new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),
+            ],
+            Settings: [],
+            Slots: []), "", new Dictionary<string, string>(StringComparer.Ordinal))),
     ];
 
     private static readonly IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName =
@@ -325,7 +338,19 @@ internal sealed class CompiledAppsHost(
         var snapshot = await desktopApp.Read();
         if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
         {
-            var bundle = ShellPrograms.Load("Desktop");
+            var bundle = ResolveHosted("desktop", "IntoChat.OS.Apps.Desktop.DesktopApp", new AppBundle("desktop", "0.4.0", new AppManifest(
+                Title: "Desktop",
+                Description: "Your apps in windows, with a dock.",
+                Operations:
+                [
+                    new("start", "Compose the desktop from the open windows and installed apps."),
+                    new("layout", "Choose the layout the next connect shows: desktop or classic."),
+                    new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
+                    new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise."),
+                ],
+                Settings: [],
+                Slots: [],
+                Icon: "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal))).Bundle;
             await desktopApp.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "desktop", bundle.Version));
         }
     }

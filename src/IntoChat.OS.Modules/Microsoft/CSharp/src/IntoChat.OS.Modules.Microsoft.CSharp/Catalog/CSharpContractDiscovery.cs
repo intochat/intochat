@@ -21,11 +21,11 @@ public sealed class CSharpContractDiscovery(IBrainObserver kernel, ModuleInvento
 
     public const string Example = """
         // Plain C#: every installed contract is referenced; name the ones you use with usings.
-        // System, collections, LINQ, tasks, IntoChat.OS and IntoChat.OS.Client are imported.
+        // System, collections, LINQ, tasks, IntoChat.OS and DigitalBrain.Client are imported.
         using IntoChat.OS.Modules.Flutter.Button;
         using IntoChat.OS.Modules.Flutter.Button.Signals;
 
-        await using var brain = await IntoChatOSClient.ConnectAsync(args);
+        await using var brain = await DigitalBrainConnection.ConnectAsync(args);
         var button = brain.Get<IButton>(brain.Setting("ButtonId") ?? "start");
         await foreach (var click in brain.On<ButtonClicked>(button, brain.Stopping))
         {

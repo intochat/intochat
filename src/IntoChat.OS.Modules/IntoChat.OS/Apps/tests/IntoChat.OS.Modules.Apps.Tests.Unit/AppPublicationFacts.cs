@@ -53,13 +53,4 @@ public sealed class AppPublicationFacts
     [Fact]
     public void AProgramWithTopLevelStatementsDoesNotCountAsDeclaringRules()
         => Assert.False(AppRules.Declared(new Dictionary<string, string> { ["main.cs"] = "Console.WriteLine(1);\nclass R : ILogic { }" }));
-
-    [Fact]
-    public void AReactionExampleIsNamedByOriginAndPathAndScoredBySimilarityPlusHistory()
-    {
-        var example = new ReactionExample("os", "timer/app.cs", "spec", "source", null, Similarity: 0.5, History: 0.125);
-
-        Assert.Equal("os/timer/app.cs", example.Name);
-        Assert.Equal(0.625, example.Score);
-    }
 }

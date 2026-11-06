@@ -1,7 +1,7 @@
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
 using IntoChat.OS;
-using IntoChat.OS.Client;
+using DigitalBrain.Client;
 using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;

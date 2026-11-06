@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Invocation;
 using IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -19,7 +19,7 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOIN
             .AddAspNetCoreInstrumentation(http => http.Filter = context => !context.Request.Path.Equals(TelemetryExportBarrier.Path, StringComparison.OrdinalIgnoreCase))
             .AddHttpClientInstrumentation(http => http.EnrichWithHttpRequestMessage = (activity, request) =>
         {
-            if (request.Options.TryGetValue(RuntimeProtocol.ReportKind, out var kind)) { activity.SetTag(RuntimeProtocol.ReportKindTag, kind); }
+            if (request.Options.TryGetValue(SandboxProtocol.ReportKind, out var kind)) { activity.SetTag(SandboxProtocol.ReportKindTag, kind); }
         }).AddProcessor(new QuietReportProcessor()))
         .UseOtlpExporter();
 }
@@ -39,7 +39,7 @@ internal sealed class QuietReportProcessor : BaseProcessor<Activity>
         if (activity.Kind == ActivityKind.Client
             && activity.Status != ActivityStatusCode.Error
             && activity.GetTagItem("http.response.status_code") is int status and < 400
-            && activity.GetTagItem(RuntimeProtocol.ReportKindTag) is RuntimeProtocol.HeartbeatReport)
+            && activity.GetTagItem(SandboxProtocol.ReportKindTag) is "heartbeat")
         {
             activity.ActivityTraceFlags &= ~ActivityTraceFlags.Recorded;
             activity.IsAllDataRequested = false;

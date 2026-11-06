@@ -7,7 +7,7 @@
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration" />
     <!-- The protocol, the session connection and the client behaviors connect through; shared, never reloaded per behavior. -->
-    <ProjectReference Include="../../../../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
+    <PackageReference Include="DigitalBrain.Client" />
     <!-- The core vocabulary the script compiler seeds (DigitalBrain arrives through IntoChat.OS). -->
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Capabilities.Compute" />

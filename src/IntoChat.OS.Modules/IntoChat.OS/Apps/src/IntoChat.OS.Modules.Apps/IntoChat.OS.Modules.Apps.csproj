@@ -9,7 +9,6 @@
     <PackageReference Include="DigitalBrain.Runtime.Apps" />
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Graph" />
-    <PackageReference Include="DigitalBrain.Apps.Packaging" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />
     <ProjectReference Include="../../../Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
@@ -26,11 +25,5 @@
   <ItemGroup><ProjectReference Include="../../../Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" /></ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- Script sources of the compiled shell apps. They stay programs the sandbox runs; they are not module C#. -->
-    <Compile Remove="Shell\**\*.cs" />
-    <None Remove="Shell\**\*" />
-    <EmbeddedResource Include="Shell\**\*" LogicalName="shell/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

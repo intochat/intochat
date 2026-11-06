@@ -1,4 +1,4 @@
-using IntoChat.OS.Client.Runtime.V1;
+using IntoChat.OS.Modules.Microsoft.CSharp.Contracts.Runtime;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 

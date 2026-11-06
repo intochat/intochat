@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><RootNamespace>IntoChat.OS.Client.Tests.Unit</RootNamespace></PropertyGroup>
-  <ItemGroup>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
-  </ItemGroup>
-</Project>

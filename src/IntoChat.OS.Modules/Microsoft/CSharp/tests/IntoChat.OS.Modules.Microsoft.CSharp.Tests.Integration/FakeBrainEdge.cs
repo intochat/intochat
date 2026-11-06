@@ -1,10 +1,13 @@
+using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
+using IntoChat.OS.Modules.Microsoft.CSharp.Contracts.Runtime;
 using IntoChat.OS.Modules.Microsoft.CSharp.Catalog;
 
 namespace IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration;
@@ -58,13 +61,13 @@ internal sealed class FakeBrainEdge : HttpMessageHandler
                 ? new(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }
                 : new(HttpStatusCode.NotFound);
         }
-        if (uri.AbsolutePath.EndsWith(RuntimeProtocol.Stream, StringComparison.Ordinal))
+        if (uri.AbsolutePath.EndsWith(CSharpRuntimeProtocol.Stream, StringComparison.Ordinal))
         {
             var content = new StreamContent(new EventStream(_events.Reader));
             content.Headers.ContentType = new("text/event-stream");
             return new(HttpStatusCode.OK) { Content = content };
         }
-        if (uri.AbsolutePath.EndsWith(RuntimeProtocol.Report, StringComparison.Ordinal))
+        if (uri.AbsolutePath.EndsWith(CSharpRuntimeProtocol.Report, StringComparison.Ordinal))
         {
             if (HoldReports) { await Busy.Task.WaitAsync(cancellationToken); }
             if (RequiredToken is { } required && request.Headers.Authorization?.Parameter != required)

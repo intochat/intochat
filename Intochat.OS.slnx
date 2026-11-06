@@ -6,14 +6,8 @@
     <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
     <Project Path="src/IntoChat.OS.Aspire/IntoChat.OS.ServiceDefaults/IntoChat.OS.ServiceDefaults.csproj" />
   </Folder>
-  <Folder Name="/Cli/">
-    <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli.Tests.Unit/IntoChat.OS.Cli.Tests.Unit.csproj" />
-    <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli/IntoChat.OS.Cli.csproj" />
-  </Folder>
   <Folder Name="/Client/">
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" />
-    <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Tests.Unit/IntoChat.OS.Client.Tests.Unit.csproj" />
-    <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
   </Folder>
   <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />
   <Folder Name="/Desktop/">

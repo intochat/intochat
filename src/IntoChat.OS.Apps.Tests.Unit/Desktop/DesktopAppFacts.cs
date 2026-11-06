@@ -24,6 +24,5 @@ public sealed class DesktopAppFacts
     {
         Assert.Equal("workspace", WorkspaceApp.Bundle.Name);
         Assert.Equal("desktop", DesktopApp.Bundle.Name);
-        Assert.Contains("Apps", DesktopApp.Bundle.Files["DesktopLayout.cs"], StringComparison.Ordinal);
     }
 }

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../../../../IntoChat.OS.Client/IntoChat.OS.Client/IntoChat.OS.Client.csproj" />
+    <PackageReference Include="DigitalBrain.Client" />
     <ProjectReference Include="../../../../IntoChat.OS/Flame/src/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
     <!-- 06-07b: the plain SSE feed fact watches the plain Time timer. -->
     <ProjectReference Include="../../../../Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />

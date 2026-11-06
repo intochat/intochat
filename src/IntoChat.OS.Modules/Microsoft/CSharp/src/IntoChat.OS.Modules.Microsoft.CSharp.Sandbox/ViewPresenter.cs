@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using DigitalBrain.Contracts;
 using DigitalBrain.UI;
-using IntoChat.OS.Client;
+using DigitalBrain.Client;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
 using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
@@ -11,7 +11,7 @@ namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
 
 // The presenter an [App] class is built with: what it presents is published to the app's view neurons, main at "{app}/view" and side at
 // "{app}/side", one publication after another. Present returns at once; a publication that fails is written to the run log.
-internal sealed class ViewPresenter(IntoChatOSConnection brain, string appKey, long generation) : IPresenter
+internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey, long generation) : IPresenter
 {
     private static readonly HashSet<string> SupportedReferenceKinds = new(StringComparer.Ordinal)
     {

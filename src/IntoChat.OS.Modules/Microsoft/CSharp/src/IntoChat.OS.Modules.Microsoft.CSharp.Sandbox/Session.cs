@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using IntoChat.OS.Client.Runtime;
-using IntoChat.OS.Client.Runtime.V1;
+using DigitalBrain.Client;
+using DigitalBrain.Invocation;
+using IntoChat.OS.Modules.Microsoft.CSharp.Contracts.Runtime;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

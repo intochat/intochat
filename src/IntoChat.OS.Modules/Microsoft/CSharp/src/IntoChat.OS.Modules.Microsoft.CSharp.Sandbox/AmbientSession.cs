@@ -1,6 +1,8 @@
-namespace IntoChat.OS.Client.Runtime;
+using DigitalBrain.Client;
 
-// The sandbox host sets this around a behavior's entry point, so IntoChatOSClient.ConnectAsync inside
+namespace IntoChat.OS.Modules.Microsoft.CSharp.Sandbox;
+
+// The sandbox host sets this around a behavior's entry point, so DigitalBrainConnection inside
 // the behavior resolves to its session, its id, its settings and its stop signal.
 public static class AmbientSession
 {
@@ -14,11 +16,11 @@ public static class AmbientSession
         ArgumentException.ThrowIfNullOrWhiteSpace(behavior);
         ArgumentNullException.ThrowIfNull(settings);
         var previous = Current.Value;
-        Current.Value = new(session, behavior, new Dictionary<string, string>(settings, StringComparer.Ordinal), stopping, new BehaviorTrace(), assignmentHash, assignmentRevision);
+        Current.Value = new(session, behavior, new Dictionary<string, string>(settings, StringComparer.Ordinal), stopping, assignmentHash, assignmentRevision);
         return new Exit(previous);
     }
 
-    internal sealed record Scope(SessionConnection Session, string Behavior, Dictionary<string, string> Settings, CancellationToken Stopping, BehaviorTrace Trace, string? AssignmentHash, string? AssignmentRevision);
+    internal sealed record Scope(SessionConnection Session, string Behavior, Dictionary<string, string> Settings, CancellationToken Stopping, string? AssignmentHash, string? AssignmentRevision);
 
     private sealed class Exit(Scope? previous) : IDisposable
     {

@@ -127,7 +127,6 @@
   <ItemGroup>
     <PackageVersion Include="DigitalBrain" Version="0.15.0" />
     <PackageVersion Include="DigitalBrain.Client" Version="0.15.0" />
-    <PackageVersion Include="DigitalBrain.Apps.Packaging" Version="0.15.0" />
     <PackageVersion Include="DigitalBrain.Runtime.Apps" Version="0.15.0" />
     <PackageVersion Include="DigitalBrain.Analyzers" Version="0.15.0" />
     <PackageVersion Include="DigitalBrain.Capabilities.Compute" Version="0.15.0" />
@@ -142,6 +141,7 @@
     <PackageVersion Include="DigitalBrain.Runtime.Orleans.Azure" Version="0.15.0" />
     <PackageVersion Include="DigitalBrain.Testing" Version="0.15.0" />
     <PackageVersion Include="DigitalBrain.Testing.Silo" Version="0.15.0" />
+    <PackageVersion Include="DigitalBrain.Runtime.Synapses" Version="0.15.0" />
     <PackageVersion Include="DigitalBrain.UI" Version="0.15.0" />
   </ItemGroup>
 </Project>
