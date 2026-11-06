@@ -285,6 +285,8 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
     public async Task Scenario04_KnowledgeAugmentedRoutingAndPlanSynthesis_DeliberatesAndExecutes()
     {
         var brain = fixture.NewBrain("s04");
+        var caller = CapabilityCallers.Of("knowledge_agent", "acc_infra", brain, CallerKind.User);
+        using var stamp = RuntimeCallerContext.Stamp(caller);
 
         // Step 1: Populate MemoryNeuron on the real silo and KnowledgeStore topology
         var memory = SiloNeurons.Get<IMemory>(fixture.Services, $"{brain}/memory");

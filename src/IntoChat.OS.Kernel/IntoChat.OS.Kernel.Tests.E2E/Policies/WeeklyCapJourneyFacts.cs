@@ -81,6 +81,7 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
     public async Task ADeniedPromiseChangesNothing()
     {
         var brain = fixture.NewBrain("deniedcap");
+        using var stamp = StampPerson(brain);
         fixture.EnqueuePolicyReply(WeeklyThreeHundredRow);
 
         using var postResponse = await fixture.Http.PostAsJsonAsync(
@@ -112,6 +113,7 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
     public async Task AnAppCanNeitherProposeNorRetireAPromise()
     {
         var brain = fixture.NewBrain("appcap");
+        using var stamp = StampPerson(brain);
         fixture.EnqueuePolicyReply(WeeklyThreeHundredRow);
 
         using var postResponse = await fixture.Http.PostAsJsonAsync(

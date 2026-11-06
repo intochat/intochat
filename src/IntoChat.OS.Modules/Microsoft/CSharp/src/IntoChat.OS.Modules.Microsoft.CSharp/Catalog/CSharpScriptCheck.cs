@@ -33,8 +33,8 @@ public sealed class CSharpScriptCheck
         """;
 
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
-    private static readonly Lazy<MetadataReference[]> References = new(LoadReferences);
-    private static readonly Lazy<string> ReferenceFingerprint = new(() => Hash(string.Join('\u0001', References.Value
+    private static IReadOnlyList<MetadataReference> References => SharedMetadataReferenceCache.StandardReferences;
+    private static readonly Lazy<string> ReferenceFingerprint = new(() => Hash(string.Join('\u0001', References
         .Select(reference => reference.Display + "\u0000" + (reference is PortableExecutableReference { FilePath: { } path } ? new FileInfo(path).Length + ":" + File.GetLastWriteTimeUtc(path).Ticks : "")))));
     // Deterministic so one source always yields one hash: no PDB path, no timestamps.
     private static readonly CSharpCompilationOptions Options = new(OutputKind.DynamicallyLinkedLibrary, deterministic: true, nullableContextOptions: NullableContextOptions.Enable);
@@ -79,7 +79,7 @@ public sealed class CSharpScriptCheck
 
         var bundleKey = Hash(_references + '\u0002' + string.Join('\u0001', files.OrderBy(f => f.Key, StringComparer.Ordinal).Select(f => f.Key + "\u0000" + f.Value)));
 
-        var compilation = CSharpCompilation.Create("app", trees, References.Value, Options);
+        var compilation = CSharpCompilation.Create("app", trees, References, Options);
 
         var appAttribute = compilation.GetTypeByMetadataName("DigitalBrain.AppAttribute");
         var appClasses = new List<INamedTypeSymbol>();
@@ -173,35 +173,5 @@ public sealed class CSharpScriptCheck
     // The assemblies a script compiles against, by simple name.
     /// <summary>The assembly names a script may reference; read-only, pinned by ScriptVisibilityFacts.</summary>
     public static IReadOnlyCollection<string> ReferenceNames()
-        => [.. References.Value.Select(reference => Path.GetFileNameWithoutExtension(((PortableExecutableReference)reference).FilePath)!)];
-
-    private static MetadataReference[] LoadReferences()
-    {
-        var available = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Where(File.Exists)
-            .DistinctBy(Path.GetFileNameWithoutExtension, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(path => Path.GetFileNameWithoutExtension(path)!, StringComparer.OrdinalIgnoreCase);
-        var runtime = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-        var carried = new HashSet<string>(available.Where(entry => Path.GetDirectoryName(entry.Value) == runtime).Select(entry => entry.Key), StringComparer.OrdinalIgnoreCase);
-        // A contract assembly is a *.Contracts project or a module assembly that declares it hosts its own contracts;
-        // the core vocabulary packages DigitalBrain and DigitalBrain.UI are seeded with IntoChat.OS.
-        var pending = new Stack<string>(available.Where(entry => entry.Key is "IntoChat.OS" or "DigitalBrain.Client" or "DigitalBrain" or "DigitalBrain.UI"
-            || entry.Key.EndsWith(".Contracts", StringComparison.OrdinalIgnoreCase)
-            || (entry.Key.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase) && ContractsHost.Declares(entry.Value))).Select(entry => entry.Key));
-        while (pending.TryPop(out var name))
-        {
-            if (!carried.Add(name)) { continue; }
-            // A hosting module assembly is carried for its contract surface only; its implementation's dependencies are not a script's to reach.
-            if (name.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".Contracts", StringComparison.OrdinalIgnoreCase)) { continue; }
-            using var image = new System.Reflection.PortableExecutable.PEReader(File.OpenRead(available[name]));
-            var metadata = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(image);
-            foreach (var handle in metadata.AssemblyReferences)
-            {
-                var dependency = metadata.GetString(metadata.GetAssemblyReference(handle).Name);
-                if (available.ContainsKey(dependency) && !carried.Contains(dependency)) { pending.Push(dependency); }
-            }
-        }
-        return [.. carried.Select(name => (MetadataReference)MetadataReference.CreateFromFile(available[name]))];
-    }
+        => [.. References.Select(reference => Path.GetFileNameWithoutExtension(((PortableExecutableReference)reference).FilePath)!)];
 }
