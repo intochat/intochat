@@ -17,7 +17,9 @@ None.
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `circle-deployment-key` | yes |
 
 Contracts: assembly `IntoChat.Cloud.Circle.Contracts` (`ICircleConnection`, `IComputeDelegate`, `INonceCache`).
 Hosting: runs in process.

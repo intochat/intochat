@@ -17,7 +17,9 @@ None.
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `lobby-token-key` | yes |
 
 Contracts: none.
 Hosting: runs in process.

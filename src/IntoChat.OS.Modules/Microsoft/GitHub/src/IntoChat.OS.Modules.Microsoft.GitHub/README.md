@@ -29,6 +29,9 @@ Secrets (names only; values are sealed per brain, never configuration):
 | `ClientSecret` | no |
 | `PrivateKeyPem` | yes |
 | `WebhookSecret` | no |
+| `client-secret` | yes |
+| `private-key-pem` | yes |
+| `webhook-secret` | yes |
 
 Contracts: assembly `IntoChat.OS.Modules.Microsoft.GitHub.Contracts` (`IRepository`).
 Hosting: runs in process.

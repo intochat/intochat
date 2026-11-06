@@ -226,6 +226,14 @@ public sealed class ModuleDocumentationFacts
 
     private static IEnumerable<(string Name, bool Optional)> SchemaSecrets(Type type)
     {
+        var manifest = type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as DigitalBrain.ModuleManifest;
+        if (manifest is not null)
+        {
+            foreach (var secret in manifest.Secrets)
+            {
+                yield return (secret.Name, false);
+            }
+        }
         foreach (var schema in OsModule.ReadSchemas(type))
         {
             foreach (var name in schema.SecretFields)

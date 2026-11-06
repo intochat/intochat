@@ -21,6 +21,8 @@ Secrets (names only; values are sealed per brain, never configuration):
 | --- | --- |
 | `ClientId` | yes |
 | `ClientSecret` | yes |
+| `client-id` | yes |
+| `client-secret` | yes |
 
 Contracts: none.
 Hosting: runs in process.

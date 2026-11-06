@@ -17,7 +17,9 @@ None.
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `connection-string` | yes |
 
 Contracts: none.
 Hosting: runs in process.

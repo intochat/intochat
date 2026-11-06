@@ -17,7 +17,7 @@ public sealed class SalesforceModule : DigitalBrain.Module
         Requires: [],
         Needs: [],
         Settings: [DigitalBrain.Setting.Of<SalesforceModuleOptions>(ModuleConfiguration.ModuleOptionsSection("salesforce"))],
-        Secrets: [])
+        Secrets: [DigitalBrain.Secret.Named("consumer-key"), DigitalBrain.Secret.Named("consumer-secret")])
     {
         Actions = [new("salesforce.record.write", "write a Salesforce record", null)],
     };

@@ -17,7 +17,10 @@ None.
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `acs-email` | yes |
+| `recipient-hashing` | yes |
 
 Contracts: assembly `IntoChat.Cloud.Mail.Contracts` (`IMailRate`, `IMailSender`, `IRecipientHasher`).
 Hosting: runs in process.

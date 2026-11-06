@@ -18,7 +18,7 @@ public sealed class SupabaseModule : DigitalBrain.Module
         Requires: [],
         Needs: [],
         Settings: [DigitalBrain.Setting.Of<SupabaseModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(SupabaseModule.ManifestName))],
-        Secrets: []);
+        Secrets: [DigitalBrain.Secret.Named("connection-string")]);
 
     public static bool RequiresContainer => true;
 

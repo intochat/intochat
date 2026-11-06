@@ -20,6 +20,7 @@ Secrets (names only; values are sealed per brain, never configuration):
 | Secret | Required |
 | --- | --- |
 | `ConnectionString` | yes |
+| `connection-string` | yes |
 
 Contracts: none.
 Hosting: needs a container.

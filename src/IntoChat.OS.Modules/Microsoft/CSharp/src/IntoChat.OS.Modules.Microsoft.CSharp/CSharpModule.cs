@@ -44,7 +44,7 @@ public sealed class CSharpModule : DigitalBrain.Module, IHttpModule
         Requires: [],
         Needs: [],
         Settings: [DigitalBrain.Setting.Of<CSharpOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId(ManifestName)))],
-        Secrets: []);
+        Secrets: [DigitalBrain.Secret.Named("run-token-key")]);
 
     public static System.Reflection.Assembly? Contracts => typeof(IntoChat.OS.Modules.Microsoft.CSharp.Files.ICSharpFile).Assembly;
 

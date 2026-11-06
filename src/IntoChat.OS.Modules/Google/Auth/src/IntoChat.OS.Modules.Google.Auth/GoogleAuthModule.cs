@@ -20,7 +20,7 @@ public sealed class GoogleAuthModule : DigitalBrain.Module
         Requires: [],
         Needs: [],
         Settings: [DigitalBrain.Setting.Of<GoogleAuthModuleOptions>(ModuleConfiguration.ModuleOptionsSection(ModuleName))],
-        Secrets: []);
+        Secrets: [DigitalBrain.Secret.Named("client-id"), DigitalBrain.Secret.Named("client-secret")]);
 
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For(GoogleAuth.Integration, "Google OAuth")
         .RequiresSecret("ClientId")

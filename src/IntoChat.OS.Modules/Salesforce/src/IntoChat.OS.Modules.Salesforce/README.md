@@ -21,6 +21,8 @@ Secrets (names only; values are sealed per brain, never configuration):
 | --- | --- |
 | `ConsumerKey` | yes |
 | `ConsumerSecret` | yes |
+| `consumer-key` | yes |
+| `consumer-secret` | yes |
 
 Contracts: assembly `IntoChat.OS.Modules.Salesforce.Contracts` (`ISalesforce`).
 Hosting: runs in process.

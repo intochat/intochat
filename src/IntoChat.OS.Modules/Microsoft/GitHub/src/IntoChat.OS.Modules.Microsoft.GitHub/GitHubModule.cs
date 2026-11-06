@@ -21,7 +21,7 @@ public sealed class GitHubModule : DigitalBrain.Module
             DigitalBrain.Need.Webhook("/github/webhook", "github.repository"),
         ],
         Settings: [DigitalBrain.Setting.Of<GitHubModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
-        Secrets: [])
+        Secrets: [DigitalBrain.Secret.Named("private-key-pem"), DigitalBrain.Secret.Named("client-secret"), DigitalBrain.Secret.Named("webhook-secret")])
     {
         Auth = new DigitalBrain.ModuleAuth("github", []),
         Actions =

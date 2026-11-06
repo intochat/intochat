@@ -17,7 +17,7 @@ public sealed class ClickHouseModule : DigitalBrain.Module
         Requires: [],
         Needs: [],
         Settings: [DigitalBrain.Setting.Of<ClickHouseModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
-        Secrets: []);
+        Secrets: [DigitalBrain.Secret.Named("connection-string")]);
 
     public static bool RequiresContainer => true;
 

@@ -17,7 +17,12 @@ None.
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `auth-hashing` | yes |
+| `google-client-id` | yes |
+| `google-client-secret` | yes |
+| `signin-issuer` | yes |
 
 Contracts: assembly `IntoChat.Cloud.Auth.Contracts` (`IAuthAuditLog`).
 Hosting: runs in process.

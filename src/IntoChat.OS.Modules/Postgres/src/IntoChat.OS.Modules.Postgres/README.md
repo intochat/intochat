@@ -21,6 +21,8 @@ Secrets (names only; values are sealed per brain, never configuration):
 | --- | --- |
 | `AdminConnection` | no |
 | `ConnectionString` | yes |
+| `admin-connection` | yes |
+| `connection-string` | yes |
 
 Contracts: assembly `IntoChat.OS.Modules.Postgres.Contracts` (`IPostgresServer`, `ITable`).
 Hosting: needs a container.
