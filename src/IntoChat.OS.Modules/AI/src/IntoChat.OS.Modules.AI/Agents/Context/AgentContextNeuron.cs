@@ -32,7 +32,7 @@ internal sealed class AgentContextNeuron
         if (tags is not null && (tags.Length > 8 || tags.Any(string.IsNullOrWhiteSpace))) { throw new ArgumentException("A context entry carries at most 8 non-empty tags.", nameof(entry)); }
         var caller = RuntimeCallerContext.Current;
         var trust = ContextTrust.Of(caller);
-        var provenance = new EntryProvenance(caller?.PrincipalId ?? "", DateTimeOffset.UtcNow, trust);
+        var provenance = new EntryProvenance(caller?.AppId is { Length: > 0 } app ? app : caller?.PrincipalId ?? "", DateTimeOffset.UtcNow, trust);
         var kept = entry with { Contracts = entry.Contracts.ToArray(), Tags = tags?.ToArray(), Provenance = provenance };
         // An interrupt is the user's or the platform's to raise; a model or app still gets its entry stored, just not acted on.
         var ignored = kept.EffectiveTags.Contains(ContextTags.Interrupt) && trust is not (ContextTrust.User or ContextTrust.Platform);

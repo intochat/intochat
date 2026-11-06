@@ -123,6 +123,32 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     }
 
     [Theory, MemberData(nameof(Kinds))]
+    public async Task AnAppWriterIsNamedByItsAppId(NeuronRuntimeKind kind)
+    {
+        var runtime = await fixture.Runtime(kind);
+        var id = runtime.Id("agent-context", "memory/context-app-" + kind);
+        var context = runtime.Get<IAgentContext>(id);
+
+        await WrittenBy(new CapabilityCaller("p1", "a1", id.Brain.Value) { AppId = "notes" }, () => context.Set(new("working", "x", [])));
+
+        Assert.Equal("notes", Assert.Single((await context.Read()).Entries).Provenance!.Writer);
+    }
+
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task APlatformWriterCanInterrupt(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = await fixture.Runtime(kind);
+        var id = runtime.Id("agent-context", "memory/context-platform-" + kind);
+        var context = runtime.Get<IAgentContext>(id);
+
+        await WrittenBy(CapabilityCallers.Platform("p1", "a1", id.Brain.Value), () => context.Set(new("stop", "halt", [], [ContextTags.Interrupt])));
+
+        Assert.Equal("platform", Assert.Single((await context.Read()).Entries).Provenance!.Trust);
+        Assert.False(Assert.Single(await runtime.WaitForSignals<ContextUpdated>(id, 1, Within, ct)).Ignored);
+    }
+
+    [Theory, MemberData(nameof(Kinds))]
     public async Task TooManyTagsAreRejected(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
