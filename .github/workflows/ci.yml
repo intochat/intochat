@@ -41,6 +41,11 @@ jobs:
       - name: Scan history with gitleaks
         run: '"$RUNNER_TEMP/gitleaks-bin/gitleaks" git . --redact --verbose --config .gitleaks.toml --baseline-path .gitleaks-baseline.json'
 
+      - name: Free root disk in the background
+        run: |
+          df -h /
+          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
+
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -73,6 +78,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+
+      - name: Free root disk in the background
+        run: |
+          df -h /
+          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -119,6 +129,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Free root disk in the background
+        run: |
+          df -h /
+          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
+
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -138,6 +153,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+
+      - name: Free root disk in the background
+        run: |
+          df -h /
+          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
 
       - uses: actions/setup-dotnet@v6
         with:
