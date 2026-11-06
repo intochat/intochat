@@ -1,5 +1,6 @@
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Ino;
@@ -47,10 +48,12 @@ internal static class InoViewRenderer
                 selected: state.ConversationId == s.Id,
                 badge: s.Badge)),
             new Collection([new Entry(state.ConversationId, state.Title, $"{state.Turns.Length} turn(s)")]),
+            new Divider("WHAT INO MAY DO"),
+            new Collection([.. (state.GrantSummaries ?? []).Select((summary, i) => new Entry($"grant-{i}", summary, null))]),
         ])
         { Gap = 8 });
 
-    public static View Render(InoAppState state)
+    public static View Render(InoAppState state, AiMessage[] transcript)
     {
         var waitingCard = state.ActiveCards.FirstOrDefault(c => c.IsWaiting);
         return new(
@@ -70,6 +73,7 @@ internal static class InoViewRenderer
                     ],
                     Kind: SurfaceKind.Acrylic,
                     Title: state.Title),
+                .. state.Blocked ? new Node[] { new InfoBar("Ino is paused", state.BlockedReason ?? "An interrupt holds the agent.", "critical") } : [],
                 .. state.ActiveCards.SelectMany(RenderCardNodes),
                 .. waitingCard is not null ? new Node[] { RenderDockedPromptBanner(waitingCard) } : [],
                 .. state.Turns.Select((turn, i) => (Node)new Surface(
@@ -86,8 +90,18 @@ internal static class InoViewRenderer
                     Kind: SurfaceKind.Elevated,
                     Title: turn.UserMessage,
                     Subtitle: turn.RouteHint)),
+                .. transcript.Select(RenderMessage).OfType<Node>(),
             ])
             { Gap = 12 });
+    }
+
+    private static Node? RenderMessage(AiMessage message)
+    {
+        var text = string.Join("\n", message.Content.OfType<AiText>().Select(t => t.Text).Where(t => !string.IsNullOrWhiteSpace(t)));
+        if (text.Length == 0 || message.Role is not ("user" or "assistant")) { return null; }
+        return message.Role == "user"
+            ? new Surface([new Heading(text, Level: 3)], Kind: SurfaceKind.Elevated, Title: "You")
+            : new Surface([new Text(text)], Kind: SurfaceKind.Elevated, Title: "Ino");
     }
 
     public static InoAppState BuildAppInstallLinkState(InoAppState currentState, string text)

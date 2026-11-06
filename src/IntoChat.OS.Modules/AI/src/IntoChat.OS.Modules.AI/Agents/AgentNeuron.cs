@@ -196,13 +196,13 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
     private DigitalBrain.NeuronId[] ContextIds(string[] keys)
     {
         var prefix = Id.Brain.Value + "/";
-        return [.. keys.Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+        return [.. keys.Select(key => AgentTurnLoop.Absolute(Id.Brain.Value, key)).Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
             .Select(key => new DigitalBrain.NeuronId(Id.Brain, "agent-context", key[prefix.Length..]))];
     }
 
     // The contexts a definition lists under the given name; the producers below write only where the agent asked for it.
     private DigitalBrain.NeuronId[] ContextsNamed(string[] keys, string name)
-        => ContextIds([.. keys.Where(key => key.EndsWith("/context/" + name, StringComparison.Ordinal))]);
+        => ContextIds([.. keys.Select(key => AgentTurnLoop.Absolute(Id.Brain.Value, key)).Where(key => key.EndsWith("/context/" + name, StringComparison.Ordinal))]);
 
     // The summary is an ordinary entry once the agent lists a conversation.summary context; the loop reads it like any other.
     private async Task WriteSummary(string[] keys, string summary)

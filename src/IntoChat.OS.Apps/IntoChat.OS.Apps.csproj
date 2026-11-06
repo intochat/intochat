@@ -24,4 +24,7 @@
     <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Tools/Contracts/IntoChat.OS.Modules.Tools.Contracts/IntoChat.OS.Modules.Tools.Contracts.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Ino/ino-instructions.md" LogicalName="IntoChat.OS.Apps.Ino.ino-instructions.md" />
+  </ItemGroup>
 </Project>

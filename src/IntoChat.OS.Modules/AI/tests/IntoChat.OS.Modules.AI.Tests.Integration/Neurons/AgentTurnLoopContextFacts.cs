@@ -37,6 +37,20 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task ARelativeContextKeyReadsTheAgentsOwnBrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = StubChatClient.Replying("ok");
+        await using var runtime = await Start(client, ct);
+        await Write(runtime, "relative", new("fact", "a relative fact", []));
+
+        var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, ["context/relative"], conversation: runtime.Brain.Value + "/agents/loop");
+
+        Assert.IsType<AgentTurnEvent.Completed>(events[^2]);
+        Assert.Contains(Assert.Single(client.Requests), message => message.Role == ChatRole.System && message.Text == "a relative fact");
+    }
+
+    [Fact]
     public async Task AnInferenceEntrySetsTemperature()
     {
         var ct = TestContext.Current.CancellationToken;

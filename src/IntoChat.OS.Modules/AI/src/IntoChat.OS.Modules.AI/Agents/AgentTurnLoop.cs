@@ -49,7 +49,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         if (plan.Contracts.Distinct(StringComparer.Ordinal).Count() != plan.Contracts.Length) { throw new ArgumentException("Contracts must be unique.", nameof(plan)); }
         yield return new AgentTurnEvent.Started(plan.RunId);
         string? currentCall = null;
-        var contexts = await ReadContexts(plan.Contexts, ct);
+        var contexts = await ReadContexts(plan.Contexts, DigitalBrain.Brains.BrainKey.BrainOf(plan.Conversation), ct);
         // An interrupt from a user or the platform stops the turn before anything else is prepared; one written by an app or the model is not an order.
         if (contexts.FirstOrDefault(IsTrustedInterrupt) is { } interrupt)
         {
@@ -183,7 +183,11 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         => entry.EffectiveTags.Contains(ContextTags.Interrupt) && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
 
     // A context that is missing or fails leaves the turn without it rather than failing the turn.
-    private async Task<List<ContextEntry>> ReadContexts(string[] keys, CancellationToken ct)
+    // A key that starts with "context/" is relative to the agent's own brain.
+    internal static string Absolute(string brain, string key)
+        => key.StartsWith("context/", StringComparison.Ordinal) ? $"{brain}/{key}" : key;
+
+    private async Task<List<ContextEntry>> ReadContexts(string[] keys, string brain, CancellationToken ct)
     {
         if (keys.Length == 0) { return []; }
         // A context is a plain neuron (06-05), reached by its os key "{brain}/{key}".
@@ -198,6 +202,6 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
             }
         }
         // The reads overlap; Task.WhenAll keeps the results in the order of keys.
-        return [.. (await Task.WhenAll(keys.Select(Read))).SelectMany(entries => entries)];
+        return [.. (await Task.WhenAll(keys.Select(key => Read(Absolute(brain, key))))).SelectMany(entries => entries)];
     }
 }
