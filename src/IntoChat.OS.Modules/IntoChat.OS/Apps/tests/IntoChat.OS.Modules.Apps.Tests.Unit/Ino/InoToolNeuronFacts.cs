@@ -2,6 +2,7 @@ using DigitalBrain;
 using global::Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Tasks;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
@@ -101,5 +102,90 @@ public sealed class InoToolNeuronFacts
 
         var miss = await files.Find("no-such-file.md");
         Assert.Contains("No files match", miss.Text);
+    }
+    private sealed class RecordingTaskEngine : ITaskEngine
+    {
+        public List<CreateTaskRequest> Created { get; } = [];
+
+        public Task<AgentTask> CreateTaskAsync(CreateTaskRequest request, CancellationToken ct = default)
+        {
+            Created.Add(request);
+            return Task.FromResult(new AgentTask("t-1", request.Title, request.Description, request.Owner, IntoChat.OS.Modules.AI.Tasks.TaskStatus.Pending, [], DateTimeOffset.UnixEpoch));
+        }
+
+        public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AgentTask>> ListTasksAsync(string? owner = null, IntoChat.OS.Modules.AI.Tasks.TaskStatus? status = null, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<AgentTask> AdvanceTaskStepAsync(string taskId, int stepIndex, TaskStepStatus newStatus, string? output = null, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<AgentTask> RollbackTaskAsync(string taskId, int toStepIndex, string reason, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<AgentTask> CancelTaskAsync(string taskId, string reason, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<TaskVerificationResult> VerifyTaskStepAsync(string taskId, int stepIndex, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<AgentTask> ConfirmTaskStepAsync(string taskId, int stepIndex, string? confirmationToken = null, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<AgentTask> LinkTaskAsync(string taskId, string targetId, string kind, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private static IInoData Data(TestOS os) => os.Get<IInoData>(new NeuronId(Brain, "ino.data", "ino/data"));
+
+    [Fact]
+    public async Task MakeReturnsAPendingApprovalCardAndCreatesATask()
+    {
+        var engine = new RecordingTaskEngine();
+        using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection().AddOptions<AppsOptions>().Services.AddSingleton(TimeProvider.System).AddSingleton<ITaskEngine>(engine).BuildServiceProvider();
+        await using var os = NewOs(services);
+
+        var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).Make("Draft the Q4 plan");
+
+        var request = Assert.Single(engine.Created);
+        Assert.Equal("Draft the Q4 plan", request.Title);
+        Assert.Equal("User", request.Owner);
+        Assert.True(result.Card is not null, result.Text);
+        Assert.Equal("approval", result.Card.Kind);
+        Assert.Equal("pending", result.Card.Status);
+        Assert.Contains("t-1", result.Text);
+    }
+
+    [Fact]
+    public async Task MakeWithoutATaskEngineSaysSoAndHasNoCard()
+    {
+        await using var os = NewOs();
+        var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).Make("anything");
+        Assert.Null(result.Card);
+        Assert.Contains("Task engine is unavailable", result.Text);
+    }
+
+    [Fact]
+    public async Task ListNamesTheStudios()
+    {
+        await using var os = NewOs();
+        var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).List();
+        Assert.Contains("markdraw", result.Text);
+    }
+
+    [Fact]
+    public async Task ConnectThenQueryReturnsRows()
+    {
+        await using var os = NewOs();
+        var connected = await Data(os).Connect("Host=db.example;Database=sales");
+        Assert.Equal("db-connection", connected.Card!.Kind);
+
+        var queried = await Data(os).Query("SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5");
+        Assert.Equal("table", queried.Card!.Kind);
+        Assert.Equal(5, queried.Card.Rows!.Length);
+        Assert.Equal("Opportunity", queried.Card.Columns![0]);
+        Assert.Contains("sales", queried.Card.Title);
+
+        var state = await Data(os).Read();
+        Assert.Equal("main:db.example/sales", state.ConnectedDatabase);
+        Assert.Single(state.Charts);
+    }
+
+    [Fact]
+    public async Task ChartReturnsAChartCard()
+    {
+        await using var os = NewOs();
+        var result = await Data(os).Chart("show a pie chart of opportunities");
+        Assert.Equal("chart", result.Card!.Kind);
+        Assert.Equal("pie", result.Card.ChartKind);
+        Assert.NotEmpty(result.Card.ChartPoints!);
+        Assert.Equal(result.Card.Id, Assert.Single((await Data(os).Read()).Charts).Id);
     }
 }

@@ -2,9 +2,8 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using IntoChat.OS.Modules.Apps;
 
-namespace IntoChat.OS.Apps.Ino;
+namespace IntoChat.OS.Modules.Apps;
 
 public sealed record DataQueryResult(
     string ChartTitle,
