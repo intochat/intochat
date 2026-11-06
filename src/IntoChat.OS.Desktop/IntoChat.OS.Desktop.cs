@@ -1,10 +1,3 @@
-#!/usr/bin/env dotnet
-#:property OutputType=WinExe
-#:property PublishAot=true
-#:property InvariantGlobalization=true
-#:property AllowUnsafeBlocks=true
-#:property RuntimeIdentifier=win-x64
-#:include DesktopKeyBackup.cs
 // The MSIX entry point: the plain single-machine host. The Aspire AppHost is a developer composition root with a dashboard,
 // containers and generated parameters; an installed desktop has none of those. This launcher starts the same OS host
 // (IntoChat.OS.Kernel, which composes the Windows edge on Windows) the way the AppHost's local profile configures it, on

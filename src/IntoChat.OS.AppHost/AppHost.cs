@@ -33,6 +33,10 @@ if (args.Length > 0 && args[0] == "reset")
         secretsDirectory, new RealResetFileSystem(), new RealDockerCli(), Console.In, Console.Out, !Console.IsInputRedirected)
         .RunAsync(args[1..], CancellationToken.None);
 }
+if (args.Length > 0 && args[0] == "package-msix")
+{
+    return await MsixPackager.RunAsync(args[1..]);
+}
 // IntoChatOS:Topology (unset = local) is the only axis: it picks the module and model composition from code (RunProfile),
 // whose module defaults sit above the shipped appsettings and below environment and command line, so an explicit
 // IntoChatOS:Modules:<id>:Enabled still wins. Azurite and the cloud keys exist only for Topology=cloud.

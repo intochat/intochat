@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The launcher is a file-based app (AOT, Windows-only); its key backup is plain .NET and is compiled here directly. -->
+  <!-- The launcher is a compiled desktop app (AOT, Windows-only); its key backup is plain .NET and is compiled here directly. -->
   <PropertyGroup><RootNamespace>IntoChat.OS.Desktop.Tests.Unit</RootNamespace></PropertyGroup>
   <ItemGroup>
     <!-- Nothing of the OS is under test, so the repository-wide testing usings do not apply. -->
-    <Compile Include="../../../scripts/msix/launcher/DesktopKeyBackup.cs" Link="DesktopKeyBackup.cs" />
+    <Compile Include="../DesktopKeyBackup.cs" Link="DesktopKeyBackup.cs" />
   </ItemGroup>
 </Project>
