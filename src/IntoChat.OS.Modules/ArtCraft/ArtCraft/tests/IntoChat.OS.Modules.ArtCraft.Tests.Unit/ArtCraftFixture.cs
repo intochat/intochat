@@ -4,11 +4,26 @@ using Microsoft.Extensions.DependencyInjection;
 namespace IntoChat.OS.Modules.ArtCraft.Tests;
 
 // Unit tier: the module's plain neurons on TestOS only.
-public sealed partial class ArtCraftFixture : BothRuntimesFixture
+public sealed partial class ArtCraftFixture : IAsyncDisposable
 {
-    public static TheoryData<NeuronRuntimeKind> Kinds => new(NeuronRuntimeKind.TestOS);
+    private TestOS? _os;
 
-    protected override IReadOnlyList<Type> Modules { get; } = [typeof(ArtCraftModule)];
+    public TestOS Runtime => _os ??= CreateLocal();
 
-    protected override void ConfigureTestOS(IServiceCollection services) => ConfigureBoth(services);
+    private TestOS CreateLocal()
+    {
+        var services = new ServiceCollection();
+        ConfigureBoth(services);
+        var os = TestOS.Local(options => options.Services = services.BuildServiceProvider());
+        os.Register(typeof(ArtCraftModule).Assembly);
+        return os;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_os is not null)
+        {
+            await _os.DisposeAsync();
+        }
+    }
 }

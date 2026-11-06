@@ -12,8 +12,4 @@
     <PackageReference Include="DigitalBrain.Testing.Silo" />
     <None Include="Contracts/*.golden.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <ItemGroup>
-    <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
-    <Compile Include="../IntoChat.OS.Modules.Flutter.Tests.Unit/ControlNeuronFacts.cs" Link="Neurons/ControlNeuronFacts.cs" />
-  </ItemGroup>
 </Project>

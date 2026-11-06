@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Memory;
 
@@ -5,14 +6,14 @@ namespace IntoChat.OS.Modules.AI.Tests.Unit;
 
 public sealed class GraphRecallFacts(AiFixture fixture) : IClassFixture<AiFixture>
 {
-    public static TheoryData<NeuronRuntimeKind> Kinds => AiFixture.Kinds;
+    private static readonly BrainId FactsBrain = new("facts");
 
-    [Theory, MemberData(nameof(Kinds))]
-    public async Task AFactTwoRelationsAwayIsRecalledWithItsPath(NeuronRuntimeKind kind)
+    [Fact]
+    public async Task AFactTwoRelationsAwayIsRecalledWithItsPath()
     {
         var ct = TestContext.Current.CancellationToken;
-        var runtime = await fixture.Runtime(kind);
-        var store = runtime.Get<IKnowledgeStore>(runtime.Id("ai.knowledge-store", "recall-" + kind));
+        var runtime = fixture.Runtime;
+        var store = runtime.Get<IKnowledgeStore>(new NeuronId(FactsBrain, "ai.knowledge-store", "recall-testos"));
         await store.RecordNodeAsync(new KnowledgeNode("pr-42", "PR 42 failed CI", "fact", new Dictionary<string, string>(), Importance: 5), ct);
         await store.RecordNodeAsync(new KnowledgeNode("repo-main", "GitHub main repository", "entity", new Dictionary<string, string>()), ct);
         await store.RecordNodeAsync(new KnowledgeNode("owner-ada", "Ada owns the repository", "fact", new Dictionary<string, string>()), ct);
@@ -29,13 +30,13 @@ public sealed class GraphRecallFacts(AiFixture fixture) : IClassFixture<AiFixtur
         Assert.DoesNotContain(hits, hit => hit.Node.Id == "lunch");
     }
 
-    [Theory, MemberData(nameof(Kinds))]
-    public async Task MemoryFactsReachTheStoreOnceAndRecallMergesBoth(NeuronRuntimeKind kind)
+    [Fact]
+    public async Task MemoryFactsReachTheStoreOnceAndRecallMergesBoth()
     {
         var ct = TestContext.Current.CancellationToken;
-        var runtime = await fixture.Runtime(kind);
-        var memory = runtime.Get<IMemory>(runtime.Id("ai.memory", "sync-" + kind));
-        var store = runtime.Get<IKnowledgeStore>(runtime.Id("ai.knowledge-store", KnowledgeGraphSource.StoreKey));
+        var runtime = fixture.Runtime;
+        var memory = runtime.Get<IMemory>(new NeuronId(FactsBrain, "ai.memory", "sync-testos"));
+        var store = runtime.Get<IKnowledgeStore>(new NeuronId(FactsBrain, "ai.knowledge-store", KnowledgeGraphSource.StoreKey));
 
         var fact = await memory.RememberFact("deploy", "Rollout needs a confirmation", 7);
         var copied = await store.GetAsync(fact.Id, ct);

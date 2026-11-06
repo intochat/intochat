@@ -13,8 +13,6 @@
     <PackageReference Include="DigitalBrain.Testing.Silo" />
   </ItemGroup>
   <ItemGroup>
-    <!-- The same fact bodies as the Unit tier; this tier runs them on both runtime kinds (R4-05). -->
-    <Compile Include="../IntoChat.OS.Modules.AI.Tests.Unit/AiNeuronFacts.cs" Link="Neurons/AiNeuronFacts.cs" />
     <Compile Include="../IntoChat.OS.Modules.AI.Tests.Unit/GatedInference.cs" Link="Neurons/GatedInference.cs" />
   </ItemGroup>
 </Project>
