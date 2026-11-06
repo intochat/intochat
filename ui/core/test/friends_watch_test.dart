@@ -15,7 +15,7 @@ void main() {
     expect(link.source!.key, 'alice/confirmations');
     expect(
       link.source!.contract,
-      'IntoChat.OS.Confirmation.IConfirmationInbox',
+      'DigitalBrain.Confirmation.IConfirmationInbox',
     );
     expect(link.source!.types, [
       'ConfirmationRequested',

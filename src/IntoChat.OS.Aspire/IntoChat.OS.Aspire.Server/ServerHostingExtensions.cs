@@ -1,4 +1,4 @@
-﻿using DigitalBrain.Brains;
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Identity.Local.Custody;

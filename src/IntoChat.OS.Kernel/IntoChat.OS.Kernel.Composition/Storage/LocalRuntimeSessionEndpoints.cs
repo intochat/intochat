@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Net.ServerSentEvents;
 using System.Reflection;
 using System.Runtime.CompilerServices;
