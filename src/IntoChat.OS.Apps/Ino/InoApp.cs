@@ -110,7 +110,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         try
         {
             // Nothing else wakes the profile writer: touching it makes its synapse on the settings and writes user.profile now.
-            await Get<IProfileContextWriter>("ino/profile-writer").Ensure();
+            try { await Get<IProfileContextWriter>("ino/profile-writer").Ensure(); }
+            catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The profile context is optional; the agent answers without it."); }
             var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
             if (migrate)
             {
