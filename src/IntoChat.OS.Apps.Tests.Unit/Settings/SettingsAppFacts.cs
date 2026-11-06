@@ -40,11 +40,10 @@ public sealed class SettingsAppFacts
     {
         var bundle = SettingsApp.Bundle;
         Assert.Equal("settings", bundle.Name);
-        Assert.Contains("No modules are loaded.", bundle.Files["SettingsView.cs"], StringComparison.Ordinal);
-        Assert.Contains("/apps-view", bundle.Files["Apps.cs"], StringComparison.Ordinal);
-        Assert.Contains("[DigitalBrain.App(\"settings\")]", bundle.Files["SettingsProgram.cs"], StringComparison.Ordinal);
-        Assert.Contains("\"apps-view\"", bundle.Files["SettingsProgram.cs"], StringComparison.Ordinal);
-        Assert.DoesNotContain(bundle.Files.Values, source => source.Contains("Apps.Present(", StringComparison.Ordinal) && !source.Contains("public static Task Present", StringComparison.Ordinal));
+        Assert.Equal("2.1.0", bundle.Version);
+        Assert.Equal(typeof(SettingsApp).AssemblyQualifiedName, bundle.CompiledType);
+        Assert.Equal("Settings", bundle.Manifest.Title);
+        Assert.Contains(bundle.Manifest.Operations, op => op.Name == "open");
     }
 
     [Fact]

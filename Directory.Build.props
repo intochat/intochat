@@ -18,6 +18,7 @@
     <!-- Every project builds into artifacts/bin/<project>/<config>, so CI uploads one tree and
          runs prebuilt test modules from that tree. -->
     <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
   </PropertyGroup>
   <!-- GitHub Actions sets CI=true. Keep solution builds portable (no -r on .slnx). -->
   <PropertyGroup Condition="'$(CI)' == 'true'">
