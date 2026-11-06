@@ -55,6 +55,11 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Authenticate GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

@@ -7,7 +7,9 @@ void main() {
   final coreDir = scriptDir.parent;
   Directory.current = coreDir;
 
-  final protoDir = Directory('../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority/Neurons');
+  final protoDir = Directory(
+    '../../../../../IntoChat.OS.Authority/IntoChat.OS.Authority/Neurons',
+  );
   if (!protoDir.existsSync()) {
     stderr.writeln('Proto directory not found at ${protoDir.path}');
     exit(1);
