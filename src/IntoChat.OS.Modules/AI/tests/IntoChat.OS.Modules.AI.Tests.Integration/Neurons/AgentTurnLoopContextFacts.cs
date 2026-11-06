@@ -95,7 +95,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var client = StubChatClient.Replying("ok");
         await using var runtime = await Start(client, ct);
 
-        var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [runtime.Brain.Value + "/context/never-written"]);
+        var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [ContextKeys.Of(runtime.Brain.Value, "never-written")]);
 
         Assert.IsType<AgentTurnEvent.Completed>(events[^2]);
     }
@@ -112,6 +112,58 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
 
         Assert.IsType<AgentTurnEvent.Completed>(events[^2]);
         Assert.Null(options()!.Temperature);
+    }
+
+    [Fact]
+    public async Task AnInterruptWithoutUserOrPlatformTrustDoesNotBlock()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = StubChatClient.Replying("ok");
+        await using var runtime = await Start(client, ct);
+        await Task.Run(async () =>
+        {
+            using var _ = RuntimeCallerContext.Stamp(new CapabilityCaller("p1", "a1", runtime.Brain.Value) { AppId = "notes" });
+            await runtime.Get<IAgentContext>(Id(runtime, "app-halt")).Set(new("stop", "halt by app", [], [ContextTags.Interrupt]));
+        }, ct);
+        await Write(runtime, "plain-halt", new("stop", "halt unstamped", [], [ContextTags.Interrupt]));
+
+        var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "app-halt"), Key(runtime, "plain-halt")]);
+
+        Assert.IsType<AgentTurnEvent.Completed>(events[^2]);
+        Assert.Single(client.Requests);
+    }
+
+    [Fact]
+    public async Task TaggedEntriesNeverReachTheModel()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = StubChatClient.Replying("ok");
+        await using var runtime = await Start(client, ct);
+        await Write(runtime, "focus", new("focus", "focused on tab 3", [], [ContextTags.UiFocus]));
+        await Write(runtime, "halt", new("stop", "untrusted halt", [], [ContextTags.Interrupt]));
+        await Write(runtime, "plain", new("fact", "a plain fact", []));
+
+        var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "focus"), Key(runtime, "halt"), Key(runtime, "plain")]);
+
+        Assert.IsType<AgentTurnEvent.Completed>(events[^2]);
+        var system = Assert.Single(client.Requests).Where(message => message.Role == ChatRole.System).Select(message => message.Text);
+        Assert.Equal(["a plain fact"], system);
+    }
+
+    [Fact]
+    public async Task LaterInferenceEntriesWinInContextsOrder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Capturing(out var options);
+        await using var runtime = await Start(client, ct);
+        await Write(runtime, "low", new("low", """{"temperature":0.2}""", [], [ContextTags.Inference]));
+        await Write(runtime, "high", new("high", """{"temperature":0.7}""", [], [ContextTags.Inference]));
+
+        await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "low"), Key(runtime, "high")]);
+        Assert.Equal(0.7f, options()!.Temperature);
+
+        await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "high"), Key(runtime, "low")]);
+        Assert.Equal(0.2f, options()!.Temperature);
     }
 
     // A stub that answers "ok" and keeps the options of its last request.
