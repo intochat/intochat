@@ -315,12 +315,61 @@ public sealed class InoAppFacts
         Assert.False(string.IsNullOrEmpty(ino.App.State.AgentKey));
     }
 
+    [Fact]
+    public async Task AFailedMigrationPostIsRetriedOnTheNextOpen()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<RecordingAgent>();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("/scenario morning-brief"));
+        RecordingAgent.Posts.Clear();
+        RecordingAgent.FailPosts = 1;
+        try
+        {
+            await ino.Request("open", new InoOpen());
+            Assert.True(string.IsNullOrEmpty(ino.App.State.AgentKey));
+
+            await ino.Request("open", new InoOpen());
+
+            Assert.Equal(("Earlier conversation is in the archive.", "migration"), Assert.Single(RecordingAgent.Posts));
+            Assert.False(string.IsNullOrEmpty(ino.App.State.AgentKey));
+        }
+        finally { RecordingAgent.FailPosts = 0; }
+    }
+
+    [Fact]
+    public async Task ABadQuerySurfacesInStatus()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        var ino = await os.Install<InoApp>();
+        ino.App.FilesVfs = new BrokenVfs();
+
+        await ino.Request("query-db", new InoQueryDb("SELECT a FROM /work/missing.csv"));
+
+        Assert.StartsWith("Could not run the query: disk gone", ino.App.State.Status, StringComparison.Ordinal);
+        Assert.Empty(ino.App.State.ActiveCards);
+    }
+
+    private sealed class BrokenVfs : IFilesVfsService
+    {
+        public string BrainId => "local";
+        public Task<IReadOnlyList<WorkspaceFileEntry>> ListFilesAsync(string? query = null, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<WorkspaceFileEntry?> ResolveFileAsync(string? nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<string?> ReadTextAsync(string nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<byte[]?> ReadBytesAsync(string nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<WorkspaceFileEntry> WriteFileAsync(string fileNameOrPath, ReadOnlyMemory<byte> content, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<WorkspaceFileEntry> WriteTextAsync(string fileNameOrPath, string content, CancellationToken ct = default) => throw new IOException("disk gone");
+    }
+
     // An agent that counts Post calls and Run starts.
     [Neuron(AgentSignals.NeuronType)]
     private sealed class RecordingAgent : Neuron, IAgent
     {
         public static List<(string Text, string Id)> Posts { get; } = [];
         public static int Runs { get; set; }
+        public static int FailPosts { get; set; }
 
         public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
 
@@ -337,7 +386,12 @@ public sealed class InoAppFacts
         public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
         public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>([]);
         public Task Clear() => Task.CompletedTask;
-        public Task Post(string text, string id) { Posts.Add((text, id)); return Task.CompletedTask; }
+        public Task Post(string text, string id)
+        {
+            if (FailPosts > 0) { FailPosts--; throw new InvalidOperationException("Post failed."); }
+            Posts.Add((text, id));
+            return Task.CompletedTask;
+        }
     }
 
     // An agent whose run starts and is then cancelled, as a run cancelled through its token is.

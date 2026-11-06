@@ -148,7 +148,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     [InlineData("routed:settings.navigate:models:local-server", null)]
     [InlineData("routed:customapp.action", null)]
     [InlineData("routed:arbitrary.long.nested.namespace.action", null)]
-    // Clarification routes emitted by InoStudioHandler when invalid command
+    // Clarification route hints from earlier Ino versions; the studio tool no longer emits them
     [InlineData("clarification:photocraft", null)]
     [InlineData("clarification:filmcraft", null)]
     // Other route hint variants

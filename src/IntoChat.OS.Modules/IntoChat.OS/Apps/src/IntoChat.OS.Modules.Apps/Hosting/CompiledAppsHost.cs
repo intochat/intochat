@@ -808,7 +808,6 @@ internal sealed class CompiledAppsHost(
     {
         var type = instance.GetType();
         type.GetProperty("FilesVfs")?.SetValue(instance, _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b)));
-        type.GetProperty("KnowledgeStore")?.SetValue(instance, services.GetService(typeof(IKnowledgeStore)));
         type.GetProperty("TaskEngine")?.SetValue(instance, services.GetService(typeof(ITaskEngine)));
     }
 

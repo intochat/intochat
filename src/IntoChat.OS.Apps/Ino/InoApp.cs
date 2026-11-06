@@ -60,8 +60,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 
     public IFilesVfsService? FilesVfs { get; set; }
 
-    public IKnowledgeStore? KnowledgeStore { get; set; }
-
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(InoApp));
 
     public static AppBundle Bundle { get; } = new(
@@ -107,13 +105,15 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             : $"Ready ({settings.DefaultModel})";
         // Turns from before the agent existed stay in the archive; the agent gets one note, once.
         var migrate = State.Turns.Length > 0 && string.IsNullOrEmpty(State.AgentKey);
-        Set(State with { Status = status, AgentKey = AgentKeyOf(State.ConversationId) });
+        Set(State with { Status = status, AgentKey = migrate ? State.AgentKey : AgentKeyOf(State.ConversationId) });
         try
         {
             var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
             if (migrate)
             {
+                // The key is set only once the note is in, so a failed Post is retried on the next open.
                 await agent.Post(MigrationNote, MigrationId);
+                Set(State with { AgentKey = AgentKeyOf(State.ConversationId) });
             }
             var read = await agent.Read();
             _transcript = await agent.Transcript();
@@ -289,13 +289,22 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task ConnectDb(InoConnectDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var result = await Get<IInoData>(DataKey).Connect(request.ConnectionString ?? string.Empty);
-        Set(State with
+        try
         {
-            ConnectedDatabase = (await Get<IInoData>(DataKey).Read()).ConnectedDatabase ?? State.ConnectedDatabase,
-            Status = result.Text,
-            Cards = result.Card is { } card ? [.. State.ActiveCards, card] : State.Cards,
-        });
+            var data = Get<IInoData>(DataKey);
+            var result = await data.Connect(request.ConnectionString ?? string.Empty);
+            Set(State with
+            {
+                ConnectedDatabase = (await data.Read()).ConnectedDatabase ?? State.ConnectedDatabase,
+                Status = result.Text,
+                Cards = result.Card is { } card ? [.. State.ActiveCards, card] : State.Cards,
+            });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "The connection failed; the status line reports why.");
+            Set(State with { Status = $"Could not connect: {error.Message}" });
+        }
     }
 
     [DigitalBrain.On]
@@ -303,19 +312,24 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         // Reads through this app's own files service, so a host-injected workspace stays the one source of datasets.
-        var sql = string.IsNullOrWhiteSpace(request.Sql)
-            ? "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5"
-            : request.Sql.Trim();
-        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? "supabase:supabase/postgres" : State.ConnectedDatabase;
-        var result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs);
+        var sql = string.IsNullOrWhiteSpace(request.Sql) ? InoDataCards.DefaultSql : request.Sql.Trim();
+        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? InoDataCards.DefaultDatabase : State.ConnectedDatabase;
+        DataQueryResult result;
+        try
+        {
+            result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "The query failed; the status line reports why.");
+            Set(State with { Status = $"Could not run the query: {error.Message}" });
+            return;
+        }
         if (TryGetMemory() is { } memory)
         {
             await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6);
         }
-        var tableId = $"table-{State.ActiveCards.Length + 1}";
-        var chartId = $"chart-{State.ActiveCards.Length + 2}";
-        var table = new InoCard(tableId, "table", $"{result.ChartTitle} — Table ({result.Rows.Length} rows from {database})", result.Summary, result.SourceUri, "ready", $"neuron://local/apps/ino#{tableId}", result.Columns, result.Rows);
-        var chart = new InoCard(chartId, "chart", result.ChartTitle, $"Live {result.ChartKind} chart ({result.ChartPoints.Length} series points) from {database}.", "neuron://local/apps/ino/chart", "ready", $"neuron://local/apps/ino#{chartId}", ChartKind: result.ChartKind, ChartPoints: result.ChartPoints);
+        var (table, chart) = InoDataCards.Build(result, database, $"table-{State.ActiveCards.Length + 1}", $"chart-{State.ActiveCards.Length + 2}");
         Set(State with
         {
             ConnectedDatabase = database,
