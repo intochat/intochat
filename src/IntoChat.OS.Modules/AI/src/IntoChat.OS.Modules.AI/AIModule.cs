@@ -22,8 +22,6 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Surface;
-using IntoChat.OS.Modules.AI.Context;
-using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
@@ -82,14 +80,11 @@ public sealed class AIModule : DigitalBrain.Module, IHttpModule
         services.AddMediaNeurons();
         AIClients.AddImageGeneration(services, options);
         VoiceToTextHosting.Add(services, options);
-        services.TryAddSingleton<IExecutionContextProvider, ExecutionContextProvider>();
-        services.TryAddScoped<IExecutionContext>(sp => sp.GetRequiredService<IExecutionContextProvider>().Current);
-        services.TryAddSingleton<IDecisionMaker, DecisionMaker>();
         services.TryAddSingleton<IKnowledgeStore, InMemoryKnowledgeStore>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Memory.KnowledgeGraphSource>();
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Tasks.TaskGraphSource>();
-        services.AddSingleton<DigitalBrain.Graph.IGraphSource, Agents.Runs.RunGraphSource>();
+        services.AddSingleton<DigitalBrain.Graph.IGraphSource, Agents.RunGraphSource>();
         services.TryAddSingleton<ITaskEngine, TaskEngine>();
         services.TryAddSingleton<ITestVerificationService, TestVerificationService>();
     }

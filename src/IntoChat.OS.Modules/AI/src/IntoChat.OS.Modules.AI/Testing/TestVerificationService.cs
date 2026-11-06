@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.AI.Context;
 
 namespace IntoChat.OS.Modules.AI.Testing;
 
@@ -14,13 +13,11 @@ public sealed class TestVerificationService : ITestVerificationService
 {
     private readonly Func<string, ITestVerificationNeuron>? _neuronResolver;
     private readonly IServiceProvider? _services;
-    private readonly IExecutionContextProvider? _contextProvider;
 
-    public TestVerificationService(IServiceProvider services, IExecutionContextProvider? contextProvider = null)
+    public TestVerificationService(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
-        _contextProvider = contextProvider;
     }
 
     public TestVerificationService(Func<string, ITestVerificationNeuron> neuronResolver)
@@ -37,11 +34,6 @@ public sealed class TestVerificationService : ITestVerificationService
 
     public BrainId ResolveBrainId()
     {
-        if (_contextProvider?.Current.Caller?.BrainId is { Length: > 0 } contextBrain)
-        {
-            return new BrainId(contextBrain);
-        }
-
         if (RuntimeCallerContext.TryGet(out var stamped) && stamped?.BrainId is { Length: > 0 } stampedBrain)
         {
             return new BrainId(stampedBrain);

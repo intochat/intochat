@@ -5,7 +5,6 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Testing;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.AI.Context;
 using IntoChat.OS.Modules.AI.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -217,11 +216,9 @@ public sealed class TaskEngineFacts
     }
 
     [Fact]
-    public void ResolveBrainId_RespectsStampedCallerAndExecutionContext()
+    public void ResolveBrainId_RespectsStampedCaller()
     {
-        var services = new ServiceCollection()
-            .AddSingleton<IExecutionContextProvider, ExecutionContextProvider>()
-            .BuildServiceProvider();
+        var services = new ServiceCollection().BuildServiceProvider();
         var engine = new TaskEngine(services);
 
         Assert.Equal(new BrainId("local"), engine.ResolveBrainId());

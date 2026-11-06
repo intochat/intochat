@@ -5,7 +5,6 @@ using DigitalBrain;
 using DigitalBrain.Runtime.Apps;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Apps.Signals;

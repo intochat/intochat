@@ -15,8 +15,6 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using DigitalBrain.Runtime.Orleans.Confirmations;
-using IntoChat.OS.Modules.AI.Context;
-using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
@@ -27,7 +25,6 @@ using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
-using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
@@ -696,166 +693,6 @@ public sealed class Tier2_BoundaryCornerFacts
     {
         var exported = typeof(RuntimeCallerContext).Assembly.GetExportedTypes();
         Assert.All(exported, t => Assert.False(t.Namespace?.Contains("Obsolete", StringComparison.OrdinalIgnoreCase) ?? false));
-    }
-
-    #endregion
-
-    #region F14: Canonical Execution Context Subsystem Boundaries
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F14")]
-    public async Task F14_B01_DeeplyNestedWithSliceAsync_UnwindsAllSlicesCorrectly()
-    {
-        var caller = CapabilityCallers.Of("u", "a", "b");
-        var ctx = new ExecutionContext("exec-deep", caller);
-
-        async Task RecurseAsync(int current, int max)
-        {
-            if (current > max) { return; }
-            var slice = new ContextSlice($"slice_{current}", $"depth {current}", []);
-            await ctx.WithSliceAsync(slice, async () =>
-            {
-                Assert.Equal(current, ctx.Slices.Count);
-                await RecurseAsync(current + 1, max);
-                return true;
-            });
-        }
-
-        await RecurseAsync(1, 20);
-        Assert.Empty(ctx.Slices);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F14")]
-    public async Task F14_B02_ContextSlice_OneMegabyteContent_PreservesVerbatim()
-    {
-        var caller = CapabilityCallers.Of("u", "a", "b");
-        var ctx = new ExecutionContext("exec-large", caller);
-        var huge = new string('A', 1_048_576);
-        var slice = new ContextSlice("MegaSlice", huge, ["huge"]);
-
-        var length = await ctx.WithSliceAsync(slice, () => Task.FromResult(ctx.Slices[0].Content.Length));
-        Assert.Equal(1_048_576, length);
-        Assert.Empty(ctx.Slices);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F14")]
-    public void F14_B03_ExecutionContext_MissingEnvironmentKey_ThrowsKeyNotFound()
-    {
-        var caller = CapabilityCallers.Of("u", "a", "b");
-        var ctx = new ExecutionContext("exec-env", caller);
-        Assert.Throws<KeyNotFoundException>(() => _ = ctx.Environment["MISSING_KEY"]);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F14")]
-    public void F14_B04_ExecutionContext_DuplicateSliceNames_Allowed()
-    {
-        var caller = CapabilityCallers.Of("u", "a", "b");
-        var s1 = new ContextSlice("Slice", "first", []);
-        var s2 = new ContextSlice("Slice", "second", []);
-        var ctx = new ExecutionContext("exec-dup", caller, initialSlices: [s1, s2]);
-
-        Assert.Equal(2, ctx.Slices.Count);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F14")]
-    public async Task F14_B05_ExecutionContext_ConcurrentSliceAccess_IsolatedPerContext()
-    {
-        var caller = CapabilityCallers.Of("u", "a", "b");
-        var ctx1 = new ExecutionContext("ctx-1", caller);
-        var ctx2 = new ExecutionContext("ctx-2", caller);
-
-        var t1 = ctx1.WithSliceAsync(new ContextSlice("S1", "C1", []), async () =>
-        {
-            await Task.Delay(20);
-            return ctx1.Slices.Count;
-        });
-
-        var t2 = ctx2.WithSliceAsync(new ContextSlice("S2", "C2", []), async () =>
-        {
-            await Task.Delay(20);
-            return ctx2.Slices.Count;
-        });
-
-        var counts = await Task.WhenAll(t1, t2);
-        Assert.Equal([1, 1], counts);
-    }
-
-    #endregion
-
-    #region F15: Canonical Decision Maker Subsystem Boundaries
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F15")]
-    public async Task F15_B01_DecideReactiveAsync_ZeroConfidence_ReturnsZero()
-    {
-        var dm = new InMemoryDecisionMaker();
-        dm.RegisterReactiveRule("uncertain_op", "risky_choice", 0.0);
-
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("uncertain_op", ["risky_choice"]));
-        Assert.Equal("risky_choice", decision.Choice);
-        Assert.Equal(0.0, decision.Confidence);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F15")]
-    public async Task F15_B02_DecideReactiveAsync_FullConfidence_ReturnsOne()
-    {
-        var dm = new InMemoryDecisionMaker();
-        dm.RegisterReactiveRule("certain_op", "safe_choice", 1.0);
-
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("certain_op", ["safe_choice"]));
-        Assert.Equal("safe_choice", decision.Choice);
-        Assert.Equal(1.0, decision.Confidence);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F15")]
-    public async Task F15_B03_DecideDeliberateAsync_ZeroConstraints_ExecutesCleanly()
-    {
-        var dm = new InMemoryDecisionMaker();
-        var goal = new DeliberateGoal("Freeform goal", []);
-
-        var decision = await dm.DecideDeliberateAsync(goal);
-        Assert.NotEmpty(decision.Outcome.Steps);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F15")]
-    public async Task F15_B04_DecideDeliberateAsync_ManyConstraints_AssessesAll()
-    {
-        var dm = new InMemoryDecisionMaker();
-        var constraints = Enumerable.Range(1, 50).Select(i => $"constraint_{i}").ToArray();
-        var goal = new DeliberateGoal("Constrained goal", constraints);
-
-        var decision = await dm.DecideDeliberateAsync(goal);
-        Assert.NotEmpty(decision.Outcome.Steps);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F15")]
-    public async Task F15_B05_DecisionMaker_RuleOverwrite_UpdatesExistingRule()
-    {
-        var dm = new InMemoryDecisionMaker();
-        dm.RegisterReactiveRule("intent", "first", 0.5);
-        dm.RegisterReactiveRule("intent", "second", 0.99);
-
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("intent", ["first", "second"]));
-        Assert.Equal("second", decision.Choice);
-        Assert.Equal(0.99, decision.Confidence);
     }
 
     #endregion

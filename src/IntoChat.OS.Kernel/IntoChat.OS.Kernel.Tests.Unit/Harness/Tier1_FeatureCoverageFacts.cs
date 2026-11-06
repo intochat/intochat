@@ -15,8 +15,6 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using DigitalBrain.Runtime.Orleans.Confirmations;
-using IntoChat.OS.Modules.AI.Context;
-using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
@@ -27,7 +25,6 @@ using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
-using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
@@ -730,162 +727,6 @@ public sealed class Tier1_FeatureCoverageFacts
     {
         var types = typeof(IntoChat.OS.Framework.CallRequest).Assembly.GetTypes();
         Assert.DoesNotContain(types, t => t.Name.Contains("NamesForward", StringComparison.OrdinalIgnoreCase));
-    }
-
-    #endregion
-
-    #region F14: Canonical Execution Context Subsystem
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F14")]
-    public void F14_01_ExecutionContext_InitializesWithCallerAndEnvironment()
-    {
-        var caller = CapabilityCallers.Of("usr_ctx", "acc_1", "brain_1", CallerKind.User);
-        var env = new Dictionary<string, string> { ["REGION"] = "us-east-1", ["TIER"] = "prod" };
-        var ctx = new ExecutionContext("exec_001", caller, env);
-
-        Assert.Equal("exec_001", ctx.ExecutionId);
-        Assert.Equal("usr_ctx", ctx.Caller!.PrincipalId);
-        Assert.Equal("us-east-1", ctx.Environment["REGION"]);
-        Assert.Empty(ctx.Slices);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F14")]
-    public void F14_02_ExecutionContext_Environment_IsCaseInsensitive()
-    {
-        var caller = CapabilityCallers.Of("usr_1", "acc_1", "brain_1", CallerKind.User);
-        var env = new Dictionary<string, string> { ["apiKey"] = "secret123" };
-        var ctx = new ExecutionContext("exec_002", caller, env);
-
-        Assert.Equal("secret123", ctx.Environment["APIKEY"]);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F14")]
-    public async Task F14_03_ExecutionContext_WithSliceAsync_PushesAndPopsSlice()
-    {
-        var caller = CapabilityCallers.Of("usr_1", "acc_1", "brain_1", CallerKind.User);
-        var ctx = new ExecutionContext("exec_003", caller);
-        var slice = new ContextSlice("UserPrompt", "Explain Orleans clustering", ["prompt", "user"]);
-
-        var sliceObservedInside = false;
-        var result = await ctx.WithSliceAsync(slice, () =>
-        {
-            sliceObservedInside = ctx.Slices.Any(s => s.Name == "UserPrompt");
-            return Task.FromResult("Explanation completed");
-        });
-
-        Assert.True(sliceObservedInside);
-        Assert.Equal("Explanation completed", result);
-        Assert.Empty(ctx.Slices);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F14")]
-    public async Task F14_04_ExecutionContext_WithSliceAsync_PopsSliceOnException()
-    {
-        var caller = CapabilityCallers.Of("usr_1", "acc_1", "brain_1", CallerKind.User);
-        var ctx = new ExecutionContext("exec_004", caller);
-        var slice = new ContextSlice("Faulty", "will throw", []);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            ctx.WithSliceAsync<string>(slice, () => throw new InvalidOperationException("Simulation failure")));
-
-        Assert.Empty(ctx.Slices);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F14")]
-    public void F14_05_ExecutionContext_PropagatesCancellationToken()
-    {
-        using var cts = new CancellationTokenSource();
-        var caller = CapabilityCallers.Of("usr_1", "acc_1", "brain_1", CallerKind.User);
-        var ctx = new ExecutionContext("exec_005", caller, cancellationToken: cts.Token);
-
-        Assert.Equal(cts.Token, ctx.CancellationToken);
-    }
-
-    #endregion
-
-    #region F15: Canonical Decision Maker Subsystem
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F15")]
-    public async Task F15_01_DecideReactiveAsync_ReturnsHighConfidenceFastDecision()
-    {
-        var dm = new InMemoryDecisionMaker();
-        var prompt = new ReactivePrompt("route_chat", ["route_chat", "fallback"], new Dictionary<string, string> { ["tone"] = "casual" });
-
-        var decision = await dm.DecideReactiveAsync(prompt);
-        Assert.NotNull(decision);
-        Assert.Equal("route_chat", decision.Choice);
-        Assert.True(decision.Confidence >= 0.9);
-        Assert.Contains("Reactive:route_chat", dm.AuditTrail);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F15")]
-    public async Task F15_02_DecideReactiveAsync_HonorsRegisteredRule()
-    {
-        var dm = new InMemoryDecisionMaker();
-        dm.RegisterReactiveRule("stream_audio", "codec_opus", 0.99);
-
-        var prompt = new ReactivePrompt("stream_audio", ["stream_audio"]);
-        var decision = await dm.DecideReactiveAsync(prompt);
-
-        Assert.Equal("codec_opus", decision.Choice);
-        Assert.Equal(0.99, decision.Confidence);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F15")]
-    public async Task F15_03_DecideDeliberateAsync_GeneratesMultiStepPlan()
-    {
-        var dm = new InMemoryDecisionMaker();
-        var goal = new DeliberateGoal("Refactor storage hierarchy", ["zero-downtime", "preserve-provenance"]);
-
-        var decision = await dm.DecideDeliberateAsync(goal);
-        Assert.NotNull(decision);
-        Assert.Contains("Refactor storage hierarchy", decision.Plan);
-        Assert.Equal(3, decision.Outcome.Steps.Length);
-        Assert.All(decision.Outcome.Steps, s => Assert.Null(s.Error));
-        Assert.Contains("Deliberate:Refactor storage hierarchy", dm.AuditTrail);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F15")]
-    public async Task F15_04_DecisionMaker_AuditTrail_MaintainsSequence()
-    {
-        var dm = new InMemoryDecisionMaker();
-        await dm.DecideReactiveAsync(new ReactivePrompt("step1", ["step1"]));
-        await dm.DecideDeliberateAsync(new DeliberateGoal("step2", []));
-
-        Assert.Equal(2, dm.AuditTrail.Count);
-        Assert.Equal("Reactive:step1", dm.AuditTrail[0]);
-        Assert.Equal("Deliberate:step2", dm.AuditTrail[1]);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F15")]
-    public async Task F15_05_DecideReactiveAsync_ThrowsOnCancellation()
-    {
-        var dm = new InMemoryDecisionMaker();
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            dm.DecideReactiveAsync(new ReactivePrompt("op", ["op"]), cts.Token));
     }
 
     #endregion

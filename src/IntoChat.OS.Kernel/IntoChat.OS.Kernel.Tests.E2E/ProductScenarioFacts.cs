@@ -10,8 +10,6 @@ using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Runtime.Orleans.Confirmations;
-using IntoChat.OS.Modules.AI.Context;
-using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.AI.Tasks;
@@ -23,7 +21,6 @@ using IntoChat.OS.Modules.Microsoft.Aspire;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
-using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -46,12 +43,6 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         Assert.True(RuntimeCallerContext.IsTrusted(agentCaller));
         using var stamp = RuntimeCallerContext.Stamp(agentCaller);
 
-        var ctx = new ExecutionContext("exec_self_improve_01", agentCaller, new Dictionary<string, string>
-        {
-            ["CYCLE"] = "14",
-            ["TARGET_MODULE"] = "IntoChat.OS.Kernel"
-        });
-
         var taskEngine = new TaskEngine(
             taskId => SiloNeurons.Get<ITaskNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.task", taskId)),
             () => SiloNeurons.Get<ITaskDirectoryNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.directory", "default")));
@@ -70,9 +61,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         Assert.Equal(TaskStatus.Pending, agentTask.Status);
         Assert.Equal(3, agentTask.Steps.Length);
 
-        // Step 3: Execute within context slices, recording performance telemetry on AspireNeuron on the silo
-        var slice = new ContextSlice("BenchmarkExecution", "Running baseline and candidate benchmarks", ["benchmark", "latency"]);
-        await ctx.WithSliceAsync(slice, async () =>
+        // Step 3: Execute the benchmark, recording performance telemetry on AspireNeuron on the silo
         {
             await aspire.RecordTraceAsync(new AspireTraceSpan(
                 "trace-bench-01",
@@ -93,8 +82,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
 
             await taskEngine.AdvanceTaskStepAsync(agentTask.TaskId, 0, TaskStepStatus.Completed, ct: Ct);
             await taskEngine.AdvanceTaskStepAsync(agentTask.TaskId, 1, TaskStepStatus.Completed, ct: Ct);
-            return true;
-        });
+        }
 
         // Step 4: Automated regression verification persisted in BddNeuron on the silo
         var bddReport = await siloBdd.Record(
@@ -348,7 +336,6 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         var brain = fixture.NewBrain("s05");
         var caller = CapabilityCallers.Of("watchdog_agent", "acc_infra", brain, CallerKind.User);
         using var stamp = RuntimeCallerContext.Stamp(caller);
-        _ = new ExecutionContext("exec_fault_recovery", caller);
 
         var taskEngine = new TaskEngine(
             taskId => SiloNeurons.Get<ITaskNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.task", taskId)),

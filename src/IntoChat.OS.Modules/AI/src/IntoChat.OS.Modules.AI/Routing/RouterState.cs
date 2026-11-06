@@ -15,13 +15,12 @@ internal sealed record RouteRecord(
     [property: Id(1)] string Contract,
     [property: Id(2)] string Method);
 
-// The router's own state: the decisions it has made and the requests asked of it, most recent last.
+// The router's own state: the decisions it has made, most recent last.
 [GenerateSerializer, Alias("ai.router.storage")]
 [ExportableState]
 internal sealed record RouterStorage
 {
     [Id(0)] public RouteRecord[] Recent { get; init; } = [];
-    [Id(1)] public PendingRoute[] Asked { get; init; } = [];
 }
 
 [Signal("ai.router.decided")]

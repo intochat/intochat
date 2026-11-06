@@ -2,10 +2,6 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
-using IntoChat.OS.Modules.AI.Agents.Facts;
-using IntoChat.OS.Modules.AI.Agents.Facts.Signals;
-using IntoChat.OS.Modules.AI.Agents.Intents;
-using IntoChat.OS.Modules.AI.Agents.Intents.Signals;
 using IntoChat.OS.Modules.AI.Embeddings;
 using IntoChat.OS.Modules.AI.Embeddings.Signals;
 using IntoChat.OS.Modules.AI.Inference;
@@ -28,41 +24,6 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     public static TheoryData<NeuronRuntimeKind> Kinds => AiFixture.Kinds;
 
     [Theory, MemberData(nameof(Kinds))]
-    public async Task AFactIsAssertedOncePerDedupKeyAndNamedByItsFullKey(NeuronRuntimeKind kind)
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var runtime = await fixture.Runtime(kind);
-        var id = runtime.Id("facts", "memory/facts-" + kind);
-        var facts = runtime.Get<IFacts>(id);
-        var assertion = new FactAssertion(FactKind.Fact, "Likes tea", "drinks", 0.8, 5, DateTimeOffset.UnixEpoch, "episodes", 1, "v1", [], "ep-1#0");
-
-        var first = await facts.Assert(assertion);
-        Assert.Equal(first, await facts.Assert(assertion));
-
-        var asserted = Assert.Single(await runtime.WaitForSignals<FactAsserted>(id, 1, Within, ct));
-        Assert.Equal(($"{id.Brain.Value}/{id.Key}", first), (asserted.FactsId, asserted.FactId));
-        Assert.Single((await facts.Read()).Facts);
-    }
-
-    [Theory, MemberData(nameof(Kinds))]
-    public async Task AnIntentMovesOnlyAlongALegalTransition(NeuronRuntimeKind kind)
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var runtime = await fixture.Runtime(kind);
-        var id = runtime.Id("intents", "memory/intents-" + kind);
-        var intents = runtime.Get<IIntents>(id);
-
-        var intent = await intents.Declare(new("req-1", "ship it", "conv/a"));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await intents.Transition(intent, IntentState.Done, "too soon", (await intents.Read()).Revision));
-        await intents.Rephrase(intent, new("ship", [], [], ["shipped"]), 0.9, (await intents.Read()).Revision);
-
-        Assert.Equal(IntentState.Rephrased, Assert.Single((await intents.Read()).Intents).State);
-        Assert.Single(await runtime.WaitForSignals<IntentHeard>(id, 1, Within, ct));
-        Assert.Equal(0.9, Assert.Single(await runtime.WaitForSignals<IntentRephrased>(id, 1, Within, ct)).Confidence);
-    }
-
-    [Theory, MemberData(nameof(Kinds))]
     public async Task AContextEntryIsReplacedByNameAndRemoved(NeuronRuntimeKind kind)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -71,7 +32,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
         var context = runtime.Get<IAgentContext>(id);
 
         await context.Set(new("working", "first", []));
-        await context.Set(new("working", "second", ["IFacts"]));
+        await context.Set(new("working", "second", ["notes"]));
         Assert.Equal("second", Assert.Single((await context.Read()).Entries).Text);
         await context.Remove("working");
 

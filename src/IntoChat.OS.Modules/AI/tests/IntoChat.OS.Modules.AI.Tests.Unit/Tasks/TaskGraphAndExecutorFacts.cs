@@ -7,7 +7,7 @@ using DigitalBrain;
 using DigitalBrain.Graph;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
-using IntoChat.OS.Modules.AI.Agents.Runs;
+using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -85,42 +85,40 @@ public sealed class TaskGraphAndExecutorFacts
     }
 
     [Fact]
-    public async Task RunNeuron_And_RunGraphSource_EmitRunAndWorksOnWeights()
+    public void RunGraphSource_EmitsRunAndWorksOnWeights()
     {
-        var os = TestOS.Local();
-        os.Register<RunNeuron>();
-        await using (os)
-        {
-            var brain = new BrainId("local");
-            var run = os.Get<IRunNeuron>(new NeuronId(brain, "agent.run", "turn-1"));
-            var started = await run.StartAsync("local/apps/creator", "t-1");
-            Assert.Equal("Running", started.Status);
-            Assert.Equal("local/apps/creator", started.Target);
-            Assert.Equal("t-1", started.TaskId);
+        var brain = new BrainId("local");
+        const string agent = "local/agent/main";
+        var started = DateTimeOffset.UnixEpoch;
+        var running = new AgentRun("turn-1", AgentRunStatus.Running, "hello", started);
 
-            var now = started.LastTurn;
-            var recentSink = new GraphSink();
-            recentSink.Node(brain.Value, GraphNodeKind.Brain, brain.Value);
-            RunGraphSource.Contribute(brain, recentSink, [("local/agent.run/turn-1", started)], now);
-            var recentGraph = GraphCompute.Build(recentSink, brain);
-            var runIdx = recentGraph.IndexOf("local/agent.run/turn-1");
-            Assert.True(runIdx >= 0 && recentGraph.Kinds[runIdx] == GraphNodeKind.Run);
-            Assert.Contains(
-                Enumerable.Range(recentGraph.RowStart[runIdx], recentGraph.RowStart[runIdx + 1] - recentGraph.RowStart[runIdx]),
-                e => recentGraph.EdgeKinds[e] == GraphEdgeKind.WorksOn && Math.Abs(recentGraph.Weights[e] - 1f) < 0.01f);
+        var recentSink = new GraphSink();
+        recentSink.Node(brain.Value, GraphNodeKind.Brain, brain.Value);
+        RunGraphSource.Contribute(brain, recentSink, [(agent, running)], started);
+        var recentGraph = GraphCompute.Build(recentSink, brain);
+        var runIdx = recentGraph.IndexOf(agent + "#run/turn-1");
+        Assert.True(runIdx >= 0 && recentGraph.Kinds[runIdx] == GraphNodeKind.Run);
+        Assert.Contains(
+            Enumerable.Range(recentGraph.RowStart[runIdx], recentGraph.RowStart[runIdx + 1] - recentGraph.RowStart[runIdx]),
+            e => recentGraph.EdgeKinds[e] == GraphEdgeKind.WorksOn && Math.Abs(recentGraph.Weights[e] - 1f) < 0.01f);
 
-            var stuckSink = new GraphSink();
-            stuckSink.Node(brain.Value, GraphNodeKind.Brain, brain.Value);
-            RunGraphSource.Contribute(brain, stuckSink, [("local/agent.run/turn-1", started)], now.AddMinutes(6));
-            var stuckGraph = GraphCompute.Build(stuckSink, brain);
-            var stuckRunIdx = stuckGraph.IndexOf("local/agent.run/turn-1");
-            Assert.Contains(
-                Enumerable.Range(stuckGraph.RowStart[stuckRunIdx], stuckGraph.RowStart[stuckRunIdx + 1] - stuckGraph.RowStart[stuckRunIdx]),
-                e => stuckGraph.EdgeKinds[e] == GraphEdgeKind.WorksOn && stuckGraph.Weights[e] >= RunGraphSource.StuckRunThresholdMinutes);
+        var stuckSink = new GraphSink();
+        stuckSink.Node(brain.Value, GraphNodeKind.Brain, brain.Value);
+        RunGraphSource.Contribute(brain, stuckSink, [(agent, running)], started.AddMinutes(6));
+        var stuckGraph = GraphCompute.Build(stuckSink, brain);
+        var stuckRunIdx = stuckGraph.IndexOf(agent + "#run/turn-1");
+        Assert.Contains(
+            Enumerable.Range(stuckGraph.RowStart[stuckRunIdx], stuckGraph.RowStart[stuckRunIdx + 1] - stuckGraph.RowStart[stuckRunIdx]),
+            e => stuckGraph.EdgeKinds[e] == GraphEdgeKind.WorksOn && stuckGraph.Weights[e] >= RunGraphSource.StuckRunThresholdMinutes);
 
-            var completed = await run.CompleteAsync();
-            Assert.Equal("Completed", completed.Status);
-        }
+        var doneSink = new GraphSink();
+        doneSink.Node(brain.Value, GraphNodeKind.Brain, brain.Value);
+        RunGraphSource.Contribute(brain, doneSink, [(agent, running with { Status = AgentRunStatus.Completed })], started.AddMinutes(1));
+        var doneGraph = GraphCompute.Build(doneSink, brain);
+        var doneIdx = doneGraph.IndexOf(agent + "#run/turn-1");
+        Assert.Contains(
+            Enumerable.Range(doneGraph.RowStart[doneIdx], doneGraph.RowStart[doneIdx + 1] - doneGraph.RowStart[doneIdx]),
+            e => doneGraph.EdgeKinds[e] == GraphEdgeKind.Produced);
     }
 
     [Fact]
@@ -134,7 +132,6 @@ public sealed class TaskGraphAndExecutorFacts
         os.Register<BrainGraphNeuron>();
         os.Register<TaskNeuron>();
         os.Register<TaskDirectoryNeuron>();
-        os.Register<RunNeuron>();
         os.Register<TaskExecutorNeuron>();
 
         await using (os)

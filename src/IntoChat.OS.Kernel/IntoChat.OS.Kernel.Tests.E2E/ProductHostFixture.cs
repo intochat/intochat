@@ -102,7 +102,6 @@ public sealed class ProductHostFixture : IAsyncLifetime
                 services.TryAddSingleton<IConfirmationContexts, KernelConfirmations>();
                 services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Enforcement.ICallFilter, DigitalBrain.Runtime.Orleans.Enforcement.CallFilter>();
                 services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrain.Runtime.Orleans.Enforcement.PlainNeuronCallFilter>());
-                services.TryAddSingleton<IDeepCopier<IntoChat.OS.Modules.AI.Context.ContextSlice>>(new ShallowCopier<IntoChat.OS.Modules.AI.Context.ContextSlice>());
                 services.AddNeuronProxies();
                 services.AddSingleton<IPolicyModel>(_policyModel);
                 services.TryAddSingleton<PolicyWriter>();

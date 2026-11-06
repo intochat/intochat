@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.AI.Context;
 
 namespace IntoChat.OS.Modules.AI.Tasks;
 
@@ -15,13 +14,11 @@ public sealed class TaskEngine : ITaskEngine
     private readonly Func<string, ITaskNeuron>? _taskResolver;
     private readonly Func<ITaskDirectoryNeuron>? _directoryResolver;
     private readonly IServiceProvider? _services;
-    private readonly IExecutionContextProvider? _contextProvider;
 
-    public TaskEngine(IServiceProvider services, IExecutionContextProvider? contextProvider = null)
+    public TaskEngine(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
-        _contextProvider = contextProvider;
     }
 
     public TaskEngine(Func<string, ITaskNeuron> taskResolver, Func<ITaskDirectoryNeuron>? directoryResolver = null)
@@ -33,11 +30,6 @@ public sealed class TaskEngine : ITaskEngine
 
     public BrainId ResolveBrainId()
     {
-        if (_contextProvider?.Current.Caller?.BrainId is { Length: > 0 } contextBrain)
-        {
-            return new BrainId(contextBrain);
-        }
-
         if (RuntimeCallerContext.TryGet(out var stamped) && stamped?.BrainId is { Length: > 0 } stampedBrain)
         {
             return new BrainId(stampedBrain);

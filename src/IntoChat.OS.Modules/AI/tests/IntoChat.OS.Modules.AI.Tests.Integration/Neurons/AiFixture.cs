@@ -19,7 +19,7 @@ public sealed class AiFixture : BothRuntimesFixture
     // The AI neurons' [Signal] records live in the contracts assembly, beside the module's.
     protected override void ConfigureSilo(IServiceCollection services)
     {
-        services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Facts.IFacts).Assembly);
+        services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.IAgent).Assembly);
         // The security posture neuron listens to the identity module's grants signal.
         services.AddJournalPayloads(typeof(IntoChat.OS.Authority.Identity.Grants.GrantsChanged).Assembly);
         services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
