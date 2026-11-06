@@ -91,7 +91,6 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         options.Instructions = plan.Instructions;
         options.Tools = [.. tools];
         var messages = new List<ChatMessage>();
-        if (plan.Summary is { Length: > 0 }) { messages.Add(new(ChatRole.System, "Earlier conversation summary: " + plan.Summary)); }
         // Only untagged entries are knowledge for the model; tagged ones are acted on above or belong to other consumers.
         foreach (var entry in contexts.Where(entry => entry.EffectiveTags.Length == 0 && entry.Text.Length > 0)) { messages.Add(new(ChatRole.System, entry.Text)); }
         messages.AddRange(plan.Transcript.Select(InferenceMapping.ToChatMessage));

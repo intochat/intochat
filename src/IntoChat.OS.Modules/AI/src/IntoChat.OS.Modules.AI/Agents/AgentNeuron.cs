@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Connections.Platform.Secrets;
@@ -197,6 +198,38 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         var prefix = Id.Brain.Value + "/";
         return [.. keys.Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
             .Select(key => new DigitalBrain.NeuronId(Id.Brain, "agent-context", key[prefix.Length..]))];
+    }
+
+    // The contexts a definition lists under the given name; the producers below write only where the agent asked for it.
+    private DigitalBrain.NeuronId[] ContextsNamed(string[] keys, string name)
+        => ContextIds([.. keys.Where(key => key.EndsWith("/context/" + name, StringComparison.Ordinal))]);
+
+    // The summary is an ordinary entry once the agent lists a conversation.summary context; the loop reads it like any other.
+    private async Task WriteSummary(string[] keys, string summary)
+    {
+        foreach (var id in ContextsNamed(keys, "conversation.summary"))
+        {
+            try { await Context.Get<IAgentContext>(id).Set(new("summary", "Earlier conversation summary: " + summary, [])); }
+            catch (Exception error) { Logger.LogWarning(error, "The summary could not be written to context {Context}.", id); }
+        }
+    }
+
+    // Recall runs before the turn is planned, so the loop's read of the context sees what it wrote.
+    private async Task WriteRecall(string[] keys, string query)
+    {
+        var ids = ContextsNamed(keys, "memory.recall");
+        if (ids.Length == 0) { return; }
+        try
+        {
+            var hits = await Context.Get<IMemory>(new DigitalBrain.NeuronId(Id.Brain, "ai.memory", "memory")).Recall(query, 3);
+            foreach (var id in ids)
+            {
+                var context = Context.Get<IAgentContext>(id);
+                if (hits.Length == 0) { await context.Remove("recall"); }
+                else { await context.Set(new("recall", string.Join("\n", hits.Select(hit => "- " + hit.Text)), [])); }
+            }
+        }
+        catch (Exception error) { Logger.LogWarning(error, "Memory recall could not be written; the turn runs without it."); }
     }
 
     private void EnsureUnblocked()
@@ -447,6 +480,7 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
             // The caller's script can finish as soon as Start returns. Release once the turn's first
             // signal is published, so later streamed progress still reaches the projection.
             await ReleaseContinuation(runId);
+            await WriteRecall(definition.Contexts, UserText(input));
             var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), Math.Max(0, MaxHistoryCharacters - Size(input)), State.Summary);
             var plan = new TurnPlan(Scope, Key, runId, bounded.Messages, bounded.Summary, input,
                 turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, turn.Contexts ?? definition.Contexts,
@@ -518,7 +552,9 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
                             var produced = new List<AiMessage>(done.Messages.Count);
                             foreach (var item in done.Messages) { produced.Add(Compacted(await Mask(item))); }
                             var transcript = Bound([.. State.Transcript, input, .. produced], definition.MaxHistoryMessages, MaxHistoryCharacters, State.Summary);
+                            var summarized = transcript.Summary != State.Summary;
                             await Persist(State with { Transcript = transcript.Messages, Summary = transcript.Summary, ActiveRun = null, Runs = Keep(State.Runs, run) });
+                            if (summarized && transcript.Summary is { Length: > 0 }) { await WriteSummary(definition.Contexts, transcript.Summary); }
                             completed = true;
                             await Announce();
                             if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, await Mask(JsonSerializer.Serialize(done.Usage)), ++sequence)); }
