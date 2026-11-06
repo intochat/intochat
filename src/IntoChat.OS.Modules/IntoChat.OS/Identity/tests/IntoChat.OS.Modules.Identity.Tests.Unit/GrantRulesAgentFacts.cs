@@ -71,4 +71,34 @@ public sealed class GrantRulesAgentFacts
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.OutsideWorkspace, decision.Denial);
     }
+
+    [Fact]
+    public void AnAgentGetsNoOwnTargetAllowance()
+    {
+        var agent = Agent();
+        var decision = GrantRules.Evaluate(Req(agent, "test-brain/apps/assistant/state"), MemberOf(agent), [], PrincipalSet.For(agent), connectionBound: false);
+        Assert.False(decision!.Allowed);
+        Assert.Equal(CallDenial.MissingGrant, decision.Denial);
+    }
+
+    [Fact]
+    public void AnAgentIsNotConnectionBound()
+    {
+        var agent = Agent();
+        var request = Req(agent, "test-brain/apps/files");
+        var denied = GrantRules.Evaluate(request, MemberOf(agent), [], PrincipalSet.For(agent), connectionBound: true);
+        Assert.False(denied!.Allowed);
+        Assert.Equal(CallDenial.MissingGrant, denied.Denial);
+        var grants = new[] { AgentGrant("test-brain/apps/files", GrantRelations.Run) };
+        Assert.True(GrantRules.Evaluate(request, MemberOf(agent), grants, PrincipalSet.For(agent), connectionBound: true)!.Allowed);
+    }
+
+    [Fact]
+    public void OnceToConsumeReturnsTheAgentsOnceGrant()
+    {
+        var agent = Agent();
+        var once = new Grant { AppId = AssistantApp, SemanticTypeId = "contacts.read", Mode = GrantMode.Once, WorkspaceId = "test-brain" };
+        var consumed = GrantRules.OnceToConsume(Req(agent, "test-brain/apps/files", "contacts.read"), [once]);
+        Assert.Equal(once, Assert.Single(consumed));
+    }
 }
