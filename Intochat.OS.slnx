@@ -9,7 +9,6 @@
   <Folder Name="/Client/">
     <Project Path="src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" />
   </Folder>
-  <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />
   <Folder Name="/Desktop/">
     <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.Tests.Unit/IntoChat.OS.Desktop.Tests.Unit.csproj" />
   </Folder>
@@ -188,6 +187,15 @@
   <Folder Name="/Modules/IntoChat.OS/Flame/src/">
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Flame/src/IntoChat.OS.Modules.Flame/IntoChat.OS.Modules.Flame.csproj" />
   </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Os/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Os/tests/IntoChat.OS.Modules.Os.Tests.Unit/IntoChat.OS.Modules.Os.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Os/Contracts/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Os/Contracts/IntoChat.OS.Modules.Os.Contracts/IntoChat.OS.Modules.Os.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/Modules/IntoChat.OS/Os/src/">
+    <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Os/src/IntoChat.OS.Modules.Os/IntoChat.OS.Modules.Os.csproj" />
+  </Folder>
   <Folder Name="/Modules/IntoChat.OS/Tools/">
     <Project Path="src/IntoChat.OS.Modules/IntoChat.OS/Tools/tests/IntoChat.OS.Modules.Tools.Tests.Unit/IntoChat.OS.Modules.Tools.Tests.Unit.csproj" />
   </Folder>
@@ -354,5 +362,6 @@
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS.Apps.Tests.Unit/IntoChat.OS.Apps.Tests.Unit.csproj" />
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
+  <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />
   <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
 </Solution>
