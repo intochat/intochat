@@ -93,6 +93,9 @@ jobs:
           name: compiled-artifacts
           path: artifacts/bin
 
+      - name: Make artifacts executable
+        run: chmod -R +x artifacts/bin
+
       - name: Test (Unit Tier)
         run: dotnet test --solution Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:CodeGraphRefresh=false
 
@@ -143,6 +146,9 @@ jobs:
           name: compiled-artifacts
           path: artifacts/bin
 
+      - name: Make artifacts executable
+        run: chmod -R +x artifacts/bin
+
       - name: Test (Integration Tier)
         run: dotnet test --solution Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:CodeGraphRefresh=false
 
@@ -167,6 +173,9 @@ jobs:
         with:
           name: compiled-artifacts
           path: artifacts/bin
+
+      - name: Make artifacts executable
+        run: chmod -R +x artifacts/bin
 
       - name: Test E2E
         run: |
