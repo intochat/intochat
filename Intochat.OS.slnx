@@ -324,6 +324,15 @@
   <Folder Name="/Modules/Supabase/src/">
     <Project Path="src/IntoChat.OS.Modules/Supabase/src/IntoChat.OS.Modules.Supabase/IntoChat.OS.Modules.Supabase.csproj" />
   </Folder>
+  <Folder Name="/Modules/Template/">
+    <Project Path="src/IntoChat.OS.Modules/Template/tests/IntoChat.OS.Modules.Template.Tests.Unit/IntoChat.OS.Modules.Template.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Template/Contracts/">
+    <Project Path="src/IntoChat.OS.Modules/Template/Contracts/IntoChat.OS.Modules.Template.Contracts/IntoChat.OS.Modules.Template.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Template/src/">
+    <Project Path="src/IntoChat.OS.Modules/Template/src/IntoChat.OS.Modules.Template/IntoChat.OS.Modules.Template.csproj" />
+  </Folder>
   <Folder Name="/Modules/Time/">
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Integration/IntoChat.OS.Modules.Time.Tests.Integration.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Unit/IntoChat.OS.Modules.Time.Tests.Unit.csproj" />

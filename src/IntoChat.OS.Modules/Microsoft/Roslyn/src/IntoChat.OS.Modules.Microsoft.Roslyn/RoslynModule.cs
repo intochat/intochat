@@ -1,4 +1,5 @@
 using DigitalBrain.Modules.Configuration;
+using IntoChat.OS.Modules.Microsoft.Roslyn.Contracts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -33,5 +34,6 @@ public sealed class RoslynModule : DigitalBrain.Module
         services.TryAddSingleton<ChangeSetEditor>();
         services.TryAddSingleton<SolutionFileWatcher>();
         services.AddHostedService<WorkspaceWarmup>();
+        services.TryAddTransient<IModuleScaffolder, ModuleScaffolderNeuron>();
     }
 }

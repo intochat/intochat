@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Microsoft.Roslyn.Contracts` (`IRoslyn`).
+Contracts: assembly `IntoChat.OS.Modules.Microsoft.Roslyn.Contracts` (`IModuleScaffolder`, `IRoslyn`).
 Hosting: runs in process.
 <!-- END GENERATED -->
