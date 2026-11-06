@@ -52,6 +52,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 {
     private const string BlockedPrefix = "Blocked: ";
     private const string NewTitle = "New chat";
+    private const string MigrationNote = "Earlier conversation is in the archive.";
+    private const string MigrationId = "migration";
 
     // Render cannot await: the last transcript the agent answered, refreshed after each turn.
     private AiMessage[] _transcript = [];
@@ -103,10 +105,16 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         var status = request.Mode == "greet"
             ? $"Hello, {settings.DisplayName}! Ready on {settings.DefaultModel}."
             : $"Ready ({settings.DefaultModel})";
+        // Turns from before the agent existed stay in the archive; the agent gets one note, once.
+        var migrate = State.Turns.Length > 0 && string.IsNullOrEmpty(State.AgentKey);
         Set(State with { Status = status, AgentKey = AgentKeyOf(State.ConversationId) });
         try
         {
             var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
+            if (migrate)
+            {
+                await agent.Post(MigrationNote, MigrationId);
+            }
             var read = await agent.Read();
             _transcript = await agent.Transcript();
             Set(State with { Blocked = read.Blocked, BlockedReason = read.Blocked ? State.BlockedReason ?? "An interrupt holds the agent." : null });
@@ -232,6 +240,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     private void Pause(string message)
         => Set(State with { Blocked = true, BlockedReason = message[BlockedPrefix.Length..], Status = "Paused" });
 
+    private const string DataKey = "ino/data";
+
     private static string AgentKeyOf(string conversationId) => $"ino/conversations/{conversationId}";
 
     private async Task HandleSlashCommandAsync(string rawCommand, UserSettingsState settings)
@@ -279,20 +289,39 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task ConnectDb(InoConnectDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(await InoDatabaseChartHandler.ConnectDbAsync(State, request, TryGetMemory(), KnowledgeStore));
+        var result = await Get<IInoData>(DataKey).Connect(request.ConnectionString ?? string.Empty);
+        Set(State with
+        {
+            ConnectedDatabase = (await Get<IInoData>(DataKey).Read()).ConnectedDatabase ?? State.ConnectedDatabase,
+            Status = result.Text,
+            Cards = result.Card is { } card ? [.. State.ActiveCards, card] : State.Cards,
+        });
     }
 
     [DigitalBrain.On]
     public async Task QueryDb(InoQueryDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(await InoDatabaseChartHandler.QueryDbAsync(
-            State,
-            request,
-            TryGetMemory(),
-            FilesVfs,
-            TryGetApp,
-            (err, reason) => Swallow(err, reason)));
+        // Reads through this app's own files service, so a host-injected workspace stays the one source of datasets.
+        var sql = string.IsNullOrWhiteSpace(request.Sql)
+            ? "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5"
+            : request.Sql.Trim();
+        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? "supabase:supabase/postgres" : State.ConnectedDatabase;
+        var result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs);
+        if (TryGetMemory() is { } memory)
+        {
+            await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6);
+        }
+        var tableId = $"table-{State.ActiveCards.Length + 1}";
+        var chartId = $"chart-{State.ActiveCards.Length + 2}";
+        var table = new InoCard(tableId, "table", $"{result.ChartTitle} — Table ({result.Rows.Length} rows from {database})", result.Summary, result.SourceUri, "ready", $"neuron://local/apps/ino#{tableId}", result.Columns, result.Rows);
+        var chart = new InoCard(chartId, "chart", result.ChartTitle, $"Live {result.ChartKind} chart ({result.ChartPoints.Length} series points) from {database}.", "neuron://local/apps/ino/chart", "ready", $"neuron://local/apps/ino#{chartId}", ChartKind: result.ChartKind, ChartPoints: result.ChartPoints);
+        Set(State with
+        {
+            ConnectedDatabase = database,
+            Status = $"Visualized {result.Rows.Length} row(s) & {result.ChartPoints.Length} chart point(s) from {database}",
+            Cards = [.. State.ActiveCards, table, chart],
+        });
     }
 
     [DigitalBrain.On]
@@ -405,19 +434,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             || !State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 }))
         {
             throw new InvalidOperationException("Expected InoApp to execute SQL query and emit both table and chart cards.");
-        }
-    }
-
-    private IApp? TryGetApp(string appKey)
-    {
-        try
-        {
-            return Get<IApp>(appKey);
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, $"App neuron '{appKey}' is optional when running InoApp in standalone unit tests.");
-            return null;
         }
     }
 

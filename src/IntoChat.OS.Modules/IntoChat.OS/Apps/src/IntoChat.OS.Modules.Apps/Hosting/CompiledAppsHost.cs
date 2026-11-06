@@ -807,7 +807,6 @@ internal sealed class CompiledAppsHost(
     private void WireInoServices(string brain, App instance)
     {
         var type = instance.GetType();
-        type.GetProperty("DecisionMaker")?.SetValue(instance, services.GetService(typeof(IDecisionMaker)));
         type.GetProperty("FilesVfs")?.SetValue(instance, _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b)));
         type.GetProperty("KnowledgeStore")?.SetValue(instance, services.GetService(typeof(IKnowledgeStore)));
         type.GetProperty("TaskEngine")?.SetValue(instance, services.GetService(typeof(ITaskEngine)));

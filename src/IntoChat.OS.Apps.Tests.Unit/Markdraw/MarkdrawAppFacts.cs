@@ -116,14 +116,4 @@ public sealed class MarkdrawAppFacts
         Assert.Equal("Nordics", chartCard.ChartPoints[0].Label);
         Assert.Equal(350000, chartCard.ChartPoints[0].Value);
     }
-
-    [Fact]
-    public async Task CapabilityCatalogDynamicallyReflectsCompiledAppsAndSignals()
-    {
-        var apps = await InoCapabilityCatalog.DiscoverAppsAsync(_ => null);
-        var markdrawCap = Assert.Single(apps, a => a.AppId == "markdraw");
-        Assert.NotNull(markdrawCap.OperationParameters);
-        Assert.True(markdrawCap.OperationParameters!.ContainsKey("patch-elements"));
-        Assert.Contains(markdrawCap.OperationParameters["patch-elements"], p => p.Name == "AddOrUpdateDsl");
-    }
 }

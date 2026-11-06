@@ -291,6 +291,55 @@ public sealed class InoAppFacts
         Assert.Equal("approved", Assert.Single(ino.App.State.ActiveCards, c => c.Id == pending.Id).Status);
     }
 
+    [Fact]
+    public async Task OldTurnsAreArchivedNotReplayed()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<RecordingAgent>();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("/scenario morning-brief"));
+        var turns = ino.App.State.Turns;
+        Assert.NotEmpty(turns);
+        Assert.True(string.IsNullOrEmpty(ino.App.State.AgentKey));
+        RecordingAgent.Posts.Clear();
+        RecordingAgent.Runs = 0;
+
+        await ino.Request("open", new InoOpen());
+        await ino.Request("open", new InoOpen());
+
+        Assert.Equal(turns, ino.App.State.Turns);
+        var post = Assert.Single(RecordingAgent.Posts);
+        Assert.Equal(("Earlier conversation is in the archive.", "migration"), post);
+        Assert.Equal(0, RecordingAgent.Runs);
+        Assert.False(string.IsNullOrEmpty(ino.App.State.AgentKey));
+    }
+
+    // An agent that counts Post calls and Run starts.
+    [Neuron(AgentSignals.NeuronType)]
+    private sealed class RecordingAgent : Neuron, IAgent
+    {
+        public static List<(string Text, string Id)> Posts { get; } = [];
+        public static int Runs { get; set; }
+
+        public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
+
+        public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            Runs++;
+            await Task.Yield();
+            yield return new AgentTurnEvent.Started("run-1");
+        }
+
+        public Task<string> Start(AgentTurn turn) => throw new NotSupportedException();
+        public Task Cancel() => Task.CompletedTask;
+        public Task CancelRun(string runId) => Task.CompletedTask;
+        public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
+        public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>([]);
+        public Task Clear() => Task.CompletedTask;
+        public Task Post(string text, string id) { Posts.Add((text, id)); return Task.CompletedTask; }
+    }
+
     // An agent whose run starts and is then cancelled, as a run cancelled through its token is.
     [Neuron(AgentSignals.NeuronType)]
     private sealed class CancellingAgent : Neuron, IAgent
