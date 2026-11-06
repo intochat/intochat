@@ -43,6 +43,21 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task ARelativeContextKeyBlocksTheAgent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var runtime = await Start(ct);
+        var agent = runtime.Get<IAgent>(runtime.Id("agent", "agents/react-relative"));
+        await agent.Configure(new() { Contexts = ["context/relative-x"] }, 0);
+
+        await Interrupt(runtime, "relative-x", ct);
+        Assert.True((await Until(agent, state => state.Blocked, ct)).Blocked);
+
+        await runtime.Get<IAgentContext>(ContextId(runtime, "relative-x")).Remove("stop");
+        Assert.False((await Until(agent, state => !state.Blocked, ct)).Blocked);
+    }
+
+    [Fact]
     public async Task RemovingTheInterruptUnblocks()
     {
         var ct = TestContext.Current.CancellationToken;

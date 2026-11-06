@@ -261,4 +261,55 @@ public sealed class InoAppFacts
         Assert.Contains(ino.Side.Entries, entry => entry.Title == "run · local/ino/settings");
         Assert.DoesNotContain(ino.Side.Entries, entry => entry.Title.Contains("elsewhere", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task ACancelledRunClearsTheActiveRun()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<CancellingAgent>();
+        var ino = await os.Install<InoApp>();
+
+        await ino.Request("send", new InoSend("hello"));
+
+        Assert.Null(ino.App.State.ActiveRunId);
+        Assert.Equal("Cancelled", ino.App.State.Status);
+    }
+
+    [Fact]
+    public async Task ApprovingAPendingApprovalCardFlipsItsStatus()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("/scenario q4-renewal"));
+        var pending = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "approval");
+        Assert.Equal("pending", pending.Status);
+
+        await ino.Request("approve-card", new InoApproveCard(pending.Id, true));
+
+        Assert.Equal("approved", Assert.Single(ino.App.State.ActiveCards, c => c.Id == pending.Id).Status);
+    }
+
+    // An agent whose run starts and is then cancelled, as a run cancelled through its token is.
+    [Neuron(AgentSignals.NeuronType)]
+    private sealed class CancellingAgent : Neuron, IAgent
+    {
+        public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
+
+        public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return new AgentTurnEvent.Started("run-1");
+            await Task.Yield();
+            throw new OperationCanceledException("The run was cancelled.");
+        }
+
+        public Task<string> Start(AgentTurn turn) => throw new NotSupportedException();
+        public Task Cancel() => Task.CompletedTask;
+        public Task CancelRun(string runId) => Task.CompletedTask;
+        public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
+        public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>([]);
+        public Task Clear() => Task.CompletedTask;
+        public Task Post(string text, string id) => Task.CompletedTask;
+    }
 }

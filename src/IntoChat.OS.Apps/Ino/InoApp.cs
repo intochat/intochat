@@ -177,12 +177,20 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         {
             Pause(error.Message);
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (OperationCanceledException error)
+        {
+            Swallow(error, "The run was cancelled; the status line reports it.");
+            Set(State with { Status = "Cancelled" });
+        }
+        catch (Exception error)
         {
             Swallow(error, "The agent could not answer; the status line reports why.");
             Set(State with { Status = $"Ino could not answer: {error.Message}" });
         }
-        Set(State with { ActiveRunId = null });
+        finally
+        {
+            Set(State with { ActiveRunId = null });
+        }
     }
 
     // Configure on first use; a revision conflict means another caller configured it first.

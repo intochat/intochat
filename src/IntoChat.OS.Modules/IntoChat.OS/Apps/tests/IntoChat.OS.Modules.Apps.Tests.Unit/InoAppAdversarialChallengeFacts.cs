@@ -185,4 +185,35 @@ public sealed class InoAppAdversarialChallengeFacts
         Assert.NotNull(adaptiveResult);
         Assert.Equal("general.chat", adaptiveResult.Choice);
     }
+
+    [Fact]
+    public async Task ArtCraftEngineRunner_RejectsUnrecognizedConversationalPrompts_WithoutFabricatingRemoveBackground()
+    {
+        var photoResult = await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
+            "hey, what can you do?",
+            explicitParamsJson: null,
+            currentDocument: null,
+            executionMode: "native-linux",
+            studio: null,
+            mcpResolver: null);
+
+        Assert.False(photoResult.IsValidCommand);
+        Assert.Equal("clarification.required", photoResult.CommandId);
+        Assert.Empty(photoResult.CliInvocation);
+        Assert.Empty(photoResult.OutputDocument);
+        Assert.DoesNotContain("layer.removeBackground", photoResult.Summary, StringComparison.OrdinalIgnoreCase);
+
+        var filmResult = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
+            "hey, what can you do?",
+            explicitParamsJson: null,
+            currentSequence: null,
+            executionMode: "native-linux",
+            studio: null,
+            mcpResolver: null);
+
+        Assert.False(filmResult.IsValidCommand);
+        Assert.Equal("clarification.required", filmResult.CommandId);
+        Assert.Empty(filmResult.CliInvocation);
+        Assert.Empty(filmResult.OutputDocument);
+    }
 }
