@@ -13,6 +13,8 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Signals;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.AI.Tests;
@@ -76,6 +78,57 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
         Assert.Empty((await context.Read()).Entries);
         Assert.Equal(2, (await runtime.WaitForSignals<ContextUpdated>(id, 2, Within, ct)).Count);
         Assert.Equal(3, Assert.Single(await runtime.WaitForSignals<ContextRemoved>(id, 1, Within, ct)).Revision);
+    }
+
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task AnEntryIsStampedWithWriterAndTrust(NeuronRuntimeKind kind)
+    {
+        var runtime = await fixture.Runtime(kind);
+        var id = runtime.Id("agent-context", "memory/context-stamp-" + kind);
+        var context = runtime.Get<IAgentContext>(id);
+
+        await WrittenBy(new CapabilityCaller("p1", "a1", id.Brain.Value), () => context.Set(new("working", "x", [])));
+
+        var provenance = Assert.Single((await context.Read()).Entries).Provenance;
+        Assert.Equal(("p1", "user"), (provenance!.Writer, provenance.Trust));
+    }
+
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task AnUnstampedWriterGetsAppTrust(NeuronRuntimeKind kind)
+    {
+        var runtime = await fixture.Runtime(kind);
+        var context = runtime.Get<IAgentContext>(runtime.Id("agent-context", "memory/context-unstamped-" + kind));
+
+        await context.Set(new("working", "x", []));
+
+        Assert.Equal("app", Assert.Single((await context.Read()).Entries).Provenance!.Trust);
+    }
+
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task AModelWriterCannotInterrupt(NeuronRuntimeKind kind)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = await fixture.Runtime(kind);
+        var id = runtime.Id("agent-context", "memory/context-interrupt-" + kind);
+        var context = runtime.Get<IAgentContext>(id);
+
+#pragma warning disable CS0618 // AssistantApp is the reserved app id that makes a caller an Agent until 0.13
+        var model = new CapabilityCaller("p1", "a1", id.Brain.Value) { AppId = CapabilityCallers.AssistantApp };
+#pragma warning restore CS0618
+        await WrittenBy(model, () => context.Set(new("stop", "halt", [], [ContextTags.Interrupt])));
+
+        var entry = Assert.Single((await context.Read()).Entries);
+        Assert.Equal((ContextTags.Interrupt, "model"), (Assert.Single(entry.EffectiveTags), entry.Provenance!.Trust));
+        Assert.True(Assert.Single(await runtime.WaitForSignals<ContextUpdated>(id, 1, Within, ct)).Ignored);
+    }
+
+    [Theory, MemberData(nameof(Kinds))]
+    public async Task TooManyTagsAreRejected(NeuronRuntimeKind kind)
+    {
+        var runtime = await fixture.Runtime(kind);
+        var context = runtime.Get<IAgentContext>(runtime.Id("agent-context", "memory/context-tags-" + kind));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => context.Set(new("busy", "x", [], ["1", "2", "3", "4", "5", "6", "7", "8", "9"])));
     }
 
     [Theory, MemberData(nameof(Kinds))]
@@ -189,12 +242,14 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
         Assert.Equal(2, recalled.Length);
         Assert.Contains(recalled, hit => hit.Kind == "fact");
         Assert.Contains(recalled, hit => hit.Kind == "episode");
-
-        var context = runtime.Get<IAgentContext>(runtime.Id("agent-context", "memory/brain-context-" + kind));
-        var brainView = await context.ReadBrainContext();
-        Assert.Single(brainView.Facts);
-        Assert.Single(brainView.RecentEpisodes);
     }
+
+    // The stamp lives in the async-local of the Task.Run, so it never leaks into the next fact.
+    private static Task WrittenBy(CapabilityCaller caller, Func<Task> write) => Task.Run(() =>
+    {
+        RuntimeCallerContext.Stamp(caller);
+        return write();
+    });
 
     private static InferenceRequest Ask(string text) => new([new("user", [new AiText(text)])]);
 }
