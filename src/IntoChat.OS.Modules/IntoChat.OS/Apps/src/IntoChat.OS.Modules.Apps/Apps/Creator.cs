@@ -129,6 +129,17 @@ internal sealed class Creator(
                 await ReportIfCurrent(app, attempt, "attention", "The Builder produced no files", cancellationToken);
                 return;
             }
+            if (snapshot.Manifest.Headless)
+            {
+                // The unit's alias is the app name; no program files land on the app. AppNeuron has no headless terminal status
+                // yet, so a deployed unit is reported on the activity feed and only a failure completes the attempt.
+                var unit = appKey[(appKey.LastIndexOf("/apps/", StringComparison.Ordinal) + "/apps/".Length)..];
+                var studio = SiloNeurons.Get<ISynapseStudio>(plain, ISynapseStudio.Key(BrainKey.BrainOf(appKey)).ToString());
+                var failure = await HeadlessUnit.Deploy(studio, unit, files);
+                if (failure is not null) { await app.CompleteBuild(attempt, null, failure); }
+                await ReportIfCurrent(app, attempt, failure is null ? "completed" : "attention", failure ?? $"Deployed {snapshot.Manifest.Title} as a synapse unit", cancellationToken);
+                return;
+            }
             // Manifest changes land with the files, inside the attempt check: a stale
             // worker's manifest is discarded with its files. The code is the operation list;
             // the Builder's and the authored lists only describe what the code has.
@@ -272,6 +283,7 @@ internal sealed class Creator(
     // check_csharp answers what the app gates will: the compiler check on the app bundle.
     private async Task<ScriptCompilationCheck> Checked(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
     {
+        if (SynapseCheck.Compile(plain, files) is { } synapse) { return synapse; }
         return await (csharp ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing)).Compile(files, cancellationToken);
     }
 
