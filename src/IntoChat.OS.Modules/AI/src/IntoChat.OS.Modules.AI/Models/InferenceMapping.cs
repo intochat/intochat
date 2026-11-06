@@ -6,6 +6,35 @@ namespace IntoChat.OS.Modules.AI.Models;
 
 internal static class InferenceMapping
 {
+    // Reasoning and MaxOutputTokens belong to the model selection; the options handed on never carry Reasoning.
+    // Later overrides win per field. Persona is not an inference setting and is read by the caller.
+    public static (ModelSelection? Selection, InferenceOptions? Settings) Merge(
+        ModelSelection? baseSelection, InferenceOptions? baseOptions, params InferenceOverride?[] overrides)
+    {
+        var applied = (overrides ?? []).OfType<InferenceOverride>().ToArray();
+        var model = applied.Select(o => o.Model).LastOrDefault(v => v is not null);
+        var temperature = applied.Select(o => o.Temperature).LastOrDefault(v => v is not null) ?? baseOptions?.Temperature;
+        var topP = applied.Select(o => o.TopP).LastOrDefault(v => v is not null) ?? baseOptions?.TopP;
+        var reasoning = applied.Select(o => o.Reasoning).LastOrDefault(v => v is not null) ?? baseOptions?.Reasoning;
+        var maximum = applied.Select(o => o.MaxOutputTokens).LastOrDefault(v => v is not null) ?? baseOptions?.MaxOutputTokens;
+
+        var selection = baseSelection;
+        if (model is not null || reasoning is not null || maximum is not null)
+        {
+            selection = (selection ?? new()) with
+            {
+                Model = model ?? selection?.Model,
+                Reasoning = reasoning ?? selection?.Reasoning,
+                MaxOutputTokens = maximum ?? selection?.MaxOutputTokens,
+            };
+        }
+        var overridden = applied.Any(o => o.Temperature is not null || o.TopP is not null || o.MaxOutputTokens is not null);
+        var settings = baseOptions is null && !overridden
+            ? null
+            : (baseOptions ?? new()) with { Temperature = temperature, TopP = topP, MaxOutputTokens = maximum, Reasoning = null };
+        return (selection, settings);
+    }
+
     internal static ChatMessage ToChatMessage(AiMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -157,4 +186,16 @@ internal static class InferenceMapping
 
     internal static InferenceUsage? Usage(UsageDetails? usage)
         => usage is null ? null : new(usage.InputTokenCount, usage.OutputTokenCount, usage.TotalTokenCount);
+}
+
+// A per-turn override read from a context entry; every field is optional and only set fields apply.
+public sealed record InferenceOverride(string? Model, float? Temperature, float? TopP, string? Reasoning, int? MaxOutputTokens, string? Persona)
+{
+    private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+
+    public static InferenceOverride? Parse(string json)
+    {
+        try { return JsonSerializer.Deserialize<InferenceOverride>(json, Json); }
+        catch (JsonException) { return null; }
+    }
 }

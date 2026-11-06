@@ -59,13 +59,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         var tools = composed.Length == 0 ? new List<AIFunction>() : [.. ContractActions.Create(await surface.Restrict(composed, ct), plan.Conversation)];
 
         var catalog = services.GetRequiredService<ModelCatalog>();
-        var selection = plan.Model;
-        if (plan.Options?.Reasoning is not null || plan.Options?.MaxOutputTokens is not null)
-        {
-            selection = (selection ?? new()) with
-            { Reasoning = plan.Options.Reasoning ?? selection?.Reasoning, MaxOutputTokens = plan.Options.MaxOutputTokens ?? selection?.MaxOutputTokens };
-        }
-        var settings = plan.Options is null ? null : plan.Options with { Reasoning = null };
+        var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options);
         var resolved = await catalog.Resolve(plan.ScopeId, selection, tools.Count > 0, ct);
         ChatOptions options;
         switch (resolved.Provider)
