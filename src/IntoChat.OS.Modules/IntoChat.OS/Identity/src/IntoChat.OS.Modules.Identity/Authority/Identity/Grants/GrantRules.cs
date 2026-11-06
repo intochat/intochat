@@ -123,7 +123,7 @@ public static class GrantRules
             return CallDecision.Deny(CallDenial.OutsideWorkspace, "The principal is not a member of this account and brain.");
         }
 
-        if (caller.Kind != CallerKind.App)
+        if (caller.Kind is not (CallerKind.App or CallerKind.Agent))
         {
             return null;
         }
@@ -192,7 +192,7 @@ public static class GrantRules
         if (grants is null || grants.Count == 0 || request.SemanticTypeIds.Length == 0) { return []; }
 
         var caller = request.Caller;
-        if (caller.Kind != CallerKind.App || AppOf(caller) is not { } app) { return []; }
+        if (caller.Kind is not (CallerKind.App or CallerKind.Agent) || AppOf(caller) is not { } app) { return []; }
 
         return
         [
