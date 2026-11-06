@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
@@ -40,7 +40,7 @@ public sealed class NginxProxyFacts : IAsyncLifetime
         // Start mock kernel HttpListener
         _kernelPort = GetFreePort();
         _kernel = new HttpListener();
-        _kernel.Prefixes.Add($"http://127.0.0.1:{_kernelPort}/");
+        if (!OperatingSystem.IsWindows()) { _kernel.Prefixes.Add($"http://*:{_kernelPort}/"); } else { _kernel.Prefixes.Add($"http://127.0.0.1:{_kernelPort}/"); }
         _kernel.Prefixes.Add($"http://localhost:{_kernelPort}/");
         _kernel.Start();
 

@@ -7,7 +7,7 @@ final class NodeContract {
 abstract final class NodeContracts {
   static const _byKind = <String, NodeContract>{
     'confirmation': NodeContract(
-      'IntoChat.OS.Confirmation.IConfirmationInbox',
+      'DigitalBrain.Confirmation.IConfirmationInbox',
       'ConfirmationRequested',
     ),
     'view': NodeContract(

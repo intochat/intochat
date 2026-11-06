@@ -1,4 +1,4 @@
-name: ci
+﻿name: ci
 
 on:
   push:
@@ -176,6 +176,9 @@ jobs:
 
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
+
+      - name: Install Aspire workload
+        run: sudo dotnet workload install aspire
 
       - name: Test E2E
         run: |
