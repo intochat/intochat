@@ -13,7 +13,9 @@
     <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.E2E" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit" />
     <!-- The cloud topology (Topology=cloud): only the composition references the Azure runtime package (03-12). -->
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
     <PackageReference Include="DigitalBrain.Runtime.Orleans.Azure" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
     <PackageReference Include="DigitalBrain.Capabilities.Compute" />
     <PackageReference Include="DigitalBrain.Capabilities.Connections" />
     <PackageReference Include="DigitalBrain.Identity.Local" />

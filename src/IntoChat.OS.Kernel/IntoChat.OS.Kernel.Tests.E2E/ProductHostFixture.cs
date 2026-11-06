@@ -20,7 +20,7 @@ using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
-using IntoChat.OS.Kernel.Composition.Confirmations;
+using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Kernel.Tests.E2E.Policies;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
@@ -90,7 +90,6 @@ public sealed class ProductHostFixture : IAsyncLifetime
             typeof(FlutterModule).Assembly,
             typeof(IView).Assembly,
             typeof(FlameModule).Assembly,
-            typeof(ConfirmationNeurons).Assembly,
         }.Distinct().ToArray();
 
         var factory = new LocalSiloHostFactory(
@@ -102,7 +101,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
                 services.AddOptions<ConfirmationOptions>();
                 services.TryAddSingleton<IConfirmationContexts, KernelConfirmations>();
                 services.TryAddSingleton<ICallFilter, CallFilter>();
-                services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainNeuronCallFilter>());
+                services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrain.Runtime.Orleans.Enforcement.PlainNeuronCallFilter>());
                 services.TryAddSingleton<IDeepCopier<IntoChat.OS.Modules.AI.Context.ContextSlice>>(new ShallowCopier<IntoChat.OS.Modules.AI.Context.ContextSlice>());
                 services.AddNeuronProxies();
                 services.AddSingleton<IPolicyModel>(_policyModel);
@@ -122,7 +121,6 @@ public sealed class ProductHostFixture : IAsyncLifetime
                     typeof(AspireModule),
                     typeof(FlutterModule),
                     typeof(FlameModule),
-                    typeof(ConfirmationNeurons),
                 ],
             },
             CancellationToken.None);

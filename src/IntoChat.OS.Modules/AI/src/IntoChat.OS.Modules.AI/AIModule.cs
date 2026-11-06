@@ -5,6 +5,7 @@ using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
+using NeuronSurface = IntoChat.OS.Connections.Surface.NeuronSurface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Runtime;

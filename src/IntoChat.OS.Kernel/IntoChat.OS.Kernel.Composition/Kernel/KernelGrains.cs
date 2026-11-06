@@ -1,4 +1,5 @@
 using DigitalBrain.Brains;
+using DigitalBrain.Runtime.Orleans.Brain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;

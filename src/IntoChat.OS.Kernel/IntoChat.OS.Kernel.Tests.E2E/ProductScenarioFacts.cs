@@ -7,10 +7,9 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Confirmation;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Kernel.Composition.Confirmations;
+using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Context;
 using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
@@ -286,7 +285,6 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
     public async Task Scenario04_KnowledgeAugmentedRoutingAndPlanSynthesis_DeliberatesAndExecutes()
     {
         var brain = fixture.NewBrain("s04");
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
 
         // Step 1: Populate MemoryNeuron on the real silo and KnowledgeStore topology
         var memory = SiloNeurons.Get<IMemory>(fixture.Services, $"{brain}/memory");

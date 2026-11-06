@@ -2,6 +2,8 @@ using DigitalBrain;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Compute;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Confirmations;
+using DigitalBrain.Runtime.Orleans.Enforcement;
 using DigitalBrain.Spi;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -33,15 +35,15 @@ public static class BrainHosting
         }
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>(), provider.GetServices<IModuleTypeSource>()));
         silo.Services.TryAddSingleton(TimeProvider.System);
-        silo.Services.AddOptions<Confirmations.ConfirmationOptions>().BindConfiguration(Confirmations.ConfirmationOptions.Section);
-        silo.Services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Operations.IConfirmationContexts, Confirmations.KernelConfirmations>();
+        silo.Services.AddOptions<ConfirmationOptions>().BindConfiguration(ConfirmationOptions.Section);
+        silo.Services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Operations.IConfirmationContexts, KernelConfirmations>();
         silo.Services.TryAddSingleton<DigitalBrain.Capabilities.Storage.IStorageWriteIdentity, Confirmations.StorageWriteIdentity>();
         silo.Services.TryAddSingleton<DigitalBrain.Capabilities.Storage.IStorageWriteAuthorizer, DigitalBrain.Runtime.Orleans.Operations.StorageWriteAuthorizer>();
         DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(silo.Services, typeof(DigitalBrain.Confirmation.ConfirmationRequested).Assembly);
-        silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
+        silo.Services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Enforcement.ICallFilter, DigitalBrain.Runtime.Orleans.Enforcement.CallFilter>();
         SiloNeurons.AuthorizeStreams(silo.Services, static (services, id, call) =>
         {
-            if (services.GetService<ICallFilter>() is not { } filter)
+            if (services.GetService<DigitalBrain.Runtime.Orleans.Enforcement.ICallFilter>() is not { } filter)
             { return Task.CompletedTask; }
             if (!RuntimeCallerContext.TryGet(out var caller))
             {

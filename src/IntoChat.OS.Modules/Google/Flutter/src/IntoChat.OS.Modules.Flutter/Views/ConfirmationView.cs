@@ -1,7 +1,7 @@
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.UI.Confirmation;
-using IntoChat.OS.Confirmation;
+using DigitalBrain.Confirmation;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 

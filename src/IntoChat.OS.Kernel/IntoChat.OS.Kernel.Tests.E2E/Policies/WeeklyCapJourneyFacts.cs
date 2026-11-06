@@ -6,7 +6,6 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Confirmation;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Modules.Apps;
@@ -82,7 +81,6 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
     public async Task ADeniedPromiseChangesNothing()
     {
         var brain = fixture.NewBrain("deniedcap");
-        using var stamp = StampPerson(brain);
         fixture.EnqueuePolicyReply(WeeklyThreeHundredRow);
 
         using var postResponse = await fixture.Http.PostAsJsonAsync(
@@ -114,7 +112,6 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
     public async Task AnAppCanNeitherProposeNorRetireAPromise()
     {
         var brain = fixture.NewBrain("appcap");
-        using var stamp = StampPerson(brain);
         fixture.EnqueuePolicyReply(WeeklyThreeHundredRow);
 
         using var postResponse = await fixture.Http.PostAsJsonAsync(

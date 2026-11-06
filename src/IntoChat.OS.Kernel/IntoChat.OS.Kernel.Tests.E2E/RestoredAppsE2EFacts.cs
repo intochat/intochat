@@ -19,7 +19,7 @@ using IntoChat.Files;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Kernel.Composition.Confirmations;
+using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Desktop;

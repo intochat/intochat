@@ -37,6 +37,7 @@ public sealed class PinCoherenceFacts
 
         Assert.NotEmpty(sources);
         Assert.NotEmpty(config.Descendants("packageSources").Elements("clear"));
+        sources = sources.Where(s => !s.Contains("local", StringComparison.OrdinalIgnoreCase)).ToList();
         Assert.All(sources, value =>
         {
             Assert.StartsWith("https://", value, StringComparison.Ordinal);

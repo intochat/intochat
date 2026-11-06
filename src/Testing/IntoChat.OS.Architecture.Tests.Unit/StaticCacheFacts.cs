@@ -19,7 +19,6 @@ public sealed partial class StaticCacheFacts
         ["NeutralCallMapping.Predicates"] = "Type",
         ["PlainInstanceRegistration.ReadOnly"] = "(string Contract",
         ["PlainInstanceRegistration.StateNames"] = "string",
-        ["PlainNeuronCallFilter.Policies"] = "(string Contract",
         ["SignalTypes.Loaded"] = "string",
         ["TaskBoxing.Boxes"] = "Type",
         ["ToolCapabilitySource.PlainSources"] = "string",

@@ -75,8 +75,6 @@ public static class ServerHostingExtensions
         // The Authority's plain neurons (the connection index and requests, 06-08) are hosted on every silo, as its grains are.
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
             .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons))
-            .Append(typeof(IntoChat.OS.Kernel.Composition.Confirmations.ConfirmationNeurons))
-            .Append(typeof(IntoChat.OS.Kernel.Composition.Storage.StorageContentModule))
             // The brain graph projection (brain-graph-plan Phase 1) is hosted on every silo; it reads the kernel observer and nothing else.
             .Append(typeof(DigitalBrain.Graph.GraphModule)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).

@@ -14,8 +14,7 @@ using DigitalBrain.Testing.Conformance.Host;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Kernel.Composition;
-using IntoChat.OS.Kernel.Composition.Confirmations;
-using IntoChat.OS.Kernel.Composition.Storage;
+using DigitalBrain.Runtime.Orleans.Confirmations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Serialization.Cloning;
@@ -33,8 +32,6 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
         [
             .. OperatingSystemModules.InProcessModules.Select(static module => module.Neurons).OfType<Type>()
                 .Append(typeof(AuthorityPlainNeurons))
-                .Append(typeof(ConfirmationNeurons))
-                .Append(typeof(StorageContentModule))
                 .Append(typeof(DigitalBrain.Graph.GraphModule))
                 .Distinct(),
         ];

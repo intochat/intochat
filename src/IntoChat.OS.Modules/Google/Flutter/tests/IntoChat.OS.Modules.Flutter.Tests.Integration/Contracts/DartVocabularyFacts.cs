@@ -61,7 +61,7 @@ public sealed partial class DartVocabularyFacts
             if (kind == UIVocabulary.ConfirmationType)
             {
                 // The runtime's framework signal is intentionally not declared beside its OS inbox adapter.
-                Assert.Equal(typeof(IntoChat.OS.Confirmation.IConfirmationInbox).FullName, contract);
+                Assert.Equal(typeof(DigitalBrain.Confirmation.IConfirmationInbox).FullName, contract);
                 Assert.Equal(nameof(DigitalBrain.Confirmation.ConfirmationRequested), changed);
                 continue;
             }
