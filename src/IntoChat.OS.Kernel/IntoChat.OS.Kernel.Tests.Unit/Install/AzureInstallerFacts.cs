@@ -282,7 +282,7 @@ public sealed class AzureInstallerFacts
             {
                 Handler = req =>
                 {
-                    if (req.RequestUri?.AbsolutePath == "/health/ready")
+                    if (req.RequestUri?.AbsolutePath == "/ready")
                     {
                         return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
                     }

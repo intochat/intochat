@@ -32,6 +32,8 @@ public sealed class InstallPlanFacts
         Assert.Equal(80, uiSpec.IngressPort);
         Assert.True(uiSpec.Variables.TryGetValue("KERNEL_ORIGIN", out var origin));
         Assert.Equal("https://os.test.intochat.io", origin);
+        Assert.True(uiSpec.Variables.TryGetValue("INTOCHATOS_KERNEL_UPSTREAM", out var upstream));
+        Assert.Equal("https://os.test.intochat.io", upstream);
     }
 
     [Fact]

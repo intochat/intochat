@@ -224,7 +224,7 @@ public static class AzureInstaller
             throw new InvalidOperationException("OS endpoint host is required for smoke verification.");
         }
 
-        var osReadyUri = new Uri($"https://{osHost}/health/ready");
+        var osReadyUri = new Uri($"https://{osHost}/ready");
         using (var response = await client.GetAsync(osReadyUri, ct))
         {
             if (!response.IsSuccessStatusCode)

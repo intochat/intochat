@@ -60,6 +60,7 @@ public static class InstallPlan
             Variables = new Dictionary<string, string>
             {
                 ["KERNEL_ORIGIN"] = $"https://{osFqdn}",
+                ["INTOCHATOS_KERNEL_UPSTREAM"] = $"https://{osFqdn}",
             },
         };
     }
