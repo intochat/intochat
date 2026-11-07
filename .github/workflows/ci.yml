@@ -182,6 +182,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DIGITALBRAIN_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
 
+      - name: Provision Aspire DCP
+        run: |
+          mkdir -p ~/.aspire/bundle/dcp
+          curl -sSL https://api.nuget.org/v3-flatcontainer/aspire.hosting.orchestration.linux-x64/13.6.1/aspire.hosting.orchestration.linux-x64.13.6.1.nupkg -o /tmp/dcp.zip
+          unzip -q -o -j /tmp/dcp.zip "tools/*" -d ~/.aspire/bundle/dcp/
+          chmod +x ~/.aspire/bundle/dcp/dcp ~/.aspire/bundle/dcp/dcptun_c
+          rm -f /tmp/dcp.zip
+
       - name: Restore AppHost
         run: dotnet restore src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -v quiet
 

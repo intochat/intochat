@@ -13,18 +13,19 @@ namespace IntoChat.OS.Modules.Mcp.Tests.Unit;
 
 public sealed class McpPolicyFacts
 {
-    private static readonly NeuronId PoliciesId = NeuronId.Parse(IPolicies.Key("b"));
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static Task Adopt(TestOS os, PolicyRule rule) => os.AdoptPolicy("b", rule, Ct);
+    private static Task Adopt(TestOS os, string brain, PolicyRule rule) => os.AdoptPolicy(brain, rule, Ct);
 
-    private static async Task<(TestOS Os, McpServerNeuron Neuron)> CreateHarnessAsync(Uri endpoint)
+    private static async Task<(TestOS Os, McpServerNeuron Neuron, string Brain)> CreateHarnessAsync(Uri endpoint)
     {
+        var brain = Guid.NewGuid().ToString("N");
+        var policiesId = NeuronId.Parse(IPolicies.Key(brain));
         var os = TestOS.Local().Register(typeof(McpModule).Assembly);
-        var id = new NeuronId(new BrainId("b"), "mcp.server", "mcp/s1");
+        var id = new NeuronId(new BrainId(brain), "mcp.server", $"mcp/{Guid.NewGuid():N}");
         var context = new FakeNeuronContext(id);
-        context.Proxies.Register(PoliciesId, os.Get<IPolicies>(PoliciesId));
+        context.Proxies.Register(policiesId, os.Get<IPolicies>(policiesId));
         var tool = new ToolDescriptor("echo", "Echo", "", "{\"type\":\"object\"}", false);
         await context.MemoryState.Save(
             new McpServerStore
@@ -36,14 +37,14 @@ public sealed class McpPolicyFacts
         var neuron = new McpServerNeuron();
         NeuronAttachment.Attach(neuron, context);
         await NeuronAttachment.Activate(neuron, CancellationToken.None);
-        return (os, neuron);
+        return (os, neuron, brain);
     }
 
     [Fact]
     public async Task ARefusingPolicyStopsTheToolRunBeforeTheApiCall()
     {
         await using var server = FakeMcpEndpoint.Start();
-        var (os, neuron) = await CreateHarnessAsync(server.Endpoint);
+        var (os, neuron, brain) = await CreateHarnessAsync(server.Endpoint);
         await using var _ = os;
         var rule = new PolicyRule(
             "r1",
@@ -54,7 +55,7 @@ public sealed class McpPolicyFacts
             null,
             "Never run an MCP tool",
             os.Clock.GetUtcNow());
-        await Adopt(os, rule);
+        await Adopt(os, brain, rule);
 
         await Assert.ThrowsAsync<RuleViolationException>(() => neuron.Run("echo", "{}", Ct));
         Assert.Equal(0, server.ToolCalls);
@@ -64,7 +65,7 @@ public sealed class McpPolicyFacts
     public async Task AnAllowedToolRunIsCountedOnce()
     {
         await using var server = FakeMcpEndpoint.Start();
-        var (os, neuron) = await CreateHarnessAsync(server.Endpoint);
+        var (os, neuron, brain) = await CreateHarnessAsync(server.Endpoint);
         await using var _ = os;
         var rule = new PolicyRule(
             "r1",
@@ -75,7 +76,7 @@ public sealed class McpPolicyFacts
             null,
             "Allow at most 1 count of run an MCP tool per day",
             os.Clock.GetUtcNow());
-        await Adopt(os, rule);
+        await Adopt(os, brain, rule);
 
         var first = await neuron.Run("echo", "{}", Ct);
         Assert.False(first.IsError);
@@ -90,7 +91,7 @@ public sealed class McpPolicyFacts
     public async Task AFailedApiCallReleasesTheReservation()
     {
         await using var server = FakeMcpEndpoint.Start();
-        var (os, neuron) = await CreateHarnessAsync(server.Endpoint);
+        var (os, neuron, brain) = await CreateHarnessAsync(server.Endpoint);
         await using var _ = os;
         var rule = new PolicyRule(
             "r1",
@@ -101,7 +102,7 @@ public sealed class McpPolicyFacts
             null,
             "Allow at most 1 count of run an MCP tool per day",
             os.Clock.GetUtcNow());
-        await Adopt(os, rule);
+        await Adopt(os, brain, rule);
 
         server.FailNextToolCall = true;
         await Assert.ThrowsAnyAsync<Exception>(() => neuron.Run("echo", "{}", Ct));
