@@ -35,6 +35,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Free root disk in the background
+        run: |
+          df -h /
+          sudo nohup rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL > /dev/null 2>&1 &
+
       - name: Verify CI check-run status
         env:
           GH_TOKEN: ${{ github.token }}
