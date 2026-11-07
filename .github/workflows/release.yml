@@ -188,7 +188,7 @@ jobs:
   deploy-prod:
     name: deploy-prod
     needs: [package, deploy-test]
-    if: always() && (needs.deploy-test.result == 'success' || (inputs.rollback_tag != '' && inputs.rollback_tag != null))
+    if: vars.DEPLOY_PROD_ENABLED == 'true' && (needs.deploy-test.result == 'success' || (inputs.rollback_tag != '' && inputs.rollback_tag != null))
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 30

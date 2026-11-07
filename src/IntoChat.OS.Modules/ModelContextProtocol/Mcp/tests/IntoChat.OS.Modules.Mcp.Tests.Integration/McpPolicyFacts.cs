@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -8,6 +6,11 @@ using DigitalBrain.Rules;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Tools;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 
 namespace IntoChat.OS.Modules.Mcp.Tests.Unit;
 
@@ -105,7 +108,7 @@ public sealed class McpPolicyFacts
         await Adopt(os, brain, rule);
 
         server.FailNextToolCall = true;
-        await Assert.ThrowsAnyAsync<Exception>(() => neuron.Run("echo", "{}", Ct));
+        await Assert.ThrowsAnyAsync<McpException>(() => neuron.Run("echo", "{}", Ct));
 
         var second = await neuron.Run("echo", "{}", Ct);
         Assert.False(second.IsError);
@@ -124,60 +127,46 @@ public sealed class McpPolicyFacts
 
     private sealed class FakeMcpEndpoint : IAsyncDisposable
     {
-        private readonly HttpListener _listener = new();
-        private readonly CancellationTokenSource _cts = new();
-        private readonly Task _loop;
+        private readonly WebApplication _app;
         private int _toolCalls;
+        private int _failNextToolCall;
 
-        private FakeMcpEndpoint(int port)
+        private FakeMcpEndpoint(WebApplication app)
         {
-            var prefix = $"http://127.0.0.1:{port}/mcp/";
-            _listener.Prefixes.Add(prefix);
-            _listener.Start();
-            Endpoint = new Uri(prefix);
-            _loop = Task.Run(LoopAsync);
+            _app = app;
         }
 
-        private int _failNextToolCall;
         public int ToolCalls => Volatile.Read(ref _toolCalls);
         public bool FailNextToolCall { get => Volatile.Read(ref _failNextToolCall) == 1; set => Interlocked.Exchange(ref _failNextToolCall, value ? 1 : 0); }
-        public Uri Endpoint { get; }
+        public Uri Endpoint { get; private set; } = null!;
 
         public static FakeMcpEndpoint Start()
         {
-            using var probe = new TcpListener(IPAddress.Loopback, 0);
-            probe.Start();
-            var port = ((IPEndPoint)probe.LocalEndpoint).Port;
-            probe.Stop();
-            return new FakeMcpEndpoint(port);
+            var builder = WebApplication.CreateSlimBuilder();
+            builder.Logging.ClearProviders();
+            builder.WebHost.UseUrls("http://127.0.0.1:0");
+            var app = builder.Build();
+            var endpoint = new FakeMcpEndpoint(app);
+            app.Run(endpoint.HandleAsync);
+            app.StartAsync().GetAwaiter().GetResult();
+            endpoint.Endpoint = new Uri(app.Urls.Single().TrimEnd('/') + "/mcp/");
+            return endpoint;
         }
 
-        private async Task LoopAsync()
+        private async Task HandleAsync(HttpContext context)
         {
-            while (!_cts.IsCancellationRequested)
+            if (!HttpMethods.IsPost(context.Request.Method))
             {
-                HttpListenerContext context;
-                try { context = await _listener.GetContextAsync(); }
-                catch { break; }
-                _ = Task.Run(() => HandleAsync(context));
-            }
-        }
-
-        private async Task HandleAsync(HttpListenerContext context)
-        {
-            using var response = context.Response;
-            if (!string.Equals(context.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase))
-            {
-                response.StatusCode = 405;
+                context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
                 return;
             }
 
-            using var document = await JsonDocument.ParseAsync(context.Request.InputStream);
+            using var document = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
             var request = document.RootElement;
             var method = request.GetProperty("method").GetString();
             if (!request.TryGetProperty("id", out var id))
             {
-                response.StatusCode = 202;
+                context.Response.StatusCode = StatusCodes.Status202Accepted;
                 return;
             }
 
@@ -215,10 +204,10 @@ public sealed class McpPolicyFacts
             }
 
             var bytes = Encoding.UTF8.GetBytes(json);
-            response.StatusCode = 200;
-            response.ContentType = "application/json";
-            response.ContentLength64 = bytes.Length;
-            await response.OutputStream.WriteAsync(bytes);
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = "application/json";
+            context.Response.ContentLength = bytes.Length;
+            await context.Response.Body.WriteAsync(bytes, context.RequestAborted);
         }
 
         private static string Reply(JsonElement id, string kind, JsonNode body)
@@ -226,11 +215,8 @@ public sealed class McpPolicyFacts
 
         public async ValueTask DisposeAsync()
         {
-            await _cts.CancelAsync();
-            _listener.Stop();
-            _listener.Close();
-            try { await _loop; } catch { }
-            _cts.Dispose();
+            try { await _app.StopAsync(); }
+            finally { await _app.DisposeAsync(); }
         }
     }
 }
