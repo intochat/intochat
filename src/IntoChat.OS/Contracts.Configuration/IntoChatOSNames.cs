@@ -46,9 +46,26 @@ public static class IntoChatOSNames
     public const string FrontEnabledKey = "IntoChatOS:Http:Front";
     public const string LocalGpuKey = "IntoChatOS:Local:Gpu";
     public const string LocalModelKey = "IntoChatOS:Local:Model";
-    public const string LocalOllamaEndpointKey = "http://localhost:11434";
+    public const string LocalOllamaEndpoint = "http://localhost:11434";
 
-    // Single source of truth for modules switched off by default in local / local+cloud runs (shared by Kernel and AppHost).
+    // The modules switched off by default in local and local+cloud runs: the one list every host and the kernel read.
     public static readonly IReadOnlyList<string> LocalDisabledModules =
         ["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "azure", "roslyn"];
+
+    // The canonical spelling of a topology value: unset is local, the earlier local-cloud spelling is local+cloud, and an
+    // unknown value is null (the caller decides whether that stops the run).
+    public static string? CanonicalTopology(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) { return TopologyLocal; }
+        var trimmed = value.Trim();
+        if (string.Equals(trimmed, TopologyLocalCloudAlias, StringComparison.OrdinalIgnoreCase)) { return TopologyLocalCloud; }
+        foreach (var known in (string[])[TopologyLocal, TopologyLocalCloud, TopologyCloud])
+        {
+            if (string.Equals(trimmed, known, StringComparison.OrdinalIgnoreCase)) { return known; }
+        }
+        return null;
+    }
+
+    // Local and local+cloud run without containers, so the LocalDisabledModules default applies to them.
+    public static bool UsesLocalModuleDefaults(string? topology) => CanonicalTopology(topology) is TopologyLocal or TopologyLocalCloud;
 }

@@ -1,5 +1,6 @@
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Modules.Microsoft.Azure;
 using IntoChat.OS.Modules.Microsoft.Azure.Install;

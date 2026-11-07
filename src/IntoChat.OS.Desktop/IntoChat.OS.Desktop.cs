@@ -87,9 +87,9 @@ static void StartKernel(string osDirectory, Uri url, string home, string masterK
     environment["IntoChatOS__Home"] = home;
     environment["IntoChatOS__Topology"] = "local";
     environment["IntoChatOS__Modules__apps__Options__Features"] = Path.Combine(osDirectory, "features");
-    // The container-backed and cloud modules the AppHost's local topology switches off (RunProfile.LocalDisabledModules).
-    // The Windows module stays on: it is the device connector this package ships.
-    foreach (var module in (string[])["postgres", "qdrant", "clickhouse", "supabase", "artcraft", "playwright", "github", "azure", "roslyn", "time", "salesforce", "gmail"])
+    // The kernel switches off the local topology's container-backed modules itself (IntoChatOSNames.LocalDisabledModules). An
+    // installed desktop also leaves out these integrations; the Windows module stays on: it is the device connector this package ships.
+    foreach (var module in (string[])["github", "time", "salesforce", "gmail"])
     { environment[$"IntoChatOS__Modules__{module}__Enabled"] = "false"; }
     var kernel = Process.Start(start) ?? throw new InvalidOperationException("Could not start the OS.");
     var writer = new StreamWriter(log, append: true) { AutoFlush = true };

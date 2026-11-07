@@ -47,6 +47,23 @@ public sealed class LocalReset(
 {
     public const string CSharpCacheVolume = "intochat-os-csharp-cache";
 
+    // `reset` on the AppHost command line: clears this checkout's local run state and exits before any resource is added.
+    public static Task<int> RunFromAppHostAsync(global::Aspire.Hosting.IDistributedApplicationBuilder builder, string[] flags)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        var userSecretsId = System.Reflection.Assembly.GetEntryAssembly()?
+            .GetCustomAttributes(typeof(Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute), false)
+            .OfType<Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute>().FirstOrDefault()?.UserSecretsId;
+        var secretsDirectory = userSecretsId is null ? null
+            : Path.GetDirectoryName(Microsoft.Extensions.Configuration.UserSecrets.PathHelper.GetSecretsPathFromSecretsId(userSecretsId));
+        return new LocalReset(
+            builder.Environment, builder.ExecutionContext.IsRunMode, Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..")),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), IntoChatOSHome.Resolve(builder.Configuration),
+            builder.Configuration["AppHost:PathSha256"] ?? "", secretsDirectory, new RealResetFileSystem(), new RealDockerCli(),
+            Console.In, Console.Out, !Console.IsInputRedirected).RunAsync(flags, CancellationToken.None);
+    }
+
+
     private string WorkDirectory => Path.GetFullPath(Path.Combine(repositoryRoot, ".intochat-os"));
     private string ProductDirectory => Path.GetFullPath(Path.Combine(localApplicationData, "IntoChatOS"));
     // <Home>/state only: the Home's secrets and anything else under it stay.
