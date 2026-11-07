@@ -12,8 +12,8 @@
   },
   "postgres": {
     "enabled": true,
-    "sku": "Standard_B1ms",
-    "tier": "Burstable",
+    "sku": "Standard_D2ads_v5",
+    "tier": "GeneralPurpose",
     "storageGb": 32,
     "adminLogin": "intochat",
     "databases": [

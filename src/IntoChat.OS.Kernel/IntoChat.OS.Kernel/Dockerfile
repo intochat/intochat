@@ -37,7 +37,8 @@ COPY ui/shell/pubspec.yaml shell/
 RUN flutter pub get --enforce-lockfile
 COPY ui/ ./
 WORKDIR /workspace/shell
-RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub
+RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub \
+    && rm -rf /workspace/.dart_tool /workspace/shell/.dart_tool
 
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
 WORKDIR /src
