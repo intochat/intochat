@@ -177,8 +177,8 @@ jobs:
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
-      - name: Install Aspire workload
-        run: sudo dotnet workload install aspire
+      - name: Prepare Aspire environment
+        run: dotnet build src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -c Release --no-restore -v quiet -p:CodeGraphRefresh=false
 
       - name: Test E2E
         run: |
