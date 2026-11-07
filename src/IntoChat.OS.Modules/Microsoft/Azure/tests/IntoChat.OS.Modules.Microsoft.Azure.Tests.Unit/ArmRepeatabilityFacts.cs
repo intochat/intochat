@@ -14,8 +14,7 @@ public sealed class ArmRepeatabilityFacts
         using var handler = new AzureHttp();
         using var client = new HttpClient(handler);
         var arm = new ArmAzure(new Credential(), new HttpClientTransport(client));
-
-        var made = await arm.Ensure(AzureHttp.Subscription, new SessionPoolSpec
+        var pool = new SessionPoolSpec
         {
             Name = "test-sandbox",
             ResourceGroup = "rg",
@@ -24,9 +23,14 @@ public sealed class ArmRepeatabilityFacts
             Identity = "test-id",
             Image = "acr.azurecr.io/sandbox:1",
             RegistryServer = "acr.azurecr.io",
-        }, TestContext.Current.CancellationToken);
+        };
+
+        var made = await arm.Ensure(AzureHttp.Subscription, pool, TestContext.Current.CancellationToken);
+        var repeated = await arm.Ensure(AzureHttp.Subscription, pool, TestContext.Current.CancellationToken);
 
         Assert.Equal("https://test-sandbox.env-123.polandcentral.azurecontainerapps.io/", made.Endpoint);
+        Assert.Equal(made.Endpoint, repeated.Endpoint);
+        Assert.Equal(1, handler.SessionPoolWrites);
     }
 
     [Fact]
@@ -231,9 +235,11 @@ public sealed class ArmRepeatabilityFacts
         private const string Group = "/subscriptions/" + Subscription + "/resourceGroups/rg";
         public const string CertificateId = Group + "/providers/Microsoft.App/managedEnvironments/test-env/managedCertificates/test-cert";
         private JsonObject? _app;
+        private JsonObject? _sessionPool;
         private string? _secret;
         public int SecretWrites { get; private set; }
         public int AppWrites { get; private set; }
+        public int SessionPoolWrites { get; private set; }
         public JsonObject? LastAppWrite => _app;
         public int SubscriptionReads { get; private set; }
         public string? Tenant { get; init; } = SubscriptionTenant;
@@ -310,12 +316,16 @@ public sealed class ArmRepeatabilityFacts
             }
             else if (path.Equals(Group + "/providers/Microsoft.App/sessionPools/test-sandbox", StringComparison.OrdinalIgnoreCase))
             {
-                Assert.Equal(HttpMethod.Put, request.Method);
-                result = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!.AsObject();
-                result["id"] = path;
-                result["name"] = "test-sandbox";
-                result["properties"]!["provisioningState"] = "Succeeded";
-                result["properties"]!["poolManagementEndpoint"] = "https://test-sandbox.env-123.polandcentral.azurecontainerapps.io/";
+                if (request.Method == HttpMethod.Put)
+                {
+                    SessionPoolWrites++;
+                    _sessionPool = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!.AsObject();
+                    _sessionPool["id"] = path;
+                    _sessionPool["name"] = "test-sandbox";
+                    _sessionPool["properties"]!["provisioningState"] = "Succeeded";
+                    _sessionPool["properties"]!["poolManagementEndpoint"] = "https://test-sandbox.env-123.polandcentral.azurecontainerapps.io/";
+                }
+                result = _sessionPool;
             }
             else { throw new InvalidOperationException($"Unexpected Azure test request: {request.Method} {uri.GetLeftPart(UriPartial.Path)}"); }
 

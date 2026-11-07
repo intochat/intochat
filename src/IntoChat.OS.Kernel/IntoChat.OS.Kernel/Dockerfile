@@ -1,9 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# The operating system image.
-# Production pushes use SDK PublishContainer from .github/workflows/release.yml (single
-# ghcr.io/intochat/os image). This Dockerfile is the local/smoke equivalent and must stay in
-# step with the product AppHost profile.
+# The unified IntoChat OS image (Kernel + embedded Flutter web shell + ArtCraft bundles).
 #
 # Build (repo root):
 #   docker build -f src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Dockerfile -t os:local .
@@ -14,9 +11,33 @@
 #   IntoChatOS__Topology            cloud
 #   IntoChatOS__Cloud__Storage      the storage account (blob URI: clustering, reminders, grain state, signal queues)
 #   IntoChatOS__Cloud__KeyVault     Key Vault URI resolved by the managed identity (secrets as configuration)
-#   ConnectionStrings__qdrant  Endpoint=http://qdrant:6334;Key=...
+#   ConnectionStrings__qdrant       Endpoint=http://qdrant:6334;Key=...
 #
-# Ports: 8080 silo HTTP (broker + health).
+# Ports: 8080 silo HTTP (static web shell + broker + health).
+
+FROM ghcr.io/intochat/os-artcraft-photocraft-web:d7d5c6069c8f AS photocraft_web
+FROM ghcr.io/intochat/os-artcraft-filmcraft-web:7b6c13447228 AS filmcraft_web
+
+FROM debian:bookworm-slim AS ui-build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl git unzip xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+ARG FLUTTER_VERSION=3.47.2
+RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
+        | tar -xJ -C /opt \
+    && git config --global --add safe.directory /opt/flutter
+ENV PATH="/opt/flutter/bin:${PATH}"
+RUN flutter --version && flutter precache --web
+WORKDIR /workspace
+COPY ui/pubspec.yaml ui/pubspec.lock ./
+COPY ui/core/pubspec.yaml core/
+COPY ui/design_ui/pubspec.yaml design_ui/
+COPY ui/ui/pubspec.yaml ui/
+COPY ui/shell/pubspec.yaml shell/
+RUN flutter pub get --enforce-lockfile
+COPY ui/ ./
+WORKDIR /workspace/shell
+RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub
 
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
 WORKDIR /src
@@ -24,18 +45,24 @@ WORKDIR /src
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
 COPY src/ ./src/
 
-RUN dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+RUN --mount=type=cache,target=/root/.nuget/packages \
+    dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
       -c Release \
       -r linux-x64 \
       --self-contained false \
       -p:CodeGraphRefresh=false \
+      -p:DebugType=none \
       -o /out/silo \
-      --nologo
+      --nologo \
+    && rm -rf /src/artifacts
 
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3 AS final
 WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
+COPY --from=ui-build /workspace/shell/build/web /app/wwwroot
+COPY --from=photocraft_web /usr/share/nginx/html /app/wwwroot/artcraft/photocraft
+COPY --from=filmcraft_web /usr/share/nginx/html /app/wwwroot/artcraft/filmcraft
 COPY features /app/features
 
 # The image enables the OS catalog; configuration may disable modules

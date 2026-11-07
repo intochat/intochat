@@ -14,6 +14,9 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -152,6 +155,7 @@ public static class ServerHostingExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
         if (!((IApplicationBuilder)app).Properties.TryAdd("IntoChat.OS.Mapped", true)) { throw new InvalidOperationException("MapIntoChatOSServer runs once per application."); }
+        UseStaticWebShell(app);
         app.UsePlatformHttp();
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard) { app.MapOrleansDashboard(); }
         // /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
@@ -162,6 +166,101 @@ public static class ServerHostingExtensions
     }
 
     public static readonly TimeSpan ShutdownMargin = TimeSpan.FromSeconds(10);
+
+    public static WebApplication UseStaticWebShell(this WebApplication app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        var webRoot = ResolveWebRoot(app.Environment);
+        if (webRoot is null)
+        {
+            return app;
+        }
+
+        var fileProvider = new PhysicalFileProvider(webRoot);
+        app.Lifetime.ApplicationStopped.Register(fileProvider.Dispose);
+
+        app.Use((context, next) =>
+        {
+            if ((HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
+                && context.GetEndpoint() is null)
+            {
+                var reqPath = context.Request.Path;
+                if (reqPath.StartsWithSegments("/artcraft/photocraft", StringComparison.OrdinalIgnoreCase)
+                    && !fileProvider.GetFileInfo(reqPath.Value!).Exists
+                    && fileProvider.GetFileInfo("/artcraft/photocraft/index.html").Exists)
+                {
+                    context.Request.Path = "/artcraft/photocraft/index.html";
+                }
+                else if (reqPath.StartsWithSegments("/artcraft/filmcraft", StringComparison.OrdinalIgnoreCase)
+                    && !fileProvider.GetFileInfo(reqPath.Value!).Exists
+                    && fileProvider.GetFileInfo("/artcraft/filmcraft/index.html").Exists)
+                {
+                    context.Request.Path = "/artcraft/filmcraft/index.html";
+                }
+            }
+
+            return next(context);
+        });
+
+        app.UseDefaultFiles(new DefaultFilesOptions
+        {
+            FileProvider = fileProvider,
+        });
+
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = fileProvider,
+            ServeUnknownFileTypes = true,
+            DefaultContentType = "application/octet-stream",
+            OnPrepareResponse = static ctx =>
+            {
+                if (ctx.Context.Request.Path.Equals("/config.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.Context.Response.Headers.CacheControl = "no-store";
+                }
+            },
+        });
+
+        app.Use((context, next) =>
+        {
+            if ((HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
+                && context.Request.Path.Equals("/config.json", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.Headers.CacheControl = "no-store";
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return Task.CompletedTask;
+            }
+
+            return next(context);
+        });
+
+        return app;
+    }
+
+    private static string? ResolveWebRoot(IWebHostEnvironment environment)
+    {
+        if (!string.IsNullOrWhiteSpace(environment.WebRootPath) && Directory.Exists(environment.WebRootPath))
+        {
+            return Path.GetFullPath(environment.WebRootPath);
+        }
+
+        if (!string.IsNullOrWhiteSpace(environment.ContentRootPath))
+        {
+            var contentWebRoot = Path.Combine(environment.ContentRootPath, "wwwroot");
+            if (Directory.Exists(contentWebRoot))
+            {
+                return Path.GetFullPath(contentWebRoot);
+            }
+        }
+
+        var baseWebRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        if (Directory.Exists(baseWebRoot))
+        {
+            return Path.GetFullPath(baseWebRoot);
+        }
+
+        return null;
+    }
 
     public static TimeSpan ShutdownTimeout(TimeSpan? drainDelay, TimeSpan deactivationTimeout)
         => (drainDelay is { } delay && delay > TimeSpan.Zero ? delay + HealthProbes.ServerStop : TimeSpan.Zero) + deactivationTimeout + ShutdownMargin;

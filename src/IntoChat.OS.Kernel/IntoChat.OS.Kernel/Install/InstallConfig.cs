@@ -12,7 +12,6 @@ public sealed record InstallConfig
     public string Prefix { get; init; } = "";
     public string Env { get; init; } = "";
     public string OsImage { get; init; } = "";
-    public string UiImage { get; init; } = "";
     public double Cpu { get; init; } = 0.5;
     public string Memory { get; init; } = "1Gi";
     public int StorageQuotaGb { get; init; } = 20;
@@ -57,8 +56,6 @@ public sealed record InstallConfig
 
     public string OsName => Named("os", ResourceNames.App(Prefix, Env, "os"));
 
-    public string UiName => Named("ui", ResourceNames.App(Prefix, Env, "ui"));
-
     // names.registry, else the first label of registryServer (an install config that already names its registry), else derived.
     public string RegistryName => Named("registry", RegistryServer.Length > 0 ? RegistryServer.Split('.')[0] : ResourceNames.Registry(Prefix, Env));
 
@@ -82,15 +79,23 @@ public sealed record InstallConfig
             var csharp = modules.TryGetValue("csharp", out var existing)
                 ? new Dictionary<string, string>(existing, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            csharp["sandboxImage"] = manifest.SandboxImage;
+            csharp["sandboxImage"] = RewriteRegistry(manifest.SandboxImage, LoginServer);
             modules["csharp"] = csharp;
         }
         return this with
         {
-            OsImage = !string.IsNullOrWhiteSpace(manifest.OsImage) ? manifest.OsImage : OsImage,
-            UiImage = !string.IsNullOrWhiteSpace(manifest.UiImage) ? manifest.UiImage : UiImage,
+            OsImage = !string.IsNullOrWhiteSpace(manifest.OsImage) ? RewriteRegistry(manifest.OsImage, LoginServer) : OsImage,
             Modules = modules,
         };
+    }
+
+    private static string RewriteRegistry(string image, string loginServer)
+    {
+        if (string.IsNullOrWhiteSpace(loginServer)) { return image; }
+        var slash = image.IndexOf('/');
+        return slash > 0 && image[..slash].Contains('.', StringComparison.Ordinal)
+            ? $"{loginServer}{image[slash..]}"
+            : image;
     }
 
     public ModuleSettings SettingsFor(string module)

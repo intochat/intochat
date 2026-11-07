@@ -12,7 +12,6 @@ public sealed class InstallPlanFacts
           "prefix": "intochat",
           "env": "test",
           "osImage": "ghcr.io/intochat/os:1.0.0",
-          "uiImage": "ghcr.io/intochat/os-ui:1.0.0",
           "registryServer": "intochat.azurecr.io",
           "postgres": {
             "enabled": true,
@@ -22,18 +21,23 @@ public sealed class InstallPlanFacts
         """;
 
     [Fact]
-    public void UiAppSpecSetsPort80AndKernelOriginEnvironmentVariable()
+    public void WithManifestRewritesImageDigestsToTargetRegistryLoginServer()
     {
-        var config = InstallConfig.Parse(ConfigJson);
-        var uiSpec = InstallPlan.UiApp(config, "os.test.intochat.io");
+        var prodConfig = InstallConfig.Parse(ConfigJson) with
+        {
+            Env = "prod",
+            RegistryServer = "acrintochatprod.azurecr.io",
+        };
+        var manifest = new ReleaseManifest(
+            Version: "0.16.1",
+            Commit: "abc1234",
+            OsImage: "acrintochattest.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            SandboxImage: "acrintochattest.azurecr.io/os-sandbox@sha256:3333333333333333333333333333333333333333333333333333333333333333");
 
-        Assert.Equal("intochat-test-ui", uiSpec.Name);
-        Assert.Equal("ghcr.io/intochat/os-ui:1.0.0", uiSpec.Image);
-        Assert.Equal(80, uiSpec.IngressPort);
-        Assert.True(uiSpec.Variables.TryGetValue("KERNEL_ORIGIN", out var origin));
-        Assert.Equal("https://os.test.intochat.io", origin);
-        Assert.True(uiSpec.Variables.TryGetValue("INTOCHATOS_KERNEL_UPSTREAM", out var upstream));
-        Assert.Equal("https://os.test.intochat.io", upstream);
+        var updated = prodConfig.WithManifest(manifest);
+
+        Assert.Equal("acrintochatprod.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111", updated.OsImage);
+        Assert.Equal("acrintochatprod.azurecr.io/os-sandbox@sha256:3333333333333333333333333333333333333333333333333333333333333333", updated.Modules["csharp"]["sandboxImage"]);
     }
 
     [Fact]

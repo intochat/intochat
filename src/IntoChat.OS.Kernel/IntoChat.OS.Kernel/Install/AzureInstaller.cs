@@ -47,6 +47,14 @@ public static class AzureInstaller
                 var manifestJson = await File.ReadAllTextAsync(manifestPath, ct);
                 manifest = JsonSerializer.Deserialize<ReleaseManifest>(manifestJson, JsonOptions)
                     ?? throw new InvalidOperationException($"Failed to deserialize release manifest from '{manifestPath}'.");
+                if (string.IsNullOrWhiteSpace(manifest.Version)
+                    || string.IsNullOrWhiteSpace(manifest.Commit)
+                    || string.IsNullOrWhiteSpace(manifest.OsImage)
+                    || !manifest.OsImage.Contains("@sha256:", StringComparison.Ordinal)
+                    || (!string.IsNullOrWhiteSpace(manifest.SandboxImage) && !manifest.SandboxImage.Contains("@sha256:", StringComparison.Ordinal)))
+                {
+                    throw new InvalidOperationException("Release manifest must specify version, commit, and @sha256: image digests.");
+                }
                 config = config.WithManifest(manifest);
             }
         }
@@ -112,18 +120,8 @@ public static class AzureInstaller
                 config = config with { InstallerPrincipalId = principalId };
             }
 
-            // If promoting from another registry, import all three images first
-            if (!string.IsNullOrEmpty(promoteFrom) && manifest is not null)
-            {
-                current = $"promote images from {promoteFrom}";
-                var targetGroup = config.GroupName;
-                var targetRegistry = config.RegistryName;
-                await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.OsImage, ct);
-                await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.UiImage, ct);
-                await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.SandboxImage, ct);
-            }
-
-            // The foundation first, then each composed module's deployment, then the OS app with what they asked for.
+            // The foundation first (creating the resource group and registry), then image promotion if requested,
+            // then each composed module's deployment, then the OS app with what they asked for.
             var foundation = InstallPlan.Refs(config);
             foreach (var spec in InstallPlan.Foundation(config))
             {
@@ -133,6 +131,19 @@ public static class AzureInstaller
                     foundation = foundation with { RegistryServer = made.Endpoint, Registry = made };
                 }
             }
+
+            if (!string.IsNullOrEmpty(promoteFrom) && manifest is not null)
+            {
+                current = $"promote images from {promoteFrom}";
+                var targetGroup = config.GroupName;
+                var targetRegistry = config.RegistryName;
+                await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.OsImage, ct);
+                if (!string.IsNullOrWhiteSpace(manifest.SandboxImage))
+                {
+                    await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.SandboxImage, ct);
+                }
+            }
+
             var target = new DeploymentTarget(config.Subscription, config.Location, config.Prefix, config.Env);
             var variables = new Dictionary<string, string>(StringComparer.Ordinal);
             var secrets = new List<SecretRef>();
@@ -184,15 +195,6 @@ public static class AzureInstaller
             var osApp = InstallPlan.OsApp(config, variables, secrets);
             var osMade = await Ensure(osApp with { RegistryServer = foundation.RegistryServer }, ct);
 
-            string? uiFqdn = null;
-            if (!string.IsNullOrWhiteSpace(config.UiImage))
-            {
-                var osHost = HostOnly(osMade.Endpoint);
-                var uiApp = InstallPlan.UiApp(config, osHost);
-                var uiMade = await Ensure(uiApp with { RegistryServer = foundation.RegistryServer }, ct);
-                uiFqdn = HostOnly(uiMade.Endpoint);
-            }
-
             if (dryRun)
             {
                 await output.WriteLineAsync(InstallPlan.Summary(planned), ct);
@@ -204,11 +206,13 @@ public static class AzureInstaller
                 {
                     current = "smoke verification";
                     using var client = httpClient is not null ? null : new HttpClient();
-                    await VerifySmokeAsync(httpClient ?? client!, osHost, uiFqdn, ct);
+                    var maxAttempts = httpClient is null ? 18 : 1;
+                    var retryDelay = httpClient is null ? TimeSpan.FromSeconds(5) : TimeSpan.Zero;
+                    await VerifySmokeAsync(httpClient ?? client!, osHost, maxAttempts, retryDelay, ct);
                 }
             }
         }
-        catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException or HttpRequestException)
+        catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException or HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
             await error.WriteLineAsync($"install: {current} failed: {ex.Message}", ct);
             return 1;
@@ -216,7 +220,10 @@ public static class AzureInstaller
         return 0;
     }
 
-    public static async Task VerifySmokeAsync(HttpClient client, string osHost, string? uiHost, CancellationToken ct)
+    public static Task VerifySmokeAsync(HttpClient client, string osHost, CancellationToken ct) =>
+        VerifySmokeAsync(client, osHost, maxAttempts: 1, retryDelay: TimeSpan.Zero, ct);
+
+    internal static async Task VerifySmokeAsync(HttpClient client, string osHost, int maxAttempts, TimeSpan retryDelay, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(client);
         if (string.IsNullOrWhiteSpace(osHost))
@@ -224,24 +231,42 @@ public static class AzureInstaller
             throw new InvalidOperationException("OS endpoint host is required for smoke verification.");
         }
 
-        var osReadyUri = new Uri($"https://{osHost}/ready");
-        using (var response = await client.GetAsync(osReadyUri, ct))
+        await ProbeEndpointAsync(client, new Uri($"https://{osHost}/ready"), "OS ready check", maxAttempts, retryDelay, ct);
+        await ProbeEndpointAsync(client, new Uri($"https://{osHost}/"), "UI root check", maxAttempts, retryDelay, ct);
+    }
+
+    private static async Task ProbeEndpointAsync(HttpClient client, Uri uri, string label, int maxAttempts, TimeSpan retryDelay, CancellationToken ct)
+    {
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            if (!response.IsSuccessStatusCode)
+            using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            attemptCts.CancelAfter(TimeSpan.FromSeconds(15));
+            try
             {
-                throw new InvalidOperationException($"OS ready check {osReadyUri} returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+                using var response = await client.GetAsync(uri, attemptCts.Token);
+                if (response.IsSuccessStatusCode)
+                {
+                    return;
+                }
+                lastError = new InvalidOperationException($"{label} {uri} returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+            }
+            catch (OperationCanceledException oce) when (!ct.IsCancellationRequested)
+            {
+                lastError = new InvalidOperationException($"{label} {uri} timed out: {oce.Message}", oce);
+            }
+            catch (HttpRequestException hre)
+            {
+                lastError = hre;
+            }
+
+            if (attempt < maxAttempts && retryDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(retryDelay, ct);
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(uiHost))
-        {
-            var uiUri = new Uri($"https://{uiHost}/");
-            using var response = await client.GetAsync(uiUri, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new InvalidOperationException($"UI root check {uiUri} returned {(int)response.StatusCode} {response.ReasonPhrase}.");
-            }
-        }
+        throw lastError ?? new InvalidOperationException($"{label} {uri} failed.");
     }
 
     private static string HostOnly(string endpoint)

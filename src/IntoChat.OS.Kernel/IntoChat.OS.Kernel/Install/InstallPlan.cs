@@ -39,32 +39,6 @@ public static class InstallPlan
     public static ContainerAppSpec OsApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<SecretRef> secrets) =>
         (ContainerAppSpec)Build(config, variables, secrets)[^1];
 
-    public static ContainerAppSpec UiApp(InstallConfig config, string osFqdn)
-    {
-        ArgumentNullException.ThrowIfNull(config);
-        var c = config.Validated();
-        return new ContainerAppSpec
-        {
-            Name = c.UiName,
-            ResourceGroup = c.GroupName,
-            Location = c.Location,
-            Env = c.Env,
-            Owner = Owner,
-            Environment = c.EnvironmentName,
-            Identity = c.IdentityName,
-            Image = c.UiImage,
-            Cpu = 0.25,
-            Memory = "0.5Gi",
-            IngressPort = 80,
-            RegistryServer = c.LoginServer,
-            Variables = new Dictionary<string, string>
-            {
-                ["KERNEL_ORIGIN"] = $"https://{osFqdn}",
-                ["INTOCHATOS_KERNEL_UPSTREAM"] = $"https://{osFqdn}",
-            },
-        };
-    }
-
     public static FoundationRefs Refs(InstallConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);

@@ -16,7 +16,6 @@ public sealed class AzureInstallerFacts
           "prefix": "intochat",
           "env": "test",
           "osImage": "intochat.azurecr.io/os:old",
-          "uiImage": "intochat.azurecr.io/os-ui:old",
           "registryServer": "intochat.azurecr.io",
           "installerPrincipalId": "principal-12345",
           "ghcrUsername": "intochat",
@@ -33,7 +32,6 @@ public sealed class AzureInstallerFacts
           "version": "1.2.3",
           "commit": "abcdef1234567890",
           "osImage": "intochat.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-          "uiImage": "intochat.azurecr.io/os-ui@sha256:2222222222222222222222222222222222222222222222222222222222222222",
           "sandboxImage": "intochat.azurecr.io/sandbox@sha256:3333333333333333333333333333333333333333333333333333333333333333"
         }
         """;
@@ -97,7 +95,7 @@ public sealed class AzureInstallerFacts
     }
 
     [Fact]
-    public async Task InstallWithReleaseManifestOverridesOsUiAndSandboxImageDigestsAndDeploysUiApp()
+    public async Task InstallWithReleaseManifestOverridesOsAndSandboxImageDigestsAndDeploysSingleOsApp()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -124,12 +122,11 @@ public sealed class AzureInstallerFacts
 
             Assert.Equal(0, code);
             var apps = arm.EnsuredSpecs.OfType<ContainerAppSpec>().ToList();
-            var osApp = Assert.Single(apps, a => a.Name == "intochat-test-os");
+            var osApp = Assert.Single(apps);
+            Assert.Equal("intochat-test-os", osApp.Name);
             Assert.Equal("intochat.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111", osApp.Image);
-
-            var uiApp = Assert.Single(apps, a => a.Name == "intochat-test-ui");
-            Assert.Equal("intochat.azurecr.io/os-ui@sha256:2222222222222222222222222222222222222222222222222222222222222222", uiApp.Image);
-            Assert.Equal("https://intochat-test-os.westeurope.azurecontainerapps.io", uiApp.Variables["KERNEL_ORIGIN"]);
+            Assert.Contains("https://intochat-test-os.westeurope.azurecontainerapps.io/ready", handler.RequestedUrls);
+            Assert.Contains("https://intochat-test-os.westeurope.azurecontainerapps.io/", handler.RequestedUrls);
         }
         finally
         {
@@ -228,7 +225,7 @@ public sealed class AzureInstallerFacts
     }
 
     [Fact]
-    public async Task InstallWithPromoteFromImportsAllThreeDigestsBeforeEnsuringContainerApps()
+    public async Task InstallWithPromoteFromImportsOsAndSandboxDigestsAfterFoundationAndBeforeContainerApps()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -256,10 +253,9 @@ public sealed class AzureInstallerFacts
                 TestContext.Current.CancellationToken);
 
             Assert.Equal(0, code);
-            Assert.Equal(3, arm.ImportedImages.Count);
+            Assert.Equal(2, arm.ImportedImages.Count);
             Assert.All(arm.ImportedImages, item => Assert.Equal(sourceRegistryResourceId, item.SourceRegistryId));
             Assert.Contains(arm.ImportedImages, item => item.SourceImage == "intochat.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111");
-            Assert.Contains(arm.ImportedImages, item => item.SourceImage == "intochat.azurecr.io/os-ui@sha256:2222222222222222222222222222222222222222222222222222222222222222");
             Assert.Contains(arm.ImportedImages, item => item.SourceImage == "intochat.azurecr.io/sandbox@sha256:3333333333333333333333333333333333333333333333333333333333333333");
         }
         finally

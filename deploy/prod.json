@@ -5,7 +5,6 @@
   "env": "prod",
   "resourceGroup": "rg-intochat-prod",
   "osImage": "acrintochatprod.azurecr.io/os:latest",
-  "uiImage": "acrintochatprod.azurecr.io/os-ui:latest",
   "registryServer": "acrintochatprod.azurecr.io",
   "registry": {
     "enabled": true,
@@ -24,10 +23,11 @@
   "modules": {
     "auth": {
       "Posture": "Secured",
-      "PublicBaseUrl": "https://ca-intochat-prod-os.polandcentral.azurecontainerapps.io"
+      "PublicBaseUrl": "https://os.intochat.io"
     },
     "csharp": {
       "sandboxImage": "acrintochatprod.azurecr.io/os-sandbox:latest",
+      "edgeUrl": "https://os.intochat.io",
       "sessionExecutorRoleId": "0fb8eba5-a2bb-4abe-b1c1-49dfad359bb0"
     }
   }

@@ -42,12 +42,6 @@ public sealed class RepositoryLayoutFacts
         {
             var relativePath = Path.GetRelativePath(Repository.Root, file).Replace('\\', '/');
 
-            // Allow the container entrypoint for nginx docker image
-            if (relativePath.Equals("ui/shell/nginx/19-validate-kernel.sh", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             // Allow systemone-adapter server.py
             if (relativePath.EndsWith("IntoChat.OS.Modules/AI/systemone-adapter/server.py", StringComparison.OrdinalIgnoreCase))
             {

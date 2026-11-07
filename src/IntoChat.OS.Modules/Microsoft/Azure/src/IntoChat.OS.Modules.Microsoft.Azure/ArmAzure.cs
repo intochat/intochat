@@ -254,32 +254,58 @@ public sealed class ArmAzure : IAzureArm
 
     private async Task<ResourceRef> EnsurePostgres(ResourceGroupResource rg, PostgresSpec spec, AzureLocation location, CancellationToken ct)
     {
-        var password = (await Secrets(spec.Vault).GetSecretAsync(spec.AdminPasswordSecret, cancellationToken: ct)).Value.Value
-            ?? throw new InvalidOperationException($"Secret {spec.AdminPasswordSecret} has no value for the Postgres admin password.");
-        var data = new PostgreSqlFlexibleServerData(location)
+        var servers = rg.GetPostgreSqlFlexibleServers();
+        var existing = await servers.GetIfExistsAsync(spec.Name, ct);
+        PostgreSqlFlexibleServerResource server;
+        if (existing.HasValue
+            && existing.Value!.Data.State == PostgreSqlFlexibleServerState.Ready
+            && string.Equals(existing.Value.Data.Sku?.Name, spec.Sku, StringComparison.OrdinalIgnoreCase)
+            && existing.Value.Data.Storage?.StorageSizeInGB == spec.StorageGb)
         {
-            Sku = new PostgreSqlFlexibleServerSku(spec.Sku, new PostgreSqlFlexibleServerSkuTier(spec.Tier)),
-            Version = new PostgreSqlFlexibleServerVersion(spec.Version),
-            AdministratorLogin = spec.AdminLogin,
-            AdministratorLoginPassword = password,
-            Storage = new PostgreSqlFlexibleServerStorage { StorageSizeInGB = spec.StorageGb },
-            Network = new PostgreSqlFlexibleServerNetwork { PublicNetworkAccess = PostgreSqlFlexibleServerPublicNetworkAccessState.Enabled },
-        };
-        Apply(spec, data.Tags);
-        var made = await rg.GetPostgreSqlFlexibleServers().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+            server = existing.Value;
+        }
+        else
+        {
+            var password = (await Secrets(spec.Vault).GetSecretAsync(spec.AdminPasswordSecret, cancellationToken: ct)).Value.Value
+                ?? throw new InvalidOperationException($"Secret {spec.AdminPasswordSecret} has no value for the Postgres admin password.");
+            var data = new PostgreSqlFlexibleServerData(location)
+            {
+                Sku = new PostgreSqlFlexibleServerSku(spec.Sku, new PostgreSqlFlexibleServerSkuTier(spec.Tier)),
+                Version = new PostgreSqlFlexibleServerVersion(spec.Version),
+                AdministratorLogin = spec.AdminLogin,
+                AdministratorLoginPassword = password,
+                Storage = new PostgreSqlFlexibleServerStorage { StorageSizeInGB = spec.StorageGb },
+                Network = new PostgreSqlFlexibleServerNetwork { PublicNetworkAccess = PostgreSqlFlexibleServerPublicNetworkAccessState.Enabled },
+            };
+            Apply(spec, data.Tags);
+            server = (await servers.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct)).Value;
+        }
+
         // 0.0.0.0 to 0.0.0.0 is the allow-Azure-services rule.
-        await made.Value.GetPostgreSqlFlexibleServerFirewallRules().CreateOrUpdateAsync(
-            WaitUntil.Completed,
-            "AllowAllAzureServicesAndResourcesWithinAzureIps",
-            new PostgreSqlFlexibleServerFirewallRuleData(IPAddress.Any, IPAddress.Any),
-            ct);
-        return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.FullyQualifiedDomainName ?? "" };
+        const string firewallRuleName = "AllowAllAzureServicesAndResourcesWithinAzureIps";
+        var firewallRules = server.GetPostgreSqlFlexibleServerFirewallRules();
+        if (!(await firewallRules.ExistsAsync(firewallRuleName, ct)).Value)
+        {
+            await firewallRules.CreateOrUpdateAsync(
+                WaitUntil.Completed,
+                firewallRuleName,
+                new PostgreSqlFlexibleServerFirewallRuleData(IPAddress.Any, IPAddress.Any),
+                ct);
+        }
+
+        return Ref(server.Id, spec, spec.Name) with { Endpoint = server.Data.FullyQualifiedDomainName ?? "" };
     }
 
     private static async Task<ResourceRef> EnsurePostgresDatabase(ResourceGroupResource rg, PostgresDatabaseSpec spec, CancellationToken ct)
     {
         var server = (await rg.GetPostgreSqlFlexibleServerAsync(spec.Server, ct)).Value;
-        var made = await server.GetPostgreSqlFlexibleServerDatabases().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, new PostgreSqlFlexibleServerDatabaseData(), ct);
+        var databases = server.GetPostgreSqlFlexibleServerDatabases();
+        var existing = await databases.GetIfExistsAsync(spec.Name, ct);
+        if (existing.HasValue)
+        {
+            return Ref(existing.Value!.Id, spec, spec.Name);
+        }
+        var made = await databases.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, new PostgreSqlFlexibleServerDatabaseData(), ct);
         return Ref(made.Value.Id, spec, spec.Name);
     }
 
@@ -574,7 +600,15 @@ public sealed class ArmAzure : IAzureArm
         });
         data.CustomContainerTemplate = template;
         Apply(spec, data.Tags);
-        var made = await rg.GetSessionPools().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
+        var pools = rg.GetSessionPools();
+        var existing = await pools.GetIfExistsAsync(spec.Name, ct);
+        using var desiredJson = JsonDocument.Parse(ModelReaderWriter.Write(data).ToString());
+        using var existingJson = existing.HasValue ? JsonDocument.Parse(ModelReaderWriter.Write(existing.Value!.Data).ToString()) : null;
+        if (existingJson is not null && MatchesDesired(desiredJson.RootElement, existingJson.RootElement))
+        {
+            return Ref(existing.Value!.Id, spec, spec.Name) with { Endpoint = existing.Value!.Data.PoolManagementEndpoint?.AbsoluteUri ?? "" };
+        }
+        var made = await pools.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
         return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.PoolManagementEndpoint?.AbsoluteUri ?? "" };
     }
 
@@ -630,7 +664,9 @@ public sealed class ArmAzure : IAzureArm
         var sub = Subscription(subscription);
         var rg = (await sub.GetResourceGroupAsync(targetGroup, ct)).Value;
         var registry = (await rg.GetContainerRegistryAsync(targetRegistry, ct)).Value;
-        var source = new ContainerRegistryImportSource(sourceImage)
+        var slash = sourceImage.IndexOf('/');
+        var imageRef = slash > 0 && sourceImage[..slash].Contains('.', StringComparison.Ordinal) ? sourceImage[(slash + 1)..] : sourceImage;
+        var source = new ContainerRegistryImportSource(imageRef)
         {
             ResourceId = new ResourceIdentifier(sourceRegistryResourceId),
         };
@@ -638,6 +674,9 @@ public sealed class ArmAzure : IAzureArm
         {
             Mode = ContainerRegistryImportMode.Force,
         };
+        var repoEnd = imageRef.IndexOfAny(['@', ':']);
+        var repoName = repoEnd > 0 ? imageRef[..repoEnd] : imageRef;
+        content.TargetTags.Add($"{repoName}:latest");
         await registry.ImportImageAsync(WaitUntil.Completed, content, ct);
     }
 }
