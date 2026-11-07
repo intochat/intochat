@@ -93,6 +93,11 @@ internal sealed class McpServerNeuron : DigitalBrain.Neuron<McpServerStore>, IMc
             await Drop();
             return await operation(await Client(endpoint, budget.Token), budget.Token);
         }
+        catch (McpException)
+        {
+            await Drop();
+            throw;
+        }
     }
 
     private async Task<McpClient> Client(Uri endpoint, CancellationToken ct)

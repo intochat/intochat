@@ -177,8 +177,13 @@ jobs:
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
-      - name: Prepare Aspire environment
-        run: dotnet build src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -c Release --no-restore -v quiet -p:CodeGraphRefresh=false
+      - name: Authenticate GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.DIGITALBRAIN_READ_TOKEN || secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
+
+      - name: Restore AppHost
+        run: dotnet restore src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -v quiet
 
       - name: Test E2E
         run: |

@@ -137,8 +137,9 @@ public sealed class McpPolicyFacts
             _loop = Task.Run(LoopAsync);
         }
 
+        private int _failNextToolCall;
         public int ToolCalls => Volatile.Read(ref _toolCalls);
-        public bool FailNextToolCall { get; set; }
+        public bool FailNextToolCall { get => Volatile.Read(ref _failNextToolCall) == 1; set => Interlocked.Exchange(ref _failNextToolCall, value ? 1 : 0); }
         public Uri Endpoint { get; }
 
         public static FakeMcpEndpoint Start()
@@ -193,9 +194,8 @@ public sealed class McpPolicyFacts
             else if (method == "tools/call")
             {
                 Interlocked.Increment(ref _toolCalls);
-                if (FailNextToolCall)
+                if (Interlocked.CompareExchange(ref _failNextToolCall, 0, 1) == 1)
                 {
-                    FailNextToolCall = false;
                     json = Reply(id, "error", new JsonObject { ["code"] = -32603, ["message"] = "Simulated tool failure" });
                 }
                 else
