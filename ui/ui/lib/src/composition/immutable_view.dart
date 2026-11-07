@@ -3317,8 +3317,8 @@ class _InteractiveWasmBrowserFrameState
           return '${base.origin}$studioPath';
         }
         return _appId == 'filmcraft'
-            ? 'http://localhost:18111/'
-            : 'http://localhost:18110/';
+            ? 'http://localhost:18083/'
+            : 'http://localhost:18082/';
       }
     }
     return raw;

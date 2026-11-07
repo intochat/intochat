@@ -13,8 +13,26 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
 {
     public const string PhotoCraftRef = "d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a";
     public const string FilmCraftRef = "7b6c134472287db4367fca80bcb498240ba36567";
-    public const int PhotoCraftWebPort = 18082;
-    public const int FilmCraftWebPort = 18083;
+    public const int PhotoCraftWebPort = ArtCraftModuleOptions.PhotoCraftWebPort;
+    public const int FilmCraftWebPort = ArtCraftModuleOptions.FilmCraftWebPort;
+    public const string PrebuiltRegistry = "ghcr.io/intochat";
+
+    // The studios alone, for a run with the ArtCraft module off: the shell's PhotoCraft and FilmCraft apps open these web
+    // builds, so they run from the prebuilt images (no Rust build, no MCP servers) on the same fixed ports.
+    public static void AddStudios(IntoChatOSBuilder brain)
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        var options = new ArtCraftModuleOptions { ImageRegistry = PrebuiltRegistry };
+        foreach (var (app, reference, webPort) in new[] { ("photocraft", PhotoCraftRef, PhotoCraftWebPort), ("filmcraft", FilmCraftRef, FilmCraftWebPort) })
+        {
+            Web(Image(brain, options, docker: "", app, "web", reference, "craft-web.Dockerfile"), webPort).WithParentRelationship(brain.Resource);
+        }
+    }
+
+    private static IResourceBuilder<ContainerResource> Web(IResourceBuilder<ContainerResource> web, int port) => web
+        .WithHttpEndpoint(port: port, targetPort: 80, name: "http", isProxied: false)
+        .WithHttpHealthCheck("/", endpointName: "http")
+        .WithLifetime(ContainerLifetime.Persistent);
 
     public override void Configure(IntoChatOSBuilder brain)
     {
@@ -39,10 +57,7 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
 
             if (!string.IsNullOrWhiteSpace(webUrl))
             {
-                Image(brain, options, docker, app, "web", reference, "craft-web.Dockerfile")
-                    .WithHttpEndpoint(port: webPort, targetPort: 80, name: "http", isProxied: false)
-                    .WithHttpHealthCheck("/", endpointName: "http")
-                    .WithLifetime(ContainerLifetime.Persistent)
+                Web(Image(brain, options, docker, app, "web", reference, "craft-web.Dockerfile"), webPort)
                     .WithParentRelationship(module.Resource);
             }
         }

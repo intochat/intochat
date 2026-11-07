@@ -111,6 +111,8 @@ public sealed record DeploymentProfile
         os = os.WithHosting<AspireModuleHosting>();
         if (IsEnabled("csharp")) { os = os.WithHosting<CSharpModuleHosting>(); }
         if (IsEnabled("artcraft")) { os = os.WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps()); }
+        // The shell's PhotoCraft and FilmCraft apps still open their studios; a cloud deployment serves them from the kernel image.
+        else if (!Cloud) { ArtCraftModuleHosting.AddStudios(os); }
         if (IsEnabled("playwright")) { os = os.WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins); }
         return os;
     }

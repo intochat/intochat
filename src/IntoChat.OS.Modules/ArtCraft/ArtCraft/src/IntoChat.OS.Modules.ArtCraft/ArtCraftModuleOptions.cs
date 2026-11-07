@@ -8,8 +8,8 @@ public sealed class ArtCraftModuleOptions : IModuleOptions
 {
     public const int PhotoCraftMcpPort = 18100;
     public const int FilmCraftMcpPort = 18101;
-    public const int PhotoCraftWebPort = 18110;
-    public const int FilmCraftWebPort = 18111;
+    public const int PhotoCraftWebPort = 18082;
+    public const int FilmCraftWebPort = 18083;
 
     public static string[] HostedOrigins => [$"http://localhost:{PhotoCraftWebPort}", $"http://localhost:{FilmCraftWebPort}"];
 
