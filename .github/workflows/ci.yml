@@ -67,7 +67,7 @@ jobs:
         run: dotnet build Intochat.OS.slnx -c Release --no-restore -p:CodeGraphRefresh=false -p:DebugType=none
 
       - name: Upload compiled artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: compiled-artifacts
           path: artifacts/bin
@@ -91,7 +91,7 @@ jobs:
         with:
           global-json-file: global.json
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
           path: artifacts/bin
@@ -144,7 +144,7 @@ jobs:
         with:
           global-json-file: global.json
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
           path: artifacts/bin
@@ -174,7 +174,7 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
           path: artifacts/bin
