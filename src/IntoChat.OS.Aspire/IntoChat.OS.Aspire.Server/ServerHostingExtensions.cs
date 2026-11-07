@@ -79,7 +79,7 @@ public static class ServerHostingExtensions
         IReadOnlyList<Type> neuronModules = [.. definition.NeuronModules.Concat(modules.Select(static module => module.Neurons).OfType<Type>())
             .Append(typeof(IntoChat.OS.Authority.AuthorityPlainNeurons))
             // The brain graph projection (brain-graph-plan Phase 1) is hosted on every silo; it reads the kernel observer and nothing else.
-            .Append(typeof(DigitalBrain.Graph.GraphModule)).Append(typeof(IntoChat.OS.Kernel.Composition.Storage.LocalRuntimeSessionModule)).Distinct()];
+            .Append(typeof(DigitalBrain.Graph.GraphModule)).Distinct()];
         // A connection key addresses only a connector a hosted connection neuron serves (06-08).
         builder.Services.AddSingleton(new DigitalBrain.Capabilities.Connections.ConnectionNeuronTypes(neuronModules));
         // Its [Signal] records may live in its Contracts assembly (Flutter, 06-04): the journal registers both. The kernel's own
@@ -234,6 +234,9 @@ public static class ServerHostingExtensions
             return next(context);
         });
 
+        // Files win before routing, as nginx served them: WebApplication otherwise matches endpoints first, and the static
+        // middleware skips any request an endpoint claimed (/{handle}/{collection}/{key} claims every three-segment path).
+        app.UseRouting();
         return app;
     }
 

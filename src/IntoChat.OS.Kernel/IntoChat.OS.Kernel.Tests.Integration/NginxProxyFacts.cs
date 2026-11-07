@@ -26,6 +26,7 @@ public sealed class NginxProxyFacts : IAsyncLifetime
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "artcraft", "photocraft", "index.html"), "<html><body>photocraft-index</body></html>");
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "artcraft", "filmcraft", "index.html"), "<html><body>filmcraft-index</body></html>");
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "config.json"), """{"kernelUrl":""}""");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "artcraft", "photocraft", "studio.js"), "studio-js");
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -37,6 +38,8 @@ public sealed class NginxProxyFacts : IAsyncLifetime
         _app = builder.Build();
         _app.UseStaticWebShell();
 
+        // The handle route's shape: it claims every three-segment path, as the Identity module's does.
+        _app.MapGet("/{handle}/{collection}/{key}", () => Results.StatusCode(StatusCodes.Status401Unauthorized));
         _app.MapGet("/alive", () => Results.Text("alive", "text/plain"));
         _app.MapGet("/ready", () => Results.Text("ready", "text/plain"));
         _app.MapGet("/auth/status", (HttpContext ctx) =>
@@ -107,6 +110,20 @@ public sealed class NginxProxyFacts : IAsyncLifetime
         var filmcraftBody = await filmcraftRoot.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, filmcraftRoot.StatusCode);
         Assert.Contains("filmcraft-index", filmcraftBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AFileWinsOverARouteOfTheSameShape()
+    {
+        var asset = await _client!.GetAsync("/artcraft/photocraft/studio.js", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, asset.StatusCode);
+        Assert.Equal("studio-js", await asset.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        var index = await _client.GetAsync("/artcraft/photocraft/index.html", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, index.StatusCode);
+
+        var route = await _client.GetAsync("/someone/apps/thing", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, route.StatusCode);
     }
 
     [Fact]
