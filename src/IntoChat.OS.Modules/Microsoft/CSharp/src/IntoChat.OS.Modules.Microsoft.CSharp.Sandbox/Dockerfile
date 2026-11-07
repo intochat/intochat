@@ -8,9 +8,13 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_NOLOGO=1 \
     CodeGraphRefresh=false
 WORKDIR /src
+# DigitalBrain packages come from GitHub Packages; the AppHost passes a read:packages token (CSharpModuleHosting).
+# It lives only in this build stage, never in the runtime image.
+ARG NUGET_TOKEN
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
 COPY src/ ./src/
 RUN --mount=type=cache,target=/root/.nuget/packages \
+    NuGetPackageSourceCredentials_github="Username=docker;Password=${NUGET_TOKEN}" \
     dotnet publish src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj \
       -c Release -p:DebugType=none -o /app \
     && rm -rf /src/artifacts \
