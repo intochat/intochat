@@ -89,6 +89,7 @@ jobs:
           dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
             -c Release -r linux-x64 --self-contained \
             -o artifacts/kernel-bin -p:CodeGraphRefresh=false
+          tar -czf artifacts/kernel-bin.tar.gz -C artifacts/kernel-bin .
 
       - name: Build and push OS container image
         id: build-os
@@ -154,7 +155,7 @@ jobs:
           name: release-artifacts
           path: |
             release-manifest.json
-            artifacts/kernel-bin/IntoChat.OS.Kernel
+            artifacts/kernel-bin.tar.gz
           retention-days: 30
 
       - name: Attach release manifest to GitHub Release
@@ -181,7 +182,7 @@ jobs:
       - name: Prepare installer binary and manifest
         run: |
           cp ./artifacts-in/release-manifest.json ./release-manifest.json
-          cp ./artifacts-in/artifacts/kernel-bin/IntoChat.OS.Kernel ./IntoChat.OS.Kernel
+          tar -xzf ./artifacts-in/artifacts/kernel-bin.tar.gz -C .
           chmod +x ./IntoChat.OS.Kernel
 
       - uses: azure/login@v2
@@ -216,7 +217,7 @@ jobs:
           dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
             -c Release -r linux-x64 --self-contained \
             -o ./kernel-build -p:CodeGraphRefresh=false
-          cp ./kernel-build/IntoChat.OS.Kernel ./IntoChat.OS.Kernel
+          cp -r ./kernel-build/* .
           chmod +x ./IntoChat.OS.Kernel
 
       - name: Use artifacts from package job
@@ -230,7 +231,7 @@ jobs:
         if: inputs.rollback_tag == '' || inputs.rollback_tag == null
         run: |
           cp ./artifacts-in/release-manifest.json ./release-manifest.json
-          cp ./artifacts-in/artifacts/kernel-bin/IntoChat.OS.Kernel ./IntoChat.OS.Kernel
+          tar -xzf ./artifacts-in/artifacts/kernel-bin.tar.gz -C .
           chmod +x ./IntoChat.OS.Kernel
 
       - uses: azure/login@v2
