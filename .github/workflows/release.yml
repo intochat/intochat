@@ -91,6 +91,7 @@ jobs:
             -o artifacts/kernel-bin -p:CodeGraphRefresh=false
 
       - name: Build and push OS container image
+        id: build-os
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -103,6 +104,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=os
 
       - name: Build and push OS-UI container image
+        id: build-os-ui
         uses: docker/build-push-action@v6
         with:
           context: ui
@@ -115,6 +117,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=os-ui
 
       - name: Build and push OS-Sandbox container image
+        id: build-os-sandbox
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -131,9 +134,9 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           COMMIT="${{ github.sha }}"
-          OS_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' acrintochattest.azurecr.io/os:${VERSION})
-          UI_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' acrintochattest.azurecr.io/os-ui:${VERSION})
-          SANDBOX_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' acrintochattest.azurecr.io/os-sandbox:${VERSION})
+          OS_DIGEST="acrintochattest.azurecr.io/os@${{ steps.build-os.outputs.digest }}"
+          UI_DIGEST="acrintochattest.azurecr.io/os-ui@${{ steps.build-os-ui.outputs.digest }}"
+          SANDBOX_DIGEST="acrintochattest.azurecr.io/os-sandbox@${{ steps.build-os-sandbox.outputs.digest }}"
           cat <<EOF > release-manifest.json
           {
             "version": "${VERSION}",
