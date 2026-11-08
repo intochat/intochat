@@ -167,6 +167,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new("save-preferences", "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."),
                 new("reload-preferences", "Discard editable drafts and load the stored preferences."),
                 new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),
+                new("navigate", "Open the settings section (and sub-page) named by Input."),
+                new("go-back", "Return to the previous settings page."),
             ],
             Settings: [],
             Slots: []),

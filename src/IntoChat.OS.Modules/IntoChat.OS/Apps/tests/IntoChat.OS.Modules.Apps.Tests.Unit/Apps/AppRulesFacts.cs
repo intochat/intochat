@@ -122,6 +122,8 @@ public sealed class AppRulesFacts
         Assert.Equal(byRequest.Rejected.Rules, byEmit.Rejected.Rules);
         Assert.Equal(byRequest.Rejected.Operation, byEmit.Rejected.Operation);
         Assert.NotEmpty(byEmit.Rejected.Rules);
+        await os.Idle();
+        Assert.DoesNotContain(os.Journal(id.Brain).Signals(id), entry => entry.Signal is Signals.AppRequested);
 
         await app.Emit("add", "\"milk\"");
         await os.Idle();

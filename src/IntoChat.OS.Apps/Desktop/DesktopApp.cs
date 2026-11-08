@@ -58,6 +58,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                 new("layout", "Choose the layout the next connect shows: desktop or classic."),
                 new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
                 new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise."),
+                new("auto-arrange", "Arrange the open windows."),
                 new("focus", "Focus the window named by Input."),
                 new("tab", "Activate the tab {window}/{index} named by Input."),
                 new("newtab", "Open a new tab, in the window named by Input when given."),

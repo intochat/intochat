@@ -115,6 +115,54 @@ public sealed class AppUiEventFacts
         Assert.Empty(os.Failures);
     }
 
+    private static async Task<(TestOS Os, IViewReader Reader, PublishedView Shown)> UnitOnTestOS()
+    {
+        var os = TestOS.Local().Register(typeof(CounterUnit).Assembly);
+        os.Confirmations.ApproveAll();
+        await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.InstallRequest("ctr", new Dictionary<string, string>()), Ct);
+        await os.Idle();
+        await os.Get<IKicker>(NeuronId.Parse("owner/kicker/a")).Kick();
+        await os.Idle();
+        var reader = os.Get<IViewReader>(NeuronId.Parse("owner/ctr/default"));
+        return (os, reader, (await reader.Read("ctr"))!);
+    }
+
+    [Fact]
+    public async Task AUnitViewEmitWithAForeignOwnerIsRefused()
+    {
+        var (os, _, shown) = await UnitOnTestOS();
+        await using var _os = os;
+        var before = os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "foreign"), new TestOSBrain(os), Scope, Hosted, Ct));
+        await os.Idle();
+
+        Assert.Equal(before, os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count);
+        Assert.Equal(0, (await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr")).GetProperty("bumps").GetInt32());
+    }
+
+    [Fact]
+    public async Task AResolveNodeInAUnitViewIsRefused()
+    {
+        var (os, _, shown) = await UnitOnTestOS();
+        await using var _os = os;
+        var brain = new UnitAndInbox(os);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "approve", Generation: shown.Generation, Key: "approval"), brain, Scope, Hosted, Ct));
+
+        Assert.Empty(brain.Inbox.Resolved);
+    }
+
+    [Fact]
+    public async Task AFieldValueIsAppendedToAnEmitsArrayArgs()
+    {
+        var brain = new RecordingBrain(new(ViewActivationKind.Emit, Emit: new Emit("tasks", "relate", JsonSerializer.SerializeToElement(new[] { "f/1", "blocks" }))));
+
+        await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "lag", "2d"), brain, Scope, Hosted, Ct);
+
+        Assert.Equal(("owner/apps/tasks", "relate", "[\"f/1\",\"blocks\",\"2d\"]"), Assert.Single(brain.Emitted));
+    }
+
     [Fact]
     public async Task TheConfirmationInboxSurfaceStillResolves()
     {
@@ -141,6 +189,13 @@ public sealed class AppUiEventFacts
     private sealed class TestOSBrain(TestOS os) : INeuronProxies
     {
         public T Get<T>(NeuronId id) where T : class => os.Get<T>(id);
+    }
+
+    // The unit on TestOS, with a recording inbox in place of the confirmations.
+    private sealed class UnitAndInbox(TestOS os) : INeuronProxies
+    {
+        public RecordingInbox Inbox { get; } = new();
+        public T Get<T>(NeuronId id) where T : class => typeof(T) == typeof(IConfirmationInbox) ? (T)(object)Inbox : os.Get<T>(id);
     }
 
     private sealed class RecordingBrain(ViewActivation activation) : INeuronProxies

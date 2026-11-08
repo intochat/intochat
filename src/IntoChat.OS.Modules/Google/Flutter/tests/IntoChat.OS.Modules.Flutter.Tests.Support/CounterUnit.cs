@@ -45,5 +45,7 @@ public static class CounterUnit
         new Badge(c.Bumps.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         new DigitalBrain.UI.Button("bump", "Bump", new Emit("ctr", "ctr.bump")),
         new DigitalBrain.UI.Button("copy", "Copy", Intent: new Intent(IntentKind.Copy, "neuron://owner/ctr")),
+        new DigitalBrain.UI.Button("foreign", "Foreign", new Emit("other.alias", "ctr.bump")),
+        new ApprovalCardNode("approval", "plan-1", "Approve", "A unit's card", [], Resolve: new Resolve("plan-1")),
     ]));
 }

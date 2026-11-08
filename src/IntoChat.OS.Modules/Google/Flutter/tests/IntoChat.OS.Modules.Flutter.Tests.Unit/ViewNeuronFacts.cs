@@ -107,6 +107,21 @@ public sealed class ViewNeuronFacts
         await Assert.ThrowsAsync<ArgumentException>(() => os.Get<IView>(Tasks).Publish(1, new("Deep", deep)));
     }
 
+    // The store keeps state as JSON through the runtime codec (JournalPayloads.DecodeState; TestOS's journal the same): the
+    // Orleans alias is not part of the stored record, so a record of the old shape (UiView under "view") decodes as no view.
+    [Fact]
+    public void AStoredViewStateOfTheOldShapeLoadsAsNoView()
+    {
+        const string old = """{"view":{"generation":2,"version":3,"root":{"kind":0,"key":"r","children":[]}},"changes":4}""";
+
+        var state = JsonSerializer.Deserialize<ViewState>(old, RuntimeProtocol.OptionsFor(typeof(ViewState)));
+
+        Assert.NotNull(state);
+        Assert.Null(state.Json);
+        Assert.Equal(0, state.Generation);
+        Assert.Equal(4, state.Changes);
+    }
+
     [Fact]
     public void NoUiNodeTypeRemains()
     {

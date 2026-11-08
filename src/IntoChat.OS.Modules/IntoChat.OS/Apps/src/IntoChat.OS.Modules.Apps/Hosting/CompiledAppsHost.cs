@@ -236,7 +236,7 @@ internal sealed class CompiledAppsHost(
                 ]) { Gap = 4 },
             ]) { Extents = [0, 360] };
 
-            var next = new DigitalBrain.UI.View(DesktopShellTitle, new DigitalBrain.UI.Column([windows, dock]) { Extents = [0, 68] });
+            var next = new DigitalBrain.UI.View("Desktop", new DigitalBrain.UI.Column([windows, dock]) { Extents = [0, 68] });
             await SiloNeurons.Get<IView>(services, $"{brain}/apps/desktop/view").Publish(1, next);
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -936,12 +936,6 @@ internal sealed class CompiledAppsHost(
     // The desktop's window verbs: the host's shell handles them; any other desktop operation is the desktop app's.
     private static readonly HashSet<string> DesktopWindowVerbs = new(StringComparer.Ordinal)
     { "close", "close-app", "focus", "tab", "newtab", "pin", "unpin", "favourite", "widget-open", "widget-close", "settings" };
-
-    // The title of the host's desktop shell view, by which the presentation sink leaves it in place.
-    internal const string DesktopShellTitle = "IntoChat Desktop";
-
-    internal static bool IsDesktopShell(PublishedView view)
-        => view.View.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String && title.GetString() == DesktopShellTitle;
 
     private static DigitalBrain.UI.Emit DesktopEmit(string signal, string? argument)
         => new("desktop", signal, argument is null ? null : JsonSerializer.SerializeToElement(argument));

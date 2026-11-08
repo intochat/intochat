@@ -161,15 +161,27 @@ internal static class AppUiEndpoints
         var generation = input.Generation ?? throw new ArgumentException("A view event names the generation it saw.");
         if (UnitAlias(scope, input.Name) is { } alias)
         {
-            // A unit's view lives at its state neuron, which activates its own emits; an intent is the client's.
+            // A unit's view lives at its state neuron. IViewReader.Activate returns no typed result: it resolves the key itself and
+            // journals the emit, refusing a stale generation, an unknown key, a node with no emit and an emit to another owner. The
+            // edge resolves once, from the one PublishedView whose generation it checks, only to answer an intent (client-local) and
+            // to refuse a resolve (a unit view never reaches the confirmations). Race: the view may change between that Read and
+            // Activate; Activate re-resolves against its own current generation, so a changed view refuses the emit as stale.
             var reader = brain.Get<IViewReader>(UnitState(scope, alias));
             var published = await reader.Read(alias).WaitAsync(ct);
-            var unitAction = published is { } shown && shown.Generation == generation && ViewValidation.Find(shown.View, key) is { } unitNode
+            var shownAction = published is { } shown && shown.Generation == generation && ViewValidation.Find(shown.View, key) is { } unitNode
                 ? ViewValidation.ActionOf(unitNode) : ViewActivation.None;
-            if (unitAction.Kind == ViewActivationKind.Intent) { return IntentResult(unitAction.Intent!); }
+            switch (shownAction.Kind)
+            {
+                case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);
+                case ViewActivationKind.Resolve: throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
+            }
             try { await reader.Activate(alias, generation, key, input.Value).WaitAsync(ct); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
             { throw new StaleActionException("This action is no longer available. Read the view again."); }
+            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
+            { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
+            catch (ActivationRefusedException refused)
+            { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
             return Results.Ok(new { delivered = true });
         }
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
@@ -251,8 +263,16 @@ internal static class AppUiEndpoints
 // An activation's field value joins the emit's args as "value" (an object's member; other args become {args, value}).
 internal static class ViewArgs
 {
+    // An object gets a "value" member; an array gets the value appended (a positional last argument); a scalar or no args
+    // become {args?, value}.
     public static JsonElement WithValue(JsonElement? args, string value)
     {
+        if (args is { ValueKind: JsonValueKind.Array } array)
+        {
+            var items = System.Text.Json.Nodes.JsonArray.Create(array) ?? [];
+            items.Add(value);
+            return JsonSerializer.SerializeToElement(items);
+        }
         var payload = args is { ValueKind: JsonValueKind.Object } given ? System.Text.Json.Nodes.JsonObject.Create(given) ?? [] : new System.Text.Json.Nodes.JsonObject();
         if (args is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null or JsonValueKind.Undefined) } other) { payload["args"] = System.Text.Json.Nodes.JsonNode.Parse(other.GetRawText()); }
         payload["value"] = value;

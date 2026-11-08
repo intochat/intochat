@@ -67,11 +67,10 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
                 mainView = main;
             }
 
-            var mainNeuron = SiloNeurons.Get<IView>(services, appKey + "/view");
-            // The desktop's view is the host's window shell (CompiledAppsHost); the desktop app's own render does not replace it.
-            if (appName != "desktop" || await mainNeuron.Read() is not { } current || !CompiledAppsHost.IsDesktopShell(current))
+            // The desktop's view is the host's window shell (CompiledAppsHost.EnsureDesktopViewAsync): the desktop app never replaces it.
+            if (appName != "desktop")
             {
-                await mainNeuron.Publish(generation, mainView);
+                await SiloNeurons.Get<IView>(services, appKey + "/view").Publish(generation, mainView);
             }
         }
 
