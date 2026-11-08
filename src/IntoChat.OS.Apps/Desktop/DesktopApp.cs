@@ -18,7 +18,7 @@ public sealed record DesktopStart : DigitalBrain.Signal;
 public sealed record DesktopLayoutChoice : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("desktop.open")]
-public sealed record DesktopOpen : DigitalBrain.Signal;
+public sealed record DesktopOpen(string? App = null, string? View = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("desktop.narrow")]
 public sealed record DesktopNarrow(string? Narrow = null) : DigitalBrain.Signal;
@@ -87,6 +87,11 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     public async Task Open(DesktopOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        // An app named opens at the view given: its open operation receives the view as input.
+        if (!string.IsNullOrWhiteSpace(request.App))
+        {
+            await Get<IntoChat.OS.Modules.Apps.IApp>($"apps/{request.App.Trim().ToLowerInvariant()}").Request("open", request.View?.Trim() ?? "");
+        }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 

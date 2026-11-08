@@ -25,4 +25,17 @@ public sealed class DesktopAppFacts
         Assert.Equal("workspace", WorkspaceApp.Bundle.Name);
         Assert.Equal("desktop", DesktopApp.Bundle.Name);
     }
+
+    [Fact]
+    public async Task OpenWithAppAndViewRoutesToThatView()
+    {
+        RecordingApp.Requests.Clear();
+        await using var os = TestOS.Local();
+        os.Register<RecordingApp>();
+        var desktop = await os.Install<DesktopApp>();
+
+        await desktop.Request("open", new DesktopOpen("trace", "trace/t-1"));
+
+        Assert.Equal(("apps/trace", "open", "trace/t-1"), Assert.Single(RecordingApp.Requests));
+    }
 }

@@ -14,6 +14,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.TextField.Signals;
 
 namespace IntoChat.OS.Apps.Tasks;
 
@@ -57,6 +59,9 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
     // Render cannot await: the last flows and approvals read, refreshed on open, after each command and on each change signal.
     private FlowView[] _flows = [];
     private Approval[] _approvals = [];
+
+    // The clock the timeline projects running flows against.
+    public TimeProvider Time { get; set; } = TimeProvider.System;
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(TasksApp));
 
@@ -133,7 +138,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         try
         {
             var flowId = await Get<IFlows>(FlowsKey).Start(PlanFlow.Alias, title, null, inner);
-            Set(State with { Selected = flowId, Source = null, Status = $"Started {title}" });
+            Set(State with { Selected = flowId, Source = null, Status = $"Started {title}", Draft = State.Draft with { Title = "", Description = "" } });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -165,7 +170,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.FlowId) is not { } flowId || Blank(request.Target) is not { } target) { return; }
         var kind = Enum.TryParse<RelationKind>(request.Kind ?? State.RelateKind, ignoreCase: true, out var parsed) ? parsed : RelationKind.BlockedBy;
-        TimeSpan? lag = TimeSpan.TryParse(request.Lag, System.Globalization.CultureInfo.InvariantCulture, out var span) ? span : null;
+        TimeSpan? lag = TasksViewRenderer.ParseLag(request.Lag) is { } days ? days : TimeSpan.TryParse(request.Lag, System.Globalization.CultureInfo.InvariantCulture, out var span) ? span : null;
         try
         {
             await Get<IFlows>(FlowsKey).Relate(flowId, new FlowRelation(target, kind, lag));
@@ -209,12 +214,32 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
     protected override void Watches(DigitalBrain.WatchBuilder watch)
     {
         ArgumentNullException.ThrowIfNull(watch);
+        foreach (var field in TasksViewRenderer.Fields)
+        {
+            watch.On<ITextField, TextFieldChanged>($"{field}-changed", app => $"apps/{app.App}/{field}", changed => OnField(field, changed));
+        }
         watch.On<IFlows, FlowsChanged>("flows-changed", _ => FlowsKey, _ => RefreshAsync());
         watch.On<IConfirmationInbox, ConfirmationRequested>("confirmation-requested", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
         watch.On<IConfirmationInbox, ConfirmationResolved>("confirmation-resolved", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
     }
 
-    public View Render() => TasksViewRenderer.Render(State, _flows, _approvals, DateTimeOffset.UtcNow);
+    public Task OnField(string field, TextFieldChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        var value = changed.Value ?? "";
+        Set(State with
+        {
+            Draft = field switch
+            {
+                "title" => State.Draft with { Title = value },
+                "description" => State.Draft with { Description = value },
+                _ => State.Draft with { Lag = value },
+            },
+        });
+        return Task.CompletedTask;
+    }
+
+    public View Render() => TasksViewRenderer.Render(State, _flows, _approvals, Time.GetUtcNow());
 
     public View RenderSide() => TasksViewRenderer.RenderSide(State, _flows, _approvals, State.Source);
 

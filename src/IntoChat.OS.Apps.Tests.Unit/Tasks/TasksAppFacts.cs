@@ -7,6 +7,10 @@ using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.TextField.Signals;
+using IntoChat.OS.Apps.Tests.Unit.Desktop;
+using IntoChat.OS.Apps.Desktop;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Tasks;
 
@@ -103,18 +107,119 @@ public sealed class TasksAppFacts
     }
 
     [Fact]
-    public void OpenTraceNavigatesToTraceApp()
+    public async Task OpenTraceNavigatesToTraceApp()
     {
         var flow = Flow("c", FlowStatus.Running);
-
         var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
-
         var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Open trace").Action;
-        Assert.Equal(TasksViewRenderer.OpenTrace("trace-c"), open);
         Assert.Equal("desktop", open.Neuron);
         Assert.Equal("open", open.Operation);
-        Assert.Equal(["trace", "trace/trace-c"], open.Arguments);
+
+        RecordingApp.Requests.Clear();
+        await using var os = TestOS.Local();
+        os.Register<RecordingApp>();
+        var desktop = await os.Install<DesktopApp>();
+        await desktop.Request(open.Operation, new DesktopOpen(open.Arguments[0], open.Arguments[1]));
+
+        Assert.Equal(("apps/trace", "open", "trace/trace-c"), Assert.Single(RecordingApp.Requests));
     }
+
+    [Fact]
+    public async Task NewTaskFormDeliversTitleAndDescription()
+    {
+        await using var os = FakeOs();
+        var tasks = await os.Install<TasksApp>();
+
+        await Field(tasks, "title", "Ship docs");
+        await Field(tasks, "description", "Write and publish the docs");
+        var start = Assert.Single(Nodes(tasks.App.Render()).OfType<Button>(), b => b.Label == "Start").Action;
+        await tasks.Request(start.Operation, new TasksNew(start.Arguments[0], start.Arguments[1]));
+
+        var started = Assert.Single(FakeFlows.Started);
+        Assert.Equal("Ship docs", started.Title);
+        Assert.Equal("Write and publish the docs", System.Text.Json.JsonDocument.Parse(started.InnerJson).RootElement.GetProperty("goal").GetString());
+    }
+
+    [Fact]
+    public async Task CancelCallsFlows()
+    {
+        await using var os = FakeOs();
+        FakeFlows.Views = [Flow("c", FlowStatus.Running)];
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+        await tasks.Request("select", new TasksSelect(FakeFlows.Views[0].FlowId));
+
+        var cancel = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Button>(), b => b.Label == "Cancel").Action;
+        await tasks.Request(cancel.Operation, new TasksCancel(cancel.Arguments[0]));
+
+        Assert.Equal(FakeFlows.Views[0].FlowId, Assert.Single(FakeFlows.Cancels));
+    }
+
+    [Fact]
+    public async Task RelateAddsRelation()
+    {
+        await using var os = FakeOs();
+        FakeFlows.Views = [Flow("a", FlowStatus.Pending), Flow("b", FlowStatus.Running)];
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+        await tasks.Request("select", new TasksSelect(FakeFlows.Views[0].FlowId));
+
+        var kind = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relation").Options.Single(o => o.Id == "Follows").Action!;
+        await tasks.Request(kind.Operation, new TasksRelateKind(kind.Arguments[0]));
+        await Field(tasks, "lag", "1");
+        var target = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relate to").Options.Single().Action!;
+        await tasks.Request(target.Operation, new TasksRelate(target.Arguments[0], target.Arguments[1], target.Arguments[2], target.Arguments[3]));
+
+        var (flowId, relation) = Assert.Single(FakeFlows.Relations);
+        Assert.Equal(FakeFlows.Views[0].FlowId, flowId);
+        Assert.Equal(new FlowRelation(FakeFlows.Views[1].FlowId, RelationKind.Follows, TimeSpan.FromDays(1)), relation);
+    }
+
+    [Fact]
+    public void ListFiltersByQuery()
+    {
+        FlowView[] flows = [Flow("a", FlowStatus.Running) with { Owner = "ann" }, Flow("b", FlowStatus.Running) with { Owner = "bob" }, Flow("c", FlowStatus.Completed) with { Owner = "ann" }];
+
+        var view = TasksViewRenderer.Render(new TasksState("list", new FlowQuery(Owner: "ann", Status: FlowStatus.Running), null), flows, [], T0);
+
+        var table = Assert.Single(Nodes(view).OfType<DataTable>());
+        Assert.Equal("Task a", Assert.Single(table.Rows)[0]);
+    }
+
+    [Fact]
+    public async Task ShowSourceRendersUnitMetadata()
+    {
+        await using var os = FakeOs();
+        FakeFlows.Views = [Flow("unit1", FlowStatus.Completed, type: "flow.build")];
+        FakeSynapses.Sources = [new DeployedSource("unit1", "h1", ["weather"], DeployStatus.Deployed, null, T0)];
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+
+        await tasks.Request("show-source", new TasksShowSource(FakeFlows.Views[0].FlowId));
+
+        var source = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Card>(), c => c.Title == "Source");
+        Assert.Contains("unit1", source.Body, StringComparison.Ordinal);
+        Assert.Contains("h1", source.Body, StringComparison.Ordinal);
+        Assert.Contains("weather", source.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FlowsChangedRefreshesTheBoard()
+    {
+        await using var os = FakeOs();
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+        FakeFlows.Views = [Flow("late", FlowStatus.Running)];
+
+        await Assert.Single(tasks.App.DeclaredWatches(), w => w.SignalType == typeof(FlowsChanged)).Handle(new FlowsChanged(FakeFlows.Views[0].FlowId));
+
+        Assert.Contains("Task late", Strings(tasks.App.Render()));
+    }
+
+    // TestOS does not serve declared watches: hand the field's change to the watch on apps/tasks/{field}, as the host does.
+    private static Task Field(InstalledApp<TasksApp> tasks, string field, string value)
+        => Assert.Single(tasks.App.DeclaredWatches(), w => w.SignalType == typeof(TextFieldChanged) && w.Key(new AppAddress("local", "tasks")) == $"apps/tasks/{field}")
+            .Handle(new TextFieldChanged($"local/apps/tasks/{field}", value));
 
     [Fact]
     public async Task AskInoToChangeWritesUiFocus()
@@ -170,7 +275,10 @@ public sealed class TasksAppFacts
         public static List<(string Type, string Title, string InnerJson, string Id)> Started { get; } = [];
         public static FlowView[] Views { get; set; } = [];
 
-        public static void Reset() { Started.Clear(); Views = []; }
+        public static List<string> Cancels { get; } = [];
+        public static List<(string FlowId, FlowRelation Relation)> Relations { get; } = [];
+
+        public static void Reset() { Started.Clear(); Cancels.Clear(); Relations.Clear(); Views = []; }
 
         public Task<FlowView[]> List(FlowQuery query, CancellationToken ct = default) => Task.FromResult(Views);
         public Task<FlowView?> Read(string flowId, CancellationToken ct = default) => Task.FromResult(Views.FirstOrDefault(v => v.FlowId == flowId));
@@ -181,8 +289,8 @@ public sealed class TasksAppFacts
             return Task.FromResult(id);
         }
         public Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default) => Task.CompletedTask;
-        public Task Cancel(string flowId, string reason, CancellationToken ct = default) => Task.CompletedTask;
-        public Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default) => Task.CompletedTask;
+        public Task Cancel(string flowId, string reason, CancellationToken ct = default) { Cancels.Add(flowId); return Task.CompletedTask; }
+        public Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default) { Relations.Add((flowId, relation)); return Task.CompletedTask; }
     }
 
     [Neuron("approvals")]

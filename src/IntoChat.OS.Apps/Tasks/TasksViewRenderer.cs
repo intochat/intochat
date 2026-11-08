@@ -10,6 +10,9 @@ namespace IntoChat.OS.Apps.Tasks;
 public static class TasksViewRenderer
 {
     private const string App = "tasks";
+    // The text fields the app folds into TasksState.Draft, keyed apps/tasks/{field}.
+    public static readonly string[] Fields = ["title", "description", "lag"];
+
     private static readonly TimeSpan MaxProjection = TimeSpan.FromDays(30);
 
     public static View Render(TasksState state, FlowView[] flows, Approval[] approvals, DateTimeOffset now)
@@ -30,7 +33,7 @@ public static class TasksViewRenderer
                 new TabItem("list", "List", new ButtonAction(App, "view", ["list"]), "list"),
                 new TabItem("timeline", "Timeline", new ButtonAction(App, "view", ["timeline"]), "gantt-chart"),
             ], state.View),
-            RenderNewTask(),
+            RenderNewTask(state.Draft),
             new Text(approvals.Length == 0 ? state.Status : $"{state.Status} · {approvals.Length} pending approval(s)"),
             body,
         ]));
@@ -72,8 +75,9 @@ public static class TasksViewRenderer
         children.Add(new Row(actions));
         children.Add(new Select("Relation", state.RelateKind,
             [.. Enum.GetNames<RelationKind>().Select(kind => new SelectOption(kind, kind, new ButtonAction(App, "relate-kind", [kind])))]));
+        children.Add(new TextField("lag", state.Draft.Lag, "Lag in days (Follows)"));
         children.Add(new Select("Relate to", "",
-            [.. flows.Where(f => f.FlowId != flow.FlowId).Select(f => new SelectOption(f.FlowId, f.Title, new ButtonAction(App, "relate", [flow.FlowId, state.RelateKind, f.FlowId])))]));
+            [.. flows.Where(f => f.FlowId != flow.FlowId).Select(f => new SelectOption(f.FlowId, f.Title, new ButtonAction(App, "relate", [flow.FlowId, state.RelateKind, f.FlowId, state.Draft.Lag])))]));
         if (source is not null) { children.Add(new Card("Source", source, [])); }
         return new View(flow.Title, new Column(children));
     }
@@ -135,12 +139,23 @@ public static class TasksViewRenderer
             && (query.Type is null || f.Type == query.Type)),
     ];
 
-    private static Node RenderNewTask() => new Card("New task", "A plan flow drafts the subtasks from the description.",
-    [
-        new TextField("title", null, "Title"),
-        new TextField("description", null, "Description") { OnSubmit = new ButtonAction(App, "new", []) },
-        new Button("Start", new ButtonAction(App, "new", []), Tone: ButtonTone.Accent) { Small = true, Icon = "plus" },
-    ]);
+    private static Node RenderNewTask(TasksDraft draft)
+    {
+        var start = new ButtonAction(App, "new", [draft.Title, draft.Description]);
+        return new Card("New task", "A plan flow drafts the subtasks from the description.",
+        [
+            new TextField("title", draft.Title, "Title"),
+            new TextField("description", draft.Description, "Description") { OnSubmit = start },
+            new Button("Start", start, Tone: ButtonTone.Accent) { Small = true, Icon = "plus" },
+        ]);
+    }
+
+    // A lag typed as days ("1", "1.5d"); null when it is not.
+    public static TimeSpan? ParseLag(string? text)
+    {
+        var value = text?.Trim().TrimEnd('d', 'D');
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var days) && days >= 0 ? TimeSpan.FromDays(days) : null;
+    }
 
     private static Node RenderBoard(FlowView[] flows)
     {

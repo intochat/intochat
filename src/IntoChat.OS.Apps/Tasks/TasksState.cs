@@ -14,7 +14,12 @@ public sealed record TasksState(string View, FlowQuery Query, string? Selected)
 
     // The selected build flow's deployed unit, shown by Show source.
     public string? Source { get; init; }
+
+    // What the new-task form and the lag field hold, folded from their text fields' changes.
+    public TasksDraft Draft { get; init; } = new();
 }
+
+public sealed record TasksDraft(string Title = "", string Description = "", string Lag = "");
 
 // One flow's bar on the timeline.
 public sealed record TimelineBar(string FlowId, string Title, DateTimeOffset Start, DateTimeOffset End);
