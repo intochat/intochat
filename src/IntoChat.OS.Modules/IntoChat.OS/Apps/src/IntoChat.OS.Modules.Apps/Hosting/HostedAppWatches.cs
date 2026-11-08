@@ -6,7 +6,7 @@ using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Serves an in-process app's declared watches (App.Watches) as the sandbox AppRunner does: one session subscription per watch
+// Serves an in-process app's declared watches (App.Watches): one session subscription per watch
 // through ISignalWatch (cursor-deduplicated, at least once, nothing missed while the host runs), each signal one turn of the app.
 // A set watch subscribes to the members its Select returns and re-subscribes whenever its registry publishes ChangeType.
 internal static class HostedAppWatches
