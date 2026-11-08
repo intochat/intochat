@@ -283,7 +283,8 @@ internal sealed class CompiledAppsHost(
                 ], gap: 4),
             ], extents: [0, 360]);
 
-            var nextRoot = Ui.Column("desktop", [windows, dock], extents: [0, 68]);
+            var whiteboard = BuildWhiteboardCards(brain, state.Pins.Select(p => p.Id).ToArray());
+            var nextRoot = Ui.Column("desktop", [windows, whiteboard, dock], extents: [0, 0, 68]);
             var view = SiloNeurons.Get<IView>(services, $"{brain}/apps/desktop/view");
             var current = await view.Read();
             if (current?.Root is not null && JsonSerializer.Serialize(current.Root, Json) == JsonSerializer.Serialize(nextRoot, Json))
@@ -299,6 +300,80 @@ internal sealed class CompiledAppsHost(
         {
             logger.LogWarning(error, "Initial desktop view seed for {Brain} did not complete.", brain);
         }
+    }
+
+    private static UiNode BuildWhiteboardCards(string brain, string[] pinnedApps)
+    {
+        var isLauncherPinned = pinnedApps.Contains("ino", StringComparer.OrdinalIgnoreCase) || pinnedApps.Length == 0;
+        var launcherDetail = JsonSerializer.Serialize(new { _ui = "surface", x = 24, y = 58, width = 360, height = 224, pinned = isLauncherPinned, icon = "sparkles" });
+        var signalDetail = JsonSerializer.Serialize(new { _ui = "approval", x = 24, y = 296, width = 360, height = 224, pinned = false, icon = "activity" });
+        var identityDetail = JsonSerializer.Serialize(new { _ui = "surface", x = 404, y = 58, width = 340, height = 276, pinned = false, icon = "palette" });
+        var appsDetail = JsonSerializer.Serialize(new { _ui = "surface", x = 404, y = 348, width = 340, height = 252, pinned = false, icon = "grid" });
+
+        var cardLauncher = Ui.Card("card-launcher", "Ino · DigitalBrain OS", launcherDetail,
+        [
+            Ui.Row("launcher-top",
+            [
+                Ui.Badge("ino-badge", "Intelligence", UiTone.Done),
+                Ui.Text("ino-uri", $"neuron://{brain}/apps/ino"),
+            ]),
+            Ui.Text("ino-desc", "Your AI copilot for DigitalBrain OS."),
+            Ui.Row("launcher-actions",
+            [
+                Ui.Button("btn-ask-ino", "Ask Ino", "open:ino", style: UiStyle.Primary, icon: "sparkles"),
+                Ui.Button("btn-creator", "Creator Studio", "open:creator", style: UiStyle.Secondary, icon: "wand"),
+                Ui.Button("btn-files", "Files", "open:files", style: UiStyle.Ghost, icon: "folder"),
+            ]),
+        ]);
+
+        var cardSignal = Ui.Card("card-signal", "Live Signal", signalDetail,
+        [
+            Ui.Text("sig-desc", "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox"),
+            Ui.Row("sig-row-1",
+            [
+                Ui.Badge("sig-badge", "Pending", UiTone.Working),
+                Ui.Text("sig-txt", "Opportunity Stage -> Closed Won ($420,000)"),
+            ]),
+            Ui.Row("sig-actions",
+            [
+                Ui.Button("sig-approve", "Approve", "signal:approve", style: UiStyle.Primary, icon: "check"),
+                Ui.Button("sig-deny", "Deny", "signal:deny", style: UiStyle.Secondary, icon: "x"),
+            ]),
+        ]);
+
+        var cardIdentity = Ui.Card("card-identity", "Theme & Identity", identityDetail,
+        [
+            Ui.Row("preset-pills",
+            [
+                Ui.Badge("preset-pill", "fluent-acrylic", UiTone.Done),
+                Ui.Badge("layout-pill", "floating-glass", UiTone.Neutral),
+            ]),
+            Ui.Text("id-desc", "Adaptive visual shell styling and desktop canvas layout."),
+            Ui.Row("preset-buttons",
+            [
+                Ui.Button("preset-acrylic", "Acrylic", "preset:fluent-acrylic", style: UiStyle.Primary),
+                Ui.Button("preset-mono", "Monochrome", "preset:monochrome", style: UiStyle.Secondary),
+            ]),
+        ]);
+
+        var cardApps = Ui.Card("card-apps", "Smart Apps", appsDetail,
+        [
+            Ui.Text("apps-header", "Launch into workspace surfaces:"),
+            Ui.Row("apps-row-1",
+            [
+                Ui.Button("app-ino", "Ino", "open:ino", icon: "sparkles"),
+                Ui.Button("app-files", "Files", "open:files", icon: "folder"),
+                Ui.Button("app-data", "Data", "open:data", icon: "bar-chart-2"),
+            ]),
+            Ui.Row("apps-row-2",
+            [
+                Ui.Button("app-photo", "PhotoCraft", "open:photocraft", icon: "image"),
+                Ui.Button("app-film", "FilmCraft", "open:filmcraft", icon: "film"),
+                Ui.Button("app-gallery", "Gallery", "open:gallery", icon: "palette"),
+            ]),
+        ]);
+
+        return Ui.Column("whiteboard", [cardLauncher, cardSignal, cardIdentity, cardApps]);
     }
 
     private async Task EnsureOpenAppViewAsync(string brain, string appName, CancellationToken ct)

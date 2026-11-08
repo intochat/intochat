@@ -598,7 +598,7 @@ class _NeuronViewState extends State<NeuronView> {
             (root['children'] is! List || (root['children'] as List).isEmpty)) {
           return const UiGalleryScreen();
         }
-        return _ImmutableView(
+        return ImmutableView(
           name: widget.name,
           generation: (data['generation'] as num?)?.toInt() ?? 0,
           root: root,

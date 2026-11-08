@@ -4,6 +4,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
+class WhiteboardCardData {
+  const WhiteboardCardData({
+    required this.id,
+    required this.title,
+    this.icon,
+    this.content,
+    this.initialBounds,
+    this.isPinned = false,
+  });
+
+  final String id;
+  final String title;
+  final IconData? icon;
+  final Map<String, dynamic>? content;
+  final Rect? initialBounds;
+  final bool isPinned;
+}
+
 class SmartAppTileSpec {
   const SmartAppTileSpec({
     required this.id,
@@ -149,6 +167,8 @@ class SmartDesktop extends StatefulWidget {
     this.onCloseCard,
     this.widgetsMenuOpen,
     this.onWidgetsMenuChanged,
+    this.dynamicCards,
+    this.cardContentBuilder,
   });
 
   final bool hasOpenWindows;
@@ -169,25 +189,39 @@ class SmartDesktop extends StatefulWidget {
   final ValueChanged<String>? onCloseCard;
   final bool? widgetsMenuOpen;
   final ValueChanged<bool>? onWidgetsMenuChanged;
+  final List<WhiteboardCardData>? dynamicCards;
+  final Widget Function(Map<String, dynamic> content)? cardContentBuilder;
 
   @override
   State<SmartDesktop> createState() => SmartDesktopState();
 }
 
 class SmartDesktopState extends State<SmartDesktop> {
-  static const List<String> cardOrder = [
+  static const List<String> defaultCardOrder = [
     'launcher',
     'signal',
     'identity',
     'apps',
   ];
 
-  static const Map<String, String> cardLabels = {
+  static const Map<String, String> defaultCardLabels = {
     'launcher': 'Ino Launcher',
     'signal': 'Live Signal',
     'identity': 'Theme & Identity',
     'apps': 'Smart Apps',
   };
+
+  List<String> get cardOrder =>
+      widget.dynamicCards != null && widget.dynamicCards!.isNotEmpty
+          ? widget.dynamicCards!.map((c) => c.id).toList()
+          : defaultCardOrder;
+
+  Map<String, String> get cardLabels {
+    if (widget.dynamicCards != null && widget.dynamicCards!.isNotEmpty) {
+      return {for (final c in widget.dynamicCards!) c.id: c.title};
+    }
+    return defaultCardLabels;
+  }
 
   String _selectedNeuronId = 'ino';
   bool _briefApproved = false;
@@ -200,6 +234,37 @@ class SmartDesktopState extends State<SmartDesktop> {
   final Set<String> _pinnedCardIds = {};
   final Set<String> _localClosedCardIds = {};
   final Set<String> _localOpenedCardIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.dynamicCards != null) {
+      for (final card in widget.dynamicCards!) {
+        if (card.isPinned) {
+          _pinnedCardIds.add(card.id);
+        }
+        if (card.initialBounds != null) {
+          _cardBounds[card.id] = card.initialBounds!;
+        }
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(SmartDesktop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.dynamicCards != null &&
+        widget.dynamicCards != oldWidget.dynamicCards) {
+      for (final card in widget.dynamicCards!) {
+        if (card.isPinned && !_pinnedCardIds.contains(card.id)) {
+          _pinnedCardIds.add(card.id);
+        }
+        if (card.initialBounds != null && !_cardBounds.containsKey(card.id)) {
+          _cardBounds[card.id] = card.initialBounds!;
+        }
+      }
+    }
+  }
 
   Map<String, Rect> get cardBounds => Map.unmodifiable(_cardBounds);
   Set<String> get pinnedCardIds => Set.unmodifiable(_pinnedCardIds);
@@ -258,9 +323,24 @@ class SmartDesktopState extends State<SmartDesktop> {
   }
 
   void _ensureInitialCardBounds(Size canvas) {
-    if (_initializedBounds && _cardBounds.length == cardOrder.length) return;
+    if (_initializedBounds && _cardBounds.length >= cardOrder.length) return;
     _initializedBounds = true;
     final rightX = math.max(404.0, canvas.width - 364.0);
+
+    if (widget.dynamicCards != null) {
+      for (var i = 0; i < widget.dynamicCards!.length; i++) {
+        final card = widget.dynamicCards![i];
+        if (card.initialBounds != null) {
+          _cardBounds.putIfAbsent(card.id, () => card.initialBounds!);
+        } else {
+          final isLeft = i % 2 == 0;
+          final x = isLeft ? 24.0 : rightX;
+          final y = 58.0 + (i ~/ 2) * 240.0;
+          _cardBounds.putIfAbsent(card.id, () => Rect.fromLTWH(x, y, 360, 224));
+        }
+      }
+    }
+
     _cardBounds.putIfAbsent(
       'launcher',
       () => const Rect.fromLTWH(24, 58, 360, 224),
@@ -503,13 +583,23 @@ class SmartDesktopState extends State<SmartDesktop> {
                     onClose: () => closeCard(id),
                     onMove: (delta) => _moveCard(id, delta, canvas),
                     onResize: (delta) => _resizeCard(id, delta, canvas),
-                    child: switch (id) {
-                      'launcher' => _buildLauncherCardContent(c),
-                      'signal' => _buildSignalApprovalCardContent(c),
-                      'identity' => _buildIdentitySwitcherCardContent(c),
-                      'apps' => _buildSmartAppGridCardContent(c),
-                      _ => const SizedBox.shrink(),
-                    },
+                    child: () {
+                      final dynamicCard = widget.dynamicCards
+                          ?.where((c) => c.id == id)
+                          .firstOrNull;
+                      if (dynamicCard?.content != null &&
+                          widget.cardContentBuilder != null) {
+                        return widget.cardContentBuilder!(
+                            dynamicCard!.content!);
+                      }
+                      return switch (id) {
+                        'launcher' => _buildLauncherCardContent(c),
+                        'signal' => _buildSignalApprovalCardContent(c),
+                        'identity' => _buildIdentitySwitcherCardContent(c),
+                        'apps' => _buildSmartAppGridCardContent(c),
+                        _ => const SizedBox.shrink(),
+                      };
+                    }(),
                   ),
                 ),
               ),

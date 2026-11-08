@@ -168,10 +168,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _shellControlSub?.cancel();
     final watch = widget.watch;
     if (watch == null) return;
-    _shellControlSub = watch('shell.control', 'shell/control').listen(
-      (_) => unawaited(_readShellControl()),
-      onError: (_) {},
-    );
+    try {
+      _shellControlSub = watch('shell.control', 'shell/control').listen(
+        (_) => unawaited(_readShellControl()),
+        onError: (_) {},
+      );
+    } catch (_) {}
     unawaited(_readShellControl());
   }
 
@@ -752,11 +754,76 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _clientClosedWidgets.removeWhere((id) => !serverWidgets.contains(id));
 
     return [
-      for (final id in SmartDesktopState.cardOrder)
+      for (final id in SmartDesktopState.defaultCardOrder)
         if ((serverWidgets.contains(id) || _clientOpenedWidgets.contains(id)) &&
             !_clientClosedWidgets.contains(id))
           id,
     ];
+  }
+
+  List<WhiteboardCardData> _parseWhiteboardCards(Map root) {
+    final cards = <WhiteboardCardData>[];
+    final rawChildren =
+        (root['children'] as List? ?? const []).whereType<Map>().toList();
+
+    Map? whiteboardNode;
+    for (final child in rawChildren) {
+      if (child['key'] == 'whiteboard') {
+        whiteboardNode = child;
+        break;
+      }
+    }
+
+    final cardNodes = whiteboardNode != null
+        ? (whiteboardNode['children'] as List? ?? const []).whereType<Map>()
+        : rawChildren.where((c) {
+            final k = '${c['key']}';
+            return k.startsWith('card-') || k.startsWith('whiteboard-');
+          });
+
+    for (final node in cardNodes) {
+      final fullKey = node['key'] as String? ?? '';
+      final id = fullKey.startsWith('card-')
+          ? fullKey.substring(5)
+          : fullKey.startsWith('whiteboard-')
+              ? fullKey.substring(11)
+              : fullKey;
+      final title = node['text'] as String? ?? id;
+
+      Map<String, dynamic>? meta;
+      if (node['detail'] is String) {
+        try {
+          final decoded = jsonDecode(node['detail'] as String);
+          if (decoded is Map) meta = Map<String, dynamic>.from(decoded);
+        } catch (_) {}
+      }
+
+      Rect? bounds;
+      if (meta != null &&
+          meta['x'] is num &&
+          meta['y'] is num &&
+          meta['width'] is num &&
+          meta['height'] is num) {
+        bounds = Rect.fromLTWH(
+          (meta['x'] as num).toDouble(),
+          (meta['y'] as num).toDouble(),
+          (meta['width'] as num).toDouble(),
+          (meta['height'] as num).toDouble(),
+        );
+      }
+
+      final isPinned = meta?['pinned'] == true;
+      cards.add(
+        WhiteboardCardData(
+          id: id,
+          title: title,
+          content: Map<String, dynamic>.from(node),
+          initialBounds: bounds,
+          isPinned: isPinned,
+        ),
+      );
+    }
+    return cards;
   }
 
   Map<String, Map<String, dynamic>> _parseDockButtons(Map root) {
@@ -781,6 +848,55 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       if (child['key'] == 'dock' || child['key'] == 'bar') walk(child);
     }
     return buttons;
+  }
+
+  IconData _iconForApp(String? name) {
+    return switch (name?.toLowerCase()) {
+      'ino' || 'sparkles' => LucideIcons.sparkles,
+      'files' || 'folder' => LucideIcons.folder,
+      'photocraft' || 'image' => LucideIcons.image,
+      'filmcraft' || 'film' => LucideIcons.film,
+      'creator' || 'wand' || 'wandsparkles' => LucideIcons.wandSparkles,
+      'gallery' || 'palette' => LucideIcons.palette,
+      'post' || 'megaphone' => LucideIcons.megaphone,
+      'circles' || 'circle' || 'circledot' => LucideIcons.circleDot,
+      'workspace' || 'compass' => LucideIcons.compass,
+      'brain' || 'braincircuit' => LucideIcons.brainCircuit,
+      'data' || 'bar-chart-2' || 'barchart' => LucideIcons.barChart2,
+      'markdraw' || 'pen-tool' || 'file-text' => LucideIcons.fileText,
+      'settings' || 'slidershorizontal' => LucideIcons.slidersHorizontal,
+      _ => LucideIcons.layoutGrid,
+    };
+  }
+
+  List<SmartAppTileSpec> _parseAppSpecs(Map<String, Map<String, dynamic>> dockButtons) {
+    if (dockButtons.isEmpty) return defaultSmartAppSpecs;
+    final specs = <SmartAppTileSpec>[];
+    for (final entry in dockButtons.entries) {
+      final key = entry.key;
+      if (!key.startsWith('dock-')) continue;
+      final appId = key.substring('dock-'.length);
+      if (appId == 'more-settings' ||
+          appId == 'avatar' ||
+          appId == 'usage' ||
+          appId == 'open-widgets') {
+        continue;
+      }
+      final btn = entry.value;
+      final label = btn['text'] as String? ?? appId;
+      final iconName = btn['icon'] as String? ?? appId;
+      specs.add(
+        SmartAppTileSpec(
+          id: appId,
+          name: label,
+          icon: _iconForApp(iconName),
+          color: const Color(0xFF3D7EFF),
+          neuronUri: 'neuron://${widget.brain}/apps/$appId',
+          category: 'Apps',
+        ),
+      );
+    }
+    return specs.isNotEmpty ? specs : defaultSmartAppSpecs;
   }
 
   Rect _initialWindowBounds(int index, Size desk) {
@@ -1188,9 +1304,28 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   stylePreset: widget.stylePreset,
                   barLayout: widget.barLayout,
                   openCardIds: openWidgets,
+                  apps: _parseAppSpecs(dockButtons),
                   widgetsMenuOpen: _widgetsMenuOpen,
                   onWidgetsMenuChanged: (open) =>
                       setState(() => _widgetsMenuOpen = open),
+                  dynamicCards: () {
+                    final cards = _parseWhiteboardCards(effectiveRoot);
+                    return cards.isNotEmpty ? cards : null;
+                  }(),
+                  cardContentBuilder: (content) => ImmutableView(
+                    name: '${widget.name}/whiteboard',
+                    generation: _generation,
+                    root: content,
+                    enabled: true,
+                    dispatch: (event) async => _dispatchViewNode(event),
+                    markdown: (t) => SelectableText(t),
+                    reference: (node, key) => const SizedBox.shrink(),
+                    layout: (meta, children, _) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: children,
+                    ),
+                    onActivate: widget.onActivate,
+                  ),
                   onOpenCard: (cardId) {
                     setState(() {
                       _clientClosedWidgets.remove(cardId);

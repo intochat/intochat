@@ -127,7 +127,7 @@ abstract final class NodeContracts {
     ),
   };
 
-  // The shell's own watches (Ino's presence, the user settings); not UI kinds a view may reference.
+  // The shell's own watches (Ino's presence, the user settings, shell control); not UI kinds a view may reference.
   static const _shellSources = <String, NodeContract>{
     'ino.presence': NodeContract.source(
       'IntoChat.OS.Modules.Apps.IPresence',
@@ -136,6 +136,10 @@ abstract final class NodeContracts {
     'os.settings': NodeContract.source(
       'IntoChat.OS.Modules.Apps.IUserSettings',
       'UserSettingsChanged',
+    ),
+    'shell.control': NodeContract.source(
+      'IntoChat.OS.Modules.Apps.Contracts.Ino.IShellControl',
+      'ShellStateChanged',
     ),
   };
 

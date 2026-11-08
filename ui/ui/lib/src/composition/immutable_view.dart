@@ -1,8 +1,9 @@
 part of 'neuron_view.dart';
 
 /// Inline presentation values never acquire their own load or watch lifecycle.
-class _ImmutableView extends StatelessWidget {
-  const _ImmutableView({
+class ImmutableView extends StatelessWidget {
+  const ImmutableView({
+    super.key,
     required this.name,
     required this.generation,
     required this.root,
