@@ -827,7 +827,8 @@ internal sealed class CompiledAppsHost(
         }
         var watches = HostedAppWatches.Attach(brains.Open(brain), turns, new AppAddress(brain, appKey),
             (contract, id) => SiloNeurons.Get(services, contract, id),
-            (error, watch) => logger.LogWarning(error, "Watch {Watch} of {App} failed.", watch, appKey));
+            (error, watch) => logger.LogWarning(error, "Watch {Watch} of {App} failed.", watch, appKey),
+            (watch, attempt, delay) => logger.LogInformation("Watch {Watch} of {App} restarts in {Delay} (attempt {Attempt}).", watch, appKey, delay, attempt));
         if (!_watches.TryAdd(appKey, (turns, watches))) { await watches.DisposeAsync(); }
     }
 
