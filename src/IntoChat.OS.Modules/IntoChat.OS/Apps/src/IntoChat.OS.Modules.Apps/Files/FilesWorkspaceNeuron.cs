@@ -93,8 +93,6 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         await Field("filter").Configure("Filter by name", "text");
         await Field("name").Configure("Name", "text");
         await Field("content").Configure("File content", "multiline");
-        foreach (var slot in new[] { "side", "main", "full" })
-        { await Context.Synapses.Ensure<ViewAction>(new(Id.Brain, UIVocabulary.ViewType, AppPath + "/" + slot)); }
         foreach (var field in new[] { "search", "filter" })
         { await Context.Synapses.Ensure<TextFieldChanged>(new(Id.Brain, UIVocabulary.TextFieldType, AppPath + "/" + field)); }
         foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
@@ -225,23 +223,6 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         catch (ArgumentException error) { await Persist(State with { PendingRequest = null, Notice = error.Message }); }
         catch (InvalidOperationException error) { await Persist(State with { PendingRequest = null, Notice = error.Message }); }
         await Render();
-    }
-
-    [On]
-    public async Task On(ViewAction action)
-    {
-        if (action.Name != AppKey + "/side" && action.Name != AppKey + "/main" && action.Name != AppKey + "/full") { return; }
-        var parts = action.Action.Split(':');
-        if (parts.Length is < 2 or > 3 || !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var revision)) { return; }
-        int? index = parts.Length == 3 && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
-        await WithAppCallerAsync(async () =>
-        {
-            try { await Request(parts[1] == "search-all" ? "search" : parts[1], new(Index: index, Everywhere: parts[1] == "search-all"), revision, action.RequestId); }
-            catch (StaleActionException error)
-            {
-                Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files view action was stale.");
-            }
-        });
     }
 
     [On]

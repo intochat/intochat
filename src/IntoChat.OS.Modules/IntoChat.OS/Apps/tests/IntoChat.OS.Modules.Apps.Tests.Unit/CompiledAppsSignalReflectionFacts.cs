@@ -25,59 +25,54 @@ public sealed class CompiledAppsSignalReflectionFacts
     }
 
     [Fact]
-    public void ParseArgumentPreservesColonsInPrimaryTextOrSqlPayloads()
+    public void PlainTextFillsTheFirstMemberWholeColonsIncluded()
     {
         var method = typeof(SampleSignalTarget).GetMethod(nameof(SampleSignalTarget.OnSingle))!;
         var parsed = Assert.IsType<SingleTextSignal>(
-            CompiledAppsHost.ParseArgument(method, "SELECT * FROM deals WHERE url = 'http://localhost:8080'"));
+            CompiledAppsHost.BindArgument(method, "SELECT * FROM deals WHERE url = 'http://localhost:8080'"));
 
         Assert.Equal("SELECT * FROM deals WHERE url = 'http://localhost:8080'", parsed.Text);
         Assert.Null(parsed.OptionalTag);
     }
 
     [Fact]
-    public void ParseArgumentRestoresAnEscapedColonArgumentFromTheLegacyActionString()
+    public void AnEmitsSingleJsonStringArgumentKeepsItsColons()
     {
         var method = typeof(SampleSignalTarget).GetMethod(nameof(SampleSignalTarget.OnSingle))!;
-        var parsed = Assert.IsType<SingleTextSignal>(CompiledAppsHost.ParseArgument(method, "card%3Aapproval%3Aapproved"));
+        var parsed = Assert.IsType<SingleTextSignal>(CompiledAppsHost.BindArgument(method, "\"card:approval:approved\""));
 
         Assert.Equal("card:approval:approved", parsed.Text);
         Assert.Null(parsed.OptionalTag);
     }
 
     [Fact]
-    public void ParseArgumentConvertsColonSeparatedTypedSegmentsGenerically()
+    public void AnEmitsJsonArrayBindsPositionallyWithTypedSegments()
     {
         var approvalMethod = typeof(SampleSignalTarget).GetMethod(nameof(SampleSignalTarget.OnApproval))!;
-        var rejected = Assert.IsType<ApprovalSignal>(
-            CompiledAppsHost.ParseArgument(approvalMethod, "card-42:false"));
+        var rejected = Assert.IsType<ApprovalSignal>(CompiledAppsHost.BindArgument(approvalMethod, "[\"card-42\",\"false\"]"));
         Assert.Equal("card-42", rejected.CardId);
         Assert.False(rejected.Approved);
 
         var groupMethod = typeof(SampleSignalTarget).GetMethod(nameof(SampleSignalTarget.OnGroup))!;
-        var grouped = Assert.IsType<GroupBySignal>(
-            CompiledAppsHost.ParseArgument(groupMethod, "Stage:SUM"));
+        var grouped = Assert.IsType<GroupBySignal>(CompiledAppsHost.BindArgument(groupMethod, "[\"Stage\",\"SUM\"]"));
         Assert.Equal("Stage", grouped.Column);
         Assert.Equal("SUM", grouped.Function);
 
         var pagedMethod = typeof(SampleSignalTarget).GetMethod(nameof(SampleSignalTarget.OnPaged))!;
-        var paged = Assert.IsType<PagedSignal>(
-            CompiledAppsHost.ParseArgument(pagedMethod, "/work:50"));
-        Assert.Equal("/work", paged.Folder);
+        var paged = Assert.IsType<PagedSignal>(CompiledAppsHost.BindArgument(pagedMethod, "[\"/work:a\",50]"));
+        Assert.Equal("/work:a", paged.Folder);
         Assert.Equal(50, paged.PageSize);
     }
 
     [Fact]
-    public void ParseArgumentDeserializesJsonPayloadsAndHandlesEmptyInput()
+    public void AJsonObjectBindsByNameAndEmptyInputIsTheDefault()
     {
         var groupMethod = typeof(SampleSignalTarget).GetMethod(nameof(SampleSignalTarget.OnGroup))!;
-        var empty = Assert.IsType<GroupBySignal>(
-            CompiledAppsHost.ParseArgument(groupMethod, ""));
+        var empty = Assert.IsType<GroupBySignal>(CompiledAppsHost.BindArgument(groupMethod, ""));
         Assert.Null(empty.Column);
         Assert.Null(empty.Function);
 
-        var fromJson = Assert.IsType<GroupBySignal>(
-            CompiledAppsHost.ParseArgument(groupMethod, "{\"column\":\"Region\",\"function\":\"AVG\"}"));
+        var fromJson = Assert.IsType<GroupBySignal>(CompiledAppsHost.BindArgument(groupMethod, "{\"column\":\"Region\",\"function\":\"AVG\"}"));
         Assert.Equal("Region", fromJson.Column);
         Assert.Equal("AVG", fromJson.Function);
     }

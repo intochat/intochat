@@ -6,55 +6,6 @@ namespace IntoChat.OS.Modules.Apps.Tests;
 
 public sealed class CompiledAppsHostAdversarialFacts
 {
-    [Theory]
-    [InlineData("edit:sample.png", "edit", "sample.png")]
-    [InlineData("refresh", "refresh", "")]
-    [InlineData("tag:nested:value", "tag", "nested:value")]
-    [InlineData("  open  :  file.txt  ", "open", "file.txt")]
-    [InlineData("colon::double", "colon", ":double")]
-    public void ViewAction_SignalSplitting_ExtractsOperationAndRawArgumentCorrectly(
-        string action,
-        string expectedOp,
-        string expectedArg)
-    {
-        var parts = action.Split(':', 2, StringSplitOptions.TrimEntries);
-        var operation = parts[0];
-        var rawArg = parts.Length > 1 ? parts[1] : string.Empty;
-
-        Assert.Equal(expectedOp, operation);
-        Assert.Equal(expectedArg, rawArg);
-    }
-
-    [Theory]
-    [InlineData("apps/gallery/view", true, "gallery")]
-    [InlineData("apps/photocraft/side", true, "photocraft")]
-    [InlineData("apps/creator/view", true, "creator")]
-    [InlineData("apps/standalone", false, null)]
-    [InlineData("neurons/apps/gallery/view", false, null)]
-    public void ViewAction_SignalKey_ParsesAppAndValidatesPrefix(
-        string publisherKey,
-        bool expectedValid,
-        string? expectedAppName)
-    {
-        if (!publisherKey.StartsWith("apps/", StringComparison.Ordinal))
-        {
-            Assert.False(expectedValid);
-            return;
-        }
-
-        var rest = publisherKey["apps/".Length..];
-        var slash = rest.IndexOf('/', StringComparison.Ordinal);
-        if (slash <= 0)
-        {
-            Assert.False(expectedValid);
-            return;
-        }
-
-        var appName = rest[..slash];
-        Assert.True(expectedValid);
-        Assert.Equal(expectedAppName, appName);
-    }
-
     [Fact]
     public void HostedByName_ContainsOnlyKernelApps_ExcludesNonKernelApps()
     {
@@ -328,6 +279,8 @@ public sealed class CompiledAppsHostAdversarialFacts
     {
         public string? LastOperation { get; private set; }
         public string? LastInput { get; private set; }
+
+        public Task<Guid> Emit(string signal, string args) => Request(signal, args);
 
         public Task<Guid> Request(string operation, string input)
         {

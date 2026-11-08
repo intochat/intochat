@@ -109,7 +109,7 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
         var snapshot = await appNeuron.Read();
         Assert.NotNull(snapshot.Presentation);
         var mainView = await SiloNeurons.Get<IView>(Services, appKey + "/view").Read();
-        Assert.NotNull(mainView?.Root);
+        Assert.Equal(System.Text.Json.JsonValueKind.Object, mainView?.View.GetProperty("root").ValueKind);
 
         // SideloadNeuron answers on the silo.
         var sideload = SiloNeurons.Get<ISideload>(Services, $"{brain}/sideload");
@@ -161,7 +161,7 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
         var snapshot = await appNeuron.Read();
         Assert.NotNull(snapshot.Presentation);
         var mainView = await SiloNeurons.Get<IView>(Services, appKey + "/view").Read();
-        Assert.NotNull(mainView?.Root);
+        Assert.Equal(System.Text.Json.JsonValueKind.Object, mainView?.View.GetProperty("root").ValueKind);
     }
 
     [Fact]

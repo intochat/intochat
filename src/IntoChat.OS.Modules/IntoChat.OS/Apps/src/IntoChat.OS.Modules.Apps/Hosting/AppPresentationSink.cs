@@ -11,7 +11,6 @@ using IntoChat.OS.Modules.Flutter.Table;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
 using Orleans.Runtime;
-using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -40,15 +39,11 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         var app = SiloNeurons.Get<IApp>(services, appKey);
         var snapshot = await app.Read().WaitAsync(ct);
         var generation = Math.Max(1L, snapshot.ProgramRevision);
-        var trusted = AppTrust.IsOsTrusted(snapshot);
 
+        // The views are published as the app returned them; only the side-by-side composition of side and main is the host's.
         if (side is not null)
         {
-            var sideNeuron = SiloNeurons.Get<IView>(services, appKey + "/side");
-            var currentSide = await sideNeuron.Read();
-            var sideGen = currentSide is { Generation: > 0 } ? Math.Max(generation, currentSide.Generation) : generation;
-            var nextSideVersion = (currentSide?.Generation == sideGen ? currentSide.Version : 0L) + 1L;
-            await sideNeuron.Publish(new UiView(sideGen, nextSideVersion, AppNeuron.MapView(side, brain, trusted)));
+            await SiloNeurons.Get<IView>(services, appKey + "/side").Publish(generation, side);
         }
 
         if (main is not null)
@@ -56,45 +51,27 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             var host = services.GetService(typeof(InProcessAppHost)) as InProcessAppHost;
             var instance = host?.TryGetTurns(owner)?.App;
 
-            UiNode mainTree;
+            View mainView;
             if (instance is DigitalBrain.App<InoAppState> ino)
             {
                 await SyncInoChatAndComposerAsync(brain, appKey, ino.State);
-                mainTree = side is not null
-                    ? Ui.Row(
-                        "ino-workspace",
-                        [
-                            AppNeuron.MapNode("ino-side", side.Root, brain, trusted),
-                            AppNeuron.MapNode("ino-main", main.Root, brain, trusted),
-                        ],
-                        gap: 0,
-                        extents: [256, 0])
-                    : AppNeuron.MapNode("ino-main", main.Root, brain, trusted);
+                mainView = side is not null ? main with { Root = new Row([side.Root, main.Root]) { Gap = 0, Extents = [256, 0] } } : main;
             }
             else if (side is not null)
             {
                 var sideWidth = appName == "creator" ? 340d : appName == "gallery" ? 268d : 236d;
-                mainTree = Ui.Row(
-                    "view",
-                    [
-                        AppNeuron.MapNode("side", side.Root, brain, trusted),
-                        AppNeuron.MapNode("root", main.Root, brain, trusted),
-                    ],
-                    gap: 14,
-                    extents: [sideWidth, 0]);
+                mainView = main with { Root = new Row([side.Root, main.Root]) { Gap = 14, Extents = [sideWidth, 0] } };
             }
             else
             {
-                mainTree = AppNeuron.MapView(main, brain, trusted);
+                mainView = main;
             }
 
             var mainNeuron = SiloNeurons.Get<IView>(services, appKey + "/view");
-            var currentMain = await mainNeuron.Read();
-            if (appName != "desktop" || currentMain?.Root is not { Key: "desktop" })
+            // The desktop's view is the host's window shell (CompiledAppsHost); the desktop app's own render does not replace it.
+            if (appName != "desktop" || await mainNeuron.Read() is not { } current || !CompiledAppsHost.IsDesktopShell(current))
             {
-                var mainGen = currentMain is { Generation: > 0 } ? Math.Max(generation, currentMain.Generation) : generation;
-                var nextMainVersion = (currentMain?.Generation == mainGen ? currentMain.Version : 0L) + 1L;
-                await mainNeuron.Publish(new UiView(mainGen, nextMainVersion, mainTree));
+                await mainNeuron.Publish(generation, mainView);
             }
         }
 

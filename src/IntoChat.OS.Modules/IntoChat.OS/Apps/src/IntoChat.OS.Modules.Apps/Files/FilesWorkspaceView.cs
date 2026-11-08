@@ -20,51 +20,32 @@ internal sealed partial class FilesWorkspaceNeuron
         var files = State.Files;
         var screen = FilesScreen.Compose(files, State.Width, State.PreviewOpen, files.Revision, AppKey, State.PageOffset);
         await Push(screen);
-        string Action(string verb, int? index = null) => files.Revision.ToString(CultureInfo.InvariantCulture) + ":" + verb
-            + (index is { } value ? ":" + value.ToString(CultureInfo.InvariantCulture) : "");
-        UiNode Button(string key, string text, string verb, bool enabled = true, int? index = null, UiStyle style = UiStyle.Secondary)
-            => Ui.Button(key, text, Action(verb, index), enabled, style);
+        var rev = files.Revision.ToString(CultureInfo.InvariantCulture);
+        DigitalBrain.UI.Node Button(string key, string text, string verb, bool enabled = true, int? index = null, string style = FilesUi.Secondary)
+            => FilesUi.Button(key, text, FilesUi.Act(rev, verb, index), enabled, style);
         var views = await ReadOperations(Context.OperationsQuery, State.Started,
             error => Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files operation could not be read."));
         var operations = OperationCards(State.Started, views, index => Button("cancel-" + index, "Cancel", "cancel", index: index));
         var notice = State.Notice ?? files.Message;
-        var extras = Ui.Column("files-extras",
+        var extras = FilesUi.Column(
         [
-            .. notice is null ? Array.Empty<UiNode>() : [Ui.Text("message", notice)],
+            .. notice is null ? Array.Empty<DigitalBrain.UI.Node>() : [FilesUi.Text(notice)],
             .. files.InoHandoffPrompt is { } handoffPrompt
-                ? [Ui.Card("ino-handoff", "Ino Handoff", handoffPrompt, [Ui.Text("ino-handoff-uri", files.SelectedNeuronUri ?? ""), Ui.CopyButton("copy-ino-prompt", FilesCopy.CopyNeuronUri, files.SelectedNeuronUri ?? handoffPrompt)])]
-                : Array.Empty<UiNode>(),
-            Ui.Reference("input-name", new(UIVocabulary.TextFieldType, AppKey + "/name")),
-            Ui.Reference("input-content", new(UIVocabulary.TextFieldType, AppKey + "/content")),
+                ? [FilesUi.Card("Ino Handoff", handoffPrompt, [FilesUi.Text(files.SelectedNeuronUri ?? ""), FilesUi.CopyButton("copy-ino-prompt", FilesCopy.CopyNeuronUri, files.SelectedNeuronUri ?? handoffPrompt)])]
+                : Array.Empty<DigitalBrain.UI.Node>(),
+            FilesUi.Field("input-name", AppKey + "/name"),
+            FilesUi.Field("input-content", AppKey + "/content"),
             Button("write", "Save text file", "write", files.Breadcrumbs.LastOrDefault()?.Item.Flags.HasFlag(ItemFlags.Write) == true),
             Button("paste", files.Clipboard?.Move == true ? "Move here" : "Copy here", "paste", files.Clipboard is not null),
-            Ui.Reference("confirmations", new("confirmation", Id.Brain.Value + "/confirmations")),
+            FilesUi.Reference("confirmation", Id.Brain.Value + "/confirmations"),
             .. operations,
         ]);
-        var main = Ui.Column("files-main-wrap", [screen.Main, extras]);
-        var full = Ui.Row("files-full", [screen.Side, main], gap: 12, extents: [240, 0]);
-        var version = Math.Max(1L, State.ViewVersion);
-        try
-        {
-            await View("side").Publish(new(files.Revision, version, screen.Side));
-            await View("main").Publish(new(files.Revision, version, main));
-            await View("full").Publish(new(files.Revision, version, full));
-            await View("view").Publish(new(files.Revision, version, full));
-        }
-        catch (InvalidOperationException)
-        {
-            var maxPublished = Math.Max(
-                (await View("side").Read())?.Version ?? 0L,
-                Math.Max(
-                    Math.Max((await View("main").Read())?.Version ?? 0L, (await View("full").Read())?.Version ?? 0L),
-                    (await View("view").Read())?.Version ?? 0L));
-            var bumpedVersion = Math.Max(version, maxPublished) + 1L;
-            await Save(State with { ViewVersion = bumpedVersion }, new FilesWorkspaceChanged(files.Revision));
-            await View("side").Publish(new(files.Revision, bumpedVersion, screen.Side));
-            await View("main").Publish(new(files.Revision, bumpedVersion, main));
-            await View("full").Publish(new(files.Revision, bumpedVersion, full));
-            await View("view").Publish(new(files.Revision, bumpedVersion, full));
-        }
+        var main = FilesUi.Column([screen.Main, extras]);
+        var full = FilesUi.Row([screen.Side, main], gap: 12, extents: [240, 0]);
+        await View("side").Publish(files.Revision, new("Files", screen.Side));
+        await View("main").Publish(files.Revision, new("Files", main));
+        await View("full").Publish(files.Revision, new("Files", full));
+        await View("view").Publish(files.Revision, new("Files", full));
     }
 
     // The operations query's view of each started operation (cross-silo); one that cannot be read is null.
@@ -84,12 +65,12 @@ internal sealed partial class FilesWorkspaceNeuron
 
     // One card per started operation, from the operations query: the fraction while it runs, its result once done. An operation the
     // query does not know (not yet visible, or trimmed) shows as waiting while not done.
-    internal static UiNode[] OperationCards(IReadOnlyList<FilesStartedOperation> started, IReadOnlyList<OperationView?> views, Func<int, UiNode> cancel)
+    internal static DigitalBrain.UI.Node[] OperationCards(IReadOnlyList<FilesStartedOperation> started, IReadOnlyList<OperationView?> views, Func<int, DigitalBrain.UI.Node> cancel)
     {
         ArgumentNullException.ThrowIfNull(started);
         ArgumentNullException.ThrowIfNull(views);
         ArgumentNullException.ThrowIfNull(cancel);
-        var cards = new UiNode[started.Count];
+        var cards = new DigitalBrain.UI.Node[started.Count];
         for (var index = 0; index < cards.Length; index++)
         {
             var operation = started[index];
@@ -105,10 +86,10 @@ internal sealed partial class FilesWorkspaceNeuron
             };
             var running = view is null ? !operation.Done : view.Result is null;
             var fraction = Math.Clamp(view?.Fraction ?? 0, 0, 1);
-            UiNode[] children = running
-                ? [Ui.Text("progress-" + index, fraction.ToString("P0", CultureInfo.InvariantCulture)), cancel(index)]
-                : [Ui.Text("progress-" + index, status)];
-            cards[index] = Ui.Card("operation-" + index, operation.Label, status, children);
+            DigitalBrain.UI.Node[] children = running
+                ? [FilesUi.Text(fraction.ToString("P0", CultureInfo.InvariantCulture)), cancel(index)]
+                : [FilesUi.Text(status)];
+            cards[index] = FilesUi.Card(operation.Label, status, children);
         }
         return cards;
     }

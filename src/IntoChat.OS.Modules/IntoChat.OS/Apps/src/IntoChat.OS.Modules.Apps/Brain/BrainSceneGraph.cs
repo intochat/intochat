@@ -1,3 +1,4 @@
+using DigitalBrain.UI;
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain;
@@ -5,7 +6,6 @@ using DigitalBrain.Graph;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flutter.Views;
 using DigitalBrain.Signals.Watch;
-using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -299,7 +299,8 @@ public static partial class BrainSceneGraph
         return (level, focus);
     }
 
-    public static UiNode BuildUiRoot(SceneDefinition definition, GraphLevel level, string? focus)
+    // The brain app's view: a mode toolbar and the 3D scene, whose nodes drill or focus through the brain app's emits.
+    public static View BuildUiRoot(SceneDefinition definition, GraphLevel level, string? focus)
     {
         ArgumentNullException.ThrowIfNull(definition);
         var spheres = definition.Nodes.Where(n => n.Type == "sphere").ToArray();
@@ -321,7 +322,10 @@ public static partial class BrainSceneGraph
             selectedId = spheres[0].Parameters.GetValueOrDefault("graphId", spheres[0].Id);
         }
 
-        var nodesMeta = spheres.Select((s, index) =>
+        static Emit BrainEmit(string signal, string? argument = null)
+            => new("brain", signal, argument is null ? null : JsonSerializer.SerializeToElement(argument));
+
+        var nodes = spheres.Select((s, index) =>
         {
             var id = s.Parameters.GetValueOrDefault("graphId", s.Id);
             var label = s.Parameters.GetValueOrDefault("title", id);
@@ -332,90 +336,42 @@ public static partial class BrainSceneGraph
             var pulsing = s.Parameters.TryGetValue("pulse", out var p) && string.Equals(p, "true", StringComparison.OrdinalIgnoreCase);
             var isFocused = !string.IsNullOrWhiteSpace(focus) && string.Equals(id, focus, StringComparison.Ordinal);
             var status = pulsing ? "working" : (isFocused ? "done" : "healthy");
-            return new
-            {
-                id,
-                label,
-                category,
-                uri,
-                subtitle,
-                status,
-                x = Math.Round(s.Transform.X, 2),
-                y = Math.Round(s.Transform.Y, 2),
-                z = Math.Round(Math.Sin(index * 1.1) * 45.0, 2),
-            };
+            var emit = s.Parameters.TryGetValue(DrillParameter, out var drill) && !string.IsNullOrWhiteSpace(drill)
+                ? BrainEmit("drill", drill)
+                : BrainEmit("focus", id);
+            return new BrainGraphNode(id, label, uri, category, Math.Round(s.Transform.X, 2), Math.Round(s.Transform.Y, 2), Math.Round(Math.Sin(index * 1.1) * 45.0, 2), status, subtitle,
+                new Button($"brain-scene.node.{index}", string.IsNullOrWhiteSpace(label) ? id : label, emit));
         }).ToArray();
 
-        var synapsesMeta = paths
+        var synapses = paths
             .Where(e => e.Parameters.ContainsKey("from") && e.Parameters.ContainsKey("to"))
-            .Select(e =>
-            {
-                var fromId = e.Parameters.GetValueOrDefault("from", string.Empty);
-                var toId = e.Parameters.GetValueOrDefault("to", string.Empty);
-                var signalType = e.Parameters.TryGetValue("cause", out var cause) && !string.IsNullOrWhiteSpace(cause)
+            .Select(e => new BrainGraphSynapse(
+                e.Parameters.GetValueOrDefault("from", string.Empty),
+                e.Parameters.GetValueOrDefault("to", string.Empty),
+                e.Parameters.TryGetValue("cause", out var cause) && !string.IsNullOrWhiteSpace(cause)
                     ? $"navigates:{cause}"
-                    : e.Parameters.GetValueOrDefault("kind", "signal");
-                int? trailStep = e.Parameters.TryGetValue("step", out var stepStr)
-                    && int.TryParse(stepStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedStep)
-                    ? parsedStep
-                    : null;
-                return new
-                {
-                    fromId,
-                    toId,
-                    active = true,
-                    signalType,
-                    trailStep,
-                };
-            }).ToArray();
+                    : e.Parameters.GetValueOrDefault("kind", "signal"),
+                true))
+            .ToArray();
 
-        var metaJson = JsonSerializer.Serialize(new
-        {
-            _ui = "brain3d",
-            selectedId,
-            pauseRotation = !string.IsNullOrWhiteSpace(focus),
-            zoomTargetId,
-            targetZoom = !string.IsNullOrWhiteSpace(focus) ? 1.75 : Math.Max(1.0, definition.Camera.Zoom),
-            height = 520.0,
-            interactive = true,
-            showHud = true,
-            nodes = nodesMeta,
-            synapses = synapsesMeta,
-        });
+        Node[] toolbar =
+        [
+            new Button("brain-mode-all", "Brain", BrainEmit("open"), Tone: isWorkMode ? ButtonTone.Neutral : ButtonTone.Accent) { Icon = "hub" },
+            new Button("brain-mode-work", "Work", BrainEmit("work"), Tone: isWorkMode ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "checklist" },
+            .. string.IsNullOrWhiteSpace(focus) ? Array.Empty<Node>() : [new Button("brain-reset-focus", $"Focus: {focus} ×", BrainEmit("open"))],
+            new Badge($"Level: {level}", "working"),
+            new Badge($"{spheres.Length} neurons · {paths.Length} synapses"),
+        ];
 
-        var nodeButtons = spheres.Select((s, index) =>
-        {
-            var id = s.Parameters.GetValueOrDefault("graphId", s.Id);
-            var label = s.Parameters.GetValueOrDefault("title", id);
-            var action = s.Parameters.TryGetValue(DrillParameter, out var drill) && !string.IsNullOrWhiteSpace(drill)
-                ? $"drill:{drill}"
-                : $"focus:{id}";
-            return Ui.Button($"brain-scene.node.{index}", string.IsNullOrWhiteSpace(label) ? id : label, action);
-        }).ToArray();
-
-        UiNode[] toolbarChildren = !string.IsNullOrWhiteSpace(focus)
-            ?
-            [
-                Ui.Button("brain-mode-all", "Brain", "open", style: isWorkMode ? UiStyle.Secondary : UiStyle.Primary, icon: "hub"),
-                Ui.Button("brain-mode-work", "Work", "work", style: isWorkMode ? UiStyle.Primary : UiStyle.Secondary, icon: "checklist"),
-                Ui.Button("brain-reset-focus", $"Focus: {focus} ×", "open", style: UiStyle.Ghost),
-                Ui.Badge("brain-level-badge", $"Level: {level}", UiTone.Working),
-                Ui.Badge("brain-counts-badge", $"{spheres.Length} neurons · {paths.Length} synapses", UiTone.Neutral),
-            ]
-            :
-            [
-                Ui.Button("brain-mode-all", "Brain", "open", style: isWorkMode ? UiStyle.Secondary : UiStyle.Primary, icon: "hub"),
-                Ui.Button("brain-mode-work", "Work", "work", style: isWorkMode ? UiStyle.Primary : UiStyle.Secondary, icon: "checklist"),
-                Ui.Badge("brain-level-badge", $"Level: {level}", UiTone.Working),
-                Ui.Badge("brain-counts-badge", $"{spheres.Length} neurons · {paths.Length} synapses", UiTone.Neutral),
-            ];
-
-        return Ui.Column(
-            "brain-root",
-            [
-                Ui.Row("brain-toolbar", toolbarChildren, gap: 8),
-                Ui.Card("brain-scene", "Brain Scene 3D", metaJson, nodeButtons),
-            ],
-            gap: 12);
+        return new View("Brain", new Column(
+        [
+            new Row(toolbar) { Gap = 8 },
+            new BrainSceneNode(nodes, synapses, selectedId)
+            {
+                PauseRotation = !string.IsNullOrWhiteSpace(focus),
+                ZoomTargetId = zoomTargetId,
+                TargetZoom = !string.IsNullOrWhiteSpace(focus) ? 1.75 : Math.Max(1.0, definition.Camera.Zoom),
+            },
+        ]));
     }
 }

@@ -9,6 +9,8 @@ internal sealed class RecordingApp : Neuron, IApp
 {
     public static List<(string Key, string Operation, string Input)> Requests { get; } = [];
 
+    public Task<Guid> Emit(string signal, string args) => Request(signal, args);
+
     public Task<Guid> Request(string operation, string input)
     {
         Requests.Add((Id.Key, operation, input));

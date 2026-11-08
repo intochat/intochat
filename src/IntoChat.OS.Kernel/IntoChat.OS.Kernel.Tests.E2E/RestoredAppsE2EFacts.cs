@@ -40,7 +40,6 @@ using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -93,7 +92,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "desktop", desktop.RenderSide(), desktop.Render());
         var desktopView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/desktop/view").Read();
-        Assert.NotNull(desktopView?.Root);
+        Assert.NotNull(desktopView);
 
         // 2. SettingsApp lifecycle on the real silo (AppsAppFacts + Settings preferences & connections).
         var settingsApp = fixture.AttachSilo(new SettingsApp(), brain);
@@ -128,7 +127,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "settings", settingsApp.RenderSide(), settingsApp.Render());
         var settingsView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/settings/view").Read();
-        Assert.NotNull(settingsView?.Root);
+        Assert.NotNull(settingsView);
 
         // 3. GalleryApp lifecycle on the real silo.
         var gallery = fixture.AttachSilo(new GalleryApp(), brain);
@@ -147,7 +146,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "gallery", gallery.RenderSide(), gallery.Render());
         var galleryView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/gallery/view").Read();
-        Assert.NotNull(galleryView?.Root);
+        Assert.NotNull(galleryView);
 
         // 4. PhotoCraftApp dual-mode (Native Linux CLI + MCP) lifecycle on the real silo.
         var photo = fixture.AttachSilo(new PhotoCraftApp(), brain);
@@ -165,7 +164,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "photocraft", photo.RenderSide(), photo.Render());
         var photoView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/photocraft/view").Read();
-        Assert.NotNull(photoView?.Root);
+        Assert.NotNull(photoView);
 
         // 5. FilmCraftApp dual-mode (Native Linux CLI + MCP) lifecycle on the real silo.
         var film = fixture.AttachSilo(new FilmCraftApp(), brain);
@@ -182,7 +181,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", film.RenderSide(), film.Render());
         var filmView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read();
-        Assert.NotNull(filmView?.Root);
+        Assert.NotNull(filmView);
 
         // 6. MarkdrawApp and DataStudioApp lifecycle on the real silo.
         var markdraw = fixture.AttachSilo(new MarkdrawApp(), brain);
@@ -191,7 +190,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.True(markdraw.State.Elements.Length >= 5);
         await fixture.PublishAppViewToSiloAsync(brain, "markdraw", markdraw.RenderSide(), markdraw.Render());
         var markdrawView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/markdraw/view").Read();
-        Assert.NotNull(markdrawView?.Root);
+        Assert.NotNull(markdrawView);
 
         var dataStudio = fixture.AttachSilo(new DataStudioApp(), brain);
         await dataStudio.Open(new DataStudioOpen("/work/q4-opportunities.csv"));
@@ -199,7 +198,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotEmpty(dataStudio.State.Rows);
         await fixture.PublishAppViewToSiloAsync(brain, "data", dataStudio.RenderSide(), dataStudio.Render());
         var dataView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/data/view").Read();
-        Assert.NotNull(dataView?.Root);
+        Assert.NotNull(dataView);
     }
 
     [Fact]
@@ -274,7 +273,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "creator", creator.RenderSide(), creator.Render());
         var creatorView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/creator/view").Read();
-        Assert.NotNull(creatorView?.Root);
+        Assert.NotNull(creatorView);
     }
 
     [Fact]
@@ -328,7 +327,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "ino", ino.RenderSide(), renderedView);
         var inoSiloView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/view").Read();
-        Assert.NotNull(inoSiloView?.Root);
+        Assert.NotNull(inoSiloView);
     }
 
     [Fact]

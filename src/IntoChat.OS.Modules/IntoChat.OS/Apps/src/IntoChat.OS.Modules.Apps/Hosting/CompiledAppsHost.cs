@@ -14,7 +14,6 @@ using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
-using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -103,6 +102,11 @@ internal sealed class CompiledAppsHost(
             if (!publisher.Key.StartsWith("apps/", StringComparison.Ordinal)) { return Task.CompletedTask; }
             var appName = publisher.Key["apps/".Length..];
             if (appName == "brain") { return Task.CompletedTask; }
+            if (appName == "desktop" && DesktopWindowVerbs.Contains(signal.Operation))
+            {
+                _ = Task.Run(() => HandleDesktopActionAsync(publisher.Brain.Value, signal, token), CancellationToken.None);
+                return Task.CompletedTask;
+            }
             if (appName == "desktop")
             {
                 _ = Task.Run(() => EnsureDesktopViewAsync(publisher.Brain.Value), CancellationToken.None);
@@ -116,38 +120,6 @@ internal sealed class CompiledAppsHost(
             TriggerEnsureAll(publisher.Brain.Value);
             if (publisher.Key != "apps/ino/composer") { return Task.CompletedTask; }
             _ = Task.Run(() => HandleComposerSubmittedAsync(publisher.Brain.Value, signal, token), CancellationToken.None);
-            return Task.CompletedTask;
-        });
-
-        _ = await listeners.Listen<ViewAction>(nameof(CompiledAppsHost), (publisher, signal, token) =>
-        {
-            TriggerEnsureAll(publisher.Brain.Value);
-            if (!publisher.Key.StartsWith("apps/", StringComparison.Ordinal)) { return Task.CompletedTask; }
-            var rest = publisher.Key["apps/".Length..];
-            var slash = rest.IndexOf('/', StringComparison.Ordinal);
-            if (slash <= 0) { return Task.CompletedTask; }
-            var appName = rest[..slash];
-            if (appName == "brain") { return Task.CompletedTask; }
-            if (appName == "desktop")
-            {
-                _ = Task.Run(() => HandleDesktopViewActionAsync(publisher.Brain.Value, signal, token), CancellationToken.None);
-                return Task.CompletedTask;
-            }
-            if (!HostedByName.ContainsKey(appName))
-            {
-                _ = Task.Run(async () =>
-                {
-                    if (await HostCaller.ForBrain(services, publisher.Brain.Value) is { } caller)
-                    {
-                        CallerContextStamper.Stamp(caller);
-                    }
-                    var app = SiloNeurons.Get<IApp>(services, IApp.Key(publisher.Brain.Value, appName));
-                    var parts = signal.Action.Split(':', 2, StringSplitOptions.TrimEntries);
-                    await app.Request(parts[0], parts.Length > 1 ? parts[1] : string.Empty);
-                }, CancellationToken.None);
-                return Task.CompletedTask;
-            }
-            _ = Task.Run(() => HandleViewActionAsync(publisher.Brain.Value, appName, signal, token), CancellationToken.None);
             return Task.CompletedTask;
         });
 
@@ -206,7 +178,7 @@ internal sealed class CompiledAppsHost(
                 _ = EnsureOpenAppViewAsync(brain, appId, CancellationToken.None);
             }
 
-            UiNode BuildWindowFrame(IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow window)
+            DigitalBrain.UI.Node BuildWindowFrame(IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow window)
             {
                 var winId = window.Id;
                 var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
@@ -217,83 +189,55 @@ internal sealed class CompiledAppsHost(
                     || string.Equals(IApp.NameOf(brain, p.App), appId, StringComparison.OrdinalIgnoreCase));
                 var isFav = state.Favourites.Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
 
-                UiNode[] chromeButtons =
+                DigitalBrain.UI.Node[] chromeButtons =
                 [
-                    Ui.Button($"focus-{winId}", title, $"focus:{winId}", style: UiStyle.Ghost),
-                    Ui.IconButton($"newtab-{winId}", "plus", "New tab", $"newtab:{winId}"),
-                    Ui.IconButton($"star-{winId}", "star", isFav ? "Remove from favourites" : "Add to favourites", $"favourite:{winId}"),
+                    DesktopButton($"focus-{winId}", title, "focus", winId),
+                    DesktopIcon($"newtab-{winId}", "plus", "New tab", "newtab", winId),
+                    DesktopIcon($"star-{winId}", "star", isFav ? "Remove from favourites" : "Add to favourites", "favourite", winId),
                     .. appId == "ino"
-                        ? Array.Empty<UiNode>()
+                        ? Array.Empty<DigitalBrain.UI.Node>()
                         : [isPinned
-                            ? Ui.IconButton($"unpin-{winId}", "pin-off", "Unpin", $"unpin:{appId}")
-                            : Ui.IconButton($"pin-{winId}", "pin", "Pin", $"pin:{appId}")],
-                    Ui.IconButton($"close-{winId}", "x", "Close tab", $"close:{winId}/{activeIndex}"),
+                            ? DesktopIcon($"unpin-{winId}", "pin-off", "Unpin", "unpin", appId)
+                            : DesktopIcon($"pin-{winId}", "pin", "Pin", "pin", appId)],
+                    DesktopIcon($"close-{winId}", "x", "Close tab", "close", $"{winId}/{activeIndex}"),
                 ];
-                var tabNodes = window.Tabs.Select((tab, idx) =>
+                var tabs = window.Tabs.Select((tab, idx) => new DigitalBrain.UI.TabItem(
+                    $"tab-{winId}-{idx}", $"{winId}/{idx}", TitleForDesktopApp(IApp.NameOf(brain, tab.App) ?? tab.Id), DesktopEmit("tab", $"{winId}/{idx}"))).ToArray();
+
+                return new DigitalBrain.UI.Column(
+                [
+                    new DigitalBrain.UI.Row(chromeButtons) { Gap = 4, Extents = [0, .. chromeButtons.Skip(1).Select(_ => 32.0)] },
+                    new DigitalBrain.UI.Tabs(tabs, $"{winId}/{activeIndex}"),
+                    new DigitalBrain.UI.NeuronRef(UIVocabulary.ViewportType, $"{brain}/apps/desktop/window/{winId}"),
+                ]) { Gap = 0, Extents = [40, 38, 0] };
+            }
+
+            DigitalBrain.UI.Node windows = activeWindows.Length == 0
+                ? new DigitalBrain.UI.Column([])
+                : new DigitalBrain.UI.Column([.. activeWindows.Chunk(3).Select(row => (DigitalBrain.UI.Node)new DigitalBrain.UI.Row([.. row.Select(BuildWindowFrame)]))])
                 {
-                    var tabAppId = IApp.NameOf(brain, tab.App) ?? tab.Id;
-                    return Ui.Tab($"tab-{winId}-{idx}", TitleForDesktopApp(tabAppId), $"tab:{winId}/{idx}", idx == activeIndex);
-                }).ToArray();
+                    Extents = [.. activeWindows.Chunk(3).Select(_ => 0.0)],
+                };
 
-                return Ui.Column($"frame-{winId}",
-                [
-                    Ui.Row($"chrome-{winId}", chromeButtons, gap: 4, extents: [0, .. chromeButtons.Skip(1).Select(_ => 32.0)]),
-                    Ui.Tabs($"tabs-{winId}", tabNodes),
-                    Ui.Reference($"content-{winId}", new(UIVocabulary.ViewportType, $"{brain}/apps/desktop/window/{winId}")),
-                ], gap: 0, extents: [40, 38, 0]);
-            }
-
-            UiNode windows;
-            if (activeWindows.Length == 0)
-            {
-                windows = Ui.Column("windows", []);
-            }
-            else
-            {
-                var rows = activeWindows
-                    .Chunk(3)
-                    .Select((row, i) => Ui.Row($"windows-{i}", [.. row.Select(BuildWindowFrame)]))
-                    .ToArray();
-                windows = Ui.Column("windows", rows, extents: [.. rows.Select(_ => 0.0)]);
-            }
-
-            var dock = Ui.Row("dock",
+            string[] dockApps = ["ino", "files", "data", "markdraw", "photocraft", "filmcraft", "creator", "gallery", "post", "brain", "settings"];
+            var dock = new DigitalBrain.UI.Row(
             [
-                Ui.Row("apps",
+                new DigitalBrain.UI.Row(
                 [
-                    Ui.Button("dock-ino", "Ino", "open:ino", style: UiStyle.Primary, icon: "ino"),
-                    Ui.Button("dock-files", "Files", "open:files", style: UiStyle.Ghost),
-                    Ui.Button("dock-data", "Data Studio", "open:data", style: UiStyle.Ghost),
-                    Ui.Button("dock-markdraw", "Markdraw", "open:markdraw", style: UiStyle.Ghost),
-                    Ui.Button("dock-photocraft", "PhotoCraft", "open:photocraft", style: UiStyle.Ghost),
-                    Ui.Button("dock-filmcraft", "FilmCraft", "open:filmcraft", style: UiStyle.Ghost),
-                    Ui.Button("dock-creator", "Creator", "open:creator", style: UiStyle.Ghost),
-                    Ui.Button("dock-gallery", "Gallery", "open:gallery", style: UiStyle.Ghost),
-                    Ui.Button("dock-post", "Post", "open:post", style: UiStyle.Ghost),
-                    Ui.Button("dock-brain", "Brain", "open:brain", style: UiStyle.Ghost),
-                    Ui.Button("dock-settings", "Settings", "open:settings", style: UiStyle.Ghost),
-                    Ui.IconButton("newtab", "plus", "New tab", "newtab"),
-                ], gap: 4),
-                Ui.Row("right",
+                    .. dockApps.Select(app => (DigitalBrain.UI.Node)new DigitalBrain.UI.Button($"dock-{app}", TitleForDesktopApp(app), DesktopEmit("open", app), Tone: app == "ino" ? DigitalBrain.UI.ButtonTone.Accent : DigitalBrain.UI.ButtonTone.Neutral) { Icon = app == "ino" ? "ino" : null }),
+                    DesktopIcon("newtab", "plus", "New tab", "newtab", null),
+                ]) { Gap = 4 },
+                new DigitalBrain.UI.Row(
                 [
-                    Ui.Text("usage", "Usage"),
-                    Ui.Text("open-widgets", widgetsText),
-                    Ui.Button("avatar", "You", "open:circle"),
-                    Ui.Button("more-settings", "Settings", "settings"),
-                ], gap: 4),
-            ], extents: [0, 360]);
+                    new DigitalBrain.UI.Text("Usage"),
+                    new DigitalBrain.UI.Text(widgetsText),
+                    DesktopButton("avatar", "You", "open", "circle"),
+                    DesktopButton("more-settings", "Settings", "settings", null),
+                ]) { Gap = 4 },
+            ]) { Extents = [0, 360] };
 
-            var nextRoot = Ui.Column("desktop", [windows, dock], extents: [0, 68]);
-            var view = SiloNeurons.Get<IView>(services, $"{brain}/apps/desktop/view");
-            var current = await view.Read();
-            if (current?.Root is not null && JsonSerializer.Serialize(current.Root, Json) == JsonSerializer.Serialize(nextRoot, Json))
-            {
-                return;
-            }
-
-            var gen = current is { Generation: > 0 } ? current.Generation : 1L;
-            var nextVer = (current?.Generation == gen ? current.Version : 0L) + 1L;
-            await view.Publish(new UiView(gen, nextVer, nextRoot));
+            var next = new DigitalBrain.UI.View(DesktopShellTitle, new DigitalBrain.UI.Column([windows, dock]) { Extents = [0, 68] });
+            await SiloNeurons.Get<IView>(services, $"{brain}/apps/desktop/view").Publish(1, next);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -311,7 +255,7 @@ internal sealed class CompiledAppsHost(
             if (appName == "files")
             {
                 var filesView = await SiloNeurons.Get<IView>(services, $"{brain}/apps/files/view").Read();
-                if (filesView?.Root is null)
+                if (filesView is null)
                 {
                     using var filesScope = baseCaller is not null ? CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, IApp.Key(brain, "files"))) : null;
                     await SiloNeurons.Get<IFilesWorkspace>(services, $"{brain}/apps/files/workspace").Open(ct);
@@ -320,7 +264,7 @@ internal sealed class CompiledAppsHost(
             }
 
             var view = await SiloNeurons.Get<IView>(services, $"{brain}/apps/{appName}/view").Read();
-            if (view?.Root is null)
+            if (view is null)
             {
                 await HandleAppRequestedAsync(brain, appName, new AppRequested("open", string.Empty, Guid.NewGuid()), ct);
             }
@@ -566,9 +510,10 @@ internal sealed class CompiledAppsHost(
         }, closedIds);
     }
 
-    private async Task HandleDesktopViewActionAsync(string brain, ViewAction signal, CancellationToken ct)
+    private async Task HandleDesktopActionAsync(string brain, AppRequested signal, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(signal.Action)) { return; }
+        var argument = TextOf(signal.Input);
+        var desktopAction = argument.Length == 0 ? signal.Operation : signal.Operation + ":" + argument;
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
         {
@@ -581,7 +526,7 @@ internal sealed class CompiledAppsHost(
             await gate.WaitAsync(ct);
             try
             {
-                var action = signal.Action.Trim();
+                var action = desktopAction.Trim();
                 if (action.StartsWith("open:", StringComparison.Ordinal))
                 {
                     openedApp = action["open:".Length..].Trim().ToLowerInvariant();
@@ -723,12 +668,12 @@ internal sealed class CompiledAppsHost(
             }
             if (forwardAction)
             {
-                await HandleViewActionAsync(brain, "desktop", signal, ct);
+                await HandleAppRequestedAsync(brain, "desktop", signal, ct);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            logger.LogWarning(error, "Desktop view action {Action} did not complete in {Brain}.", signal.Action, brain);
+            logger.LogWarning(error, "Desktop view action {Action} did not complete in {Brain}.", desktopAction, brain);
         }
     }
 
@@ -866,7 +811,7 @@ internal sealed class CompiledAppsHost(
                 if (turns is null) { return; }
                 if (turns.Definition.FindOperation(request.Operation) is { } method)
                 {
-                    await turns.Request(request.Operation, ParseArgument(method, request.Input), ct);
+                    await turns.Request(request.Operation, BindArgument(method, request.Input), ct);
                     var appNeuron = SiloNeurons.Get<IApp>(services, appKey);
                     var currentSnapshot = await appNeuron.Read();
                     using var appScope = baseCaller is not null ? CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, appKey)) : null;
@@ -876,9 +821,9 @@ internal sealed class CompiledAppsHost(
                 }
                 if (appName == "desktop")
                 {
-                    if (request.Operation == "open" && !string.IsNullOrWhiteSpace(request.Input))
+                    if (request.Operation == "open" && !string.IsNullOrWhiteSpace(TextOf(request.Input)))
                     {
-                        openedDesktopApp = request.Input.Trim().ToLowerInvariant();
+                        openedDesktopApp = TextOf(request.Input).ToLowerInvariant();
                         await ApplyDesktopWorkspaceChangeAsync(brain, request.RequestId, s => OpenDesktopAppInState(brain, s, openedDesktopApp));
                     }
                     await EnsureDesktopViewAsync(brain);
@@ -933,7 +878,7 @@ internal sealed class CompiledAppsHost(
                 var turns = await EnsureAssignedAsync(brain, "ino", appKey, ct);
                 if (turns is not null && turns.Definition.FindOperation("send") is { } sendMethod)
                 {
-                    await turns.Request("send", ParseArgument(sendMethod, submission.Text), ct);
+                    await turns.Request("send", BindArgument(sendMethod, submission.Text), ct);
                 }
                 await SiloNeurons.Get<IApp>(services, appKey).Progress("idle", "Ino: answered");
                 if (turns?.App is App<InoAppState> ino && ino.State.Turns is { Length: > 0 } inoTurns) { latestTurn = inoTurns[^1]; }
@@ -977,19 +922,53 @@ internal sealed class CompiledAppsHost(
         }
     }
 
-    private Task HandleViewActionAsync(string brain, string appName, ViewAction signal, CancellationToken ct)
+    // The desktop's window verbs: the host's shell handles them; any other desktop operation is the desktop app's.
+    private static readonly HashSet<string> DesktopWindowVerbs = new(StringComparer.Ordinal)
+    { "close", "close-app", "focus", "tab", "newtab", "pin", "unpin", "favourite", "widget-open", "widget-close", "settings" };
+
+    // The title of the host's desktop shell view, by which the presentation sink leaves it in place.
+    internal const string DesktopShellTitle = "IntoChat Desktop";
+
+    internal static bool IsDesktopShell(PublishedView view)
+        => view.View.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String && title.GetString() == DesktopShellTitle;
+
+    private static DigitalBrain.UI.Emit DesktopEmit(string signal, string? argument)
+        => new("desktop", signal, argument is null ? null : JsonSerializer.SerializeToElement(argument));
+
+    private static DigitalBrain.UI.Button DesktopButton(string key, string label, string signal, string? argument)
+        => new(key, label, DesktopEmit(signal, argument));
+
+    private static DigitalBrain.UI.Button DesktopIcon(string key, string icon, string label, string signal, string? argument)
+        => new(key, label, DesktopEmit(signal, argument)) { Icon = icon, Small = true };
+
+    // A request's input as text: a JSON string's value (a view emit's single argument), otherwise the input itself.
+    internal static string TextOf(string input)
     {
-        if (string.IsNullOrWhiteSpace(signal.Action)) { return Task.CompletedTask; }
-        var parts = signal.Action.Split(':', 2, StringSplitOptions.TrimEntries);
-        return HandleAppRequestedAsync(brain, appName, new AppRequested(parts[0], parts.Length > 1 ? parts[1] : string.Empty, signal.RequestId), ct);
+        if (TryJson(input) is { ValueKind: JsonValueKind.String } text) { return text.GetString() ?? ""; }
+        return input.Trim();
     }
 
-    internal static object? ParseArgument(MethodInfo method, string input)
+    private static JsonElement? TryJson(string input)
+    {
+        var trimmed = input.Trim();
+        if (trimmed.Length == 0 || trimmed[0] is not ('"' or '[' or '{')) { return null; }
+        try { using var document = JsonDocument.Parse(trimmed); return document.RootElement.Clone(); }
+        catch (JsonException) { return null; }
+    }
+
+    // Binds an operation's argument: from a view emit's args (JSON: a string, an array bound positionally, an object by name),
+    // or from plain text (a person's sentence, an HTTP request), which fills the record's first member.
+    internal static object? BindArgument(MethodInfo method, string input)
     {
         var parameter = method.GetParameters().FirstOrDefault(p => p.ParameterType != typeof(CancellationToken));
         if (parameter is null) { return null; }
         var targetType = parameter.ParameterType;
-        if (targetType == typeof(string)) { return string.IsNullOrEmpty(input) ? null : Uri.UnescapeDataString(input); }
+        var json = TryJson(input);
+        if (targetType == typeof(string))
+        {
+            var text = json is { ValueKind: JsonValueKind.String } str ? str.GetString() : input;
+            return string.IsNullOrEmpty(text) ? null : text;
+        }
         if (string.IsNullOrWhiteSpace(input))
         {
             var emptyCtor = targetType.GetConstructor(Type.EmptyTypes);
@@ -997,66 +976,30 @@ internal sealed class CompiledAppsHost(
             var defaultCtor = targetType.GetConstructors().FirstOrDefault(c => c.GetParameters().All(p => p.HasDefaultValue));
             return defaultCtor?.Invoke([.. defaultCtor.GetParameters().Select(p => p.DefaultValue)]);
         }
-
-        var trimmed = input.Trim();
-        if (trimmed.StartsWith('{') && trimmed.EndsWith('}')) { return JsonSerializer.Deserialize(trimmed, targetType, Json); }
-
-        var segs = trimmed.Split(':').Select(Uri.UnescapeDataString).ToArray();
-        var unescaped = Uri.UnescapeDataString(trimmed);
-        var unquoted = unescaped.Length >= 2 && unescaped[0] == '"' && unescaped[^1] == '"' ? unescaped[1..^1] : unescaped;
+        if (json is { ValueKind: JsonValueKind.Object } obj) { return obj.Deserialize(targetType, Json); }
 
         var ctor = targetType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
         if (ctor is null) { return null; }
-
         var ctorParams = ctor.GetParameters();
         if (ctorParams.Length == 0) { return ctor.Invoke(null); }
-
-        if (ctorParams.Length == 1 || ShouldBindEntireInputToFirstParameter(ctorParams, segs))
-        {
-            var singleArgs = new object?[ctorParams.Length];
-            singleArgs[0] = ConvertSegment(unquoted, ctorParams[0]);
-            for (var i = 1; i < ctorParams.Length; i++)
-            {
-                singleArgs[i] = ctorParams[i].HasDefaultValue ? ctorParams[i].DefaultValue : GetDefaultForType(ctorParams[i].ParameterType);
-            }
-            return ctor.Invoke(singleArgs);
-        }
+        static object? Default(ParameterInfo p) => p.HasDefaultValue ? p.DefaultValue : GetDefaultForType(p.ParameterType);
 
         var args = new object?[ctorParams.Length];
-        for (var i = 0; i < ctorParams.Length; i++)
+        if (json is { ValueKind: JsonValueKind.Array } array)
         {
-            args[i] = i < segs.Length
-                ? ConvertSegment(segs[i], ctorParams[i])
-                : (ctorParams[i].HasDefaultValue ? ctorParams[i].DefaultValue : GetDefaultForType(ctorParams[i].ParameterType));
+            var items = array.EnumerateArray().ToArray();
+            for (var i = 0; i < ctorParams.Length; i++)
+            {
+                args[i] = i >= items.Length ? Default(ctorParams[i])
+                    : items[i].ValueKind == JsonValueKind.String ? ConvertSegment(items[i].GetString() ?? "", ctorParams[i])
+                    : items[i].Deserialize(ctorParams[i].ParameterType, Json);
+            }
+            return ctor.Invoke(args);
         }
+
+        args[0] = ConvertSegment(json is { ValueKind: JsonValueKind.String } single ? single.GetString() ?? "" : input.Trim(), ctorParams[0]);
+        for (var i = 1; i < ctorParams.Length; i++) { args[i] = Default(ctorParams[i]); }
         return ctor.Invoke(args);
-    }
-
-    private static bool ShouldBindEntireInputToFirstParameter(ParameterInfo[] ctorParams, string[] segs)
-    {
-        if (segs.Length <= 1)
-        {
-            return true;
-        }
-
-        if (!ctorParams.Skip(1).All(p => p.HasDefaultValue))
-        {
-            return false;
-        }
-
-        var firstParamName = ctorParams[0].Name ?? string.Empty;
-        if (firstParamName.Equals("Text", StringComparison.OrdinalIgnoreCase)
-            || firstParamName.Equals("Prompt", StringComparison.OrdinalIgnoreCase)
-            || firstParamName.Equals("Query", StringComparison.OrdinalIgnoreCase)
-            || firstParamName.Equals("Sql", StringComparison.OrdinalIgnoreCase)
-            || firstParamName.Equals("Content", StringComparison.OrdinalIgnoreCase)
-            || firstParamName.Equals("ConnectionString", StringComparison.OrdinalIgnoreCase)
-            || firstParamName.Equals("Sentence", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
     }
 
     private static object? ConvertSegment(string raw, ParameterInfo param)

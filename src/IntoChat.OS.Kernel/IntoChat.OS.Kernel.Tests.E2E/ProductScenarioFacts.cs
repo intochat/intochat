@@ -95,7 +95,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         // Step 3: Publish updated view to the silo and verify revision advancement
         await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", film.RenderSide(), film.Render());
         var filmView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read();
-        Assert.NotNull(filmView?.Root);
+        Assert.NotNull(filmView);
 
         var updatedFiles = new Dictionary<string, string>(initialState.Files)
         {

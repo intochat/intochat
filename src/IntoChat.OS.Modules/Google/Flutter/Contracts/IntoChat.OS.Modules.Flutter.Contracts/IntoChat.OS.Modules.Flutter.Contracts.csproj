@@ -8,5 +8,7 @@
   <ItemGroup>
     <!-- Neuron interfaces and signals use the IntoChat.OS wire vocabulary; module runtime uses Framework. -->
     <ProjectReference Include="../../../../../IntoChat.OS/IntoChat.OS.csproj" />
+    <!-- An app view is a DigitalBrain.UI View, stored and sent as its wire JSON. -->
+    <PackageReference Include="DigitalBrain.UI" />
   </ItemGroup>
 </Project>

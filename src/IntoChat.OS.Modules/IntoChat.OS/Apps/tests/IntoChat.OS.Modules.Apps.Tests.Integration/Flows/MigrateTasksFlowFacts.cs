@@ -83,12 +83,12 @@ public sealed class MigrateTasksFlowFacts
         });
 
         var views = await FilesWorkspaceNeuron.ReadOperations(query, started, error => Assert.Fail(error.Message));
-        var cards = FilesWorkspaceNeuron.OperationCards(started, views, index => Ui.Button("cancel-" + index, "Cancel", "cancel"));
+        var cards = FilesWorkspaceNeuron.OperationCards(started, views, index => FilesUi.Button("cancel-" + index, "Cancel", FilesUi.Act("1", "cancel", index)));
 
         Assert.Equal(["op-running", "op-trash", "op-failed", "op-unknown"], query.Reads);
-        Assert.Equal(["40 %", "Moved to trash", "Failed: conflict", "0 %"], cards.Select(card => card.Children[0].Text));
-        Assert.Equal(["Working", "Moved to trash", "Failed: conflict", "Waiting or working"], cards.Select(card => card.Detail ?? card.Text));
-        Assert.Equal([2, 1, 1, 2], cards.Select(card => card.Children.Length));
+        Assert.Equal(["40 %", "Moved to trash", "Failed: conflict", "0 %"], cards.Select(card => Assert.IsType<DigitalBrain.UI.Text>(Assert.IsType<DigitalBrain.UI.Card>(card).Children[0]).Value));
+        Assert.Equal(["Working", "Moved to trash", "Failed: conflict", "Waiting or working"], cards.Select(card => ((DigitalBrain.UI.Card)card).Body));
+        Assert.Equal([2, 1, 1, 2], cards.Select(card => ((DigitalBrain.UI.Card)card).Children.Count));
     }
 
     private static OperationView View(string id, double fraction, OperationResult? result)

@@ -63,13 +63,13 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
 
         var inoView = await WaitUntilAsync(
             async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/view").Read(),
-            view => view?.Root is not null);
-        Assert.NotNull(inoView?.Root);
+            view => view is not null);
+        Assert.NotNull(inoView);
 
         var inoSide = await WaitUntilAsync(
             async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/side").Read(),
-            view => view?.Root is not null);
-        Assert.NotNull(inoSide?.Root);
+            view => view is not null);
+        Assert.NotNull(inoSide);
 
         // 2. Send prompts through IApp.Request("send", "...") and verify CompiledAppsHost projects the
         //    conversation to IChat ("apps/ino/transcript") and routes studio work to PhotoCraft and FilmCraft.

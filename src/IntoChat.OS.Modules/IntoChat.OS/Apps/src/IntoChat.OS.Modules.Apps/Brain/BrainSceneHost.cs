@@ -54,6 +54,7 @@ internal sealed class BrainSceneHost(
         {
             if (publisher.Key != "apps/brain") { return Task.CompletedTask; }
             var brain = publisher.Brain.Value;
+            signal = signal with { Input = CompiledAppsHost.TextOf(signal.Input) };
             if (signal.Operation == "work")
             {
                 _views[brain] = (GraphLevel.Cluster, "tasks");
@@ -92,47 +93,6 @@ internal sealed class BrainSceneHost(
             }
             return Task.CompletedTask;
         });
-        try
-        {
-            _ = await listeners.Listen<ViewAction>(nameof(BrainSceneHost), (publisher, signal, token) =>
-            {
-                if (publisher.Key != "apps/brain/view" || string.IsNullOrWhiteSpace(signal.Action))
-                {
-                    return Task.CompletedTask;
-                }
-                var brain = publisher.Brain.Value;
-                var act = signal.Action.Trim();
-                if (string.Equals(act, "open", StringComparison.OrdinalIgnoreCase))
-                {
-                    _views[brain] = (GraphLevel.Brain, null);
-                    _ = OpenAsync(brain, token);
-                }
-                else if (string.Equals(act, "work", StringComparison.OrdinalIgnoreCase))
-                {
-                    _views[brain] = (GraphLevel.Cluster, "tasks");
-                    _ = OpenAsync(brain, token);
-                }
-                else if (act.StartsWith("drill:", StringComparison.Ordinal))
-                {
-                    var drill = act["drill:".Length..];
-                    var current = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
-                    _views[brain] = BrainSceneGraph.Next(drill, current.Level, current.Focus);
-                    _ = OpenAsync(brain, token);
-                }
-                else if (act.StartsWith("focus:", StringComparison.Ordinal))
-                {
-                    var focusTarget = act["focus:".Length..];
-                    if (!string.IsNullOrWhiteSpace(focusTarget))
-                    {
-                        _views[brain] = (GraphLevel.Neurons, ResolveFocusNode(brain, focusTarget));
-                        _ = OpenAsync(brain, token);
-                    }
-                }
-                return Task.CompletedTask;
-            });
-        }
-        catch (ArgumentException error)
-        { logger.LogDebug(error, "ViewAction listener for BrainSceneHost will attach when registered."); }
         try
         {
             _ = await listeners.Listen<SceneInput>(nameof(BrainSceneHost), (publisher, signal, token) =>
@@ -183,7 +143,7 @@ internal sealed class BrainSceneHost(
             {
                 var viewNeuron = SiloNeurons.Get<IView>(services, appKey + "/view");
                 var currentView = await viewNeuron.Read();
-                if (currentView is null || currentView.Generation <= 0 || currentView.Root is null)
+                if (currentView is null)
                 {
                     var view = _views.GetOrAdd(brain, _ => (GraphLevel.Brain, null));
                     var definition = await ComposeAsync(brain, view, [], 1);
@@ -362,10 +322,7 @@ internal sealed class BrainSceneHost(
         }
         var uiRoot = BrainSceneGraph.BuildUiRoot(uiScene, view.Level, view.Focus);
         var viewNeuron = SiloNeurons.Get<IView>(services, IApp.Key(brain, "brain") + "/view");
-        var currentView = await viewNeuron.Read();
-        var gen = currentView is { Generation: > 0 } ? currentView.Generation : 1L;
-        var nextVersion = (currentView?.Version ?? 0L) + 1L;
-        await viewNeuron.Publish(new UiView(gen, nextVersion, uiRoot));
+        await viewNeuron.Publish(1, uiRoot);
     }
 
     private async Task SetAsync(string brain, CapabilityCaller caller, SceneDefinition definition, CancellationToken cancellationToken)

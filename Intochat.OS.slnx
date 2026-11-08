@@ -131,6 +131,7 @@
   </Folder>
   <Folder Name="/Modules/Google/Flutter/">
     <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Integration/IntoChat.OS.Modules.Flutter.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Support/IntoChat.OS.Modules.Flutter.Tests.Support.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Unit/IntoChat.OS.Modules.Flutter.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Google/Flutter/Contracts/">

@@ -35,7 +35,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Runtime;
 using Orleans.Serialization.Cloning;
-using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -210,10 +209,10 @@ public sealed class ProductHostFixture : IAsyncLifetime
         if (side is not null)
         {
             var sideNeuron = SiloNeurons.Get<IView>(Services, appKey + "/side");
-            await sideNeuron.Publish(new UiView(1, 1, Ui.Column("view", [Ui.Text("title", side.Title)])));
+            await sideNeuron.Publish(1, side);
         }
         var mainNeuron = SiloNeurons.Get<IView>(Services, appKey + "/view");
-        await mainNeuron.Publish(new UiView(1, 1, Ui.Column("view", [Ui.Text("title", main.Title)])));
+        await mainNeuron.Publish(1, main);
     }
 
     [DigitalBrain.Module("product.host.e2e")]

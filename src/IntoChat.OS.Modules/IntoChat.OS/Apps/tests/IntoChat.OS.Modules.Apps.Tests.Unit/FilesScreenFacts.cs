@@ -274,7 +274,7 @@ public sealed class FilesPreviewFacts
         await app.Select(new(new("a", await storage.Stat(file, Ct))), Ct);
         var open = FilesScreen.Compose(app.Snapshot, 390, previewOpen: true);
         Assert.Contains(FilesCopy.BackToFiles, ViewReads.Buttons(open.Main), StringComparer.Ordinal);
-        Assert.DoesNotContain(open.Main.Children, node => node.Key == "files-list");
+        Assert.DoesNotContain(FilesCopy.NameHeader, ViewReads.Buttons(open.Main), StringComparer.Ordinal);
         var back = FilesScreen.Compose(app.Snapshot, 390, previewOpen: false);
         Assert.Contains(back.Files.Items, item => item.Label == "note.txt");
         Assert.Equal(file, app.Snapshot.Selected!.Item.Id);
@@ -358,22 +358,16 @@ public sealed class FilesPreviewFacts
         Assert.Contains(FilesCopy.QuickViewHeading, texts, StringComparer.Ordinal);
         Assert.Contains(prompt, texts, StringComparer.Ordinal);
 
-        var allNodes = Walk.Nodes(screen.Main).ToArray();
-        var keys = allNodes.Select(n => n.Key).ToArray();
+        var keys = ViewReads.Keys(screen.Main);
         Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
         Assert.Contains("crumb-root", keys, StringComparer.Ordinal);
         Assert.Contains("crumb-storage", keys, StringComparer.Ordinal);
         Assert.Contains("crumb-0", keys, StringComparer.Ordinal);
         Assert.Contains("item-open-0", keys, StringComparer.Ordinal);
 
-        var references = allNodes.Where(n => n.Kind == UiNodeKind.Reference).ToArray();
-        Assert.NotEmpty(references);
-        Assert.All(references, r =>
-        {
-            Assert.NotNull(r.Reference);
-            Assert.StartsWith("owner/apps/files/", r.Reference!.Name, StringComparison.Ordinal);
-            Assert.Contains(r.Reference.Kind, new[] { "textfield", "image" });
-        });
+        var fields = Walk.Nodes(screen.Main).Where(n => Walk.Kind(n) == "field").ToArray();
+        Assert.NotEmpty(fields);
+        Assert.All(fields, field => Assert.StartsWith("owner/apps/files/", Walk.Str(field, "name"), StringComparison.Ordinal));
     }
 }
 
@@ -395,12 +389,9 @@ public sealed class FilesMediaPreviewFacts
         Assert.EndsWith("/content", app.Snapshot.PreviewUrl, StringComparison.Ordinal);
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
-        var allNodes = Walk.Nodes(screen.Main).ToArray();
-        var keys = allNodes.Select(n => n.Key).ToArray();
-        Assert.Contains("preview-audio", keys, StringComparer.Ordinal);
-        var kindNode = allNodes.FirstOrDefault(n => n.Key == "preview-kind");
-        Assert.NotNull(kindNode);
-        Assert.Equal("audio", kindNode.Text);
+        var texts = ViewReads.Texts(screen.Main);
+        Assert.Contains("audio", texts, StringComparer.Ordinal);
+        Assert.Contains(app.Snapshot.PreviewUrl, texts, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -416,12 +407,9 @@ public sealed class FilesMediaPreviewFacts
         Assert.Null(app.Snapshot.Preview);
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
-        var allNodes = Walk.Nodes(screen.Main).ToArray();
-        var keys = allNodes.Select(n => n.Key).ToArray();
-        Assert.Contains("preview-video", keys, StringComparer.Ordinal);
-        var kindNode = allNodes.FirstOrDefault(n => n.Key == "preview-kind");
-        Assert.NotNull(kindNode);
-        Assert.Equal("video", kindNode.Text);
+        var texts = ViewReads.Texts(screen.Main);
+        Assert.Contains("video", texts, StringComparer.Ordinal);
+        Assert.Contains(app.Snapshot.PreviewUrl, texts, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -437,12 +425,9 @@ public sealed class FilesMediaPreviewFacts
         Assert.Null(app.Snapshot.Preview);
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
-        var allNodes = Walk.Nodes(screen.Main).ToArray();
-        var keys = allNodes.Select(n => n.Key).ToArray();
-        Assert.Contains("preview-pdf", keys, StringComparer.Ordinal);
-        var kindNode = allNodes.FirstOrDefault(n => n.Key == "preview-kind");
-        Assert.NotNull(kindNode);
-        Assert.Equal("pdf", kindNode.Text);
+        var texts = ViewReads.Texts(screen.Main);
+        Assert.Contains("pdf", texts, StringComparer.Ordinal);
+        Assert.Contains(app.Snapshot.PreviewUrl, texts, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -458,9 +443,7 @@ public sealed class FilesMediaPreviewFacts
         Assert.Null(app.Snapshot.Preview);
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
-        var allNodes = Walk.Nodes(screen.Main).ToArray();
-        var keys = allNodes.Select(n => n.Key).ToArray();
-        Assert.Contains("preview-image", keys, StringComparer.Ordinal);
+        Assert.Contains(Walk.Nodes(screen.Main), n => Walk.Kind(n) == "neuronRef" && Walk.Str(n, "neuronUri") == "owner/apps/files/preview");
     }
 }
 
@@ -481,17 +464,35 @@ file static class Harness
 
 file static class Walk
 {
-    public static IEnumerable<UiNode> Nodes(UiNode node)
+    // Every object of the node's wire JSON, depth first.
+    public static IEnumerable<System.Text.Json.JsonElement> Nodes(DigitalBrain.UI.Node node)
+        => Objects(System.Text.Json.JsonSerializer.SerializeToElement(node, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(DigitalBrain.UI.Node))));
+
+    private static IEnumerable<System.Text.Json.JsonElement> Objects(System.Text.Json.JsonElement element)
     {
-        yield return node;
-        foreach (var child in node.Children.SelectMany(Nodes)) { yield return child; }
+        if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            yield return element;
+            foreach (var child in element.EnumerateObject().Where(p => p.Name is not ("emit" or "args")).SelectMany(p => Objects(p.Value))) { yield return child; }
+        }
+        else if (element.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var child in element.EnumerateArray().SelectMany(Objects)) { yield return child; }
+        }
     }
+
+    public static string? Kind(System.Text.Json.JsonElement node) => node.TryGetProperty("kind", out var kind) ? kind.GetString() : null;
+
+    public static string? Str(System.Text.Json.JsonElement node, string name)
+        => node.TryGetProperty(name, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString() : null;
 }
 
 file static class ViewReads
 {
-    public static string[] Texts(UiNode node) => [.. Walk.Nodes(node).SelectMany(item => new[] { item.Text, item.Detail }).OfType<string>()];
-    public static string[] Buttons(UiNode node) => [.. Walk.Nodes(node).Where(item => item.Kind == UiNodeKind.Button).Select(item => item.Text!)];
+    public static string[] Texts(DigitalBrain.UI.Node node)
+        => [.. Walk.Nodes(node).Where(item => Walk.Kind(item) != "button").SelectMany(item => new[] { Walk.Str(item, "value"), Walk.Str(item, "title"), Walk.Str(item, "body"), Walk.Str(item, "label") }).OfType<string>()];
+    public static string[] Buttons(DigitalBrain.UI.Node node) => [.. Walk.Nodes(node).Where(item => Walk.Kind(item) == "button").Select(item => Walk.Str(item, "label")!)];
+    public static string[] Keys(DigitalBrain.UI.Node node) => [.. Walk.Nodes(node).Select(item => Walk.Str(item, "key")).OfType<string>()];
 }
 
 file sealed class ForwardClock(DateTimeOffset now) : TimeProvider

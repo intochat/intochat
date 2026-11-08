@@ -371,15 +371,18 @@ internal sealed partial class AppNeuron(
         foreach (var hook in storageHooks) { await hook.OnCreated(BrainId(), Key, CancellationToken.None); }
     }
 
-    public async Task<Guid> Request(string operation, string input)
+    public Task<Guid> Request(string operation, string input) => Requested(operation, input, declared: true);
+
+    public Task<Guid> Emit(string signal, string args) => Requested(signal, args, declared: false);
+
+    private async Task<Guid> Requested(string operation, string input, bool declared)
     {
         await RequireCreated("Request");
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         ArgumentNullException.ThrowIfNull(input);
         string[] operations = [.. State.Manifest!.Operations.Select(candidate => candidate.Name)];
-        await Check("Request",
-            new OperationIsDeclared(operation, operations, Name()),
-            new RequestPayloadFits(input.Length));
+        if (declared) { await Check("Request", new OperationIsDeclared(operation, operations, Name()), new RequestPayloadFits(input.Length)); }
+        else { await Check("Request", new RequestPayloadFits(input.Length)); }
         var id = Guid.NewGuid();
         if (State.MigrationTarget is { } target)
         {
