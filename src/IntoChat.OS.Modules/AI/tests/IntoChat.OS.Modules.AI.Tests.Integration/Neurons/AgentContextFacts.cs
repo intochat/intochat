@@ -59,17 +59,20 @@ public sealed class AgentContextFacts(AiFixture fixture) : IClassFixture<AiFixtu
         Assert.Empty((await context.Read()).Entries);
     }
 
-    // Unstamped writers are platform code (the audit in the Task 20 report); the rule names that exception.
+    // A call with no caller reads as app trust, so it cannot clear a trusted interrupt; the platform can.
     [Fact]
-    public async Task UnstampedPlatformCallerMayClearAnInterrupt()
+    public async Task UnstampedCallerCannotClearATrustedInterrupt()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct);
         var context = await Held(runtime, "unstamped-clear", ct);
-        Assert.Single((await context.Read()).Entries);
 
-        await Task.Run(() => context.Remove("stop"), ct);
+        var removed = await Assert.ThrowsAsync<RuleViolationException>(() => Task.Run(() => context.Remove("stop"), ct));
+        Assert.Contains("interrupt entries are cleared by their trust level only", removed.Message, StringComparison.Ordinal);
+        await Assert.ThrowsAsync<RuleViolationException>(() => Task.Run(() => context.Set(new("stop", "all clear", [], [])), ct));
+        Assert.Equal("halt now", Assert.Single((await context.Read()).Entries).Text);
 
+        await As(CallerKind.Platform, runtime, () => context.Remove("stop"), ct);
         Assert.Empty((await context.Read()).Entries);
     }
 }

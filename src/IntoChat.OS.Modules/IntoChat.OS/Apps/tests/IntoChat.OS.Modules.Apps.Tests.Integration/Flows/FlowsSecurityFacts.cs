@@ -110,7 +110,7 @@ public sealed class FlowsSecurityFacts
         Assert.NotNull(await Flows(runtime).Start(TestFlow.Alias, "By system", null, Inner(), Ct));
 
         // Removing the interrupt lifts the refusal.
-        await Posture(runtime).Remove("stop");
+        using (As(runtime, CallerKind.Platform)) { await Posture(runtime).Remove("stop"); }
         for (var i = 0; i < 200; i++)
         {
             try
@@ -140,7 +140,7 @@ public sealed class FlowsSecurityFacts
         Assert.Equal(FlowStatus.Waiting, (await Flows(runtime).Read(running, Ct))!.Status);
 
         // With the marker gone nothing holds: the model's entry never counted.
-        await Posture(runtime).Remove("marker");
+        using (As(runtime, CallerKind.Platform)) { await Posture(runtime).Remove("marker"); }
         string started = "";
         for (var i = 0; i < 200 && started.Length == 0; i++)
         {

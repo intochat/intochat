@@ -142,7 +142,7 @@ public sealed class PresenceFacts
         var paused = await Eventually(runtime, presence => presence.State == PresenceState.Paused);
         Assert.Equal("Stop now.", paused.Reason);
 
-        await ContextOf(runtime, "security.posture").Remove("stop");
+        using (As(runtime, CallerKind.Platform)) { await ContextOf(runtime, "security.posture").Remove("stop"); }
         await Eventually(runtime, presence => presence.State == PresenceState.Waiting);
     }
 

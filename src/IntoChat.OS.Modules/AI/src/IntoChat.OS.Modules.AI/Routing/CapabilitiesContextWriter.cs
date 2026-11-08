@@ -31,7 +31,9 @@ internal static class CapabilitiesContextWriter
         await (operations.Length == 0 ? context.Remove(app) : context.Set(Entry(app, operations)));
     }
 
-    private static bool IsInterrupt(ContextEntry entry) => entry.EffectiveTags.Contains(ContextTags.Interrupt);
+    // Only an interrupt a user or the platform wrote is protected; one a model or an app planted under an app's name is replaceable.
+    private static bool IsInterrupt(ContextEntry entry)
+        => entry.EffectiveTags.Contains(ContextTags.Interrupt) && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
 
     private static ContextEntry Entry(string app, MenuOperation[] operations)
         => new(app, string.Join('\n', operations.Select(operation =>

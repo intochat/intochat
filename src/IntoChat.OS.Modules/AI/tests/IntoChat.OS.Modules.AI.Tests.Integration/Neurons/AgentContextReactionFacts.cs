@@ -53,7 +53,7 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
         await Interrupt(runtime, "relative-x", ct);
         Assert.True((await Until(agent, state => state.Blocked, ct)).Blocked);
 
-        await runtime.Get<IAgentContext>(ContextId(runtime, "relative-x")).Remove("stop");
+        using (RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", runtime.Brain.Value))) { await runtime.Get<IAgentContext>(ContextId(runtime, "relative-x")).Remove("stop"); }
         Assert.False((await Until(agent, state => !state.Blocked, ct)).Blocked);
     }
 
@@ -66,7 +66,7 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
         await Interrupt(runtime, "unblock", ct);
         await Until(agent, state => state.Blocked, ct);
 
-        await runtime.Get<IAgentContext>(ContextId(runtime, "unblock")).Remove("stop");
+        using (RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", runtime.Brain.Value))) { await runtime.Get<IAgentContext>(ContextId(runtime, "unblock")).Remove("stop"); }
 
         await Until(agent, state => !state.Blocked, ct);
         var signals = await runtime.WaitForSignals<AgentBlocked>(id, 2, Within, ct);
@@ -86,7 +86,7 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
         var (agent, _) = await Agent(runtime, "recompute");
         Assert.True((await agent.Read()).Blocked);
 
-        await runtime.Get<IAgentContext>(ContextId(runtime, "recompute")).Remove("stop");
+        using (RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", runtime.Brain.Value))) { await runtime.Get<IAgentContext>(ContextId(runtime, "recompute")).Remove("stop"); }
 
         Assert.False((await Until(agent, state => !state.Blocked, ct)).Blocked);
     }

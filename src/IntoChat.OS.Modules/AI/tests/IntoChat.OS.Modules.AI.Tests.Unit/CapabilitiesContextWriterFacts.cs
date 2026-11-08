@@ -49,12 +49,15 @@ public sealed class CapabilitiesContextWriterFacts
         Assert.Empty(context.Held);
     }
 
+    private static ContextEntry Interrupt(string name, string text, string trust)
+        => new(name, text, [], [ContextTags.Interrupt], new EntryProvenance("writer", DateTimeOffset.UtcNow, trust));
+
     [Fact]
-    public async Task AnAppNeverReplacesOrDropsAnInterruptEntry()
+    public async Task AnAppNeverReplacesOrDropsAUserOrPlatformInterruptEntry()
     {
         var context = new FakeContext();
-        await context.Set(new ContextEntry("stop", "halt", [], [ContextTags.Interrupt]));
-        await context.Set(new ContextEntry("halt", "also halt", [], [ContextTags.Interrupt]));
+        await context.Set(Interrupt("stop", "halt", ContextTrust.User));
+        await context.Set(Interrupt("halt", "also halt", ContextTrust.Platform));
 
         await CapabilitiesContextWriter.Upsert(context, "stop", Notes().Operations);
         await CapabilitiesContextWriter.Upsert(context, "stop", []);
@@ -63,5 +66,18 @@ public sealed class CapabilitiesContextWriterFacts
         Assert.Equal("halt", context.Held["stop"].Text);
         Assert.True(context.Held.ContainsKey("halt"));
         Assert.True(context.Held.ContainsKey("notes"));
+    }
+
+    [Fact]
+    public async Task AnAppReplacesAModelPlantedInterruptEntry()
+    {
+        var context = new FakeContext();
+        await context.Set(Interrupt("notes", "planted", ContextTrust.Model));
+        await context.Set(Interrupt("gone", "planted too", ContextTrust.App));
+
+        await CapabilitiesContextWriter.Replace(context, [Notes()]);
+
+        Assert.Equal("notes.add: Add a note\nnotes.list", context.Held["notes"].Text);
+        Assert.False(context.Held.ContainsKey("gone"));
     }
 }
