@@ -243,6 +243,31 @@ public sealed class FlowsNeuronFacts
         Assert.Null(view.WaitingFor);
     }
 
+    // A FlowWaiting for a step whose wait was already resolved, redelivered after a later step started, must not re-open the wait.
+    [Fact]
+    public async Task StaleWaitingAfterLaterStepIsIgnored()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        await flows.List(new FlowQuery(), Ct);
+        var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
+        var id = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N")).ToString();
+
+        await pump.Started(id, TestFlow.Alias, "Reordered");
+        await pump.Waiting(id, "second");
+        await pump.Resolved(id, "second");
+        await pump.StepStarted(id, "third");
+        await pump.Waiting(id, "second");
+        await pump.StepCompleted(id, "first");
+
+        var view = await Eventually(flows, id, v => v.Done.Contains("first"));
+        Assert.Equal(FlowStatus.Running, view.Status);
+        Assert.Equal("third", view.Current);
+        Assert.Null(view.WaitingFor);
+        Assert.Null(view.WaitingStep);
+    }
+
     [Fact]
     public void EvictionKeepsLast2000Finished()
     {

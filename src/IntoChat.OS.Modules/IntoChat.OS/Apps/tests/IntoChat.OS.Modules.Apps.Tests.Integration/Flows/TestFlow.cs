@@ -54,6 +54,8 @@ public interface IFlowSignalPump
 {
     Task Started(string flowId, string type, string title);
 
+    Task StepStarted(string flowId, string step);
+
     Task StepCompleted(string flowId, string step);
 
     Task Done(string flowId);
@@ -74,6 +76,8 @@ public sealed class FlowSignalPump : DigitalBrain.Neuron<PumpState>, IFlowSignal
     public const string Alias = "test.flow-pump";
 
     public Task Started(string flowId, string type, string title) => Send(new FlowStarted(flowId, type, title));
+
+    public Task StepStarted(string flowId, string step) => Send(new FlowStep(flowId, step, StepOutcome.Started, null));
 
     public Task StepCompleted(string flowId, string step) => Send(new FlowStep(flowId, step, StepOutcome.Completed, null));
 

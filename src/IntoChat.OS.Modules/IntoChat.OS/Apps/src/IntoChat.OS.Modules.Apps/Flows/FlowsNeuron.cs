@@ -105,7 +105,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
         {
             // A start redelivered after the step completed or the flow ended is stale.
             StepOutcome.Started => Fold(step.FlowId, entry => entry.Finished || entry.Done.Contains(step.Step) ? entry
-                : entry with { Status = FlowStatus.Running, Current = step.Step, OperationId = null, ResolvedStep = entry.ResolvedStep == step.Step ? entry.ResolvedStep : null },
+                : entry with { Status = FlowStatus.Running, Current = step.Step, OperationId = null },
                 readHead: true),
             StepOutcome.Completed => Fold(step.FlowId, entry => entry.Done.Contains(step.Step) ? entry : entry with
             {
@@ -122,7 +122,10 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     public Task OnFlowWaiting(FlowWaiting waiting)
     {
         ArgumentNullException.ThrowIfNull(waiting);
-        return Fold(waiting.FlowId, entry => entry.Finished || entry.Done.Contains(waiting.Step) || entry.ResolvedStep == waiting.Step ? entry : entry with
+        // A wait is applied only for the current step (or when none is current), and never for a step already done or whose
+        // wait was already resolved; ResolvedStep stays, so a FlowWaiting redelivered after a later step started is ignored.
+        return Fold(waiting.FlowId, entry => entry.Finished || entry.Done.Contains(waiting.Step) || entry.ResolvedStep == waiting.Step
+            || (entry.Current is not null && entry.Current != waiting.Step) ? entry : entry with
         {
             Status = FlowStatus.Waiting,
             Current = waiting.Step,
