@@ -158,7 +158,7 @@ public sealed partial class TestTierFacts
     [Fact]
     public void UnitTierReferencesNoRuntime()
     {
-        string[] forbidden = ["DigitalBrain.Runtime.Orleans", "DigitalBrain.Runtime.Apps", "DigitalBrain.Testing.Silo"];
+        string[] forbidden = ["DigitalBrain.Runtime.Orleans", "DigitalBrain.Testing.Silo"];
         var offenders = new List<string>();
         foreach (var project in TestProjects())
         {

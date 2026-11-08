@@ -280,53 +280,28 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
         string sequence,
         string mode)
     {
-        ArtCraftExecutionResult result;
+        ArtCraftEngineResult? result = null;
         if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
         {
             try
             {
-                var engineRes = await engine.ExecuteFilmCraft(instructionOrCommand, explicitParamsJson, sequence, mode);
-                result = new ArtCraftExecutionResult(
-                    engineRes.App,
-                    engineRes.ExecutionMode,
-                    engineRes.CommandId,
-                    engineRes.CommandTitle,
-                    engineRes.ParametersJson,
-                    engineRes.InputDocument,
-                    engineRes.OutputDocument,
-                    engineRes.CliInvocation,
-                    engineRes.Summary,
-                    engineRes.PreviewDataUrl,
-                    engineRes.LayersOrTracks,
-                    engineRes.IsValidCommand,
-                    engineRes.OutputNeuronUri);
+                result = await engine.ExecuteFilmCraft(instructionOrCommand, explicitParamsJson, sequence, mode);
             }
             catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
             {
                 Swallow(error, "ArtCraftEngineNeuron is optional when running FilmCraftApp standalone.");
-                result = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
-                    instructionOrCommand,
-                    explicitParamsJson,
-                    sequence,
-                    mode,
-                    TryGetArtCraftStudio(),
-                    TryGetMcpServer,
-                    (err, reason) => Swallow(err, reason),
-                    FilesVfs);
             }
         }
-        else
-        {
-            result = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
-                instructionOrCommand,
-                explicitParamsJson,
-                sequence,
-                mode,
-                TryGetArtCraftStudio(),
-                TryGetMcpServer,
-                (err, reason) => Swallow(err, reason),
-                FilesVfs);
-        }
+
+        result ??= await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
+            instructionOrCommand,
+            explicitParamsJson,
+            sequence,
+            mode,
+            TryGetArtCraftStudio(),
+            TryGetMcpServer,
+            (err, reason) => Swallow(err, reason),
+            FilesVfs);
 
         if (!result.IsValidCommand)
         {

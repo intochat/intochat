@@ -325,50 +325,6 @@ internal sealed partial class AppNeuron
     }
 
 
-    public async Task<StagedProgram> Stage(Guid operationId, string path, string source)
-    {
-        await Check("Stage",
-            new AppExists(Name(), State.Manifest is not null),
-            new ProgramIsNotPaused(State.MigrationPaused));
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        var index = Array.FindIndex(State.Synapses, synapse => synapse.OperationId == operationId);
-        await Check("Stage",
-            new ProgramPathIsWritable(path ?? ""),
-            new SynapseRequestIsPending(index >= 0 && State.Synapses[index].Status == SynapseStatus.Requested));
-        var sources = Sources(State);
-        sources[path!] = source;
-        var entry = State.Synapses[index];
-        if (entry.Path != path || entry.Source != source)
-        {
-            var next = State.Clone();
-            next.Synapses[index] = entry with { Path = path, Source = source };
-            AdvanceProgram(next);
-            await Persist(next);
-        }
-        return new(sources, Configuration(State), State.Principal);
-    }
-
-    // A deleted app has no files, so a writer that outlived it deploys an empty program, which retires the runtime.
-    public async Task<StagedProgram> Program()
-    {
-        if (!Exists || State.MigrationPaused) { return new([], Configuration(State), State.Principal); }
-        var next = State.Clone();
-        AdvanceProgram(next);
-        await Persist(next);
-        return new(Sources(State), Configuration(State), State.Principal);
-    }
-
-    // A deleted app holds no requests, so a late Unsettle answers its empty snapshot and writes nothing.
-    public async Task<AppSnapshot> Unsettle(Guid operationId, string reason, long elapsedMs, int attempts, string? baseSynapse)
-    {
-        var index = Array.FindIndex(State.Synapses, synapse => synapse.OperationId == operationId);
-        if (index < 0 || State.Synapses[index].Status != SynapseStatus.Requested) { return Describe(State); }
-        var entry = State.Synapses[index];
-        var next = State.Clone();
-        next.Synapses[index] = entry with { Status = SynapseStatus.Unsettled, Errors = [reason], ElapsedMs = elapsedMs, Attempts = attempts, Base = baseSynapse };
-        await Save(next, new AppChanged(Name(), next.Version, next.Status), new SynapseRejected(entry.Sentence, [reason]));
-        return Describe(State);
-    }
 
     public async Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null)
     {

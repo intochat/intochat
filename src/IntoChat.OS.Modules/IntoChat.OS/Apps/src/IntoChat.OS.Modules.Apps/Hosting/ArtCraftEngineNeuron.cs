@@ -20,14 +20,13 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
         string executionMode)
     {
         await RequireAdmitted();
-        var res = await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
+        return await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
             instructionOrCommand,
             explicitParamsJson,
             currentDocument,
             executionMode,
             TryGetArtCraftStudio(),
             TryGetMcpServer);
-        return Map(res);
     }
 
     public async Task<ArtCraftEngineResult> ExecuteFilmCraft(
@@ -37,30 +36,15 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
         string executionMode)
     {
         await RequireAdmitted();
-        var res = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
+        return await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
             instructionOrCommand,
             explicitParamsJson,
             currentSequence,
             executionMode,
             TryGetArtCraftStudio(),
             TryGetMcpServer);
-        return Map(res);
     }
 
-    private static ArtCraftEngineResult Map(ArtCraftExecutionResult res) => new(
-        res.App,
-        res.ExecutionMode,
-        res.CommandId,
-        res.CommandTitle,
-        res.ParametersJson,
-        res.InputDocument,
-        res.OutputDocument,
-        res.CliInvocation,
-        res.Summary,
-        res.PreviewDataUrl,
-        res.LayersOrTracks,
-        res.IsValidCommand,
-        res.OutputNeuronUri);
 
     private IArtCraftStudio? TryGetArtCraftStudio()
     {

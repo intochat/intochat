@@ -286,53 +286,28 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
         string targetDoc,
         string mode)
     {
-        ArtCraftExecutionResult result;
+        ArtCraftEngineResult? result = null;
         if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
         {
             try
             {
-                var engineRes = await engine.ExecutePhotoCraft(instructionOrCommand, explicitParamsJson, targetDoc, mode);
-                result = new ArtCraftExecutionResult(
-                    engineRes.App,
-                    engineRes.ExecutionMode,
-                    engineRes.CommandId,
-                    engineRes.CommandTitle,
-                    engineRes.ParametersJson,
-                    engineRes.InputDocument,
-                    engineRes.OutputDocument,
-                    engineRes.CliInvocation,
-                    engineRes.Summary,
-                    engineRes.PreviewDataUrl,
-                    engineRes.LayersOrTracks,
-                    engineRes.IsValidCommand,
-                    engineRes.OutputNeuronUri);
+                result = await engine.ExecutePhotoCraft(instructionOrCommand, explicitParamsJson, targetDoc, mode);
             }
             catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
             {
                 Swallow(error, "ArtCraftEngineNeuron is optional when running PhotoCraftApp standalone.");
-                result = await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
-                    instructionOrCommand,
-                    explicitParamsJson,
-                    targetDoc,
-                    mode,
-                    TryGetArtCraftStudio(),
-                    TryGetMcpServer,
-                    (err, reason) => Swallow(err, reason),
-                    FilesVfs);
             }
         }
-        else
-        {
-            result = await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
-                instructionOrCommand,
-                explicitParamsJson,
-                targetDoc,
-                mode,
-                TryGetArtCraftStudio(),
-                TryGetMcpServer,
-                (err, reason) => Swallow(err, reason),
-                FilesVfs);
-        }
+
+        result ??= await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
+            instructionOrCommand,
+            explicitParamsJson,
+            targetDoc,
+            mode,
+            TryGetArtCraftStudio(),
+            TryGetMcpServer,
+            (err, reason) => Swallow(err, reason),
+            FilesVfs);
 
         if (!result.IsValidCommand)
         {

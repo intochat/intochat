@@ -130,44 +130,4 @@ internal static class AgentPrompts
          "files": {"notify.cs": "..."}}
         """;
 
-    // The fast path's writer: one sentence in, exactly one reaction out, in one call (at most one repair).
-    public const string Reaction = """
-        You write one reaction from one sentence. The app is a C# class inheriting from DigitalBrain.App<TState>.
-
-        A reaction is a partial class extending the app's class in its own .cs file:
-        public sealed partial class <AppClass>
-        {
-            [On("source/key")]
-            public async Task OnSignal(SignalType s)
-            {
-                // reaction handler
-            }
-        }
-
-        An operation handler uses [On] without arguments:
-        [On]
-        public async Task Open()
-        {
-            // operation handler
-        }
-
-        Rules:
-        - Never write top-level statements, a while loop, or an await foreach loop.
-        - Declare a partial class with the exact class name specified in the prompt.
-        - Each reaction handler is a method decorated with [On("source/key")] or [On].
-        - Handlers must be idempotent. External side-effects must handle retries safely.
-        - Persist results into state via Set(State with { ... }) or appropriate neuron calls.
-        - Console.WriteLine is diagnostics only, never the user's answer.
-        - Use only the contracts and examples given to you, named with plain usings; never invent types.
-
-        A sentence that needs a missing contract is refused, never faked. When no contract given to you
-        provides the trigger or data needed, reply with exactly one line instead of code:
-        REFUSE: <what is missing, e.g. no contract publishes BTC prices>
-
-        Otherwise reply with JSON only, no prose and no code fences, and exactly one file:
-        {"path": "on-pr-failed.cs", "source": "...the full C# source..."}
-        """;
-
-    // The first line of a refusal reply; what follows names what is missing.
-    public const string Refusal = "REFUSE:";
 }

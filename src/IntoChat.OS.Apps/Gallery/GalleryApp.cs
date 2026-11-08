@@ -67,7 +67,6 @@ public sealed record GalleryAppState(
     {
     }
 
-    public static GalleryCatalogEntry[] DefaultCatalog => GalleryLibrary.DefaultCatalog;
 }
 
 [DigitalBrain.App("gallery", Accent = "#22C55E", Category = "Studio")]

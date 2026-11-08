@@ -336,7 +336,7 @@ internal static class InoViewRenderer
             var exportPath = card.Columns is { Length: >= 5 } && !string.IsNullOrWhiteSpace(card.Columns[4])
                 ? card.Columns[4]
                 : null;
-            var elements = MarkdrawApp.ParseSceneElements(content);
+            var elements = MarkdrawSceneEngine.ParseSceneElements(content);
 
             yield return new RecordCardNode(
                 "Markdraw · Diagram & Canvas Studio",
@@ -350,7 +350,7 @@ internal static class InoViewRenderer
                 LinkLabel: "Open Markdraw Studio",
                 OnOpen: new ButtonAction("apps/markdraw", "open", [activeDoc]));
 
-            yield return MarkdrawApp.BuildMarkdrawCanvasCard(
+            yield return MarkdrawSceneEngine.BuildMarkdrawCanvasCard(
                 key: $"{card.Id}-canvas-rev-{rev}",
                 title: card.Title,
                 activeDocument: activeDoc,

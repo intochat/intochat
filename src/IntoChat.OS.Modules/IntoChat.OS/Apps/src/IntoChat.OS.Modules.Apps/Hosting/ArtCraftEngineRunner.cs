@@ -6,21 +6,6 @@ using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Modules.Apps;
 
-public sealed record ArtCraftExecutionResult(
-    string App,
-    string ExecutionMode,
-    string CommandId,
-    string CommandTitle,
-    string ParametersJson,
-    string InputDocument,
-    string OutputDocument,
-    string CliInvocation,
-    string Summary,
-    string PreviewDataUrl,
-    string[] LayersOrTracks,
-    bool IsValidCommand = true,
-    string? OutputNeuronUri = null);
-
 public static class ArtCraftEngineRunner
 {
     // Valid 1x1 cyan/transparent PNG base64 used for deterministic preview data URLs in headless & unit-test runs.
@@ -248,14 +233,6 @@ public static class ArtCraftEngineRunner
     public static bool IsExplicitFilmCraftCommand(string? instructionOrCommand)
         => TryResolveFilmCraftCommand(instructionOrCommand, null, null, out _);
 
-    public static (string CommandId, string Title, string ParamsJson, string InputDoc, string OutputDoc, string[] Layers) ResolvePhotoCraftCommand(
-        string? instructionOrCommand,
-        string? explicitParamsJson = null,
-        string? currentDocument = null)
-    {
-        _ = TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, currentDocument, out var resolved);
-        return resolved;
-    }
 
     public static bool TryResolveFilmCraftCommand(
         string? instructionOrCommand,
@@ -368,16 +345,8 @@ public static class ArtCraftEngineRunner
         return false;
     }
 
-    public static (string CommandId, string Title, string ParamsJson, string InputDoc, string OutputDoc, string[] Tracks) ResolveFilmCraftCommand(
-        string? instructionOrCommand,
-        string? explicitParamsJson = null,
-        string? currentSequence = null)
-    {
-        _ = TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, currentSequence, out var resolved);
-        return resolved;
-    }
 
-    public static async Task<ArtCraftExecutionResult> ExecutePhotoCraftAsync(
+    public static async Task<ArtCraftEngineResult> ExecutePhotoCraftAsync(
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentDocument,
@@ -397,7 +366,7 @@ public static class ArtCraftEngineRunner
 
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
-            return new ArtCraftExecutionResult(
+            return new ArtCraftEngineResult(
                 "photocraft",
                 mode,
                 "clarification.required",
@@ -503,7 +472,7 @@ public static class ArtCraftEngineRunner
         }
 
         var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · Input: `{inputDoc}` -> Output: `{outputDoc}`";
-        return new ArtCraftExecutionResult(
+        return new ArtCraftEngineResult(
             "photocraft",
             mode,
             cmdId,
@@ -519,7 +488,7 @@ public static class ArtCraftEngineRunner
             OutputNeuronUri: outputNeuronUri);
     }
 
-    public static async Task<ArtCraftExecutionResult> ExecuteFilmCraftAsync(
+    public static async Task<ArtCraftEngineResult> ExecuteFilmCraftAsync(
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentSequence,
@@ -539,7 +508,7 @@ public static class ArtCraftEngineRunner
 
         if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
         {
-            return new ArtCraftExecutionResult(
+            return new ArtCraftEngineResult(
                 "filmcraft",
                 mode,
                 "clarification.required",
@@ -610,7 +579,7 @@ public static class ArtCraftEngineRunner
         }
 
         var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · Sequence: `{inputDoc}` -> Output: `{outputDoc}`";
-        return new ArtCraftExecutionResult(
+        return new ArtCraftEngineResult(
             "filmcraft",
             mode,
             cmdId,

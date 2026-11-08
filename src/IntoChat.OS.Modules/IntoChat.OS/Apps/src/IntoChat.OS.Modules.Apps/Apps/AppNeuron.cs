@@ -59,10 +59,6 @@ internal sealed partial class AppNeuron(
     private const int MaxPayloadLength = 64 * 1024;
     private const int MaxReceipts = 64;
     private const int RetainedCapacity = 64;
-    private const int MaxSynapses = 64;
-    private const int MaxSentenceLength = 4000;
-    internal const int MaxFocus = 16;
-    internal const int MaxFocusKeyLength = 512;
 
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(State));
 
@@ -425,6 +421,7 @@ internal sealed partial class AppNeuron(
 
     // The publish gate: every script in the bundle compiles against the installed contracts. A host
     // without a script compiler cannot run apps either, so it has nothing to refuse.
+
     private Task RequireCompiles() => RequireCompiles(State);
 
     private async Task RequireCompiles(AppState state)
