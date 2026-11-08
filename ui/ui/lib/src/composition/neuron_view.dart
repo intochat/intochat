@@ -1,5 +1,4 @@
 import '../components/button/ui_neuron_select.dart';
-import '../focus_registry.dart';
 import '../components/graph/ui_graph.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../components/button/ui_neuron_button.dart';
@@ -8,6 +7,7 @@ import '../components/kit/kit_toast.dart';
 import '../components/kit/ui_kit_surface.dart';
 import '../components/kit/ui_kit_switch.dart';
 import '../design/app_tile.dart';
+import '../focus_registry.dart';
 
 import 'package:intochat_design_ui/intochat_design_ui.dart'
     show
@@ -178,7 +178,7 @@ class _NeuronViewState extends State<NeuronView> {
   int _generation = 0;
   late final NeuronEventQueue _events = widget.events ?? NeuronEventQueue();
   final GlobalKey _focusKey = GlobalKey();
-  late final String _focusTarget = '${widget.kind}:${widget.name}';
+  late String _focusTarget = '${widget.kind}:${widget.name}';
 
   @override
   void initState() {
@@ -232,6 +232,9 @@ class _NeuronViewState extends State<NeuronView> {
       _sceneState = null;
       _sceneRecovery = true;
       _error = null;
+      FocusRegistry.instance.unregister(_focusTarget, _focusKey);
+      _focusTarget = '${widget.kind}:${widget.name}';
+      FocusRegistry.instance.register(_focusTarget, _focusKey);
     }
     if (old.name != widget.name ||
         old.kind != widget.kind ||

@@ -21,4 +21,25 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     expect(FocusRegistry.instance.resolve('view:test'), isNull);
   });
+
+  testWidgets('neuronViewReRegistersWhenNameChanges', (tester) async {
+    Widget view(String name) => MaterialApp(
+      home: Scaffold(
+        body: NeuronView(
+          kind: 'view',
+          name: name,
+          watch: (_, _) => const Stream<void>.empty(),
+          load: (_, _) async => {'version': 1, 'markdown': 'hello'},
+        ),
+      ),
+    );
+    await tester.pumpWidget(view('one'));
+    await tester.pump();
+    expect(FocusRegistry.instance.resolve('view:one'), isNotNull);
+    await tester.pumpWidget(view('two'));
+    await tester.pump();
+    expect(FocusRegistry.instance.resolve('view:one'), isNull);
+    expect(FocusRegistry.instance.resolve('view:two'), isNotNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

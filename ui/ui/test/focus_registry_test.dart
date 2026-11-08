@@ -66,4 +66,23 @@ void main() {
     expect(before!.size, const Size(10, 10));
     expect(after!.size, const Size(20, 20));
   });
+
+  testWidgets('guardedUnregisterKeepsNewerKey', (tester) async {
+    final k1 = GlobalKey(), k2 = GlobalKey();
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Column(
+          children: [
+            SizedBox(key: k1, width: 10, height: 10),
+            SizedBox(key: k2, width: 20, height: 20),
+          ],
+        ),
+      ),
+    );
+    FocusRegistry.instance.register('a', k1);
+    FocusRegistry.instance.register('a', k2);
+    FocusRegistry.instance.unregister('a', k1);
+    expect(FocusRegistry.instance.resolve('a')!.size, const Size(20, 20));
+  });
 }
