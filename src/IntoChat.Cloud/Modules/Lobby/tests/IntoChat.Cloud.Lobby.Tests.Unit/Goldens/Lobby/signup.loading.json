@@ -18,28 +18,36 @@
         "mono": false
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "first",
         "name": "first",
-        "value": null,
-        "placeholder": "First name"
+        "fieldKind": "Text",
+        "placeholder": "First name",
+        "onSubmit": null
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "last",
         "name": "last",
-        "value": null,
-        "placeholder": "Last name"
+        "fieldKind": "Text",
+        "placeholder": "Last name",
+        "onSubmit": null
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "email",
         "name": "email",
-        "value": null,
-        "placeholder": "Work email"
+        "fieldKind": "Text",
+        "placeholder": "Work email",
+        "onSubmit": null
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "password",
         "name": "password",
-        "value": null,
-        "placeholder": "Password"
+        "fieldKind": "Password",
+        "placeholder": "Password",
+        "onSubmit": null
       },
       {
         "kind": "text",
@@ -57,12 +65,14 @@
       },
       {
         "kind": "button",
+        "key": "consent",
         "label": "You need to agree to continue.",
-        "action": {
-          "neuron": "lobby",
-          "operation": "consent",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "consent",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "neutral",
         "style": "secondary",
@@ -70,12 +80,14 @@
       },
       {
         "kind": "button",
+        "key": "submit",
         "label": "Logging in",
-        "action": {
-          "neuron": "lobby",
-          "operation": "submit",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "submit",
+          "args": null
         },
+        "intent": null,
         "enabled": false,
         "tone": "accent",
         "style": "secondary",

@@ -21,19 +21,23 @@
         "kind": "column",
         "children": [
           {
-            "kind": "textField",
+            "kind": "field",
+            "key": "name",
             "name": "name",
-            "value": "Ada",
-            "placeholder": "Your name"
+            "fieldKind": "Text",
+            "placeholder": "Your name",
+            "onSubmit": null
           },
           {
             "kind": "button",
+            "key": "save",
             "label": "Save changes",
-            "action": {
-              "neuron": "account",
-              "operation": "save",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "save",
+              "args": null
             },
+            "intent": null,
             "enabled": false,
             "tone": "accent",
             "style": "secondary",

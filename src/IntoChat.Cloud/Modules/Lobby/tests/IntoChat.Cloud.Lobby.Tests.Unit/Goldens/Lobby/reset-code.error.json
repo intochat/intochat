@@ -18,19 +18,23 @@
         "mono": false
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "code",
         "name": "code",
-        "value": null,
-        "placeholder": "6-digit code"
+        "fieldKind": "Text",
+        "placeholder": "6-digit code",
+        "onSubmit": null
       },
       {
         "kind": "button",
+        "key": "verify",
         "label": "Verify",
-        "action": {
-          "neuron": "lobby",
-          "operation": "verify",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "verify",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "accent",
         "style": "secondary",
@@ -38,12 +42,14 @@
       },
       {
         "kind": "button",
+        "key": "resend",
         "label": "Resend code",
-        "action": {
-          "neuron": "lobby",
-          "operation": "resend",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "resend",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "neutral",
         "style": "secondary",

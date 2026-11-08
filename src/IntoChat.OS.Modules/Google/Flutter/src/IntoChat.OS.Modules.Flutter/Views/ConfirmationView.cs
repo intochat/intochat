@@ -19,19 +19,25 @@ internal static class ConfirmationView
         var cards = inbox.Pending.Select((request, index) =>
         {
             var plan = request.Plan;
-            var card = ConfirmView.For(request.PlanId, plan.Title, plan.Body, plan.ApproveLabel, plan.DenyLabel, plan.Expiry, human);
+            var card = ConfirmView.For(request.PlanId, plan.Title, plan.Body, plan.Expiry, human);
             var key = "confirmation-" + index;
-            return Ui.Card(key, card.Title, card.Body, card.Children.Select((node, child) => node switch
+            return Ui.Card(key, card.Title, card.Body, card.Children.SelectMany((node, child) => node switch
             {
-                DigitalBrain.UI.Text text => Ui.Text(key + "-" + child, text.Value),
-                DigitalBrain.UI.Button button => Ui.Button(key + "-" + child, button.Label,
-                    button.Action.Operation + ":" + Uri.EscapeDataString(button.Action.Arguments[0]) + ":" + button.Action.Arguments[1],
-                    button.Enabled, button.Tone == DigitalBrain.UI.ButtonTone.Accent ? UiStyle.Primary : UiStyle.Secondary),
+                DigitalBrain.UI.Text text => new[] { Ui.Text(key + "-" + child, text.Value) },
+                DigitalBrain.UI.ApprovalCardNode { Resolve: { } resolve } =>
+                [
+                    Ui.Button(key + "-approve", plan.ApproveLabel, Resolution(resolve.PlanId, true), true, UiStyle.Primary),
+                    Ui.Button(key + "-deny", plan.DenyLabel, Resolution(resolve.PlanId, false), true, UiStyle.Secondary),
+                ],
+                DigitalBrain.UI.ApprovalCardNode => [],
                 _ => throw new InvalidOperationException("Unsupported confirmation card node."),
             }).ToArray());
         }).ToArray();
         return new(inbox.Revision, Math.Max(1, inbox.Revision), Ui.Column("confirmations", cards));
     }
+
+    private static string Resolution(string planId, bool approve)
+        => ConfirmView.ResolveOperation + ":" + Uri.EscapeDataString(planId) + ":" + (approve ? "true" : "false");
 
     public static (string PlanId, bool Approve) Answer(string? action)
     {

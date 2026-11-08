@@ -58,10 +58,10 @@ internal static class CreatorRendering
     {
         var sceneNodes = new List<BrainGraphNode>
         {
-            new("creator", "Creator Loop", "neuron://local/creator", "IntoChat.OS.Studio", 0, 0, 0, "working", "Self-Improving Studio", new ButtonAction("creator", "inspect", ["creator"])),
-            new("bdd", "BDD Scenario Gate", "neuron://local/bdd", "DigitalBrain.Bdd", -90, 45, -20, state.Promoted ? "done" : "idle", "Executable [Scenario] Gate", new ButtonAction("creator", "inspect", ["bdd"])),
-            new("aspire", "Aspire Telemetry", "neuron://local/aspire", "Microsoft.Aspire", 95, 40, -15, state.DiagnosedErrors.Length > 0 ? "error" : "working", "OpenTelemetry Logs & Traces", new ButtonAction("creator", "inspect", ["aspire"])),
-            new("memory", "MemoryNeuron", "neuron://local/memory", "IntoChat.OS.AI.Memory", -70, -55, 25, "idle", "Episodic & Semantic Recall", new ButtonAction("creator", "inspect", ["memory"])),
+            new("creator", "Creator Loop", "neuron://local/creator", "IntoChat.OS.Studio", 0, 0, 0, "working", "Self-Improving Studio", new Button("inspect-creator", "Inspect", Emit: AppSignals.Emit("creator", "inspect", "creator"))),
+            new("bdd", "BDD Scenario Gate", "neuron://local/bdd", "DigitalBrain.Bdd", -90, 45, -20, state.Promoted ? "done" : "idle", "Executable [Scenario] Gate", new Button("inspect-bdd", "Inspect", Emit: AppSignals.Emit("creator", "inspect", "bdd"))),
+            new("aspire", "Aspire Telemetry", "neuron://local/aspire", "Microsoft.Aspire", 95, 40, -15, state.DiagnosedErrors.Length > 0 ? "error" : "working", "OpenTelemetry Logs & Traces", new Button("inspect-aspire", "Inspect", Emit: AppSignals.Emit("creator", "inspect", "aspire"))),
+            new("memory", "MemoryNeuron", "neuron://local/memory", "IntoChat.OS.AI.Memory", -70, -55, 25, "idle", "Episodic & Semantic Recall", new Button("inspect-memory", "Inspect", Emit: AppSignals.Emit("creator", "inspect", "memory"))),
         };
         var synapses = new List<BrainGraphSynapse>
         {
@@ -82,7 +82,7 @@ internal static class CreatorRendering
                 30,
                 state.Promoted ? "done" : "working",
                 "C# Sandbox App<TState>",
-                new ButtonAction("creator", "inspect", [appKey])));
+                new Button($"inspect-{appKey}", "Inspect", Emit: AppSignals.Emit("creator", "inspect", appKey))));
             synapses.Add(new("creator", appKey, "app.promoted", Active: state.Promoted));
         }
 
@@ -163,31 +163,33 @@ internal static class CreatorRendering
                             .. state.DiagnosedErrors.Select(err => (Node)new InfoBar("Aspire Diagnostic", err, "error")),
                             new Row(
                             [
-                                new TextField(
+                                new Field(
                                     "prompt",
-                                    string.Empty,
-                                    "Prompt Creator to synthesize or self-improve a C# App<TState>…")
-                                {
-                                    OnSubmit = new ButtonAction("creator", "prompt", ["Self-improve C# App<TState>", state.TargetApp]),
-                                },
+                                    "prompt",
+                                    FieldKind.Text,
+                                    "Prompt Creator to synthesize or self-improve a C# App<TState>…",
+                                    AppSignals.Emit("creator", "prompt", "Self-improve C# App<TState>", state.TargetApp)),
                                 new Button(
+                                    "verify-bdd-release",
                                     "Verify BDD & Release",
-                                    new ButtonAction("creator", "prompt", ["Verify BDD Scenario and deploy live update", state.TargetApp]),
+                                    Emit: AppSignals.Emit("creator", "prompt", "Verify BDD Scenario and deploy live update", state.TargetApp),
                                     Tone: ButtonTone.Accent)
                                 {
                                     Style = "primary",
                                     Icon = "sparkles",
                                 },
                                 new Button(
+                                    "hot-restart-sandbox",
                                     "Hot-Restart Sandbox",
-                                    new ButtonAction("creator", "hot-restart", []))
+                                    Emit: AppSignals.Emit("creator", "hot-restart"))
                                 {
                                     Icon = "rotate-ccw",
                                     Small = true,
                                 },
                                 new Button(
+                                    "rollback-version",
                                     "Rollback Version",
-                                    new ButtonAction("creator", "rollback", []))
+                                    Emit: AppSignals.Emit("creator", "rollback"))
                                 {
                                     Icon = "history",
                                     Small = true,
@@ -216,8 +218,9 @@ internal static class CreatorRendering
                             [
                                 new Heading(selectedNode.Label, Level: 2, Subtitle: selectedNode.Subtitle),
                                 new Button(
+                                    "copy-uri",
                                     "Copy URI",
-                                    new ButtonAction("clipboard", "copy", [selectedNode.Uri]))
+                                    Intent: AppSignals.Copy(selectedNode.Uri))
                                 {
                                     Icon = "copy",
                                     Small = true,
@@ -233,11 +236,11 @@ internal static class CreatorRendering
                             new Divider("PLAIN-LANGUAGE [SCENARIO] BDD DEBUGGER"),
                             new Row(
                             [
-                                new Button("EN", new ButtonAction("creator", "language", ["en"]), Tone: lang == "en" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                                new Button("UK", new ButtonAction("creator", "language", ["uk"]), Tone: lang == "uk" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                                new Button("ES", new ButtonAction("creator", "language", ["es"]), Tone: lang == "es" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                                new Button("DE", new ButtonAction("creator", "language", ["de"]), Tone: lang == "de" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                                new Button("FR", new ButtonAction("creator", "language", ["fr"]), Tone: lang == "fr" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("en", "EN", Emit: AppSignals.Emit("creator", "language", "en"), Tone: lang == "en" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("uk", "UK", Emit: AppSignals.Emit("creator", "language", "uk"), Tone: lang == "uk" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("es", "ES", Emit: AppSignals.Emit("creator", "language", "es"), Tone: lang == "es" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("de", "DE", Emit: AppSignals.Emit("creator", "language", "de"), Tone: lang == "de" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                                new Button("fr", "FR", Emit: AppSignals.Emit("creator", "language", "fr"), Tone: lang == "fr" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
                             ]) { Gap = 6 },
                             .. stepNodes,
                             new Divider("LIVE C# SANDBOX SCRIPT (App<TState>)"),

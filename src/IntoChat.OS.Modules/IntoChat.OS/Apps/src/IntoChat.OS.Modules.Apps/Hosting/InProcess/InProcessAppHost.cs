@@ -78,7 +78,7 @@ public sealed class InProcessAppHost : IAppHost
         var app = CreateApp(definition, () => hosted!);
         var turns = new AppTurns(app, definition, token => PresentCurrentAsync(hosted!, token));
         var hash = appType.Assembly.GetName().Version?.ToString() ?? "compiled";
-        var behaviors = new[] { new BehaviorView(BehaviorIds.For(owner, ""), hash, "Running", null) };
+        var behaviors = new[] { new BehaviorView(IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BehaviorIds.For(owner, ""), hash, "Running", null) };
         hosted = new HostedProgram(owner, hash, turns, settings, context: null, behaviors);
         _programs[owner] = hosted;
         await PresentCurrentAsync(hosted, ct).ConfigureAwait(false);
@@ -144,7 +144,7 @@ public sealed class InProcessAppHost : IAppHost
                 {
                     appType = found[0];
                 }
-                behaviors.Add(new BehaviorView(BehaviorIds.For(assignment.Owner, path), prebuilt.Hash, "Running", null));
+                behaviors.Add(new BehaviorView(IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BehaviorIds.For(assignment.Owner, path), prebuilt.Hash, "Running", null));
             }
 
             if (appType is null)

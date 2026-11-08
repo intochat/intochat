@@ -215,26 +215,26 @@ internal sealed class AppPresentation(AppState state)
 
         Button button => new UiNode(UiNodeKind.Button, key)
         {
-            Text = NonEmpty(button.Label, NonEmpty(button.Action.Operation, "Action")),
-            Action = FormatAction(button.Action),
+            Text = NonEmpty(button.Label, NonEmpty(button.Emit?.Signal, "Action")),
+            Action = FormatButton(button),
             Enabled = button.Enabled,
             Style = MapButtonStyle(button),
             Icon = SanitizeIcon(button.Icon),
             Detail = button.Small ? "small" : null,
         },
 
-        TextField field => MetaCard(
+        Field field => MetaCard(
             key,
-            field.Value ?? field.Placeholder ?? field.Name,
+            field.Placeholder ?? field.Name,
             // A field named by a neuron key (apps/{app}/{field}) is that brain's textfield neuron: the shell sends its changes there.
-            new { _ui = "textfield", name = field.Name.Contains('/', StringComparison.Ordinal) && brainId is { Length: > 0 } && TryResolveBrainKey(field.Name, brainId, out var fieldKey) ? fieldKey : field.Name, value = field.Value, placeholder = field.Placeholder, secret = false },
+            new { _ui = "textfield", name = field.Name.Contains('/', StringComparison.Ordinal) && brainId is { Length: > 0 } && TryResolveBrainKey(field.Name, brainId, out var fieldKey) ? fieldKey : field.Name, value = (string?)null, placeholder = field.Placeholder, secret = field.Kind is FieldKind.Password or FieldKind.Secret },
             ActionButton($"{key}.submit", NonEmpty(field.Name, "Submit"), field.OnSubmit, UiStyle.Primary)),
 
         Switch sw => MetaCard(
             key,
             sw.Label,
-            new { _ui = "switch", label = sw.Label, value = sw.IsOn, enabled = sw.Action is not null, locked = sw.Locked },
-            sw.Action is { } swAction ? Ui.Button($"{key}.toggle", NonEmpty(sw.Label, "Toggle"), FormatAction(swAction), !sw.Locked) : null),
+            new { _ui = "switch", label = sw.Label, value = sw.IsOn, enabled = sw.Emit is not null, locked = sw.Locked },
+            sw.Emit is { } swEmit ? Ui.Button($"{key}.toggle", NonEmpty(sw.Label, "Toggle"), FormatEmit(swEmit), !sw.Locked) : null),
 
         Select select => MetaCard(
             key,
@@ -250,7 +250,7 @@ internal sealed class AppPresentation(AppState state)
             [.. select.Options.Select((opt, index) => Ui.Button(
                 $"{key}.opt.{index}",
                 NonEmpty(opt.Label, opt.Id),
-                FormatAction(opt.Action ?? new ButtonAction("app", "select", [opt.Id]))))]),
+                FormatEmit(opt.Emit ?? AppEmit("app", "select", opt.Id))))]),
 
         Progress progress => MetaCard(
             key,
@@ -313,8 +313,8 @@ internal sealed class AppPresentation(AppState state)
                 rejectLabel = "Deny",
                 rememberHint = approval.Summary,
             },
-            ActionButton($"{key}.approve", "Approve", approval.OnApprove, UiStyle.Primary),
-            ActionButton($"{key}.reject", "Deny", approval.OnReject, UiStyle.Secondary),
+            ResolveButton($"{key}.approve", "Approve", approval.Resolve, true, UiStyle.Primary),
+            ResolveButton($"{key}.reject", "Deny", approval.Resolve, false, UiStyle.Secondary),
             CopyUriButton($"{key}.copy", approval.SourceNeuronUri)),
 
         ChoiceCardNode choice => MetaCard(
@@ -332,7 +332,7 @@ internal sealed class AppPresentation(AppState state)
             [.. choice.Options.Select((opt, index) => Ui.Button(
                 $"{key}.opt.{index}",
                 NonEmpty(opt.Title, $"Option {index + 1}"),
-                FormatAction(opt.Action ?? new ButtonAction("app", "choose", [index.ToString(CultureInfo.InvariantCulture)]))))]),
+                opt.Pick is { } pick ? FormatButton(pick) : FormatEmit(AppEmit("app", "choose", index.ToString(CultureInfo.InvariantCulture)))))]),
 
         DraftCardNode draft => MetaCard(
             key,
@@ -347,8 +347,8 @@ internal sealed class AppPresentation(AppState state)
                 sent = string.Equals(draft.Status, "sent", StringComparison.OrdinalIgnoreCase),
                 sendLabel = "Send",
             },
-            ActionButton($"{key}.send", "Send", draft.OnSend, UiStyle.Primary),
-            ActionButton($"{key}.cancel", "Discard", draft.OnDiscard, UiStyle.Ghost)),
+            ActionButton($"{key}.send", "Send", draft.Send, UiStyle.Primary),
+            ActionButton($"{key}.cancel", "Discard", draft.Discard, UiStyle.Ghost)),
 
         RecordCardNode record => MetaCard(
             key,
@@ -365,7 +365,7 @@ internal sealed class AppPresentation(AppState state)
                 sourceApp = record.ObjectLabel,
                 fields = record.Fields.Select(f => new { key = f.Label, value = f.Value }),
             },
-            ActionButton($"{key}.open", NonEmpty(record.LinkLabel, "Open"), record.OnOpen, UiStyle.Secondary)),
+            ActionButton($"{key}.open", NonEmpty(record.LinkLabel, "Open"), record.Open, UiStyle.Secondary)),
 
         SecretCardNode secret => MetaCard(
             key,
@@ -378,8 +378,8 @@ internal sealed class AppPresentation(AppState state)
                 hint = secret.Why,
                 saved = string.Equals(secret.Status, "saved", StringComparison.OrdinalIgnoreCase),
             },
-            ActionButton($"{key}.save", "Save to vault", secret.OnEnter, UiStyle.Primary),
-            ActionButton($"{key}.skip", "Skip", secret.OnSkip, UiStyle.Ghost)),
+            ActionButton($"{key}.save", "Save to vault", secret.Enter, UiStyle.Primary),
+            ActionButton($"{key}.skip", "Skip", secret.Skip, UiStyle.Ghost)),
 
         JobCardNode job => MapJobCard(key, job),
 
@@ -421,8 +421,27 @@ internal sealed class AppPresentation(AppState state)
         return Ui.Card(key, title, JsonSerializer.Serialize(meta), [.. list]);
     }
 
-    private static UiNode? ActionButton(string key, string label, ButtonAction? action, UiStyle style = UiStyle.Secondary)
-        => action is null ? null : Ui.Button(key, label, FormatAction(action), style: style);
+    // A composite card's child button: its own label when it has one, the card's slot name otherwise.
+    private static UiNode? ActionButton(string key, string label, Button? button, UiStyle style = UiStyle.Secondary)
+        => button is null ? null : Ui.Button(key, NonEmpty(button.Label, label), FormatButton(button), style: style);
+
+    private static UiNode? ActionButton(string key, string label, Emit? emit, UiStyle style = UiStyle.Secondary)
+        => emit is null ? null : Ui.Button(key, label, FormatEmit(emit), style: style);
+
+    // The confirmations inbox answers for a person, never for the app: only an OS-trusted app's approval card is routed to it
+    // by the edge; any other app's falls through to its own opaque, inert action.
+    private static UiNode? ResolveButton(string key, string label, Resolve? resolve, bool approve, UiStyle style)
+    {
+        if (resolve is null) { return null; }
+        var answer = approve ? "true" : "false";
+        var action = t_osTrusted
+            ? NeuronButtonAction.Format(DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, DigitalBrain.Confirmation.IConfirmations.ResolveOperation, [resolve.PlanId, answer])
+            : DigitalBrain.Confirmation.IConfirmations.ResolveOperation + ":" + Uri.EscapeDataString(resolve.PlanId) + ":" + answer;
+        return Ui.Button(key, label, action, style: style);
+    }
+
+    private static Emit AppEmit(string owner, string signal, string argument)
+        => new(owner, signal, JsonSerializer.SerializeToElement(argument));
 
     private static UiNode? CopyUriButton(string key, string? uri)
         => string.IsNullOrWhiteSpace(uri) ? null : Ui.CopyButton(key, "Copy URI", SanitizeCopyText(uri!));
@@ -433,7 +452,7 @@ internal sealed class AppPresentation(AppState state)
         var activeIndex = Math.Max(0, tabs.Items.ToList().FindIndex(item => string.Equals(item.Id, tabs.SelectedId, StringComparison.Ordinal)));
         return Ui.Tabs(
             key,
-            [.. tabs.Items.Select((item, index) => Ui.Tab($"{key}.tab.{index}", NonEmpty(item.Label, item.Id), FormatAction(item.Action), index == activeIndex))]);
+            [.. tabs.Items.Select((item, index) => Ui.Tab($"{key}.tab.{index}", NonEmpty(item.Label, item.Id), FormatEmit(item.Emit), index == activeIndex))]);
     }
 
     private static UiNode MapJobCard(string key, JobCardNode job)
@@ -452,7 +471,7 @@ internal sealed class AppPresentation(AppState state)
                 done = string.Equals(job.Status, "done", StringComparison.OrdinalIgnoreCase),
                 steps = job.Steps.Select(s => new { label = s.Label, detail = s.Detail }),
             },
-            ActionButton($"{key}.cancel", "Cancel", job.OnCancel, UiStyle.Ghost));
+            ActionButton($"{key}.cancel", "Cancel", job.Cancel, UiStyle.Ghost));
     }
 
     private static UiNode MapBrainScene(string key, BrainSceneNode scene) => MetaCard(
@@ -491,7 +510,7 @@ internal sealed class AppPresentation(AppState state)
         [.. scene.Nodes.Select((n, index) => Ui.Button(
             $"{key}.node.{index}",
             NonEmpty(n.Label, NonEmpty(n.Id, $"Node {index + 1}")),
-            FormatAction(n.OnSelect ?? new ButtonAction("app", "inspect", [n.Id]))))]);
+            n.Select is { } select ? FormatButton(select) : FormatEmit(AppEmit("app", "inspect", n.Id))))]);
 
     private static UiNode MapNeuronRef(string key, NeuronRef neuronRef, string? brainId)
     {
@@ -569,29 +588,35 @@ internal sealed class AppPresentation(AppState state)
         return false;
     }
 
-    private static string FormatAction(ButtonAction action)
-    {
-        if (string.Equals(action.Operation, "copy", StringComparison.OrdinalIgnoreCase) && action.Arguments.Count > 0)
-        {
-            return "copy:" + SanitizeCopyText(action.Arguments[0]);
-        }
+    private static string FormatButton(Button button)
+        => button.Emit is { } emit ? FormatEmit(emit) : FormatIntent(button.Intent!);
 
-        if (!string.IsNullOrWhiteSpace(action.Neuron) && action.Neuron.StartsWith("os://", StringComparison.OrdinalIgnoreCase)) { return action.Neuron; }
-        if (!string.IsNullOrWhiteSpace(action.Neuron) && action.Neuron.StartsWith("apps/", StringComparison.OrdinalIgnoreCase) && string.Equals(action.Operation, "open", StringComparison.OrdinalIgnoreCase))
+    // The shape the client sends back: the signal, then its arguments colon-separated (an object as its JSON).
+    private static string FormatEmit(Emit emit)
+    {
+        var op = NonEmpty(emit.Signal, "noop");
+        if (emit.Args is not { } args) { return op; }
+        switch (args.ValueKind)
         {
-            // The shell opens the app's window and hands it the first argument as its open input (an app's view).
-            var app = $"os://window/open?app={action.Neuron["apps/".Length..]}";
-            return action.Arguments.Count > 0 && action.Arguments[0].Length > 0 ? $"{app}&input={Uri.EscapeDataString(action.Arguments[0])}" : app;
+            case JsonValueKind.Undefined or JsonValueKind.Null:
+                return op;
+            case JsonValueKind.String:
+                return op + ":" + Uri.EscapeDataString(args.GetString() ?? "");
+            case JsonValueKind.Array:
+                var items = args.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() ?? "" : item.GetRawText()).ToArray();
+                return items.Length == 0 ? op : op + ":" + string.Join(':', items.Select(Uri.EscapeDataString));
+            default:
+                return op + ":" + args.GetRawText();
         }
-        // The confirmations inbox answers for a person, never for the app: the button is routed to it by the edge, and only
-        // an OS-trusted app's view carries one. Any other app's falls through to its own opaque, inert action.
-        if (t_osTrusted && string.Equals(action.Neuron, DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, StringComparison.Ordinal))
-        { return NeuronButtonAction.Format(action.Neuron, action.Operation, action.Arguments); }
-        var op = NonEmpty(action.Operation, "noop");
-        return action.Arguments.Count > 0
-            ? op + ":" + string.Join(':', action.Arguments.Select(Uri.EscapeDataString))
-            : op;
     }
+
+    private static string FormatIntent(Intent intent) => intent.Kind switch
+    {
+        IntentKind.Copy => "copy:" + SanitizeCopyText(intent.Arg ?? string.Empty),
+        IntentKind.OpenWindow => NonEmpty(intent.Arg, "noop"),
+        IntentKind.OpenSettings => "os://window/settings" + (string.IsNullOrEmpty(intent.Arg) ? "" : "?section=" + Uri.EscapeDataString(intent.Arg)),
+        _ => "noop",
+    };
 
     private static UiStyle MapButtonStyle(Button button)
     {

@@ -43,12 +43,14 @@
           },
           {
             "kind": "button",
+            "key": "download",
             "label": "Download backup codes (.txt)",
-            "action": {
-              "neuron": "account",
-              "operation": "download",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "download",
+              "args": null
             },
+            "intent": null,
             "enabled": true,
             "tone": "neutral",
             "style": "secondary",
@@ -56,12 +58,14 @@
           },
           {
             "kind": "button",
+            "key": "ack",
             "label": "I have saved these codes",
-            "action": {
-              "neuron": "account",
-              "operation": "ack",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "ack",
+              "args": null
             },
+            "intent": null,
             "enabled": true,
             "tone": "neutral",
             "style": "secondary",
@@ -69,12 +73,14 @@
           },
           {
             "kind": "button",
+            "key": "done",
             "label": "Done",
-            "action": {
-              "neuron": "account",
-              "operation": "done",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "done",
+              "args": null
             },
+            "intent": null,
             "enabled": false,
             "tone": "accent",
             "style": "secondary",

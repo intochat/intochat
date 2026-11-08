@@ -48,7 +48,7 @@ public sealed class TraceAppFacts
         Assert.Equal(4, scene.Synapses.Count);
         Assert.Contains(scene.Synapses, s => s.FromId == Ino.ToString() && s.ToId == Flows.ToString() && !s.Active);
         var flowButton = Assert.Single(Nodes(TraceViewRenderer.Side(TraceViewRenderer.Fold(Script()).Single(h => h.Sequence == 2))).OfType<Button>());
-        Assert.Equal(new ButtonAction("apps/tasks", "open", ["local/flow.plan/1"]), flowButton.Action);
+        Assert.Equal(new Intent(IntentKind.OpenWindow, "os://window/open?app=tasks&input=local%2Fflow.plan%2F1"), flowButton.Intent);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class TraceAppFacts
         Assert.Equal("t1", trace.App.State.TraceId);
         var unloaded = trace.App.Render();
         Assert.Contains(TraceViewRenderer.PressRefresh("t1"), Strings(unloaded));
-        Assert.Equal(new ButtonAction("apps/trace", "refresh", []), Assert.Single(Nodes(unloaded).OfType<Button>(), b => b.Label == "Refresh").Action);
+        Assert.Equal(new Emit("trace", "refresh"), Assert.Single(Nodes(unloaded).OfType<Button>(), b => b.Label == "Refresh").Emit);
 
         await trace.Request("refresh", new TraceRefresh());
 

@@ -19,7 +19,7 @@ public static class TraceViewRenderer
     public static View Unloaded(string traceId) => new("Trace", new Column(
     [
         new InfoBar("Not loaded", PressRefresh(traceId), "neutral",
-            new Button("Refresh", new ButtonAction($"apps/{App}", "refresh", [])) { Small = true, Icon = "refresh-cw" }),
+            new Button("refresh", "Refresh", Emit: AppSignals.Emit(App, "refresh")) { Small = true, Icon = "refresh-cw" }),
     ]));
 
     public static string NoEntries(string traceId) => $"no journal entries carry trace {traceId}";
@@ -133,7 +133,7 @@ public static class TraceViewRenderer
     {
         ArgumentNullException.ThrowIfNull(state);
         Button B(string label, string operation, string icon)
-            => new(label, new ButtonAction($"apps/{App}", operation, []), Tone: label == "Live" && state.Live ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = icon };
+            => new(operation, label, AppSignals.Emit(App, operation), Tone: label == "Live" && state.Live ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = icon };
         return new Column(
         [
             new Row([B("Play", "play", "play"), B("Pause", "pause", "pause"), B("Back", "back", "skip-back"), B("Forward", "forward", "skip-forward"), B("Live", "live", "radio")]),
@@ -148,7 +148,7 @@ public static class TraceViewRenderer
         List<Node> children = [];
         if (hop.FlowId is { } flowId)
         {
-            children.Add(new Button("open the flow", new ButtonAction("apps/tasks", "open", [flowId])) { Small = true, Icon = "tasks" });
+            children.Add(new Button("open-the-flow", "open the flow", Intent: AppSignals.OpenApp("tasks", flowId)) { Small = true, Icon = "tasks" });
         }
         return new Card($"{hop.Alias} · #{hop.Sequence}", $"{hop.Publisher}\n{hop.Payload}", children);
     }

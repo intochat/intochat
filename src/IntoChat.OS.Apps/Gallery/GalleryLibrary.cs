@@ -163,7 +163,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.OS.Modules.Flutter.Button.IButton@1",
             ["ButtonClickedSignal"],
             "neuron://local/ui.gallery/buttons",
-            "new Button(\"Execute Action\", new ButtonAction(\"gallery\", \"select\", [\"pulse\"]), Tone: ButtonTone.Accent) { Icon = \"sparkles\", Small = false };")
+            "new Button(\"execute\", \"Execute Action\", Emit: new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")), Tone: ButtonTone.Accent) { Icon = \"sparkles\", Small = false };")
         { Icon = "mouse-pointer-click" },
         new(
             "inputs",
@@ -173,7 +173,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.OS.Modules.Flutter.TextField.ITextField@1",
             ["TextFieldChanged"],
             "neuron://local/ui.gallery/inputs",
-            "new TextField(\"address\", \"neuron://nordlys/apps.ino/main\", \"Enter neuron:// address…\") { OnSubmit = new ButtonAction(\"gallery\", \"select\", [\"pulse\"]) };")
+            "new Field(\"address\", \"address\", FieldKind.Text, \"Enter neuron:// address…\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")));")
         { Icon = "text-cursor-input" },
         new(
             "switch",
@@ -183,7 +183,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.OS.Modules.Flutter.Switch.ISwitch@1",
             ["SwitchToggledSignal"],
             "neuron://local/ui.gallery/switch",
-            "new Switch(\"Live [Signal] stream active\", IsOn: true, Action: new ButtonAction(\"gallery\", \"select\", [\"toggle:switch\"]), Locked: false);")
+            "new Switch(\"stream\", \"Live [Signal] stream active\", IsOn: true, Emit: new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"toggle:switch\")), Locked: false);")
         { Icon = "toggle-right" },
         new(
             "select",
@@ -193,7 +193,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.OS.Modules.Flutter.Select.ISelect@1",
             ["SelectionChangedSignal"],
             "neuron://local/ui.gallery/select",
-            "new Select(\"Active Reasoning Model\", \"claude-sonnet-4-5\", [new SelectOption(\"claude-sonnet-4-5\", \"Claude Sonnet 4.5\"), new SelectOption(\"gpt-5-thinking\", \"GPT-5 Thinking\")]);")
+            "new Select(\"Active Reasoning Model\", \"claude-sonnet-4-5\", [new SelectOption(\"claude\", \"claude-sonnet-4-5\", \"Claude Sonnet 4.5\"), new SelectOption(\"gpt\", \"gpt-5-thinking\", \"GPT-5 Thinking\")]);")
         { Icon = "list-filter" },
         new(
             "tag-pill",
@@ -245,7 +245,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.OS.Modules.Flutter.Tabs.ITabs@1",
             ["ActiveTabChanged"],
             "neuron://local/ui.gallery/tabs",
-            "new Tabs(\"overview\", [new TabItem(\"overview\", \"Overview\", new ButtonAction(\"gallery\", \"select\", [\"shell:overview\"])), new TabItem(\"signals\", \"Signals\", new ButtonAction(\"gallery\", \"select\", [\"shell:signals\"]))]);")
+            "new Tabs(\"overview\", [new TabItem(\"overview\", \"overview\", \"Overview\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"shell:overview\"))), new TabItem(\"signals\", \"signals\", \"Signals\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"shell:signals\")))]);")
         { Icon = "folder-kanban" },
         new(
             "surfaces",
@@ -397,7 +397,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.OS.Assistant.ISessionDiagnostics@1",
             ["RecoveryTriggeredSignal"],
             "neuron://local/apps/ino#diagnostics",
-            "new InfoBar(\"Connection to Salesforce timed out\", \"Nothing was changed yet. Click Retry to reconnect with the capability broker.\", Tone: \"danger\", Action: new Button(\"Retry\", new ButtonAction(\"gallery\", \"select\", [\"pulse\"]), Tone: ButtonTone.Accent) { Small = true });")
+            "new InfoBar(\"Connection to Salesforce timed out\", \"Nothing was changed yet. Click Retry to reconnect with the capability broker.\", Tone: \"danger\", Action: new Button(\"retry\", \"Retry\", Emit: new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")), Tone: ButtonTone.Accent) { Small = true });")
         { Icon = "triangle-alert" },
 
         // 5. 3D Brain & Neurons ("3d-brain")

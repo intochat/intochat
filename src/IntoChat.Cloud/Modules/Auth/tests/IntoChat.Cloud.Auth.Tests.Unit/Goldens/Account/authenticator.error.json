@@ -43,31 +43,37 @@
           },
           {
             "kind": "button",
+            "key": "key",
             "label": "Show key",
-            "action": {
-              "neuron": "account",
-              "operation": "key",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "key",
+              "args": null
             },
+            "intent": null,
             "enabled": true,
             "tone": "neutral",
             "style": "secondary",
             "small": false
           },
           {
-            "kind": "textField",
+            "kind": "field",
+            "key": "code",
             "name": "code",
-            "value": null,
-            "placeholder": "6-digit code"
+            "fieldKind": "Text",
+            "placeholder": "6-digit code",
+            "onSubmit": null
           },
           {
             "kind": "button",
+            "key": "verify",
             "label": "Confirm email",
-            "action": {
-              "neuron": "account",
-              "operation": "verify",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "verify",
+              "args": null
             },
+            "intent": null,
             "enabled": true,
             "tone": "accent",
             "style": "secondary",
@@ -75,12 +81,14 @@
           },
           {
             "kind": "button",
+            "key": "remove",
             "label": "Remove authenticator",
-            "action": {
-              "neuron": "account",
-              "operation": "remove",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "remove",
+              "args": null
             },
+            "intent": null,
             "enabled": true,
             "tone": "neutral",
             "style": "secondary",

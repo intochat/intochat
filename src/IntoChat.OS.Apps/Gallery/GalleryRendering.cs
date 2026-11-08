@@ -49,10 +49,7 @@ internal static class GalleryRendering
                     ],
                     Kind: SurfaceKind.Acrylic,
                     Title: "UI Gallery · Component Studio"),
-                new TextField("gallery-search", state.Search, "Search 5 categories & LFP cards…")
-                {
-                    OnSubmit = new ButtonAction("gallery", "filter", [state.Category, state.Search]),
-                },
+                new Field("gallery-search", "gallery-search", FieldKind.Search, "Search 5 categories & LFP cards…", AppSignals.Emit("gallery", "filter", state.Category, state.Search)),
                 new Divider("CATEGORIES (5)"),
                 new Column(categoryButtons) { Gap = 4 },
                 new Divider($"CONTROLS ({visible.Length})"),
@@ -94,7 +91,7 @@ internal static class GalleryRendering
                     [
                         new Row(
                         [
-                            new Button("Back to Gallery", new ButtonAction("gallery", "select", ["home"]), Tone: ButtonTone.Neutral)
+                            new Button("back-to-gallery", "Back to Gallery", Emit: AppSignals.Emit("gallery", "select", "home"), Tone: ButtonTone.Neutral)
                             {
                                 Icon = "arrow-left",
                                 Small = true,
@@ -140,7 +137,7 @@ internal static class GalleryRendering
                 new TagPill($"{state.Entries.Length} Components", "accent", "sparkles"),
                 new TagPill("13 LFP Chat Cards", "done", "table"),
                 new TagPill($"{state.StylePreset} · {state.BarLayout}", "neutral", "palette"),
-                new Button("Inspect Selected Control", new ButtonAction("gallery", "select", [selected.Id]), Tone: ButtonTone.Accent)
+                new Button("inspect-selected-control", "Inspect Selected Control", Emit: AppSignals.Emit("gallery", "select", selected.Id), Tone: ButtonTone.Accent)
                 {
                     Icon = "arrow-up-right",
                     Small = true,
@@ -212,27 +209,27 @@ internal static class GalleryRendering
                 RenderIdentityPresetRow(state),
                 new Row(
                 [
-                    new Button("C# DigitalBrain.UI", new ButtonAction("gallery", "select", ["tab:csharp"]), Tone: state.CodeTab == "csharp" ? ButtonTone.Accent : ButtonTone.Neutral)
+                    new Button("c-digitalbrain-ui", "C# DigitalBrain.UI", Emit: AppSignals.Emit("gallery", "select", "tab:csharp"), Tone: state.CodeTab == "csharp" ? ButtonTone.Accent : ButtonTone.Neutral)
                     {
                         Icon = "code",
                         Small = true,
                     },
-                    new Button("Flutter Ic*", new ButtonAction("gallery", "select", ["tab:flutter"]), Tone: state.CodeTab == "flutter" ? ButtonTone.Accent : ButtonTone.Neutral)
+                    new Button("flutter-ic", "Flutter Ic*", Emit: AppSignals.Emit("gallery", "select", "tab:flutter"), Tone: state.CodeTab == "flutter" ? ButtonTone.Accent : ButtonTone.Neutral)
                     {
                         Icon = "layers",
                         Small = true,
                     },
-                    new Button("Contract & [Signal]", new ButtonAction("gallery", "select", ["tab:contract"]), Tone: state.CodeTab == "contract" ? ButtonTone.Accent : ButtonTone.Neutral)
+                    new Button("contract-signal", "Contract & [Signal]", Emit: AppSignals.Emit("gallery", "select", "tab:contract"), Tone: state.CodeTab == "contract" ? ButtonTone.Accent : ButtonTone.Neutral)
                     {
                         Icon = "radio",
                         Small = true,
                     },
-                    new Button("Fire Test [Signal]", new ButtonAction("gallery", "select", ["pulse"]), Tone: ButtonTone.Accent)
+                    new Button("fire-test-signal", "Fire Test [Signal]", Emit: AppSignals.Emit("gallery", "select", "pulse"), Tone: ButtonTone.Accent)
                     {
                         Icon = "zap",
                         Small = true,
                     },
-                    new Button("Copy Snippet", new ButtonAction("gallery", "copy", [dynamicSnippet]), Tone: ButtonTone.Neutral)
+                    new Button("copy-snippet", "Copy Snippet", Intent: AppSignals.Copy(dynamicSnippet), Tone: ButtonTone.Neutral)
                     {
                         Icon = "copy",
                         Small = true,
@@ -251,13 +248,13 @@ internal static class GalleryRendering
 
     private static Node RenderIdentityPresetRow(GalleryAppState state) => new Row(
     [
-        new Button("Fluent Acrylic", new ButtonAction("gallery", "switch-identity", ["fluent-acrylic", "floating-glass"]), Tone: state.StylePreset == "fluent-acrylic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "palette" },
-        new Button("Spatial Glass", new ButtonAction("gallery", "switch-identity", ["spatial-glass", "compact-pill"]), Tone: state.StylePreset == "spatial-glass" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sparkles" },
-        new Button("Cyber Synaptic", new ButtonAction("gallery", "switch-identity", ["cyber-synaptic", "split-top-dock"]), Tone: state.StylePreset == "cyber-synaptic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "zap" },
-        new Button("Warm Paper", new ButtonAction("gallery", "switch-identity", ["warm-paper", "classic-bottom"]), Tone: state.StylePreset == "warm-paper" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sun" },
-        new Button("Warm Mica", new ButtonAction("gallery", "switch-identity", ["fluent-warm-mica", "floating-glass"]), Tone: state.StylePreset == "fluent-warm-mica" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sun" },
-        new Button("Linear Carbon", new ButtonAction("gallery", "switch-identity", ["linear-carbon", "classic-bottom"]), Tone: state.StylePreset == "linear-carbon" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "terminal" },
-        new Button("Nordic Tactical", new ButtonAction("gallery", "switch-identity", ["nordic-tactical", "split-top-dock"]), Tone: state.StylePreset == "nordic-tactical" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "shield" },
+        new Button("fluent-acrylic", "Fluent Acrylic", Emit: AppSignals.Emit("gallery", "switch-identity", "fluent-acrylic", "floating-glass"), Tone: state.StylePreset == "fluent-acrylic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "palette" },
+        new Button("spatial-glass", "Spatial Glass", Emit: AppSignals.Emit("gallery", "switch-identity", "spatial-glass", "compact-pill"), Tone: state.StylePreset == "spatial-glass" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sparkles" },
+        new Button("cyber-synaptic", "Cyber Synaptic", Emit: AppSignals.Emit("gallery", "switch-identity", "cyber-synaptic", "split-top-dock"), Tone: state.StylePreset == "cyber-synaptic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "zap" },
+        new Button("warm-paper", "Warm Paper", Emit: AppSignals.Emit("gallery", "switch-identity", "warm-paper", "classic-bottom"), Tone: state.StylePreset == "warm-paper" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sun" },
+        new Button("warm-mica", "Warm Mica", Emit: AppSignals.Emit("gallery", "switch-identity", "fluent-warm-mica", "floating-glass"), Tone: state.StylePreset == "fluent-warm-mica" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sun" },
+        new Button("linear-carbon", "Linear Carbon", Emit: AppSignals.Emit("gallery", "switch-identity", "linear-carbon", "classic-bottom"), Tone: state.StylePreset == "linear-carbon" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "terminal" },
+        new Button("nordic-tactical", "Nordic Tactical", Emit: AppSignals.Emit("gallery", "switch-identity", "nordic-tactical", "split-top-dock"), Tone: state.StylePreset == "nordic-tactical" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "shield" },
     ])
     { Gap = 8 };
 
@@ -269,7 +266,7 @@ internal static class GalleryRendering
                 "No components found",
                 $"No UI Kit components matched '{state.Search}' in category '{state.Category}'.",
                 Tone: "warning",
-                Action: new Button("Reset Filter", new ButtonAction("gallery", "filter", ["all", ""]), Tone: ButtonTone.Accent) { Small = true });
+                Action: new Button("reset-filter", "Reset Filter", Emit: AppSignals.Emit("gallery", "filter", "all", ""), Tone: ButtonTone.Accent) { Small = true });
         }
 
         var cards = visible
@@ -286,8 +283,9 @@ internal static class GalleryRendering
                         new Text(entry.Summary) { Tone = "muted", Size = 12 },
                         new Text(entry.NeuronContract) { Mono = true, Tone = "subtle", Size = 11.5 },
                         new Button(
+                            $"inspect-{entry.Id}",
                             $"Inspect {entry.Title}",
-                            new ButtonAction("gallery", "select", [entry.Id]),
+                            AppSignals.Emit("gallery", "select", entry.Id),
                             Tone: isSelected ? ButtonTone.Accent : ButtonTone.Neutral)
                         {
                             Icon = isSelected ? "check" : "arrow-up-right",
@@ -328,7 +326,7 @@ internal static class GalleryRendering
                 $"Empty state for {selected.Title}",
                 $"No active items projected at {selected.SourceNeuronUri}. Switch the State knob back to Interactive to populate.",
                 Tone: "warning",
-                Action: new Button("Restore Interactive", new ButtonAction("gallery", "select", ["knob:state:interactive"]), Tone: ButtonTone.Accent) { Small = true });
+                Action: new Button("restore-interactive", "Restore Interactive", Emit: AppSignals.Emit("gallery", "select", "knob:state:interactive"), Tone: ButtonTone.Accent) { Small = true });
         }
 
         var badgeTone = MapKnobBadgeTone(state.KnobTone);
@@ -412,35 +410,35 @@ internal static class GalleryRendering
             [
                 new Row(
                 [
-                    new Button($"Active Knob ({state.KnobStyle})", new ButtonAction("gallery", "select", ["pulse"]), Tone: btnTone)
+                    new Button("select", $"Active Knob ({state.KnobStyle})", Emit: AppSignals.Emit("gallery", "select", "pulse"), Tone: btnTone)
                     {
                         Style = state.KnobStyle,
                         Small = state.KnobSmall,
                         Enabled = enabled,
                         Icon = "sparkles",
                     },
-                    new Button("Primary", new ButtonAction("gallery", "select", ["pulse"]), Tone: ButtonTone.Accent)
+                    new Button("primary", "Primary", Emit: AppSignals.Emit("gallery", "select", "pulse"), Tone: ButtonTone.Accent)
                     {
                         Style = "primary",
                         Small = state.KnobSmall,
                         Enabled = enabled,
                         Icon = "rocket",
                     },
-                    new Button("Secondary", new ButtonAction("gallery", "select", ["pulse"]), Tone: ButtonTone.Neutral)
+                    new Button("secondary", "Secondary", Emit: AppSignals.Emit("gallery", "select", "pulse"), Tone: ButtonTone.Neutral)
                     {
                         Style = "secondary",
                         Small = state.KnobSmall,
                         Enabled = enabled,
                         Icon = "sliders-horizontal",
                     },
-                    new Button("Ghost", new ButtonAction("gallery", "select", ["pulse"]), Tone: ButtonTone.Neutral)
+                    new Button("ghost", "Ghost", Emit: AppSignals.Emit("gallery", "select", "pulse"), Tone: ButtonTone.Neutral)
                     {
                         Style = "ghost",
                         Small = state.KnobSmall,
                         Enabled = enabled,
                         Icon = "eye",
                     },
-                    new Button("Danger", new ButtonAction("gallery", "select", ["pulse"]), Tone: ButtonTone.Neutral)
+                    new Button("danger", "Danger", Emit: AppSignals.Emit("gallery", "select", "pulse"), Tone: ButtonTone.Neutral)
                     {
                         Style = "danger",
                         Small = state.KnobSmall,
@@ -454,10 +452,7 @@ internal static class GalleryRendering
 
             "inputs" => new Column(
             [
-                new TextField("neuron-address", "neuron://nordlys/apps.ino/main", "Enter neuron:// address…")
-                {
-                    OnSubmit = new ButtonAction("gallery", "select", ["pulse"]),
-                },
+                new Field("neuron-address", "neuron-address", FieldKind.Text, "Enter neuron:// address…", AppSignals.Emit("gallery", "select", "pulse")),
                 new NeuronRef("ino", "neuron://nordlys/apps.ino/main"),
             ])
             { Gap = 12 },
@@ -465,13 +460,15 @@ internal static class GalleryRendering
             "switch" => new Row(
             [
                 new Switch(
+                    "stream",
                     state.SwitchValue ? "Live [Signal] stream active" : "Stream paused",
                     IsOn: state.SwitchValue,
-                    Action: enabled ? new ButtonAction("gallery", "select", ["toggle:switch"]) : null,
+                    Emit: enabled ? AppSignals.Emit("gallery", "select", "toggle:switch") : null,
                     Locked: state.SwitchLocked),
                 new Button(
+                    "lock-policy",
                     state.SwitchLocked ? "Unlock policy" : "Lock policy",
-                    new ButtonAction("gallery", "select", ["toggle:lock"]),
+                    AppSignals.Emit("gallery", "select", "toggle:lock"),
                     Tone: state.SwitchLocked ? ButtonTone.Accent : ButtonTone.Neutral)
                 {
                     Icon = "lock",
@@ -484,10 +481,10 @@ internal static class GalleryRendering
                 "Active Reasoning Model",
                 state.SelectedOption,
                 [
-                    new SelectOption("claude-sonnet-4-5", "Claude Sonnet 4.5", new ButtonAction("gallery", "select", ["option:claude-sonnet-4-5"])),
-                    new SelectOption("gpt-5-thinking", "GPT-5 Thinking", new ButtonAction("gallery", "select", ["option:gpt-5-thinking"])),
-                    new SelectOption("gemini-2.5-pro", "Gemini 2.5 Pro", new ButtonAction("gallery", "select", ["option:gemini-2.5-pro"])),
-                    new SelectOption("qwen3.5:4b", "Qwen 3.5 4B (Local)", new ButtonAction("gallery", "select", ["option:qwen3.5:4b"])),
+                    new SelectOption("option-claude-sonnet-4-5", "claude-sonnet-4-5", "Claude Sonnet 4.5", AppSignals.Emit("gallery", "select", "option:claude-sonnet-4-5")),
+                    new SelectOption("option-gpt-5-thinking", "gpt-5-thinking", "GPT-5 Thinking", AppSignals.Emit("gallery", "select", "option:gpt-5-thinking")),
+                    new SelectOption("option-gemini-2.5-pro", "gemini-2.5-pro", "Gemini 2.5 Pro", AppSignals.Emit("gallery", "select", "option:gemini-2.5-pro")),
+                    new SelectOption("option-qwen3.5:4b", "qwen3.5:4b", "Qwen 3.5 4B (Local)", AppSignals.Emit("gallery", "select", "option:qwen3.5:4b")),
                 ]),
 
             "tag-pill" => new Row(
@@ -513,7 +510,7 @@ internal static class GalleryRendering
                         "done" => "success",
                         _ => "info",
                     },
-                    Action: new Button("Pulse Gate", new ButtonAction("gallery", "select", ["pulse"]), Tone: ButtonTone.Accent) { Small = true, Icon = "zap" }),
+                    Action: new Button("pulse-gate", "Pulse Gate", Emit: AppSignals.Emit("gallery", "select", "pulse"), Tone: ButtonTone.Accent) { Small = true, Icon = "zap" }),
             ])
             { Gap = 12 },
 
@@ -552,9 +549,9 @@ internal static class GalleryRendering
             [
                 new Tabs(
                     [
-                        new TabItem("overview", "OVERVIEW", new ButtonAction("gallery", "select", ["shell:overview"])),
-                        new TabItem("signals", "TELEMETRY", new ButtonAction("gallery", "select", ["shell:signals"])),
-                        new TabItem("contracts", "CONTRACTS", new ButtonAction("gallery", "select", ["shell:contracts"])),
+                        new TabItem("overview", "overview", "OVERVIEW", AppSignals.Emit("gallery", "select", "shell:overview")),
+                        new TabItem("signals", "signals", "TELEMETRY", AppSignals.Emit("gallery", "select", "shell:signals")),
+                        new TabItem("contracts", "contracts", "CONTRACTS", AppSignals.Emit("gallery", "select", "shell:contracts")),
                     ],
                     state.ShellNav),
                 new Surface(
@@ -567,6 +564,7 @@ internal static class GalleryRendering
 
             "approval-card" => new ApprovalCardNode(
                 "card-gallery-1",
+                "card-gallery-1",
                 "Update close date on Nordlys Q4 renewal to 15 Nov 2026?",
                 "Ino matched Kari Holm's email to your open Salesforce opportunity (scope:neuron://local/apps/ino#card-1)",
                 [
@@ -575,8 +573,6 @@ internal static class GalleryRendering
                 ],
                 SystemName: "Salesforce",
                 Status: state.ApprovalStatus,
-                OnApprove: new ButtonAction("gallery", "select", ["card:approval:approved"]),
-                OnReject: new ButtonAction("gallery", "select", ["card:approval:rejected"]),
                 SourceNeuronUri: selected.SourceNeuronUri),
 
             "table-card" => new DataTable(
@@ -610,9 +606,9 @@ internal static class GalleryRendering
                 "choice-gallery-1",
                 "Which Nordlys workspace should receive the Q4 renewal brief?",
                 [
-                    new ChoiceOptionNode("Nordlys Enterprise (Primary)", "neuron://nordlys/circles/enterprise", new ButtonAction("gallery", "select", ["card:choice:0"])),
-                    new ChoiceOptionNode("Executive Board Circle", "neuron://nordlys/circles/board", new ButtonAction("gallery", "select", ["card:choice:1"])),
-                    new ChoiceOptionNode("Nordic Finance Ops", "neuron://nordlys/circles/finance", new ButtonAction("gallery", "select", ["card:choice:2"])),
+                    new ChoiceOptionNode("Nordlys Enterprise (Primary)", "neuron://nordlys/circles/enterprise", new Button("pick-0", "Nordlys Enterprise (Primary)", Emit: AppSignals.Emit("gallery", "select", "card:choice:0"))),
+                    new ChoiceOptionNode("Executive Board Circle", "neuron://nordlys/circles/board", new Button("pick-1", "Executive Board Circle", Emit: AppSignals.Emit("gallery", "select", "card:choice:1"))),
+                    new ChoiceOptionNode("Nordic Finance Ops", "neuron://nordlys/circles/finance", new Button("pick-2", "Nordic Finance Ops", Emit: AppSignals.Emit("gallery", "select", "card:choice:2"))),
                 ],
                 PickedIndex: state.ChoicePickedIndex),
 
@@ -624,10 +620,11 @@ internal static class GalleryRendering
                 "Hi Kari,\nConfirmed: we updated the Q4 renewal close date to 15 Nov 2026 (480,000 NOK).",
                 Subject: "Nordlys Q4 Enterprise Renewal — 15 Nov confirmation",
                 Status: state.DraftStatus,
-                OnSend: new ButtonAction("gallery", "select", ["card:draft:sent"]),
-                OnDiscard: new ButtonAction("gallery", "select", ["card:draft:pending"])),
+                Send: new Button("send", "Send", Emit: AppSignals.Emit("gallery", "select", "card:draft:sent"), Tone: ButtonTone.Accent),
+                Discard: new Button("discard", "Discard", Emit: AppSignals.Emit("gallery", "select", "card:draft:pending"))),
 
             "change-preview-card" => new ApprovalCardNode(
+                "change-gallery-1",
                 "change-gallery-1",
                 "Apply 2 CRM field changes on Nordlys Q4 Enterprise",
                 "Nordlys Q4 Enterprise",
@@ -637,8 +634,6 @@ internal static class GalleryRendering
                 ],
                 SystemName: "Salesforce",
                 Status: state.ApprovalStatus,
-                OnApprove: new ButtonAction("gallery", "select", ["card:approval:approved"]),
-                OnReject: new ButtonAction("gallery", "select", ["card:approval:rejected"]),
                 SourceNeuronUri: selected.SourceNeuronUri),
 
             "app-install-card" => new RecordCardNode(
@@ -652,7 +647,7 @@ internal static class GalleryRendering
                 ],
                 Subtitle: "Verified Smart App package · 1-click capability review",
                 LinkLabel: state.ApprovalStatus == "approved" ? "Installed" : "Review & Install",
-                OnOpen: new ButtonAction("gallery", "select", ["card:approval:approved"])),
+                Open: new Button("open", state.ApprovalStatus == "approved" ? "Installed" : "Review & Install", Emit: AppSignals.Emit("gallery", "select", "card:approval:approved"))),
 
             "record-card" => new RecordCardNode(
                 "Opportunity",
@@ -665,15 +660,15 @@ internal static class GalleryRendering
                 ],
                 Subtitle: "Kari Holm · Oslo, Norway",
                 LinkLabel: "Open in Salesforce",
-                OnOpen: new ButtonAction("gallery", "select", ["pulse"])),
+                Open: new Button("open", "Open in Salesforce", Emit: AppSignals.Emit("gallery", "select", "pulse"))),
 
             "secret-card" => new SecretCardNode(
                 "Tripletex Session Token",
                 "Required to verify Q4 invoice ledger balances in Tripletex. Stored encrypted in your personal vault.",
                 SavedIn: "TRIPLETEX_SESSION_TOKEN",
                 Status: state.SecretStatus,
-                OnEnter: new ButtonAction("gallery", "select", ["card:secret:saved"]),
-                OnSkip: new ButtonAction("gallery", "select", ["card:secret:pending"])),
+                Enter: new Button("enter", "Save to vault", Emit: AppSignals.Emit("gallery", "select", "card:secret:saved"), Tone: ButtonTone.Accent),
+                Skip: new Button("skip", "Skip", Emit: AppSignals.Emit("gallery", "select", "card:secret:pending"))),
 
             "job-card" => new JobCardNode(
                 "Verifying BDD [Scenario] Gate & Deploying Smart App",
@@ -685,7 +680,7 @@ internal static class GalleryRendering
                 Progress: state.JobStatus == "done" ? 1.0 : 0.75,
                 Status: state.JobStatus,
                 ResultText: "1.4s elapsed",
-                OnCancel: new ButtonAction("gallery", "select", [state.JobStatus == "done" ? "card:job:running" : "card:job:done"])),
+                Cancel: new Button("cancel", "Cancel", Emit: AppSignals.Emit("gallery", "select", state.JobStatus == "done" ? "card:job:running" : "card:job:done"))),
 
             "remember-card" => new RecordCardNode(
                 "Episodic Memory",
@@ -695,7 +690,7 @@ internal static class GalleryRendering
                 ],
                 Subtitle: "Nordlys AS",
                 LinkLabel: state.ApprovalStatus == "approved" ? "Saved" : "Remember",
-                OnOpen: new ButtonAction("gallery", "select", ["card:approval:approved"])),
+                Open: new Button("open", state.ApprovalStatus == "approved" ? "Saved" : "Remember", Emit: AppSignals.Emit("gallery", "select", "card:approval:approved"))),
 
             "file-cards" => new RecordCardNode(
                 "Files Vault",
@@ -707,40 +702,40 @@ internal static class GalleryRendering
                 ],
                 Subtitle: "30 Projects › Nordlys AS",
                 LinkLabel: "Open in Files",
-                OnOpen: new ButtonAction("apps/files", "open", [])),
+                Open: new Button("open", "Open in Files", Intent: AppSignals.OpenApp("files"))),
 
             "error-line" => new InfoBar(
                 "Salesforce didn't answer in time — nothing was changed yet",
                 "Timeout after 10s on neuron://nordlys/salesforce.crm/q4-pipeline. Click Retry to run the request again.",
                 Tone: "danger",
-                Action: new Button("Retry Request", new ButtonAction("gallery", "select", ["pulse"]), Tone: ButtonTone.Accent) { Small = true, Icon = "refresh" }),
+                Action: new Button("retry-request", "Retry Request", Emit: AppSignals.Emit("gallery", "select", "pulse"), Tone: ButtonTone.Accent) { Small = true, Icon = "refresh" }),
 
             "brain-scene-3d" => new BrainSceneNode(
                 [
                     new BrainGraphNode("os", "OperatingSystem", "neuron://local/os", "core", 0, 0, 0, "working")
                     {
                         Subtitle = "Orleans Silo Kernel",
-                        OnSelect = new ButtonAction("gallery", "select", ["node:os"]),
+                        Select = new Button("node-os", "os", Emit: AppSignals.Emit("gallery", "select", "node:os")),
                     },
                     new BrainGraphNode("ino", "Ino Agent", "neuron://local/apps/ino", "agent", 120, 40, -20, "working")
                     {
                         Subtitle = "Personal AI Coordinator",
-                        OnSelect = new ButtonAction("gallery", "select", ["node:ino"]),
+                        Select = new Button("node-ino", "ino", Emit: AppSignals.Emit("gallery", "select", "node:ino")),
                     },
                     new BrainGraphNode("pg", "Postgres", "neuron://local/postgres/main", "connector", -110, -50, 30, "done")
                     {
                         Subtitle = "Nordlys Analytics DB",
-                        OnSelect = new ButtonAction("gallery", "select", ["node:pg"]),
+                        Select = new Button("node-pg", "pg", Emit: AppSignals.Emit("gallery", "select", "node:pg")),
                     },
                     new BrainGraphNode("files", "Files Vault", "neuron://local/storage.files", "storage", 85, -80, 60, "done")
                     {
                         Subtitle = "Hybrid Cloud + Local Disk",
-                        OnSelect = new ButtonAction("gallery", "select", ["node:files"]),
+                        Select = new Button("node-files", "files", Emit: AppSignals.Emit("gallery", "select", "node:files")),
                     },
                     new BrainGraphNode("creator", "Creator 3D", "neuron://local/apps/creator", "studio", -95, 75, -45, "working")
                     {
                         Subtitle = "Self-Improving Roslyn Studio",
-                        OnSelect = new ButtonAction("gallery", "select", ["node:creator"]),
+                        Select = new Button("node-creator", "creator", Emit: AppSignals.Emit("gallery", "select", "node:creator")),
                     },
                 ],
                 [
@@ -806,8 +801,9 @@ internal static class GalleryRendering
     }
 
     private static Button KnobButton(string label, string selectArg, bool active) => new(
+        selectArg,
         label,
-        new ButtonAction("gallery", "select", [selectArg]),
+        AppSignals.Emit("gallery", "select", selectArg),
         Tone: active ? ButtonTone.Accent : ButtonTone.Neutral)
     {
         Style = active ? "primary" : "secondary",

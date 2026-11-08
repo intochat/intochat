@@ -557,22 +557,22 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
                         new Text(State.Status) { Tabular = true },
                         new Row(
                         [
-                            new Button("Save to Files", new ButtonAction("apps/markdraw", "save", [State.ActiveDocument]), Tone: ButtonTone.Accent)
+                            new Button("save-to-files", "Save to Files", Emit: AppSignals.Emit("markdraw", "save", State.ActiveDocument), Tone: ButtonTone.Accent)
                             {
                                 Icon = "save",
                                 Small = true,
                             },
-                            new Button("Export .excalidraw", new ButtonAction("apps/markdraw", "export", ["excalidraw"]))
+                            new Button("export-excalidraw", "Export .excalidraw", Emit: AppSignals.Emit("markdraw", "export", "excalidraw"))
                             {
                                 Icon = "file-json",
                                 Small = true,
                             },
-                            new Button("Export .svg", new ButtonAction("apps/markdraw", "export", ["svg"]))
+                            new Button("export-svg", "Export .svg", Emit: AppSignals.Emit("markdraw", "export", "svg"))
                             {
                                 Icon = "image",
                                 Small = true,
                             },
-                            new Button("Diagram CRM Data", new ButtonAction("apps/markdraw", "from-data", ["Pipeline Opportunities by Amount"]))
+                            new Button("diagram-crm-data", "Diagram CRM Data", Emit: AppSignals.Emit("markdraw", "from-data", "Pipeline Opportunities by Amount"))
                             {
                                 Icon = "bar-chart-2",
                                 Small = true,

@@ -65,8 +65,9 @@ public sealed class CalculatorScriptApp : DigitalBrain.App<CalculatorState>
                 Children:
                 [
                     .. Keypad.Keys.Select((key, index) => (Node)new Button(
+                        "key-" + index,
                         Keypad.Labels[index],
-                        new ButtonAction("calculator", "press", [key]))),
+                        new Emit("calculator", "press", System.Text.Json.JsonSerializer.SerializeToElement(key)))),
                 ],
                 Gap: 8),
         ]));

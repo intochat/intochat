@@ -449,17 +449,17 @@ public static class AccountScreens
             case "email":
             case "email-code":
                 nodes.Add(new Text(T("Account.Email.Title")));
-                nodes.Add(new TextField("email", state.PendingEmail ?? state.Email, T("Account.Profile.Email")));
+                nodes.Add(new Field("email", "email", FieldKind.Text, T("Account.Profile.Email")));
                 nodes.Add(Button("send", state.Busy ? T("Account.Email.Send") : T("Account.Email.Send"), !state.Busy));
-                if (state.Screen == "email-code") { nodes.Add(new TextField("code", null, T("Account.Email.Code"))); nodes.Add(Button("confirm", T("Account.Email.Confirm"), !state.Busy)); }
+                if (state.Screen == "email-code") { nodes.Add(new Field("code", "code", FieldKind.Text, T("Account.Email.Code"))); nodes.Add(Button("confirm", T("Account.Email.Confirm"), !state.Busy)); }
                 break;
             case "password":
                 nodes.Add(new Text(T("Account.Password.Title")));
                 if (state.GoogleOnly) { nodes.Add(new Text(T("Account.Password.Google"))); }
                 else
                 {
-                    nodes.Add(new TextField("current", null, T("Account.Password.Current")));
-                    nodes.Add(new TextField("password", null, T("Account.Password.New")));
+                    nodes.Add(new Field("current", "current", FieldKind.Password, T("Account.Password.Current")));
+                    nodes.Add(new Field("password", "password", FieldKind.Password, T("Account.Password.New")));
                     nodes.Add(Button("save", T("Account.Password.Save"), !state.Busy));
                 }
                 break;
@@ -471,7 +471,7 @@ public static class AccountScreens
                     if (state.Qr is not null) { nodes.Add(new Text(QrAlt)); nodes.Add(new Text(state.Qr)); }
                     nodes.Add(Button("key", state.ShowKey ? T("Account.Totp.Hide") : T("Account.Totp.Show"), true, ButtonTone.Neutral));
                     if (state.ShowKey && state.Secret is not null) { nodes.Add(new Text(state.Secret)); }
-                    nodes.Add(new TextField("code", null, T("Account.Email.Code")));
+                    nodes.Add(new Field("code", "code", FieldKind.Text, T("Account.Email.Code")));
                     nodes.Add(Button("verify", T("Account.Email.Confirm"), !state.Busy));
                     if (state.ConfirmRemove)
                     {
@@ -512,7 +512,7 @@ public static class AccountScreens
                 if (state.Licence is not null) { nodes.Add(new Text(state.Licence)); }
                 break;
             default:
-                nodes.Add(new TextField("name", state.Name, T("Account.Profile.Name")));
+                nodes.Add(new Field("name", "name", FieldKind.Text, T("Account.Profile.Name")));
                 nodes.Add(Button("save", state.Busy ? T("Account.Profile.Save") : T("Account.Profile.Save"), !state.Busy && state.Name != state.BaselineName));
                 break;
         }
@@ -532,7 +532,7 @@ public static class AccountScreens
     }
 
     private static Button Button(string operation, string label, bool enabled, string tone = ButtonTone.Accent) =>
-        new(label, new ButtonAction("account", operation, []), enabled, tone);
+        new(operation, label, new Emit("account", operation), Enabled: enabled, Tone: tone);
 
     private static AccountState Sample(string screen = "profile", string? error = null, bool busy = false, string? licence = null, string[]? recovery = null) => new()
     {

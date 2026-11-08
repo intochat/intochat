@@ -294,7 +294,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         // Live settings synchronization into InoApp.
         var updatedSettings = await settings.SetProfile("ElonWatcher", "dark", "qwen3.5:4b");
-        ino.OnSettingsChanged(new UserSettingsChanged(
+        await ino.OnSettingsChanged(new UserSettingsChanged(
             updatedSettings.DisplayName,
             updatedSettings.Theme,
             updatedSettings.DefaultModel,
@@ -321,7 +321,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotNull(secretNode);
         Assert.Equal("Tripletex Session Token", secretNode.Name);
         Assert.Contains("neuron://local/vault/secrets", secretNode.SavedIn, StringComparison.Ordinal);
-        Assert.Equal("os://window/secure", secretNode.OnEnter?.Neuron);
+        Assert.Equal("os://window/secure", secretNode.Enter?.Intent?.Arg);
 
         Assert.DoesNotContain(ino.State.Turns, t => t.Reply.Contains(forbiddenText, StringComparison.Ordinal)
             || t.UserMessage.Contains(forbiddenText, StringComparison.Ordinal));

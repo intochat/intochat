@@ -4,15 +4,15 @@ using DigitalBrain.Apps.Hosting;
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neuron("digitalbrain.programs")]
-internal sealed class ProgramsNeuron(IAppHost host) : DigitalBrain.Neuron, IPrograms
+internal sealed class ProgramsNeuron(IAppHost host) : DigitalBrain.Neuron, IInProcessPrograms
 {
     private readonly ConcurrentDictionary<string, StagedBuffer> _staged = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _hashes = new(StringComparer.Ordinal);
 
-    public Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
+    public Task<InProcessProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
         => throw new NotSupportedException("Source programs are compiled by the csharp module until 0.13");
 
-    public async Task<ProgramView> AssignPrebuilt(
+    public async Task<InProcessProgramView> AssignPrebuilt(
         string owner,
         Dictionary<string, PrebuiltBehavior> behaviors,
         Dictionary<string, string> settings)
@@ -35,7 +35,7 @@ internal sealed class ProgramsNeuron(IAppHost host) : DigitalBrain.Neuron, IProg
         _hashes[owner] = hash;
         await host.Assign(new ProgramAssignment(owner, hash, resolved, settings), CancellationToken.None);
         var views = await host.Describe(owner, CancellationToken.None);
-        return new ProgramView(owner, hash, views);
+        return new InProcessProgramView(owner, hash, views);
     }
 
     public Task Stage(string hash, int offset, byte[] chunk, bool last)
@@ -54,13 +54,13 @@ internal sealed class ProgramsNeuron(IAppHost host) : DigitalBrain.Neuron, IProg
         await host.Retire(owner, CancellationToken.None);
     }
 
-    public Task<ProgramView?> Settled(string owner, TimeSpan timeout)
+    public Task<InProcessProgramView?> Settled(string owner, TimeSpan timeout)
     {
         _ = timeout;
         return Describe(owner);
     }
 
-    public async Task<ProgramView?> Describe(string owner)
+    public async Task<InProcessProgramView?> Describe(string owner)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         var views = await host.Describe(owner, CancellationToken.None);
@@ -69,7 +69,7 @@ internal sealed class ProgramsNeuron(IAppHost host) : DigitalBrain.Neuron, IProg
             return null;
         }
         var hash = _hashes.GetValueOrDefault(owner, views[0].Hash);
-        return new ProgramView(owner, hash, views);
+        return new InProcessProgramView(owner, hash, views);
     }
 
     private sealed class StagedBuffer

@@ -18,25 +18,31 @@
         "mono": false
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "password",
         "name": "password",
-        "value": null,
-        "placeholder": "Password"
+        "fieldKind": "Password",
+        "placeholder": "Password",
+        "onSubmit": null
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "confirm",
         "name": "confirm",
-        "value": null,
-        "placeholder": "Save password"
+        "fieldKind": "Password",
+        "placeholder": "Save password",
+        "onSubmit": null
       },
       {
         "kind": "button",
+        "key": "save",
         "label": "Save password",
-        "action": {
-          "neuron": "lobby",
-          "operation": "save",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "save",
+          "args": null
         },
+        "intent": null,
         "enabled": false,
         "tone": "accent",
         "style": "secondary",

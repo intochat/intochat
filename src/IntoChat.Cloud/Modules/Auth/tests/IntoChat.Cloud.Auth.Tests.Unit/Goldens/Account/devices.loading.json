@@ -50,12 +50,14 @@
           },
           {
             "kind": "button",
+            "key": "logout:other",
             "label": "Log out",
-            "action": {
-              "neuron": "account",
-              "operation": "logout:other",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "logout:other",
+              "args": null
             },
+            "intent": null,
             "enabled": false,
             "tone": "neutral",
             "style": "secondary",
@@ -63,12 +65,14 @@
           },
           {
             "kind": "button",
+            "key": "others",
             "label": "Log out of all other devices",
-            "action": {
-              "neuron": "account",
-              "operation": "others",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "others",
+              "args": null
             },
+            "intent": null,
             "enabled": false,
             "tone": "neutral",
             "style": "secondary",
@@ -76,12 +80,14 @@
           },
           {
             "kind": "button",
+            "key": "this",
             "label": "Log out of this device",
-            "action": {
-              "neuron": "account",
-              "operation": "this",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "this",
+              "args": null
             },
+            "intent": null,
             "enabled": false,
             "tone": "neutral",
             "style": "secondary",

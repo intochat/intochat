@@ -263,9 +263,9 @@ public sealed class LobbyFlowFacts
     {
         var view = LobbyScreens.Golden(new TableLocalizer(), "signup.default");
         var buttons = Buttons(view.Root).ToArray();
-        var submit = buttons.Single(button => button.Action.Operation == "submit");
+        var submit = buttons.Single(button => button.Emit!.Signal == "submit");
         Assert.False(submit.Enabled);
-        var consent = buttons.Single(button => button.Action.Operation == "consent");
+        var consent = buttons.Single(button => button.Emit!.Signal == "consent");
         Assert.Equal(ButtonTone.Neutral, consent.Tone);
         Assert.Equal("You need to agree to continue.", consent.Label);
         Assert.Contains(Texts(view.Root), value => value.Contains("Terms of Service", StringComparison.Ordinal));
@@ -274,13 +274,19 @@ public sealed class LobbyFlowFacts
     [Fact]
     public void TheTwentyNineLobbyGoldensMatch()
     {
-        var directory = Path.Combine(AppContext.BaseDirectory, "Goldens", "Lobby");
+        var source = Environment.GetEnvironmentVariable("LOBBY_GOLDEN_DIR");
+        var directory = string.IsNullOrEmpty(source) ? Path.Combine(AppContext.BaseDirectory, "Goldens", "Lobby") : source;
         var localizer = new TableLocalizer();
         Assert.Equal(29, LobbyScreens.GoldenNames.Distinct(StringComparer.Ordinal).Count());
         foreach (var name in LobbyScreens.GoldenNames)
         {
             var path = Path.Combine(directory, name + ".json");
             var actual = Json(LobbyScreens.Golden(localizer, name)).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
+            if (!string.IsNullOrEmpty(source))
+            {
+                Directory.CreateDirectory(source);
+                File.WriteAllText(path, actual);
+            }
             var expected = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
             Assert.Equal(expected, actual);
         }
@@ -382,9 +388,9 @@ public sealed class LobbyFlowFacts
         _ => [],
     };
 
-    private static IEnumerable<TextField> Fields(Node node) => node switch
+    private static IEnumerable<Field> Fields(Node node) => node switch
     {
-        TextField field => [field],
+        Field field => [field],
         Column column => column.Children.SelectMany(Fields),
         _ => [],
     };

@@ -19,12 +19,14 @@
       },
       {
         "kind": "button",
+        "key": "cancel",
         "label": "Log in",
-        "action": {
-          "neuron": "lobby",
-          "operation": "cancel",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "cancel",
+          "args": null
         },
+        "intent": null,
         "enabled": false,
         "tone": "neutral",
         "style": "secondary",

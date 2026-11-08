@@ -28,7 +28,7 @@ public sealed class AccountFlowFacts
     {
         var (neuron, _) = await Surface();
         await neuron.Open("Ada", "ada@example.com", false, false, null, Devices());
-        var save = Buttons(neuron.Show().Root).Single(button => button.Action.Operation == "save");
+        var save = Buttons(neuron.Show().Root).Single(button => button.Emit!.Signal == "save");
         Assert.False(save.Enabled);
         await neuron.SaveProfile("Ada Berg", neuron.Version);
         Assert.Equal("saved", neuron.Error);
@@ -81,7 +81,7 @@ public sealed class AccountFlowFacts
         await neuron.Focus("devices");
         var labels = Texts(neuron.Show().Root).ToArray();
         Assert.True(Array.IndexOf(labels, "This device") < Array.IndexOf(labels, "Chrome"));
-        Assert.DoesNotContain(Buttons(neuron.Show().Root), button => button.Action.Operation == "logout:this");
+        Assert.DoesNotContain(Buttons(neuron.Show().Root), button => button.Emit!.Signal == "logout:this");
         await neuron.Revoke("other");
         Assert.DoesNotContain(Texts(neuron.Show().Root), value => value == "Chrome");
         await neuron.Open("Ada", "ada@example.com", false, false, null, Devices());
@@ -130,11 +130,11 @@ public sealed class AccountFlowFacts
         await neuron.SubmitTotp(code);
         Assert.Equal("recovery", neuron.Screen);
         Assert.Equal(10, Texts(neuron.Show().Root).Count(value => value.Length == 8));
-        Assert.False(Buttons(neuron.Show().Root).Single(button => button.Action.Operation == "done").Enabled);
+        Assert.False(Buttons(neuron.Show().Root).Single(button => button.Emit!.Signal == "done").Enabled);
         await neuron.FinishRecovery();
         Assert.Equal("recovery", neuron.Screen);
         await neuron.Acknowledge();
-        Assert.True(Buttons(neuron.Show().Root).Single(button => button.Action.Operation == "done").Enabled);
+        Assert.True(Buttons(neuron.Show().Root).Single(button => button.Emit!.Signal == "done").Enabled);
         await neuron.SubmitTotp(code);
         Assert.Equal("reused", neuron.Error);
     }
@@ -180,9 +180,9 @@ public sealed class AccountFlowFacts
     public void DownloadCopiesTheCodesBecauseTheKitHasNoFileDownload()
     {
         var view = AccountScreens.Golden(new TableLocalizer(), "recovery.default");
-        var download = Buttons(view.Root).Single(button => button.Action.Operation == "download");
+        var download = Buttons(view.Root).Single(button => button.Emit!.Signal == "download");
         Assert.Equal("Download backup codes (.txt)", download.Label);
-        Assert.Empty(download.Action.Arguments);
+        Assert.Null(download.Emit!.Args);
     }
 
     private static async Task<(AccountSurfaceNeuron Neuron, FakeTimeProvider Clock)> Surface()
@@ -223,9 +223,9 @@ public sealed class AccountFlowFacts
         _ => [],
     };
 
-    private static IEnumerable<TextField> Fields(Node node) => node switch
+    private static IEnumerable<Field> Fields(Node node) => node switch
     {
-        TextField field => [field],
+        Field field => [field],
         Column column => column.Children.SelectMany(Fields),
         _ => [],
     };

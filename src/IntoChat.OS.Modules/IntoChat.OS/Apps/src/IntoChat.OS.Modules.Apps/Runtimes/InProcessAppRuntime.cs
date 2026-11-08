@@ -54,7 +54,7 @@ internal sealed class InProcessAppRuntime(IServiceProvider services) : IAppRunti
         }
 
         var behaviors = ExtractPrebuiltBehaviors(sources, configuration);
-        var programs = SiloNeurons.Get<IPrograms>(
+        var programs = SiloNeurons.Get<IInProcessPrograms>(
             services,
             new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "digitalbrain.programs", "programs"));
         var program = await programs.AssignPrebuilt(appKey, behaviors, configuration).WaitAsync(cancellationToken);
@@ -72,7 +72,7 @@ internal sealed class InProcessAppRuntime(IServiceProvider services) : IAppRunti
             throw new ArgumentException("An app key is {brain}/apps/{name}.", nameof(appKey));
         }
 
-        var programs = SiloNeurons.Get<IPrograms>(
+        var programs = SiloNeurons.Get<IInProcessPrograms>(
             services,
             new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "digitalbrain.programs", "programs"));
         await programs.Retire(appKey).WaitAsync(cancellationToken);

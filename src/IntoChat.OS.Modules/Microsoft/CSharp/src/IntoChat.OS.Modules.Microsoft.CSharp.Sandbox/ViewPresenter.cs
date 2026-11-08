@@ -147,27 +147,27 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
 
         Button button => new UiNode(UiNodeKind.Button, key)
         {
-            Text = NonEmpty(button.Label, NonEmpty(button.Action.Operation, "Action")),
-            Action = FormatAction(button.Action),
+            Text = NonEmpty(button.Label, NonEmpty(button.Emit?.Signal, "Action")),
+            Action = FormatButton(button),
             Enabled = button.Enabled,
             Style = MapButtonStyle(button),
             Icon = SanitizeIcon(button.Icon),
             Detail = button.Small ? "small" : null,
         },
 
-        TextField field => Ui.Card(
+        Field field => Ui.Card(
             key,
-            field.Value ?? field.Placeholder ?? field.Name,
+            field.Placeholder ?? field.Name,
             JsonSerializer.Serialize(new
             {
                 _ui = "textfield",
                 name = field.Name,
-                value = field.Value,
+                value = (string?)null,
                 placeholder = field.Placeholder,
-                secret = false,
+                secret = field.Kind is FieldKind.Password or FieldKind.Secret,
             }),
             field.OnSubmit is { } submitAction
-                ? [Ui.Button($"{key}.submit", NonEmpty(field.Name, "Submit"), FormatAction(submitAction), style: UiStyle.Primary)]
+                ? [Ui.Button($"{key}.submit", NonEmpty(field.Name, "Submit"), FormatEmit(submitAction), style: UiStyle.Primary)]
                 : []),
 
         Switch sw => Ui.Card(
@@ -178,11 +178,11 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
                 _ui = "switch",
                 label = sw.Label,
                 value = sw.IsOn,
-                enabled = sw.Action is not null,
+                enabled = sw.Emit is not null,
                 locked = sw.Locked,
             }),
-            sw.Action is { } swAction
-                ? [Ui.Button($"{key}.toggle", NonEmpty(sw.Label, "Toggle"), FormatAction(swAction), !sw.Locked)]
+            sw.Emit is { } swAction
+                ? [Ui.Button($"{key}.toggle", NonEmpty(sw.Label, "Toggle"), FormatEmit(swAction), !sw.Locked)]
                 : []),
 
         Select select => Ui.Card(
@@ -199,7 +199,7 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
             [.. select.Options.Select((opt, index) => Ui.Button(
                 $"{key}.opt.{index}",
                 NonEmpty(opt.Label, opt.Id),
-                FormatAction(opt.Action ?? new ButtonAction("app", "select", [opt.Id]))))]),
+                FormatEmit(opt.Emit ?? AppEmit("select", opt.Id))))]),
 
         Progress progress => Ui.Card(
             key,
@@ -350,7 +350,7 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
             .Select((item, index) => Ui.Tab(
                 $"{key}.tab.{index}",
                 NonEmpty(item.Label, item.Id),
-                FormatAction(item.Action),
+                FormatEmit(item.Emit),
                 index == activeIndex))
             .ToArray();
 
@@ -410,13 +410,11 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
     private static UiNode MapApprovalCard(string key, ApprovalCardNode approval)
     {
         var buttons = new List<UiNode>();
-        if (approval.OnApprove is { } approveAction)
+        // The inbox answers for a person, never for the app: an app's approval card carries inert buttons.
+        if (approval.Resolve is { } resolve)
         {
-            buttons.Add(Ui.Button($"{key}.approve", "Approve", FormatAction(approveAction), style: UiStyle.Primary));
-        }
-        if (approval.OnReject is { } rejectAction)
-        {
-            buttons.Add(Ui.Button($"{key}.reject", "Deny", FormatAction(rejectAction), style: UiStyle.Secondary));
+            buttons.Add(Ui.Button($"{key}.approve", "Approve", ResolveAction(resolve, true), style: UiStyle.Primary));
+            buttons.Add(Ui.Button($"{key}.reject", "Deny", ResolveAction(resolve, false), style: UiStyle.Secondary));
         }
         if (!string.IsNullOrWhiteSpace(approval.SourceNeuronUri))
         {
@@ -450,7 +448,7 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
             .Select((opt, index) => Ui.Button(
                 $"{key}.opt.{index}",
                 NonEmpty(opt.Title, $"Option {index + 1}"),
-                FormatAction(opt.Action ?? new ButtonAction("app", "choose", [index.ToString(CultureInfo.InvariantCulture)]))))
+                opt.Pick is { } pick ? FormatButton(pick) : FormatEmit(AppEmit("choose", index.ToString(CultureInfo.InvariantCulture)))))
             .ToArray();
 
         return Ui.Card(
@@ -471,13 +469,13 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
     private static UiNode MapDraftCard(string key, DraftCardNode draft)
     {
         var buttons = new List<UiNode>();
-        if (draft.OnSend is { } sendAction)
+        if (draft.Send is { } sendButton)
         {
-            buttons.Add(Ui.Button($"{key}.send", "Send", FormatAction(sendAction), style: UiStyle.Primary));
+            buttons.Add(Ui.Button($"{key}.send", NonEmpty(sendButton.Label, "Send"), FormatButton(sendButton), style: UiStyle.Primary));
         }
-        if (draft.OnDiscard is { } cancelAction)
+        if (draft.Discard is { } discardButton)
         {
-            buttons.Add(Ui.Button($"{key}.cancel", "Discard", FormatAction(cancelAction), style: UiStyle.Ghost));
+            buttons.Add(Ui.Button($"{key}.cancel", NonEmpty(discardButton.Label, "Discard"), FormatButton(discardButton), style: UiStyle.Ghost));
         }
 
         return Ui.Card(
@@ -499,9 +497,9 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
     private static UiNode MapRecordCard(string key, RecordCardNode record)
     {
         var buttons = new List<UiNode>();
-        if (record.OnOpen is { } openAction)
+        if (record.Open is { } openButton)
         {
-            buttons.Add(Ui.Button($"{key}.open", NonEmpty(record.LinkLabel, "Open"), FormatAction(openAction), style: UiStyle.Secondary));
+            buttons.Add(Ui.Button($"{key}.open", NonEmpty(record.LinkLabel, "Open"), FormatButton(openButton), style: UiStyle.Secondary));
         }
 
         return Ui.Card(
@@ -524,13 +522,13 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
     private static UiNode MapSecretCard(string key, SecretCardNode secret)
     {
         var buttons = new List<UiNode>();
-        if (secret.OnEnter is { } saveAction)
+        if (secret.Enter is { } saveButton)
         {
-            buttons.Add(Ui.Button($"{key}.save", "Save to vault", FormatAction(saveAction), style: UiStyle.Primary));
+            buttons.Add(Ui.Button($"{key}.save", NonEmpty(saveButton.Label, "Save to vault"), FormatButton(saveButton), style: UiStyle.Primary));
         }
-        if (secret.OnSkip is { } skipAction)
+        if (secret.Skip is { } skipButton)
         {
-            buttons.Add(Ui.Button($"{key}.skip", "Skip", FormatAction(skipAction), style: UiStyle.Ghost));
+            buttons.Add(Ui.Button($"{key}.skip", NonEmpty(skipButton.Label, "Skip"), FormatButton(skipButton), style: UiStyle.Ghost));
         }
 
         return Ui.Card(
@@ -550,9 +548,9 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
     private static UiNode MapJobCard(string key, JobCardNode job)
     {
         var buttons = new List<UiNode>();
-        if (job.OnCancel is { } cancelAction)
+        if (job.Cancel is { } cancelButton)
         {
-            buttons.Add(Ui.Button($"{key}.cancel", "Cancel", FormatAction(cancelAction), style: UiStyle.Ghost));
+            buttons.Add(Ui.Button($"{key}.cancel", NonEmpty(cancelButton.Label, "Cancel"), FormatButton(cancelButton), style: UiStyle.Ghost));
         }
 
         var currentStep = 0;
@@ -587,7 +585,7 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
             .Select((n, index) => Ui.Button(
                 $"{key}.node.{index}",
                 NonEmpty(n.Label, NonEmpty(n.Id, $"Node {index + 1}")),
-                FormatAction(n.OnSelect ?? new ButtonAction("app", "inspect", [n.Id]))))
+                n.Select is { } select ? FormatButton(select) : FormatEmit(AppEmit("inspect", n.Id))))
             .ToArray();
 
         return Ui.Card(
@@ -678,13 +676,41 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
         return false;
     }
 
-    private static string FormatAction(ButtonAction action)
+    private static string FormatButton(Button button)
+        => button.Emit is { } emit ? FormatEmit(emit) : FormatIntent(button.Intent!);
+
+    private static Emit AppEmit(string signal, string argument)
+        => new("app", signal, JsonSerializer.SerializeToElement(argument));
+
+    private static string ResolveAction(Resolve resolve, bool approve)
+        => DigitalBrain.Confirmation.IConfirmations.ResolveOperation + ":" + Uri.EscapeDataString(resolve.PlanId) + ":" + (approve ? "true" : "false");
+
+    // The shape the client sends back: the signal, then its arguments colon-separated (an object as its JSON).
+    private static string FormatEmit(Emit emit)
     {
-        var op = string.IsNullOrWhiteSpace(action.Operation) ? "noop" : action.Operation;
-        return action.Arguments.Count > 0
-            ? op + ":" + string.Join(':', action.Arguments.Select(Uri.EscapeDataString))
-            : op;
+        var op = string.IsNullOrWhiteSpace(emit.Signal) ? "noop" : emit.Signal;
+        if (emit.Args is not { } args) { return op; }
+        switch (args.ValueKind)
+        {
+            case JsonValueKind.Undefined or JsonValueKind.Null:
+                return op;
+            case JsonValueKind.String:
+                return op + ":" + Uri.EscapeDataString(args.GetString() ?? "");
+            case JsonValueKind.Array:
+                var items = args.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() ?? "" : item.GetRawText()).ToArray();
+                return items.Length == 0 ? op : op + ":" + string.Join(':', items.Select(Uri.EscapeDataString));
+            default:
+                return op + ":" + args.GetRawText();
+        }
     }
+
+    private static string FormatIntent(Intent intent) => intent.Kind switch
+    {
+        IntentKind.Copy => "copy:" + SanitizeCopyText(intent.Arg ?? string.Empty),
+        IntentKind.OpenWindow => string.IsNullOrWhiteSpace(intent.Arg) ? "noop" : intent.Arg,
+        IntentKind.OpenSettings => "os://window/settings" + (string.IsNullOrEmpty(intent.Arg) ? "" : "?section=" + Uri.EscapeDataString(intent.Arg)),
+        _ => "noop",
+    };
 
     private static UiStyle MapButtonStyle(Button button)
     {

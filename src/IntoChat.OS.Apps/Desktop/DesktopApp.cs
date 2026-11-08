@@ -210,22 +210,22 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     new Text($"Whiteboard Sticky-Note Pins (Locked & Always-on-Top): {string.Join(", ", State.PinnedApps)}") { Tabular = true },
                     new Row(
                     [
-                        new Button("Auto-Arrange", new ButtonAction("desktop", "auto-arrange", []), Tone: ButtonTone.Accent)
+                        new Button("auto-arrange", "Auto-Arrange", Emit: AppSignals.Emit("desktop", "auto-arrange"), Tone: ButtonTone.Accent)
                         {
                             Icon = "layout-grid",
                             Small = true,
                         },
-                        new Button("Pin Markdraw", new ButtonAction("desktop", "pin", ["markdraw", "true"]))
+                        new Button("pin-markdraw", "Pin Markdraw", Emit: AppSignals.Emit("desktop", "pin", "markdraw", "true"))
                         {
                             Icon = "pin",
                             Small = true,
                         },
-                        new Button("Pin PhotoCraft", new ButtonAction("desktop", "pin", ["photocraft", "true"]))
+                        new Button("pin-photocraft", "Pin PhotoCraft", Emit: AppSignals.Emit("desktop", "pin", "photocraft", "true"))
                         {
                             Icon = "pin",
                             Small = true,
                         },
-                        new Button("Pin FilmCraft", new ButtonAction("desktop", "pin", ["filmcraft", "true"]))
+                        new Button("pin-filmcraft", "Pin FilmCraft", Emit: AppSignals.Emit("desktop", "pin", "filmcraft", "true"))
                         {
                             Icon = "pin",
                             Small = true,
@@ -257,6 +257,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                 ],
                 SelectedId: "os"),
             new ApprovalCardNode(
+                "smart-desktop-signal-1",
                 "smart-desktop-signal-1",
                 "Live Smart App Signal",
                 "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox",

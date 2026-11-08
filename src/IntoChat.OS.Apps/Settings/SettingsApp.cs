@@ -514,13 +514,12 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                     ],
                     Kind: SurfaceKind.Acrylic,
                     Title: "DigitalBrain Settings (13 Sections)"),
-                new TextField(
+                new Field(
                     "settings-search",
-                    State.SearchQuery,
-                    "Search settings...")
-                {
-                    OnSubmit = new ButtonAction("settings", "navigate", [State.Section, State.SubPage ?? "", State.Sheet ?? ""]),
-                },
+                    "settings-search",
+                    FieldKind.Search,
+                    "Search settings...",
+                    AppSignals.Emit("settings", "navigate", State.Section, State.SubPage ?? "", State.Sheet ?? "")),
                 .. navItems,
                 new Collection(
                     matches.Select(s => new Entry(s.SectionId, s.Title, s.Keywords)).ToArray()),
@@ -560,7 +559,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         var actions = new List<Node>();
         if (canGoBack)
         {
-            actions.Add(new Button("Back", new ButtonAction("settings", "go-back", []), Tone: ButtonTone.Neutral)
+            actions.Add(new Button("back", "Back", Emit: AppSignals.Emit("settings", "go-back"), Tone: ButtonTone.Neutral)
             {
                 Icon = "arrow-left",
                 Small = true,
@@ -594,7 +593,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             }),
             new Row(
             [
-                new Button("Close Sheet", new ButtonAction("settings", "navigate", [State.Section, State.SubPage ?? "", ""]), Tone: ButtonTone.Neutral)
+                new Button("close-sheet", "Close Sheet", Emit: AppSignals.Emit("settings", "navigate", State.Section, State.SubPage ?? "", ""), Tone: ButtonTone.Neutral)
                 {
                     Icon = "x",
                     Small = true,
@@ -637,19 +636,19 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new Heading("Appearance & Theme Mode", Level: 3, Subtitle: "How IntoChat looks and reads for you."),
                 new Row(
                 [
-                    new Button("Light", new ButtonAction("settings", "save-preferences", [State.DisplayName, "light", State.DefaultModel, State.StylePreset, State.BarLayout, "light"]), Tone: State.ThemeMode == "light" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sun" },
-                    new Button("Dark", new ButtonAction("settings", "save-preferences", [State.DisplayName, "dark", State.DefaultModel, State.StylePreset, State.BarLayout, "dark"]), Tone: State.ThemeMode == "dark" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "moon" },
-                    new Button("Auto", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, "auto"]), Tone: State.ThemeMode == "auto" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sparkles" },
+                    new Button("light", "Light", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, "light", State.DefaultModel, State.StylePreset, State.BarLayout, "light"), Tone: State.ThemeMode == "light" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sun" },
+                    new Button("dark", "Dark", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, "dark", State.DefaultModel, State.StylePreset, State.BarLayout, "dark"), Tone: State.ThemeMode == "dark" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "moon" },
+                    new Button("auto", "Auto", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, "auto"), Tone: State.ThemeMode == "auto" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sparkles" },
                 ]) { Gap = 8 },
                 new Heading("Theme & UI Identity Presets", Level: 3, Subtitle: "Switch live Acrylic glass presets, colour themes, and adaptive OS bar layouts."),
                 new Row(
                 [
-                    new Button("Fluent Acrylic", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, "fluent-acrylic", State.BarLayout]), Tone: State.StylePreset == "fluent-acrylic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                    new Button("Spatial Glass", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, "spatial-glass", State.BarLayout]), Tone: State.StylePreset == "spatial-glass" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                    new Button("Cyber Synaptic", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, "cyber-synaptic", State.BarLayout]), Tone: State.StylePreset == "cyber-synaptic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                    new Button("Warm Paper", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, "warm-paper", State.BarLayout]), Tone: State.StylePreset == "warm-paper" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                    new Button("Midnight", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, "midnight", State.BarLayout]), Tone: State.StylePreset == "midnight" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                    new Button("Nordic", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, "nordic", State.BarLayout]), Tone: State.StylePreset == "nordic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("fluent-acrylic", "Fluent Acrylic", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, "fluent-acrylic", State.BarLayout), Tone: State.StylePreset == "fluent-acrylic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("spatial-glass", "Spatial Glass", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, "spatial-glass", State.BarLayout), Tone: State.StylePreset == "spatial-glass" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("cyber-synaptic", "Cyber Synaptic", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, "cyber-synaptic", State.BarLayout), Tone: State.StylePreset == "cyber-synaptic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("warm-paper", "Warm Paper", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, "warm-paper", State.BarLayout), Tone: State.StylePreset == "warm-paper" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("midnight", "Midnight", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, "midnight", State.BarLayout), Tone: State.StylePreset == "midnight" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("nordic", "Nordic", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, "nordic", State.BarLayout), Tone: State.StylePreset == "nordic" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
                 ]) { Gap = 8 },
                 new RecordCardNode(
                     "Locale & Regional Formatting",
@@ -669,11 +668,11 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new Heading("Quick OS Windows & Security Sheets", Level: 3, Subtitle: "Declarative os:// window and sheet protocol across Profile, Secure Vault, App Store & File Conflict."),
                 new Row(
                 [
-                    new Button("Open Profile & 2FA", new ButtonAction("os://window/profile", "os://window/profile", []), Tone: ButtonTone.Accent) { Small = true, Icon = "user" },
-                    new Button("Open Secure Vault", new ButtonAction("os://window/secure", "os://window/secure", [])) { Small = true, Icon = "key-round" },
-                    new Button("Install App by Link", new ButtonAction("os://sheet/install", "os://sheet/install", [])) { Small = true, Icon = "package-plus" },
-                    new Button("Review Update Consent", new ButtonAction("os://sheet/reconsent", "os://sheet/reconsent", [])) { Small = true, Icon = "shield-check" },
-                    new Button("Resolve File Conflict", new ButtonAction("os://sheet/conflict", "os://sheet/conflict", [])) { Small = true, Icon = "git-compare" },
+                    new Button("open-profile-2fa", "Open Profile & 2FA", Intent: AppSignals.Open("os://window/profile"), Tone: ButtonTone.Accent) { Small = true, Icon = "user" },
+                    new Button("open-secure-vault", "Open Secure Vault", Intent: AppSignals.Open("os://window/secure")) { Small = true, Icon = "key-round" },
+                    new Button("install-app-by-link", "Install App by Link", Intent: AppSignals.Open("os://sheet/install")) { Small = true, Icon = "package-plus" },
+                    new Button("review-update-consent", "Review Update Consent", Intent: AppSignals.Open("os://sheet/reconsent")) { Small = true, Icon = "shield-check" },
+                    new Button("resolve-file-conflict", "Resolve File Conflict", Intent: AppSignals.Open("os://sheet/conflict")) { Small = true, Icon = "git-compare" },
                 ]) { Gap = 8 },
             ],
             Kind: SurfaceKind.Elevated,
@@ -686,21 +685,21 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             new Heading("Desktop Background Tone", Level: 3, Subtitle: "Select the ambient desktop canvas tone."),
             new Row(
             [
-                new Button("Cream", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, State.ThemeMode, "cream"]), Tone: State.DesktopTone == "cream" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                new Button("Sand", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, State.ThemeMode, "sand"]), Tone: State.DesktopTone == "sand" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                new Button("Peat", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, State.ThemeMode, "peat"]), Tone: State.DesktopTone == "peat" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                new Button("Ink", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, State.ThemeMode, "ink"]), Tone: State.DesktopTone == "ink" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                new Button("cream", "Cream", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, State.ThemeMode, "cream"), Tone: State.DesktopTone == "cream" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                new Button("sand", "Sand", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, State.ThemeMode, "sand"), Tone: State.DesktopTone == "sand" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                new Button("peat", "Peat", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, State.ThemeMode, "peat"), Tone: State.DesktopTone == "peat" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                new Button("ink", "Ink", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, State.BarLayout, State.ThemeMode, "ink"), Tone: State.DesktopTone == "ink" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
             ]) { Gap = 8 },
             new Heading("OS Bar Layout & Widgets", Level: 3, Subtitle: "Configure Dock pinned apps and status bar widgets."),
             new Row(
             [
-                new Button("Floating Glass", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, "floating-glass"]), Tone: State.BarLayout == "floating-glass" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                new Button("Compact Pill", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, "compact-pill"]), Tone: State.BarLayout == "compact-pill" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                new Button("Classic Bottom", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, "classic-bottom"]), Tone: State.BarLayout == "classic-bottom" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                new Button("floating-glass", "Floating Glass", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, "floating-glass"), Tone: State.BarLayout == "floating-glass" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                new Button("compact-pill", "Compact Pill", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, "compact-pill"), Tone: State.BarLayout == "compact-pill" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                new Button("classic-bottom", "Classic Bottom", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, State.DefaultModel, State.StylePreset, "classic-bottom"), Tone: State.BarLayout == "classic-bottom" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
             ]) { Gap = 8 },
-            new Switch("Show Notifications badge in OS Bar", true),
-            new Switch("Show live Token & Compute meter in OS Bar", true),
-            new Switch("Show Clock & Schedule calendar in OS Bar", true),
+            new Switch("show-notifications-badge-in-os-bar", "Show Notifications badge in OS Bar", true),
+            new Switch("show-live-token-compute-meter-in-os-bar", "Show live Token & Compute meter in OS Bar", true),
+            new Switch("show-clock-schedule-calendar-in-os-bar", "Show Clock & Schedule calendar in OS Bar", true),
         ],
         Kind: SurfaceKind.Elevated,
         Title: "Desktop & Dock");
@@ -720,7 +719,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                             new RecordFieldNode("Retention Policy", "LFP-gated deletion (requires ApprovalCard)"),
                         ],
                         Subtitle: "Ino Memory Store"),
-                    new Button("Back to Apps", new ButtonAction("settings", "go-back", []), Tone: ButtonTone.Neutral) { Small = true, Icon = "arrow-left" },
+                    new Button("back-to-apps", "Back to Apps", Emit: AppSignals.Emit("settings", "go-back"), Tone: ButtonTone.Neutral) { Small = true, Icon = "arrow-left" },
                 ],
                 Kind: SurfaceKind.Elevated,
                 Title: "Apps / MemoryPage");
@@ -740,7 +739,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                             new RecordFieldNode("Write Gate", "LFP ApprovalCard enforced"),
                         ],
                         Subtitle: $"App Detail · {subPage}"),
-                    new Button("Back to Apps", new ButtonAction("settings", "go-back", []), Tone: ButtonTone.Neutral) { Small = true, Icon = "arrow-left" },
+                    new Button("back-to-apps", "Back to Apps", Emit: AppSignals.Emit("settings", "go-back"), Tone: ButtonTone.Neutral) { Small = true, Icon = "arrow-left" },
                 ],
                 Kind: SurfaceKind.Elevated,
                 Title: $"Apps / {subPage}");
@@ -751,11 +750,11 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new Heading("Installed Smart Apps & Sideloading", Level: 3, Subtitle: "Manage installed apps, inspect permissions, or sideload from Git."),
                 new Row(
                 [
-                    new Button("Inspect Ino App", new ButtonAction("settings", "navigate", ["apps", "ino"]), Tone: ButtonTone.Accent) { Small = true, Icon = "sparkles" },
-                    new Button("Inspect Creator App", new ButtonAction("settings", "navigate", ["apps", "creator"])) { Small = true, Icon = "wand-sparkles" },
-                    new Button("Ino MemoryPage", new ButtonAction("settings", "navigate", ["apps", "memory"])) { Small = true, Icon = "brain" },
-                    new Button("Install from Link", new ButtonAction("settings", "navigate", ["apps", "", "install-link"])) { Small = true, Icon = "package-plus" },
-                    new Button("Sideload Git", new ButtonAction("settings", "navigate", ["apps", "", "sideload-git"])) { Small = true, Icon = "git-branch" },
+                    new Button("inspect-ino-app", "Inspect Ino App", Emit: AppSignals.Emit("settings", "navigate", "apps", "ino"), Tone: ButtonTone.Accent) { Small = true, Icon = "sparkles" },
+                    new Button("inspect-creator-app", "Inspect Creator App", Emit: AppSignals.Emit("settings", "navigate", "apps", "creator")) { Small = true, Icon = "wand-sparkles" },
+                    new Button("ino-memorypage", "Ino MemoryPage", Emit: AppSignals.Emit("settings", "navigate", "apps", "memory")) { Small = true, Icon = "brain" },
+                    new Button("install-from-link", "Install from Link", Emit: AppSignals.Emit("settings", "navigate", "apps", "", "install-link")) { Small = true, Icon = "package-plus" },
+                    new Button("sideload-git", "Sideload Git", Emit: AppSignals.Emit("settings", "navigate", "apps", "", "sideload-git")) { Small = true, Icon = "git-branch" },
                 ]) { Gap = 8 },
             ],
             Kind: SurfaceKind.Elevated,
@@ -781,8 +780,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                         Subtitle: $"Connection Detail · {subPage}"),
                     new Row(
                     [
-                        new Button("Reconnect OAuth", new ButtonAction("settings", "navigate", ["connections", subPage, "add-connection"]), Tone: ButtonTone.Accent) { Small = true, Icon = "refresh-cw" },
-                        new Button("Back to Connections", new ButtonAction("settings", "go-back", [])) { Small = true, Icon = "arrow-left" },
+                        new Button("reconnect-oauth", "Reconnect OAuth", Emit: AppSignals.Emit("settings", "navigate", "connections", subPage, "add-connection"), Tone: ButtonTone.Accent) { Small = true, Icon = "refresh-cw" },
+                        new Button("back-to-connections", "Back to Connections", Emit: AppSignals.Emit("settings", "go-back")) { Small = true, Icon = "arrow-left" },
                     ]) { Gap = 8 },
                 ],
                 Kind: SurfaceKind.Elevated,
@@ -799,9 +798,9 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                     Subtitle: "Active Connections"),
                 new Row(
                 [
-                    new Button("GitHub Connection", new ButtonAction("settings", "navigate", ["connections", "github"]), Tone: ButtonTone.Accent) { Small = true, Icon = "plug" },
-                    new Button("Google Drive Connection", new ButtonAction("settings", "navigate", ["connections", "google-drive"])) { Small = true, Icon = "folder" },
-                    new Button("Add Connection", new ButtonAction("settings", "navigate", ["connections", "", "add-connection"])) { Small = true, Icon = "plus" },
+                    new Button("github-connection", "GitHub Connection", Emit: AppSignals.Emit("settings", "navigate", "connections", "github"), Tone: ButtonTone.Accent) { Small = true, Icon = "plug" },
+                    new Button("google-drive-connection", "Google Drive Connection", Emit: AppSignals.Emit("settings", "navigate", "connections", "google-drive")) { Small = true, Icon = "folder" },
+                    new Button("add-connection", "Add Connection", Emit: AppSignals.Emit("settings", "navigate", "connections", "", "add-connection")) { Small = true, Icon = "plus" },
                 ]) { Gap = 8 },
             ],
             Kind: SurfaceKind.Elevated,
@@ -820,7 +819,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                     new RecordFieldNode("Local Computer Root", "neuron://local/disk.files"),
                 ],
                 Subtitle: "Storage Providers"),
-            new Button("Resolve File Conflict Sheet", new ButtonAction("settings", "navigate", ["files", "", "conflict"])) { Small = true, Icon = "git-compare" },
+            new Button("resolve-file-conflict-sheet", "Resolve File Conflict Sheet", Emit: AppSignals.Emit("settings", "navigate", "files", "", "conflict")) { Small = true, Icon = "git-compare" },
         ],
         Kind: SurfaceKind.Elevated,
         Title: "Files");
@@ -840,7 +839,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                             new RecordFieldNode("Reasoning Effort", "Medium · Zero-Telemetry Local Execution"),
                         ],
                         Subtitle: "Ollama Local Server"),
-                    new Button("Back to AI Models", new ButtonAction("settings", "go-back", [])) { Small = true, Icon = "arrow-left" },
+                    new Button("back-to-ai-models", "Back to AI Models", Emit: AppSignals.Emit("settings", "go-back")) { Small = true, Icon = "arrow-left" },
                 ],
                 Kind: SurfaceKind.Elevated,
                 Title: "AI models / local-server");
@@ -851,14 +850,14 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new Heading("Default Brain Model & Routing", Level: 3, Subtitle: "Select the default model for Ino and autonomous background neurons."),
                 new Row(
                 [
-                    new Button("qwen3.5:4b (Local)", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, "qwen3.5:4b"]), Tone: State.DefaultModel == "qwen3.5:4b" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                    new Button("claude-sonnet-4-5", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, "claude-sonnet-4-5"]), Tone: State.DefaultModel == "claude-sonnet-4-5" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
-                    new Button("gpt-5", new ButtonAction("settings", "save-preferences", [State.DisplayName, State.Theme, "gpt-5"]), Tone: State.DefaultModel == "gpt-5" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("qwen3-5-4b-local", "qwen3.5:4b (Local)", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, "qwen3.5:4b"), Tone: State.DefaultModel == "qwen3.5:4b" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("claude-sonnet-4-5", "claude-sonnet-4-5", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, "claude-sonnet-4-5"), Tone: State.DefaultModel == "claude-sonnet-4-5" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
+                    new Button("gpt-5", "gpt-5", Emit: AppSignals.Emit("settings", "save-preferences", State.DisplayName, State.Theme, "gpt-5"), Tone: State.DefaultModel == "gpt-5" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true },
                 ]) { Gap = 8 },
                 new Row(
                 [
-                    new Button("Local Server (Ollama)", new ButtonAction("settings", "navigate", ["models", "local-server"]), Tone: ButtonTone.Accent) { Small = true, Icon = "cpu" },
-                    new Button("Configure Endpoint Sheet", new ButtonAction("settings", "navigate", ["models", "", "ollama-config"])) { Small = true, Icon = "sliders-horizontal" },
+                    new Button("local-server-ollama", "Local Server (Ollama)", Emit: AppSignals.Emit("settings", "navigate", "models", "local-server"), Tone: ButtonTone.Accent) { Small = true, Icon = "cpu" },
+                    new Button("configure-endpoint-sheet", "Configure Endpoint Sheet", Emit: AppSignals.Emit("settings", "navigate", "models", "", "ollama-config")) { Small = true, Icon = "sliders-horizontal" },
                 ]) { Gap = 8 },
             ],
             Kind: SurfaceKind.Elevated,
@@ -871,7 +870,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             new SecretCardNode("Anthropic", "Used for Claude Sonnet & Opus models", SavedIn: "Secure Vault · ANTHROPIC_API_KEY", Status: "saved"),
             new SecretCardNode("OpenAI", "Used for GPT-5 & reasoning models", SavedIn: "Secure Vault · OPENAI_API_KEY", Status: "saved"),
             new SecretCardNode("Google Gemini", "Used for Gemini 2.5 Pro & Flash", SavedIn: "Secure Vault · GOOGLE_API_KEY", Status: "pending"),
-            new Button("Open Secure Vault Window", new ButtonAction("os://window/secure", "os://window/secure", []), Tone: ButtonTone.Accent) { Small = true, Icon = "key-round" },
+            new Button("open-secure-vault-window", "Open Secure Vault Window", Intent: AppSignals.Open("os://window/secure"), Tone: ButtonTone.Accent) { Small = true, Icon = "key-round" },
         ],
         Kind: SurfaceKind.Elevated,
         Title: "API keys");
@@ -922,7 +921,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                             new RecordFieldNode("Write Policy", "LFP ApprovalCard Gate"),
                         ],
                         Subtitle: $"Member · {subPage}"),
-                    new Button("Back to Team", new ButtonAction("settings", "go-back", [])) { Small = true, Icon = "arrow-left" },
+                    new Button("back-to-team", "Back to Team", Emit: AppSignals.Emit("settings", "go-back")) { Small = true, Icon = "arrow-left" },
                 ],
                 Kind: SurfaceKind.Elevated,
                 Title: $"Team / {subPage}");
@@ -940,8 +939,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                     SourceNeuronUri: "neuron://local/identity/directory"),
                 new Row(
                 [
-                    new Button("Inspect Owner Grants", new ButtonAction("settings", "navigate", ["team", "owner"]), Tone: ButtonTone.Accent) { Small = true, Icon = "shield-check" },
-                    new Button("Invite Teammate", new ButtonAction("settings", "navigate", ["team", "", "invite"])) { Small = true, Icon = "user-plus" },
+                    new Button("inspect-owner-grants", "Inspect Owner Grants", Emit: AppSignals.Emit("settings", "navigate", "team", "owner"), Tone: ButtonTone.Accent) { Small = true, Icon = "shield-check" },
+                    new Button("invite-teammate", "Invite Teammate", Emit: AppSignals.Emit("settings", "navigate", "team", "", "invite")) { Small = true, Icon = "user-plus" },
                 ]) { Gap = 8 },
             ],
             Kind: SurfaceKind.Elevated,
@@ -951,10 +950,10 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     private Node RenderNotificationsSection() => new Surface(
         [
             new Heading("Notifications & Quiet Hours", Level: 3, Subtitle: "Choose which neural events alert you."),
-            new Switch("Needs you · LFP ApprovalCards waiting for confirmation", true),
-            new Switch("Background jobs & long-running agent completions", true),
-            new Switch("Connection expirations & health probe failures", true),
-            new Switch("Quiet hours schedule (22:00 – 07:00)", false),
+            new Switch("needs-you-lfp-approvalcards-waiting-for", "Needs you · LFP ApprovalCards waiting for confirmation", true),
+            new Switch("background-jobs-long-running-agent-compl", "Background jobs & long-running agent completions", true),
+            new Switch("connection-expirations-health-probe-fail", "Connection expirations & health probe failures", true),
+            new Switch("quiet-hours-schedule-22-00-07-00", "Quiet hours schedule (22:00 – 07:00)", false),
         ],
         Kind: SurfaceKind.Elevated,
         Title: "Notifications");
@@ -981,8 +980,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             new Heading("Danger Zone", Level: 3, Subtitle: "Irreversible actions affecting this brain and account."),
             new Row(
             [
-                new Button("Export Brain Archive (ZIP)", new ButtonAction("settings", "navigate", ["danger", "", "export-archive"]), Tone: ButtonTone.Neutral) { Small = true, Icon = "download" },
-                new Button("Delete Account / Reset Brain", new ButtonAction("settings", "navigate", ["danger", "", "confirm-delete"]), Tone: "danger") { Small = true, Icon = "trash-2", Style = "danger" },
+                new Button("export-brain-archive-zip", "Export Brain Archive (ZIP)", Emit: AppSignals.Emit("settings", "navigate", "danger", "", "export-archive"), Tone: ButtonTone.Neutral) { Small = true, Icon = "download" },
+                new Button("delete-account-reset-brain", "Delete Account / Reset Brain", Emit: AppSignals.Emit("settings", "navigate", "danger", "", "confirm-delete"), Tone: "danger") { Small = true, Icon = "trash-2", Style = "danger" },
             ]) { Gap = 8 },
         ],
         Kind: SurfaceKind.Elevated,

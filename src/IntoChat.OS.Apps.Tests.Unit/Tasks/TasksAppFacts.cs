@@ -68,9 +68,7 @@ public sealed class TasksAppFacts
         Assert.Contains("✓ draft", strings);
         Assert.Contains("● approve", strings);
         Assert.Contains("○ start", strings);
-        var buttons = Nodes(side).OfType<Button>().Select(b => b.Label).ToArray();
-        Assert.Contains("Approve", buttons);
-        Assert.Contains("Deny", buttons);
+        Assert.Equal("plan-1", Assert.Single(Nodes(side).OfType<ApprovalCardNode>()).Resolve?.PlanId);
     }
 
     [Fact]
@@ -81,12 +79,8 @@ public sealed class TasksAppFacts
 
         var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [approval], null);
 
-        var approve = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Approve").Action;
-        Assert.Equal(IConfirmations.ConfirmationsNeuronKey, approve.Neuron);
-        Assert.Equal(IConfirmations.ResolveOperation, approve.Operation);
-        Assert.Equal(["plan-1", "true"], approve.Arguments);
-        var deny = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Deny").Action;
-        Assert.Equal(["plan-1", "false"], deny.Arguments);
+        var card = Assert.Single(Nodes(side).OfType<ApprovalCardNode>());
+        Assert.Equal("plan-1", card.Resolve?.PlanId);
     }
 
     [Fact]
@@ -111,15 +105,15 @@ public sealed class TasksAppFacts
         var flow = Flow("c", FlowStatus.Running);
         var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
 
-        var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Open trace").Action;
+        var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Open trace").Intent;
 
-        Assert.Equal(new ButtonAction("apps/trace", "open", ["trace/trace-c"]), open);
+        Assert.Equal(new Intent(IntentKind.OpenWindow, "os://window/open?app=trace&input=trace%2Ftrace-c"), open);
     }
 
     [Fact]
     public void FormFieldsAreTheAppsTextfieldNeurons()
     {
-        var names = Nodes(TasksViewRenderer.Render(new TasksState(), [], [], T0)).OfType<TextField>().Select(f => f.Name).ToArray();
+        var names = Nodes(TasksViewRenderer.Render(new TasksState(), [], [], T0)).OfType<Field>().Select(f => f.Name).ToArray();
         Assert.Equal(["apps/tasks/title", "apps/tasks/description"], names);
     }
 
@@ -131,8 +125,9 @@ public sealed class TasksAppFacts
 
         await Field(tasks, "title", "Ship docs");
         await Field(tasks, "description", "Write and publish the docs");
-        var start = Assert.Single(Nodes(tasks.App.Render()).OfType<Button>(), b => b.Label == "Start").Action;
-        await tasks.Request(start.Operation, new TasksNew(start.Arguments[0], start.Arguments[1]));
+        var start = Assert.Single(Nodes(tasks.App.Render()).OfType<Button>(), b => b.Label == "Start").Emit!;
+        var startArgs = EmitArgs.Of(start);
+        await tasks.Request(start.Signal, new TasksNew(startArgs[0], startArgs[1]));
 
         var started = Assert.Single(FakeFlows.Started);
         Assert.Equal("Ship docs", started.Title);
@@ -148,8 +143,8 @@ public sealed class TasksAppFacts
         await tasks.Request("open", new TasksOpen());
         await tasks.Request("select", new TasksSelect(FakeFlows.Views[0].FlowId));
 
-        var cancel = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Button>(), b => b.Label == "Cancel").Action;
-        await tasks.Request(cancel.Operation, new TasksCancel(cancel.Arguments[0]));
+        var cancel = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Button>(), b => b.Label == "Cancel").Emit!;
+        await tasks.Request(cancel.Signal, new TasksCancel(EmitArgs.Of(cancel)[0]));
 
         Assert.Equal(FakeFlows.Views[0].FlowId, Assert.Single(FakeFlows.Cancels));
     }
@@ -163,11 +158,12 @@ public sealed class TasksAppFacts
         await tasks.Request("open", new TasksOpen());
         await tasks.Request("select", new TasksSelect(FakeFlows.Views[0].FlowId));
 
-        var kind = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relation").Options.Single(o => o.Id == "Follows").Action!;
-        await tasks.Request(kind.Operation, new TasksRelateKind(kind.Arguments[0]));
+        var kind = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relation").Options.Single(o => o.Id == "Follows").Emit!;
+        await tasks.Request(kind.Signal, new TasksRelateKind(EmitArgs.Of(kind)[0]));
         await Field(tasks, "lag", "1");
-        var target = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relate to").Options.Single().Action!;
-        await tasks.Request(target.Operation, new TasksRelate(target.Arguments[0], target.Arguments[1], target.Arguments[2], target.Arguments[3]));
+        var target = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relate to").Options.Single().Emit!;
+        var targetArgs = EmitArgs.Of(target);
+        await tasks.Request(target.Signal, new TasksRelate(targetArgs[0], targetArgs[1], targetArgs[2], targetArgs[3]));
 
         var (flowId, relation) = Assert.Single(FakeFlows.Relations);
         Assert.Equal(FakeFlows.Views[0].FlowId, flowId);
