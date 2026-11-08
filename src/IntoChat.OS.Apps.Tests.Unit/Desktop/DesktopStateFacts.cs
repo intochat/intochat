@@ -21,6 +21,24 @@ public sealed class DesktopStateFacts
     }
 
     [Fact]
+    public async Task OnlyTheDesktopWritesItsRecords()
+    {
+        await using var os = Os();
+        var desktop = await os.Install<DesktopApp>();
+        await desktop.Request("widget-open", new DesktopWidgetOpen("clock"));
+        var before = (await os.Get<IDesktopRecords>(RecordsId).Read()).Widgets;
+        var journaled = os.Journal(RecordsId.Brain).Signals(RecordsId).Count();
+
+        using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(new DigitalBrain.Capabilities.CapabilityCaller("p1", "a1", "local", AppId: "local/apps/ino")))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => os.Get<IDesktopRecords>(RecordsId).Write(new DesktopRecords(["weather"], true, "")));
+        }
+
+        Assert.Equal(before, (await os.Get<IDesktopRecords>(RecordsId).Read()).Widgets);
+        Assert.Equal(journaled, os.Journal(RecordsId.Brain).Signals(RecordsId).Count());
+    }
+
+    [Fact]
     public async Task WidgetsPersistAcrossRestart()
     {
         await using var os = Os();

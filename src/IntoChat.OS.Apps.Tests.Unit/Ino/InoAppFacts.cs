@@ -434,6 +434,23 @@ public sealed class InoAppFacts
     }
 
     [Fact]
+    public async Task OnlyInoWritesItsLinks()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        var id = new NeuronId(Brain, "apps.ino-records", IInoRecords.Key);
+        var journaled = os.Journal(Brain).Signals(id).Count();
+
+        using (RuntimeCallerContext.Stamp(new CapabilityCaller("p1", "a1", "local", AppId: "local/apps/desktop")))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => os.Get<IInoRecords>(id).Write(new InoRecords([new InoLink("x", "notes", "page=1")])));
+        }
+
+        Assert.Empty((await os.Get<IInoRecords>(id).Read()).Links);
+        Assert.Equal(journaled, os.Journal(Brain).Signals(id).Count());
+    }
+
+    [Fact]
     public async Task APastedLinkIsInosOwnRecordAcrossRestart()
     {
         await using var os = TestOS.Local();
