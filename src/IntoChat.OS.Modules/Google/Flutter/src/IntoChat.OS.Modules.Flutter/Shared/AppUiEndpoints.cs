@@ -160,7 +160,7 @@ internal static class AppUiEndpoints
         switch (input.Kind)
         {
             case UIVocabulary.ViewType when NeuronButtonAction.TryParse(input.Action, out var target, out var operation, out var arguments):
-                await DeliverNeuronButton(brain, scope, target, operation, arguments, ct);
+                await DeliverNeuronButton(brain, scope, input.Name, target, operation, arguments, ct);
                 break;
             case UIVocabulary.ViewType:
                 await brain.Get<IView>(input.Name).Activate(input.Revision, input.Field ?? "", input.Action ?? "", input.OperationId ?? Guid.Empty).WaitAsync(ct);
@@ -245,14 +245,27 @@ internal static class AppUiEndpoints
 
     // A view button aimed at another neuron (NeuronButtonAction): the clicking person calls it, as a direct inbox click does.
     // Only the confirmations inbox's Resolve is a target; any other is refused.
-    private static async Task DeliverNeuronButton(INeuronProxies brain, string scope, string key, string operation, string[] arguments, CancellationToken ct)
+    // Confirmations buttons are an OS-surface privilege: the delivering view must belong to an OS-trusted app (AppTrust).
+    private static async Task DeliverNeuronButton(INeuronProxies brain, string scope, string view, string key, string operation, string[] arguments, CancellationToken ct)
     {
+        if (key == IConfirmations.ConfirmationsNeuronKey && !await IsOsTrustedView(brain, scope, view, ct))
+        { throw new UnauthorizedAccessException($"Only an OS surface can answer a confirmation; {view} cannot."); }
         if (key == IConfirmations.ConfirmationsNeuronKey && operation == IConfirmations.ResolveOperation && arguments.Length == 2 && bool.TryParse(arguments[1], out var approve))
         {
             await brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope)).Resolve(arguments[0], approve).WaitAsync(ct);
             return;
         }
         throw new UnauthorizedAccessException($"A view button cannot call {key}.{operation}.");
+    }
+
+    // The view's owning app is {scope}/apps/{name}; only a compiled, host-loaded app is OS-trusted.
+    private static async Task<bool> IsOsTrustedView(INeuronProxies brain, string scope, string view, CancellationToken ct)
+    {
+        var prefix = scope + "/apps/";
+        if (!view.StartsWith(prefix, StringComparison.Ordinal)) { return false; }
+        var end = view.IndexOf('/', prefix.Length);
+        if (end <= prefix.Length) { return false; }
+        return AppTrust.IsOsTrusted(await brain.Get<IApp>(view[..end]).Read().WaitAsync(ct));
     }
 
     private static bool OwnsUi(string scope, string name) =>

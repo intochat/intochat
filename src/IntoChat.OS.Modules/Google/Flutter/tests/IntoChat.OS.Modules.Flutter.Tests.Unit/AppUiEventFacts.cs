@@ -38,6 +38,26 @@ public sealed class AppUiEventFacts
     }
 
     [Fact]
+    public async Task AModelAuthoredAppViewCannotResolveAConfirmation()
+    {
+        var brain = new RecordingBrain();
+        var action = NeuronButtonAction.Format(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, ["plan-1", "true"]);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/dismisser/view", action), brain, Scope, Ct));
+        Assert.Empty(brain.Inbox.Resolved);
+    }
+
+    [Fact]
+    public async Task TheConfirmationInboxSurfaceStillResolves()
+    {
+        var brain = new RecordingBrain();
+
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, IConfirmationInbox.Key(Scope), $"{DigitalBrain.UI.Confirmation.ConfirmView.ResolveOperation}:plan-3:true"), brain, Scope, Ct);
+
+        Assert.Equal(("owner/confirmations", "plan-3", true), Assert.Single(brain.Inbox.Resolved));
+    }
+
+    [Fact]
     public async Task ANeuronButtonToAnyOtherTargetIsRefused()
     {
         var brain = new RecordingBrain();
@@ -62,10 +82,13 @@ public sealed class AppUiEventFacts
         public RecordingInbox Inbox { get; } = new();
         public RecordingField Field { get; } = new();
         public List<string> Views { get; } = [];
+        // The OS's own compiled apps; any other app here is model-authored.
+        public HashSet<string> TrustedApps { get; } = ["apps/ino", "apps/tasks"];
 
         public T Get<T>(NeuronId id) where T : class
         {
             if (typeof(T) == typeof(IConfirmationInbox)) { Inbox.Key = id.Brain.Value + "/" + id.Key; return (T)(object)Inbox; }
+            if (typeof(T) == typeof(IApp)) { return (T)(object)FakeApp.For(TrustedApps.Contains(id.Key)); }
             if (typeof(T) == typeof(ITextField)) { Field.Key = id.Brain.Value + "/" + id.Key; return (T)(object)Field; }
             Views.Add(id.ToString());
             throw new InvalidOperationException($"No {typeof(T).Name} in this fake.");
@@ -89,5 +112,24 @@ public sealed class AppUiEventFacts
         public Task<bool> TrySetValue(string value, int expectedVersion) => Task.FromResult(true);
         public Task Input(string value) { Inputs.Add((Key, value)); return Task.CompletedTask; }
         public Task<TextFieldState> Read() => Task.FromResult(new TextFieldState());
+    }
+
+    private class FakeApp : System.Reflection.DispatchProxy
+    {
+        private bool _compiled;
+
+        public static IApp For(bool compiled)
+        {
+            var app = Create<IApp, FakeApp>();
+            ((FakeApp)(object)app)._compiled = compiled;
+            return app;
+        }
+
+        protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? args)
+        {
+            if (method?.Name != nameof(IApp.Read)) { throw new NotSupportedException(method?.Name); }
+            var settings = _compiled ? new Dictionary<string, string> { [AppTrust.CompiledTypeSetting] = "Os.App" } : [];
+            return Task.FromResult(new AppSnapshot("app", new("", "", [], [], []), "", [], settings, [], "1.0", AppStatus.Live, [], []));
+        }
     }
 }

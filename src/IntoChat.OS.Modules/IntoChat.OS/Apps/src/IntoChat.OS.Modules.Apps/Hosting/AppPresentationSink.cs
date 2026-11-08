@@ -40,6 +40,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         var app = SiloNeurons.Get<IApp>(services, appKey);
         var snapshot = await app.Read().WaitAsync(ct);
         var generation = Math.Max(1L, snapshot.ProgramRevision);
+        var trusted = AppTrust.IsOsTrusted(snapshot);
 
         if (side is not null)
         {
@@ -47,7 +48,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             var currentSide = await sideNeuron.Read();
             var sideGen = currentSide is { Generation: > 0 } ? Math.Max(generation, currentSide.Generation) : generation;
             var nextSideVersion = (currentSide?.Generation == sideGen ? currentSide.Version : 0L) + 1L;
-            await sideNeuron.Publish(new UiView(sideGen, nextSideVersion, AppNeuron.MapView(side, brain)));
+            await sideNeuron.Publish(new UiView(sideGen, nextSideVersion, AppNeuron.MapView(side, brain, trusted)));
         }
 
         if (main is not null)
@@ -63,12 +64,12 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
                     ? Ui.Row(
                         "ino-workspace",
                         [
-                            AppNeuron.MapNode("ino-side", side.Root, brain),
-                            AppNeuron.MapNode("ino-main", main.Root, brain),
+                            AppNeuron.MapNode("ino-side", side.Root, brain, trusted),
+                            AppNeuron.MapNode("ino-main", main.Root, brain, trusted),
                         ],
                         gap: 0,
                         extents: [256, 0])
-                    : AppNeuron.MapNode("ino-main", main.Root, brain);
+                    : AppNeuron.MapNode("ino-main", main.Root, brain, trusted);
             }
             else if (side is not null)
             {
@@ -76,15 +77,15 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
                 mainTree = Ui.Row(
                     "view",
                     [
-                        AppNeuron.MapNode("side", side.Root, brain),
-                        AppNeuron.MapNode("root", main.Root, brain),
+                        AppNeuron.MapNode("side", side.Root, brain, trusted),
+                        AppNeuron.MapNode("root", main.Root, brain, trusted),
                     ],
                     gap: 14,
                     extents: [sideWidth, 0]);
             }
             else
             {
-                mainTree = AppNeuron.MapView(main, brain);
+                mainTree = AppNeuron.MapView(main, brain, trusted);
             }
 
             var mainNeuron = SiloNeurons.Get<IView>(services, appKey + "/view");

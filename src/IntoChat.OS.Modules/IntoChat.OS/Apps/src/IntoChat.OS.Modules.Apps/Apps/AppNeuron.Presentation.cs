@@ -84,6 +84,12 @@ internal sealed partial class AppNeuron
     internal static UiNode MapNode(string key, Node node, string? brainId = null)
         => PresentationCollaborator.MapNode(key, node, brainId);
 
+    internal static UiNode MapView(View view, string? brainId, bool osTrusted)
+        => PresentationCollaborator.MapView(view, brainId, osTrusted);
+
+    internal static UiNode MapNode(string key, Node node, string? brainId, bool osTrusted)
+        => PresentationCollaborator.MapNode(key, node, brainId, osTrusted);
+
     private Task RequireExecutingAssignment(string operation, long expectedProgramRevision)
     {
         if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App

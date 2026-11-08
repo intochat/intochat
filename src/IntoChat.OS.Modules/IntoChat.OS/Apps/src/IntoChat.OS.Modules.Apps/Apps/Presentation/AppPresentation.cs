@@ -22,7 +22,7 @@ internal sealed class AppPresentation(AppState state)
     public AppState State => state;
 
     public UiNode Render(View view, string? brainId = null)
-        => MapView(view, brainId ?? state.BrainScopeId);
+        => MapView(view, brainId ?? state.BrainScopeId, AppTrust.IsOsTrusted(state.Settings));
 
     public AppState? Publish(IntoChat.OS.Modules.Apps.Presentation spec)
     {
@@ -105,6 +105,24 @@ internal sealed class AppPresentation(AppState state)
 
         next.Presentation = current with { Revision = checked(current.Revision + 1), Blackboard = board };
         return new(key, next.ProgramRevision, next.Presentation.Revision);
+    }
+
+    // Confirmations buttons are an OS-surface privilege: only an OS-trusted app's view (AppTrust) formats one. The mapping
+    // is synchronous, so the flag scopes one call on this thread.
+    [ThreadStatic] private static bool t_osTrusted;
+
+    internal static UiNode MapView(View view, string? brainId, bool osTrusted)
+        => Trusted(osTrusted, () => MapView(view, brainId));
+
+    internal static UiNode MapNode(string key, Node node, string? brainId, bool osTrusted)
+        => Trusted(osTrusted, () => MapNode(key, node, brainId));
+
+    private static UiNode Trusted(bool osTrusted, Func<UiNode> map)
+    {
+        var previous = t_osTrusted;
+        t_osTrusted = osTrusted;
+        try { return map(); }
+        finally { t_osTrusted = previous; }
     }
 
     internal static UiNode MapView(View view, string? brainId = null)
@@ -565,8 +583,9 @@ internal sealed class AppPresentation(AppState state)
             var app = $"os://window/open?app={action.Neuron["apps/".Length..]}";
             return action.Arguments.Count > 0 && action.Arguments[0].Length > 0 ? $"{app}&input={Uri.EscapeDataString(action.Arguments[0])}" : app;
         }
-        // The confirmations inbox answers for a person, never for the app: the button is routed to it by the edge.
-        if (string.Equals(action.Neuron, DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, StringComparison.Ordinal))
+        // The confirmations inbox answers for a person, never for the app: the button is routed to it by the edge, and only
+        // an OS-trusted app's view carries one. Any other app's falls through to its own opaque, inert action.
+        if (t_osTrusted && string.Equals(action.Neuron, DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, StringComparison.Ordinal))
         { return NeuronButtonAction.Format(action.Neuron, action.Operation, action.Arguments); }
         var op = NonEmpty(action.Operation, "noop");
         return action.Arguments.Count > 0

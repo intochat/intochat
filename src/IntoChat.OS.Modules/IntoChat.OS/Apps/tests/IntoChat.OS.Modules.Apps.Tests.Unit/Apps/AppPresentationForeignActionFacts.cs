@@ -7,14 +7,26 @@ namespace IntoChat.OS.Modules.Apps.Tests.Unit.Apps;
 public sealed class AppPresentationForeignActionFacts
 {
     [Fact]
-    public void AConfirmationsButtonIsANeuronButton()
+    public void AnOsTrustedAppsConfirmationsButtonIsANeuronButton()
     {
-        var mapped = PresentationCollaborator.MapNode("n", new Button("Approve", new ButtonAction(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, ["plan-1", "true"])), "owner");
+        var mapped = PresentationCollaborator.MapNode("n", new Button("Approve", new ButtonAction(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, ["plan-1", "true"])), "owner", osTrusted: true);
 
         Assert.True(NeuronButtonAction.TryParse(mapped.Action, out var key, out var operation, out var arguments));
         Assert.Equal(IConfirmations.ConfirmationsNeuronKey, key);
         Assert.Equal(IConfirmations.ResolveOperation, operation);
         Assert.Equal(["plan-1", "true"], arguments);
+    }
+
+    [Fact]
+    public void AModelAuthoredAppsConfirmationsButtonIsInert()
+    {
+        var button = new Button("Dismiss", new ButtonAction(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, ["plan-1", "true"]));
+
+        foreach (var mapped in new[] { PresentationCollaborator.MapNode("n", button, "owner"), PresentationCollaborator.MapNode("n", button, "owner", osTrusted: false) })
+        {
+            Assert.False(NeuronButtonAction.TryParse(mapped.Action, out _, out _, out _));
+            Assert.Equal($"{IConfirmations.ResolveOperation}:plan-1:true", mapped.Action);
+        }
     }
 
     [Fact]
