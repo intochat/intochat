@@ -2,6 +2,7 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Approvals;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -53,7 +54,7 @@ internal static class InoViewRenderer
         ])
         { Gap = 8 });
 
-    public static View Render(InoAppState state, AiMessage[] transcript)
+    public static View Render(InoAppState state, AiMessage[] transcript, Approval[]? approvals = null, bool smart = false)
     {
         var waitingCard = state.ActiveCards.FirstOrDefault(c => c.IsWaiting);
         return new(
@@ -70,10 +71,17 @@ internal static class InoViewRenderer
                             .. waitingCard is not null ? new Node[] { new TagPill("Waiting on you · Docked below", "warn", "hand") } : [],
                         ]) { Gap = 8 },
                         new Text(state.Status) { Tabular = true },
+                        new Row(
+                        [
+                            new Text($"Smart mode: {(smart ? "on" : "off")}") { Tone = "muted" },
+                            new Button(smart ? "Turn smart mode off" : "Turn smart mode on", new ButtonAction("apps/ino", "smart", [smart ? "false" : "true"])) { Small = true, Style = "ghost" },
+                            .. state.ActiveRunId is not null ? new Node[] { new Button("Stop", new ButtonAction("apps/ino", "stop", [])) { Small = true, Icon = "square" } } : [],
+                        ]) { Gap = 8 },
                     ],
                     Kind: SurfaceKind.Acrylic,
                     Title: state.Title),
                 .. state.Blocked ? new Node[] { new InfoBar("Ino is paused", state.BlockedReason ?? "An interrupt holds the agent.", "critical") } : [],
+                .. (approvals ?? []).Select(RenderApproval),
                 .. state.ActiveCards.SelectMany(RenderCardNodes),
                 .. waitingCard is not null ? new Node[] { RenderDockedPromptBanner(waitingCard) } : [],
                 .. state.Turns.Select((turn, i) => (Node)new Surface(
@@ -229,14 +237,23 @@ internal static class InoViewRenderer
             ]),
     };
 
+    // Answers go straight to the framework's confirmations neuron, which stamps the person who clicked; Ino never relays them.
+    private static Node RenderApproval(Approval approval) => new ApprovalCardNode(
+        approval.PlanId,
+        approval.Title,
+        approval.Detail,
+        [new ApprovalRowNode("Subject", "", approval.Subject)],
+        SystemName: "Ino",
+        Status: "pending",
+        OnApprove: new ButtonAction(DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, DigitalBrain.Confirmation.IConfirmations.ResolveOperation, [approval.PlanId, "true"]),
+        OnReject: new ButtonAction(DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, DigitalBrain.Confirmation.IConfirmations.ResolveOperation, [approval.PlanId, "false"]));
+
     private static Node RenderDockedPromptBanner(InoCard card) => new Surface(
         [
             new Row(
             [
                 new TagPill("Docked Waiting Card", "warn", "keyboard"),
                 new Text($"Waiting on you · Docked below · Keyboard: ↵ Approve/Confirm · Esc Deny/Skip · {card.Title}") { Tone = "strong", Tabular = true },
-                new Button("Confirm (↵)", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]), Tone: ButtonTone.Accent) { Small = true, Icon = "check" },
-                new Button("Dismiss (Esc)", new ButtonAction("apps/ino", "approve-card", [card.Id, "false"])) { Small = true, Style = "ghost" },
             ]) { Gap = 8 },
         ],
         Kind: SurfaceKind.Elevated,
@@ -258,8 +275,6 @@ internal static class InoViewRenderer
                 ],
                 SystemName: "Ino",
                 Status: card.Status,
-                OnApprove: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]) : null,
-                OnReject: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]) : null,
                 SourceNeuronUri: card.SourceNeuronUri);
         }
         else if (card.Kind == "choice")
@@ -268,8 +283,8 @@ internal static class InoViewRenderer
                 card.Id,
                 card.Title,
                 [
-                    new ChoiceOptionNode("Nordlys Enterprise (Primary)", "neuron://local/circles/enterprise", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"])),
-                    new ChoiceOptionNode("Executive Board Circle", "neuron://local/circles/board", new ButtonAction("apps/ino", "approve-card", [card.Id, "true"])),
+                    new ChoiceOptionNode("Nordlys Enterprise (Primary)", "neuron://local/circles/enterprise"),
+                    new ChoiceOptionNode("Executive Board Circle", "neuron://local/circles/board"),
                 ],
                 PickedIndex: card.Status == "approved" ? 0 : null);
         }
@@ -283,8 +298,8 @@ internal static class InoViewRenderer
                 card.Summary,
                 Subject: card.Title,
                 Status: card.Status == "approved" ? "sent" : card.Status,
-                OnSend: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "true"]) : null,
-                OnDiscard: card.Status == "pending" ? new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]) : null);
+                OnSend: null,
+                OnDiscard: null);
         }
         else if (card.Kind == "secret")
         {
@@ -293,8 +308,7 @@ internal static class InoViewRenderer
                 card.Summary,
                 SavedIn: "Secure Vault · neuron://local/vault/secrets",
                 Status: card.Status == "approved" ? "saved" : card.Status,
-                OnEnter: new ButtonAction("os://window/secure", "os://window/secure", []),
-                OnSkip: new ButtonAction("apps/ino", "approve-card", [card.Id, "false"]));
+                OnEnter: new ButtonAction("os://window/secure", "os://window/secure", []));
         }
         else if (card.Kind == "app-install")
         {

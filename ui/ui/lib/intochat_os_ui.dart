@@ -35,14 +35,17 @@ export 'src/composition/neuron_view.dart';
 export 'src/composition/renderer_registry.dart';
 export 'src/flame/behavior/default_idle_tree.dart';
 export 'src/flame/behavior/tree_runtime.dart';
+export 'src/flame/ino_presence.dart';
 export 'src/flame/node_components.dart';
 export 'src/flame/node_schema.dart';
 export 'src/flame/placeholder_node.dart';
 export 'src/flame/prefabs/activity_ring.dart';
+export 'src/flame/prefabs/glass_sphere.dart';
 export 'src/flame/prefabs/sphere.dart';
 export 'src/flame/primitive_nodes.dart';
 export 'src/flame/scene_game.dart';
 export 'src/flame/scene_view.dart';
+export 'src/focus_registry.dart';
 export 'src/composition/ui_collection_view.dart';
 
 export 'src/composition/application_surface.dart';

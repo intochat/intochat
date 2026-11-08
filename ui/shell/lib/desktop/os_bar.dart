@@ -1,6 +1,7 @@
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Focus;
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 import 'smart_desktop.dart';
@@ -22,7 +23,8 @@ class OsBar extends StatelessWidget {
     this.focusedAppId = 'ino',
     this.paletteOpen = false,
     this.showingDesktop = false,
-    this.notifications = 2,
+    this.notifications = 0,
+    this.presence,
     this.tokensToday = 14800,
     this.connected = true,
     this.onTogglePalette,
@@ -47,6 +49,9 @@ class OsBar extends StatelessWidget {
   final bool paletteOpen;
   final bool showingDesktop;
   final int notifications;
+
+  /// Ino's presence; a dot in its colour shows beside the bell while smart mode is on.
+  final PresenceState? presence;
   final int tokensToday;
   final bool connected;
   final VoidCallback? onTogglePalette;
@@ -148,6 +153,7 @@ class OsBar extends StatelessWidget {
               child: _StatusTray(
                 stylePreset: stylePreset,
                 notifications: notifications,
+                presence: presence,
                 tokensToday: tokensToday,
                 connected: connected,
                 onCycleStylePreset: onCycleStylePreset,
@@ -327,6 +333,7 @@ class _StatusTray extends StatelessWidget {
   const _StatusTray({
     required this.stylePreset,
     required this.notifications,
+    this.presence,
     required this.tokensToday,
     required this.connected,
     this.onCycleStylePreset,
@@ -339,6 +346,7 @@ class _StatusTray extends StatelessWidget {
 
   final IcStylePreset stylePreset;
   final int notifications;
+  final PresenceState? presence;
   final int tokensToday;
   final bool connected;
   final VoidCallback? onCycleStylePreset;
@@ -420,6 +428,21 @@ class _StatusTray extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 4),
+        if (presence case final state?) ...[
+          Tooltip(
+            message: 'Ino: ${state.name}',
+            child: Container(
+              key: const ValueKey('os-bar-presence-dot'),
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: presenceColor(state),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
         _BarButton(
           key: const ValueKey('os-bar-notifications'),
           tooltip: 'Notifications',

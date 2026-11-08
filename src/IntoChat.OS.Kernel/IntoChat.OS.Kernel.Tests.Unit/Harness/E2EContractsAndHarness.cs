@@ -7,7 +7,6 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.AI.SystemOne;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,148 +14,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
-#region F17: Task Engine for Self-Improvement (Delegates to Production TaskEngine + TaskNeuron + TaskDirectoryNeuron)
-
-public sealed class InMemoryTaskEngine : ITaskEngine, IAsyncDisposable
-{
-    private readonly TestOS _os;
-    private readonly TaskEngine _inner;
-    private readonly HashSet<string> _knownTaskIds = new(StringComparer.OrdinalIgnoreCase);
-
-    public InMemoryTaskEngine()
-    {
-        _os = TestOS.Local();
-        _os.Register<TaskNeuron>();
-        _os.Register<TaskDirectoryNeuron>();
-        _inner = new TaskEngine(
-            taskId => _os.Get<ITaskNeuron>(new NeuronId(new BrainId("local"), "tasks.task", taskId)),
-            () => _os.Get<ITaskDirectoryNeuron>(new NeuronId(new BrainId("local"), "tasks.directory", "default")));
-    }
-
-    public async Task<AgentTask> CreateTaskAsync(CreateTaskRequest request, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ct.ThrowIfCancellationRequested();
-        var created = await _inner.CreateTaskAsync(request, ct).ConfigureAwait(false);
-        lock (_knownTaskIds)
-        {
-            _knownTaskIds.Add(created.TaskId);
-        }
-        return created;
-    }
-
-    public async Task<AgentTask> AdvanceTaskStepAsync(string taskId, int stepIndex, TaskStepStatus newStatus, string? output = null, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        ct.ThrowIfCancellationRequested();
-        EnsureExists(taskId);
-
-        var current = await _inner.GetTaskAsync(taskId, ct).ConfigureAwait(false);
-        if (current is not null && (stepIndex < 0 || stepIndex >= current.Steps.Length))
-        {
-            return current;
-        }
-
-        return await _inner.AdvanceTaskStepAsync(taskId, stepIndex, newStatus, output, ct).ConfigureAwait(false);
-    }
-
-    public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        ct.ThrowIfCancellationRequested();
-        return _inner.GetTaskAsync(taskId, ct);
-    }
-
-    public Task<IReadOnlyList<AgentTask>> ListTasksAsync(string? owner = null, TaskStatus? status = null, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        return _inner.ListTasksAsync(owner, status, ct);
-    }
-
-    public Task<AgentTask> RollbackTaskAsync(string taskId, int toStepIndex, string reason, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        ct.ThrowIfCancellationRequested();
-        EnsureExists(taskId);
-        return _inner.RollbackTaskAsync(taskId, toStepIndex, reason, ct);
-    }
-
-    public Task<AgentTask> CancelTaskAsync(string taskId, string reason, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        ct.ThrowIfCancellationRequested();
-        EnsureExists(taskId);
-        return _inner.CancelTaskAsync(taskId, reason, ct);
-    }
-
-    public Task<TaskVerificationResult> VerifyTaskStepAsync(string taskId, int stepIndex, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        ct.ThrowIfCancellationRequested();
-        return _inner.VerifyTaskStepAsync(taskId, stepIndex, ct);
-    }
-
-    public Task<AgentTask> ConfirmTaskStepAsync(string taskId, int stepIndex, string? confirmationToken = null, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        ct.ThrowIfCancellationRequested();
-        EnsureExists(taskId);
-        return _inner.ConfirmTaskStepAsync(taskId, stepIndex, confirmationToken, ct);
-    }
-
-    public async Task<TaskVerificationResult> VerifyTaskAsync(string taskId, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
-        ct.ThrowIfCancellationRequested();
-
-        bool exists;
-        lock (_knownTaskIds)
-        {
-            exists = _knownTaskIds.Contains(taskId);
-        }
-        if (!exists)
-        {
-            return new TaskVerificationResult(false, "Verification failed", [$"Task '{taskId}' missing"]);
-        }
-
-        var task = await _inner.GetTaskAsync(taskId, ct).ConfigureAwait(false);
-        if (task is null)
-        {
-            return new TaskVerificationResult(false, "Verification failed", [$"Task '{taskId}' missing"]);
-        }
-
-        var failures = task.Steps
-            .Where(s => s.Status != TaskStepStatus.Completed)
-            .Select(s => $"Step '{s.Index}' [{s.Title}] did not pass (status: {s.Status})")
-            .ToArray();
-
-        var isPassed = failures.Length == 0 && task.Status == TaskStatus.Completed;
-        return new TaskVerificationResult(isPassed, $"Verified {task.Steps.Length} steps.", failures);
-    }
-
-    private void EnsureExists(string taskId)
-    {
-        lock (_knownTaskIds)
-        {
-            if (!_knownTaskIds.Contains(taskId))
-            {
-                throw new KeyNotFoundException($"Task '{taskId}' not found.");
-            }
-        }
-    }
-
-    public ValueTask DisposeAsync() => _os.DisposeAsync();
-
-    public Task<AgentTask> LinkTaskAsync(string taskId, string targetId, string kind, CancellationToken ct = default)
-        => _inner.LinkTaskAsync(taskId, targetId, kind, ct);
-}
-
-#endregion
 
 #region F20: Reusable Testing Framework for Agent Verification (Delegates to Production TestVerificationService)
 

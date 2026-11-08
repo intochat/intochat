@@ -33,6 +33,10 @@ public sealed record AgentRun(
     public AgentToolCall[] ToolCalls { get; init; } = [];
     // Recorded by IAgent.Post: an assistant-only entry with no user turn and no model call.
     public bool Posted { get; init; }
+    // The flow that started this run through IAgent.Start, if any.
+    public string? FlowId { get; init; }
+    // The request trace the run started under; null when the turn arrived outside a trace.
+    public string? TraceId { get; init; }
 }
 
 // Transcript is read through IAgent.Transcript; it is too large to ride along on every read.

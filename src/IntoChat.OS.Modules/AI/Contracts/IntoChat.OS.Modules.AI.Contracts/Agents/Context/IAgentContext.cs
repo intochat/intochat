@@ -11,6 +11,11 @@ public interface IAgentContext
 {
     Task Set(ContextEntry entry);
     Task Remove(string name);
+    // An entry a producer owns (an app's capabilities): set, or removed, unless a user's or the platform's interrupt holds
+    // the name, whatever the caller's trust. Checked inside the neuron's turn, so an interrupt written just before is never
+    // displaced. False when an interrupt held the name and nothing changed.
+    Task<bool> Upsert(ContextEntry entry);
+    Task<bool> Withdraw(string name);
     [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<ContextSnapshot> Read();
 }
 

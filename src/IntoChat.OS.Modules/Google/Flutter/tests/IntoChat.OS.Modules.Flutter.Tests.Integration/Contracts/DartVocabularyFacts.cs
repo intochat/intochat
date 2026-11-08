@@ -52,7 +52,7 @@ public sealed partial class DartVocabularyFacts
     public void EveryNodeContractNamesAVocabularyKindItsContractAndItsChangeSignal()
     {
         var table = NodeContracts();
-        Assert.Equal(30, table.Length);
+        Assert.Equal(29, table.Length);
         var assemblies = new[] { typeof(UIVocabulary).Assembly, typeof(IScene).Assembly };
         var offenders = new List<string>();
         foreach (var (kind, contract, changed) in table)
@@ -80,7 +80,7 @@ public sealed partial class DartVocabularyFacts
     public void EveryReferencedKindHasANodeContract()
     {
         string[] referenced = [UIVocabulary.ConfirmationType, "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas",
-            "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "progress", "infobar", "image", "expander",
+            "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "infobar", "image", "expander",
             "surface", "layout", "collection", "card", "tabs", "view", "entrycontrol", "preference"];
         Assert.Empty(referenced.Except(NodeContracts().Select(entry => entry.Kind)));
     }
@@ -89,7 +89,7 @@ public sealed partial class DartVocabularyFacts
     // pinned so the guard passes at head: a kind that gains a Dart entry must leave this list (checked below); a kind
     // emitted by a UiChildRef call site must never be added here.
     private static readonly string[] VocabularyKindsWithoutADartContract =
-        ["calendar", "clock", "color", "graph", "map", "rating", "sheet", "slider", "tree", "video"];
+        ["calendar", "clock", "color", "graph", "map", "progress", "rating", "sheet", "slider", "tree", "video"];
 
     [Fact]
     public void EveryKindTheServerCanEmitHasADartNodeContract()

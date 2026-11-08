@@ -46,6 +46,7 @@ public sealed class GmailStateFacts
         public IServiceProvider Services => _inner.Services;
         public TimeProvider Time => _inner.Time;
         public INeuronState State => this;
+        public IOperationsQuery OperationsQuery => throw new NotSupportedException();
         public ITimers Timers => ((INeuronContext)_inner).Timers;
         public IReminders Reminders => ((INeuronContext)_inner).Reminders;
         public IOperations Operations => ((INeuronContext)_inner).Operations;

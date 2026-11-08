@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 import 'package:intochat_os_flutter_shell/desktop/os_bar.dart';
+import 'package:intochat_os_flutter_shell/desktop/presence_layer.dart';
 import 'package:intochat_os_flutter_shell/desktop/smart_desktop.dart';
 import 'package:intochat_os_flutter_shell/desktop/spatial_app_canvas.dart';
 import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
@@ -266,7 +269,22 @@ void main() {
                   },
                 };
               },
-              watch: (kind, name) => const Stream.empty(),
+              watch: (kind, name) => kind == 'ino.presence'
+                  ? StreamController<void>().stream
+                  : const Stream.empty(),
+              // Smart mode on, Ino waiting and two approvals pending.
+              read: (contract, key, method) async => switch (method) {
+                'Read' when key == 'settings' => {
+                  'variables': [
+                    {'key': 'ino.smart', 'value': 'on'},
+                  ],
+                },
+                'Read' => {'state': 'Waiting', 'revision': 3},
+                'Pending' => {
+                  'value': [{}, {}],
+                },
+                _ => null,
+              },
               onAction: (event) async => actions.add(event),
               onActivate: (_) {},
               stylePreset: IcStylePreset.fluentAcrylic,
@@ -283,6 +301,15 @@ void main() {
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byType(PresenceLayer), findsOneWidget);
+      expect(find.byKey(const ValueKey('os-bar-presence-dot')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('os-bar-notifications')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
 
       // 1. Clock Popover
       await tester.tap(find.byKey(const ValueKey('os-bar-clock')));

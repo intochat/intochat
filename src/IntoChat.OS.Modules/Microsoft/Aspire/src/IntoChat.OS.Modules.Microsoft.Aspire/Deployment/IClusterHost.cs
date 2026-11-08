@@ -12,6 +12,8 @@ internal interface IClusterHost
     Task WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct); // Running and the front routes it (/_instances/{name}/ready answers 200); else InstanceNeverReadyException (budget spent, or a process started after since exited)
     Task<string[]> Instances(CancellationToken ct);                       // the roll order: intochat-os-mcp-{x}, then OperatingSystem-{x}
     string? Self { get; }                                                 // the OperatingSystem-{x} instance this process is
+    DateTimeOffset SelfStarted { get; }                                   // when this process started (UTC)
+    Task<DateTimeOffset?> StartedAt(string name, CancellationToken ct);   // when the instance's current process started: Self's own start, else `describe`'s startTimestamp; null when unknown
     Task<int> Spans(string service, string span, CancellationToken ct);  // `aspire otel spans`: spans named `span` whose source is `service` or `service-*`
 }
 

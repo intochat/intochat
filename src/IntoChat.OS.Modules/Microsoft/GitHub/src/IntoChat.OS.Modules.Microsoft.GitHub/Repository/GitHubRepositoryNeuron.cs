@@ -253,16 +253,6 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
             return;
         }
 
-        var isTaskNeuron = caller.PrincipalId?.Contains("tasks.task", StringComparison.OrdinalIgnoreCase) == true
-            || caller.AppId?.Contains("tasks.task", StringComparison.OrdinalIgnoreCase) == true
-            || (string.Equals(caller.BrainId, Key.Brain, StringComparison.OrdinalIgnoreCase)
-                && (caller.PrincipalId?.Contains("task", StringComparison.OrdinalIgnoreCase) == true || caller.AppId?.Contains("task", StringComparison.OrdinalIgnoreCase) == true));
-
-        if (isTaskNeuron)
-        {
-            return;
-        }
-
         throw new UnauthorizedAccessException($"Caller of kind {caller.Kind} (Principal: {caller.PrincipalId}, App: {caller.AppId}) is not authorized to merge pull requests on github/{Key.Connection}.");
     }
 

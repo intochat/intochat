@@ -22,4 +22,8 @@ internal sealed record DeploymentState
     [Id(8)] public string? Draining { get; init; }
     // When the handed-over silo's restart was issued: its old process stopping before then is not a failed start.
     [Id(9)] public DateTimeOffset? HandoverAt { get; init; }
+    // Rolling or RollingBack: the DeployFlow driving the roll, whose signals this state folds.
+    [Id(10)] public string? FlowId { get; init; }
+    // The instance whose roll step failed: the roll back moves it first.
+    [Id(11)] public string? FailedInstance { get; init; }
 }

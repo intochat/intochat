@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import '../workspace/spatial_app_canvas.dart';
 import 'desktop_overlays.dart';
 import 'os_bar.dart';
+import 'presence_layer.dart';
 import 'smart_desktop.dart';
 import 'window_frame.dart';
 
@@ -66,6 +67,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.entries,
     this.localPreferences,
     this.profileMenu,
+    this.read,
   });
 
   final String brain;
@@ -85,6 +87,15 @@ class LiveDesktopShell extends StatefulWidget {
   final EntriesClient Function(String brainId)? entries;
   final LocalPreferences? localPreferences;
   final Widget? profileMenu;
+
+  /// A read-only contract call (contract, key, method) answering its decoded result; smart mode stays off
+  /// without it.
+  final Future<Map<String, dynamic>?> Function(
+    String contract,
+    String key,
+    String method,
+  )?
+  read;
 
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
@@ -111,7 +122,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   String? _dockMenuAppId;
   String? _barTooltipLabel;
   double _barTooltipAnchorX = 0;
-  int _notificationsCount = 2;
+  int _notificationsCount = 0;
+  bool _smart = false;
+  PresenceState? _presenceState;
+  final StreamController<Presence> _presence =
+      StreamController<Presence>.broadcast();
+  StreamSubscription<void>? _settingsSub, _presenceSub;
+  Timer? _presenceReopen;
   final Set<String> _pinnedAppIds = {
     'ino',
     'files',
@@ -134,6 +151,117 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     HardwareKeyboard.instance.addHandler(_onHardwareKey);
     _reload();
     _subscribe();
+    _watchSettings();
+  }
+
+  static const _settingsContract = 'IntoChat.OS.Modules.Apps.IUserSettings';
+  static const _presenceContract = 'IntoChat.OS.Modules.Apps.IPresence';
+  static const _approvalsContract =
+      'IntoChat.OS.Modules.Apps.Approvals.IApprovals';
+
+  void _watchSettings() {
+    unawaited(_readSmart());
+    _settingsSub = widget.watch
+        ?.call('os.settings', 'settings')
+        .listen((_) => unawaited(_readSmart()), onError: (Object _) {});
+  }
+
+  /// Smart mode is the `ino.smart` user variable; off when it cannot be read.
+  Future<void> _readSmart() async {
+    var on = false;
+    try {
+      final settings = await widget.read?.call(
+        _settingsContract,
+        'settings',
+        'Read',
+      );
+      final variables = settings?['variables'];
+      on =
+          variables is List &&
+          variables.any(
+            (v) =>
+                v is Map &&
+                v['key'] == 'ino.smart' &&
+                '${v['value']}'.toLowerCase() == 'on',
+          );
+    } catch (_) {
+      on = false;
+    }
+    if (!mounted || on == _smart) return;
+    setState(() {
+      _smart = on;
+      if (!on) {
+        _presenceState = null;
+        _notificationsCount = 0;
+      }
+    });
+    if (on) {
+      _watchPresence();
+      unawaited(_readPresence());
+    } else {
+      _presenceSub?.cancel();
+      _presenceSub = null;
+      _presenceReopen?.cancel();
+      _presenceReopen = null;
+    }
+  }
+
+  void _watchPresence() {
+    _presenceSub?.cancel();
+    final watch = widget.watch;
+    if (watch == null) return;
+    _presenceSub = watch('ino.presence', 'ino/presence').listen(
+      (_) => unawaited(_readPresence()),
+      onError: (Object _) => _presenceDropped(),
+      onDone: _presenceDropped,
+    );
+  }
+
+  void _presenceDropped() {
+    if (!mounted || !_smart) return;
+    _presence.add(
+      const Presence(state: PresenceState.disconnected, revision: -1),
+    );
+    setState(() => _presenceState = PresenceState.disconnected);
+    _presenceReopen ??= Timer(const Duration(seconds: 2), () {
+      _presenceReopen = null;
+      if (!mounted || !_smart) return;
+      _watchPresence();
+      unawaited(_readPresence());
+    });
+  }
+
+  Future<void> _readPresence() async {
+    try {
+      final json = await widget.read?.call(
+        _presenceContract,
+        'ino/presence',
+        'Read',
+      );
+      if (json == null || !mounted || !_smart) return;
+      final presence = Presence.fromJson(json);
+      _presence.add(presence);
+      setState(() => _presenceState = presence.state);
+    } catch (_) {
+      // The next change signal reads again.
+    }
+    await _readApprovals();
+  }
+
+  Future<void> _readApprovals() async {
+    var count = 0;
+    try {
+      final reply = await widget.read?.call(
+        _approvalsContract,
+        'approvals/index',
+        'Pending',
+      );
+      final pending = reply?['value'];
+      count = pending is List ? pending.length : 0;
+    } catch (_) {
+      count = 0;
+    }
+    if (mounted && _smart) setState(() => _notificationsCount = count);
   }
 
   @override
@@ -158,6 +286,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     HardwareKeyboard.instance.removeHandler(_onHardwareKey);
     _watchSub?.cancel();
     _resubscribeTimer?.cancel();
+    _settingsSub?.cancel();
+    _presenceSub?.cancel();
+    _presenceReopen?.cancel();
+    unawaited(_presence.close());
     for (final w in _windowStates.values) {
       w.dispose();
     }
@@ -766,11 +898,15 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       final queryApp = uri?.queryParameters['app'];
       final querySection = uri?.queryParameters['section'];
       if (queryApp != null && queryApp.isNotEmpty) {
+        final queryInput = uri?.queryParameters['input'];
         _launchOrFocusApp(
           queryApp,
           windows,
           dockButtons,
           settingsSection: querySection,
+          openInput: queryInput != null && queryInput.isNotEmpty
+              ? queryInput
+              : null,
         );
         return;
       }
@@ -1292,6 +1428,30 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 ),
               ),
 
+              // 3b. Ino's presence: above the windows, below the bar and its popovers and sheets.
+              if (_smart)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  width: desk.width,
+                  height: desk.height,
+                  child: PresenceLayer(
+                    presence: _presence.stream,
+                    enabled: _smart,
+                    onOpenIno: () =>
+                        _launchOrFocusApp('ino', windows, dockButtons),
+                    onAction: (action) {
+                      if (action.kind == 'open' || action.kind == 'navigate') {
+                        _launchOrFocusApp(
+                          action.argument,
+                          windows,
+                          dockButtons,
+                        );
+                      }
+                    },
+                  ),
+                ),
+
               // 4. Adaptive 36px Glass OS Bar & Dock
               Positioned(
                 left: 0,
@@ -1306,6 +1466,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   paletteOpen: widget.paletteOpen,
                   showingDesktop: _showDesktopOnly || visibleWindows.isEmpty,
                   notifications: _notificationsCount,
+                  presence: _smart ? _presenceState : null,
                   profileMenu: widget.profileMenu,
                   onTogglePalette: () {
                     setState(() => _popover = DesktopPopoverKind.none);

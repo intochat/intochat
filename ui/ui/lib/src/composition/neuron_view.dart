@@ -7,6 +7,7 @@ import '../components/kit/kit_toast.dart';
 import '../components/kit/ui_kit_surface.dart';
 import '../components/kit/ui_kit_switch.dart';
 import '../design/app_tile.dart';
+import '../focus_registry.dart';
 
 import 'package:intochat_design_ui/intochat_design_ui.dart'
     show
@@ -176,9 +177,13 @@ class _NeuronViewState extends State<NeuronView> {
   bool _loading = false, _reloadAgain = false;
   int _generation = 0;
   late final NeuronEventQueue _events = widget.events ?? NeuronEventQueue();
+  final GlobalKey _focusKey = GlobalKey();
+  late String _focusTarget = '${widget.kind}:${widget.name}';
+
   @override
   void initState() {
     super.initState();
+    FocusRegistry.instance.register(_focusTarget, _focusKey);
     _events.addListener(_changed);
     ChatRunLinks.follows.addListener(_followsChanged);
     _reload();
@@ -227,6 +232,9 @@ class _NeuronViewState extends State<NeuronView> {
       _sceneState = null;
       _sceneRecovery = true;
       _error = null;
+      FocusRegistry.instance.unregister(_focusTarget, _focusKey);
+      _focusTarget = '${widget.kind}:${widget.name}';
+      FocusRegistry.instance.register(_focusTarget, _focusKey);
     }
     if (old.name != widget.name ||
         old.kind != widget.kind ||
@@ -505,7 +513,10 @@ class _NeuronViewState extends State<NeuronView> {
     ),
   );
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      KeyedSubtree(key: _focusKey, child: _content(context));
+
+  Widget _content(BuildContext context) {
     final identity = '${widget.kind}:${widget.name}';
     if (widget.ancestors.contains(identity) || widget.ancestors.length >= 16) {
       return const Center(child: Text('This component cannot be displayed.'));
@@ -1191,6 +1202,7 @@ class _NeuronViewState extends State<NeuronView> {
 
   @override
   void dispose() {
+    FocusRegistry.instance.unregister(_focusTarget, _focusKey);
     ChatRunLinks.follows.removeListener(_followsChanged);
     if (_stopId != null) {
       final name = widget.name;

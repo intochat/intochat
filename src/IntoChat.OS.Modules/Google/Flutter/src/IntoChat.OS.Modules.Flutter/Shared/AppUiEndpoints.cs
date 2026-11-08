@@ -16,7 +16,6 @@ using IntoChat.OS.Modules.Flutter.Form;
 using IntoChat.OS.Modules.Flutter.ImageCanvas;
 using IntoChat.OS.Modules.Flutter.InfoBar;
 using IntoChat.OS.Modules.Flutter.Layout;
-using IntoChat.OS.Modules.Flutter.Progress;
 using IntoChat.OS.Modules.Flutter.Select;
 using IntoChat.OS.Modules.Flutter.Space;
 using IntoChat.OS.Modules.Flutter.Surface;
@@ -116,7 +115,6 @@ internal static class AppUiEndpoints
                 UIVocabulary.ToggleType => Results.Ok(await brain.Get<IToggle>(name).Read().WaitAsync(ct)),
                 UIVocabulary.EntryControlType => Results.Ok(await brain.Get<IEntryControl>(name).Read().WaitAsync(ct)),
                 UIVocabulary.PreferenceType => Results.Ok(await brain.Get<IPreferenceControl>(name).Read().WaitAsync(ct)),
-                UIVocabulary.ProgressType => Results.Ok(await brain.Get<IProgress>(name).Read().WaitAsync(ct)),
                 UIVocabulary.InfoBarType => Results.Ok(await brain.Get<IInfoBar>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ImageType => Results.Ok(await brain.Get<IImage>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ExpanderType => Results.Ok(await brain.Get<IExpander>(name).Read().WaitAsync(ct)),
@@ -127,110 +125,8 @@ internal static class AppUiEndpoints
                 _ => throw new ArgumentException("Unknown app UI kind.")
             };
         });
-        apps.MapPost("/event", async (UiEvent input, INeuronProxies brain, CancellationToken ct) =>
-        {
-            var scope = BrainScope.CurrentId();
-            if (input.Kind == UIVocabulary.ConfirmationType)
-            {
-                if (input.Name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
-                var answer = ConfirmationView.Answer(input.Action);
-                await brain.Get<IConfirmationInbox>(input.Name).Resolve(answer.PlanId, answer.Approve).WaitAsync(ct);
-                return Results.Ok(new { delivered = true });
-            }
-            if (input.Kind == "collection" && input.Name.EndsWith("/posts", StringComparison.Ordinal))
-            {
-                var posts = await brain.Get<ISpace>(ISpace.Key(scope)).ReadPosts(input.Name).WaitAsync(ct);
-                if (input.Action != "activate" || !posts.Definition.Items.Any(item => item.Id == input.Value))
-                { throw new UnauthorizedAccessException("Only a visible post can be opened."); }
-                var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
-                await workspace.Show(input.Value!, input.OperationId?.ToString() ?? Guid.NewGuid().ToString(), (await workspace.Read()).Revision).WaitAsync(ct);
-                return Results.Accepted();
-            }
-            if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
-            if (input.Kind == UIVocabulary.ViewType)
-            { input = input with { Name = await ResolveViewAlias(brain, scope, input.Name, ct) }; }
-            switch (input.Kind)
-            {
-                case UIVocabulary.ViewType:
-                    await brain.Get<IView>(input.Name).Activate(input.Revision, input.Field ?? "", input.Action ?? "", input.OperationId ?? Guid.Empty).WaitAsync(ct);
-                    break;
-                case UIVocabulary.ChatType:
-                    var chat = brain.Get<IChat>(input.Name);
-                    if (input.Read is { } read)
-                    {
-                        if (input.Action is not null) { throw new ArgumentException("Choose a chat action or a read acknowledgement."); }
-                        await chat.MarkRead(input.Context ?? "", input.Revision, read.Version, read.MessageIds).WaitAsync(ct);
-                    }
-                    else { await chat.Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct); }
-                    break;
-                case UIVocabulary.ComposerType:
-                    var composer = brain.Get<IComposer>(input.Name);
-                    switch (input.Action)
-                    {
-                        case "edit": await (input.SelectionRevision is { } editGeneration ? composer.Edit(input.Context ?? "", editGeneration, input.Value ?? "") : composer.Edit(input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
-                        case "submit": await (input.SelectionRevision is { } submitGeneration ? composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", submitGeneration, input.Value ?? "") : composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
-                        case "voice-begin": await (input.SelectionRevision is { } voiceGeneration ? composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "", voiceGeneration) : composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "")).WaitAsync(ct); break;
-                        case "voice-audio": await composer.CaptureVoice(input.OperationId ?? Guid.Empty, DecodeAudio(input.Value), input.MimeType ?? "").WaitAsync(ct); break;
-                        case "voice-cancel": await composer.CancelVoice(input.OperationId ?? Guid.Empty).WaitAsync(ct); break;
-                        case "voice-error": await composer.CompleteVoice(input.OperationId ?? Guid.Empty, null, input.Value ?? "Recording failed. Try again.").WaitAsync(ct); break;
-                        default: throw new ArgumentException("Unknown composer action.");
-                    }
-                    break;
-                case UIVocabulary.WebBrowserType:
-                    var browser = brain.Get<IWebBrowserConnector>(input.Name);
-                    if (input.Action == "unavailable")
-                    {
-                        await browser.Unavailable(input.Value ?? "The browser is unavailable.").WaitAsync(ct);
-                        break;
-                    }
-                    BrowserConnect connection;
-                    try { connection = JsonSerializer.Deserialize<BrowserConnect>(input.Value ?? "", JsonSerializerOptions.Web) ?? throw new ArgumentException("Browser connection is required."); }
-                    catch (JsonException) { throw new ArgumentException("Invalid browser connection."); }
-                    if (input.Action == "connect") { await browser.Connect(connection.Port, connection.SessionId).WaitAsync(ct); }
-                    else if (input.Action == "disconnect") { await browser.Disconnect(connection.SessionId).WaitAsync(ct); }
-                    else { throw new ArgumentException("Unknown browser action."); }
-                    break;
-                case "button": await brain.Get<IButton>(input.Name).ClickCurrent(input.Action ?? "").WaitAsync(ct); break;
-                case "textfield": await brain.Get<ITextField>(input.Name).Input(input.Value ?? "").WaitAsync(ct); break;
-                case "select": await brain.Get<ISelect>(input.Name).Choose(input.Value ?? "").WaitAsync(ct); break;
-                case "fileinput": await brain.Get<IFileInput>(input.Name).Capture(input.Field ?? "", input.Value ?? "").WaitAsync(ct); break;
-                case "tabs": await brain.Get<ITabs>(input.Name).Select(input.Value ?? "").WaitAsync(ct); break;
-                case UIVocabulary.ToggleType when input.Action == "flip": await brain.Get<IToggle>(input.Name).Flip().WaitAsync(ct); break;
-                case UIVocabulary.EntryControlType when input.Action == "changed": await brain.Get<IEntryControl>(input.Name).Changed().WaitAsync(ct); break;
-                case UIVocabulary.PreferenceType when input.Action == "set": await brain.Get<IPreferenceControl>(input.Name).Set(input.Value ?? "").WaitAsync(ct); break;
-                case UIVocabulary.InfoBarType when input.Action == "dismiss": await brain.Get<IInfoBar>(input.Name).Dismiss().WaitAsync(ct); break;
-                case UIVocabulary.ExpanderType when input.Action == "toggle": await brain.Get<IExpander>(input.Name).Toggle().WaitAsync(ct); break;
-                case "collection":
-                    var collection = brain.Get<ICollectionView>(input.Name);
-                    if (input.Action == "select") { await collection.Select(input.Value ?? "", input.Revision).WaitAsync(ct); }
-                    else { await collection.Activate(input.Value ?? "", input.Revision).WaitAsync(ct); }
-                    break;
-                case "form":
-                    var form = brain.Get<IForm>(input.Name);
-                    if (input.Action == "submit")
-                    {
-                        var state = await form.Read().WaitAsync(ct);
-                        var values = state.Fields.Select(field => new FormFieldValue(field.Name, field.Value)).ToArray();
-                        await form.Submit(new(values, (int)input.Revision)).WaitAsync(ct);
-                    }
-                    else if (input.Action == "secret")
-                    {
-                        if (!SecretReferences.IsReference(input.Value))
-                        {
-                            throw new ArgumentException("A form secret carries the vault reference, never a raw secret value.");
-                        }
-
-                        await form.SetSecret(input.Field ?? "", new FormSecret(input.Value!, input.Field ?? "", true)).WaitAsync(ct);
-                    }
-                    else { await form.SetDraft(input.Field ?? "", input.Value ?? "").WaitAsync(ct); }
-                    break;
-                case UIVocabulary.VoiceInputType:
-                    await brain.Get<IVoiceInput>(input.Name).Capture(DecodeAudio(input.Value), input.MimeType ?? "").WaitAsync(ct);
-                    break;
-                default: throw new ArgumentException("Unknown UI event.");
-            }
-            return Results.Ok(new { delivered = true });
-        });
+        apps.MapPost("/event", (UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
+            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct));
 
         UiHttp.MapGet<ITable, TableState>(endpoints, "tables", neuron => neuron.Read());
         UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, [MicrosoftSdk.AspNetCore.Mvc.FromServices] IServiceProvider plain, CancellationToken ct) =>
@@ -238,6 +134,140 @@ internal static class AppUiEndpoints
             await SiloNeurons.Get<ITable>(plain, name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
             return Results.Accepted();
         });
+    }
+
+    // One UI event from the shell, under the caller the edge stamped on brain.
+    // hosted answers whether the host loaded an app's code; without it no view answers a confirmation.
+    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? hosted, CancellationToken ct)
+    {
+        if (input.Kind == UIVocabulary.ConfirmationType)
+        {
+            if (input.Name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
+            var answer = ConfirmationView.Answer(input.Action);
+            await brain.Get<IConfirmationInbox>(input.Name).Resolve(answer.PlanId, answer.Approve).WaitAsync(ct);
+            return Results.Ok(new { delivered = true });
+        }
+        if (input.Kind == "collection" && input.Name.EndsWith("/posts", StringComparison.Ordinal))
+        {
+            var posts = await brain.Get<ISpace>(ISpace.Key(scope)).ReadPosts(input.Name).WaitAsync(ct);
+            if (input.Action != "activate" || !posts.Definition.Items.Any(item => item.Id == input.Value))
+            { throw new UnauthorizedAccessException("Only a visible post can be opened."); }
+            var workspace = brain.Get<IWorkspace>(IWorkspace.Key(scope));
+            await workspace.Show(input.Value!, input.OperationId?.ToString() ?? Guid.NewGuid().ToString(), (await workspace.Read()).Revision).WaitAsync(ct);
+            return Results.Accepted();
+        }
+        if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
+        if (input.Kind == UIVocabulary.ViewType)
+        { input = input with { Name = await ResolveViewAlias(brain, scope, input.Name, ct) }; }
+        switch (input.Kind)
+        {
+            case UIVocabulary.ViewType when NeuronButtonAction.TryParse(input.Action, out var target, out var operation, out var arguments):
+                await DeliverNeuronButton(brain, scope, hosted, input.Name, target, operation, arguments, ct);
+                break;
+            case UIVocabulary.ViewType:
+                await brain.Get<IView>(input.Name).Activate(input.Revision, input.Field ?? "", input.Action ?? "", input.OperationId ?? Guid.Empty).WaitAsync(ct);
+                break;
+            case UIVocabulary.ChatType:
+                var chat = brain.Get<IChat>(input.Name);
+                if (input.Read is { } read)
+                {
+                    if (input.Action is not null) { throw new ArgumentException("Choose a chat action or a read acknowledgement."); }
+                    await chat.MarkRead(input.Context ?? "", input.Revision, read.Version, read.MessageIds).WaitAsync(ct);
+                }
+                else { await chat.Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct); }
+                break;
+            case UIVocabulary.ComposerType:
+                var composer = brain.Get<IComposer>(input.Name);
+                switch (input.Action)
+                {
+                    case "edit": await (input.SelectionRevision is { } editGeneration ? composer.Edit(input.Context ?? "", editGeneration, input.Value ?? "") : composer.Edit(input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
+                    case "submit": await (input.SelectionRevision is { } submitGeneration ? composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", submitGeneration, input.Value ?? "") : composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
+                    case "voice-begin": await (input.SelectionRevision is { } voiceGeneration ? composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "", voiceGeneration) : composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "")).WaitAsync(ct); break;
+                    case "voice-audio": await composer.CaptureVoice(input.OperationId ?? Guid.Empty, DecodeAudio(input.Value), input.MimeType ?? "").WaitAsync(ct); break;
+                    case "voice-cancel": await composer.CancelVoice(input.OperationId ?? Guid.Empty).WaitAsync(ct); break;
+                    case "voice-error": await composer.CompleteVoice(input.OperationId ?? Guid.Empty, null, input.Value ?? "Recording failed. Try again.").WaitAsync(ct); break;
+                    default: throw new ArgumentException("Unknown composer action.");
+                }
+                break;
+            case UIVocabulary.WebBrowserType:
+                var browser = brain.Get<IWebBrowserConnector>(input.Name);
+                if (input.Action == "unavailable")
+                {
+                    await browser.Unavailable(input.Value ?? "The browser is unavailable.").WaitAsync(ct);
+                    break;
+                }
+                BrowserConnect connection;
+                try { connection = JsonSerializer.Deserialize<BrowserConnect>(input.Value ?? "", JsonSerializerOptions.Web) ?? throw new ArgumentException("Browser connection is required."); }
+                catch (JsonException) { throw new ArgumentException("Invalid browser connection."); }
+                if (input.Action == "connect") { await browser.Connect(connection.Port, connection.SessionId).WaitAsync(ct); }
+                else if (input.Action == "disconnect") { await browser.Disconnect(connection.SessionId).WaitAsync(ct); }
+                else { throw new ArgumentException("Unknown browser action."); }
+                break;
+            case "button": await brain.Get<IButton>(input.Name).ClickCurrent(input.Action ?? "").WaitAsync(ct); break;
+            case "textfield": await brain.Get<ITextField>(input.Name).Input(input.Value ?? "").WaitAsync(ct); break;
+            case "select": await brain.Get<ISelect>(input.Name).Choose(input.Value ?? "").WaitAsync(ct); break;
+            case "fileinput": await brain.Get<IFileInput>(input.Name).Capture(input.Field ?? "", input.Value ?? "").WaitAsync(ct); break;
+            case "tabs": await brain.Get<ITabs>(input.Name).Select(input.Value ?? "").WaitAsync(ct); break;
+            case UIVocabulary.ToggleType when input.Action == "flip": await brain.Get<IToggle>(input.Name).Flip().WaitAsync(ct); break;
+            case UIVocabulary.EntryControlType when input.Action == "changed": await brain.Get<IEntryControl>(input.Name).Changed().WaitAsync(ct); break;
+            case UIVocabulary.PreferenceType when input.Action == "set": await brain.Get<IPreferenceControl>(input.Name).Set(input.Value ?? "").WaitAsync(ct); break;
+            case UIVocabulary.InfoBarType when input.Action == "dismiss": await brain.Get<IInfoBar>(input.Name).Dismiss().WaitAsync(ct); break;
+            case UIVocabulary.ExpanderType when input.Action == "toggle": await brain.Get<IExpander>(input.Name).Toggle().WaitAsync(ct); break;
+            case "collection":
+                var collection = brain.Get<ICollectionView>(input.Name);
+                if (input.Action == "select") { await collection.Select(input.Value ?? "", input.Revision).WaitAsync(ct); }
+                else { await collection.Activate(input.Value ?? "", input.Revision).WaitAsync(ct); }
+                break;
+            case "form":
+                var form = brain.Get<IForm>(input.Name);
+                if (input.Action == "submit")
+                {
+                    var state = await form.Read().WaitAsync(ct);
+                    var values = state.Fields.Select(field => new FormFieldValue(field.Name, field.Value)).ToArray();
+                    await form.Submit(new(values, (int)input.Revision)).WaitAsync(ct);
+                }
+                else if (input.Action == "secret")
+                {
+                    if (!SecretReferences.IsReference(input.Value))
+                    {
+                        throw new ArgumentException("A form secret carries the vault reference, never a raw secret value.");
+                    }
+
+                    await form.SetSecret(input.Field ?? "", new FormSecret(input.Value!, input.Field ?? "", true)).WaitAsync(ct);
+                }
+                else { await form.SetDraft(input.Field ?? "", input.Value ?? "").WaitAsync(ct); }
+                break;
+            case UIVocabulary.VoiceInputType:
+                await brain.Get<IVoiceInput>(input.Name).Capture(DecodeAudio(input.Value), input.MimeType ?? "").WaitAsync(ct);
+                break;
+            default: throw new ArgumentException("Unknown UI event.");
+        }
+        return Results.Ok(new { delivered = true });
+    }
+
+    // A view button aimed at another neuron (NeuronButtonAction): the clicking person calls it, as a direct inbox click does.
+    // Only the confirmations inbox's Resolve is a target; any other is refused.
+    // Confirmations buttons are an OS-surface privilege: the delivering view's app must be host-loaded (kernel provenance,
+    // IHostedAppTypes), never merely carry the compiled-type setting.
+    private static async Task DeliverNeuronButton(INeuronProxies brain, string scope, IHostedAppTypes? hosted, string view, string key, string operation, string[] arguments, CancellationToken ct)
+    {
+        if (key == IConfirmations.ConfirmationsNeuronKey && !IsHostLoadedView(hosted, scope, view))
+        { throw new UnauthorizedAccessException($"Only an OS surface can answer a confirmation; {view} cannot."); }
+        if (key == IConfirmations.ConfirmationsNeuronKey && operation == IConfirmations.ResolveOperation && arguments.Length == 2 && bool.TryParse(arguments[1], out var approve))
+        {
+            await brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope)).Resolve(arguments[0], approve).WaitAsync(ct);
+            return;
+        }
+        throw new UnauthorizedAccessException($"A view button cannot call {key}.{operation}.");
+    }
+
+    // The view's owning app is {scope}/apps/{name}.
+    private static bool IsHostLoadedView(IHostedAppTypes? hosted, string scope, string view)
+    {
+        var prefix = scope + "/apps/";
+        if (hosted is null || !view.StartsWith(prefix, StringComparison.Ordinal)) { return false; }
+        var end = view.IndexOf('/', prefix.Length);
+        return end > prefix.Length && hosted.IsHostLoaded(view[..end]);
     }
 
     private static bool OwnsUi(string scope, string name) =>

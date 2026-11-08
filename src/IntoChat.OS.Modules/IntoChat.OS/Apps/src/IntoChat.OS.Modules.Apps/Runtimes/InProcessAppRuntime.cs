@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Apps;
 internal sealed class InProcessAppRuntime(IServiceProvider services) : IAppRuntime
 {
     public const string PrebuiltBehaviorsJsonKey = "__PrebuiltBehaviorsJson";
-    public const string CompiledTypeKey = "__CompiledType";
+    public const string CompiledTypeKey = AppTrust.CompiledTypeSetting;
 
     public bool Accepts(AppBundle bundle)
         => bundle is not null

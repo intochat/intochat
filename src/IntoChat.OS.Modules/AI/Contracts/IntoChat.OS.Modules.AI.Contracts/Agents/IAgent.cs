@@ -11,7 +11,7 @@ public interface IAgent
 {
     [DigitalBrain.Interleaves] Task Configure(AgentDefinition definition, long expectedRevision);
     [DigitalBrain.Interleaves, DigitalBrain.CallTimeout(600_000)] IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default);
-    [DigitalBrain.Interleaves] Task<string> Start(AgentTurn turn);
+    [DigitalBrain.Interleaves] Task<string> Start(AgentTurn turn, string? flowId = null);
     [DigitalBrain.Interleaves] Task Cancel();
     [DigitalBrain.Interleaves] Task CancelRun(string runId);
     [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<AgentState> Read();

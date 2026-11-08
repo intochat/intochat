@@ -6,7 +6,6 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Flutter;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,6 +98,7 @@ public sealed class SynapseStudioFacts
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
+            services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);
             services.AddJournalPayloads(typeof(FlutterModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly);
             services.AddJournalPayloads(typeof(DigitalBrain.Signals.Activated).Assembly);
@@ -122,6 +122,20 @@ public sealed class SynapseStudioFacts
 
         Assert.StartsWith("No diagnostics", clean.Text, StringComparison.Ordinal);
         Assert.Contains("DB0043", flagged.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CheckReportsCompileFailure()
+    {
+        await using var fixture = new StudioFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+
+        var clean = await Studio(runtime).Check(TickPoller);
+        var broken = await Studio(runtime).Check("this is not C# {");
+
+        Assert.True(clean.Ok, clean.Text);
+        Assert.False(broken.Ok);
+        Assert.StartsWith("Does not compile", broken.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -222,30 +236,5 @@ public sealed class SynapseStudioFacts
 
         var after = Assert.Single(await Studio(runtime).List());
         Assert.Equal((before.SourceKey, before.Hash), (after.SourceKey, after.Hash));
-    }
-
-    // The executor runs a synapse.deploy step through the studio; the same step advanced again is not rerun, so the host deploys once.
-    [Fact]
-    public async Task ATaskStepKeyedByHashIsNotRerun()
-    {
-        var host = new CountingHost();
-        using var services = new ServiceCollection().AddSingleton<ISynapseHost>(host).BuildServiceProvider();
-        await using var os = TestOS.Local(options => options.Services = services);
-        os.Register(typeof(AppsModule).Assembly);
-        os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
-        var brain = new BrainId("local");
-        var key = ISynapseStudio.StepKey(Alias, TickPoller);
-        var task = os.Get<ITaskNeuron>(new NeuronId(brain, "tasks.task", "deploy-tick"));
-        await task.InitializeAsync(new CreateTaskRequest("Deploy tick poller", "", "ino",
-            [new TaskStepDefinition("Deploy tick poller", TickPoller, ISynapseStudio.DeployCapability, IdempotencyKey: key)]));
-        var executor = os.Get<ITaskExecutorNeuron>(new NeuronId(brain, "tasks.executor", "default"));
-
-        var first = await executor.ExecuteNextStepAsync("deploy-tick");
-        await task.AdvanceStepAsync(0, TaskStepStatus.Running);
-        await executor.ExecuteNextStepAsync("deploy-tick");
-
-        Assert.Equal(TaskStepStatus.Completed, first!.Steps[0].Status);
-        Assert.Contains("deployed (hash h1)", first.Steps[0].Output, StringComparison.Ordinal);
-        Assert.Equal(1, host.Deploys);
     }
 }

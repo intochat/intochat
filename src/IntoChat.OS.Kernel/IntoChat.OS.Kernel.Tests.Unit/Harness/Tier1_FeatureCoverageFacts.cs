@@ -18,13 +18,10 @@ using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
-using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
@@ -814,82 +811,6 @@ public sealed class Tier1_FeatureCoverageFacts
         var graph = await store.QueryGraphAsync("non_existent_id", depth: 2);
         Assert.Empty(graph.Nodes);
         Assert.Empty(graph.Edges);
-    }
-
-    #endregion
-
-    #region F17: Canonical Task Engine for Self-Improvement
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F17")]
-    public async Task F17_01_CreateTaskAsync_InitializesStepsInPendingState()
-    {
-        var engine = new InMemoryTaskEngine();
-        var req = new CreateTaskRequest("Upgrade Subsystems", "Execute M4 unification", "admin", [new TaskStepDefinition("s1", "Define context", "kernel"), new TaskStepDefinition("s2", "Unify decision maker", "kernel")]);
-
-        var task = await engine.CreateTaskAsync(req);
-        Assert.NotNull(task.TaskId);
-        Assert.Equal(TaskStatus.Pending, task.Status);
-        Assert.Equal(2, task.Steps.Length);
-        Assert.All(task.Steps, s => Assert.Equal(TaskStepStatus.Pending, s.Status));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F17")]
-    public async Task F17_02_UpdateStepStatusAsync_AdvancesTaskToInProgressAndSucceeded()
-    {
-        var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Self-Test", "Run suite", "admin", [new TaskStepDefinition("s1", "step 1", "kernel"), new TaskStepDefinition("s2", "step 2", "kernel")]));
-
-        var t1 = await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed);
-        Assert.Equal(TaskStatus.Running, t1.Status);
-
-        var t2 = await engine.AdvanceTaskStepAsync(task.TaskId, 1, TaskStepStatus.Completed);
-        Assert.Equal(TaskStatus.Completed, t2.Status);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F17")]
-    public async Task F17_03_UpdateStepStatusAsync_FailsTaskOnStepFailure()
-    {
-        var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Deploy", "Deploy cluster", "admin", [new TaskStepDefinition("s1", "provision", "kernel"), new TaskStepDefinition("s2", "migrate", "kernel")]));
-
-        var failedTask = await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Failed, "Resource limit exceeded");
-        Assert.Equal(TaskStatus.Failed, failedTask.Status);
-        Assert.Equal("Resource limit exceeded", failedTask.Steps[0].Output);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F17")]
-    public async Task F17_04_ListTasksAsync_ReturnsCreatedTasksDescending()
-    {
-        var engine = new InMemoryTaskEngine();
-        await engine.CreateTaskAsync(new CreateTaskRequest("T1", "Obj 1", "admin", [new TaskStepDefinition("s1", "s1", "kernel")]));
-        await engine.CreateTaskAsync(new CreateTaskRequest("T2", "Obj 2", "admin", [new TaskStepDefinition("s2", "s2", "kernel")]));
-
-        var list = await engine.ListTasksAsync();
-        Assert.Equal(2, list.Count);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F17")]
-    public async Task F17_05_VerifyTaskAsync_ValidatesSuccessfulCompletion()
-    {
-        var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Build Verification", "Verify code", "admin", [new TaskStepDefinition("s1", "Compile", "kernel"), new TaskStepDefinition("s2", "Run Tests", "kernel")]));
-
-        await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed);
-        await engine.AdvanceTaskStepAsync(task.TaskId, 1, TaskStepStatus.Completed);
-
-        var verification = await engine.VerifyTaskAsync(task.TaskId);
-        Assert.True(verification.Passed);
-        Assert.True(verification.Violations is null || verification.Violations.Length == 0);
     }
 
     #endregion

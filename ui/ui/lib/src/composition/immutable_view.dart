@@ -476,8 +476,19 @@ class _ImmutableView extends StatelessWidget {
           'prompt',
         }.contains(fieldName);
         final submitChild = _findChildByKeySuffix(children, '.submit');
+        // A field named by a neuron key ({brain}/apps/{app}/{field}) is that textfield neuron: each change goes to it.
+        final fieldNeuron = fieldName.contains('/');
         return _ImmutableFieldBox(
-          label: hideLabel ? '' : fieldName,
+          label: hideLabel ? '' : fieldName.split('/').last,
+          onChanged: enabled && fieldNeuron
+              ? (typedValue) => unawaited(
+                  dispatch({
+                    'kind': 'textfield',
+                    'name': fieldName,
+                    'value': typedValue,
+                  }).catchError((Object _) {}),
+                )
+              : null,
           value: meta['value'] as String? ?? '',
           placeholder: meta['placeholder'] as String? ?? fieldName,
           secret: meta['secret'] == true,
@@ -2950,6 +2961,7 @@ class _ImmutableFieldBox extends StatefulWidget {
     required this.enabled,
     this.onSubmit,
     this.onSubmittedValue,
+    this.onChanged,
   });
 
   final String label;
@@ -2959,6 +2971,7 @@ class _ImmutableFieldBox extends StatefulWidget {
   final bool enabled;
   final VoidCallback? onSubmit;
   final ValueChanged<String>? onSubmittedValue;
+  final ValueChanged<String>? onChanged;
 
   @override
   State<_ImmutableFieldBox> createState() => _ImmutableFieldBoxState();
@@ -2993,6 +3006,7 @@ class _ImmutableFieldBoxState extends State<_ImmutableFieldBox> {
     focusNode: _focus,
     secret: widget.secret,
     enabled: widget.enabled,
+    onChanged: widget.onChanged,
     onSubmitted: widget.onSubmittedValue != null
         ? (val) => widget.onSubmittedValue!(val)
         : widget.onSubmit != null

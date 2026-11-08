@@ -31,7 +31,7 @@ internal sealed class AppStudioNeuron(Creator creator) : DigitalBrain.Neuron, IA
         while (DateTimeOffset.UtcNow < deadline)
         {
             ct.ThrowIfCancellationRequested();
-            var snapshot = await app.Read();
+            var snapshot = await AppBuildStatus.Of(await app.Read(), app, Get<Flows.IFlows>(Flows.IFlows.Key(Scope)), ct);
             if (snapshot.Status is AppStatus.Live or AppStatus.Failed) { return snapshot; }
             await Task.Delay(Poll, ct);
         }

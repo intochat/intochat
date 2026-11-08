@@ -5,6 +5,7 @@
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <ProjectReference Include="../../../../../../src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
     <ProjectReference Include="../../../../../../src/IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../../../../../src/IntoChat.OS.Client/IntoChat.OS.Client.Orleans/IntoChat.OS.Client.Orleans.csproj" />
     <ProjectReference Include="../../../../Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
     <ProjectReference Include="../../../../AI/src/IntoChat.OS.Modules.AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../../../../Postgres/src/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />

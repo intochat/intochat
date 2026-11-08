@@ -176,7 +176,8 @@ internal sealed partial class AppNeuron(
     {
         await Check("Configure",
             new ProgramIsNotPaused(State.MigrationPaused),
-            new AppExists(Name(), State.Manifest is not null));
+            new AppExists(Name(), State.Manifest is not null),
+            new SettingsAreNotReserved(settings?.Keys ?? (IReadOnlyCollection<string>)[]));
         // A storage hook vetoes a binding change its data depends on, before anything changes.
         foreach (var (slot, id) in connections ?? [])
         {
@@ -229,6 +230,9 @@ internal sealed partial class AppNeuron(
         next.Status = AppStatus.Building;
         next.BuildAttempt = Guid.NewGuid();
         next.BuildStartedAt = clock.GetUtcNow();
+        // The build flow's id is known before the flow starts, so its FlowDone, however early, is this attempt's.
+        next.BuildFlowId = new DigitalBrain.NeuronId(Id.Brain, Flows.BuildFlow.Alias, BuildFlowKey(next.BuildAttempt)).ToString();
+        await Context.Synapses.EnsureBrainWide(typeof(DigitalBrain.Flows.FlowDone));
         next.Activity = string.IsNullOrWhiteSpace(instruction) ? ["build started"] : ["build started: " + instruction.Trim()];
         await Persist(next);
         return Describe(State);
@@ -255,6 +259,12 @@ internal sealed partial class AppNeuron(
     }
 
     public Task<Guid> CurrentBuildAttempt() => Task.FromResult(State.BuildAttempt);
+
+    // The key of an attempt's build flow: the app's name and the attempt, unique per attempt and free of '/'.
+    internal string BuildFlowKey(Guid attempt) => $"{Name()}-{attempt:N}";
+
+
+    public Task<string?> BuildFlow() => Task.FromResult(State.BuildFlowId);
 
     public Task Progress(string state, string detail) => Progress(state, detail, []);
 

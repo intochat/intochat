@@ -203,6 +203,20 @@ class WindowFrame extends StatefulWidget {
 
 class _WindowFrameState extends State<WindowFrame> {
   bool _menuOpen = false;
+  final GlobalKey _focusKey = GlobalKey();
+  late final String _focusTarget = 'window:${widget.window.appId}';
+
+  @override
+  void initState() {
+    super.initState();
+    FocusRegistry.instance.register(_focusTarget, _focusKey);
+  }
+
+  @override
+  void dispose() {
+    FocusRegistry.instance.unregister(_focusTarget, _focusKey);
+    super.dispose();
+  }
 
   void _handlePin() {
     widget.window.togglePinned();
@@ -323,6 +337,7 @@ class _WindowFrameState extends State<WindowFrame> {
         );
 
         final body = RepaintBoundary(
+          key: _focusKey,
           child: Stack(
             clipBehavior: Clip.none,
             children: [

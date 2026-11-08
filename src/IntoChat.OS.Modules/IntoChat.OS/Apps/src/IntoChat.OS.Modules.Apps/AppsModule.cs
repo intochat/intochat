@@ -54,6 +54,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
         services.TryAddSingleton<SideloadInstaller>();
+        services.TryAddSingleton<IntoChat.OS.Framework.IHostedAppTypes, HostedAppTypes>();
         services.TryAddSingleton<AppPresentationSink>();
         services.TryAddSingleton<IPresentationSink>(sp => sp.GetRequiredService<AppPresentationSink>());
         services.TryAddSingleton<InProcessAppHost>(sp => new InProcessAppHost(
@@ -63,7 +64,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
             sink: sp.GetRequiredService<IPresentationSink>(),
             services: serviceType => sp.GetService(serviceType)));
         services.TryAddSingleton<IAppHost>(sp => sp.GetRequiredService<InProcessAppHost>());
-        services.TryAddSingleton<AppWorkQueue>();
+        services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
         services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
         services.AddNeuronProxies();
@@ -73,12 +74,14 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FeatureBootLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, BrainSceneLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
+        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, Flows.MigrateTasksLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, CompiledAppsLifecycle>();
         services.AddSingleton<DevAppGate>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, InProcessAppRuntime>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, AppGraphSource>();
+        services.AddSingleton<DigitalBrain.Graph.IGraphSource, Flows.FlowGraphSource>();
     }
 
     private static object ResolveNeuron(IServiceProvider services, Type contractType, string neuronKey)

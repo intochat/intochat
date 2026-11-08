@@ -2,18 +2,20 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, approve-card, connect-db, query-db, new, new-conversation, voice, make
+Operations: open, send, stop, smart, connect-db, query-db, new, new-conversation, voice, make
 
-The brain's personal assistant. Every message goes to one agent (IAgent) per conversation, which acts
-through the Ino tool contracts; tool results that carry a card render inline. Slash commands stay in the UI.
+The brain's personal assistant. Every message starts a background run on one agent (IAgent) per conversation, which acts
+through the Ino tool contracts; Ino follows the run through a set watch over ino.conversations and renders tool-result cards inline. Slash commands stay in the UI.
 */
 using DigitalBrain.UI;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Observers;
+using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Approvals;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -39,8 +41,11 @@ public sealed record InoVoice : DigitalBrain.Signal;
 [DigitalBrain.Signal("ino.make")]
 public sealed record InoMake(string? Sentence = null, string[]? Focus = null) : DigitalBrain.Signal;
 
-[DigitalBrain.Signal("ino.approve-card")]
-public sealed record InoApproveCard(string? CardId = null, bool Approved = true) : DigitalBrain.Signal;
+[DigitalBrain.Signal("ino.stop")]
+public sealed record InoStop : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("ino.smart")]
+public sealed record InoSmart(bool On = true) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("ino.connect-db")]
 public sealed record InoConnectDb(string? ConnectionString = null, string? Alias = null) : DigitalBrain.Signal;
@@ -59,6 +64,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     // Render cannot await: the last transcript the agent answered, refreshed after each turn.
     private AiMessage[] _transcript = [];
 
+    // Read from the settings and the approval inbox on open and on change; Render shows the last read.
+    private bool _smart;
+    private Approval[] _approvals = [];
+
+    private const string SmartVariable = "ino.smart";
+    private const string ApprovalsKey = "approvals/index";
+    private const int SeenKept = 256;
+
     public IFilesVfsService? FilesVfs { get; set; }
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(InoApp));
@@ -73,7 +86,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             [
                 new("open", "Show Ino."),
                 new("send", "Send a message to Ino's agent."),
-                new("approve-card", "Approve or reject an inline LFP card."),
+                new("stop", "Stop the running turn."),
+                new("smart", "Turn smart mode on or off."),
                 new("connect-db", "Connect a PostgreSQL database via connection string."),
                 new("query-db", "Execute a read-only SQL query against the connected database."),
                 new("new", "Start a new conversation."),
@@ -101,6 +115,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var settings = await Get<IUserSettings>("settings").Read();
+        _smart = IsSmart(settings);
         var status = request.Mode == "greet"
             ? $"Hello, {settings.DisplayName}! Ready on {settings.DefaultModel}."
             : $"Ready ({settings.DefaultModel})";
@@ -119,14 +134,17 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 await agent.Post(MigrationNote, MigrationId);
                 Set(State with { AgentKey = AgentKeyOf(State.ConversationId) });
             }
+            await FollowAsync(AgentKeyOf(State.ConversationId));
             var read = await agent.Read();
             _transcript = await agent.Transcript();
             Set(State with { Blocked = read.Blocked, BlockedReason = read.Blocked ? State.BlockedReason ?? "An interrupt holds the agent." : null });
+            await ReconcileAsync(agent, State.ActiveRunId);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The agent is optional when Ino runs without the AI module.");
         }
+        await RefreshApprovalsAsync();
         await RefreshGrantsAsync();
     }
 
@@ -179,30 +197,157 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         {
             var agent = Get<IAgent>(agentKey);
             await EnsureConfiguredAsync(agent, settings);
-            await foreach (var step in agent.Run(AgentTurn.Text(text)))
-            {
-                Apply(step);
-            }
-            _transcript = await agent.Transcript();
+            await FollowAsync(agentKey);
+            // The run goes on in the agent; its signals reach the [On] handlers below through the set watch.
+            var runId = await agent.Start(AgentTurn.Text(text));
+            Set(State with { ActiveRunId = runId, Blocked = false, BlockedReason = null, Status = "Thinking" });
+            await ReconcileAsync(agent, runId);
         }
         catch (InvalidOperationException error) when (error.Message.StartsWith(BlockedPrefix, StringComparison.Ordinal))
         {
             Pause(error.Message);
         }
-        catch (OperationCanceledException error)
+        catch (Exception error) when (error is not OperationCanceledException)
         {
-            Swallow(error, "The run was cancelled; the status line reports it.");
-            Set(State with { Status = "Cancelled" });
+            Swallow(error, "The agent could not start; the status line reports why.");
+            Set(State with { Status = $"Ino could not answer: {error.Message}", ActiveRunId = null });
         }
-        catch (Exception error)
+    }
+
+    // The agent's own record settles what a missed signal would have: a run Ino holds that has ended (a fast reply, a signal published
+    // before the watch moved, or one lost while the host was down) is closed, and a run the agent has that Ino lost is adopted.
+    private async Task ReconcileAsync(IAgent agent, string? runId)
+    {
+        var read = await agent.Read();
+        if (runId is null)
         {
-            Swallow(error, "The agent could not answer; the status line reports why.");
-            Set(State with { Status = $"Ino could not answer: {error.Message}" });
+            if (read.ActiveRun is { } running) { Set(State with { ActiveRunId = running.RunId, Status = "Thinking" }); }
+            return;
         }
-        finally
+        if (read.ActiveRun?.RunId == runId) { return; }
+        if (read.Runs.FirstOrDefault(run => run.RunId == runId) is not { } ended)
         {
+            // Not active and not recorded (the agent was cleared): nothing is running.
+            Set(State with { ActiveRunId = null, Status = State.Status == "Thinking" || State.Status.StartsWith("Using ", StringComparison.Ordinal) ? "Ready" : State.Status });
+            return;
+        }
+        _transcript = await agent.Transcript();
+        Set(State with
+        {
+            ActiveRunId = null,
+            Status = ended.Status switch
+            {
+                AgentRunStatus.Completed => "Ready",
+                AgentRunStatus.Cancelled => "Cancelled",
+                AgentRunStatus.Running => State.Status,
+                _ => $"Failed: {ended.Error}",
+            },
+        });
+    }
+
+    // The set watch follows the registry's current agent; naming it there moves the watch to this conversation.
+    private async Task FollowAsync(string agentKey)
+    {
+        try { await Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Without the registry Ino starts the run but does not see its progress."); }
+    }
+
+    protected override void Watches(DigitalBrain.WatchBuilder watch)
+    {
+        ArgumentNullException.ThrowIfNull(watch);
+        On<TurnProgressed>(watch, "agent-progressed", OnTurnProgressed);
+        On<TurnCompleted>(watch, "agent-completed", OnTurnCompleted);
+        On<TurnFailed>(watch, "agent-failed", OnTurnFailed);
+        On<AgentBlocked>(watch, "agent-blocked", OnAgentBlocked);
+    }
+
+    private static void On<TSignal>(DigitalBrain.WatchBuilder watch, string name, Func<TSignal, Task> handle) where TSignal : DigitalBrain.Signal
+        => watch.OnEach<IInoConversations, InoConversationsChanged, IAgent, TSignal>(
+            name,
+            _ => IInoConversations.DefaultKey,
+            (registry, _, _) => registry.Current(),
+            handle);
+
+    private bool IsCurrent(string agentId) => string.Equals(agentId, AgentKeyOf(State.ConversationId), StringComparison.Ordinal);
+
+    public Task OnTurnProgressed(TurnProgressed progressed)
+    {
+        ArgumentNullException.ThrowIfNull(progressed);
+        var seen = $"{progressed.RunId}:{progressed.Sequence}";
+        // Progress is delivered at least once: a step already applied is skipped.
+        if (!IsCurrent(progressed.AgentId) || (State.SeenProgress ?? []).Contains(seen, StringComparer.Ordinal)) { return Task.CompletedTask; }
+        var state = State with { SeenProgress = [.. (State.SeenProgress ?? []).Append(seen).TakeLast(SeenKept)] };
+        state = progressed.Kind switch
+        {
+            "tool-call" => state with { Status = $"Using {progressed.Tool}" },
+            "tool-result" when progressed.Payload is { Length: > 0 } payload
+                => state with { Cards = [.. state.ActiveCards, .. InoCards.FromToolCalls([new AgentToolCall(seen, progressed.Tool ?? "", "", payload)])] },
+            _ => state,
+        };
+        Set(state);
+        return Task.CompletedTask;
+    }
+
+    public async Task OnTurnCompleted(TurnCompleted completed)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+        if (!IsCurrent(completed.AgentId)) { return; }
+        try { _transcript = await Get<IAgent>(completed.AgentId).Transcript(); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The reply stays in the agent; the next open reloads it."); }
+        await RefreshApprovalsAsync();
+        Set(State with { Status = "Ready", ActiveRunId = null });
+    }
+
+    public Task OnTurnFailed(TurnFailed failed)
+    {
+        ArgumentNullException.ThrowIfNull(failed);
+        if (!IsCurrent(failed.AgentId)) { return Task.CompletedTask; }
+        if (failed.Error.StartsWith(BlockedPrefix, StringComparison.Ordinal))
+        {
+            Pause(failed.Error);
             Set(State with { ActiveRunId = null });
+            return Task.CompletedTask;
         }
+        Set(State with { ActiveRunId = null, Status = failed.Cancelled ? "Cancelled" : $"Failed: {failed.Error}" });
+        return Task.CompletedTask;
+    }
+
+    public async Task OnAgentBlocked(AgentBlocked blocked)
+    {
+        ArgumentNullException.ThrowIfNull(blocked);
+        if (!IsCurrent(blocked.Agent)) { return; }
+        if (blocked.Blocked) { Pause(BlockedPrefix + "An interrupt holds the agent."); }
+        else { Set(State with { Blocked = false, BlockedReason = null, Status = "Ready" }); }
+        await RefreshApprovalsAsync();
+    }
+
+    [DigitalBrain.On]
+    public async Task Stop(InoStop request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
+        if (State.ActiveRunId is null) { await ReconcileAsync(agent, null); }
+        if (State.ActiveRunId is null) { return; }
+        // Stopping first: the agent's TurnFailed (cancelled), which may arrive during Cancel, has the last word and clears the run.
+        Set(State with { Status = "Stopping" });
+        await agent.Cancel();
+    }
+
+    [DigitalBrain.On]
+    public async Task Smart(InoSmart request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var settings = await Get<IUserSettings>("settings").SetVariable(SmartVariable, request.On ? "on" : "off");
+        _smart = IsSmart(settings);
+    }
+
+    private static bool IsSmart(UserSettingsState settings)
+        => settings.Variables.Any(v => v.Key == SmartVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
+
+    private async Task RefreshApprovalsAsync()
+    {
+        try { _approvals = [.. await Get<IApprovals>(ApprovalsKey).Pending()]; }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Approvals are optional when the inbox is not reachable."); }
     }
 
     // Configure on first use; a revision conflict means another caller configured it first.
@@ -214,34 +359,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         // The tone observer follows this conversation's agent; an app cannot subscribe to it directly.
         try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Follow(AgentKeyOf(State.ConversationId)); }
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The tone is a refinement; the agent answers without it."); }
-    }
-
-    private void Apply(AgentTurnEvent step)
-    {
-        switch (step)
-        {
-            case AgentTurnEvent.Started started:
-                Set(State with { ActiveRunId = started.RunId, Blocked = false, BlockedReason = null, Status = "Thinking" });
-                break;
-            case AgentTurnEvent.ToolStarted tool:
-                Set(State with { Status = $"Using {tool.Name}" });
-                break;
-            case AgentTurnEvent.ToolCompleted tool:
-                Set(State with { Cards = [.. State.ActiveCards, .. InoCards.FromToolCalls([new AgentToolCall(tool.CallId, tool.Name, "", tool.Result)])] });
-                break;
-            case AgentTurnEvent.ToolFailed tool:
-                Set(State with { Status = $"{tool.Name} failed: {tool.Message}" });
-                break;
-            case AgentTurnEvent.Completed:
-                Set(State with { Status = "Ready" });
-                break;
-            case AgentTurnEvent.Failed failed when failed.Message.StartsWith(BlockedPrefix, StringComparison.Ordinal):
-                Pause(failed.Message);
-                break;
-            case AgentTurnEvent.Failed failed:
-                Set(State with { Status = failed.Cancelled ? "Cancelled" : $"Failed: {failed.Message}" });
-                break;
-        }
     }
 
     private void Pause(string message)
@@ -262,7 +379,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         switch (cmd)
         {
             case "new":
-                New(new InoNew());
+                await New(new InoNew());
                 return;
             case "clear":
                 _transcript = [];
@@ -348,40 +465,20 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     }
 
     [DigitalBrain.On]
-    public async Task ApproveCard(InoApproveCard request)
+    public Task New(InoNew request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var cardId = string.IsNullOrWhiteSpace(request.CardId) ? "card-1" : request.CardId;
-        var nextStatus = request.Approved ? "approved" : "rejected";
-        var updated = State.ActiveCards
-            .Select(c => string.Equals(c.Id, cardId, StringComparison.Ordinal) ? c with { Status = nextStatus } : c)
-            .ToArray();
-        if (TryGetMemory() is { } memory)
-        {
-            await memory.CaptureEpisode("ino.card", $"Card {cardId} -> {nextStatus}", importance: 6);
-        }
-        Set(State with
-        {
-            Status = $"Card {cardId}: {nextStatus}",
-            Cards = updated,
-        });
+        return StartConversation();
     }
 
     [DigitalBrain.On]
-    public void New(InoNew request)
+    public Task NewConversation(InoNewConversation request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        StartConversation();
+        return StartConversation();
     }
 
-    [DigitalBrain.On]
-    public void NewConversation(InoNewConversation request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        StartConversation();
-    }
-
-    private void StartConversation()
+    private async Task StartConversation()
     {
         var conversationId = $"c-{Guid.NewGuid():N}"[..10];
         _transcript = [];
@@ -390,6 +487,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             AgentKey = AgentKeyOf(conversationId),
             GrantSummaries = State.GrantSummaries,
         });
+        // The watch moves now, so the new conversation's first signals are not raced by the next Send.
+        await FollowAsync(AgentKeyOf(conversationId));
     }
 
     [DigitalBrain.On]
@@ -438,15 +537,16 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     }
 
     [DigitalBrain.On("settings", Contract = typeof(IUserSettings))]
-    public void OnSettingsChanged(UserSettingsChanged? changed)
+    public async Task OnSettingsChanged(UserSettingsChanged? changed)
     {
         if (changed is null) { return; }
+        _smart = IsSmart(await Get<IUserSettings>("settings").Read());
         Set(State with { Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
     }
 
     public View RenderSide() => InoViewRenderer.RenderSide(State);
 
-    public View Render() => InoViewRenderer.Render(State, _transcript);
+    public View Render() => InoViewRenderer.Render(State, _transcript, _approvals, _smart);
 
     [DigitalBrain.Scenario("Querying a connected database renders a table and a chart card")]
     public async Task VerifyDatabaseCardsScenario()

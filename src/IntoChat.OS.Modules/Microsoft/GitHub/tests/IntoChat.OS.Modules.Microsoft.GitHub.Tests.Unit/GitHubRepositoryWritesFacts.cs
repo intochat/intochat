@@ -138,7 +138,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
     }
 
     [Fact]
-    public async Task MergePullRequest_AllowsTaskNeuronCaller()
+    public async Task MergePullRequest_DeniesUnknownAutomationCaller()
     {
         var (neuron, mockSource) = CreateConnectedNeuron();
         mockSource.SnapshotToReturn = CreateSnapshot(1, "head-sha-1234");
@@ -146,10 +146,10 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
 
         using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("task-123", "acc-1", "local", CallerKind.App, "tasks.task")))
         {
-            await neuron.MergePullRequest(request);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.MergePullRequest(request));
         }
 
-        Assert.NotNull(mockSource.LastMergePullRequest);
+        Assert.Null(mockSource.LastMergePullRequest);
     }
 
     [Fact]
@@ -295,6 +295,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         public ITimers Timers { get; }
         public IReminders Reminders { get; }
         public IOperations Operations => null!;
+        public IOperationsQuery OperationsQuery => null!;
         public ISynapses Synapses => null!;
         public ISignalHistory History => null!;
         public IConfirmations Confirmations => null!;

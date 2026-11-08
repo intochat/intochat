@@ -6,7 +6,6 @@ using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Memory;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
@@ -41,7 +40,7 @@ internal sealed class CompiledAppsHost(
 
     private static readonly (string Name, Type AppType, AppBundle Bundle)[] Hosted =
     [
-        ResolveHosted("ino", "IntoChat.OS.Apps.Ino.InoApp", new AppBundle("ino", "3.5.0", new AppManifest("Ino", "Talk to your brain, use its capabilities, query databases, and create apps.", [new("open", "Show Ino."), new("send", "Route or answer a message."), new("approve-card", "Approve or reject an inline LFP card."), new("connect-db", "Connect a PostgreSQL database via connection string."), new("query-db", "Execute a read-only SQL query against the connected database."), new("new", "Start a new conversation."), new("new-conversation", "Alias for new."), new("voice", "Begin voice input."), new("make", "Apply a sentence to the focused app, or Scratch.")], [new("Model", "Model catalog id; empty uses the default.", ""), new("RouteGate", "Confidence required for a direct route.", "0.8"), new("IntendGate", "Seconds to wait for Memory's brief before answering without it.", "8")], [], "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal))),
+        ResolveHosted("ino", "IntoChat.OS.Apps.Ino.InoApp", new AppBundle("ino", "3.5.0", new AppManifest("Ino", "Talk to your brain, use its capabilities, query databases, and create apps.", [new("open", "Show Ino."), new("send", "Route or answer a message."), new("stop", "Stop the running turn."), new("smart", "Turn smart mode on or off."), new("connect-db", "Connect a PostgreSQL database via connection string."), new("query-db", "Execute a read-only SQL query against the connected database."), new("new", "Start a new conversation."), new("new-conversation", "Alias for new."), new("voice", "Begin voice input."), new("make", "Apply a sentence to the focused app, or Scratch.")], [new("Model", "Model catalog id; empty uses the default.", ""), new("RouteGate", "Confidence required for a direct route.", "0.8"), new("IntendGate", "Seconds to wait for Memory's brief before answering without it.", "8")], [], "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal))),
         ResolveHosted("settings", "IntoChat.OS.Apps.Settings.SettingsApp", new AppBundle("settings", "2.1.0", new AppManifest(
             Title: "Settings",
             Description: "Your preferences, models, keys, connections and archived chats.",
@@ -172,6 +171,8 @@ internal sealed class CompiledAppsHost(
         "filmcraft" => "FilmCraft",
         "creator" => "Creator",
         "gallery" => "Gallery",
+        "tasks" => "Tasks",
+        "trace" => "Trace",
         "post" => "Post",
         "brain" => "Brain",
         "settings" => "Settings",
@@ -772,12 +773,14 @@ internal sealed class CompiledAppsHost(
                 turns = host.TryGetTurns(appKey)!;
                 WireInoServices(brain, turns.App);
             }
+            await AttachWatchesAsync(brain, appKey, turns);
             return turns;
         }
 
         var existingTurns = host.TryGetTurns(appKey);
         if (existingTurns is not null)
         {
+            await AttachWatchesAsync(brain, appKey, existingTurns);
             return existingTurns;
         }
 
@@ -796,6 +799,7 @@ internal sealed class CompiledAppsHost(
                 if (assignedTurns is not null)
                 {
                     WireInoServices(brain, assignedTurns.App);
+                    await AttachWatchesAsync(brain, appKey, assignedTurns);
                 }
                 return assignedTurns;
             }
@@ -803,11 +807,42 @@ internal sealed class CompiledAppsHost(
         return null;
     }
 
+    // Each assigned app's watch subscriptions, by app key, with the turns they feed: a reassigned app (new turns) gets new ones and
+    // the old ones are disposed; a retired app's are disposed on its next ensure.
+    private readonly ConcurrentDictionary<string, (DigitalBrain.Apps.Hosting.AppTurns Turns, IAsyncDisposable Watches)> _watches = new(StringComparer.Ordinal);
+
+    internal async Task AttachWatchesAsync(string brain, string appKey, DigitalBrain.Apps.Hosting.AppTurns? turns)
+    {
+        if (_watches.TryGetValue(appKey, out var attached) && ReferenceEquals(attached.Turns, turns)) { return; }
+        if (attached.Watches is not null && _watches.TryRemove(new(appKey, attached)))
+        {
+            try { await attached.Watches.DisposeAsync(); }
+            catch (Exception error) when (error is not OperationCanceledException) { logger.LogWarning(error, "Watches of {App} did not stop cleanly.", appKey); }
+        }
+        if (turns is null || turns.App.DeclaredWatches().Count == 0) { return; }
+        if (services.GetService<IIntoChatOSBrains>() is not { } brains)
+        {
+            logger.LogWarning("App {App} declares watches but this host has no brain client; its watches are not served.", appKey);
+            return;
+        }
+        var watches = HostedAppWatches.Attach(brains.Open(brain), turns, new AppAddress(brain, appKey),
+            (contract, id) => SiloNeurons.Get(services, contract, id),
+            (error, watch) => logger.LogWarning(error, "Watch {Watch} of {App} failed.", watch, appKey),
+            (watch, attempt, delay) => logger.LogInformation("Watch {Watch} of {App} restarts in {Delay} (attempt {Attempt}).", watch, appKey, delay, attempt));
+        if (!_watches.TryAdd(appKey, (turns, watches))) { await watches.DisposeAsync(); }
+    }
+
+    // Test seam: ensure one app as the host does on activation and return its turns.
+    internal async Task<DigitalBrain.Apps.Hosting.AppTurns?> EnsureForTestAsync(string brain, string appName, CancellationToken ct)
+    {
+        var turns = await EnsureAssignedAsync(brain, appName, IApp.Key(brain, appName), ct);
+        return turns;
+    }
+
     private void WireInoServices(string brain, App instance)
     {
         var type = instance.GetType();
         type.GetProperty("FilesVfs")?.SetValue(instance, _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b)));
-        type.GetProperty("TaskEngine")?.SetValue(instance, services.GetService(typeof(ITaskEngine)));
     }
 
     private async Task HandleAppRequestedAsync(string brain, string appName, AppRequested request, CancellationToken ct)

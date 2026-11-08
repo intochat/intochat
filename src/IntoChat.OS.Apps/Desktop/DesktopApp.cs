@@ -18,7 +18,7 @@ public sealed record DesktopStart : DigitalBrain.Signal;
 public sealed record DesktopLayoutChoice : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("desktop.open")]
-public sealed record DesktopOpen : DigitalBrain.Signal;
+public sealed record DesktopOpen(string? App = null, string? View = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("desktop.narrow")]
 public sealed record DesktopNarrow(string? Narrow = null) : DigitalBrain.Signal;
@@ -87,6 +87,13 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     public async Task Open(DesktopOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        // Only a typed open with a view forwards it to the app (its open operation receives the view as input); a legacy open by
+        // name ("open:{app}") binds App alone and is the window open it always was. A failed forward still opens the desktop.
+        if (!string.IsNullOrWhiteSpace(request.App) && request.View is { } view)
+        {
+            try { await Get<IntoChat.OS.Modules.Apps.IApp>($"apps/{request.App.Trim().ToLowerInvariant()}").Request("open", view.Trim()); }
+            catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The app did not take the view; the desktop opens without it."); }
+        }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
@@ -152,6 +159,8 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             ("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "image"),
             ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film"),
             ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid"),
+            ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks"),
+            ("trace", "Trace", "neuron://local/apps/trace", "activity"),
             ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu"),
             ("post", "Post", "neuron://local/apps/post", "send"),
             ("settings", "Settings", "neuron://local/apps/settings", "settings"),
@@ -257,8 +266,6 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                 ],
                 SystemName: "Ino",
                 Status: "pending",
-                OnApprove: new ButtonAction("apps/ino", "approve-card", ["card-1", "true"]),
-                OnReject: new ButtonAction("apps/ino", "approve-card", ["card-1", "false"]),
                 SourceNeuronUri: "neuron://local/os.confirmations/inbox"),
         ])
         { Gap = 14 });

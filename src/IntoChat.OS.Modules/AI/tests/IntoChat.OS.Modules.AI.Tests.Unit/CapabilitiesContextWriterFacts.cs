@@ -11,6 +11,16 @@ public sealed class CapabilitiesContextWriterFacts
         public Task Set(ContextEntry entry) { Held[entry.Name] = entry; return Task.CompletedTask; }
         public Task Remove(string name) { Held.Remove(name); return Task.CompletedTask; }
         public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(0, [.. Held.Values]));
+        // As the neuron: a user's or the platform's interrupt holds its name against a producer's entry.
+        public Task<bool> Upsert(ContextEntry entry)
+        {
+            if (Guarded(entry.Name)) { return Task.FromResult(false); }
+            Held[entry.Name] = entry;
+            return Task.FromResult(true);
+        }
+        public Task<bool> Withdraw(string name) => Task.FromResult(!Guarded(name) && Held.Remove(name));
+        private bool Guarded(string name) => Held.TryGetValue(name, out var held) && held.EffectiveTags.Contains(ContextTags.Interrupt)
+            && held.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
     }
 
     private static (string App, MenuOperation[] Operations) Notes() => ("notes", [
@@ -47,5 +57,37 @@ public sealed class CapabilitiesContextWriterFacts
 
         await CapabilitiesContextWriter.Upsert(context, "notes", []);
         Assert.Empty(context.Held);
+    }
+
+    private static ContextEntry Interrupt(string name, string text, string trust)
+        => new(name, text, [], [ContextTags.Interrupt], new EntryProvenance("writer", DateTimeOffset.UtcNow, trust));
+
+    [Fact]
+    public async Task AnAppNeverReplacesOrDropsAUserOrPlatformInterruptEntry()
+    {
+        var context = new FakeContext();
+        await context.Set(Interrupt("stop", "halt", ContextTrust.User));
+        await context.Set(Interrupt("halt", "also halt", ContextTrust.Platform));
+
+        await CapabilitiesContextWriter.Upsert(context, "stop", Notes().Operations);
+        await CapabilitiesContextWriter.Upsert(context, "stop", []);
+        await CapabilitiesContextWriter.Replace(context, [Notes(), ("stop", [new MenuOperation("stop", "run", null)])]);
+
+        Assert.Equal("halt", context.Held["stop"].Text);
+        Assert.True(context.Held.ContainsKey("halt"));
+        Assert.True(context.Held.ContainsKey("notes"));
+    }
+
+    [Fact]
+    public async Task AnAppReplacesAModelPlantedInterruptEntry()
+    {
+        var context = new FakeContext();
+        await context.Set(Interrupt("notes", "planted", ContextTrust.Model));
+        await context.Set(Interrupt("gone", "planted too", ContextTrust.App));
+
+        await CapabilitiesContextWriter.Replace(context, [Notes()]);
+
+        Assert.Equal("notes.add: Add a note\nnotes.list", context.Held["notes"].Text);
+        Assert.False(context.Held.ContainsKey("gone"));
     }
 }

@@ -1,6 +1,9 @@
 /// The contract and change signal behind an app UI kind; the same table AppUiEndpoints keys on.
 final class NodeContract {
   const NodeContract(this.contract, this.changed);
+
+  /// A shell-watched source that is not an app UI kind, so it stays out of the UI kind table.
+  const NodeContract.source(this.contract, this.changed);
   final String contract, changed;
 }
 
@@ -110,10 +113,6 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Preferences.IPreferenceControl',
       'PreferenceChanged',
     ),
-    'progress': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Progress.IProgress',
-      'ProgressChanged',
-    ),
     'infobar': NodeContract(
       'IntoChat.OS.Modules.Flutter.InfoBar.IInfoBar',
       'InfoBarChanged',
@@ -128,9 +127,22 @@ abstract final class NodeContracts {
     ),
   };
 
-  static NodeContract? tryResolve(String kind) => _byKind[kind];
+  // The shell's own watches (Ino's presence, the user settings); not UI kinds a view may reference.
+  static const _shellSources = <String, NodeContract>{
+    'ino.presence': NodeContract.source(
+      'IntoChat.OS.Modules.Apps.IPresence',
+      'PresenceChanged',
+    ),
+    'os.settings': NodeContract.source(
+      'IntoChat.OS.Modules.Apps.IUserSettings',
+      'UserSettingsChanged',
+    ),
+  };
+
+  static NodeContract? tryResolve(String kind) =>
+      _byKind[kind] ?? _shellSources[kind];
 
   static NodeContract of(String kind) =>
-      _byKind[kind] ??
+      tryResolve(kind) ??
       (throw ArgumentError.value(kind, 'kind', 'Unknown app UI kind'));
 }

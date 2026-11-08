@@ -8,9 +8,10 @@ using Microsoft.AspNetCore.Routing;
 
 namespace IntoChat.OS.Authority.Signals;
 
-internal sealed record SignalView(long Sequence, string Type, string Publisher, JsonElement Payload);
+// At, TraceId and CausationId come from the journal entry; the older members are unchanged.
+public sealed record SignalView(long Sequence, string Type, string Publisher, JsonElement Payload, DateTimeOffset At = default, string? TraceId = null, string? CausationId = null);
 
-internal sealed record SignalsPage(long Next, SignalView[] Signals);
+public sealed record SignalsPage(long Next, SignalView[] Signals);
 
 // What the shell's replay scrub reads: the brain's journalled signals after a sequence number.
 // The single local journal assigns durable monotonically increasing signal cursors.
@@ -33,6 +34,6 @@ internal static class SignalsEndpoints
     {
         var read = await journal.ReadSince(brainId, since, limit);
         return new SignalsPage(read.Length == 0 ? since : read[^1].Sequence, [.. read.Select(j => new SignalView(
-            j.Sequence, j.Signal.GetType().Name, j.Publisher, JsonSerializer.SerializeToElement(j.Signal, j.Signal.GetType())))]);
+            j.Sequence, j.Signal.GetType().Name, j.Publisher, JsonSerializer.SerializeToElement(j.Signal, j.Signal.GetType()), j.At, j.TraceId, j.CausationId))]);
     }
 }

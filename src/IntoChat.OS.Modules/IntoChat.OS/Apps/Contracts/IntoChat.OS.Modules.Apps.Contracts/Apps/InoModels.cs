@@ -42,7 +42,8 @@ public sealed record InoAppState(
     string? ActiveRunId = null,
     bool Blocked = false,
     string[]? GrantSummaries = null,
-    string? BlockedReason = null)
+    string? BlockedReason = null,
+    string[]? SeenProgress = null)
 {
     public InoAppState() : this("main", "New chat", "Ready", "idle", [], [], null, true) { }
 

@@ -104,7 +104,7 @@ class DesktopBarPopover extends StatelessWidget {
     this.anchorX = 0,
     this.dockAppId,
     this.tokensToday = 14800,
-    this.notificationsCount = 2,
+    this.notificationsCount = 0,
     this.pinnedAppIds = const {
       'ino',
       'files',

@@ -3,7 +3,6 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps;
 using Orleans.Runtime;
@@ -27,28 +26,21 @@ public sealed class TriRepoCreatorBoundaryFacts
     }
 
     [Fact]
-    public void TaskAndTestVerificationPrimitivesResideInAiModulesAndNotInApps()
+    public void TestVerificationPrimitivesResideInAiModulesAndNotInApps()
     {
-        var aiContracts = typeof(ITaskEngine).Assembly;
-        var aiImpl = typeof(TaskEngine).Assembly;
+        var aiContracts = typeof(ITestVerificationService).Assembly;
+        var aiImpl = typeof(TestVerificationService).Assembly;
 
         Assert.Equal("IntoChat.OS.Modules.AI.Contracts", aiContracts.GetName().Name);
         Assert.Equal("IntoChat.OS.Modules.AI", aiImpl.GetName().Name);
 
-        Assert.Equal(aiContracts, typeof(ITaskNeuron).Assembly);
-        Assert.Equal(aiContracts, typeof(ITaskDirectoryNeuron).Assembly);
-        Assert.Equal(aiContracts, typeof(ITestVerificationService).Assembly);
         Assert.Equal(aiContracts, typeof(ITestVerificationNeuron).Assembly);
-
-        Assert.Equal(aiImpl, typeof(TaskNeuron).Assembly);
-        Assert.Equal(aiImpl, typeof(TaskDirectoryNeuron).Assembly);
-        Assert.Equal(aiImpl, typeof(TestVerificationService).Assembly);
         Assert.Equal(aiImpl, typeof(TestVerificationNeuron).Assembly);
 
         var appsContracts = typeof(IApp).Assembly;
         var appsImpl = typeof(AppsModule).Assembly;
-        Assert.DoesNotContain(appsContracts.GetTypes(), t => t.Name is "ITaskEngine" or "ITestVerificationService");
-        Assert.DoesNotContain(appsImpl.GetTypes(), t => t.Name is "TaskEngine" or "TestVerificationService");
+        Assert.DoesNotContain(appsContracts.GetTypes(), t => t.Name is "ITestVerificationService");
+        Assert.DoesNotContain(appsImpl.GetTypes(), t => t.Name is "TestVerificationService");
     }
 
     [Fact]
