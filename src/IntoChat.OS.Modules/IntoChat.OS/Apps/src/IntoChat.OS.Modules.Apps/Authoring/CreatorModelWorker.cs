@@ -30,3 +30,21 @@ internal static class CreatorModel
         return (ILLM)SiloNeurons.Get(neurons, marker, ModelAddress.Key(brainId));
     }
 }
+
+// The Creator's model calls, as a seam: a scripted model stands here in facts.
+internal interface ICreatorModel
+{
+    Task<string> Complete(string brainId, string model, string system, string prompt, CancellationToken ct);
+
+    Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request, CancellationToken ct);
+}
+
+// The brain's own model neurons.
+internal sealed class SiloCreatorModel(IServiceProvider neurons) : ICreatorModel
+{
+    public Task<string> Complete(string brainId, string model, string system, string prompt, CancellationToken ct)
+        => CreatorModel.Complete(neurons, brainId, model, system, prompt, ct);
+
+    public Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request, CancellationToken ct)
+        => CreatorModel.Generate(neurons, brainId, model, request, ct);
+}

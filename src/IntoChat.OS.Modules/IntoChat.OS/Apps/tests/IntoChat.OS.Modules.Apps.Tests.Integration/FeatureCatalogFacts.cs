@@ -159,7 +159,6 @@ public sealed class FeatureCatalogFacts : IDisposable
         public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
-        public string AuthoringDescription => "";
         public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
             => ReadContracts([moduleId], cancellationToken);
 

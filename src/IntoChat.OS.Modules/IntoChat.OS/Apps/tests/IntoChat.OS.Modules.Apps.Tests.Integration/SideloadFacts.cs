@@ -242,7 +242,6 @@ public sealed class SideloadFacts : IDisposable
     private sealed class Gate : IScriptSandbox
     {
         public bool CanRun => true;
-        public string AuthoringDescription => "";
         public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken) => Task.FromResult<Verdict[]>([]);
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken) => throw new NotSupportedException();

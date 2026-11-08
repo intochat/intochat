@@ -39,7 +39,6 @@ public sealed class BuildFlowFacts
     {
         public bool CanRun => true;
 
-        public string AuthoringDescription => "";
 
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken) => throw new NotSupportedException();
 

@@ -1,7 +1,6 @@
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
-using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps;
@@ -71,31 +70,5 @@ public sealed class TriRepoCreatorBoundaryFacts
 
             Assert.False(RuntimeCallerContext.TryGet(out _));
         }
-    }
-
-    [Fact]
-    public void CreatorAppCompileInMemoryDetectsSemanticErrorsAndAcceptsValidApps()
-    {
-        var invalidSemanticSource = """
-            public sealed class BrokenApp
-            {
-                public void Run() => NonExistentSymbolXYZ.Execute();
-            }
-            """;
-        var (invalidSuccess, invalidDiagnostics) = CreatorApp.CompileInMemory(invalidSemanticSource);
-        Assert.False(invalidSuccess);
-        Assert.NotEmpty(invalidDiagnostics);
-        Assert.Contains(invalidDiagnostics, d => d.Contains("CS0103", StringComparison.Ordinal));
-
-        var validSource = """
-            public sealed record SampleState(int Count);
-            public sealed class ValidSandboxCheck
-            {
-                public Task<SampleState> StepAsync(SampleState s) => Task.FromResult(s with { Count = s.Count + 1 });
-            }
-            """;
-        var (validSuccess, validDiagnostics) = CreatorApp.CompileInMemory(validSource);
-        Assert.True(validSuccess, string.Join("; ", validDiagnostics));
-        Assert.Empty(validDiagnostics);
     }
 }

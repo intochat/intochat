@@ -1,41 +1,93 @@
-using DigitalBrain.Modules.Options;
-using IntoChat.OS.Connections.Contracts;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
+using DigitalBrain;
+using DigitalBrain.Runtime.Synapses;
+using DigitalBrain.Testing.Synapses;
 using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The Builder's grounding: search the shared catalog for neuron contracts, read a module's contracts in
-// full, and compile-check C# before answering. Framework owns the catalog; nothing here reflects.
+// The Builder's two tools: read_contracts (what a slot can be and what a view is made of) and check_unit (compile as a deploy
+// will, then run the authored scenarios on fake slots). Nothing here reflects; the contract text is the framework's surface.
 internal static class BuilderTools
 {
-    public const string SearchContracts = "search_contracts";
     public const string ReadContracts = "read_contracts";
-    public const string ReadContractDetail = "read_contract_detail";
-    public const string CheckCSharp = "check_csharp";
+    public const string CheckUnit = "check_unit";
 
     public static readonly IReadOnlyList<InferenceTool> Definitions =
     [
-        new(SearchContracts, "Search this brain's neuron contracts by what they do (for example \"schedule a timer\" or \"send an email\"). Returns matching contracts with their module id.",
-            """{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}"""),
-        new(ReadContracts, "Read bounded complete method and DTO declarations for the given module ids. Pass modules=[] to list installed ids. When Truncated is true, fetch omitted selectors with read_contract_detail before using them.",
-            """{"type":"object","properties":{"modules":{"type":"array","items":{"type":"string"}}},"required":["modules"]}"""),
-        new(ReadContractDetail, "Read an installed contract's complete request/result declarations. Use exact moduleId and contractName; pass methodName=null for the contract or one method name to narrow a truncated response. Never use an omitted schema.",
-            """{"type":"object","properties":{"moduleId":{"type":"string"},"contractName":{"type":"string"},"methodName":{"type":["string","null"]}},"required":["moduleId","contractName","methodName"]}"""),
-        new(CheckCSharp, "Compile and store the given C# files (path to full source, for example notify.cs) without running them. Returns the compile errors; fix them all before answering.",
+        new(ReadContracts, "Read the capability contracts a [Slot] parameter can be (IHttpRead, ITool) and the DigitalBrain.UI nodes a view is built from.",
+            """{"type":"object","properties":{}}"""),
+        new(CheckUnit, "Compile the unit's C# files (path to full source, for example XWatch.cs) as a deploy will, with the synapse analyzers and the host allow-list, then run every authored scenario against them on fake slots. Returns passed, diagnostics and scenario failures; both are errors.",
             """{"type":"object","properties":{"files":{"type":"object","additionalProperties":{"type":"string"}}},"required":["files"]}"""),
     ];
 
-    public sealed record SearchArguments(string Query);
-    public sealed record ReadArguments(IReadOnlyList<string>? Modules);
-    public sealed record DetailArguments(string ModuleId, string ContractName, string? MethodName);
     public sealed record CheckArguments(IReadOnlyDictionary<string, string>? Files);
 
-    public sealed record ContractHit(string Module, string Contract, string Description);
+    // What check_unit found: compile diagnostics and scenario failures, one line each, together.
+    public sealed record UnitCheck(bool Passed, IReadOnlyList<ScriptCompilationDiagnostic> Diagnostics, IReadOnlyList<string> Failures);
 
-    public static async Task<IReadOnlyList<ContractHit>> Search(NeuronTypeSearch search, string query, CancellationToken ct)
-        => [.. (await search.Search(query, ct: ct).ConfigureAwait(false)).Select(hit => new ContractHit(hit.Type.ModuleId, hit.Type.Contract, hit.Type.Description))];
+    public const string Contracts = """
+        namespace DigitalBrain.Capabilities.Http;   // capability "http": GET against the slot's allowed hosts only
+        public interface IHttpRead
+        {
+            Task<JsonElement> GetJson(string url, CancellationToken ct);   // parses the body as JSON
+            Task<string> GetText(string url, CancellationToken ct);
+        }   // another host throws HostNotAllowedException
+
+        namespace DigitalBrain.Capabilities.Tools;  // capability "tool": the connector tools the person has
+        public interface ITool
+        {
+            Task<JsonElement> Run(string tool, JsonElement args, CancellationToken ct);
+            Task<IReadOnlyList<string>> List();
+        }
+
+        namespace DigitalBrain.UI;  // a view synapse returns new View(title, root)
+        public sealed record View(string Title, Node Root);
+        public sealed record Column(IReadOnlyList<Node> Children) : Node;
+        public sealed record Row(IReadOnlyList<Node> Children) : Node;
+        public sealed record Text(string Value) : Node;
+        public sealed record Badge(string Label, string Tone = "neutral", string? Icon = null) : Node;   // tone: neutral, accent, success, warning, danger
+        public sealed record StatCardNode(string Key, string Label, string Value, string? Delta = null) : Node;
+        public sealed record Button(string Key, string Label, Emit? Emit = null, ...) : Node;              // Key is stable within the view
+        public sealed record Emit(string Owner, string Signal, JsonElement? Args = null);                    // Owner = the unit's own alias
+
+        namespace DigitalBrain;
+        [State("alias")] record; [Signal("signal.alias")] record : Signal; [Slot] parameter;
+        [Synapse(typeof(Tick), "alias", Every = "every 6m")]  [Synapse(typeof(TSignal), "alias")]  [Synapse("signal.alias", "alias")] (SignalEnvelope)  [Synapse("alias")] (view)
+        Reaction<TState>.Of(TState state, params Signal[] said)
+        """;
+
+    // The check a deploy makes, plus the scenarios: a build that does not compile runs no scenario.
+    public static async Task<UnitCheck> Check(SynapseCompiler compiler, string alias, IReadOnlyDictionary<string, string> files,
+        IReadOnlyList<Scenario> scenarios, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(compiler);
+        ArgumentNullException.ThrowIfNull(files);
+        ArgumentNullException.ThrowIfNull(scenarios);
+        var code = UnitFiles.Code(files);
+        if (code.Count == 0) { return new UnitCheck(false, [], ["no .cs files"]); }
+        var source = new SynapseSource(alias, code, null);
+        var build = compiler.Compile(source);
+        var diagnostics = build.Diagnostics.Select(d => new ScriptCompilationDiagnostic(d.File, d.Id, d.Line, d.Message)).ToArray();
+        if (!build.Success) { return new UnitCheck(false, diagnostics, []); }
+        var failures = new List<string>();
+        foreach (var scenario in scenarios)
+        {
+            ScenarioSteps.Parsed parsed;
+            try { parsed = ScenarioSteps.Parse(scenario); }
+            catch (FormatException error) { failures.Add($"{scenario.Name}: {error.Message}"); continue; }
+            var transcript = await UnitScenario.Run(source, parsed.Fakes, parsed.Steps, ct).ConfigureAwait(false);
+            failures.AddRange(transcript.Failures.Select(failure => $"{scenario.Name}: {failure}"));
+        }
+        return new UnitCheck(failures.Count == 0, diagnostics, failures);
+    }
 }
 
+// A unit's source files: its C#, plus spec.md and scenarios.json that travel with it but do not compile.
+internal static class UnitFiles
+{
+    public const string Spec = "spec.md";
+    public const string Scenarios = "scenarios.json";
+
+    public static IReadOnlyDictionary<string, string> Code(IReadOnlyDictionary<string, string> files)
+        => files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+}

@@ -1,9 +1,6 @@
 using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace IntoChat.OS.Apps.Creator;
 
@@ -162,63 +159,10 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
 
     public async Task<CreatorSessionState> HotRestart()
     {
-        var activeSource = string.IsNullOrWhiteSpace(State.GeneratedSource) ? DefaultSandboxCode : State.GeneratedSource;
-        var (compiled, diagnostics) = CompileInMemory(activeSource);
-        var next = State with
-        {
-            SandboxRestartCount = State.SandboxRestartCount + 1,
-            SandboxCompiled = compiled,
-            RoslynDiagnostics = diagnostics,
-        };
+        // The session no longer compiles offline; units are checked by the Creator's check_unit.
+        var next = State with { SandboxRestartCount = State.SandboxRestartCount + 1 };
         await Save(next, new CreatorHotRestart());
         return next;
-    }
-
-    public static (bool Success, string[] Diagnostics) CompileInMemory(string source)
-    {
-        if (string.IsNullOrWhiteSpace(source))
-        {
-            return (false, ["Source code is empty."]);
-        }
-
-        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
-        var preludeTree = CSharpSyntaxTree.ParseText("global using System;\nglobal using System.Collections.Generic;\nglobal using System.Linq;\nglobal using System.Threading;\nglobal using System.Threading.Tasks;\nglobal using DigitalBrain;\nglobal using DigitalBrain.UI;\n", parseOptions);
-        var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
-        var syntaxErrors = syntaxTree.GetDiagnostics()
-            .Where(d => d.Severity == DiagnosticSeverity.Error)
-            .Select(d => $"{d.Id}: {d.GetMessage(CultureInfo.InvariantCulture)}")
-            .ToArray();
-        if (syntaxErrors.Length > 0)
-        {
-            return (false, syntaxErrors);
-        }
-
-        var references = new List<MetadataReference>();
-        var coreAssemblies = new[]
-        {
-            typeof(object).Assembly,
-            typeof(Enumerable).Assembly,
-            typeof(Task).Assembly,
-            typeof(DigitalBrain.App).Assembly,
-            typeof(View).Assembly,
-        };
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic)
-            .Concat(coreAssemblies)
-            .Where(a => !string.IsNullOrWhiteSpace(a.Location))
-            .DistinctBy(a => a.GetName().Name, StringComparer.OrdinalIgnoreCase))
-        {
-            references.Add(MetadataReference.CreateFromFile(assembly.Location));
-        }
-
-        var compilation = CSharpCompilation.Create(
-            "CreatorInMemorySandbox",
-            [preludeTree, syntaxTree],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var semanticErrors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d.Id}: {d.GetMessage(CultureInfo.InvariantCulture)}").ToArray();
-        return (semanticErrors.Length == 0, semanticErrors);
     }
 
     public static string NormalizeLanguage(string? language)

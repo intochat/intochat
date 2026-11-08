@@ -219,7 +219,9 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         else
         {
             source = CreatorSession.SynthesizeAppSource(target, instruction, errors);
-            (compiled, diagnostics) = CreatorSession.CompileInMemory(source);
+            // The offline preview is a fixed template, not compiled here (check_unit is the only unit check); the telemetry errors
+            // it was diagnosed from are in its leading comment, not compile errors.
+            (compiled, diagnostics) = (true, []);
             activity = built?.Activity ?? [];
         }
 
@@ -407,8 +409,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var nextRestartCount = State.SandboxRestartCount + 1;
-        var activeSource = string.IsNullOrWhiteSpace(State.GeneratedSource) ? CreatorSession.DefaultSandboxCode : State.GeneratedSource;
-        var (compiled, diagnostics) = CreatorSession.CompileInMemory(activeSource);
 
         if (TryGetSession() is { } session)
         {
@@ -425,8 +425,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         Set(State with
         {
             SandboxRestartCount = nextRestartCount,
-            SandboxCompiled = compiled,
-            RoslynDiagnostics = diagnostics,
             DiagnosedErrors = [],
             Status = $"Hot-restarted live sandbox (#{nextRestartCount}) for {State.TargetApp} v{State.CurrentVersion}",
         });
@@ -435,9 +433,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
     public View RenderSide() => CreatorRendering.RenderSide(State);
 
     public View Render() => CreatorRendering.Render(State);
-
-    public static (bool Success, string[] Diagnostics) CompileInMemory(string source)
-        => CreatorSession.CompileInMemory(source);
 
     [DigitalBrain.Scenario("Self-improving loop diagnoses error, verifies BDD scenario, and promotes app")]
     public async Task VerifySelfImprovingLoopScenario()

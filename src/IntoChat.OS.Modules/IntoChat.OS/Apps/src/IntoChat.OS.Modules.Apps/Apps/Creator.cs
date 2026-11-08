@@ -4,6 +4,7 @@ using DigitalBrain.Modules.Options;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Spi;
 using IntoChat.OS.Connections.Contracts;
@@ -14,6 +15,7 @@ using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Runtime;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -23,16 +25,19 @@ namespace IntoChat.OS.Modules.Apps;
 // draft step (IDrafter), and Implement starts that flow.
 internal sealed class Creator(
     IServiceProvider plain,
-    NeuronTypeSearch search,
     IOptions<AppsOptions> options,
     AppAuthoringPolicy policy,
     ILogger<Creator> logger,
-    IScriptSandbox? csharp = null) : IDrafter
+    IScriptSandbox? csharp = null,
+    ICreatorModel? model = null) : IDrafter
 {
+    private static readonly Lazy<SynapseCompiler> FallbackCompiler = new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
+    private readonly ICreatorModel models = model ?? new SiloCreatorModel(plain);
     private const int MaxAuthorRetries = 2;
     private const int MaxBuilderRounds = 12;
     private const int MaxRequestLength = 4000;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions Indented = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
     private string AuthorModel => options.Value.AuthorModel ?? nameof(IGpt56Luna);
     private string BuilderModel => options.Value.BuilderModel ?? nameof(IGpt56Luna);
@@ -115,6 +120,7 @@ internal sealed class Creator(
         return await app.Read().WaitAsync(cancellationToken);
     }
 
+    // The build flow's draft: the Builder loop over a goal or an app's spec, with no authored scenarios to run.
     public async Task<BuildDraft> Draft(BuildRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -122,39 +128,61 @@ internal sealed class Creator(
         IReadOnlyDictionary<string, string> existing = new Dictionary<string, string>(StringComparer.Ordinal);
         if (request.Snapshot is { } snapshot)
         {
-            task.AppendLine($"App: {snapshot.Manifest.Title}")
-                .AppendLine().AppendLine("Specification:").AppendLine(snapshot.Spec);
-            task.AppendLine().AppendLine("Manifest:").AppendLine(JsonSerializer.Serialize(snapshot.Manifest, Json));
+            task.AppendLine($"Unit: {snapshot.Manifest.Title}").AppendLine().AppendLine("Specification:").AppendLine(snapshot.Spec);
             existing = snapshot.Files;
         }
         else
         {
-            task.AppendLine("Write a headless synapse unit (synapse source files only, no program files) for:").AppendLine(request.Goal.Trim());
+            task.AppendLine("Write a synapse unit for:").AppendLine(request.Goal.Trim());
         }
         if (!string.IsNullOrWhiteSpace(request.Instruction)) { task.AppendLine().AppendLine("The person asked:").AppendLine(request.Instruction.Trim()); }
-        if (existing.Count > 0)
-        {
-            task.AppendLine().AppendLine("Current files:");
-            foreach (var (path, source) in existing) { task.AppendLine($"--- {path} ---").AppendLine(source); }
-        }
+        AppendFiles(task, existing);
         // An app build lands each Builder round on the app's activity feed.
         var progress = request.AppKey is { } appKey ? SiloNeurons.Get<IApp>(plain, appKey) : null;
-        var built = Parse<BuiltApp>(await BuilderConversation(request.Brain, progress, task.ToString(), existing, ct));
-        var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
-        if (files.Count == 0) { throw new InvalidDataException("the Builder produced no files"); }
-        if (request.Snapshot is not { Manifest.Headless: false } app) { return new BuildDraft(files, null); }
-        // The code is the operation list; the Builder's and the authored lists only describe what the code has.
-        var derived = AppShape.Operations(files);
-        var manifest = app.Manifest with
+        var files = await BuilderConversation(request.Brain, progress, Alias(request.Goal), task.ToString(), [], ct);
+        return new BuildDraft(files, request.Snapshot is { Manifest.Headless: false } app ? app.Manifest : null);
+    }
+
+    // The Author for a unit: one request in, one described unit out. A reply that is not a valid unit is asked for again, twice.
+    public async Task<AuthoredUnit> Author(string brainId, string request, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(request);
+        if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the unit in at most {MaxRequestLength} characters."); }
+        var prompt = $"Describe the unit for this.\n\nWhat the person wants:\n{request.Trim()}";
+        for (var retry = 0; ; retry++)
         {
-            Operations = derived.Length > 0
-                ? AppShape.Merge(derived, (built.Operations ?? []).Concat(app.Manifest.Operations))
-                : built.Operations is { Length: > 0 } ? built.Operations : app.Manifest.Operations,
-            Settings = built.Settings is { Count: > 0 }
-                    ? [.. built.Settings.Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))]
-                    : app.Manifest.Settings,
-        };
-        return new BuildDraft(files, manifest);
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var unit = Parse<AuthoredUnit>(await Complete(brainId, AuthorModel, AgentPrompts.AuthorUnit, prompt, ct));
+                Validate(unit);
+                return unit;
+            }
+            catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException or FormatException && retry < MaxAuthorRetries)
+            {
+                prompt += $"\n\nYour previous reply could not be used: {error.Message} Reply with the JSON object only.";
+            }
+        }
+    }
+
+    // The Builder for an authored unit: its .cs files, checked green by check_unit, plus spec.md and scenarios.json.
+    public async Task<BuildDraft> Draft(string brainId, AuthoredUnit unit, IReadOnlyDictionary<string, string>? existing, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(unit);
+        Validate(unit);
+        var task = new StringBuilder().AppendLine("Write this unit.").AppendLine().AppendLine(JsonSerializer.Serialize(unit, Indented));
+        AppendFiles(task, existing ?? new Dictionary<string, string>());
+        var files = await BuilderConversation(brainId, null, unit.Alias, task.ToString(), unit.Scenarios, ct);
+        files[UnitFiles.Spec] = unit.Spec;
+        files[UnitFiles.Scenarios] = JsonSerializer.Serialize(unit.Scenarios, Indented);
+        return new BuildDraft(files, null);
+    }
+
+    private static void AppendFiles(StringBuilder task, IReadOnlyDictionary<string, string> existing)
+    {
+        if (existing.Count == 0) { return; }
+        task.AppendLine().AppendLine("Current files:");
+        foreach (var (path, source) in existing) { task.AppendLine($"--- {path} ---").AppendLine(source); }
     }
 
     // The program an app build lands (the existing files with the draft over them), checked as the landing deploy will; null when it
@@ -189,7 +217,7 @@ internal sealed class Creator(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return Parse<AuthoredApp>(await CreatorModel.Complete(plain, brainId, AuthorModel, AgentPrompts.Author, prompt, cancellationToken));
+                return Parse<AuthoredApp>(await Complete(brainId, AuthorModel, AgentPrompts.Author, prompt, cancellationToken));
             }
             catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException && retry < MaxAuthorRetries)
             {
@@ -198,67 +226,66 @@ internal sealed class Creator(
         }
     }
 
-    // The Builder works with tools: it searches the contract catalog, reads details and
-    // compile-checks its C# before answering. Each round of an app build lands on the app's activity feed.
-    private async Task<string> BuilderConversation(string brainId, IApp? progress, string task, IReadOnlyDictionary<string, string> existingFiles, CancellationToken cancellationToken)
+    // The Builder works with two tools: read_contracts and check_unit. Its final files are checked again exactly as returned; a
+    // reply that is not green goes back to it with the check. Each round of an app build lands on the app's activity feed.
+    private async Task<Dictionary<string, string>> BuilderConversation(string brainId, IApp? progress, string alias, string task,
+        IReadOnlyList<Scenario> scenarios, CancellationToken cancellationToken)
     {
         var messages = new List<AiMessage>
         {
-            new("system", [new AiText(AgentPrompts.Builder + (csharp is null ? "" : "\n\n" + csharp.AuthoringDescription))]),
+            new("system", [new AiText(AgentPrompts.BuildUnit)]),
             new("user", [new AiText(task)]),
         };
         for (var round = 0; round < MaxBuilderRounds; round++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await CreatorModel.Generate(plain, brainId, BuilderModel,
-                new InferenceRequest(messages, Tools: BuilderTools.Definitions), cancellationToken);
+            var result = await models.Generate(brainId, BuilderModel, new InferenceRequest(messages, Tools: BuilderTools.Definitions), cancellationToken);
             messages.AddRange(result.Messages);
             var calls = result.Messages.SelectMany(message => message.Content).OfType<AiToolCall>().ToArray();
             if (calls.Length == 0)
             {
                 var reply = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
-                var built = Parse<BuiltApp>(reply);
-                // CompleteBuild merges the files. Check that exact program, including retained shared
-                // classes; a previous tool check may have checked different or incomplete source.
-                if (built.Files is not { Count: > 0 } || built.Files.ContainsKey(AppFiles.DeclarationPath)) { return reply; }
-                var files = new Dictionary<string, string>(existingFiles, StringComparer.Ordinal);
-                foreach (var (path, source) in built.Files) { files[path] = source; }
-                var program = files.Where(file => AppFiles.IsProgram(file.Key))
-                    .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-                if (program.Count == 0) { return reply; }
-                var check = await Checked(program, cancellationToken);
-                if (check.Success) { return reply; }
-                if (progress is not null) { await progress.Progress("working", $"round {round + 1}: correcting final compile errors"); }
-                messages.Add(new AiMessage("user", [new AiText("The exact final program does not compile. Fix these diagnostics and return the corrected implementation JSON:\n"
-                    + JsonSerializer.Serialize(check, Json))]));
+                string? problem;
+                Dictionary<string, string>? files = null;
+                try
+                {
+                    files = new Dictionary<string, string>(Parse<BuiltUnit>(reply).Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
+                    var check = await BuilderTools.Check(Compiler, alias, files, scenarios, cancellationToken);
+                    problem = check.Passed ? null : "check_unit on your final files is not green. Fix these and return the corrected files JSON:\n" + JsonSerializer.Serialize(check, Json);
+                }
+                catch (Exception error) when (error is JsonException or InvalidDataException)
+                {
+                    problem = $"Your reply could not be used: {error.Message} Reply with {{\"files\": {{...}}}} only.";
+                }
+                if (problem is null) { return files!; }
+                if (progress is not null) { await progress.Progress("working", $"round {round + 1}: correcting the final check"); }
+                messages.Add(new AiMessage("user", [new AiText(problem)]));
                 continue;
             }
-            if (progress is not null) { await progress.Progress(BuilderState(calls), $"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}"); }
+            if (progress is not null)
+            {
+                await progress.Progress(calls.Any(call => call.Name == BuilderTools.ReadContracts) ? "reading" : "working",
+                    $"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
+            }
             var results = new List<AiContent>();
-            foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, cancellationToken))); }
+            foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, alias, scenarios, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
-        throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a valid implementation.");
+        throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a unit that passes check_unit.");
     }
 
-    private static string BuilderState(AiToolCall[] calls)
-        => calls.Any(call => call.Name == BuilderTools.SearchContracts) ? "searching"
-         : calls.Any(call => call.Name is BuilderTools.ReadContracts or BuilderTools.ReadContractDetail) ? "reading"
-         : "working";
+    // The silo's compiler (the host's reference set) when there is one; else one over this process's references.
+    private SynapseCompiler Compiler => plain.GetService<SynapseCompiler>() ?? FallbackCompiler.Value;
 
-    private async Task<string> ExecuteBuilderTool(AiToolCall call, CancellationToken cancellationToken)
+    private async Task<string> ExecuteBuilderTool(AiToolCall call, string alias, IReadOnlyList<Scenario> scenarios, CancellationToken cancellationToken)
     {
         try
         {
             return call.Name switch
             {
-                BuilderTools.SearchContracts => JsonSerializer.Serialize(
-                    await BuilderTools.Search(search, Parse<BuilderTools.SearchArguments>(call.ArgumentsJson).Query, cancellationToken), Json),
-                BuilderTools.ReadContracts => JsonSerializer.Serialize(
-                    await Require(csharp).ReadContracts(Parse<BuilderTools.ReadArguments>(call.ArgumentsJson).Modules ?? [], cancellationToken), Json),
-                BuilderTools.ReadContractDetail => await Detail(Parse<BuilderTools.DetailArguments>(call.ArgumentsJson)),
-                BuilderTools.CheckCSharp => JsonSerializer.Serialize(
-                    await Checked(Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), cancellationToken), Json),
+                BuilderTools.ReadContracts => BuilderTools.Contracts,
+                BuilderTools.CheckUnit => JsonSerializer.Serialize(await BuilderTools.Check(Compiler, alias,
+                    Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), scenarios, cancellationToken), Json),
                 _ => throw new ArgumentException($"Unknown tool '{call.Name}'."),
             };
         }
@@ -267,15 +294,45 @@ internal sealed class Creator(
         {
             return JsonSerializer.Serialize(new { error = error.Message }, Json);
         }
-
-        static T Require<T>(T? service) where T : class
-            => service ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing);
-
-        async Task<string> Detail(BuilderTools.DetailArguments args) => JsonSerializer.Serialize(
-            await Require(csharp).ReadContractDetail(args.ModuleId, args.ContractName, args.MethodName, cancellationToken), Json);
     }
 
-    // check_csharp answers what the app gates will: the compiler check on the app bundle.
+    private Task<string> Complete(string brainId, string modelName, string system, string prompt, CancellationToken ct)
+        => models.Complete(brainId, modelName, system, prompt, ct);
+
+    // A unit's alias names its state: lowercase dotted words of letters and digits ("x.watch").
+    internal static void ValidateAlias(string alias)
+    {
+        var parts = (alias ?? "").Split('.');
+        if (parts.Length < 2 || parts.Any(part => part.Length == 0 || !char.IsAsciiLetterLower(part[0]) || part.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c))))
+        { throw new InvalidDataException($"'{alias}' is not a valid unit alias: lowercase dotted words such as \"x.watch\"."); }
+    }
+
+    private static void Validate(AuthoredUnit unit)
+    {
+        ValidateAlias(unit.Alias);
+        if (string.IsNullOrWhiteSpace(unit.Title)) { throw new InvalidDataException("The unit has no title."); }
+        if (string.IsNullOrWhiteSpace(unit.Spec)) { throw new InvalidDataException("The unit has no spec."); }
+        if (unit.State is null || unit.Needs is null || unit.Signals is null || unit.Scenarios is null)
+        { throw new InvalidDataException("The unit needs state, signals, needs and scenarios."); }
+        foreach (var signal in unit.Signals) { ValidateAlias(signal.Alias); }
+        foreach (var slot in unit.Needs.Slots ?? [])
+        {
+            if (string.IsNullOrEmpty(slot.Name) || slot.Name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c)))
+            { throw new InvalidDataException($"'{slot.Name}' is not a valid slot name: lowercase letters and digits."); }
+            if (slot.Capability is not ("http" or "tool")) { throw new InvalidDataException($"Slot '{slot.Name}' has capability '{slot.Capability}'; a slot is \"http\" or \"tool\"."); }
+        }
+        // Every scenario must read in the one grammar before the Builder sees it.
+        foreach (var scenario in unit.Scenarios) { _ = ScenarioSteps.Parse(scenario); }
+    }
+
+    // A goal's unit alias for a build flow draft: "unit." and the goal's first letters and digits.
+    private static string Alias(string goal)
+    {
+        var word = new string([.. goal.ToLowerInvariant().Where(char.IsAsciiLetterOrDigit).Take(24)]);
+        return "unit." + (word.Length > 0 && char.IsAsciiLetterLower(word[0]) ? word : "u" + word);
+    }
+
+    // CheckProgram answers what the app gates will: the compiler check on the app bundle.
     private async Task<ScriptCompilationCheck> Checked(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
     {
         if (SynapseCheck.Compile(plain, files) is { } synapse) { return synapse; }
@@ -307,7 +364,5 @@ internal sealed class Creator(
 
     private sealed record AuthoredApp(string Name, string Title, string Description, string Spec,
         AppOperation[]? Operations = null, AppSetting[]? Settings = null, AppSlot[]? Slots = null, UiChildRef? Entry = null);
-    private sealed record BuiltApp(IReadOnlyDictionary<string, string>? Files,
-        IReadOnlyList<BuiltSetting>? Settings = null, AppOperation[]? Operations = null, UiChildRef? Entry = null);
-    private sealed record BuiltSetting(string Name, string? Description, string? Default);
+    private sealed record BuiltUnit(IReadOnlyDictionary<string, string>? Files);
 }

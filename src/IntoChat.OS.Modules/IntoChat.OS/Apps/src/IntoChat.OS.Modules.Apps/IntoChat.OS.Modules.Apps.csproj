@@ -9,6 +9,8 @@
     <PackageReference Include="DigitalBrain.Runtime.Apps" />
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Graph" />
+    <!-- check_unit runs the Author's scenarios through UnitScenario before a unit deploys. -->
+    <PackageReference Include="DigitalBrain.Testing" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Apps.Tests.Integration" />
     <ProjectReference Include="../../../Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
