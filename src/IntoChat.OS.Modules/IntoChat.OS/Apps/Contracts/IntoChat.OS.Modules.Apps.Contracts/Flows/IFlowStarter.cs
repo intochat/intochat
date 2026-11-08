@@ -1,0 +1,23 @@
+using DigitalBrain.Flows;
+
+namespace IntoChat.OS.Modules.Apps.Flows;
+
+// What every OS flow type implements so the flows index can start it by alias and read it. Resume, Cancel and Relate are the
+// Flow<T> base's own members. Head interleaves, so the index can read a flow while one of its steps runs.
+public interface IFlowStarter
+{
+    Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson);
+
+    [DigitalBrain.ReadOnlyCall]
+    Task<FlowHead> Head();
+
+    Task Resume(string step, WaitOutcome outcome, string? by);
+
+    Task Cancel(string reason);
+
+    Task Relate(FlowRelation relation);
+}
+
+// A flow's declared steps and the parts of its state the index does not learn from signals. InnerJson is its own state as JSON;
+// a top-level "operationId" string names the leaf operation of the running step.
+public sealed record FlowHead(string[] Steps, string Owner, string TraceId, string? ParentFlowId, DateTimeOffset Started, string InnerJson);
