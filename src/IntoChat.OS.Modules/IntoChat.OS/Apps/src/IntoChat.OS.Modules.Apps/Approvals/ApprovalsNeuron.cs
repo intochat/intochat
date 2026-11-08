@@ -31,8 +31,8 @@ public sealed class ApprovalsNeuron : DigitalBrain.Neuron, IApprovals
                 $"{build.Flow.Title}: {build.Inner.Missing}", build.Flow.Started, DateTimeOffset.MaxValue, build.Flow.TraceId)).ToArray();
         if (inbox.Pending.Length == 0) { return [.. connect.OrderBy(approval => approval.Requested)]; }
         var staged = (await Context.Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value)).List()).Where(source => source.Status == DeployStatus.Staged).ToArray();
-        var installs = builds.Where(build => build.Flow.WaitingStep == "install" && build.Inner?.PlanId is not null).ToArray();
-        return [.. inbox.Pending.Select(request => Classify(request, flows, staged, installs)).Concat(connect).OrderBy(approval => approval.Requested)];
+        var inners = builds.Where(build => build.Inner is not null).ToDictionary(build => build.Flow.FlowId, build => build.Inner!, StringComparer.Ordinal);
+        return [.. inbox.Pending.Select(request => Classify(request, flows, staged, inners)).Concat(connect).OrderBy(approval => approval.Requested)];
     }
 
     private async Task<BuildInner?> BuildOf(string flowId)
@@ -42,22 +42,30 @@ public sealed class ApprovalsNeuron : DigitalBrain.Neuron, IApprovals
         catch (Exception error) when (error is JsonException or InvalidOperationException) { return null; }
     }
 
-    private static Approval Classify(ConfirmationRequested request, FlowView[] flows, DeployedSource[] staged, (FlowView Flow, BuildInner? Inner)[] installs)
+    private static Approval Classify(ConfirmationRequested request, FlowView[] flows, DeployedSource[] staged, Dictionary<string, BuildInner> builds)
     {
         var plan = request.Plan;
         var requested = request.ExpiresAt - plan.Expiry;
         Approval Of(ApprovalKind kind, string subject, string title, string detail, string traceId)
             => new(request.PlanId, kind, subject, title, detail, requested, request.ExpiresAt, traceId);
 
+        // A build flow's install wait names the installs neuron's ask as its plan: that is consent to the unit's needs, not a flow
+        // step, so it is checked before the FlowStep match. Its detail is the needs sentence and the hosts the slots read.
         if (flows.FirstOrDefault(flow => flow.ConfirmationPlanId == request.PlanId) is { } flow)
         {
+            if (flow is { Type: BuildFlow.Alias, WaitingStep: "install" })
+            {
+                var inner = builds.GetValueOrDefault(flow.FlowId);
+                return Of(ApprovalKind.SynapseStaged, inner?.Alias ?? plan.TargetLabel, plan.Title, inner is null ? plan.Body : NeedsDetail(inner, plan.Body), flow.TraceId);
+            }
             return Of(ApprovalKind.FlowStep, flow.FlowId, flow.Title, $"{flow.WaitingStep}: {plan.Body}", flow.TraceId);
         }
 
-        // The installs neuron's ask for a unit a build flow deployed: the needs sentence and the hosts its slots read.
-        if (installs.Where(build => build.Inner?.PlanId == request.PlanId).Select(build => (build.Flow, Inner: build.Inner!)).ToArray() is [var install, ..])
+        // A build flow's choice of connection: one plan per candidate, each a step of that flow.
+        if (builds.FirstOrDefault(build => build.Value.ChoicePlans?.ContainsKey(request.PlanId) == true) is { Key: { } chooser }
+            && flows.FirstOrDefault(flow => flow.FlowId == chooser) is { } choosing)
         {
-            return Of(ApprovalKind.SynapseStaged, install.Inner.Alias ?? plan.TargetLabel, plan.Title, NeedsDetail(install.Inner, plan.Body), install.Flow.TraceId);
+            return Of(ApprovalKind.FlowStep, choosing.FlowId, plan.Title, $"{choosing.WaitingStep}: {plan.Body}", choosing.TraceId);
         }
 
         if (staged.FirstOrDefault(source => source.SourceKey == plan.TargetLabel || source.Aliases.Contains(plan.TargetLabel, StringComparer.Ordinal)) is { } unit)

@@ -95,8 +95,13 @@ public sealed class HostBoundHttp(HttpClient client)
 
     public async Task<JsonElement> GetJson(Uri url, IReadOnlyList<string> allowed, CancellationToken ct)
     {
-        using var document = JsonDocument.Parse(await GetText(url, allowed, ct));
-        return document.RootElement.Clone();
+        var text = await GetText(url, allowed, ct);
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            return document.RootElement.Clone();
+        }
+        catch (JsonException error) { throw new HttpRequestException($"{url.Host} did not return JSON", error); }
     }
 
     public async Task<string> GetText(Uri url, IReadOnlyList<string> allowed, CancellationToken ct)

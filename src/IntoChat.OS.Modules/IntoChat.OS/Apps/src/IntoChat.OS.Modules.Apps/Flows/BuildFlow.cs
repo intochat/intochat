@@ -14,7 +14,7 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 
 // A build flow's own state. Goal is the person's sentence (an app's title, spec and instruction when AppKey/Attempt name the app
 // build it ends). Author fills UnitJson (the AuthoredUnit) under GoalHash; draft fills Files under UnitHash; deploy fills Bindings
-// (slot -> connection key), or Choices/Missing while it waits, then Deployed with Hash and the install outcome.
+// (slot -> connection key), or Missing / the choice plans while it waits, then Deployed with Hash and the install outcome.
 public sealed class BuildInner
 {
     public string Goal { get; set; } = "";
@@ -37,8 +37,13 @@ public sealed class BuildInner
 
     public Dictionary<string, string>? Bindings { get; set; }
 
-    // A slot several connections satisfy: the candidates in the brain's Settings order; approving binds the first.
+    // A slot several connections satisfy: the candidates in the brain's Settings order. Each candidate is one plan the flow raised,
+    // ChoicePlans[planId] = [slot, connection key]; the one the person approves is Chosen[slot], and the slot's other plans are withdrawn.
     public Dictionary<string, string[]>? Choices { get; set; }
+
+    public Dictionary<string, string[]>? ChoicePlans { get; set; }
+
+    public Dictionary<string, string>? Chosen { get; set; }
 
     // What deploy waits for when no connection satisfies a slot, e.g. "connect http@1 for api.x.com".
     public string? Missing { get; set; }
@@ -58,10 +63,12 @@ public sealed class BuildInner
 // One sentence becomes one unit: author (the Creator's Author), draft (the Builder), verify (the unit's scenarios on fakes), deploy
 // (bind each slot to a connection, then the studio) and install (the host's install outcome; consent to new needs is the only
 // approval). Each step is idempotent on rerun: author by goal hash, draft by unit hash, deploy through the studio's step key.
-// Deploy waits External when a slot has no connection (re-checked on ConnectionsChanged and every minute) and on an approval when
-// several connections fit; install waits External on the installs neuron's own plan, ended by Installed or InstallDenied.
+// Deploy waits External when a slot has no connection or several fit, by one rule whether it runs or re-checks after a wait: none
+// is re-checked on ConnectionsChanged, on activation and every minute; several raise one plan per candidate connection (a plan is
+// yes/no and carries no options), and the approved one binds. Install waits External on the installs neuron's own plan (its id on
+// the FlowWaiting), ended by Installed or InstallDenied.
 [DigitalBrain.Neuron(Alias)]
-public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
+public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
 {
     public const string Alias = "flow.build";
 
@@ -70,6 +77,10 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private static readonly string[] Names = ["author", "draft", "verify", "deploy", "install"];
+
+    // Choice plans this activation is asking, and the one-use proofs it handed their detached asks.
+    private readonly HashSet<string> _asking = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _proofs = new(StringComparer.Ordinal);
 
     protected override IReadOnlyList<string> Steps => Names;
 
@@ -88,6 +99,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
     {
         await Context.Synapses.EnsureBrainWide(typeof(Installed), typeof(InstallDenied), typeof(ConnectionsChanged));
         await base.OnActivate(cancellationToken);
+        if (WaitingOnConnection()) { await CheckConnections(); }
     }
 
     // An app build reports each finished step on the app's activity. A failure is not recorded here: the app fails its attempt on
@@ -146,16 +158,13 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
                 {
                     if (inner.Deployed) { return new StepResult<BuildInner>(inner); }
                     var unit = UnitOf(inner);
-                    var resolved = await Resolve(unit.Needs, ct);
-                    inner.Bindings = resolved.Bound;
-                    inner.Choices = resolved.Several.Count == 0 ? null : resolved.Several;
-                    inner.Missing = resolved.Missing.Count == 0 ? null : string.Join("; ", resolved.Missing);
-                    if (inner.Missing is not null)
+                    if (Bind(inner, await Resolve(unit.Needs, inner.Chosen, ct)))
                     {
+                        // The answers come back through the mailbox, so after the base has saved this wait.
+                        RaiseChoices(inner);
                         await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
                         return new StepResult<BuildInner>(inner, new Waiting(step, WaitReason.External, null, null));
                     }
-                    if (inner.Choices is not null) { return new StepResult<BuildInner>(inner, new Waiting(step, WaitReason.Approval, null, null)); }
                     await DeployUnit(inner, unit);
                     return new StepResult<BuildInner>(inner);
                 }
@@ -166,16 +175,92 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
         }
     }
 
-    // The several-connections ask: approving binds each such slot to its first candidate in the brain's Settings order.
-    protected override ConfirmationPlan PlanFor(string step, BuildInner inner)
+    // The one binding rule, for a deploy and for a re-check after its wait: stores what resolved, and returns whether deploy must
+    // wait (a slot has no connection, or several fit and the person has not chosen). Several get one plan per candidate, its id
+    // derived from the flow, slot and connection, so a rerun or re-raise after a crash asks the same plan again.
+    private bool Bind(BuildInner inner, Resolution resolved)
     {
-        var choices = inner.Choices ?? [];
-        return base.PlanFor(step, inner) with
+        inner.Bindings = resolved.Bound;
+        inner.Missing = resolved.Missing.Count == 0 ? null : string.Join("; ", resolved.Missing);
+        inner.Choices = resolved.Several.Count == 0 ? null : resolved.Several;
+        if (inner.Missing is not null) { inner.ChoicePlans = null; return true; }
+        if (inner.Choices is null) { inner.ChoicePlans = null; return false; }
+        var plans = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        foreach (var (slot, candidates) in inner.Choices)
         {
-            Title = $"Which connection for {inner.Alias ?? inner.Goal}?",
-            Body = string.Join(" ", choices.Select(choice =>
-                $"Slot {choice.Key} can use {string.Join(" or ", choice.Value)}; approving binds {choice.Value[0]}.")),
-        };
+            foreach (var key in candidates) { plans[Sha($"{Id}\0choice\0{slot}\0{key}")] = [slot, key]; }
+        }
+        inner.ChoicePlans = plans;
+        return true;
+    }
+
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
+    {
+        if (name != Recheck) { await base.OnReminder(name, cancellationToken); return; }
+        if (WaitingOnConnection()) { await CheckConnections(); }
+        else if (WaitingOnInstall()) { await CheckInstall(); }
+        else { await StopRecheck(); }
+    }
+
+    // Raises each choice plan this activation is not already asking (activation, reminders and ConnectionsChanged re-raise them;
+    // the confirmations neuron re-joins a plan id the same requester raised).
+    private void RaiseChoices(BuildInner inner)
+    {
+        if (inner.ChoicePlans is not { Count: > 0 } plans) { return; }
+        var alias = inner.Alias ?? State.Title;
+        foreach (var (planId, choice) in plans)
+        {
+            if (!_asking.Add(planId)) { continue; }
+            var count = plans.Count(plan => plan.Value[0] == choice[0]);
+            var plan = new ConfirmationPlan(planId, ConfirmationAction.Other, Destructive: false, Title: $"Use {choice[1]} for {alias}?",
+                Body: $"Slot {choice[0]} of {alias}: {count} connections fit. Approve to bind {choice[1]}; the others are withdrawn.",
+                ApproveLabel: "Use this connection", DenyLabel: "Not this one", TargetLabel: choice[1]) { RequiresPerson = true };
+            _ = AskChoice(plan);
+        }
+    }
+
+    // Raises the plan without awaiting it in the turn; the answer comes back through the flow's own mailbox with a one-use proof.
+    private async Task AskChoice(ConfirmationPlan plan)
+    {
+        bool approved;
+        try { approved = (await Context.Confirm(plan, CancellationToken.None)).Outcome == ConfirmationOutcome.Approved; }
+        catch (Exception error) when (error is not OutOfMemoryException) { _asking.Remove(plan.Id); return; }
+        var proof = Guid.NewGuid().ToString("N");
+        _proofs.Add(proof);
+        try { await Context.Get<IBuildChoices>(Id).ChoiceAnswered(plan.Id, approved, proof); }
+        catch (Exception error) when (error is not OutOfMemoryException) { _proofs.Remove(proof); }
+        finally { _asking.Remove(plan.Id); }
+    }
+
+    // An approved candidate binds its slot and withdraws the slot's other plans; once every slot is chosen, deploy ends its wait and
+    // install deploys with the bindings. Denying every candidate of a slot cancels the flow.
+    public async Task ChoiceAnswered(string planId, bool approved, string proof)
+    {
+        // Only the flow's own ask answers a choice: a call without a live proof is ignored.
+        if (!_proofs.Remove(proof)) { return; }
+        if (!WaitingOnConnection() || State.Inner.ChoicePlans is not { } plans || !plans.Remove(planId, out var choice)) { return; }
+        var (slot, key) = (choice[0], choice[1]);
+        if (approved)
+        {
+            State.Inner.Chosen = new Dictionary<string, string>(State.Inner.Chosen ?? [], StringComparer.Ordinal) { [slot] = key };
+            foreach (var other in plans.Where(plan => plan.Value[0] == slot).Select(plan => plan.Key).ToArray())
+            {
+                plans.Remove(other);
+                try { await Context.Confirmations.Resolve(other, approve: false); }
+                catch (Exception error) when (error is InvalidOperationException or ArgumentException) { _ = error; }
+            }
+        }
+        else if (!plans.Values.Any(plan => plan[0] == slot) && State.Inner.Chosen?.ContainsKey(slot) != true)
+        {
+            await StopRecheck();
+            await Resume("deploy", WaitOutcome.Denied, null);
+            return;
+        }
+        if (plans.Count > 0) { await Save(State, [StillWaiting()]); return; }
+        foreach (var (chosenSlot, chosenKey) in State.Inner.Chosen ?? []) { (State.Inner.Bindings ??= [])[chosenSlot] = chosenKey; }
+        State.Inner.ChoicePlans = null;
+        await StopRecheck();
+        await Resume("deploy", WaitOutcome.Arrived, null);
     }
 
     private async Task Verify(BuildInner inner, CancellationToken ct)
@@ -194,7 +279,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
     private async Task DeployUnit(BuildInner inner, AuthoredUnit unit)
     {
         var bindings = new Dictionary<string, string>(inner.Bindings ?? [], StringComparer.Ordinal);
-        foreach (var (slot, candidates) in inner.Choices ?? []) { bindings[slot] = candidates[0]; }
+        foreach (var (slot, key) in inner.Chosen ?? []) { bindings[slot] = key; }
         var result = await Studio().DeployFiles(unit.Alias, inner.Files!, bindings);
         if (!result.Ok) { throw new FlowFailed("deploy", result.Text); }
         var install = UnitDeploy.Install(result, unit.Alias);
@@ -208,7 +293,8 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
         if (install.Status is DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied) { inner.Missing = install.Reason; }
     }
 
-    // A deploy that waited ends with its bindings in Inner, not deployed: install deploys first.
+    // A deploy that waited ends with its bindings in Inner, not deployed: install deploys first. A Pending install waits External on
+    // the installs neuron's plan; the base saves no plan id for an External wait, so a second FlowWaiting names it for the index.
     private async Task<StepResult<BuildInner>> Install(BuildInner inner)
     {
         if (!inner.Deployed) { await DeployUnit(inner, UnitOf(inner)); }
@@ -217,7 +303,8 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
             case DigitalBrain.InstallStatus.Pending:
                 await Report(inner, DigitalBrain.InstallStatus.Pending);
                 await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
-                return new StepResult<BuildInner>(inner, new Waiting("install", WaitReason.External, null, null));
+                return new StepResult<BuildInner>(inner, new Waiting("install", WaitReason.External, null, inner.PlanId),
+                    [new FlowWaiting(Id.ToString(), "install", WaitReason.External, inner.PlanId)]);
             case DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied:
                 throw new FlowFailed("install", $"{inner.Alias} was not installed: {inner.Missing ?? inner.Install.ToString()}");
             default:
@@ -251,14 +338,6 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
         return WaitingOnConnection() ? CheckConnections() : Task.CompletedTask;
     }
 
-    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
-    {
-        if (name != Recheck) { await base.OnReminder(name, cancellationToken); return; }
-        if (WaitingOnConnection()) { await CheckConnections(); }
-        else if (WaitingOnInstall()) { await CheckInstall(); }
-        else { await StopRecheck(); }
-    }
-
     private bool WaitingOnInstall() => State is { Status: FlowStatus.Waiting, Waiting: { Reason: WaitReason.External, Step: "install" } };
 
     private bool WaitingOnConnection() => State is { Status: FlowStatus.Waiting, Waiting: { Reason: WaitReason.External, Step: "deploy" } };
@@ -282,25 +361,33 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
         await Resume("install", WaitOutcome.Denied, null);
     }
 
+    // The deploy wait re-checked by the same rule as the step: still missing waits on; several (newly) fitting raises the choice
+    // plans; all bound ends the wait, and install deploys.
     private async Task CheckConnections()
     {
-        var resolved = await Resolve(UnitOf(State.Inner).Needs, CancellationToken.None);
-        if (resolved.Missing.Count > 0) { return; }
-        State.Inner.Bindings = resolved.Bound;
-        // Several now fitting is resolved as the approval would: the first in the Settings order. The install consent still asks.
-        State.Inner.Choices = resolved.Several.Count == 0 ? null : resolved.Several;
-        State.Inner.Missing = null;
+        var before = State.Inner.ChoicePlans?.Keys.Order(StringComparer.Ordinal).ToArray() ?? [];
+        var missing = State.Inner.Missing;
+        if (Bind(State.Inner, await Resolve(UnitOf(State.Inner).Needs, State.Inner.Chosen, CancellationToken.None)))
+        {
+            var after = State.Inner.ChoicePlans?.Keys.Order(StringComparer.Ordinal).ToArray() ?? [];
+            if (!before.SequenceEqual(after) || missing != State.Inner.Missing) { await Save(State, [StillWaiting()]); }
+            RaiseChoices(State.Inner);
+            return;
+        }
         await StopRecheck();
         await Resume("deploy", WaitOutcome.Arrived, null);
     }
 
     private Task StopRecheck() => Context.Reminders.Stop(Recheck);
 
+    // What the deploy wait waits for changed (a connection arrived, a choice was answered): the same wait, announced again.
+    private FlowWaiting StillWaiting() => new(Id.ToString(), "deploy", WaitReason.External, null);
+
     internal sealed record Resolution(Dictionary<string, string> Bound, Dictionary<string, string[]> Several, List<string> Missing);
 
     // Per slot: the brain's connected connections providing the slot's capability whose allow-list covers every host it needs. One
-    // binds; several are asked; none is missing.
-    private async Task<Resolution> Resolve(UnitNeeds needs, CancellationToken ct)
+    // binds, as does the one the person chose while it still fits; several are asked; none is missing.
+    private async Task<Resolution> Resolve(UnitNeeds needs, IReadOnlyDictionary<string, string>? chosen, CancellationToken ct)
     {
         var resolution = new Resolution(new Dictionary<string, string>(StringComparer.Ordinal), new Dictionary<string, string[]>(StringComparer.Ordinal), []);
         if (needs.Slots.Count == 0) { return resolution; }
@@ -319,6 +406,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
                 }
                 fitting.Add(connection.Key);
             }
+            if (chosen?.TryGetValue(slot.Name, out var pick) == true && fitting.Contains(pick)) { resolution.Bound[slot.Name] = pick; continue; }
             switch (fitting.Count)
             {
                 case 0: resolution.Missing.Add($"connect {capability} for {(slot.Hosts.Count == 0 ? slot.Name : string.Join(", ", slot.Hosts))}"); break;

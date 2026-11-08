@@ -70,6 +70,16 @@ public sealed class HttpReadConnectionFacts
     }
 
     [Fact]
+    public async Task ABodyThatIsNotJsonIsAnHttpError()
+    {
+        var http = new HostBoundHttp(new HttpClient(new Scripted(_ => Ok("<html>nope</html>"))));
+
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => http.GetJson(new Uri("https://api.x.com/a"), ["api.x.com"], Ct));
+
+        Assert.Equal("api.x.com did not return JSON", error.Message);
+    }
+
+    [Fact]
     public void TheAllowListParsesCommasOrAJsonArray()
     {
         Assert.Equal(["api.x.com", "*.y.org"], IConnectionHosts.Parse(" api.x.com, *.y.org ,"));

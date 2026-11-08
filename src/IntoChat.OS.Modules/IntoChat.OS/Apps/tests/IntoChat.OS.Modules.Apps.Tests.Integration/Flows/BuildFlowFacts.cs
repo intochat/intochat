@@ -99,10 +99,13 @@ public sealed class BuildFlowFacts
     // The brain's http@1 connections, each with its allow-list: ICapabilityConnections and IConnectionHosts over the same list.
     private sealed class HttpConnections(params (string Id, string[] Hosts)[] connections) : ICapabilityConnections, IConnectionHosts
     {
+        // A fact may connect others mid-flow.
+        public (string Id, string[] Hosts)[] Connections { get; set; } = connections;
+
         public static string KeyOf(BrainId brain, string id) => ConnectionKeys.For(brain.Value, IHttpConnection.TypeName, id);
 
         public Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<BrainConnection>>([.. connections.Select(c => new BrainConnection(KeyOf(brain, c.Id), c.Id, true, [Capability.Http.V1], null))]);
+            => Task.FromResult<IReadOnlyList<BrainConnection>>([.. Connections.Select(c => new BrainConnection(KeyOf(brain, c.Id), c.Id, true, [Capability.Http.V1], null))]);
 
         public Task<TCapability> Bind<TCapability>(BrainId brain, string connectionKey, string callerApp, CancellationToken ct = default)
             where TCapability : class
@@ -112,7 +115,7 @@ public sealed class BuildFlowFacts
             => Task.CompletedTask;
 
         public Task<IReadOnlyList<string>?> AllowedHosts(BrainId brain, string connectionKey, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<string>?>(connections.FirstOrDefault(c => KeyOf(brain, c.Id) == connectionKey).Hosts);
+            => Task.FromResult<IReadOnlyList<string>?>(Connections.FirstOrDefault(c => KeyOf(brain, c.Id) == connectionKey).Hosts);
     }
 
     private sealed class BuildFixture(ScriptedDrafter drafter, HttpConnections connections) : BothRuntimesFixture
@@ -258,14 +261,96 @@ public sealed class BuildFlowFacts
         var id = await Start(runtime);
 
         var view = await Settled(runtime, id);
-        Assert.Equal(("deploy", WaitReason.Approval), (view.WaitingStep, view.WaitingFor));
-        Assert.Equal([HttpConnections.KeyOf(runtime.Brain, "x1"), HttpConnections.KeyOf(runtime.Brain, "x2")], (await Inner(runtime, id)).Choices!["x"]);
+        Assert.Equal(("deploy", WaitReason.External), (view.WaitingStep, view.WaitingFor));
+        var asks = await ChoiceCards(runtime, id, 2);
+        Assert.Contains(asks, card => card.Title.Contains(HttpConnections.KeyOf(runtime.Brain, "x1"), StringComparison.Ordinal));
+        var second = Assert.Single(asks, card => card.Title.Contains(HttpConnections.KeyOf(runtime.Brain, "x2"), StringComparison.Ordinal));
 
-        await runtime.ApproveAsPerson(view.ConfirmationPlanId!, Ct);
+        await runtime.ApproveAsPerson(second.PlanId, Ct);
 
         var next = await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "install");
         Assert.Equal(["author", "draft", "verify", "deploy"], next.Done);
-        Assert.Equal(HttpConnections.KeyOf(runtime.Brain, "x1"), (await Inner(runtime, id)).Bindings!["x"]);
+        Assert.Equal(HttpConnections.KeyOf(runtime.Brain, "x2"), (await Inner(runtime, id)).Bindings!["x"]);
+        // The other candidate's plan was withdrawn: only the needs consent is left.
+        IReadOnlyList<Approval> left;
+        using (AsPerson(runtime)) { left = await runtime.Get<IApprovals>(IApprovals.Key(runtime.Brain.Value)).Pending(Ct); }
+        Assert.Equal(ApprovalKind.SynapseStaged, Assert.Single(left).Kind);
+    }
+
+    [Fact]
+    public async Task AConnectionArrivingDuringTheWaitWithSeveralFitsAsksWhich()
+    {
+        var connections = new HttpConnections(("y1", ["api.y.com"]));
+        await using var fixture = Fixture(connections, AgentPrompts.XWatchExample);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var id = await Start(runtime);
+        await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "deploy");
+
+        connections.Connections = [("x1", ["api.x.com"]), ("x2", ["*.x.com"])];
+        // The re-check runs on ConnectionsChanged, every minute and on activation; a restart is the activation.
+        await runtime.Restart(Ct);
+        await runtime.Get<IFlowStarter>(Id(id)).Head();
+
+        var asks = await ChoiceCards(runtime, id, 2);
+        Assert.Equal(2, asks.Count);
+        var inner = await Inner(runtime, id);
+        Assert.Null(inner.Missing);
+        Assert.False(inner.Bindings?.ContainsKey("x") == true);
+        Assert.Equal(("deploy", WaitReason.External), ((await Flows(runtime).Read(id, Ct))!.WaitingStep, (await Flows(runtime).Read(id, Ct))!.WaitingFor));
+    }
+
+    // The flow's choice cards once count of them are in the inbox.
+    private static async Task<IReadOnlyList<Approval>> ChoiceCards(INeuronRuntime runtime, string flowId, int count)
+    {
+        IReadOnlyList<Approval> cards = [];
+        for (var i = 0; i < 400; i++)
+        {
+            using (AsPerson(runtime)) { cards = [.. (await runtime.Get<IApprovals>(IApprovals.Key(runtime.Brain.Value)).Pending(Ct)).Where(a => a.Kind == ApprovalKind.FlowStep && a.Subject == flowId)]; }
+            if (cards.Count >= count) { return cards; }
+            await Task.Delay(50, Ct);
+        }
+        Assert.Fail($"{cards.Count} choice cards, not {count}");
+        return cards;
+    }
+
+    [Fact]
+    public async Task TheInstallWaitIsCarriedAsSynapseStagedNotFlowStep()
+    {
+        await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var id = await Start(runtime);
+
+        var view = await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "install" && v.ConfirmationPlanId is not null);
+
+        var inner = await Inner(runtime, id);
+        Assert.Equal(inner.PlanId, view.ConfirmationPlanId);
+        IReadOnlyList<Approval> approvals;
+        using (AsPerson(runtime)) { approvals = await runtime.Get<IApprovals>(IApprovals.Key(runtime.Brain.Value)).Pending(Ct); }
+        var card = Assert.Single(approvals, a => a.PlanId == inner.PlanId);
+        Assert.Equal(ApprovalKind.SynapseStaged, card.Kind);
+        Assert.Equal(view.TraceId, card.TraceId);
+        Assert.DoesNotContain(approvals, a => a.Kind == ApprovalKind.FlowStep);
+    }
+
+    // A deploy run again after a crash, before its step persisted: the studio answers the same ask, and the installs neuron holds one.
+    [Fact]
+    public async Task RedeployAfterACrashRaisesNoSecondAsk()
+    {
+        await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var id = await Start(runtime);
+        await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "install");
+        var inner = await Inner(runtime, id);
+        var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
+
+        var again = await studio.DeployFiles("x.watch", inner.Files!, inner.Bindings!);
+
+        Assert.True(again.Ok, again.Text);
+        var install = UnitDeploy.Install(again, "x.watch");
+        Assert.True(install.Status == DigitalBrain.InstallStatus.Unchanged || (install.Status == DigitalBrain.InstallStatus.Pending && install.Reason == inner.PlanId),
+            $"{again.Status} {install.Status} {install.Reason} vs {inner.PlanId}");
+        Assert.Equal(inner.PlanId, Assert.Single(await Installs(runtime).Pending(Ct)).PlanId);
+        Assert.Equal(inner.Hash, again.Hash);
     }
 
     [Fact]
