@@ -27,8 +27,7 @@ void main() {
                     'kind': 4,
                     'key': 'title',
                     'text': 'Title',
-                    'detail':
-                        '{"_ui":"textfield","name":"owner/apps/tasks/title","value":"","placeholder":"Title","secret":false}',
+                    'detail': '{"_ui":"textfield","name":"owner/apps/tasks/title","value":"","placeholder":"Title","secret":false}',
                   },
                 ],
               },
