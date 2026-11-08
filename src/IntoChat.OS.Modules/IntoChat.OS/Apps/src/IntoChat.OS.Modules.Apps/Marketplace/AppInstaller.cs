@@ -198,11 +198,6 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         var scope = BrainScope.CurrentId();
         var target = SiloNeurons.Get<IApp>(plain, IApp.Key(scope, name));
         var current = await target.Read().WaitAsync(ct);
-        if (current.MigrationTarget is { } alias)
-        {
-            var canonical = IApp.NameOf(scope, alias) ?? throw new InvalidOperationException("The app alias is outside this brain.");
-            return await Update(request with { Name = canonical }, ct);
-        }
         if (current.Origin is not { } origin)
         { throw new InvalidOperationException($"{name} was not installed from the Marketplace."); }
         var migrating = false;

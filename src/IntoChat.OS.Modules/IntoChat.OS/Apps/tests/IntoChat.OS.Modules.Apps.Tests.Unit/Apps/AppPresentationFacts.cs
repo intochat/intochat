@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.Apps.Tests.Unit.Apps;
 public sealed class AppPresentationFacts
 {
     [Fact]
-    public void PublishAndWithBlackboardProducePureStateTransitions()
+    public void PublishProducesPureStateTransitions()
     {
         var state = new AppState { BrainScopeId = "owner", ProgramRevision = 2 };
         var spec = new IntoChat.OS.Modules.Apps.Presentation(
@@ -20,11 +20,5 @@ public sealed class AppPresentationFacts
 
         // Idempotent publish returns null when unchanged
         Assert.Null(new PresentationCollaborator(published).Publish(spec));
-
-        var updated = new PresentationCollaborator(published).WithBlackboard(new Dictionary<string, string> { ["count"] = "5" });
-        Assert.NotNull(updated);
-        Assert.Equal(2, updated!.Presentation!.Revision);
-        Assert.Equal("5", updated.Presentation.Blackboard["count"]);
-        Assert.Empty(published.Presentation.Blackboard);
     }
 }

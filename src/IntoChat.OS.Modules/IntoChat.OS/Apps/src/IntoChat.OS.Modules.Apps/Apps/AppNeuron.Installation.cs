@@ -129,24 +129,10 @@ internal sealed partial class AppNeuron
             new BundleNameIsValid(bundle.Name, Name()),
             new BundleVersionIsSemantic(bundle.Version));
 
-    public async Task RecordOrigin(AppOrigin origin)
+    // Reassigns the program on activation, as its own turn after the activation (see OnActivate).
+    private async Task Restore()
     {
-        ArgumentNullException.ThrowIfNull(origin);
-        // Recording the publisher's origin marks a copy unedited and shipped, which every ShippedApps.Is guard trusts:
-        // an app behind the proxy (itself included) must never write its own.
-        if (RuntimeCallerContext.TryGet(out var caller) && caller.StampedBy == TrustedEdge.AppProxy)
-        { throw new UnauthorizedAccessException("Only the kernel or a person records where an app came from."); }
-        await RequireCreated("RecordOrigin");
-        var next = State.Clone();
-        next.Origin = origin;
-        next.Edited = false;
-        await Persist(next);
-        await RecordFeature();
-    }
-
-    public async Task Restore()
-    {
-        if (State.MigrationPaused || State.Manifest is null) { return; }
+        if (State.Manifest is null) { return; }
         if (!HasProgram(State)) { return; }
         var configuration = Configuration(State);
         var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
@@ -180,7 +166,6 @@ internal sealed partial class AppNeuron
     // The whole program, every time: the runtime decides what changed. No program means nothing runs.
     private async Task Deploy()
     {
-        if (State.MigrationPaused) { return; }
         await RecordFeature();
         if (!HasProgram(State)) { await Runtime.Retire(Key, CancellationToken.None); return; }
         var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);

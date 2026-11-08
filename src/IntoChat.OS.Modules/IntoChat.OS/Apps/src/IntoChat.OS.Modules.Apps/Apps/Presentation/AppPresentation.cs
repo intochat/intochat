@@ -23,64 +23,16 @@ internal sealed class AppPresentation(AppState state)
         return next;
     }
 
-    public AppState? Fail(string error)
-    {
-        var current = state.Presentation;
-        if (current is { Root: null } && current.Error == error)
-        {
-            return null;
-        }
-
-        var next = state.Clone();
-        next.Presentation = new(state.ProgramRevision, (current?.Revision ?? 0) + 1, null, error, new(current?.Blackboard ?? [], StringComparer.Ordinal));
-        return next;
-    }
-
-    public AppState? WithBlackboard(IReadOnlyDictionary<string, string> values)
-    {
-        var current = state.Presentation ?? new(state.ProgramRevision, 0, null, null, new(StringComparer.Ordinal));
-        if (values.All(pair => current.Blackboard.TryGetValue(pair.Key, out var held) && held == pair.Value))
-        {
-            return null;
-        }
-
-        var blackboard = new Dictionary<string, string>(current.Blackboard, StringComparer.Ordinal);
-        foreach (var (key, value) in values)
-        {
-            blackboard[key] = value;
-        }
-
-        var next = state.Clone();
-        next.Presentation = current with { Revision = current.Revision + 1, Blackboard = blackboard };
-        return next;
-    }
-
-    public static Signals.PresentationChanged? ApplyActivity(AppState next, string key, string state, Dictionary<string, string>? extra = null)
+    public static Signals.PresentationChanged? ApplyActivity(AppState next, string key, string state)
     {
         var running = state is "working" or "reading" or "searching" or "listening" ? "true" : "false";
         var attention = state == "attention" ? "true" : "false";
         var current = next.Presentation ?? new(next.ProgramRevision, 0, null, null, new(StringComparer.Ordinal));
-        var declared = current.Root?.Sphere?.BlackboardKeys;
-        if (extra is { Count: > 0 } && declared is null)
-        {
-            // The sphere is published by another behavior. Until it exists, the activity still commits
-            // and keys that have nowhere to go wait for a later write.
-            extra = null;
-        }
-
         var board = new Dictionary<string, string>(current.Blackboard, StringComparer.Ordinal)
         {
             ["running"] = running,
             ["attention"] = attention,
         };
-        if (extra is not null)
-        {
-            foreach (var (k, v) in extra)
-            {
-                board[k] = v;
-            }
-        }
-
         if (board.Count == current.Blackboard.Count && board.All(pair => current.Blackboard.TryGetValue(pair.Key, out var held) && held == pair.Value))
         {
             return null;

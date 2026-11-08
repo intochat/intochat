@@ -823,12 +823,6 @@ internal sealed class CompiledAppsHost(
                 if (turns.Definition.FindOperation(request.Operation) is { } method)
                 {
                     await turns.Request(request.Operation, BindArgument(method, request.Input), ct);
-                    var appNeuron = SiloNeurons.Get<IApp>(services, appKey);
-                    var currentSnapshot = await appNeuron.Read();
-                    using var appScope = baseCaller is not null ? CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, appKey)) : null;
-                    await appNeuron.SaveRuntimeState(
-                        JsonSerializer.Serialize(new { request.Operation, request.RequestId }),
-                        currentSnapshot.RuntimeStateRevision);
                 }
                 if (appName == "desktop")
                 {

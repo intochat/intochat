@@ -218,20 +218,6 @@ internal static class AppsEndpoints
         view = presentedView,
         side = presentedSide,
         viewRevision,
-        synapses = (snapshot.Synapses ?? []).Select(synapse => new
-        {
-            operationId = synapse.OperationId,
-            sentence = synapse.Sentence,
-            focus = synapse.Focus,
-            status = synapse.Status.ToString(),
-            requestedAt = synapse.RequestedAt,
-            errors = synapse.Errors,
-            path = synapse.Path,
-            hash = synapse.Hash,
-            elapsedMs = synapse.ElapsedMs,
-            attempts = synapse.Attempts,
-            @base = synapse.Base,
-        }).ToArray(),
     };
 
     internal static async Task<IResult> Respond(Func<Task<IResult>> handler)

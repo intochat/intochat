@@ -70,7 +70,6 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
     private SpaceComposer.SpaceEntry[] _friendEntries = [];
     private readonly HashSet<string> _dirtyApps = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SpaceComposer.SpaceEntry> _entries = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> _aliases = new(StringComparer.Ordinal);
 
     public Task RefreshApp(string key)
     {
@@ -151,8 +150,6 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
                 { members.Add(instance.Key); }
                 foreach (var key in _entries.Keys.Where(key => !members.Contains(key)).ToArray())
                 { _entries.Remove(key); }
-                foreach (var key in _aliases.Keys.Where(key => !members.Contains(key)).ToArray())
-                { _aliases.Remove(key); }
                 foreach (var key in members) { await ReadApp(brain, key); }
             }
             else if (dirtyApps.Length > 0)
@@ -163,8 +160,6 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
                 { members.Add(instance.Key); }
                 foreach (var key in _entries.Keys.Where(key => !members.Contains(key)).ToArray())
                 { _entries.Remove(key); }
-                foreach (var key in _aliases.Keys.Where(key => !members.Contains(key)).ToArray())
-                { _aliases.Remove(key); }
                 // A dirty app the directory does not list yet is read too: a plain app announces its first change before the kernel's
                 // directory registers it, and its deletion before the directory retires it (06-08). ReadApp drops one that reads as
                 // never created.
@@ -173,7 +168,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
                     if (members.Contains(key) || IApp.NameOf(brain, key) is not null) { await ReadApp(brain, key); }
                 }
             }
-            var workspace = held with { Path = held.Path.Select(ResolveAlias).ToArray() };
+            var workspace = held;
             var focus = workspace.Path[^1];
             if (fullRefresh || sourcesStale || !_friendsFresh || focus != _friendFocus)
             {
@@ -205,33 +200,17 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
             if (app.Manifest.Title.Length == 0)
             {
                 _entries.Remove(key);
-                _aliases.Remove(key);
                 return;
             }
-            if (app.MigrationTarget is { } target)
-            {
-                _entries.Remove(key);
-                _aliases[key] = target;
-                return;
-            }
-            _aliases.Remove(key);
             _entries[key] = new(key, app.Manifest.Title, app.Manifest.Description, app.Presentation, app.Manifest.Toolbar ?? []);
         }
         catch (Exception error)
         {
             _entries.Remove(key);
-            _aliases.Remove(key);
             // Retry transient failures on the next event, without a hot retry loop.
             _dirtyApps.Add(key);
             logger.LogWarning(error, "Could not read {App} while rebuilding space {Brain}.", key, brain);
         }
-    }
-
-    private string ResolveAlias(string key)
-    {
-        HashSet<string> visited = new(StringComparer.Ordinal);
-        while (visited.Add(key) && _aliases.TryGetValue(key, out var target)) { key = target; }
-        return key;
     }
 
     // On every activation: the watcher (a hosted service; a host without it follows nothing) follows this brain and its friends,

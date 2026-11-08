@@ -8,7 +8,7 @@ public sealed class NoteInner
     public string Text { get; set; } = "";
 }
 
-// The note's own contract, implemented by NoteFlow alone: a flow that writes notes (MigrateTasksFlow) calls it instead of
+// The note's own contract, implemented by NoteFlow alone: a flow that writes notes calls it instead of
 // IFlowStarter, whose implementers include the flows that call the index.
 public interface INoteFlow
 {

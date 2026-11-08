@@ -69,7 +69,7 @@ internal static class BrainPreferenceStore
         {
             if (IApp.NameOf(scope, instance.Key) is not { } name || Hidden.Contains(name)) { continue; }
             var app = await brain.Get<IApp>(instance.Key).Read().WaitAsync(ct);
-            if (!string.IsNullOrWhiteSpace(app.Manifest.Title) && app.MigrationTarget is null) { found.Add(new(name, app.Manifest.Title)); }
+            if (!string.IsNullOrWhiteSpace(app.Manifest.Title)) { found.Add(new(name, app.Manifest.Title)); }
         }
         return [.. found.OrderBy(choice => choice.Name == NewTabDefault ? 0 : 1).ThenBy(choice => choice.Title, StringComparer.OrdinalIgnoreCase)];
     }

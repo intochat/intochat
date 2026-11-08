@@ -4,8 +4,7 @@ using DigitalBrain;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// Flow<T> replaced seven long-running-work mechanisms. The deleted types stay deleted; the read-only legacy copy lives under
-// IntoChat.OS.Modules.Apps.Flows.Legacy. Synapse units react through [Synapse], never [On].
+// Flow<T> replaced seven long-running-work mechanisms. The deleted types stay deleted. Synapse units react through [Synapse], never [On].
 // Scope: production synapse units are compiled at runtime from ISynapseStudio sources, which the digitalbrain analyzers check at
 // deploy; the repository holds no compiled production synapse assembly. NoOnInSynapseAssemblies therefore scans the production
 // assemblies and every .cs source under the solution projects and features/ (the Apps integration fixture is the synapse
@@ -16,6 +15,11 @@ public sealed partial class NoLegacyWorkMechanismsFacts
     [
         "ITaskEngine", "TaskNeuron", "TaskExecutorNeuron", "TaskDirectoryNeuron", "IRunNeuron", "RunNeuron",
         "RunGraphSource", "TaskGraphSource", "AppWorkQueue", "IProgress", "ProgressNeuron",
+        // Units all the way: the fast-path writer, the legacy synapse writer and the app and task migrations.
+        "IAppDeploy", "IAppMigration", "AppSynapse", "SynapseStatus", "SynapseWritten", "SynapseRejected", "WriteSynapse", "CompleteSynapse",
+        "MigrateTasksFlow", "MigrateTasksLifecycle", "LegacyTaskState", "FilePathIsNotAProgram", "SynapseRequestIsPending",
+        "SynapseSentenceFits", "ProgramIsNotPaused", "AliasDoesNotRun", "MigrationAdoptsOneSource", "MigrationIsPausedFirst",
+        "MigrationIsRecorded", "MigrationIsSingle", "MigrationRedirectsOnce", "MigrationTargetIsSibling",
     ];
 
     // The BCL System.IProgress<T> is generic and stays; only the non-generic module IProgress is deleted.
@@ -29,13 +33,6 @@ public sealed partial class NoLegacyWorkMechanismsFacts
 
     private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
         | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
-    private static bool IsLegacy(string path)
-        => path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Contains("Legacy", StringComparer.Ordinal);
-
-    private static bool IsLegacyNamespace(string? ns)
-        => ns is not null && (ns.EndsWith(".Flows.Legacy", StringComparison.Ordinal)
-            || ns.Contains(".Flows.Legacy.", StringComparison.Ordinal));
 
     private static string StripArity(string name)
         => name.IndexOf('`', StringComparison.Ordinal) is var tick and >= 0 ? name[..tick] : name;
@@ -56,12 +53,12 @@ public sealed partial class NoLegacyWorkMechanismsFacts
     public void NoReferencesToDeletedMechanisms()
     {
         var types = ProductionArchitecture.Types
-            .Where(type => Deleted.Contains(StripArity(type.Name), StringComparer.Ordinal) && !IsLegacyNamespace(type.Namespace))
+            .Where(type => Deleted.Contains(StripArity(type.Name), StringComparer.Ordinal))
             .Select(type => type.FullName).Order(StringComparer.Ordinal).ToArray();
         Assert.True(types.Length == 0, "Deleted work-mechanism types exist again:\n" + string.Join('\n', types));
 
         var offenders = Sources(includeTests: false)
-            .Where(file => !IsLegacy(file.Path) && DeletedName.IsMatch(File.ReadAllText(file.Path)))
+            .Where(file => DeletedName.IsMatch(File.ReadAllText(file.Path)))
             .Select(file => file.Key).Order(StringComparer.Ordinal).ToArray();
         Assert.True(offenders.Length == 0,
             "Source references a deleted work mechanism; use Flow<T>:\n" + string.Join('\n', offenders));

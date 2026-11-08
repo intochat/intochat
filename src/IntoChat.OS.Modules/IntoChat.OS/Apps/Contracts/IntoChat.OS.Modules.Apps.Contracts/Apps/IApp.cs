@@ -9,15 +9,10 @@ namespace IntoChat.OS.Modules.Apps;
 public interface IApp
 {
     [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<AppSnapshot> Read();
-    Task<AppSnapshot> SaveRuntimeState(string stateJson, long expectedRevision);
     [DigitalBrain.Interleaves] Task<AppSnapshot> Present(long expectedProgramRevision, Presentation presentation);
-    [DigitalBrain.Interleaves] Task<AppSnapshot> FailPresentation(long expectedProgramRevision, string error);
-    [DigitalBrain.Interleaves] Task<AppSnapshot> WriteBlackboard(long expectedProgramRevision, Dictionary<string, string> values);
-    [Internal] Task Stamp(string key, string value);
     Task<AppSnapshot> Create(AppManifest manifest, string spec);
     Task<AppSnapshot> SaveSpec(string spec, Guid operationId);                 // minor bump
     Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId);    // patch bump
-    Task<AppSnapshot> WriteFile(string path, string source, Guid operationId); // patch bump
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections);
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Rollback(string version);
     Task<AppSnapshot> BeginBuild(string? instruction);
@@ -29,8 +24,6 @@ public interface IApp
     Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.InstallStatus status, string sentence);
     // Publishes AppActivity (State is one of AppActivity.States).
     Task Progress(string state, string detail);
-    // The same activity write, plus declared blackboard values, in one presentation revision.
-    Task Progress(string state, string detail, Dictionary<string, string> blackboard);
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null);
     Task<AppBundle> Export();
     // Publishes the current version once its scripts compile: it becomes the Marketplace listing and the
@@ -50,9 +43,6 @@ public interface IApp
     // app's stored data stay; behaviors the bundle lacks stop. A
     // copy not yet Live is deployed again even at the same version.
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null);
-    // Install records where the copy came from; recording it again (after an update) also
-    // clears Edited, because the program is the publisher's again.
-    Task RecordOrigin(AppOrigin origin);
     [DigitalBrain.CallTimeout(600_000)] Task Delete();
     // Publishes AppRequested for a synapse to react to. Nothing waits for it: the answer is neuron state.
     Task<Guid> Request(string operation, string input);

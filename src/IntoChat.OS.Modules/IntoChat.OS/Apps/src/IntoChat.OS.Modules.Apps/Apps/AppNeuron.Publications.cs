@@ -22,7 +22,6 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Publish()
     {
         await Check("Publish",
-            new ProgramIsNotPaused(State.MigrationPaused),
             new AppExists(Name(), State.Manifest is not null));
         RuntimeCallerContext.TryGet(out var caller);
         await Check("Publish", new PublisherIsSignedIn(caller?.PersonId));

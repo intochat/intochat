@@ -41,43 +41,6 @@ internal sealed partial class AppNeuron
         return Describe(State);
     }
 
-    public async Task<AppSnapshot> FailPresentation(long expectedProgramRevision, string error)
-    {
-        await RequireExecutingAssignment("FailPresentation", expectedProgramRevision);
-        ArgumentException.ThrowIfNullOrWhiteSpace(error);
-        if (new PresentationCollaborator(State).Fail(error) is { } next)
-        {
-            await Save(next, new PresentationChanged(Key, next.ProgramRevision, next.Presentation!.Revision));
-        }
-        return Describe(State);
-    }
-
-    public async Task<AppSnapshot> WriteBlackboard(long expectedProgramRevision, Dictionary<string, string> values)
-    {
-        await RequireExecutingAssignment("WriteBlackboard", expectedProgramRevision);
-        ArgumentNullException.ThrowIfNull(values);
-        await Check("WriteBlackboard", new PresentationIsPublished(State.Presentation is not null));
-        var declared = State.Presentation!.Root?.Sphere?.BlackboardKeys ?? [];
-        await Check("WriteBlackboard", [.. values.Keys.Select(key => (Rule)new BlackboardKeyIsDeclared(key, declared))]);
-        if (new PresentationCollaborator(State).WithBlackboard(values) is { } next)
-        {
-            await Save(next, new PresentationChanged(Key, next.ProgramRevision, next.Presentation!.Revision));
-        }
-        return Describe(State);
-    }
-
-    public async Task Stamp(string key, string value)
-    {
-        if (RuntimeCallerContext.TryGet(out var caller) && caller.Kind != CallerKind.Platform)
-        { throw new UnauthorizedAccessException("Only the module may stamp reserved blackboard keys."); }
-        await RequireCreated("Stamp");
-        await Check("Stamp", new BlackboardKeysAreDeclarable(FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal) ? ["ok"] : [""]));
-        if (new PresentationCollaborator(State).WithBlackboard(new Dictionary<string, string>(StringComparer.Ordinal) { [key] = value }) is { } next)
-        {
-            await Save(next, new PresentationChanged(Key, next.ProgramRevision, next.Presentation!.Revision));
-        }
-    }
-
     private Task RequireExecutingAssignment(string operation, long expectedProgramRevision)
     {
         if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App

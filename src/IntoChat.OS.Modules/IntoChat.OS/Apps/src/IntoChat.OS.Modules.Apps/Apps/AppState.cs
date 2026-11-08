@@ -34,24 +34,14 @@ public sealed class AppState
     // 06-08: the last activity, held so an interrupted turn can be reconciled on the next activation (was a RetainedSignal array).
     [Id(25)] public Signals.AppActivity? LastActivity { get; set; }
     [Id(26)] public long ActivitySequence { get; set; }
-    // The fast path's requests and their outcomes, newest last.
-    [Id(27)] public AppSynapse[] Synapses { get; set; } = [];
     [Id(28)] public AppReleaseRecord[] Releases { get; set; } = [];
     [Id(29)] public AppInstallReceipt? Installation { get; set; }
 
     [Id(30)] public long ProgramRevision { get; set; }
     [Id(31)] public AppPresentation? Presentation { get; set; }
-    [Id(32)] public string? Migration { get; set; }
-    [Id(33)] public bool MigrationPaused { get; set; }
-    [Id(34)] public AppState? MigrationArchive { get; set; }
-    [Id(35)] public string? MigrationSource { get; set; }
-    [Id(36)] public string? MigrationTarget { get; set; }
-    [Id(37)] public Signals.AppRequested[] MigrationRequests { get; set; } = [];
     [Id(38)] public StringEntry[] FileEntries { get; set; } = [];
     [Id(39)] public StringEntry[] SettingEntries { get; set; } = [];
     [Id(40)] public StringEntry[] ConnectionEntries { get; set; } = [];
-    [Id(41)] public string? RuntimeStateJson { get; set; }
-    [Id(42)] public long RuntimeStateRevision { get; set; }
     [Id(43)] public long SignalCursor { get; set; }
     [Id(44)] public DigitalBrain.DeadLetterEntry[] DeadLetters { get; set; } = [];
     // The IFlows id of the latest build; the build status is the flow's.
@@ -126,19 +116,10 @@ public sealed class AppState
         RequestSequence = RequestSequence,
         LastActivity = LastActivity,
         ActivitySequence = ActivitySequence,
-        Synapses = [.. Synapses],
         Releases = [.. Releases],
         Installation = Installation,
         ProgramRevision = ProgramRevision,
         Presentation = Presentation,
-        Migration = Migration,
-        MigrationPaused = MigrationPaused,
-        MigrationArchive = MigrationArchive,
-        MigrationSource = MigrationSource,
-        MigrationTarget = MigrationTarget,
-        MigrationRequests = [.. MigrationRequests],
-        RuntimeStateJson = RuntimeStateJson,
-        RuntimeStateRevision = RuntimeStateRevision,
         SignalCursor = SignalCursor,
         DeadLetters = [.. DeadLetters],
         BuildFlowId = BuildFlowId,

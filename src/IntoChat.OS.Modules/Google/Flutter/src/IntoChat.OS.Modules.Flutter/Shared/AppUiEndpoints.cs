@@ -58,7 +58,6 @@ internal static class AppUiEndpoints
         }
         var unit = kind == UIVocabulary.ViewType ? UnitAlias(scope, name) : null;
         if (unit is null && !OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
-        if (kind == UIVocabulary.ViewType && unit is null) { name = await ResolveViewAlias(brain, scope, name, ct); }
         if (kind == "viewport")
         {
             var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
@@ -66,11 +65,6 @@ internal static class AppUiEndpoints
             { return Results.Ok(new { viewport.Revision, Root = (UiChildRef?)null, Error = (string?)null }); }
             if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
             var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
-            if (app.MigrationTarget is { } migrated)
-            {
-                if (!OwnsUi(scope, migrated)) { throw new UnauthorizedAccessException(); }
-                app = await brain.Get<IApp>(migrated).Read().WaitAsync(ct);
-            }
             var presentation = app.Presentation;
             var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
             if (root is not null && !OwnsUi(scope, root.Name)) { throw new UnauthorizedAccessException(); }
@@ -187,7 +181,7 @@ internal static class AppUiEndpoints
             return Results.Ok(new { delivered = true });
         }
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
-        var name = await ResolveViewAlias(brain, scope, input.Name, ct);
+        var name = input.Name;
         var activation = await brain.Get<IView>(name).Activate(generation, key, input.Value).WaitAsync(ct);
         var appKey = AppOf(scope, name);
         switch (activation.Kind)
@@ -243,17 +237,6 @@ internal static class AppUiEndpoints
     {
         try { return Convert.FromBase64String(base64 ?? ""); }
         catch (FormatException) { throw new ArgumentException("Audio must be base64 encoded."); }
-    }
-
-    private static async Task<string> ResolveViewAlias(INeuronProxies brain, string scope, string name, CancellationToken ct)
-    {
-        if (!name.EndsWith("/view", StringComparison.Ordinal)) { return name; }
-        var appKey = name[..^5];
-        if (IApp.NameOf(scope, appKey) is null) { return name; }
-        var app = await brain.Get<IApp>(appKey).Read().WaitAsync(ct);
-        if (app.MigrationTarget is not { } target) { return name; }
-        if (!OwnsUi(scope, target)) { throw new UnauthorizedAccessException(); }
-        return target + "/view";
     }
 
     internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null, string? MimeType = null,

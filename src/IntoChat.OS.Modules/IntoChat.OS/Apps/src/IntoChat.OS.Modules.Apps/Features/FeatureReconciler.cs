@@ -45,7 +45,6 @@ internal sealed class FeatureReconciler(
             try { snapshot = await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/" + name)).Read().WaitAsync(ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Could not read {Brain}/{App} to reconcile it.", brainId, name); continue; }
-            if (snapshot.MigrationTarget is not null) { continue; }
             if (snapshot.Origin is not { Source: AppSource.Shipped } origin) { continue; }
             await GrantShipped(brainId, name, origin);
             var migrating = false;

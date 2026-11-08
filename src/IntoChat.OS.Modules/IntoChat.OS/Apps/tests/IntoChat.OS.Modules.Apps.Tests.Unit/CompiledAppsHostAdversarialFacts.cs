@@ -290,16 +290,10 @@ public sealed class CompiledAppsHostAdversarialFacts
         }
 
         public Task<AppSnapshot> Read() => throw new NotImplementedException();
-        public Task<AppSnapshot> SaveRuntimeState(string stateJson, long expectedRevision) => throw new NotImplementedException();
         public Task<AppSnapshot> Present(long expectedProgramRevision, Presentation presentation) => throw new NotImplementedException();
-        public Task<AppSnapshot> FailPresentation(long expectedProgramRevision, string error) => throw new NotImplementedException();
-        public Task<AppSnapshot> WriteBlackboard(long expectedProgramRevision, Dictionary<string, string> values) => throw new NotImplementedException();
-        public Task Stamp(string key, string value) => throw new NotImplementedException();
         public Task<AppSnapshot> Create(AppManifest manifest, string spec) => throw new NotImplementedException();
         public Task<AppSnapshot> SaveSpec(string spec, Guid operationId) => throw new NotImplementedException();
         public Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId) => throw new NotImplementedException();
-        public Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId) => throw new NotImplementedException();
-        public Task<AppSnapshot> WriteFile(string path, string source, Guid operationId) => throw new NotImplementedException();
         public Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections) => throw new NotImplementedException();
         public Task<AppSnapshot> Rollback(string version) => throw new NotImplementedException();
         public Task<AppSnapshot> BeginBuild(string? instruction) => throw new NotImplementedException();
@@ -307,7 +301,6 @@ public sealed class CompiledAppsHostAdversarialFacts
         public Task<string?> BuildFlow() => throw new NotImplementedException();
         public Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.InstallStatus status, string sentence) => throw new NotImplementedException();
         public Task Progress(string state, string detail) => throw new NotImplementedException();
-        public Task Progress(string state, string detail, Dictionary<string, string> blackboard) => throw new NotImplementedException();
         public Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null) => throw new NotImplementedException();
         public Task<AppBundle> Export() => throw new NotImplementedException();
         public Task<AppSnapshot> Publish() => throw new NotImplementedException();
@@ -317,10 +310,6 @@ public sealed class CompiledAppsHostAdversarialFacts
         public Task<AppBundle?> ExportVersion(string version) => throw new NotImplementedException();
         public Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null) => throw new NotImplementedException();
         public Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null) => throw new NotImplementedException();
-        public Task RecordOrigin(AppOrigin origin) => throw new NotImplementedException();
-        public Task<AppSnapshot> SaveToSource() => throw new NotImplementedException();
         public Task Delete() => throw new NotImplementedException();
-        public Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId) => throw new NotImplementedException();
-        public Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null) => throw new NotImplementedException();
     }
 }
