@@ -1,11 +1,11 @@
 {
-  "publisher": "b1/flow.assistant/9f2c41",
   "sequence": 17,
-  "signal": {
-    "type": "flow.done",
-    "flowId": "b1/flow.assistant/9f2c41",
-    "outcome": "Completed",
-    "detail": "All steps done."
+  "type": "FlowDone",
+  "publisher": "b1/flow.assistant/9f2c41",
+  "payload": {
+    "FlowId": "b1/flow.assistant/9f2c41",
+    "Outcome": "Completed",
+    "Detail": "All steps done."
   },
   "at": "2026-11-08T09:50:00+00:00",
   "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",

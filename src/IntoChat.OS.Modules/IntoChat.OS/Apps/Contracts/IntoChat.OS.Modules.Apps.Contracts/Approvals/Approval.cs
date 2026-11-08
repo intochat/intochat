@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace IntoChat.OS.Modules.Apps.Approvals;
 
 // What an inbox entry is about. FlowStep: a flow waits on the plan. SynapseStaged: a staged synapse version waits for its needs to be
 // approved. StorageWrite: a delete, move, copy, rename or overwrite. Grant: a plan whose TargetLabel starts with "grant:" (the identity
 // module raises no grant plan yet). Other: anything not recognised.
+[JsonConverter(typeof(JsonStringEnumConverter<ApprovalKind>))]
 public enum ApprovalKind
 {
     FlowStep,

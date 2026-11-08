@@ -29,7 +29,7 @@ public sealed class MemorySignalJournal(IOptions<MemorySignalJournalOptions> opt
         {
             foreach (var signal in signals)
             {
-                ring.Entries.Enqueue(new Entry(publisher, new JournaledSignal(++ring.Last, signal, publisher.Key.ToString()!)));
+                ring.Entries.Enqueue(new Entry(publisher, new JournaledSignal(++ring.Last, signal, publisher.Key.ToString()!, DateTimeOffset.UtcNow)));
                 if (ring.Entries.Count > retain) { ring.Entries.Dequeue(); }
             }
             return Task.FromResult(ring.Last);

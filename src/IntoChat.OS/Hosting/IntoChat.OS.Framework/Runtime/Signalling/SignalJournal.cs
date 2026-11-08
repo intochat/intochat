@@ -23,7 +23,8 @@ public interface ISignalJournal
 public sealed record PartSignals(long Floor, long Last, JournaledSignal[] Signals);
 
 // Sequence numbers are the brain's own ordering of its journalled signals: strictly increasing, 1-based.
-public sealed record JournaledSignal(long Sequence, Signal Signal, string Publisher);
+// At is when the host journalled the signal; TraceId and CausationId are null where the host has no trace to stamp.
+public sealed record JournaledSignal(long Sequence, Signal Signal, string Publisher, DateTimeOffset At = default, string? TraceId = null, string? CausationId = null);
 
 public static class SignalJournal
 {
