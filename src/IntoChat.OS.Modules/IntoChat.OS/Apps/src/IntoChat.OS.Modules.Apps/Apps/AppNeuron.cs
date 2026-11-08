@@ -263,6 +263,8 @@ internal sealed partial class AppNeuron(
         if (status is DigitalBrain.InstallStatus.Installed or DigitalBrain.InstallStatus.Updated or DigitalBrain.InstallStatus.Unchanged)
         {
             next.Status = AppStatus.Live;
+            // The unit build is how the Creator rebuilds a refused record: it lifts the refusal.
+            next.Refused = null;
             next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build finished: synapse unit {hash}"];
         }
         else

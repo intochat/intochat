@@ -173,6 +173,29 @@ public sealed class LegacyRestoreFacts
     }
 
     [Fact]
+    public async Task ARefusedAppRebuiltAsAUnitIsUsableAgain()
+    {
+        await using var os = NewOS(out var spy);
+        var app = await Seeded(os, WithProgram(("sync.cs", "return 1;")));
+        Assert.Equal(AppStatus.Failed, (await Settled(os, app)).Status);
+
+        // A refused (Failed) app can start a build; the Creator's unit build completing lifts the refusal.
+        _ = await app.BeginBuild("rebuild");
+        var states = (Dictionary<NeuronId, JsonElement>)typeof(TestJournal)
+            .GetField("_states", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(os.Journal(AppId.Brain))!;
+        var attempt = states[AppId].GetProperty("buildAttempt").GetGuid();
+        var built = await app.CompleteUnitBuild(attempt, "h1", DigitalBrain.InstallStatus.Installed, "");
+
+        Assert.Equal(AppStatus.Live, built.Status);
+        var configured = await app.Configure([], []);
+        Assert.Equal(AppStatus.Live, configured.Status);
+        await os.Deactivate(AppId);
+        var again = await Settled(os, app);
+        Assert.Equal(AppStatus.Live, again.Status);
+        Assert.Equal(0, await spy.Attempts(again));
+    }
+
+    [Fact]
     public async Task AnAppWithRetiredFieldsIsRefused()
     {
         await using var os = NewOS(out var spy);
