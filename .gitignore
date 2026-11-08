@@ -19,6 +19,7 @@ logs/
 .worktrees/
 sources/
 node_modules/
+**/publish/
 
 # Local MCP tool installs (Codex absolute launch)
 .config/codegraph-tool/

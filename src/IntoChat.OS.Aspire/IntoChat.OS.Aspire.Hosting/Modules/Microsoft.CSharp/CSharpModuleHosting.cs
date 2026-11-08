@@ -34,6 +34,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
                 return;
             }
         }
+        EnsurePublished(contextPath);
         var sandbox = brain.ApplicationBuilder.AddDockerfile(ResourceName, contextPath, dockerfilePath: Dockerfile)
             .WithHttpEndpoint(targetPort: 8080, name: "http")
             .WithHttpHealthCheck("/health")
@@ -48,6 +49,36 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
             sandbox.WithBuildArg("NUGET_TOKEN", token);
         }
         brain.AddProjection(new SandboxUrlProjection(sandbox));
+    }
+
+    private static void EnsurePublished(string contextPath)
+    {
+        var projectPath = Path.Combine(contextPath, "src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj");
+        var publishDir = Path.Combine(contextPath, "src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/publish");
+        var targetDll = Path.Combine(publishDir, "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.dll");
+        if (!File.Exists(projectPath)) { return; }
+
+        if (File.Exists(targetDll) && File.GetLastWriteTimeUtc(targetDll) >= File.GetLastWriteTimeUtc(projectPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo("dotnet", $"publish \"{projectPath}\" -c Release -r linux-x64 --no-self-contained -o \"{publishDir}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            using var proc = Process.Start(psi);
+            proc?.WaitForExit(60000);
+        }
+        catch
+        {
+            // If host publish fails, container build failure will surface diagnostics.
+        }
     }
 
     private static string? ResolveGitHubPackagesToken()

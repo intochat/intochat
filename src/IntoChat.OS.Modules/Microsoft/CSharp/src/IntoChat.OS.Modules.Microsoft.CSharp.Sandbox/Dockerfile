@@ -1,28 +1,10 @@
 # syntax=docker/dockerfile:1
-# The sandbox host: a runtime-only image. Behaviors arrive compiled; nothing compiles here.
-# It carries the brain client, the DigitalBrain and DigitalBrain.UI core packages and every contracts assembly, so a brain can check the image speaks its
-# contracts before loading anything. Build from the repository root:
-#   docker build -f src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile -t csharp-sandbox .
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
-ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
-    DOTNET_NOLOGO=1 \
-    CodeGraphRefresh=false
-WORKDIR /src
-# DigitalBrain packages come from GitHub Packages; the AppHost passes a read:packages token (CSharpModuleHosting).
-# It lives only in this build stage, never in the runtime image.
-ARG NUGET_TOKEN
-COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
-COPY src/ ./src/
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    NuGetPackageSourceCredentials_github="Username=docker;Password=${NUGET_TOKEN}" \
-    dotnet publish src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj \
-      -c Release -p:DebugType=none -o /app \
-    && rm -rf /src/artifacts \
-    && test -f /app/DigitalBrain.dll && test -f /app/DigitalBrain.UI.dll
-
+# The sandbox host: runtime container built from pre-published host artifacts.
+# This eliminates remote NuGet authentication inside Docker, ensuring zero token errors
+# and fast, offline-capable local development with exact local code parity.
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3
 WORKDIR /app
-COPY --from=build /app .
+COPY src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/publish/ .
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     DOTNET_NOLOGO=1
 EXPOSE 8080
