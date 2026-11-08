@@ -176,27 +176,51 @@ public sealed class FlowsNeuronFacts
         Assert.Empty(none);
     }
 
+    // The flow ran before the index existed, so its own signals were never delivered; the pump then sends its done first, a
+    // repeated step and a late start. The done-time head read fills in the real steps and owner.
     [Fact]
     public async Task DuplicateAndOutOfOrderSignalsFoldOnce()
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var key = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N"));
+        var id = key.ToString();
+        await runtime.Get<IFlowStarter>(key).StartFromJson("Late", "owner-1", null, Inner(new TestInner()));
         var flows = Flows(runtime);
         await flows.List(new FlowQuery(), Ct);
         var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
-        var id = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N")).ToString();
 
         await pump.Done(id);
         await pump.StepCompleted(id, "first");
         await pump.StepCompleted(id, "first");
         await pump.Started(id, TestFlow.Alias, "Late");
 
-        var view = await Eventually(flows, id, v => v.Title == "Late");
+        var view = await Eventually(flows, id, v => v.Title == "Late" && v.Done.Length > 0);
         Assert.Equal(FlowStatus.Completed, view.Status);
-        Assert.Equal(["first"], view.Done);
+        Assert.Equal(["first", "second", "third"], view.Done);
+        Assert.Equal(["first", "second", "third"], view.Steps);
+        Assert.Equal("owner-1", view.Owner);
+        Assert.NotEmpty(view.TraceId);
         Assert.NotNull(view.Ended);
-        // Finished before the index could read it: a finished entry's head is never read, so its steps stay unknown.
-        Assert.Empty(view.Steps);
+    }
+
+    [Fact]
+    public async Task HeadReadStopsAfterThreeFailures()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        await flows.List(new FlowQuery(), Ct);
+        var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
+        var id = runtime.Id(FailingHeadFlow.Alias, Guid.NewGuid().ToString("N")).ToString();
+
+        foreach (var step in new[] { "a", "b", "c", "d" }) { await pump.StepCompleted(id, step); }
+        await Eventually(flows, id, v => v.Done.Length == 4);
+        await flows.List(new FlowQuery(), Ct);
+        await flows.Read(id, Ct);
+
+        Assert.Equal(3, FailingHeadFlow.Reads[id]);
+        Assert.Empty((await flows.Read(id, Ct))!.Steps);
     }
 
     [Fact]

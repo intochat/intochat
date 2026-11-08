@@ -28,6 +28,27 @@ public sealed class TestInner
     public string? OperationId { get; set; }
 }
 
+// A flow type whose head cannot be read; Reads counts the attempts per flow id.
+[DigitalBrain.Neuron(Alias)]
+public sealed class FailingHeadFlow : Flow<TestInner>, IFlowStarter
+{
+    public const string Alias = "test.failing-head";
+
+    internal static readonly ConcurrentDictionary<string, int> Reads = new(StringComparer.Ordinal);
+
+    protected override IReadOnlyList<string> Steps => ["only"];
+
+    public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson) => Start(title, owner, parentFlowId, new TestInner());
+
+    public Task<FlowHead> Head()
+    {
+        Reads.AddOrUpdate(Id.ToString(), 1, (_, count) => count + 1);
+        throw new NotSupportedException("no head");
+    }
+
+    protected override Task<StepResult<TestInner>> Run(string step, TestInner inner, CancellationToken ct) => Task.FromResult(new StepResult<TestInner>(inner));
+}
+
 // Publishes flow.* signals as a flow would, in any order, for the facts that fold redelivered or early signals.
 public interface IFlowSignalPump
 {

@@ -12,7 +12,8 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 
 // The brain's flows index. It holds a brain-wide synapse on the six flow.* signals and folds each into its entry; only those
 // handlers save. A signal for a flow the index does not know yet makes a placeholder entry; the flow's FlowHead fills it in when
-// it can be read (retried on the flow's next signals, at most FlowEntry.MaxHeadAttempts times, never on reads or once finished). Signals are folded idempotently: a repeated
+// it can be read (retried on the flow's next signals, at most FlowEntry.MaxHeadAttempts times, never on reads; once finished only by
+// the FlowDone of a flow whose head is still unknown). Signals are folded idempotently: a repeated
 // or stale one does not move an entry back. The commands find the flow neuron by id and call it, so they interleave.
 [DigitalBrain.Neuron("flows")]
 public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
@@ -104,7 +105,8 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
         {
             // A start redelivered after the step completed or the flow ended is stale.
             StepOutcome.Started => Fold(step.FlowId, entry => entry.Finished || entry.Done.Contains(step.Step) ? entry
-                : entry with { Status = FlowStatus.Running, Current = step.Step, OperationId = null }, readHead: true),
+                : entry with { Status = FlowStatus.Running, Current = step.Step, OperationId = null, ResolvedStep = entry.ResolvedStep == step.Step ? entry.ResolvedStep : null },
+                readHead: true),
             StepOutcome.Completed => Fold(step.FlowId, entry => entry.Done.Contains(step.Step) ? entry : entry with
             {
                 Done = [.. entry.Done, step.Step],
@@ -156,7 +158,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
             OperationId = null,
             Ended = Context.Time.GetUtcNow(),
             Detail = done.Detail ?? entry.Detail,
-        });
+        }, readFinished: true);
     }
 
     [On]
@@ -175,12 +177,13 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
 
     // Applies change to the flow's entry (a placeholder when the index has none) and saves it when it changed. The flow's head is
     // read when readHead asks for it or the entry has none yet.
-    private async Task Fold(string flowId, Func<FlowEntry, FlowEntry> change, bool readHead = false)
+    private async Task Fold(string flowId, Func<FlowEntry, FlowEntry> change, bool readHead = false, bool readFinished = false)
     {
         var known = State.Flows.TryGetValue(flowId, out var existing);
         var entry = known ? existing! : Placeholder(flowId);
         var next = change(entry);
-        if (!next.Finished && (readHead || !next.HeadKnown) && next.HeadAttempts < FlowEntry.MaxHeadAttempts) { next = await WithHead(next); }
+        var wantsHead = next.Finished ? readFinished && !next.HeadKnown : readHead || !next.HeadKnown;
+        if (wantsHead && next.HeadAttempts < FlowEntry.MaxHeadAttempts) { next = await WithHead(next); }
         if (known && ReferenceEquals(next, existing)) { return; }
         await Save(State.With(next), new FlowsChanged(flowId));
     }
