@@ -53,11 +53,15 @@ public sealed class BuildFlowFacts
 
         public int Drafts => _drafts;
 
+        // The existing files each Draft was handed, in call order.
+        public List<IReadOnlyDictionary<string, string>?> Existing { get; } = [];
+
         public Task<AuthoredUnit> Author(string brainId, string request, CancellationToken ct)
             => sources.Length == 0 ? throw new InvalidOperationException("the drafter failed") : Task.FromResult(Creator.Parse<AuthoredUnit>(Authored));
 
         public Task<BuildDraft> Draft(string brainId, AuthoredUnit unit, IReadOnlyDictionary<string, string>? existing, CancellationToken ct)
         {
+            lock (Existing) { Existing.Add(existing); }
             var source = sources[Math.Min(Interlocked.Increment(ref _drafts) - 1, sources.Length - 1)];
             return Task.FromResult(new BuildDraft(new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -313,6 +317,30 @@ public sealed class BuildFlowFacts
         var after = Assert.Single(await runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value)).List());
         Assert.NotEqual(before.Hash, after.Hash);
         Assert.Equal(DeployStatus.Deployed, after.Status);
+    }
+
+    // The host compiles only C#: the studio keeps spec.md and scenarios.json beside the source, and a change run drafts over them.
+    [Fact]
+    public async Task SidecarsSurviveDeployAndFeedExisting()
+    {
+        var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample);
+        await using var fixture = new BuildFixture(drafter, OneCovering());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
+        var first = await Start(runtime);
+        await Eventually(() => Flows(runtime).Read(first, Ct), v => v.WaitingStep == "install");
+
+        var sidecars = await studio.Sidecars("x.watch");
+        Assert.Equal([UnitFiles.Scenarios, UnitFiles.Spec], sidecars.Keys.Order(StringComparer.Ordinal));
+        Assert.Contains("Watches mentions", sidecars[UnitFiles.Spec], StringComparison.Ordinal);
+
+        var second = await Start(runtime, "watch elonmusk on X, twice as often");
+        await Eventually(() => Flows(runtime).Read(second, Ct), v => v.Done.Contains("draft"));
+
+        var existing = Assert.IsAssignableFrom<IReadOnlyDictionary<string, string>>(drafter.Existing[^1]);
+        Assert.Equal(AgentPrompts.XWatchExample, existing["XWatch.cs"]);
+        Assert.Equal(sidecars[UnitFiles.Spec], existing[UnitFiles.Spec]);
+        Assert.Equal(sidecars[UnitFiles.Scenarios], existing[UnitFiles.Scenarios]);
     }
 
     [Fact]

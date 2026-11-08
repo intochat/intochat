@@ -195,8 +195,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
     {
         var bindings = new Dictionary<string, string>(inner.Bindings ?? [], StringComparer.Ordinal);
         foreach (var (slot, candidates) in inner.Choices ?? []) { bindings[slot] = candidates[0]; }
-        // The host compiles every file it is given, so only the unit's C# deploys; spec.md and scenarios.json stay in the flow.
-        var result = await Studio().DeployFiles(unit.Alias, UnitFiles.Code(inner.Files!), bindings);
+        var result = await Studio().DeployFiles(unit.Alias, inner.Files!, bindings);
         if (!result.Ok) { throw new FlowFailed("deploy", result.Text); }
         var install = UnitDeploy.Install(result, unit.Alias);
         inner.Bindings = bindings;
@@ -340,11 +339,13 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
         await App(inner).CompleteUnitBuild(attempt, inner.Hash ?? "", status, inner.Sentence ?? "");
     }
 
-    // The deployed source's files under alias, without spec.md/scenarios.json stripped; null when nothing is deployed there.
+    // The deployed source's files under alias plus the studio's sidecars (spec.md, scenarios.json); null when nothing is deployed there.
     private async Task<Dictionary<string, string>?> Current(string alias, CancellationToken ct)
     {
-        if (Context.Services.GetService<ISourceStore>() is not { } store) { return null; }
-        return await store.Get(Id.Brain, alias, ct) is { } record ? new Dictionary<string, string>(record.Files, StringComparer.Ordinal) : null;
+        if (Context.Services.GetService<ISourceStore>() is not { } store || await store.Get(Id.Brain, alias, ct) is not { } record) { return null; }
+        var files = new Dictionary<string, string>(record.Files, StringComparer.Ordinal);
+        foreach (var (path, text) in await Studio().Sidecars(alias)) { files[path] = text; }
+        return files;
     }
 
     private static string Sha(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));

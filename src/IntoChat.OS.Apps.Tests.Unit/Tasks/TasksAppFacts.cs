@@ -331,6 +331,7 @@ public sealed class TasksAppFacts
         public Task<InoToolResult> Check(string source) => Task.FromResult(new InoToolResult(""));
         public Task<InoToolResult> Deploy(string alias, string source) => Task.FromResult(new InoToolResult(""));
         public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings) => Task.FromResult(new UnitDeployResult(true, "", DigitalBrain.DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.InstallOutcome>()));
+        public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(new Dictionary<string, string>());
         public Task<InoToolResult> Retire(string alias) => Task.FromResult(new InoToolResult(""));
         public Task<DeployedSource[]> List() => Task.FromResult(Sources);
     }

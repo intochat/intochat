@@ -41,6 +41,11 @@ public interface ISynapseStudio
 
     [DigitalBrain.ReadOnlyCall]
     Task<DigitalBrain.DeployedSource[]> List();
+
+    // The non-.cs files (spec.md, scenarios.json) the last deploy of alias carried; the host compiles every file it is given, so the
+    // studio keeps them beside the source. Empty for an alias never deployed or retired.
+    [DigitalBrain.ReadOnlyCall]
+    Task<Dictionary<string, string>> Sidecars(string alias);
 }
 
 // One DeployFiles outcome: Ok with the host's status and build hash, else Text is why. Installs is the host's install outcome per
@@ -49,9 +54,12 @@ public sealed record UnitDeployResult(bool Ok, string Text, DigitalBrain.DeployS
     IReadOnlyDictionary<string, DigitalBrain.InstallOutcome> Installs);
 
 // The step keys deployed so far, each with the build hash it produced.
+// Sidecars[alias][file] are the non-.cs files of alias's last deploy (added field; null in state saved before it).
 public sealed record SynapseStudioState(IReadOnlyDictionary<string, string> Deployed)
 {
     public SynapseStudioState() : this(new Dictionary<string, string>(StringComparer.Ordinal)) { }
+
+    public Dictionary<string, Dictionary<string, string>>? Sidecars { get; init; }
 }
 
 [DigitalBrain.Signal("ino.synapses.changed")]

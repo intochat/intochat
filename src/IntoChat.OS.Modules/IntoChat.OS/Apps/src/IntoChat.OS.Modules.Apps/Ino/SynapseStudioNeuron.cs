@@ -40,8 +40,16 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
         ArgumentNullException.ThrowIfNull(bindings);
         if (files.Count == 0) { return Failed($"Could not deploy {alias}: no files."); }
         if (Host is not { } host) { return Failed(Unavailable); }
-        var step = ISynapseStudio.StepKey(alias, files, bindings);
-        if (State.Deployed.TryGetValue(step, out var done) && await Landed(alias, done) is { } landed) { return landed; }
+        // Until the framework's compiler skips them, spec.md and scenarios.json stay here and only the C# reaches the host.
+        var code = UnitFiles.Code(files);
+        if (code.Count == 0) { return Failed($"Could not deploy {alias}: no .cs files."); }
+        var sidecars = files.Where(file => !code.ContainsKey(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        var step = ISynapseStudio.StepKey(alias, code, bindings);
+        if (State.Deployed.TryGetValue(step, out var done) && await Landed(alias, done) is { } landed)
+        {
+            if (!SameSidecars(alias, sidecars)) { await Save(State with { Sidecars = WithSidecars(alias, sidecars) }, new SynapseStudioChanged(alias)); }
+            return landed;
+        }
         DeployOutcome outcome;
         try
         {
@@ -49,7 +57,7 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
             {
                 [alias] = new Dictionary<string, string>(bindings, StringComparer.Ordinal),
             };
-            outcome = await host.Deploy(Id.Brain, new SynapseSource(alias, new Dictionary<string, string>(files, StringComparer.Ordinal), null, bound),
+            outcome = await host.Deploy(Id.Brain, new SynapseSource(alias, new Dictionary<string, string>(code, StringComparer.Ordinal), null, bound),
                 new Dictionary<string, IReadOnlyDictionary<string, string>>(), CancellationToken.None);
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -65,7 +73,7 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
 
         var deployed = Without(alias);
         deployed[step] = outcome.Hash ?? "";
-        await Save(State with { Deployed = deployed }, new SynapseStudioChanged(alias));
+        await Save(State with { Deployed = deployed, Sidecars = WithSidecars(alias, sidecars) }, new SynapseStudioChanged(alias));
         return new UnitDeployResult(true, $"{alias} is {outcome.Status.ToString().ToLowerInvariant()} (hash {outcome.Hash}).", outcome.Status, outcome.Hash, outcome.Installs);
     }
 
@@ -107,7 +115,7 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
             return new InoToolResult($"Could not retire {alias}: {error.Message}", Ok: false);
         }
 
-        await Save(State with { Deployed = Without(alias) }, new SynapseStudioChanged(alias));
+        await Save(State with { Deployed = Without(alias), Sidecars = WithSidecars(alias, null) }, new SynapseStudioChanged(alias));
         return new InoToolResult($"Retired {alias}.");
     }
 
@@ -126,6 +134,23 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
         }
 
         return [.. live];
+    }
+
+    public Task<Dictionary<string, string>> Sidecars(string alias)
+        => Task.FromResult(State.Sidecars?.TryGetValue(alias, out var files) == true
+            ? new Dictionary<string, string>(files, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal));
+
+    private bool SameSidecars(string alias, Dictionary<string, string> sidecars)
+        => State.Sidecars?.TryGetValue(alias, out var known) == true && known.Count == sidecars.Count
+            && sidecars.All(file => known.TryGetValue(file.Key, out var text) && text == file.Value);
+
+    // The sidecars with alias's replaced by files (removed when null or empty).
+    private Dictionary<string, Dictionary<string, string>> WithSidecars(string alias, Dictionary<string, string>? files)
+    {
+        var next = (State.Sidecars ?? []).Where(entry => entry.Key != alias)
+            .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal);
+        if (files is { Count: > 0 }) { next[alias] = files; }
+        return next;
     }
 
     private Dictionary<string, string> Without(string alias)
