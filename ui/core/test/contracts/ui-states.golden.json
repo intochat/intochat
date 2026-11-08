@@ -378,13 +378,6 @@
     },
     "value": "Value"
   },
-  "IntoChat.OS.Modules.Flutter.Progress.ProgressState": {
-    "name": "Name",
-    "version": 7,
-    "determinate": true,
-    "value": 5.5,
-    "label": "Label"
-  },
   "IntoChat.OS.Modules.Flutter.Rating.RatingState": {
     "name": "Name",
     "version": 7,

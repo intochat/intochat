@@ -22,12 +22,14 @@ namespace IntoChat.OS.Modules.Apps;
 [Signal("files.workspace-changed")]
 internal sealed record FilesWorkspaceChanged(long Revision) : DigitalBrain.Signal;
 
-internal sealed record FilesOperation(string Id, string Label, double Progress, string Status, bool Done = false);
+// An operation this workspace started: its id and label. Progress and result are read from the brain's operations query, not
+// mirrored here; Done records that its completion was applied (folder refreshed, synapse removed).
+internal sealed record FilesStartedOperation(string Id, string Label, bool Done = false);
 internal sealed record FilesWorkspaceState
 {
     public FilesState Files { get; init; } = new();
     public Guid[] Handled { get; init; } = [];
-    public FilesOperation[] Operations { get; init; } = [];
+    public FilesStartedOperation[] Started { get; init; } = [];
     public long ViewVersion { get; init; }
     public int PageOffset { get; init; }
     public string? Notice { get; init; }
@@ -95,7 +97,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         { await Context.Synapses.Ensure<ViewAction>(new(Id.Brain, UIVocabulary.ViewType, AppPath + "/" + slot)); }
         foreach (var field in new[] { "search", "filter" })
         { await Context.Synapses.Ensure<TextFieldChanged>(new(Id.Brain, UIVocabulary.TextFieldType, AppPath + "/" + field)); }
-        foreach (var operation in State.Operations.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
+        foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
 
@@ -176,7 +178,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                 case "replace": app.Options(ConflictPolicy.Overwrite, State.Files.DryRun); await Store(app); break;
                 case "dry-run": app.Options(State.Files.Conflict, !State.Files.DryRun); await Store(app); break;
                 case "mkdir" or "write" or "rename" or "delete" or "paste":
-                    if (State.Operations.Count(item => !item.Done) >= 8) { throw new InvalidOperationException("Wait for a running operation before starting another."); }
+                    if (State.Started.Count(item => !item.Done) >= 8) { throw new InvalidOperationException("Wait for a running operation before starting another."); }
                     var name = input.Name ?? (await Field("name").Read()).Value;
                     var text = operation == "write" ? input.Text ?? (await Field("content").Read()).Value : "";
                     if (System.Text.Encoding.UTF8.GetByteCount(text) > 256 * 1024) { throw new InvalidOperationException("Text files entered here are limited to 256 KiB."); }
@@ -186,12 +188,12 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     await Persist(State with
                     {
                         PendingRequest = null,
-                        Operations = [.. State.Operations.Where(item => !item.Done).Concat(State.Operations.Where(item => item.Done).TakeLast(23)),
-                            new(started.Id.Value, plan.DryRun ? "Dry run" : operation == "delete" ? "Move to trash" : operation, 0, "Waiting or working")],
+                        Started = [.. State.Started.Where(item => !item.Done).Concat(State.Started.Where(item => item.Done).TakeLast(23)),
+                            new(started.Id.Value, plan.DryRun ? "Dry run" : operation == "delete" ? "Move to trash" : operation)],
                     });
                     await FollowOperation(started.Id.Value, ct); break;
                 case "cancel":
-                    var cancelling = At(State.Operations, input.Index);
+                    var cancelling = At(State.Started, input.Index);
                     if (!cancelling.Done) { await Context.Operations.Cancel(new(cancelling.Id), ct); }
                     break;
                 case "filter": app.Filter(input.Query ?? (await Field("filter").Read()).Value); await Store(app); break;
@@ -274,10 +276,11 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     [On]
     public async Task On(OperationProgress progress)
     {
-        if (!State.Operations.Any(item => item.Id == progress.Operation.Value && !item.Done)) { return; }
+        if (!State.Started.Any(item => item.Id == progress.Operation.Value && !item.Done)) { return; }
         await WithAppCallerAsync(async () =>
         {
-            await Persist(State with { Operations = State.Operations.Select(item => item.Id == progress.Operation.Value ? item with { Progress = Math.Clamp(progress.Fraction, 0, 1), Status = "Working" } : item).ToArray() });
+            // The fraction itself is read from the operations query when the view renders.
+            await Persist(State);
             await Render();
         });
     }
@@ -285,22 +288,13 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     [On]
     public async Task On(OperationDone done)
     {
-        if (!State.Operations.Any(item => item.Id == done.Operation.Value && !item.Done)) { return; }
+        if (!State.Started.Any(item => item.Id == done.Operation.Value && !item.Done)) { return; }
         await WithAppCallerAsync(async () =>
         {
-            var status = done.Result switch
-            {
-                OperationResult.Succeeded => "Completed",
-                OperationResult.Cancelled => "Cancelled",
-                OperationResult.Planned => "Dry run complete. No files changed.",
-                OperationResult.Failed failed => "Failed: " + failed.Code,
-                _ => "Finished",
-            };
             await Persist(State with
             {
                 Files = State.Files with { Revision = checked(State.Files.Revision + 1) },
-                Operations = State.Operations.Select(item => item.Id == done.Operation.Value ? item with
-                { Done = true, Progress = done.Result is OperationResult.Succeeded ? 1 : item.Progress, Status = item.Label == "Move to trash" && done.Result is OperationResult.Succeeded ? "Moved to trash" : status } : item).ToArray(),
+                Started = State.Started.Select(item => item.Id == done.Operation.Value ? item with { Done = true } : item).ToArray(),
             });
             if (State.Files.Connection is { } connection)
             {

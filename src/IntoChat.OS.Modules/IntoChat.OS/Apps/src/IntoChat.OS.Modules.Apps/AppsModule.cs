@@ -73,6 +73,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FeatureBootLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, BrainSceneLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
+        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, Flows.MigrateTasksLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, CompiledAppsLifecycle>();
         services.AddSingleton<DevAppGate>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();

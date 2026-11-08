@@ -343,7 +343,6 @@
     "IntoChat.OS.Modules.Flutter.Map.Signals.MapChanged": "MapChanged",
     "IntoChat.OS.Modules.Flutter.Person.Signals.PersonChanged": "PersonChanged",
     "IntoChat.OS.Modules.Flutter.Preferences.Signals.PreferenceChanged": "PreferenceChanged",
-    "IntoChat.OS.Modules.Flutter.Progress.Signals.ProgressChanged": "ProgressChanged",
     "IntoChat.OS.Modules.Flutter.Rating.Signals.RatingChanged": "RatingChanged",
     "IntoChat.OS.Modules.Flutter.Select.SelectChanged": "SelectChanged",
     "IntoChat.OS.Modules.Flutter.Sheet.Signals.SheetChanged": "SheetChanged",

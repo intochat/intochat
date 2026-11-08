@@ -16,7 +16,6 @@ using IntoChat.OS.Modules.Flutter.Form;
 using IntoChat.OS.Modules.Flutter.ImageCanvas;
 using IntoChat.OS.Modules.Flutter.InfoBar;
 using IntoChat.OS.Modules.Flutter.Layout;
-using IntoChat.OS.Modules.Flutter.Progress;
 using IntoChat.OS.Modules.Flutter.Select;
 using IntoChat.OS.Modules.Flutter.Space;
 using IntoChat.OS.Modules.Flutter.Surface;
@@ -116,7 +115,6 @@ internal static class AppUiEndpoints
                 UIVocabulary.ToggleType => Results.Ok(await brain.Get<IToggle>(name).Read().WaitAsync(ct)),
                 UIVocabulary.EntryControlType => Results.Ok(await brain.Get<IEntryControl>(name).Read().WaitAsync(ct)),
                 UIVocabulary.PreferenceType => Results.Ok(await brain.Get<IPreferenceControl>(name).Read().WaitAsync(ct)),
-                UIVocabulary.ProgressType => Results.Ok(await brain.Get<IProgress>(name).Read().WaitAsync(ct)),
                 UIVocabulary.InfoBarType => Results.Ok(await brain.Get<IInfoBar>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ImageType => Results.Ok(await brain.Get<IImage>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ExpanderType => Results.Ok(await brain.Get<IExpander>(name).Read().WaitAsync(ct)),

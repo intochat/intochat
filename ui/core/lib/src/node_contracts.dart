@@ -113,10 +113,6 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Preferences.IPreferenceControl',
       'PreferenceChanged',
     ),
-    'progress': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Progress.IProgress',
-      'ProgressChanged',
-    ),
     'infobar': NodeContract(
       'IntoChat.OS.Modules.Flutter.InfoBar.IInfoBar',
       'InfoBarChanged',
