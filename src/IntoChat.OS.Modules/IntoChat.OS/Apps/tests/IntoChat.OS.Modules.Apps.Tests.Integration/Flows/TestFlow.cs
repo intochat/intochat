@@ -26,9 +26,6 @@ public sealed class TestInner
     public bool StartOperation { get; set; }
 
     public string? OperationId { get; set; }
-
-    // "first" starts a leaf operation at half progress and records it, so it is the operation of the steps after.
-    public bool LeafInFirst { get; set; }
 }
 
 // Publishes flow.* signals as a flow would, in any order, for the facts that fold redelivered or early signals.
@@ -39,6 +36,10 @@ public interface IFlowSignalPump
     Task StepCompleted(string flowId, string step);
 
     Task Done(string flowId);
+
+    Task Waiting(string flowId, string step);
+
+    Task Resolved(string flowId, string step);
 }
 
 public sealed record PumpState(int Sent = 0)
@@ -56,6 +57,10 @@ public sealed class FlowSignalPump : DigitalBrain.Neuron<PumpState>, IFlowSignal
     public Task StepCompleted(string flowId, string step) => Send(new FlowStep(flowId, step, StepOutcome.Completed, null));
 
     public Task Done(string flowId) => Send(new FlowDone(flowId, FlowOutcome.Completed, null));
+
+    public Task Waiting(string flowId, string step) => Send(new FlowWaiting(flowId, step, WaitReason.External, null));
+
+    public Task Resolved(string flowId, string step) => Send(new FlowResolve(flowId, step, WaitOutcome.Arrived, null));
 
     private Task Send(Signal signal) => Save(State with { Sent = State.Sent + 1 }, signal);
 }
@@ -91,19 +96,12 @@ public sealed class TestFlow : Flow<TestInner>, IFlowStarter
     {
         switch (step)
         {
-            case "first" when inner.LeafInFirst:
-                {
-                    var operation = await Context.Operations.Start(new TestPlan(), ct);
-                    Operations[operation.Id.Value] = operation;
-                    await operation.Report(0.5);
-                    inner.OperationId = operation.Id.Value;
-                    return new StepResult<TestInner>(inner);
-                }
             case "second" when inner.Wait:
                 if (inner.StartOperation)
                 {
                     var operation = await Context.Operations.Start(new TestPlan(), ct);
                     Operations[operation.Id.Value] = operation;
+                    await operation.Report(0.5);
                     inner.OperationId = operation.Id.Value;
                 }
                 return new StepResult<TestInner>(inner, new Waiting(step, WaitReason.External, null, null));

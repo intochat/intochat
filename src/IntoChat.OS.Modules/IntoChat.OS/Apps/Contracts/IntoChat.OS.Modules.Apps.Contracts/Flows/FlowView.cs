@@ -4,7 +4,8 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 
 // One flow as the index shows it. FlowId is the flow's neuron id ({brain}/{type}/{key}). Status is Blocked for a Pending or
 // Running flow with a BlockedBy relation whose target has not completed; BlockedBy names those targets. Fraction is the done
-// share of the steps, plus the running step's leaf operation progress.
+// share of the steps, plus the current (running or waiting) step's leaf operation progress. A step that awaits an operation inline
+// reports no leaf fraction; store the id and wait for OperationDone instead.
 public sealed record FlowView(
     string FlowId,
     string Type,

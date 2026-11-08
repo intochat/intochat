@@ -194,8 +194,29 @@ public sealed class FlowsNeuronFacts
         var view = await Eventually(flows, id, v => v.Title == "Late");
         Assert.Equal(FlowStatus.Completed, view.Status);
         Assert.Equal(["first"], view.Done);
-        Assert.Equal(["first", "second", "third"], view.Steps);
         Assert.NotNull(view.Ended);
+        // Finished before the index could read it: a finished entry's head is never read, so its steps stay unknown.
+        Assert.Empty(view.Steps);
+    }
+
+    [Fact]
+    public async Task ResolveBeforeWaitingDoesNotLeaveWaiting()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        await flows.List(new FlowQuery(), Ct);
+        var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
+        var id = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N")).ToString();
+
+        await pump.Started(id, TestFlow.Alias, "Early");
+        await pump.Resolved(id, "second");
+        await pump.Waiting(id, "second");
+        await pump.StepCompleted(id, "first");
+
+        var view = await Eventually(flows, id, v => v.Done.Contains("first"));
+        Assert.NotEqual(FlowStatus.Waiting, view.Status);
+        Assert.Null(view.WaitingFor);
     }
 
     [Fact]
@@ -243,32 +264,19 @@ public sealed class FlowsNeuronFacts
         }
     }
 
+    // The supported pattern: a step starts the leaf operation, stores its id and waits External for OperationDone.
     [Fact]
     public async Task FractionIncludesLeafOperation()
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         var flows = Flows(runtime);
-        var gate = Guid.NewGuid().ToString("N");
 
-        var started = flows.Start(TestFlow.Alias, "Leaf", null, Inner(new TestInner { LeafInFirst = true, Gate = gate }), Ct);
-        try
-        {
-            FlowView? view = null;
-            for (var i = 0; i < 200 && view is null; i++)
-            {
-                await Task.Delay(50, Ct);
-                var running = await flows.List(new FlowQuery(), Ct);
-                view = running.FirstOrDefault(v => v.Current == "third" && Math.Abs(v.Fraction - 5d / 6) < 1e-6);
-            }
-            Assert.NotNull(view);
-            Assert.Equal(["first", "second"], view.Done);
-        }
-        finally
-        {
-            TestFlow.Gate(gate).TrySetResult();
-            await started;
-        }
+        var id = await flows.Start(TestFlow.Alias, "Leaf", null, Inner(new TestInner { Wait = true, StartOperation = true }), Ct);
+
+        var view = await Eventually(flows, id, v => v.Status == FlowStatus.Waiting && Math.Abs(v.Fraction - (1 + 0.5) / 3) < 1e-6);
+        Assert.Equal(["first"], view.Done);
+        Assert.Equal("second", view.Current);
     }
 
     [Fact]

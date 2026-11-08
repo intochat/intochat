@@ -26,7 +26,8 @@ public sealed record FlowsState(Dictionary<string, FlowEntry> Flows)
 
 // One flow as folded from its signals. Steps, Owner, TraceId, ParentFlowId and Started come from the flow's own FlowHead; until
 // that read succeeded HeadKnown is false and the entry is a placeholder. OperationId is the current step's leaf operation, read
-// from the flow when the step starts or waits.
+// from the flow when the step starts or waits. HeadAttempts counts failed head reads (retries stop at MaxHeadAttempts);
+// ResolvedStep is the step whose wait was last resolved, so a FlowWaiting for it delivered late is ignored.
 public sealed record FlowEntry(
     string FlowId,
     string Type,
@@ -44,8 +45,12 @@ public sealed record FlowEntry(
     DateTimeOffset? Ended,
     string? Detail,
     bool HeadKnown = false,
-    string? OperationId = null)
+    string? OperationId = null,
+    int HeadAttempts = 0,
+    string? ResolvedStep = null)
 {
+    public const int MaxHeadAttempts = 3;
+
     public bool Finished => Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled;
 
     // The entry with what the flow reports merged in; a status the index already folded wins unless the flow reports an end.
@@ -66,6 +71,7 @@ public sealed record FlowEntry(
             Started = head.Started == default ? Started : head.Started,
             OperationId = head.OperationId,
             HeadKnown = true,
+            HeadAttempts = 0,
         };
     }
 }

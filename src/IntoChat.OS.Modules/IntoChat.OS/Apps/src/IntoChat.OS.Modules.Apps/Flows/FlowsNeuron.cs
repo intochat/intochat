@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 
 // The brain's flows index. It holds a brain-wide synapse on the six flow.* signals and folds each into its entry; only those
 // handlers save. A signal for a flow the index does not know yet makes a placeholder entry; the flow's FlowHead fills it in when
-// it can be read (retried on the flow's next signal, and on reads without saving). Signals are folded idempotently: a repeated
+// it can be read (retried on the flow's next signals, at most FlowEntry.MaxHeadAttempts times, never on reads or once finished). Signals are folded idempotently: a repeated
 // or stale one does not move an entry back. The commands find the flow neuron by id and call it, so they interleave.
 [DigitalBrain.Neuron("flows")]
 public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
@@ -120,7 +120,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     public Task OnFlowWaiting(FlowWaiting waiting)
     {
         ArgumentNullException.ThrowIfNull(waiting);
-        return Fold(waiting.FlowId, entry => entry.Finished || entry.Done.Contains(waiting.Step) ? entry : entry with
+        return Fold(waiting.FlowId, entry => entry.Finished || entry.Done.Contains(waiting.Step) || entry.ResolvedStep == waiting.Step ? entry : entry with
         {
             Status = FlowStatus.Waiting,
             Current = waiting.Step,
@@ -133,8 +133,11 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     {
         ArgumentNullException.ThrowIfNull(resolve);
         // Only the wait the entry shows is ended; a late resolve of an older wait is stale.
-        return Fold(resolve.FlowId, entry => entry.Waiting?.Step != resolve.Step ? entry : entry with
+        // A resolve that arrives before its FlowWaiting is remembered, so that FlowWaiting does not leave the entry waiting.
+        return Fold(resolve.FlowId, entry => entry.Waiting is null ? (entry.ResolvedStep == resolve.Step ? entry : entry with { ResolvedStep = resolve.Step })
+            : entry.Waiting.Step != resolve.Step ? entry : entry with
         {
+            ResolvedStep = resolve.Step,
             Status = resolve.Outcome is WaitOutcome.Approved or WaitOutcome.Arrived && !entry.Finished ? FlowStatus.Running : entry.Status,
             Waiting = null,
             Current = null,
@@ -177,7 +180,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
         var known = State.Flows.TryGetValue(flowId, out var existing);
         var entry = known ? existing! : Placeholder(flowId);
         var next = change(entry);
-        if (readHead || !next.HeadKnown) { next = await WithHead(next); }
+        if (!next.Finished && (readHead || !next.HeadKnown) && next.HeadAttempts < FlowEntry.MaxHeadAttempts) { next = await WithHead(next); }
         if (known && ReferenceEquals(next, existing)) { return; }
         await Save(State.With(next), new FlowsChanged(flowId));
     }
@@ -191,18 +194,17 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
         try { return entry.Merge(await Flow(entry.FlowId).Head()); }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
-            FlowsLog.HeadUnread(Logger(), error, entry.FlowId);
-            return entry;
+            var attempts = entry.HeadAttempts + 1;
+            if (attempts == FlowEntry.MaxHeadAttempts) { FlowsLog.HeadUnread(Logger(), error, entry.FlowId, attempts); }
+            return entry with { HeadAttempts = attempts };
         }
     }
 
     private async Task<FlowView> View(FlowEntry entry, IReadOnlyDictionary<string, FlowEntry> flows, CancellationToken ct)
     {
-        // Steps not known yet: read the flow for this view only; the next signal of the flow saves it.
-        if (!entry.HeadKnown) { entry = await WithHead(entry); }
         var steps = entry.Steps.Length;
         var fraction = steps == 0 ? (entry.Status == FlowStatus.Completed ? 1d : 0d) : (double)entry.Done.Length / steps;
-        if (steps > 0 && entry is { Status: FlowStatus.Running, Current: not null, OperationId: { Length: > 0 } operation }
+        if (steps > 0 && entry is { Status: FlowStatus.Running or FlowStatus.Waiting, Current: not null, OperationId: { Length: > 0 } operation }
             && await Context.OperationsQuery.Read(new OperationId(operation), ct) is { Result: null } running)
         {
             fraction += Math.Clamp(running.Fraction, 0, 1) / steps;
@@ -232,9 +234,9 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
 
 internal static partial class FlowsLog
 {
-    // The index shows the flow without its steps, owner or progress until a later read succeeds.
-    [LoggerMessage(Level = LogLevel.Warning, Message = "The flows index could not read flow {FlowId}")]
-    public static partial void HeadUnread(ILogger logger, Exception exception, string flowId);
+    // Logged once, when retries stop: the index shows the flow without its steps, owner or progress.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The flows index could not read flow {FlowId} after {Attempts} attempts; it stops trying")]
+    public static partial void HeadUnread(ILogger logger, Exception exception, string flowId, int attempts);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The flows graph source could not list the flows of brain {Brain}")]
     public static partial void GraphUnlisted(ILogger logger, Exception exception, string brain);
