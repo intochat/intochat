@@ -42,6 +42,9 @@ public sealed class ApprovalsNeuron : DigitalBrain.Neuron, IApprovals
         catch (Exception error) when (error is JsonException or InvalidOperationException) { return null; }
     }
 
+    // DigitalBrain.InstallsNeuron names each install ask's plan "install:{alias}:{id}".
+    private const string InstallPlanPrefix = "install:";
+
     private static Approval Classify(ConfirmationRequested request, FlowView[] flows, DeployedSource[] staged, Dictionary<string, BuildInner> builds)
     {
         var plan = request.Plan;
@@ -71,6 +74,13 @@ public sealed class ApprovalsNeuron : DigitalBrain.Neuron, IApprovals
         if (staged.FirstOrDefault(source => source.SourceKey == plan.TargetLabel || source.Aliases.Contains(plan.TargetLabel, StringComparer.Ordinal)) is { } unit)
         {
             return Of(ApprovalKind.SynapseStaged, unit.SourceKey, plan.Title, plan.Body, "");
+        }
+
+        // Any install ask the framework's installs neuron raises (plan "install:{alias}:{id}", its body the needs sentence) is consent
+        // to a synapse unit's needs, also when no staged source or build flow is behind it: a shipped unit's install reads so too.
+        if (request.PlanId.StartsWith(InstallPlanPrefix, StringComparison.Ordinal))
+        {
+            return Of(ApprovalKind.SynapseStaged, plan.TargetLabel, plan.Title, plan.Body, "");
         }
 
         if (plan.Action is ConfirmationAction.Delete or ConfirmationAction.Move or ConfirmationAction.Copy or ConfirmationAction.Rename or ConfirmationAction.Overwrite)

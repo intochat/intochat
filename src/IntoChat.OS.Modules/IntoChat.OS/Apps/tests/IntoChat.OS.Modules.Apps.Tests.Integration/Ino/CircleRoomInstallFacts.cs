@@ -47,8 +47,8 @@ public sealed class CircleRoomInstallFacts
         Assert.Equal(DigitalBrain.InstallStatus.Pending, result.Installs[Alias].Status);
         Assert.Null(await brain.Installs.Describe(Alias, Ct));
         var ask = Assert.Single(await brain.Installs.Pending(Ct), pending => pending.Alias == Alias);
-        // The card the creator sees in Approvals. (Kind is Other: SynapseStaged names a staged source or a build flow's install.)
-        Assert.Contains(await brain.Approvals.Pending(Ct), approval => approval.PlanId == ask.PlanId && approval.Subject == Alias
+        // The card the creator sees in Approvals reads as a synapse consent, with the needs sentence.
+        Assert.Contains(await brain.Approvals.Pending(Ct), approval => approval.PlanId == ask.PlanId && approval.Kind == ApprovalKind.SynapseStaged && approval.Subject == Alias
             && approval.Detail.Contains("show a view", StringComparison.Ordinal));
         Assert.Contains((await brain.Inbox.Read()).Pending, pending => pending.PlanId == ask.PlanId);
         // The unit's app record says what it waits on.
