@@ -11,7 +11,9 @@ internal sealed class SecurityInterrupts
 
     private readonly Dictionary<(string Context, string Name), string> _active = [];
 
-    public string? Reason => _active.Count == 0 ? null : _active.Values.First();
+    // Deterministic when several are active: the first by context, then by name.
+    public string? Reason => _active.Count == 0 ? null
+        : _active.OrderBy(item => item.Key.Context, StringComparer.Ordinal).ThenBy(item => item.Key.Name, StringComparer.Ordinal).First().Value;
 
     public void Clear() => _active.Clear();
 
