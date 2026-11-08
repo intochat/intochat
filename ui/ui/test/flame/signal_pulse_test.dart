@@ -162,4 +162,60 @@ void main() {
       expect(component.isMounted, isFalse);
     },
   );
+
+  test('replaysInOrder', () {
+    final pulses = field();
+    final steps = [
+      const ReplayStep(
+        index: 0,
+        seq: 1,
+        alias: 'note.added',
+        from: 'ada/x/default',
+        to: 'u',
+        traceId: 't1',
+      ),
+      const ReplayStep(
+        index: 1,
+        seq: 2,
+        alias: 'other',
+        from: 'ada/x/default',
+        to: '',
+        traceId: 't1',
+      ),
+      const ReplayStep(
+        index: 2,
+        seq: 3,
+        alias: 'note.added',
+        from: 'ada/x/default',
+        to: 'u',
+        traceId: 't1',
+      ),
+    ];
+    pulses.feed([signal('note.added', trace: 'live')]);
+    expect(pulses.pulses, hasLength(1));
+
+    // Entering the replay drops the live pulses; each step spawns its own pulse, in order, keyed by the trace.
+    final order = <String>[];
+    for (var i = 0; i < steps.length; i++) {
+      final added = pulses.replay(steps, i);
+      expect(added, hasLength(1));
+      order.add(added.single.edge.alias);
+      expect(added.single.key, 'pulse:t1');
+      pulses.advance(.7);
+    }
+    expect(order, ['note.added', 'other', 'note.added']);
+    expect(pulses.replaying, isTrue);
+    expect(
+      pulses.replay(steps, 2),
+      isEmpty,
+      reason: 'the same step replays once',
+    );
+
+    // Live pulses are paused while a step is current...
+    expect(pulses.feed([signal('note.added', trace: 'live')]), isEmpty);
+    // ...and resume when the replay ends.
+    pulses.replay(steps, null);
+    expect(pulses.replaying, isFalse);
+    expect(pulses.feed([signal('note.added', trace: 'live')]), hasLength(1));
+  });
 }

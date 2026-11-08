@@ -38,6 +38,39 @@ const _stub = 90.0;
 /// this key with theirs as the value (BrainGraph.SelectKey).
 const brainSelectKey = 'graph:select';
 
+/// A synapse labelled `replay:<index>:<seq>:<alias>:<traceId>` is a step of the open trace's replay, not an edge: from the
+/// publisher towards the node the alias reaches, active on the current step.
+const brainReplayPrefix = 'replay:';
+
+/// The ordered replay steps the view carries, and the active one (null while live).
+({List<ReplayStep> steps, int? at}) brainReplay(BrainSceneNode node) {
+  final steps = <ReplayStep>[];
+  int? at;
+  for (final edge in node.synapses) {
+    final label = edge.signalLabel;
+    if (label == null || !label.startsWith(brainReplayPrefix)) continue;
+    final parts = label.split(':');
+    if (parts.length < 5) continue;
+    final index = int.tryParse(parts[1]), seq = int.tryParse(parts[2]);
+    if (index == null || seq == null) continue;
+    steps.add(
+      ReplayStep(
+        index: index,
+        seq: seq,
+        alias: parts[3],
+        from: edge.fromId,
+        to: edge.toId,
+        traceId: parts.sublist(4).join(':'),
+      ),
+    );
+    if (edge.active) at = steps.length - 1;
+  }
+  return (steps: steps, at: at);
+}
+
+bool _isReplay(BrainGraphSynapse edge) =>
+    edge.signalLabel?.startsWith(brainReplayPrefix) ?? false;
+
 /// The inspector's key for an edge: `edge:<from>→<to>:<alias>`.
 String brainEdgeKey(BrainGraphSynapse edge) =>
     'edge:${edge.fromId}→${edge.toId}:${edge.signalLabel ?? ''}';
@@ -47,18 +80,19 @@ List<PulseEdge> brainEdges(BrainSceneNode node) {
   final at = {for (final n in node.nodes) n.id: Vector2(n.x, n.y)};
   return [
     for (final edge in node.synapses)
-      if (at[edge.toId] case final to?)
-        if (edge.fromId == '*' || at.containsKey(edge.fromId))
-          PulseEdge(
-            key: brainEdgeKey(edge),
-            fromId: edge.fromId,
-            toId: edge.toId,
-            alias: (edge.signalLabel ?? '').split('#').first,
-            start: edge.fromId == '*'
-                ? to + Vector2(0, -_stub)
-                : at[edge.fromId]!.clone(),
-            end: to.clone(),
-          ),
+      if (!_isReplay(edge))
+        if (at[edge.toId] case final to?)
+          if (edge.fromId == '*' || at.containsKey(edge.fromId))
+            PulseEdge(
+              key: brainEdgeKey(edge),
+              fromId: edge.fromId,
+              toId: edge.toId,
+              alias: (edge.signalLabel ?? '').split('#').first,
+              start: edge.fromId == '*'
+                  ? to + Vector2(0, -_stub)
+                  : at[edge.fromId]!.clone(),
+              end: to.clone(),
+            ),
   ];
 }
 
@@ -165,6 +199,7 @@ class BrainSceneViewState extends State<BrainSceneView> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _listen(widget.signals ?? BrainSignals.of(context));
+    _replay();
   }
 
   @override
@@ -175,12 +210,20 @@ class BrainSceneViewState extends State<BrainSceneView> {
       _layout();
     }
     _listen(widget.signals ?? BrainSignals.of(context));
+    _replay();
+  }
+
+  /// Plays the current replay step as pulses; live pulses pause while one is active and resume when it ends.
+  void _replay() {
+    final replay = brainReplay(widget.node);
+    _spawn(pulses.replay(replay.steps, replay.at));
   }
 
   static String _structureOf(BrainSceneNode node) => [
     for (final n in node.nodes)
       '${n.id}|${n.kind}|${n.label}|${n.subtitle}|${n.x}|${n.y}|${n.select?.key}',
-    for (final e in node.synapses) '${e.fromId}|${e.toId}|${e.signalLabel}',
+    for (final e in node.synapses)
+      if (!_isReplay(e)) '${e.fromId}|${e.toId}|${e.signalLabel}',
   ].join(';');
 
   void _layout() {
@@ -205,7 +248,10 @@ class BrainSceneViewState extends State<BrainSceneView> {
 
   void _feed(List<JournalTailSignal> batch) {
     if (!mounted) return;
-    final added = pulses.feed(batch);
+    _spawn(pulses.feed(batch));
+  }
+
+  void _spawn(List<SignalPulse> added) {
     if (added.isEmpty) return;
     if (_clock.parent == null) game.world.add(_clock);
     for (final pulse in added) {

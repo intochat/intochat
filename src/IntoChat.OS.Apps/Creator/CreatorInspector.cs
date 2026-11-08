@@ -98,24 +98,37 @@ public static class CreatorInspector
         }
     }
 
-    // The whole trace as a causation tree, and the replay scrubber (Task 23 replays the pulses in order).
+    // The whole trace as a causation tree (the replayed step marked), the replay scrubber and the state change at the current step.
     private static IEnumerable<Node> Pulse(CreatorState state, Inspection inspection)
     {
         var hops = inspection.Hops;
         if (hops.Count == 0) { yield break; }
         var first = hops.Min(h => h.At);
+        var steps = ReplayScript.Steps(hops);
+        var cursor = state.ReplayCursor is { } c ? Math.Clamp(c, 0, steps.Length - 1) : (long?)null;
+        var current = cursor is { } at ? steps[at].Sequence : (long?)null;
         yield return new DataTable($"Trace {inspection.Id}", ["#", "Δt", "Publisher", "Signal", "Cause"],
             [.. hops.Select(h => (IReadOnlyList<string>)[
-                h.Sequence.ToString(CultureInfo.InvariantCulture),
+                (h.Sequence == current ? "▶ " : "") + h.Sequence.ToString(CultureInfo.InvariantCulture),
                 string.Create(CultureInfo.InvariantCulture, $"+{(h.At - first).TotalMilliseconds:0}ms"),
                 TraceFold.Indent(h.Depth) + h.Publisher,
                 h.Alias,
                 h.Cause ?? "",
             ])]);
-        var floor = hops.Min(h => h.Sequence);
-        var last = hops.Max(h => h.Sequence);
-        var at = state.ReplayCursor is { } cursor ? Math.Clamp(cursor, floor, last) : last;
-        yield return new Progress("Replay", last == floor ? 1 : (double)(at - floor) / (last - floor), $"hop {at} of {floor}..{last}");
+        yield return new Progress("Replay", cursor is { } position ? (steps.Length == 1 ? 1 : (double)position / (steps.Length - 1)) : 0,
+            cursor is { } now ? $"step {now + 1} of {steps.Length}: {steps[now].Alias}" : $"live; {steps.Length} step(s)");
+        yield return new Row(
+        [
+            new Button("replay-first", "First", Emit: AppSignals.Emit(App, "replay", "first")) { Small = true, Icon = "chevrons-left" },
+            new Button("replay-prev", "Prev", Emit: AppSignals.Emit(App, "replay", "prev")) { Small = true, Icon = "chevron-left" },
+            new Button("replay-next", "Next", Emit: AppSignals.Emit(App, "replay", "next")) { Small = true, Icon = "chevron-right" },
+            new Button("replay-last", "Last", Emit: AppSignals.Emit(App, "replay", "last")) { Small = true, Icon = "chevrons-right" },
+            new Button("replay-live", "Live", Emit: AppSignals.Emit(App, "replay", "stop")) { Small = true, Icon = "radio" },
+        ]);
+        if (cursor is { } step && ReplayScript.Diff(steps, step) is { } diff)
+        {
+            yield return new DataTable($"State change at step {step + 1}", ["Property", "Before", "After"], [.. diff.Select(row => (IReadOnlyList<string>)row)]);
+        }
         foreach (var flowId in hops.Select(h => h.FlowId).OfType<string>().Distinct(StringComparer.Ordinal))
         {
             yield return new Button($"open-flow:{flowId}", "Open the flow", Intent: AppSignals.OpenApp("tasks", flowId)) { Small = true, Icon = "tasks" };

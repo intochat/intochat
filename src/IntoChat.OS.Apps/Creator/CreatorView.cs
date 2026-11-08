@@ -21,6 +21,11 @@ public static class CreatorView
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
         var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null, App);
+        if (state.Selected is { Kind: Selection.Pulse } && inspection.Hops.Count > 0)
+        {
+            // The open trace's steps ride along as reserved synapses for the scene's replay.
+            graph = graph with { Synapses = [.. graph.Synapses, .. ReplayScript.Synapses(inspection.Hops, inspection.Id, state.ReplayCursor, topology)] };
+        }
         var right = CreatorInspector.Render(state, inspection, flows, approvals);
         return new View("Creator", new SplitPane(Conversation(state, flows, approvals), new SplitPane(graph, right, 640), 320));
     }

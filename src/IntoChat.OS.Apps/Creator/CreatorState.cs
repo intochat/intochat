@@ -3,7 +3,7 @@ using IntoChat.OS.Modules.Apps.Trace;
 
 namespace IntoChat.OS.Apps.Creator;
 
-// Selected is what the inspector shows; TraceId the trace last opened (a pulse); ReplayCursor the replay scrubber's sequence in it;
+// Selected is what the inspector shows; TraceId the trace last opened (a pulse); ReplayCursor the replay scrubber's step (an index into its signals in sequence order, null when live);
 // ConversationId the Ino conversation agent the dialogue belongs to.
 public sealed record CreatorState(Selection? Selected, string? TraceId, long? ReplayCursor, string ConversationId)
 {

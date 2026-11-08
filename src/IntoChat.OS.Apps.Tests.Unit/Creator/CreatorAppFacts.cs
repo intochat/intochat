@@ -180,8 +180,61 @@ public sealed class CreatorAppFacts
         Assert.Contains("Not in the brain graph.", Strings(creator.App.Render()));
     }
 
-    private static TraceEntry Entry(string publisher, long sequence, string? cause, string signal = "test.hop")
-        => new(publisher, sequence, signal, T0.AddMilliseconds(sequence * 10), "t1", cause, "{}");
+    [Fact]
+    public async Task ReplayAdvancesTheCursorAndHighlightsTheStep()
+    {
+        await using var os = FakeOs();
+        FakeTraces.Entries =
+        [
+            Entry("local/ino/ino", 1, null),
+            Entry("local/ctr/default", 2, "local/ino/ino:1", ReplayScript.StateChangedAlias, """{"bumps":1,"label":"a"}"""),
+            Entry("local/agent/agent", 3, "local/ctr/default:2"),
+            Entry("local/ctr/default", 4, "local/agent/agent:3", ReplayScript.StateChangedAlias, """{"bumps":2,"label":"a"}"""),
+        ];
+        var creator = await os.Install<CreatorApp>();
+        await creator.Request("select", new CreatorSelect(Value: BrainGraph.PulseKey("t1")));
+        Assert.Null(creator.App.State.ReplayCursor);
+
+        await creator.Request("replay", new CreatorReplay("next"));
+        Assert.Equal(0, creator.App.State.ReplayCursor);
+        await creator.Request("replay", new CreatorReplay("next"));
+        await creator.Request("replay", new CreatorReplay("next"));
+        Assert.Equal(2, creator.App.State.ReplayCursor);
+        Assert.Equal(["3"], Marked(creator));
+        Assert.DoesNotContain(Nodes(creator.App.Render()).OfType<DataTable>(), t => t.Title.StartsWith("State change", StringComparison.Ordinal));
+
+        await creator.Request("replay", new CreatorReplay("last"));
+        Assert.Equal(3, creator.App.State.ReplayCursor);
+        Assert.Equal(["4"], Marked(creator));
+        var diff = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>(), t => t.Title.StartsWith("State change", StringComparison.Ordinal));
+        var row = Assert.Single(diff.Rows);
+        Assert.Equal(["bumps", "1", "2"], row);
+
+        await creator.Request("replay", new CreatorReplay("prev"));
+        Assert.Equal(2, creator.App.State.ReplayCursor);
+        await creator.Request("replay", new CreatorReplay("1"));
+        var first = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>(), t => t.Title.StartsWith("State change", StringComparison.Ordinal));
+        Assert.Equal([["bumps", "", "1"], ["label", "", "a"]], first.Rows.Select(r => r.ToArray()));
+        await creator.Request("replay", new CreatorReplay("first"));
+        Assert.Equal(0, creator.App.State.ReplayCursor);
+
+        // The scene gets the steps in order, the current one active; the buttons are keyed and emit replay.
+        var steps = Assert.Single(Nodes(creator.App.Render()).OfType<BrainSceneNode>()).Synapses.Where(s => s.SignalLabel!.StartsWith(ReplayScript.Prefix, StringComparison.Ordinal)).ToArray();
+        Assert.Equal(["replay:0:1:test.hop:t1", "replay:1:2:synapse.state-changed:t1", "replay:2:3:test.hop:t1", "replay:3:4:synapse.state-changed:t1"], steps.Select(s => s.SignalLabel));
+        Assert.Equal([true, false, false, false], steps.Select(s => s.Active));
+        var next = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "replay-next");
+        Assert.Equal(new Emit("creator", "replay", JsonSerializer.SerializeToElement("next")), next.Emit);
+
+        await creator.Request("replay", new CreatorReplay("stop"));
+        Assert.Null(creator.App.State.ReplayCursor);
+    }
+
+    private static string[] Marked(InstalledApp<CreatorApp> creator)
+        => [.. Nodes(creator.App.Render()).OfType<DataTable>().Single(t => t.Title.StartsWith("Trace ", StringComparison.Ordinal)).Rows
+            .Select(r => r[0]).Where(c => c.StartsWith("▶ ", StringComparison.Ordinal)).Select(c => c[2..])];
+
+    private static TraceEntry Entry(string publisher, long sequence, string? cause, string signal = "test.hop", string payload = "{}")
+        => new(publisher, sequence, signal, T0.AddMilliseconds(sequence * 10), "t1", cause, payload);
 
     private static FlowView Build(string alias, string[] done)
         => new($"local/flow.build/{alias}", BuildFlow.Alias, $"Build {alias}", "owner", $"trace-{alias}", FlowStatus.Running,

@@ -21,6 +21,21 @@ final class PulseEdge {
   Vector2 get midpoint => (start + end)..scale(.5);
 }
 
+/// One step of a scripted replay: the signal [alias] of [traceId] at journal [seq], from the publisher [from] towards [to]
+/// (empty: any edge of the alias). [index] is its place in the sequence.
+final class ReplayStep {
+  const ReplayStep({
+    required this.index,
+    required this.seq,
+    required this.alias,
+    required this.from,
+    required this.to,
+    required this.traceId,
+  });
+  final int index, seq;
+  final String alias, from, to, traceId;
+}
+
 /// One pulse in flight: it starts at [start], reaches [end] after [SignalPulses.travel].
 final class SignalPulse {
   SignalPulse({
@@ -59,10 +74,47 @@ final class SignalPulses {
   final _byAlias = <String, List<PulseEdge>>{};
   final _positions = <String, Vector2>{};
   final pulses = <SignalPulse>[];
+  int? _replayAt;
+
+  /// True while a replay step is current: live signals are not drawn until [replay] is called with no step.
+  bool get replaying => _replayAt != null;
+
+  /// Plays the replay of [steps] at step [at], one pulse per edge of that step's signal, in order as the cursor moves. Entering
+  /// a replay drops the live pulses in flight; a null [at] ends it, and live signals are drawn again. Returns the pulses added.
+  List<SignalPulse> replay(List<ReplayStep> steps, int? at) {
+    final wasReplaying = replaying;
+    if (at == null || at < 0 || at >= steps.length) {
+      _replayAt = null;
+      if (wasReplaying) pulses.clear();
+      return const [];
+    }
+    if (!wasReplaying) pulses.clear();
+    if (_replayAt == at) return const [];
+    _replayAt = at;
+    final step = steps[at];
+    final added = <SignalPulse>[];
+    for (final edge in _byAlias[step.alias] ?? const <PulseEdge>[]) {
+      if (step.to.isNotEmpty && edge.toId != step.to) continue;
+      if (pulses.length >= cap) break;
+      final start = edge.fromId == '*'
+          ? (_positions[step.from]?.clone() ?? edge.midpoint)
+          : edge.start.clone();
+      final pulse = SignalPulse(
+        edge: edge,
+        traceId: step.traceId,
+        start: start,
+        end: edge.end.clone(),
+      );
+      pulses.add(pulse);
+      added.add(pulse);
+    }
+    return added;
+  }
 
   /// Replaces the drawn edges and node positions (the scene changed); pulses in flight are dropped.
   void layout(Iterable<PulseEdge> edges, Map<String, Vector2> positions) {
     pulses.clear();
+    _replayAt = null;
     _byAlias.clear();
     _positions
       ..clear()
@@ -76,6 +128,7 @@ final class SignalPulses {
   /// Spawns the pulses of [signals]; returns those it added.
   List<SignalPulse> feed(Iterable<JournalTailSignal> signals) {
     final added = <SignalPulse>[];
+    if (replaying) return added;
     for (final signal in signals) {
       final trace = signal.traceId ?? 'seq:${signal.seq}';
       for (final edge in _byAlias[signal.alias] ?? const <PulseEdge>[]) {

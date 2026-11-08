@@ -34,7 +34,7 @@ public sealed record CreatorSelect(string? Key = null, string? Value = null) : D
 [DigitalBrain.Signal("creator.trace")]
 public sealed record CreatorTrace(string? TraceId = null) : DigitalBrain.Signal;
 
-// The replay scrubber's position, a journal sequence of the open trace (the replay itself is drawn by the shell).
+// The replay scrubber: first, prev, next, last, a step index of the open trace's signals in sequence order, or stop to go live again.
 [DigitalBrain.Signal("creator.replay")]
 public sealed record CreatorReplay(string? Cursor = null) : DigitalBrain.Signal;
 
@@ -82,7 +82,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
                 new("open", "Show the brain; input trace/{traceId} opens that trace, node:{id} selects that node."),
                 new("select", "Inspect a node, an edge or a pulse of the graph."),
                 new("trace", "Inspect a whole trace by its id."),
-                new("replay", "Move the replay scrubber of the open trace."),
+                new("replay", "Step the replay of the open trace: first, prev, next, last, a step index, or stop."),
                 new("change", "Start a build flow that changes a unit over its current files."),
                 new("scenario", "Run a unit's kept scenarios on fakes and show the transcript."),
                 new("make", "Describe a new unit; Ino's studio starts its build flow."),
@@ -146,7 +146,8 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
     public void Replay(CreatorReplay request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(State with { ReplayCursor = long.TryParse(request.Cursor, out var cursor) ? cursor : null });
+        var steps = State.Selected is { Kind: Selection.Pulse } ? _inspection.Hops.Count : 0;
+        Set(State with { ReplayCursor = ReplayScript.Move(State.ReplayCursor, request.Cursor, steps) });
     }
 
     // "Change it": a build flow whose goal names the unit, started over the unit's current files (BuildInner.Existing), so the
