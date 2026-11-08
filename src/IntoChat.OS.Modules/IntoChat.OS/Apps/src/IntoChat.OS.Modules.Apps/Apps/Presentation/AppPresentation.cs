@@ -436,7 +436,7 @@ internal sealed class AppPresentation(AppState state)
         var answer = approve ? "true" : "false";
         var action = t_osTrusted
             ? NeuronButtonAction.Format(DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, DigitalBrain.Confirmation.IConfirmations.ResolveOperation, [resolve.PlanId, answer])
-            : DigitalBrain.Confirmation.IConfirmations.ResolveOperation + ":" + Uri.EscapeDataString(resolve.PlanId) + ":" + answer;
+            : ConfirmationActions.Format(resolve.PlanId, approve);
         return Ui.Button(key, label, action, style: style);
     }
 

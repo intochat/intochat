@@ -69,4 +69,12 @@ public sealed class AppPresentationForeignActionFacts
         var plain = PresentationCollaborator.MapNode("n", new Field("query", "query", FieldKind.Search, "Search"), "owner");
         Assert.Contains("\"name\":\"query\"", plain.Detail, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void AnEmitArgumentWithColonsIsEscapedSoTheLegacyActionStringKeepsItWhole()
+    {
+        var mapped = PresentationCollaborator.MapNode("n", new Button("pulse", "Approve", new Emit("gallery", "select", JsonSerializer.SerializeToElement("card:approval:approved"))), "owner");
+
+        Assert.Equal("select:card%3Aapproval%3Aapproved", mapped.Action);
+    }
 }

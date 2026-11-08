@@ -109,7 +109,7 @@ public sealed class HostedAppWatchFacts : IAsyncLifetime
         using var _ = Stamp(brain);
         var appKey = IApp.Key(brain, "hosted-watch");
         await Use(brain, "ino/data-a");
-        await Services.GetRequiredService<InProcessAppHost>().AssignType(appKey, typeof(HostedWatchApp), new Dictionary<string, string>(StringComparer.Ordinal), TestContext.Current.CancellationToken);
+        await Services.GetRequiredService<IntoChat.OS.Modules.Apps.Hosting.InProcess.InProcessAppHost>().AssignType(appKey, typeof(HostedWatchApp), new Dictionary<string, string>(StringComparer.Ordinal), TestContext.Current.CancellationToken);
         var compiled = ActivatorUtilities.CreateInstance<CompiledAppsHost>(Services);
 
         var turns = await compiled.EnsureForTestAsync(brain, "hosted-watch", TestContext.Current.CancellationToken);

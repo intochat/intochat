@@ -36,6 +36,16 @@ public sealed class CompiledAppsSignalReflectionFacts
     }
 
     [Fact]
+    public void ParseArgumentRestoresAnEscapedColonArgumentFromTheLegacyActionString()
+    {
+        var method = typeof(SampleSignalTarget).GetMethod(nameof(SampleSignalTarget.OnSingle))!;
+        var parsed = Assert.IsType<SingleTextSignal>(CompiledAppsHost.ParseArgument(method, "card%3Aapproval%3Aapproved"));
+
+        Assert.Equal("card:approval:approved", parsed.Text);
+        Assert.Null(parsed.OptionalTag);
+    }
+
+    [Fact]
     public void ParseArgumentConvertsColonSeparatedTypedSegmentsGenerically()
     {
         var approvalMethod = typeof(SampleSignalTarget).GetMethod(nameof(SampleSignalTarget.OnApproval))!;

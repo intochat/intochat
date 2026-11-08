@@ -26,8 +26,8 @@ internal static class ConfirmationView
                 DigitalBrain.UI.Text text => new[] { Ui.Text(key + "-" + child, text.Value) },
                 DigitalBrain.UI.ApprovalCardNode { Resolve: { } resolve } =>
                 [
-                    Ui.Button(key + "-approve", plan.ApproveLabel, Resolution(resolve.PlanId, true), true, UiStyle.Primary),
-                    Ui.Button(key + "-deny", plan.DenyLabel, Resolution(resolve.PlanId, false), true, UiStyle.Secondary),
+                    Ui.Button(key + "-approve", plan.ApproveLabel, ConfirmationActions.Format(resolve.PlanId, true), true, UiStyle.Primary),
+                    Ui.Button(key + "-deny", plan.DenyLabel, ConfirmationActions.Format(resolve.PlanId, false), true, UiStyle.Secondary),
                 ],
                 DigitalBrain.UI.ApprovalCardNode => [],
                 _ => throw new InvalidOperationException("Unsupported confirmation card node."),
@@ -36,17 +36,5 @@ internal static class ConfirmationView
         return new(inbox.Revision, Math.Max(1, inbox.Revision), Ui.Column("confirmations", cards));
     }
 
-    private static string Resolution(string planId, bool approve)
-        => ConfirmView.ResolveOperation + ":" + Uri.EscapeDataString(planId) + ":" + (approve ? "true" : "false");
-
-    public static (string PlanId, bool Approve) Answer(string? action)
-    {
-        var parts = action?.Split(':');
-        if (parts is not [ConfirmView.ResolveOperation, { Length: > 0 } id, "true" or "false"])
-        { throw new ArgumentException("Invalid confirmation answer."); }
-        var decoded = Uri.UnescapeDataString(id);
-        if (decoded.Length > 128 || Uri.EscapeDataString(decoded) != id)
-        { throw new ArgumentException("Invalid confirmation plan id."); }
-        return (decoded, parts[2] == "true");
-    }
+    public static (string PlanId, bool Approve) Answer(string? action) => ConfirmationActions.Answer(action);
 }

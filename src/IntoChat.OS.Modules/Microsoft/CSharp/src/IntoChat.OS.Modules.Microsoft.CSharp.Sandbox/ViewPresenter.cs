@@ -682,8 +682,7 @@ internal sealed class ViewPresenter(DigitalBrainConnection brain, string appKey,
     private static Emit AppEmit(string signal, string argument)
         => new("app", signal, JsonSerializer.SerializeToElement(argument));
 
-    private static string ResolveAction(Resolve resolve, bool approve)
-        => DigitalBrain.Confirmation.IConfirmations.ResolveOperation + ":" + Uri.EscapeDataString(resolve.PlanId) + ":" + (approve ? "true" : "false");
+    private static string ResolveAction(Resolve resolve, bool approve) => ConfirmationActions.Format(resolve.PlanId, approve);
 
     // The shape the client sends back: the signal, then its arguments colon-separated (an object as its JSON).
     private static string FormatEmit(Emit emit)
