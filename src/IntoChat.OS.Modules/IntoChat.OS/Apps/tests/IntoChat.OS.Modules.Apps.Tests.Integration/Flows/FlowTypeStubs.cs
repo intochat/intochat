@@ -7,6 +7,7 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Tests.Integration.Ino;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,8 @@ public sealed class ScriptedAgent : DigitalBrain.Neuron<PumpState>, IAgent
     internal static readonly ConcurrentDictionary<string, string> Prompts = new(StringComparer.Ordinal);
 
     // The reply to a prompt that starts with the key; facts of different flow types run in parallel, each with its own prefix.
+    internal const string Fail = "!fail";
+
     internal static readonly ConcurrentDictionary<string, string> Replies = new(StringComparer.Ordinal);
 
     public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
@@ -34,7 +37,11 @@ public sealed class ScriptedAgent : DigitalBrain.Neuron<PumpState>, IAgent
         var prompt = string.Concat(turn.Message.Content.OfType<AiText>().Select(text => text.Text));
         var runId = turn.RunId ?? Guid.NewGuid().ToString("N");
         Prompts[flowId ?? runId] = prompt;
-        await Save(State with { Sent = State.Sent + 1 }, new TurnCompleted(Id.ToString(), runId, Replies.FirstOrDefault(reply => prompt.StartsWith(reply.Key, StringComparison.Ordinal)).Value ?? "{}"));
+        // The longest matching prefix wins; the reply Fail publishes TurnFailed instead.
+        var reply = Replies.Where(entry => prompt.StartsWith(entry.Key, StringComparison.Ordinal)).OrderByDescending(entry => entry.Key.Length).Select(entry => entry.Value).FirstOrDefault() ?? "{}";
+        await Save(State with { Sent = State.Sent + 1 }, reply == Fail
+            ? new TurnFailed(Id.ToString(), runId, "the model is unavailable", false)
+            : new TurnCompleted(Id.ToString(), runId, reply));
         return runId;
     }
 
@@ -42,7 +49,8 @@ public sealed class ScriptedAgent : DigitalBrain.Neuron<PumpState>, IAgent
 
     public Task CancelRun(string runId) => Task.CompletedTask;
 
-    public Task<AgentState> Read() => throw new NotSupportedException();
+    // Configured already: the flow does not configure it again.
+    public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
 
     public Task<AiMessage[]> Transcript() => Task.FromResult<AiMessage[]>([]);
 
@@ -56,11 +64,16 @@ public interface IRepositoryScript
     Task Merge(int number);
 
     Task<int> Created();
+
+    // Merged without a PullRequestChanged, as a missed signal.
+    Task MergeQuietly();
+
+    Task Close(int number);
 }
 
-public sealed record StubRepositoryState(int Created = 0, bool Merged = false)
+public sealed record StubRepositoryState(int Created = 0, bool Merged = false, bool Closed = false)
 {
-    public StubRepositoryState() : this(0, false) { }
+    public StubRepositoryState() : this(0, false, false) { }
 }
 
 // A GitHub repository of the facts: CreatePullRequest answers number 7; Merge closes it with a merge sha and publishes PullRequestChanged.
@@ -77,12 +90,16 @@ public sealed class StubRepository : DigitalBrain.Neuron<StubRepositoryState>, I
     }
 
     public Task<PullRequestRead> ReadPullRequest(ReadPullRequest query, CancellationToken cancellationToken = default)
-        => Task.FromResult(new PullRequestRead(new PullRequestSnapshot(query.Number, "pr", "https://example.test/pr/7", !State.Merged, false, "head", "base",
+        => Task.FromResult(new PullRequestRead(new PullRequestSnapshot(query.Number, "pr", "https://example.test/pr/7", !State.Merged && !State.Closed, false, "head", "base",
             State.Merged ? "merge" : null, "head", [], true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, State.Merged ? "2" : "1", "0", 1)));
 
     public Task Merge(int number) => Save(State with { Merged = true }, new PullRequestChanged(number, "2:0", $"github:1:{number}"));
 
     public Task<int> Created() => Task.FromResult(State.Created);
+
+    public Task MergeQuietly() => Save(State with { Merged = true }, new Worked(State.Created));
+
+    public Task Close(int number) => Save(State with { Closed = true }, new PullRequestChanged(number, "3:0", $"github:1:{number}"));
 
     public Task<RepositoryView> Refresh(RefreshRepository request) => throw new NotSupportedException();
 

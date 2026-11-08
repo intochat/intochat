@@ -39,5 +39,41 @@ public sealed class VerifyFlowFacts
         Assert.Contains("the unit broke", view.Detail, StringComparison.Ordinal);
         Assert.Contains("neuron_call, flows_list", ScriptedAgent.Prompts[id], StringComparison.Ordinal);
         Assert.Contains(await runtime.Signals<FlowStep>(Id(id), Ct), step => step is { Step: "telemetry", Outcome: StepOutcome.Failed });
+    
+    }
+
+    [Fact]
+    public async Task VerifyPassesWhenChecksOkAndTraceClean()
+    {
+        ScriptedAgent.Replies["Verify"] = Verdict;
+        await using var fixture = new FlowTypesFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Index(runtime);
+        var inner = new VerifyInner { UnitTraceId = Guid.NewGuid().ToString("N"), McpToolNames = ["neuron_call"] };
+
+        var id = await flows.Start(VerifyFlow.Alias, "Clean unit", null, JsonSerializer.Serialize(inner, VerifyFlow.Json), Ct);
+
+        var view = await Eventually(() => flows.Read(id, Ct), v => v.Status is FlowStatus.Failed or FlowStatus.Completed);
+        Assert.Equal(FlowStatus.Completed, view.Status);
+        Assert.Equal(["checks", "telemetry"], view.Done);
+        var held = JsonSerializer.Deserialize<VerifyInner>((await runtime.Get<IFlowStarter>(Id(id)).Head()).InnerJson, VerifyFlow.Json)!;
+        Assert.True(held.Ok);
+    }
+
+    [Fact]
+    public async Task AgentTurnFailedFailsTheStep()
+    {
+        ScriptedAgent.Replies["Verify: Unreachable model"] = ScriptedAgent.Fail;
+        await using var fixture = new FlowTypesFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Index(runtime);
+        var inner = new VerifyInner { UnitTraceId = Guid.NewGuid().ToString("N") };
+
+        var id = await flows.Start(VerifyFlow.Alias, "Unreachable model", null, JsonSerializer.Serialize(inner, VerifyFlow.Json), Ct);
+
+        var view = await Eventually(() => flows.Read(id, Ct), v => v.Status is FlowStatus.Failed or FlowStatus.Completed);
+        Assert.Equal(FlowStatus.Failed, view.Status);
+        Assert.Equal("the model is unavailable", view.Detail);
+        Assert.Contains(await runtime.Signals<FlowStep>(Id(id), Ct), step => step is { Outcome: StepOutcome.Failed, Detail: "the model is unavailable" });
     }
 }

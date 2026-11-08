@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Flows;
 using DigitalBrain.Operations;
@@ -76,13 +77,21 @@ public sealed class VerifyFlow : AgentFlow<VerifyInner>, IFlowStarter
     private async Task Telemetry(VerifyInner inner)
     {
         if (string.IsNullOrWhiteSpace(inner.UnitTraceId)) { throw new FlowFailed("telemetry", "no unit trace to check"); }
-        var page = await Context.History.ReadTrace(inner.UnitTraceId, 0, 1000);
-        var failures = page.Signals.Select(entry => entry.Signal switch
+        // Read page by page from the last sequence seen until a short page.
+        var failures = new List<string>();
+        var since = 0L;
+        while (true)
         {
-            FlowDone { Outcome: FlowOutcome.Failed } done => $"flow {done.FlowId} failed: {done.Detail}",
-            OperationDone { Result: OperationResult.Failed failed } operation => $"operation {operation.Operation.Value} failed: {failed.Message}",
-            _ => null,
-        }).OfType<string>().ToArray();
-        if (failures.Length > 0) { throw new FlowFailed("telemetry", string.Join("; ", failures)); }
+            var page = await Context.History.ReadTrace(inner.UnitTraceId, since, SignalPage.MaxLimit);
+            failures.AddRange(page.Signals.Select(entry => entry.Signal switch
+            {
+                FlowDone { Outcome: FlowOutcome.Failed } done => $"flow {done.FlowId} failed: {done.Detail}",
+                OperationDone { Result: OperationResult.Failed failed } operation => $"operation {operation.Operation.Value} failed: {failed.Message}",
+                _ => null,
+            }).OfType<string>());
+            if (page.Signals.Count < SignalPage.MaxLimit) { break; }
+            since = page.Signals[^1].Sequence;
+        }
+        if (failures.Count > 0) { throw new FlowFailed("telemetry", string.Join("; ", failures)); }
     }
 }

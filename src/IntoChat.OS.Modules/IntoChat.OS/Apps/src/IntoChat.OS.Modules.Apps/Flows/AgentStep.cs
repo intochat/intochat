@@ -48,10 +48,14 @@ public abstract class AgentFlow<T> : Flow<T> where T : AgentInner, new()
     protected async Task<StepResult<T>> Ask(string step, T inner, string prompt)
     {
         var agent = Context.Get<IAgent>(new NeuronId(Id.Brain, "agent", "flow-agent/" + Id.Key));
-        try { await agent.Configure(FlowAgent, 0); }
-        catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
+        if ((await agent.Read()).Revision == 0)
+        {
+            try { await agent.Configure(FlowAgent, 0); }
+            catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
+        }
         inner.AgentStep = step;
         inner.Reply = null;
+        inner.AgentError = null;
         inner.RunId = await agent.Start(AgentTurn.Text(prompt, runId: $"{Id.Key}/{step}"), Id.ToString());
         return new StepResult<T>(inner, new Waiting(step, WaitReason.External, null, null));
     }

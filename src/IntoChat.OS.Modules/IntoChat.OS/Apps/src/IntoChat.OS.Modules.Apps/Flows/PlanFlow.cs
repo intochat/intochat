@@ -95,25 +95,40 @@ public sealed class PlanFlow : AgentFlow<PlanInner>, IFlowStarter
         A flow.build inner is { "kind": "unit", "goal": "..." }; a flow.note inner is {}.
         """;
 
+    // Any shape the plan does not have fails the draft as "plan: <reason>", never as an unhandled exception out of the step.
     private static PlanSubtask[] Parse(string? reply)
     {
-        var draft = ParseReply<JsonElement>("draft", reply, Json);
-        if (!draft.TryGetProperty("subtasks", out var list) || list.ValueKind != JsonValueKind.Array) { throw new FlowFailed("draft", "the plan has no subtasks"); }
+        try { return ParseShape(ParseReply<JsonElement>("draft", reply, Json)); }
+        catch (FlowFailed failed) { throw new FlowFailed("draft", "plan: " + failed.Message); }
+        catch (Exception error) when (error is JsonException or InvalidOperationException or FormatException or OverflowException or KeyNotFoundException)
+        {
+            throw new FlowFailed("draft", "plan: " + error.Message);
+        }
+    }
+
+    private static PlanSubtask[] ParseShape(JsonElement draft)
+    {
+        if (draft.ValueKind != JsonValueKind.Object || !draft.TryGetProperty("subtasks", out var list) || list.ValueKind != JsonValueKind.Array) { throw new FlowFailed("draft", "the plan has no subtasks"); }
         var subtasks = new List<PlanSubtask>();
         foreach (var item in list.EnumerateArray())
         {
-            var title = item.TryGetProperty("title", out var t) ? t.GetString() : null;
-            var type = item.TryGetProperty("type", out var k) ? k.GetString() : null;
+            if (item.ValueKind != JsonValueKind.Object) { throw new FlowFailed("draft", "a subtask is not an object"); }
+            var title = Text(item, "title");
+            var type = Text(item, "type");
             if (string.IsNullOrWhiteSpace(title)) { throw new FlowFailed("draft", "a subtask has no title"); }
             if (type is null || !Types.Contains(type)) { throw new FlowFailed("draft", $"subtask {title} has type {type}; a subtask is {string.Join(" or ", Types)}"); }
-            var relations = item.TryGetProperty("relations", out var r) && r.ValueKind == JsonValueKind.Array
-                ? r.Deserialize<PlanRelation[]>(Json) ?? [] : [];
+            var relations = new List<PlanRelation>();
+            if (item.TryGetProperty("relations", out var r) && r.ValueKind != JsonValueKind.Null)
+            {
+                if (r.ValueKind != JsonValueKind.Array) { throw new FlowFailed("draft", $"subtask {title} relations are not a list"); }
+                foreach (var relation in r.EnumerateArray()) { relations.Add(Relation(title, relation)); }
+            }
             subtasks.Add(new PlanSubtask
             {
                 Title = title,
                 Type = type,
                 InnerJson = item.TryGetProperty("inner", out var i) && i.ValueKind == JsonValueKind.Object ? i.GetRawText() : "{}",
-                Relations = relations,
+                Relations = [.. relations],
             });
         }
         for (var index = 0; index < subtasks.Count; index++)
@@ -121,11 +136,27 @@ public sealed class PlanFlow : AgentFlow<PlanInner>, IFlowStarter
             foreach (var relation in subtasks[index].Relations)
             {
                 if (relation.Target < 0 || relation.Target >= subtasks.Count || relation.Target == index) { throw new FlowFailed("draft", $"subtask {index} relates to {relation.Target}"); }
-                if (relation.Kind is not (nameof(RelationKind.BlockedBy) or nameof(RelationKind.Follows))) { throw new FlowFailed("draft", $"relation kind {relation.Kind}"); }
-                if (relation.Lag is { } lag && !TimeSpan.TryParse(lag, CultureInfo.InvariantCulture, out _)) { throw new FlowFailed("draft", $"lag {lag}"); }
             }
         }
         return [.. subtasks];
+    }
+
+    private static string? Text(JsonElement item, string name)
+        => !item.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null ? null
+            : value.ValueKind == JsonValueKind.String ? value.GetString() : throw new FlowFailed("draft", $"{name} is not a string");
+
+    // Kinds parse case-insensitively and are stored by their enum name.
+    private static PlanRelation Relation(string title, JsonElement relation)
+    {
+        if (relation.ValueKind != JsonValueKind.Object) { throw new FlowFailed("draft", $"a relation of {title} is not an object"); }
+        if (!relation.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.Number || !target.TryGetInt32(out var index))
+        { throw new FlowFailed("draft", $"a relation of {title} has no numeric target"); }
+        var kind = Text(relation, "kind") ?? nameof(RelationKind.BlockedBy);
+        if (!Enum.TryParse<RelationKind>(kind, ignoreCase: true, out var parsed) || parsed is not (RelationKind.BlockedBy or RelationKind.Follows))
+        { throw new FlowFailed("draft", $"relation kind {kind}"); }
+        var lag = Text(relation, "lag");
+        if (lag is not null && !TimeSpan.TryParse(lag, CultureInfo.InvariantCulture, out _)) { throw new FlowFailed("draft", $"lag {lag}"); }
+        return new PlanRelation { Target = index, Kind = parsed.ToString(), Lag = lag };
     }
 
     private async Task<string[]> StartSubtasks(PlanSubtask[] subtasks)
