@@ -119,6 +119,7 @@ public sealed class BuildFlowFacts
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
+            services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);
             services.AddJournalPayloads(typeof(FlutterModule).Assembly);
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly);
             services.AddJournalPayloads(typeof(DigitalBrain.Signals.Activated).Assembly);

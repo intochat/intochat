@@ -76,6 +76,7 @@ public sealed class ApprovalsFacts
         {
             services.AddJournalPayloads(typeof(IFlows).Assembly);
             services.AddJournalPayloads(typeof(AppsModule).Assembly);
+            services.AddJournalPayloads(typeof(IntoChat.OS.Modules.AI.Agents.Context.Signals.ContextUpdated).Assembly);
             services.AddJournalPayloads(typeof(FlowStarted).Assembly);
             services.AddJournalPayloads(typeof(TestFlow).Assembly);
             services.TryAddSingleton(TimeProvider.System);

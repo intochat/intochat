@@ -2,6 +2,10 @@ using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Context.Signals;
+using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Flows.Rules;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,8 +24,76 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
 {
     private const string SystemOwner = "system";
 
-    protected override Task OnActivate(CancellationToken cancellationToken)
-        => Context.Synapses.EnsureBrainWide(typeof(FlowStarted), typeof(FlowStep), typeof(FlowWaiting), typeof(FlowResolve), typeof(FlowDone), typeof(FlowRelated));
+    private const string AssistantApp = "assistant";
+
+    private readonly SecurityInterrupts _interrupts = new();
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await Context.Synapses.EnsureBrainWide(typeof(FlowStarted), typeof(FlowStep), typeof(FlowWaiting), typeof(FlowResolve), typeof(FlowDone), typeof(FlowRelated),
+            typeof(ContextUpdated), typeof(ContextRemoved));
+        await RebuildInterrupts();
+    }
+
+    // Reads the posture context and the contexts the current conversation agent lists; an agent definition is the only list of
+    // the others, so an interrupt in a context neither names is seen only once it is written.
+    private async Task RebuildInterrupts()
+    {
+        _interrupts.Clear();
+        var prefix = Id.Brain.Value + "/";
+        string[] contexts = ["context/security.posture"];
+        try
+        {
+            var current = (await Context.Get<IInoConversations>(new NeuronId(Id.Brain, "ino.conversations", IInoConversations.DefaultKey)).Current()).FirstOrDefault();
+            if (current is not null)
+            {
+                var state = await Context.Get<IAgent>(new NeuronId(Id.Brain, AgentSignals.NeuronType, current)).Read();
+                contexts = [.. contexts, .. state.Definition.Contexts];
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptsUnread(Logger(), error, "agent"); }
+        foreach (var key in contexts.Select(key => key.StartsWith(prefix, StringComparison.Ordinal) ? key[prefix.Length..] : key).Distinct(StringComparer.Ordinal))
+        {
+            try
+            {
+                var snapshot = await Context.Get<IAgentContext>(new NeuronId(Id.Brain, "agent-context", key)).Read();
+                foreach (var entry in snapshot.Entries) { _interrupts.Keep(prefix + key, entry.Name, entry); }
+            }
+            catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptsUnread(Logger(), error, key); }
+        }
+    }
+
+    [On]
+    public async Task OnContextUpdated(ContextUpdated updated)
+    {
+        ArgumentNullException.ThrowIfNull(updated);
+        var prefix = Id.Brain.Value + "/";
+        if (!updated.ContextId.StartsWith(prefix, StringComparison.Ordinal)) { return; }
+        var cancel = false;
+        try
+        {
+            var snapshot = await Context.Get<IAgentContext>(new NeuronId(Id.Brain, "agent-context", updated.ContextId[prefix.Length..])).Read();
+            cancel = _interrupts.Keep(updated.ContextId, updated.Name, snapshot.Entries.FirstOrDefault(item => item.Name == updated.Name));
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+        {
+            FlowsLog.InterruptsUnread(Logger(), error, updated.ContextId);
+            return;
+        }
+        if (!cancel) { return; }
+        foreach (var flow in State.Flows.Values.Where(entry => entry.App == AssistantApp && entry.Status is FlowStatus.Running or FlowStatus.Waiting).ToArray())
+        {
+            await Cancel(flow.FlowId, "security interrupt");
+        }
+    }
+
+    [On]
+    public Task OnContextRemoved(ContextRemoved removed)
+    {
+        ArgumentNullException.ThrowIfNull(removed);
+        _interrupts.Remove(removed.ContextId, removed.Name);
+        return Task.CompletedTask;
+    }
 
     public async Task<FlowView[]> List(FlowQuery query, CancellationToken ct = default)
     {
@@ -51,6 +123,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     public async Task<string> Start(string type, string title, string? parentFlowId, string innerJson, CancellationToken ct = default, string? flowId = null)
     {
         await Check("Start", new FlowKeyIsValid(flowId));
+        await Check("Start", new NotUnderSecurityInterrupt(RuntimeCallerContext.TryGet(out var starter) && starter.AppId == AssistantApp ? _interrupts.Reason : null));
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentNullException.ThrowIfNull(innerJson);
@@ -252,6 +325,9 @@ internal static partial class FlowsLog
     // Logged once, when retries stop: the index shows the flow without its steps, owner or progress.
     [LoggerMessage(Level = LogLevel.Warning, Message = "The flows index could not read flow {FlowId} after {Attempts} attempts; it stops trying")]
     public static partial void HeadUnread(ILogger logger, Exception exception, string flowId, int attempts);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The flows index could not read {What} for security interrupts; it keeps what it had")]
+    public static partial void InterruptsUnread(ILogger logger, Exception exception, string what);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The flows graph source could not list the flows of brain {Brain}")]
     public static partial void GraphUnlisted(ILogger logger, Exception exception, string brain);
