@@ -1,0 +1,16 @@
+{
+  "state": "Working",
+  "flowId": "b1/flow.assistant/9f2c41",
+  "step": "Summarise the quarter",
+  "flowType": "assistant.task",
+  "neuronKind": "ai.agent",
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "focus": {
+    "target": "window:files",
+    "tone": "Warning",
+    "reason": "Two files need your answer before the move can continue.",
+    "action": { "kind": "open", "argument": "files" }
+  },
+  "reason": "Reading the quarterly reports.",
+  "revision": 42
+}

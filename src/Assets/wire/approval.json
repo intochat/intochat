@@ -1,0 +1,10 @@
+{
+  "planId": "plan-7d3e",
+  "kind": "FlowStep",
+  "subject": "b1/flow.assistant/9f2c41",
+  "title": "Move 2 files",
+  "detail": "Move report-q3.pdf and report-q4.pdf to Archive.",
+  "requested": "2026-11-08T09:40:00+00:00",
+  "expires": "2026-11-09T09:40:00+00:00",
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+}

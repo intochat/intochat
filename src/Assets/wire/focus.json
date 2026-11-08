@@ -1,0 +1,6 @@
+{
+  "target": "window:files",
+  "tone": "Warning",
+  "reason": "Two files need your answer before the move can continue.",
+  "action": { "kind": "open", "argument": "files" }
+}
