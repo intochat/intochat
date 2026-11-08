@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.ComponentModel;
 using IntoChat.OS.Contracts.Configuration;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.AI;
 namespace IntoChat.OS.Modules.AI.Agents;
 
 // The model's only actions: the neuron surface over the contracts the app composed. Each call runs
-// as the app, marked model-originated so neurons can withhold what the model must not see.
+// as the agent, marked model-originated so neurons can withhold what the model must not see.
 internal static class ContractActions
 {
     public static IReadOnlyList<AIFunction> Create(NeuronSurface surface, string conversation) =>
@@ -26,10 +27,13 @@ internal static class ContractActions
             NeuronSurfaceTools.ContextName, NeuronSurfaceTools.ContextDescription),
     ];
 
-    private static async Task<object> Marked(string conversation, Func<Task<object>> action)
+    // The model acts as the agent: a grant-checked caller of its own, whose denials come back to it as error results.
+    internal static async Task<object> Marked(string conversation, Func<Task<object>> action)
     {
         var caller = RuntimeCallerContext.Require();
-        RuntimeCallerContext.Stamp(caller with { ConversationId = conversation });
+#pragma warning disable CS0618 // the only AppId that yields CallerKind.Agent; digitalbrain follow-up to un-obsolete it
+        RuntimeCallerContext.Stamp(caller with { AppId = CapabilityCallers.AssistantApp, ConversationId = conversation });
+#pragma warning restore CS0618
         try { return await action(); }
         catch (Exception error) when (error is ArgumentException or KeyNotFoundException or UnauthorizedAccessException or InvalidOperationException)
         { return new { isError = true, message = error.Message }; }

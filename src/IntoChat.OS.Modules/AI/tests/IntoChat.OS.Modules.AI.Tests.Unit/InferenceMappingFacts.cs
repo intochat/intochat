@@ -94,4 +94,33 @@ public sealed class InferenceMappingFacts
         InferenceMapping.ValidateRequest(Request(new AiText("x"), new InferenceOptions(Temperature: 0.5f, Reasoning: "HIGH", MaxOutputTokens: 50)),
             Model(temperature: CapabilitySupport.Supported, maximumOutput: 50, reasoning: ["high"]));
     }
+
+    [Fact]
+    public void LaterOverridesWinPerField()
+    {
+        var first = new InferenceOverride("a", 0.2f, 0.5f, "low", 100, null);
+        var second = new InferenceOverride(null, 0.9f, null, null, 300, "pirate");
+
+        var (selection, settings) = InferenceMapping.Merge(new ModelSelection("base"), new InferenceOptions(Temperature: 0.1f), first, null, second);
+
+        Assert.Equal(new ModelSelection("a", "low", 300), selection);
+        Assert.Equal(new InferenceOptions(Temperature: 0.9f, TopP: 0.5f, MaxOutputTokens: 300), settings);
+    }
+
+    [Fact]
+    public void InvalidJsonParsesToNull()
+    {
+        Assert.Null(InferenceOverride.Parse("{not json"));
+        Assert.Equal(new InferenceOverride("m", 0.3f, null, null, null, null), InferenceOverride.Parse("{\"MODEL\":\"m\",\"temperature\":0.3}"));
+    }
+
+    [Fact]
+    public void ReasoningMovesToSelection()
+    {
+        var (selection, settings) = InferenceMapping.Merge(null, new InferenceOptions(Reasoning: "high", MaxOutputTokens: 50));
+
+        Assert.Equal(new ModelSelection(null, "high", 50), selection);
+        Assert.Equal(new InferenceOptions(MaxOutputTokens: 50), settings);
+        Assert.Equal((null, null), InferenceMapping.Merge(null, null));
+    }
 }

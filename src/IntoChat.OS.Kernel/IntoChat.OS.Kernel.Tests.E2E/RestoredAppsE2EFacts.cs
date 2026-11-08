@@ -292,15 +292,6 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         await ino.Open(new InoOpen("greet"));
         Assert.Contains("Astrid Lindqvist", ino.State.Status, StringComparison.Ordinal);
 
-        // 1. Memory loop (MemoryLoopFacts + InoChatFacts): recall seeded fact and capture new episode in MemoryNeuron on the silo.
-        await ino.Send(new InoSend("Summarize Nordlys Q4 enterprise renewals"));
-        var lastTurn = Assert.Single(ino.State.Turns);
-        Assert.True(lastTurn.RecalledCount >= 1);
-        Assert.Contains("Nordlys Q4 enterprise renewals", lastTurn.Reply, StringComparison.Ordinal);
-
-        var recalledAfterTurn = await memory.Recall("Summarize Nordlys", 5);
-        Assert.NotEmpty(recalledAfterTurn);
-
         // Live settings synchronization into InoApp.
         var updatedSettings = await settings.SetProfile("ElonWatcher", "dark", "qwen3.5:4b");
         ino.OnSettingsChanged(new UserSettingsChanged(
@@ -311,30 +302,12 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
             updatedSettings.BarLayout));
         Assert.Contains("Synced settings: ElonWatcher (qwen3.5:4b)", ino.State.Status, StringComparison.Ordinal);
 
-        // 2. Approval card creation and 1-click confirmation on the silo.
-        await ino.Send(new InoSend("Draft confirmation card for Q4 close date"));
-        var approvalCard = Assert.Single(ino.State.ActiveCards, c => c.Kind == "approval");
-        Assert.Equal("pending", approvalCard.Status);
-        Assert.Equal("neuron://local/os.confirmations/inbox", approvalCard.SourceNeuronUri);
-
-        await ino.ApproveCard(new InoApproveCard(approvalCard.Id, Approved: true));
-        Assert.Equal("approved", Assert.Single(ino.State.ActiveCards, c => c.Id == approvalCard.Id).Status);
-
         // 3. Database connection & SQL query visualization producing Table + Chart cards on the silo.
         await ino.ConnectDb(new InoConnectDb("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly", "main"));
         Assert.Contains("nordlys_crm", ino.State.ConnectedDatabase, StringComparison.Ordinal);
         await ino.QueryDb(new InoQueryDb("SELECT account, stage, amount FROM opportunities"));
         Assert.Contains(ino.State.ActiveCards, c => c.Kind == "table" && c.Rows is { Length: > 0 });
         Assert.Contains(ino.State.ActiveCards, c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
-
-        // 4. Studio routing to PhotoCraft and FilmCraft.
-        await ino.Send(new InoSend("Remove background from portrait.png"));
-        Assert.Contains(ino.State.Turns, t => t.RouteHint.Contains("photocraft", StringComparison.OrdinalIgnoreCase)
-            || t.Reply.Contains("layer.removeBackground", StringComparison.Ordinal));
-
-        await ino.Send(new InoSend("Razor split timeline in FilmCraft via mcp"));
-        Assert.Contains(ino.State.Turns, t => t.RouteHint.Contains("filmcraft", StringComparison.OrdinalIgnoreCase)
-            || t.Reply.Contains("timeline.razor", StringComparison.Ordinal));
 
         // 5. Secret prompt workflow (InoSecretFacts): /scenario invoice-check emits SecretCardNode routed to os://window/secure and never leaks secrets.
         var forbiddenText = string.Concat("sample", "-", "unexposed", "-", "value");

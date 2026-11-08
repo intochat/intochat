@@ -49,7 +49,14 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         if (plan.Contracts.Distinct(StringComparer.Ordinal).Count() != plan.Contracts.Length) { throw new ArgumentException("Contracts must be unique.", nameof(plan)); }
         yield return new AgentTurnEvent.Started(plan.RunId);
         string? currentCall = null;
-        var contexts = await ReadContexts(plan.Contexts, ct);
+        var contexts = await ReadContexts(plan.Contexts, DigitalBrain.Brains.BrainKey.BrainOf(plan.Conversation), ct);
+        // An interrupt from a user or the platform stops the turn before anything else is prepared; one written by an app or the model is not an order.
+        if (contexts.FirstOrDefault(IsTrustedInterrupt) is { } interrupt)
+        {
+            yield return new AgentTurnEvent.Failed("Blocked: " + interrupt.Text, false);
+            yield break;
+        }
+        var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
         var surface = services.GetRequiredService<NeuronSurface>();
         // Context may name contracts this host does not deploy; only deployed ones join the turn.
         string[] named = [.. contexts.SelectMany(entry => entry.Contracts).Where(name => !plan.Contracts.Contains(name)).Distinct(StringComparer.Ordinal)];
@@ -59,13 +66,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         var tools = composed.Length == 0 ? new List<AIFunction>() : [.. ContractActions.Create(await surface.Restrict(composed, ct), plan.Conversation)];
 
         var catalog = services.GetRequiredService<ModelCatalog>();
-        var selection = plan.Model;
-        if (plan.Options?.Reasoning is not null || plan.Options?.MaxOutputTokens is not null)
-        {
-            selection = (selection ?? new()) with
-            { Reasoning = plan.Options.Reasoning ?? selection?.Reasoning, MaxOutputTokens = plan.Options.MaxOutputTokens ?? selection?.MaxOutputTokens };
-        }
-        var settings = plan.Options is null ? null : plan.Options with { Reasoning = null };
+        var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options, overrides);
         var resolved = await catalog.Resolve(plan.ScopeId, selection, tools.Count > 0, ct);
         ChatOptions options;
         switch (resolved.Provider)
@@ -90,9 +91,9 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         options.Instructions = plan.Instructions;
         options.Tools = [.. tools];
         var messages = new List<ChatMessage>();
-        if (plan.Summary is { Length: > 0 }) { messages.Add(new(ChatRole.System, "Earlier conversation summary: " + plan.Summary)); }
+        // Only untagged entries are knowledge for the model; tagged ones are acted on above or belong to other consumers.
+        foreach (var entry in contexts.Where(entry => entry.EffectiveTags.Length == 0 && entry.Text.Length > 0)) { messages.Add(new(ChatRole.System, entry.Text)); }
         messages.AddRange(plan.Transcript.Select(InferenceMapping.ToChatMessage));
-        foreach (var entry in contexts.Where(entry => entry.Text.Length > 0)) { messages.Add(new(ChatRole.System, entry.Text)); }
         messages.Add(InferenceMapping.ToChatMessage(plan.Input));
         var generated = new List<ChatMessage>();
         UsageDetails? usage = null;
@@ -178,8 +179,15 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         throw new InvalidOperationException("The agent reached its model-call budget.");
     }
 
+    internal static bool IsTrustedInterrupt(ContextEntry entry)
+        => entry.EffectiveTags.Contains(ContextTags.Interrupt) && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
+
     // A context that is missing or fails leaves the turn without it rather than failing the turn.
-    private async Task<List<ContextEntry>> ReadContexts(string[] keys, CancellationToken ct)
+    // A key that starts with "context/" is relative to the agent's own brain.
+    internal static string Absolute(string brain, string key)
+        => key.StartsWith("context/", StringComparison.Ordinal) ? $"{brain}/{key}" : key;
+
+    private async Task<List<ContextEntry>> ReadContexts(string[] keys, string brain, CancellationToken ct)
     {
         if (keys.Length == 0) { return []; }
         // A context is a plain neuron (06-05), reached by its os key "{brain}/{key}".
@@ -194,6 +202,6 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
             }
         }
         // The reads overlap; Task.WhenAll keeps the results in the order of keys.
-        return [.. (await Task.WhenAll(keys.Select(Read))).SelectMany(entries => entries)];
+        return [.. (await Task.WhenAll(keys.Select(key => Read(Absolute(brain, key))))).SelectMany(entries => entries)];
     }
 }

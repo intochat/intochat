@@ -107,7 +107,7 @@ public sealed class MarkdrawAppFacts
         ino.App.FilesVfs = vfs;
 
         // 1. Query real CSV dataset from Files VFS with GROUP BY aggregation
-        await ino.Request("send", new InoSend("SELECT Region, Revenue FROM /work/q4_revenue.csv GROUP BY Region"));
+        await ino.Request("query-db", new InoQueryDb("SELECT Region, Revenue FROM /work/q4_revenue.csv GROUP BY Region"));
         var tableCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "table");
         var chartCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "chart");
         Assert.Equal("neuron://local/local-disk.files/q4_revenue.csv", tableCard.SourceNeuronUri);
@@ -115,29 +115,5 @@ public sealed class MarkdrawAppFacts
         Assert.Equal(3, chartCard.ChartPoints!.Length);
         Assert.Equal("Nordics", chartCard.ChartPoints[0].Label);
         Assert.Equal(350000, chartCard.ChartPoints[0].Value);
-
-        // 2. Ask Ino to diagram the dataset lineage in Markdraw
-        await ino.Request("send", new InoSend("Diagram the data lineage flow for this chart in Markdraw"));
-        Assert.Equal("routed:markdraw.from-data", ino.App.State.Turns[^1].RouteHint);
-        var markdrawCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "markdraw");
-        Assert.Equal("/work/data-lineage.markdraw", markdrawCard.Columns![0]);
-
-        // 3. Co-draw on the active Markdraw canvas via natural language
-        await ino.Request("send", new InoSend("In Markdraw add \"Board Review Deck\" connected to chart-output"));
-        Assert.Equal("routed:markdraw.patch-elements", ino.App.State.Turns[^1].RouteHint);
-
-        var persistedLineage = await vfs.ReadTextAsync("/work/data-lineage.markdraw", ct);
-        Assert.NotNull(persistedLineage);
-        Assert.Contains("Board Review Deck", persistedLineage, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task CapabilityCatalogDynamicallyReflectsCompiledAppsAndSignals()
-    {
-        var apps = await InoCapabilityCatalog.DiscoverAppsAsync(_ => null);
-        var markdrawCap = Assert.Single(apps, a => a.AppId == "markdraw");
-        Assert.NotNull(markdrawCap.OperationParameters);
-        Assert.True(markdrawCap.OperationParameters!.ContainsKey("patch-elements"));
-        Assert.Contains(markdrawCap.OperationParameters["patch-elements"], p => p.Name == "AddOrUpdateDsl");
     }
 }

@@ -5,7 +5,6 @@ using DigitalBrain;
 using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Apps.Signals;
@@ -807,9 +806,7 @@ internal sealed class CompiledAppsHost(
     private void WireInoServices(string brain, App instance)
     {
         var type = instance.GetType();
-        type.GetProperty("DecisionMaker")?.SetValue(instance, services.GetService(typeof(IDecisionMaker)));
         type.GetProperty("FilesVfs")?.SetValue(instance, _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b)));
-        type.GetProperty("KnowledgeStore")?.SetValue(instance, services.GetService(typeof(IKnowledgeStore)));
         type.GetProperty("TaskEngine")?.SetValue(instance, services.GetService(typeof(ITaskEngine)));
     }
 

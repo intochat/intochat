@@ -123,7 +123,7 @@ public static class GrantRules
             return CallDecision.Deny(CallDenial.OutsideWorkspace, "The principal is not a member of this account and brain.");
         }
 
-        if (caller.Kind != CallerKind.App)
+        if (caller.Kind is not (CallerKind.App or CallerKind.Agent))
         {
             return null;
         }
@@ -133,7 +133,9 @@ public static class GrantRules
             return CallDecision.Deny(CallDenial.UntrustedCaller, "An app caller must identify its app, and its principal must be that app's.");
         }
 
-        if (request.SemanticTypeIds.Length == 0 && (connectionBound ?? EdgeGrantsCache.Current.IsConnectionBound(caller, request.TargetNeuron)))
+        // An agent reaches everything through grants only: no connection-bound shortcut, no own-target allowance.
+        var isAgent = caller.Kind == CallerKind.Agent;
+        if (!isAgent && request.SemanticTypeIds.Length == 0 && (connectionBound ?? EdgeGrantsCache.Current.IsConnectionBound(caller, request.TargetNeuron)))
         {
             return CallDecision.Allow();
         }
@@ -159,7 +161,7 @@ public static class GrantRules
         // The csharp runtime gives each app program its own signal session, runtime.session/{brain}/csharp/{app key}.
         var appKey = ownPrefix2 ?? ownPrefix1;
         var ownSession = string.Equals(target, $"runtime.session/{caller.BrainId}/csharp/{appKey}", StringComparison.Ordinal);
-        if (ownSession || IsOwn(target) || typeEnd > 0 && IsOwn(target[(typeEnd + 1)..]))
+        if (!isAgent && (ownSession || IsOwn(target) || typeEnd > 0 && IsOwn(target[(typeEnd + 1)..])))
         {
             return CallDecision.Allow();
         }
@@ -170,7 +172,7 @@ public static class GrantRules
             {
                 return CallDecision.Allow();
             }
-            return CallDecision.Deny(CallDenial.MissingGrant, $"App '{caller.AppId}' requires a valid grant or binding to access '{request.TargetNeuron}'.");
+            return CallDecision.Deny(CallDenial.MissingGrant, $"Caller '{caller.AppId}' requires a valid grant or binding to access '{request.TargetNeuron}'.");
         }
 
         foreach (var semanticTypeId in request.SemanticTypeIds)
@@ -192,7 +194,7 @@ public static class GrantRules
         if (grants is null || grants.Count == 0 || request.SemanticTypeIds.Length == 0) { return []; }
 
         var caller = request.Caller;
-        if (caller.Kind != CallerKind.App || AppOf(caller) is not { } app) { return []; }
+        if (caller.Kind is not (CallerKind.App or CallerKind.Agent) || AppOf(caller) is not { } app) { return []; }
 
         return
         [

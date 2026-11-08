@@ -148,7 +148,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     [InlineData("routed:settings.navigate:models:local-server", null)]
     [InlineData("routed:customapp.action", null)]
     [InlineData("routed:arbitrary.long.nested.namespace.action", null)]
-    // Clarification routes emitted by InoStudioHandler when invalid command
+    // Clarification route hints from earlier Ino versions; the studio tool no longer emits them
     [InlineData("clarification:photocraft", null)]
     [InlineData("clarification:filmcraft", null)]
     // Other route hint variants
@@ -351,6 +351,7 @@ public sealed class CompiledAppsHostAdversarialFacts
         public Task<AppSnapshot> Rollback(string version) => throw new NotImplementedException();
         public Task<AppSnapshot> BeginBuild(string? instruction) => throw new NotImplementedException();
         public Task<Guid> CurrentBuildAttempt() => throw new NotImplementedException();
+        public Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash) => throw new NotImplementedException();
         public Task Progress(string state, string detail) => throw new NotImplementedException();
         public Task Progress(string state, string detail, Dictionary<string, string> blackboard) => throw new NotImplementedException();
         public Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null) => throw new NotImplementedException();

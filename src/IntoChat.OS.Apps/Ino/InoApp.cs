@@ -4,19 +4,16 @@ Role: Shell
 Shipped: true
 Operations: open, send, approve-card, connect-db, query-db, new, new-conversation, voice, make
 
-The brain's personal assistant. Connects to MemoryNeuron (IMemory), UserSettingsNeuron (IUserSettings),
-Files VFS (IFilesVfsService), DecisionMaker (IDecisionMaker), and Postgres connections to maintain context
-across conversations, route intents, inspect/write workspace files, query databases, and render LFP cards.
+The brain's personal assistant. Every message goes to one agent (IAgent) per conversation, which acts
+through the Ino tool contracts; tool results that carry a card render inline. Slash commands stay in the UI.
 */
 using DigitalBrain.UI;
-using IntoChat.OS.Modules.AI.Decision;
+using IntoChat.OS.Authority.Identity.Grants;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
-using IntoChat.OS.Modules.AI.Models.Ollama;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.ArtCraft;
-using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -54,13 +51,15 @@ public sealed record InoQueryDb(string? Sql = null) : DigitalBrain.Signal;
 [DigitalBrain.App("ino", Accent = "#3D7EFF", Category = "Intelligence")]
 public sealed class InoApp : DigitalBrain.App<InoAppState>
 {
-    public IDecisionMaker? DecisionMaker { get; set; }
+    private const string BlockedPrefix = "Blocked: ";
+    private const string NewTitle = "New chat";
+    private const string MigrationNote = "Earlier conversation is in the archive.";
+    private const string MigrationId = "migration";
+
+    // Render cannot await: the last transcript the agent answered, refreshed after each turn.
+    private AiMessage[] _transcript = [];
 
     public IFilesVfsService? FilesVfs { get; set; }
-
-    public IKnowledgeStore? KnowledgeStore { get; set; }
-
-    public ITaskEngine? TaskEngine { get; set; }
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(InoApp));
 
@@ -73,7 +72,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Operations:
             [
                 new("open", "Show Ino."),
-                new("send", "Route or answer a message."),
+                new("send", "Send a message to Ino's agent."),
                 new("approve-card", "Approve or reject an inline LFP card."),
                 new("connect-db", "Connect a PostgreSQL database via connection string."),
                 new("query-db", "Execute a read-only SQL query against the connected database."),
@@ -82,12 +81,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 new("voice", "Begin voice input."),
                 new("make", "Apply a sentence to the focused app, or Scratch."),
             ],
-            Settings:
-            [
-                new("Model", "Model catalog id; empty uses the default.", ""),
-                new("RouteGate", "Confidence required for a direct route.", "0.8"),
-                new("IntendGate", "Seconds to wait for Memory's brief before answering without it.", "8"),
-            ],
+            Settings: [],
             Slots: [],
             Icon: "icon.svg",
             Toolbar:
@@ -110,7 +104,56 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         var status = request.Mode == "greet"
             ? $"Hello, {settings.DisplayName}! Ready on {settings.DefaultModel}."
             : $"Ready ({settings.DefaultModel})";
-        Set(State with { Status = status });
+        // Turns from before the agent existed stay in the archive; the agent gets one note, once.
+        var migrate = State.Turns.Length > 0 && string.IsNullOrEmpty(State.AgentKey);
+        Set(State with { Status = status, AgentKey = migrate ? State.AgentKey : AgentKeyOf(State.ConversationId) });
+        try
+        {
+            // Nothing else wakes the profile writer: touching it makes its synapse on the settings and writes user.profile now.
+            try { await Get<IProfileContextWriter>("ino/profile-writer").Ensure(); }
+            catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The profile context is optional; the agent answers without it."); }
+            var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
+            if (migrate)
+            {
+                // The key is set only once the note is in, so a failed Post is retried on the next open.
+                await agent.Post(MigrationNote, MigrationId);
+                Set(State with { AgentKey = AgentKeyOf(State.ConversationId) });
+            }
+            var read = await agent.Read();
+            _transcript = await agent.Transcript();
+            Set(State with { Blocked = read.Blocked, BlockedReason = read.Blocked ? State.BlockedReason ?? "An interrupt holds the agent." : null });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "The agent is optional when Ino runs without the AI module.");
+        }
+        await RefreshGrantsAsync();
+    }
+
+    [DigitalBrain.On("grants/default", Contract = typeof(IGrantsNeuron))]
+    public Task OnGrantsChanged(GrantsChanged? changed)
+    {
+        _ = changed; // any version change re-reads the list
+        return RefreshGrantsAsync();
+    }
+
+    private async Task RefreshGrantsAsync()
+    {
+        try
+        {
+            var grants = await Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey).List();
+#pragma warning disable CS0618 // the AppId every agent tool call runs under (see ContractActions.Marked)
+            var assistant = DigitalBrain.Capabilities.CapabilityCallers.AssistantApp;
+#pragma warning restore CS0618
+            Set(State with
+            {
+                GrantSummaries = [.. grants.Where(g => g.AppId == assistant && !g.Revoked).Select(g => $"{g.Scope} · {g.Target}")],
+            });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "The grants neuron is optional when Ino runs without the identity module.");
+        }
     }
 
     [DigitalBrain.On]
@@ -118,225 +161,97 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var text = string.IsNullOrWhiteSpace(request.EffectiveMessage) ? "hello" : request.EffectiveMessage.Trim();
-        var shortPrompt = text.Length <= 42 ? text : text[..42] + "…";
-        Set(State with { Status = $"Thinking · Processing '{shortPrompt}'…" });
-
-        var memory = TryGetMemory();
-        var recalled = memory is null ? [] : await memory.Recall(text, 3);
         var settings = await Get<IUserSettings>("settings").Read();
-
         if (text.StartsWith('/'))
         {
             await HandleSlashCommandAsync(text, settings);
             return;
         }
 
-        var decision = await InoIntentRouter.DecideIntentAsync(text, DecisionMaker, TryGetApp, TryGetAppStore);
-        switch (decision.Choice)
-        {
-            case "app.install":
-                Set(InoViewRenderer.BuildAppInstallLinkState(State, text));
-                return;
-            case "connection.string":
-                await ConnectDb(new InoConnectDb(text, "main"));
-                return;
-            case "markdraw":
-                Set(await InoStudioHandler.ExecuteAsync(
-                    State,
-                    "markdraw",
-                    text,
-                    settings,
-                    recalled,
-                    memory,
-                    KnowledgeStore,
-                    FilesVfs,
-                    TryGetArtCraftStudio(),
-                    TryGetMcpServer,
-                    TryGetApp,
-                    (err, reason) => Swallow(err, reason)));
-                return;
-            case "photocraft":
-                Set(await InoStudioHandler.ExecuteAsync(
-                    State,
-                    "photocraft",
-                    text,
-                    settings,
-                    recalled,
-                    memory,
-                    KnowledgeStore,
-                    FilesVfs,
-                    TryGetArtCraftStudio(),
-                    TryGetMcpServer,
-                    TryGetApp,
-                    (err, reason) => Swallow(err, reason)));
-                return;
-            case "filmcraft":
-                Set(await InoStudioHandler.ExecuteAsync(
-                    State,
-                    "filmcraft",
-                    text,
-                    settings,
-                    recalled,
-                    memory,
-                    KnowledgeStore,
-                    FilesVfs,
-                    TryGetArtCraftStudio(),
-                    TryGetMcpServer,
-                    TryGetApp,
-                    (err, reason) => Swallow(err, reason)));
-                return;
-            case "chart.mutation":
-                Set(await InoDatabaseChartHandler.ApplyChartMutationOrFilterAsync(
-                    State,
-                    text,
-                    settings,
-                    memory,
-                    FilesVfs,
-                    TryGetApp,
-                    (err, reason) => Swallow(err, reason)));
-                return;
-            case "chart.question":
-                Set(await InoDatabaseChartHandler.AnswerChartQuestionAsync(
-                    State,
-                    text,
-                    settings,
-                    recalled,
-                    memory,
-                    (prompt, chart, table) => TryGenerateReplyAsync(prompt, settings, recalled, chart, table)));
-                return;
-            case "database.query":
-                await QueryDb(new InoQueryDb(text));
-                return;
-            case "settings.navigate":
-                if (InoSettingsHandler.TryResolveSettingsNavigation(
-                    text,
-                    out var settingsSection,
-                    out var settingsSubPage,
-                    out var settingsSheet,
-                    out var requiresSettingsApproval))
-                {
-                    Set(await InoSettingsHandler.ExecuteAsync(
-                        State,
-                        text,
-                        settingsSection,
-                        settingsSubPage,
-                        settingsSheet,
-                        requiresSettingsApproval,
-                        settings,
-                        recalled,
-                        memory,
-                        TryGetApp,
-                        (err, reason) => Swallow(err, reason)));
-                    return;
-                }
-                break;
-            case "file.resource":
-                if (InoFilesHandler.TryParseFileIntent(text, out var fileIntent))
-                {
-                    Set(await InoFilesHandler.ExecuteAsync(
-                        State,
-                        fileIntent,
-                        FilesVfs,
-                        settings,
-                        recalled,
-                        memory,
-                        KnowledgeStore,
-                        prompt => TryGenerateReplyAsync(prompt, settings, recalled)));
-                    return;
-                }
-                break;
-            case "task.create":
-                Set(await ExecuteTaskCreateAsync(text, settings, recalled, memory));
-                return;
-        }
-
-        var routeHint = text.StartsWith("open ", StringComparison.OrdinalIgnoreCase)
-            ? $"routed:{text[5..].Trim()}.open"
-            : $"agent:{settings.DefaultModel}";
-        var contextSummary = FormatRecalledContextSummary(recalled);
-        var activeChart = State.ActiveCards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 });
-        var activeTable = State.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Rows is { Length: > 0 });
-
-        var isCapabilityInquiry = InoCapabilityCatalog.IsCapabilityOrMetaInquiry(text);
-        var liveCapabilityContext = isCapabilityInquiry
-            ? await InoCapabilityCatalog.BuildLiveCapabilityContextAsync(
-                TryGetApp,
-                TryGetAppStore,
-                FilesVfs,
-                memory,
-                KnowledgeStore,
-                TaskEngine,
-                State.ConnectedDatabase,
-                settings.DefaultModel)
-            : null;
-
-        var generated = string.IsNullOrWhiteSpace(request.EffectiveMessage)
-            ? null
-            : await TryGenerateReplyAsync(text, settings, recalled, activeChart, activeTable, liveCapabilityContext);
-
-        var reply = isCapabilityInquiry && !string.IsNullOrWhiteSpace(liveCapabilityContext)
-            ? (generated is { Length: > 0 }
-                ? $"Ino ({settings.DefaultModel}): {generated}\n\n{liveCapabilityContext}"
-                : $"Ino ({settings.DefaultModel}): Here is what I can do across your IntoChat OS brain:\n\n{liveCapabilityContext}")
-            : (generated is { Length: > 0 }
-                ? $"Ino ({settings.DefaultModel}): {generated}"
-                : $"Ino ({settings.DefaultModel}): Answered '{text}'{contextSummary}");
-
-        if (memory is not null)
-        {
-            var episodeSummary = isCapabilityInquiry
-                ? "Presented live IntoChat OS brain capabilities."
-                : SanitizeEpisodeSummary(generated ?? $"Answered '{text}'");
-            await memory.CaptureEpisode("ino", $"User: {text} | Reply: {episodeSummary}", importance: 5);
-        }
-
-        var title = State.Turns.Length == 0
-            ? (text.Length <= 52 ? text : text[..52])
-            : State.Title;
-        var turns = State.Turns.Append(new InoTurn(text, reply, routeHint, recalled.Length)).ToArray();
-        var cards = State.ActiveCards;
-        if (text.Contains("approve", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("close date", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("confirm", StringComparison.OrdinalIgnoreCase))
-        {
-            var cardId = $"card-{turns.Length}";
-            var card = new InoCard(
-                cardId,
-                "approval",
-                $"Approve: {text}",
-                "Pre-filled LFP ApprovalCard ready for 1-click confirmation.",
-                "neuron://local/os.confirmations/inbox",
-                "pending",
-                $"neuron://local/apps/ino#{cardId}");
-            cards = [.. cards, card];
-        }
-        else if (text.Contains("secret", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("api key", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("tripletex", StringComparison.OrdinalIgnoreCase))
-        {
-            var cardId = $"secret-{turns.Length}";
-            cards =
-            [
-                .. cards,
-                new InoCard(
-                    cardId,
-                    "secret",
-                    "Tripletex Session Token",
-                    "Required to verify Q4 invoice ledger balances in Tripletex. Value routes directly to Secure Vault.",
-                    "neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN",
-                    "pending",
-                    $"neuron://local/apps/ino#{cardId}"),
-            ];
-        }
-
+        var agentKey = AgentKeyOf(State.ConversationId);
         Set(State with
         {
-            Title = title,
-            Status = routeHint,
-            Turns = turns,
-            Cards = cards,
+            AgentKey = agentKey,
+            Title = State.Title == NewTitle ? (text.Length <= 52 ? text : text[..52]) : State.Title,
+            Status = "Thinking",
         });
+        try
+        {
+            var agent = Get<IAgent>(agentKey);
+            await EnsureConfiguredAsync(agent, settings);
+            await foreach (var step in agent.Run(AgentTurn.Text(text)))
+            {
+                Apply(step);
+            }
+            _transcript = await agent.Transcript();
+        }
+        catch (InvalidOperationException error) when (error.Message.StartsWith(BlockedPrefix, StringComparison.Ordinal))
+        {
+            Pause(error.Message);
+        }
+        catch (OperationCanceledException error)
+        {
+            Swallow(error, "The run was cancelled; the status line reports it.");
+            Set(State with { Status = "Cancelled" });
+        }
+        catch (Exception error)
+        {
+            Swallow(error, "The agent could not answer; the status line reports why.");
+            Set(State with { Status = $"Ino could not answer: {error.Message}" });
+        }
+        finally
+        {
+            Set(State with { ActiveRunId = null });
+        }
     }
+
+    // Configure on first use; a revision conflict means another caller configured it first.
+    private async Task EnsureConfiguredAsync(IAgent agent, UserSettingsState settings)
+    {
+        if ((await agent.Read()).Revision != 0) { return; }
+        try { await agent.Configure(InoAgentDefinition.For(settings), 0); }
+        catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
+        // The tone observer follows this conversation's agent; an app cannot subscribe to it directly.
+        try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Follow(AgentKeyOf(State.ConversationId)); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The tone is a refinement; the agent answers without it."); }
+    }
+
+    private void Apply(AgentTurnEvent step)
+    {
+        switch (step)
+        {
+            case AgentTurnEvent.Started started:
+                Set(State with { ActiveRunId = started.RunId, Blocked = false, BlockedReason = null, Status = "Thinking" });
+                break;
+            case AgentTurnEvent.ToolStarted tool:
+                Set(State with { Status = $"Using {tool.Name}" });
+                break;
+            case AgentTurnEvent.ToolCompleted tool:
+                Set(State with { Cards = [.. State.ActiveCards, .. InoCards.FromToolCalls([new AgentToolCall(tool.CallId, tool.Name, "", tool.Result)])] });
+                break;
+            case AgentTurnEvent.ToolFailed tool:
+                Set(State with { Status = $"{tool.Name} failed: {tool.Message}" });
+                break;
+            case AgentTurnEvent.Completed:
+                Set(State with { Status = "Ready" });
+                break;
+            case AgentTurnEvent.Failed failed when failed.Message.StartsWith(BlockedPrefix, StringComparison.Ordinal):
+                Pause(failed.Message);
+                break;
+            case AgentTurnEvent.Failed failed:
+                Set(State with { Status = failed.Cancelled ? "Cancelled" : $"Failed: {failed.Message}" });
+                break;
+        }
+    }
+
+    private void Pause(string message)
+        => Set(State with { Blocked = true, BlockedReason = message[BlockedPrefix.Length..], Status = "Paused" });
+
+    private const string DataKey = "ino/data";
+
+    private static string AgentKeyOf(string conversationId) => $"ino/conversations/{conversationId}";
+
+    private static string ToneKeyOf(string conversationId) => $"observer/tone/{AgentKeyOf(conversationId)}";
 
     private async Task HandleSlashCommandAsync(string rawCommand, UserSettingsState settings)
     {
@@ -350,6 +265,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 New(new InoNew());
                 return;
             case "clear":
+                _transcript = [];
                 Set(State with { Turns = [], Cards = [], Status = "Session cleared" });
                 return;
             case "pin":
@@ -382,20 +298,53 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task ConnectDb(InoConnectDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(await InoDatabaseChartHandler.ConnectDbAsync(State, request, TryGetMemory(), KnowledgeStore));
+        try
+        {
+            var data = Get<IInoData>(DataKey);
+            var result = await data.Connect(request.ConnectionString ?? string.Empty);
+            Set(State with
+            {
+                ConnectedDatabase = (await data.Read()).ConnectedDatabase ?? State.ConnectedDatabase,
+                Status = result.Text,
+                Cards = result.Card is { } card ? [.. State.ActiveCards, card] : State.Cards,
+            });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "The connection failed; the status line reports why.");
+            Set(State with { Status = $"Could not connect: {error.Message}" });
+        }
     }
 
     [DigitalBrain.On]
     public async Task QueryDb(InoQueryDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(await InoDatabaseChartHandler.QueryDbAsync(
-            State,
-            request,
-            TryGetMemory(),
-            FilesVfs,
-            TryGetApp,
-            (err, reason) => Swallow(err, reason)));
+        // Reads through this app's own files service, so a host-injected workspace stays the one source of datasets.
+        var sql = string.IsNullOrWhiteSpace(request.Sql) ? InoDataCards.DefaultSql : request.Sql.Trim();
+        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? InoDataCards.DefaultDatabase : State.ConnectedDatabase;
+        DataQueryResult result;
+        try
+        {
+            result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "The query failed; the status line reports why.");
+            Set(State with { Status = $"Could not run the query: {error.Message}" });
+            return;
+        }
+        if (TryGetMemory() is { } memory)
+        {
+            await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6);
+        }
+        var (table, chart) = InoDataCards.Build(result, database, $"table-{State.ActiveCards.Length + 1}", $"chart-{State.ActiveCards.Length + 2}");
+        Set(State with
+        {
+            ConnectedDatabase = database,
+            Status = $"Visualized {result.Rows.Length} row(s) & {result.ChartPoints.Length} chart point(s) from {database}",
+            Cards = [.. State.ActiveCards, table, chart],
+        });
     }
 
     [DigitalBrain.On]
@@ -422,14 +371,25 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public void New(InoNew request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(new InoAppState($"c-{Guid.NewGuid():N}"[..10], "New chat", "New conversation started", "idle", []));
+        StartConversation();
     }
 
     [DigitalBrain.On]
     public void NewConversation(InoNewConversation request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(new InoAppState($"c-{Guid.NewGuid():N}"[..10], "New chat", "New conversation started", "idle", []));
+        StartConversation();
+    }
+
+    private void StartConversation()
+    {
+        var conversationId = $"c-{Guid.NewGuid():N}"[..10];
+        _transcript = [];
+        Set(new InoAppState(conversationId, NewTitle, "New conversation started", "idle", [])
+        {
+            AgentKey = AgentKeyOf(conversationId),
+            GrantSummaries = State.GrantSummaries,
+        });
     }
 
     [DigitalBrain.On]
@@ -486,133 +446,17 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 
     public View RenderSide() => InoViewRenderer.RenderSide(State);
 
-    public View Render() => InoViewRenderer.Render(State);
+    public View Render() => InoViewRenderer.Render(State, _transcript);
 
-    [DigitalBrain.Scenario("Sending a message recalls memory, captures an episode, and updates transcript")]
-    public async Task VerifyMemoryAndConversationScenario()
+    [DigitalBrain.Scenario("Querying a connected database renders a table and a chart card")]
+    public async Task VerifyDatabaseCardsScenario()
     {
-        var memory = Get<IMemory>("memory");
-        await memory.RememberFact("preference", "User prefers concise dark-mode UI", importance: 8);
-
-        await Send(new InoSend("Tell me about my UI preference"));
-        if (State.Turns.Length != 1 || State.Turns[0].RecalledCount == 0)
-        {
-            throw new InvalidOperationException("Expected InoApp to recall the stored preference fact.");
-        }
-
         await ConnectDb(new InoConnectDb("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly"));
         await QueryDb(new InoQueryDb("SELECT opportunity, account, stage, amount FROM opportunities"));
         if (!State.ActiveCards.Any(c => c.Kind == "table" && c.Rows is { Length: > 0 })
             || !State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 }))
         {
             throw new InvalidOperationException("Expected InoApp to execute SQL query and emit both table and chart cards.");
-        }
-
-        await Send(new InoSend("What are top 3 on the chart I see?"));
-        if (!State.Turns[^1].Reply.Contains("Havbris pilot", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Expected InoApp to answer follow-up question about the top 3 items on the visible chart.");
-        }
-
-        await Send(new InoSend("Switch the chart I see to a pie chart"));
-        if (!State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartKind == "pie"))
-        {
-            throw new InvalidOperationException("Expected InoApp to switch the active chart kind to pie.");
-        }
-
-        await Send(new InoSend("Remove background from portrait.png"));
-        if (!State.ActiveCards.Any(c => c.Kind == "photocraft")
-            || !State.Turns[^1].Reply.Contains("layer.removeBackground", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Expected InoApp to route photo background removal to PhotoCraft and emit a photocraft card.");
-        }
-
-        var snapshot = await memory.Read();
-        if (snapshot.Episodes.Length == 0)
-        {
-            throw new InvalidOperationException("Expected InoApp to capture the conversation episode in MemoryNeuron.");
-        }
-    }
-
-    private async Task<string?> TryGenerateReplyAsync(
-        string text,
-        UserSettingsState settings,
-        MemoryRecallHit[] recalled,
-        InoCard? activeChart = null,
-        InoCard? activeTable = null,
-        string? liveCapabilityContext = null)
-    {
-        try
-        {
-            var model = Get<IQwen35>("main");
-            var chartContext = activeChart is { ChartPoints: { Length: > 0 } pts }
-                ? $" Visible UI Chart '{activeChart.Title}' ({activeChart.ChartKind ?? "bar"}): "
-                  + string.Join(", ", pts.Select((p, idx) => $"#{idx + 1} {p.Label} = €{p.Value:N0}")) + "."
-                : string.Empty;
-            var tableContext = activeTable is { Columns: { Length: > 0 } cols, Rows: { Length: > 0 } rows }
-                ? $" Visible UI Table '{activeTable.Title}' columns [{string.Join(", ", cols)}], rows: "
-                  + string.Join("; ", rows.Select(r => string.Join(" | ", r))) + "."
-                : string.Empty;
-            var capabilityContext = !string.IsNullOrWhiteSpace(liveCapabilityContext)
-                ? $" Live Installed Brain Capabilities:\n{liveCapabilityContext}\n"
-                : string.Empty;
-            var systemPrompt =
-                $"You are Ino, the personal AI assistant of IntoChat OS (user: {settings.DisplayName}, model: {settings.DefaultModel}). "
-                + (recalled.Length > 0 ? $"Recalled memory: {string.Join("; ", recalled.Select(r => r.Text))}. " : string.Empty)
-                + chartContext
-                + tableContext
-                + capabilityContext
-                + " Answer concisely and accurately using the live brain capabilities, visible chart, and table data when asked.";
-            var messages = new List<AiMessage>
-            {
-                new("system", [new AiText(systemPrompt)]),
-            };
-            foreach (var turn in State.Turns.TakeLast(6))
-            {
-                messages.Add(new("user", [new AiText(turn.UserMessage)]));
-                messages.Add(new("assistant", [new AiText(turn.Reply)]));
-            }
-            messages.Add(new("user", [new AiText(text)]));
-            var result = await model.Generate(new InferenceRequest(messages));
-            var generated = string.Join(
-                "\n",
-                result.Messages
-                    .SelectMany(m => m.Content)
-                    .OfType<AiText>()
-                    .Select(t => t.Text)
-                    .Where(t => !string.IsNullOrWhiteSpace(t))).Trim();
-            return string.IsNullOrWhiteSpace(generated) ? null : generated;
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "Local model IQwen35 is optional when running InoApp in unit tests without Ollama.");
-            return null;
-        }
-    }
-
-    private IApp? TryGetApp(string appKey)
-    {
-        try
-        {
-            return Get<IApp>(appKey);
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, $"App neuron '{appKey}' is optional when running InoApp in standalone unit tests.");
-            return null;
-        }
-    }
-
-    private IAppStore? TryGetAppStore()
-    {
-        try
-        {
-            return Get<IAppStore>("store");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "AppStoreNeuron is optional when running InoApp in standalone unit tests.");
-            return null;
         }
     }
 
@@ -640,153 +484,5 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Swallow(error, "AppStudioNeuron is optional when running in unit tests without Creator registered.");
             return null;
         }
-    }
-
-    private IArtCraftStudio? TryGetArtCraftStudio()
-    {
-        try
-        {
-            return Get<IArtCraftStudio>("artcraft");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "ArtCraftStudioNeuron is optional when running InoApp without ArtCraftModule registered.");
-            return null;
-        }
-    }
-
-    private IMcpServer? TryGetMcpServer(string mcpKey)
-    {
-        try
-        {
-            return Get<IMcpServer>(mcpKey);
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "McpServerNeuron is optional when running InoApp without McpModule registered.");
-            return null;
-        }
-    }
-
-    private async Task<InoAppState> ExecuteTaskCreateAsync(
-        string text,
-        UserSettingsState settings,
-        MemoryRecallHit[] recalled,
-        IMemory? memory)
-    {
-        if (!InoIntentRouter.TryParseTaskIntent(text, out var taskTitle, out var stepDefs))
-        {
-            taskTitle = text.Length <= 52 ? text : text[..52];
-            stepDefs = [new TaskStepDefinition(taskTitle, text, "app.execute")];
-        }
-
-        var taskId = $"t-{Guid.NewGuid():N}"[..10];
-        if (TaskEngine is not null)
-        {
-            try
-            {
-                var created = await TaskEngine.CreateTaskAsync(new CreateTaskRequest(taskTitle, text, settings.DisplayName, stepDefs));
-                taskId = created.TaskId;
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "TaskEngine creation fallback to direct task neuron.");
-            }
-        }
-        else
-        {
-            try
-            {
-                var created = await Get<ITaskNeuron>(taskId).InitializeAsync(new CreateTaskRequest(taskTitle, text, settings.DisplayName, stepDefs));
-                await Get<ITaskDirectoryNeuron>("default").RegisterTaskAsync(created);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "TaskNeuron is optional when running InoApp in standalone unit tests.");
-            }
-        }
-
-        try
-        {
-            _ = Get<ITaskExecutorNeuron>("default").ExecuteNextStepAsync(taskId);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "TaskExecutorNeuron is optional when running InoApp in standalone unit tests.");
-        }
-
-        if (memory is not null)
-        {
-            await memory.CaptureEpisode("ino.task", $"Created task '{taskTitle}' ({taskId}) with {stepDefs.Length} step(s).", importance: 6);
-        }
-
-        var routeHint = $"routed:task.create:{taskId}";
-        var reply = $"Created task **{taskTitle}** (`{taskId}`) with {stepDefs.Length} step(s) and handed off to `tasks.executor`.";
-        var card = new InoCard(
-            $"task-{taskId}",
-            "task",
-            $"Task: {taskTitle}",
-            $"{stepDefs.Length} step(s) queued on tasks.executor",
-            $"neuron://local/tasks.task/{taskId}",
-            "running",
-            $"neuron://local/apps/ino#task-{taskId}");
-        var turns = State.Turns.Append(new InoTurn(text, reply, routeHint, recalled.Length)).ToArray();
-        return State with
-        {
-            Title = State.Turns.Length == 0 ? taskTitle : State.Title,
-            Status = routeHint,
-            Turns = turns,
-            Cards = [.. State.ActiveCards, card],
-        };
-    }
-
-    private static string FormatRecalledContextSummary(MemoryRecallHit[] recalled)
-    {
-        if (recalled.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        var candidate = recalled
-            .Select(r => r.Text)
-            .FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)
-                && !t.Contains("Installed IntoChat OS Brain Capabilities", StringComparison.Ordinal)
-                && !t.StartsWith("User:", StringComparison.Ordinal))
-            ?? recalled[0].Text;
-
-        var clean = SanitizeEpisodeSummary(candidate);
-        if (string.IsNullOrWhiteSpace(clean))
-        {
-            return string.Empty;
-        }
-
-        return $" (recalled {recalled.Length} memory item(s): {clean})";
-    }
-
-    private static string SanitizeEpisodeSummary(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return string.Empty;
-        }
-
-        var text = raw;
-        var recalledIdx = text.IndexOf(" (recalled ", StringComparison.Ordinal);
-        if (recalledIdx >= 0)
-        {
-            text = text[..recalledIdx];
-        }
-
-        var capIdx = text.IndexOf("Installed IntoChat OS Brain Capabilities", StringComparison.Ordinal);
-        if (capIdx >= 0)
-        {
-            text = text[..capIdx];
-        }
-
-        var singleLine = text
-            .Replace("\r\n", " ", StringComparison.Ordinal)
-            .Replace('\n', ' ')
-            .Trim();
-        return singleLine.Length <= 140 ? singleLine : singleLine[..140] + "…";
     }
 }

@@ -89,24 +89,10 @@ public sealed class DataStudioAppFacts
 
         var ino = await os.Install<InoApp>();
         ino.App.FilesVfs = vfs;
-        await ino.Request("send", new InoSend("SELECT Account, Owner, ARR FROM /work/customer-arr.csv GROUP BY Owner"));
+        await ino.Request("query-db", new InoQueryDb("SELECT Account, Owner, ARR FROM /work/customer-arr.csv GROUP BY Owner"));
         var chartCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "chart");
         Assert.NotNull(chartCard.ChartPoints);
         Assert.Equal("Marte L.", chartCard.ChartPoints![0].Label);
         Assert.Equal(242500, chartCard.ChartPoints[0].Value);
-
-        await ino.Request("send", new InoSend("Switch chart to line chart"));
-        chartCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "chart");
-        Assert.Equal("line", chartCard.ChartKind);
-
-        var markdraw = await os.Install<MarkdrawApp>();
-        markdraw.App.FilesVfs = vfs;
-        await ino.Request("send", new InoSend("Diagram the data lineage flow for this chart in Markdraw"));
-        await markdraw.Request("open", new MarkdrawOpen("/work/data-lineage.markdraw"));
-        Assert.Contains(markdraw.App.State.Elements, e => e.Id == "source-node");
-        Assert.Contains("customer-arr", markdraw.App.State.Content, StringComparison.OrdinalIgnoreCase);
-
-        var savedLineage = await vfs.ReadTextAsync("/work/data-lineage.markdraw", ct);
-        Assert.NotNull(savedLineage);
     }
 }

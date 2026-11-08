@@ -37,7 +37,12 @@ public sealed record InoAppState(
     InoTurn[] Turns,
     InoCard[]? Cards = null,
     string? ConnectedDatabase = null,
-    bool IsPinned = true)
+    bool IsPinned = true,
+    string? AgentKey = null,
+    string? ActiveRunId = null,
+    bool Blocked = false,
+    string[]? GrantSummaries = null,
+    string? BlockedReason = null)
 {
     public InoAppState() : this("main", "New chat", "Ready", "idle", [], [], null, true) { }
 

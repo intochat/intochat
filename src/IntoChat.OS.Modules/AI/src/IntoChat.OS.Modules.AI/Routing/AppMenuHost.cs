@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Contracts.Configuration;
@@ -54,7 +55,19 @@ internal sealed class AppMenuHost(DigitalBrain.Spi.IClusterListeners listeners, 
         // it (06-08: the directory registers a plain neuron once its call completes).
         if (!catalog.TryGet(brain, out _)) { await Scan(brain, key, version, cancellationToken); return; }
         if (IApp.NameOf(brain, key) is not { } name) { return; }
-        if (await Operations(key, name, version, cancellationToken) is { } operations) { catalog.Upsert(brain, name, operations); }
+        if (await Operations(key, name, version, cancellationToken) is { } operations)
+        {
+            catalog.Upsert(brain, name, operations);
+            await Publish(brain, context => CapabilitiesContextWriter.Upsert(context, name, operations));
+        }
+    }
+
+    // The menu as context for agents, written under the caller stamp of the refresh. A failure is logged and leaves the menu as it is.
+    private async Task Publish(string brain, Func<IAgentContext, Task> write)
+    {
+        try { await write(SiloNeurons.Get<IAgentContext>(plain, ContextKeys.Of(brain, "apps.capabilities"))); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        { logger.LogWarning(error, "The app menu could not write the capabilities of {Brain}.", brain); }
     }
 
     private async Task Scan(string brain, string changed, string version, CancellationToken cancellationToken)
@@ -70,6 +83,7 @@ internal sealed class AppMenuHost(DigitalBrain.Spi.IClusterListeners listeners, 
             apps.Add((name, operations));
         }
         catalog.Replace(brain, apps);
+        await Publish(brain, context => CapabilitiesContextWriter.Replace(context, apps));
     }
 
     // The app as of the change heard (version): a plain app's Read interleaves, so a read right after its change was announced may

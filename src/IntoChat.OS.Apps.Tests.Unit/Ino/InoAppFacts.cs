@@ -1,4 +1,13 @@
+using DigitalBrain;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
+using DigitalBrain.UI;
+using IntoChat.OS.Authority.Identity.Grants;
+using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
@@ -18,31 +27,11 @@ public sealed class InoAppFacts
             os =>
             {
                 os.Register(typeof(AppsModule).Assembly);
-                os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>();
+                os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
             });
 
     [Theory, MemberData(nameof(InoOperations))]
     public Task InoBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
-
-    [Fact]
-    public async Task InoAutonomouslyRoutesSettingsNavigationAndGatesDestructiveSettingsActions()
-    {
-        await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
-
-        var ino = await os.Install<InoApp>();
-        await ino.Request("send", new InoSend("Where do I set up my local Ollama server?"));
-        Assert.Equal("routed:settings.navigate:models:local-server", ino.App.State.Turns[^1].RouteHint);
-        Assert.Contains(ino.App.State.ActiveCards, c => c.Kind == "settings" && c.SourceNeuronUri == "neuron://local/apps/settings");
-
-        await ino.Request("send", new InoSend("Open Google Drive connection sheet in settings"));
-        Assert.Equal("routed:settings.navigate:connections:google_drive:google_drive", ino.App.State.Turns[^1].RouteHint);
-
-        await ino.Request("send", new InoSend("Revoke API key in settings"));
-        Assert.Equal("routed:settings.navigate:keys", ino.App.State.Turns[^1].RouteHint);
-        var approval = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "approval" && c.SourceNeuronUri == "neuron://local/os.settings/settings");
-        Assert.Equal("pending", approval.Status);
-    }
 
     [Fact]
     public async Task InoAndPostBddScenariosAndSystemNeuronsPass()
@@ -119,32 +108,6 @@ public sealed class InoAppFacts
         Assert.Equal("spatial-glass", uiIdentity.StylePreset);
         Assert.Equal("compact-pill", uiIdentity.BarLayout);
 
-        await inoInstalled.Request("send", new InoSend("Draft confirmation card"));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/os.confirmations/inbox", StringComparison.Ordinal));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("scope:neuron://local/apps/ino#card-1", StringComparison.Ordinal));
-        await inoInstalled.Request("approve-card", new InoApproveCard("card-1", true));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("approved", StringComparison.Ordinal));
-
-        await inoInstalled.Request("send", new InoSend("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly"));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/postgres/main", StringComparison.Ordinal));
-        await inoInstalled.Request("send", new InoSend("SELECT account, city, owner FROM customers"));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/postgres/main#query-result", StringComparison.Ordinal));
-
-        await inoInstalled.Request("send", new InoSend("Remove background from portrait.png"));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("layer.removeBackground", StringComparison.Ordinal));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/apps/photocraft", StringComparison.Ordinal));
-
-        await inoInstalled.Request("send", new InoSend("Razor split timeline in FilmCraft via mcp"));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("timeline.razor", StringComparison.Ordinal));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("neuron://local/apps/filmcraft", StringComparison.Ordinal));
-
-        await inoInstalled.Request("send", new InoSend("/scenario invoice-check"));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Tripletex Session Token", StringComparison.Ordinal));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Waiting on you", StringComparison.Ordinal));
-
-        await inoInstalled.Request("send", new InoSend("https://intochat.app/a/tripletex-sync"));
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Tripletex Accounting Sync (v1.4.0)", StringComparison.Ordinal));
-
         var photoCraftInstalled = await os.Install<PhotoCraftApp>();
         Assert.Equal("http://localhost:18082", photoCraftInstalled.App.State.WebUrl);
         await photoCraftInstalled.Request("remove-background", new PhotoCraftRemoveBackground("/work/hero.png", "native-linux"));
@@ -186,58 +149,270 @@ public sealed class InoAppFacts
         Assert.Equal("1.0.0", creatorInstalled.App.State.CurrentVersion);
     }
 
-    [Fact]
-    public async Task InoRoutesTaskCreateIntentAndHandsOffToTaskExecutor()
+    private static readonly BrainId Brain = new("local");
+
+    private static TestOS AgentOs()
     {
-        await using var os = TestOS.Local();
+        var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
-        os.Register<IntoChat.OS.Modules.AI.Tasks.TaskNeuron>();
-        os.Register<IntoChat.OS.Modules.AI.Tasks.TaskDirectoryNeuron>();
-        os.Register<IntoChat.OS.Modules.AI.Tasks.TaskExecutorNeuron>();
+        os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
+        return os;
+    }
 
+    private static NeuronId AgentOf(string conversationId) => new(Brain, AgentSignals.NeuronType, $"ino/conversations/{conversationId}");
+
+    [Fact]
+    public async Task OneSendStartsExactlyOneAgentRun()
+    {
+        await using var os = AgentOs();
         var ino = await os.Install<InoApp>();
-        await ino.Request("send", new InoSend("create task: Open files -> [Confirm] Merge PR"));
 
-        Assert.StartsWith("routed:task.create:", ino.App.State.Turns[^1].RouteHint, StringComparison.Ordinal);
-        Assert.Contains(ino.App.State.ActiveCards, c => c.Kind == "task" && c.SourceNeuronUri.StartsWith("neuron://local/tasks.task/", StringComparison.Ordinal));
+        await ino.Request("send", new InoSend("hello there"));
+        await os.Idle();
+
+        Assert.Equal("ino/conversations/main", ino.App.State.AgentKey);
+        var started = Assert.Single(os.Journal(Brain).Signals(AgentOf("main")).Select(entry => entry.Signal).OfType<TurnStarted>());
+        Assert.Equal("hello there", started.UserText);
+        Assert.Null(ino.App.State.ActiveRunId);
     }
 
     [Fact]
-    public async Task InoDrawsFunAndInlineChartsInChatAndNeverLeaksRecursiveCapabilityEpisodes()
+    public void AToolResultWithACardRendersACard()
+    {
+        var card = new InoCard("settings-models", "settings", "Settings · models / local-server", "Open settings", "neuron://local/apps/settings", "ready");
+        var run = new AgentRun("r1", AgentRunStatus.Completed, "where is my ollama server?", DateTimeOffset.UtcNow)
+        {
+            ToolCalls =
+            [
+                new AgentToolCall("c1", "neuron_call", "{}", System.Text.Json.JsonSerializer.Serialize(new InoToolResult("Opened settings.", card), System.Text.Json.JsonSerializerOptions.Web)),
+                new AgentToolCall("c2", "neuron_call", "{}", """{"text":"no card"}"""),
+                new AgentToolCall("c3", "neuron_call", "{}", Error: "denied"),
+            ],
+        };
+
+        var cards = InoCards.FromToolCalls(run.ToolCalls);
+
+        Assert.Equal(card, Assert.Single(cards));
+        var view = InoViewRenderer.Render(new InoAppState() with { Cards = cards }, []);
+        Assert.Contains("Settings · models / local-server", Strings(view));
+    }
+
+    // Every string a rendered view holds, walked through its node records.
+    private static IEnumerable<string> Strings(object? value) => value switch
+    {
+        null => [],
+        string text => [text],
+        System.Collections.IEnumerable items => items.Cast<object?>().SelectMany(Strings),
+        Node or View => value.GetType().GetProperties().Where(p => p.GetIndexParameters().Length == 0).SelectMany(p => Strings(p.GetValue(value))),
+        _ => [],
+    };
+
+    [Fact]
+    public async Task NewRotatesTheAgentKey()
+    {
+        await using var os = AgentOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("first"));
+        var first = ino.App.State.AgentKey;
+
+        await ino.Request("new", new InoNew());
+        await ino.Request("send", new InoSend("second"));
+
+        Assert.NotNull(first);
+        Assert.NotEqual(first, ino.App.State.AgentKey);
+        Assert.Equal($"ino/conversations/{ino.App.State.ConversationId}", ino.App.State.AgentKey);
+    }
+
+    [Fact]
+    public async Task ABlockedAgentShowsPaused()
+    {
+        await using var os = AgentOs();
+        var ino = await os.Install<InoApp>();
+        var focus = os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/ui.focus"));
+        await Task.Run(async () =>
+        {
+            using var _ = RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", Brain.Value));
+            await focus.Set(new("stop", "maintenance window", [], [ContextTags.Interrupt]));
+        }, TestContext.Current.CancellationToken);
+
+        await ino.Request("send", new InoSend("hello"));
+
+        Assert.True(ino.App.State.Blocked);
+        Assert.Equal("Paused", ino.App.State.Status);
+        var bar = Assert.Single(ino.Main.Nodes.OfType<InfoBar>());
+        Assert.Equal("critical", bar.Tone);
+        Assert.Contains("maintenance window", bar.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheSidePanelListsAgentGrants()
+    {
+        await using var os = AgentOs();
+        os.Register<GrantsNeuron>();
+        var grants = os.Get<IGrantsNeuron>(new NeuronId(Brain, IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
+#pragma warning disable CS0618 // the AppId agent tool calls run under
+        await grants.Grant(new Grant { AppId = CapabilityCallers.AssistantApp, Scope = "run", Target = "local/ino/settings", WorkspaceId = "local" });
+#pragma warning restore CS0618
+        await grants.Grant(new Grant { AppId = "other", Scope = "run", Target = "local/elsewhere", WorkspaceId = "local" });
+        var ino = await os.Install<InoApp>();
+
+        await ino.Request("open", new InoOpen());
+
+        Assert.Contains(ino.Side.Entries, entry => entry.Title == "run · local/ino/settings");
+        Assert.DoesNotContain(ino.Side.Entries, entry => entry.Title.Contains("elsewhere", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ACancelledRunClearsTheActiveRun()
     {
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
-        os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>();
-
+        os.Register<CancellingAgent>();
         var ino = await os.Install<InoApp>();
 
-        // 1. Ask capability question first so it is recorded in MemoryNeuron
-        await ino.Request("send", new InoSend("hey, what can you do?"));
-        Assert.Contains("Installed IntoChat OS Brain Capabilities", ino.App.State.Turns[^1].Reply, StringComparison.Ordinal);
+        await ino.Request("send", new InoSend("hello"));
 
-        // 2. Ask "Can you draw me a test cahrt with some fun data" (including the "cahrt" typo)
-        await ino.Request("send", new InoSend("Can you draw me a test cahrt with some fun data"));
-        var funChartCard = ino.App.State.ActiveCards.LastOrDefault(c => c.Kind == "chart");
-        Assert.NotNull(funChartCard);
-        Assert.Contains("Cosmic Coffee", funChartCard.Title, StringComparison.Ordinal);
-        Assert.NotEmpty(funChartCard.ChartPoints ?? []);
+        Assert.Null(ino.App.State.ActiveRunId);
+        Assert.Equal("Cancelled", ino.App.State.Status);
+    }
 
-        // 3. Ask for an inline custom pie chart
-        await ino.Request("send", new InoSend("Draw a pie chart: Espresso=42, Matcha=29, ColdBrew=55"));
-        var inlineChartCard = ino.App.State.ActiveCards.LastOrDefault(c => c.Kind == "chart");
-        Assert.NotNull(inlineChartCard);
-        Assert.Equal("pie", inlineChartCard.ChartKind);
-        Assert.Equal(3, inlineChartCard.ChartPoints?.Length);
+    [Fact]
+    public async Task ApprovingAPendingApprovalCardFlipsItsStatus()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("/scenario q4-renewal"));
+        var pending = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "approval");
+        Assert.Equal("pending", pending.Status);
 
-        // 4. Subsequent general chat turns must never contain recursive "(recalled ... (recalled" or capability dumps
-        await ino.Request("send", new InoSend("hello there"));
-        await ino.Request("send", new InoSend("how is the weather today"));
-        var finalReply = ino.App.State.Turns[^1].Reply;
-        Assert.DoesNotContain("Installed IntoChat OS Brain Capabilities", finalReply, StringComparison.Ordinal);
-        var firstRecalledIdx = finalReply.IndexOf("(recalled ", StringComparison.Ordinal);
-        if (firstRecalledIdx >= 0)
+        await ino.Request("approve-card", new InoApproveCard(pending.Id, true));
+
+        Assert.Equal("approved", Assert.Single(ino.App.State.ActiveCards, c => c.Id == pending.Id).Status);
+    }
+
+    [Fact]
+    public async Task OldTurnsAreArchivedNotReplayed()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<RecordingAgent>();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("/scenario morning-brief"));
+        var turns = ino.App.State.Turns;
+        Assert.NotEmpty(turns);
+        Assert.True(string.IsNullOrEmpty(ino.App.State.AgentKey));
+        RecordingAgent.Posts.Clear();
+        RecordingAgent.Runs = 0;
+
+        await ino.Request("open", new InoOpen());
+        await ino.Request("open", new InoOpen());
+
+        Assert.Equal(turns, ino.App.State.Turns);
+        var post = Assert.Single(RecordingAgent.Posts);
+        Assert.Equal(("Earlier conversation is in the archive.", "migration"), post);
+        Assert.Equal(0, RecordingAgent.Runs);
+        Assert.False(string.IsNullOrEmpty(ino.App.State.AgentKey));
+    }
+
+    [Fact]
+    public async Task AFailedMigrationPostIsRetriedOnTheNextOpen()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<RecordingAgent>();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("/scenario morning-brief"));
+        RecordingAgent.Posts.Clear();
+        RecordingAgent.FailPosts = 1;
+        try
         {
-            Assert.Equal(-1, finalReply.IndexOf("(recalled ", firstRecalledIdx + 10, StringComparison.Ordinal));
+            await ino.Request("open", new InoOpen());
+            Assert.True(string.IsNullOrEmpty(ino.App.State.AgentKey));
+
+            await ino.Request("open", new InoOpen());
+
+            Assert.Equal(("Earlier conversation is in the archive.", "migration"), Assert.Single(RecordingAgent.Posts));
+            Assert.False(string.IsNullOrEmpty(ino.App.State.AgentKey));
         }
+        finally { RecordingAgent.FailPosts = 0; }
+    }
+
+    [Fact]
+    public async Task ABadQuerySurfacesInStatus()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        var ino = await os.Install<InoApp>();
+        ino.App.FilesVfs = new BrokenVfs();
+
+        await ino.Request("query-db", new InoQueryDb("SELECT a FROM /work/missing.csv"));
+
+        Assert.StartsWith("Could not run the query: disk gone", ino.App.State.Status, StringComparison.Ordinal);
+        Assert.Empty(ino.App.State.ActiveCards);
+    }
+
+    private sealed class BrokenVfs : IFilesVfsService
+    {
+        public string BrainId => "local";
+        public Task<IReadOnlyList<WorkspaceFileEntry>> ListFilesAsync(string? query = null, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<WorkspaceFileEntry?> ResolveFileAsync(string? nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<string?> ReadTextAsync(string nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<byte[]?> ReadBytesAsync(string nameOrUriOrPath, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<WorkspaceFileEntry> WriteFileAsync(string fileNameOrPath, ReadOnlyMemory<byte> content, CancellationToken ct = default) => throw new IOException("disk gone");
+        public Task<WorkspaceFileEntry> WriteTextAsync(string fileNameOrPath, string content, CancellationToken ct = default) => throw new IOException("disk gone");
+    }
+
+    // An agent that counts Post calls and Run starts.
+    [Neuron(AgentSignals.NeuronType)]
+    private sealed class RecordingAgent : Neuron, IAgent
+    {
+        public static List<(string Text, string Id)> Posts { get; } = [];
+        public static int Runs { get; set; }
+        public static int FailPosts { get; set; }
+
+        public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
+
+        public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            Runs++;
+            await Task.Yield();
+            yield return new AgentTurnEvent.Started("run-1");
+        }
+
+        public Task<string> Start(AgentTurn turn) => throw new NotSupportedException();
+        public Task Cancel() => Task.CompletedTask;
+        public Task CancelRun(string runId) => Task.CompletedTask;
+        public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
+        public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>([]);
+        public Task Clear() => Task.CompletedTask;
+        public Task Post(string text, string id)
+        {
+            if (FailPosts > 0) { FailPosts--; throw new InvalidOperationException("Post failed."); }
+            Posts.Add((text, id));
+            return Task.CompletedTask;
+        }
+    }
+
+    // An agent whose run starts and is then cancelled, as a run cancelled through its token is.
+    [Neuron(AgentSignals.NeuronType)]
+    private sealed class CancellingAgent : Neuron, IAgent
+    {
+        public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
+
+        public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return new AgentTurnEvent.Started("run-1");
+            await Task.Yield();
+            throw new OperationCanceledException("The run was cancelled.");
+        }
+
+        public Task<string> Start(AgentTurn turn) => throw new NotSupportedException();
+        public Task Cancel() => Task.CompletedTask;
+        public Task CancelRun(string runId) => Task.CompletedTask;
+        public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
+        public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>([]);
+        public Task Clear() => Task.CompletedTask;
+        public Task Post(string text, string id) => Task.CompletedTask;
     }
 }

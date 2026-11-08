@@ -93,7 +93,9 @@ public sealed record AppManifest(
     AppSlot[] Slots,
     string? Icon = null,
     AppToolbarEntry[]? Toolbar = null,
-    AppRequirements? Requires = null)
+    AppRequirements? Requires = null,
+    // A headless app has no program: its build deploys a synapse unit through ISynapseStudio.
+    bool Headless = false)
 {
     // The dock renders only what the app can answer: every entry names a declared operation with one of the four kinds.
     public AppManifest Validated()

@@ -14,8 +14,6 @@ using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
 using DigitalBrain.Runtime.Orleans.Confirmations;
-using IntoChat.OS.Modules.AI.Context;
-using IntoChat.OS.Modules.AI.Decision;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
@@ -26,7 +24,6 @@ using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
 using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
-using ExecutionContext = IntoChat.OS.Modules.AI.Context.ExecutionContext;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
@@ -36,93 +33,6 @@ namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 /// </summary>
 public sealed class Tier3_CrossFeaturePairwiseFacts
 {
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F1_F14")]
-    public async Task TF01_HotPathSignals_WithExecutionContext_PreservesCorrelationAndTelemetry()
-    {
-        // F1 (Ephemeral Signals) + F14 (Canonical Execution Context)
-        var caller = CapabilityCallers.Of("usr_tf01", "acc_1", "brain_1", CallerKind.User);
-        var env = new Dictionary<string, string> { ["REGION"] = "us-west-2", ["SPAN_ID"] = "span_901" };
-        var ctx = new ExecutionContext("exec_tf01", caller, env);
-
-        var signal = new AppActivity("app-calc", "computing", "calculating route");
-        var slice = new ContextSlice("CalculationSpan", signal.Detail, ["compute", "routing"]);
-
-        var executionResult = await ctx.WithSliceAsync(slice, () =>
-        {
-            Assert.Single(ctx.Slices);
-            Assert.Equal("CalculationSpan", ctx.Slices[0].Name);
-            Assert.Equal("app-calc", signal.App);
-            Assert.Equal("us-west-2", ctx.Environment["REGION"]);
-            return Task.FromResult(signal.Detail);
-        });
-
-        Assert.Equal("calculating route", executionResult);
-        Assert.Empty(ctx.Slices);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F6_F15")]
-    public async Task TF02_CallerProvenance_WithDecisionMaker_EnforcesSecurityBoundaryBeforeSynthesis()
-    {
-        // F6 (Caller Context Provenance) + F15 (Canonical Decision Maker)
-        var dm = new InMemoryDecisionMaker();
-
-        // Case A: Missing or invalid caller fails closed
-        var untrustedCaller = new CapabilityCaller("", "anon", "");
-        Assert.False(RuntimeCallerContext.IsTrusted(untrustedCaller));
-
-        // Attempting decision with unauthenticated caller rejected at boundary
-        async Task<FastDecision> UnauthenticatedCall()
-        {
-            if (!RuntimeCallerContext.IsTrusted(untrustedCaller))
-            {
-                throw new InvalidOperationException("Caller context lacks verified provenance");
-            }
-            return await dm.DecideReactiveAsync(new ReactivePrompt("execute_critical", ["execute_critical"]));
-        }
-        await Assert.ThrowsAsync<InvalidOperationException>(UnauthenticatedCall);
-
-        // Case B: Verified caller proceeds to deliberate decision synthesis
-        var trustedCaller = CapabilityCallers.Of("agent-kernel", "acc-admin", "brain-primary", CallerKind.User);
-        Assert.True(RuntimeCallerContext.IsTrusted(trustedCaller));
-
-        var decision = await dm.DecideReactiveAsync(new ReactivePrompt("execute_critical", ["execute_critical"], new Dictionary<string, string>
-        {
-            ["caller"] = trustedCaller.PrincipalId
-        }));
-
-        Assert.NotNull(decision);
-        Assert.Equal("execute_critical", decision.Choice);
-        Assert.True(decision.Confidence > 0.9);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F15_F16")]
-    public async Task TF03_KnowledgeGraph_WithDecisionMaker_InjectsGraphMemoryIntoPlanSynthesis()
-    {
-        // F15 (Canonical Decision Maker) + F16 (Canonical Memory with Graph UI)
-        var store = new InMemoryKnowledgeStore();
-        await store.RecordNodeAsync(new KnowledgeNode("sys-topology", "SystemTopology", "Concept", new Dictionary<string, string> { ["nodes"] = "5" }));
-        await store.RecordNodeAsync(new KnowledgeNode("svc-db", "DatabaseService", "Service", new Dictionary<string, string> { ["replica"] = "synced" }));
-        await store.RecordEdgeAsync(new KnowledgeEdge("sys-topology", "svc-db", "contains", 1.0));
-
-        var graph = await store.QueryGraphAsync("sys-topology", depth: 1);
-        Assert.Equal(2, graph.Nodes.Count);
-
-        var dm = new InMemoryDecisionMaker();
-        var goal = new DeliberateGoal("Optimize database routing based on graph memory", [$"Nodes={graph.Nodes.Count}"]);
-
-        var plan = await dm.DecideDeliberateAsync(goal);
-        Assert.NotNull(plan);
-        Assert.Equal(3, plan.Outcome.Steps.Length);
-        Assert.All(plan.Outcome.Steps, s => Assert.Null(s.Error));
-        Assert.Contains("Deliberate:Optimize database routing based on graph memory", dm.AuditTrail);
-    }
-
     [Fact]
     [Trait("Category", "Tier3_CrossFeature")]
     [Trait("Pairwise", "F17_F20")]
@@ -309,61 +219,6 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
 
         Assert.Equal("photocraft", photoActivity.App);
         Assert.NotEqual(activity.App, photoActivity.App);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F14_F21")]
-    public async Task TF12_ExecutionContext_WithTelemetryFlushBarrier_SynchronizesMetricsAcrossSpans()
-    {
-        // F14 (Canonical Execution Context) + F21 (Telemetry Verification & Flush Barrier)
-        var caller = CapabilityCallers.Of("agent-telemetry", "acc-1", "brain-1", CallerKind.User);
-        var ctx = new ExecutionContext("exec_tf12", caller);
-        var barrier = new TelemetryFlushBarrier();
-
-        var slice = new ContextSlice("TelemetrySlice", "recording metrics", ["metrics"]);
-        await ctx.WithSliceAsync(slice, () =>
-        {
-            barrier.RecordMetric("execution.spans", 1.0);
-            return Task.FromResult(true);
-        });
-
-        Assert.Single(barrier.QueryMetrics("execution.spans"));
-        await barrier.FlushAsync();
-        Assert.Equal(1, barrier.FlushCount);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F15_F17")]
-    public async Task TF13_DecisionMaker_WithTaskEngine_TranslatesDecisionsIntoExecutableSubtasks()
-    {
-        // F15 (Canonical Decision Maker) + F17 (Canonical Task Engine)
-        var dm = new InMemoryDecisionMaker();
-        var engine = new InMemoryTaskEngine();
-
-        var goal = new DeliberateGoal("Scale cluster worker pool", ["min_instances=3", "max_instances=10"]);
-        var decision = await dm.DecideDeliberateAsync(goal);
-        Assert.NotNull(decision);
-        Assert.NotEmpty(decision.Outcome.Steps);
-
-        // Convert decision trace into subtasks
-        var steps = decision.Outcome.Steps.Select(s => new TaskStepDefinition(s.Method, s.Result ?? s.Method, "kernel")).ToArray();
-        var taskReq = new CreateTaskRequest("Scale Workers Task", decision.Plan, "admin", steps);
-        var task = await engine.CreateTaskAsync(taskReq);
-
-        Assert.Equal(TaskStatus.Pending, task.Status);
-        Assert.Equal(decision.Outcome.Steps.Length, task.Steps.Length);
-
-        // Complete each subtask step
-        for (int i = 0; i < task.Steps.Length; i++)
-        {
-            await engine.AdvanceTaskStepAsync(task.TaskId, i, TaskStepStatus.Completed);
-        }
-
-        var completed = await engine.GetTaskAsync(task.TaskId);
-        Assert.NotNull(completed);
-        Assert.Equal(TaskStatus.Completed, completed.Status);
     }
 
     [Fact]

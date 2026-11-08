@@ -45,4 +45,6 @@ public sealed record AgentState(
 {
     // Revision guards configuration; Version orders every persisted conversation change.
     public long Version { get; init; }
+    // A listed context holds an interrupt from a user or the platform; the agent refuses turns until it is removed.
+    public bool Blocked { get; init; }
 }

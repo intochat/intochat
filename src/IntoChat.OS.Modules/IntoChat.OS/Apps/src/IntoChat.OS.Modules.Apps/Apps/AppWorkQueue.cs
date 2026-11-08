@@ -5,7 +5,6 @@ using System.Threading;
 using DigitalBrain;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.AI.Agents.Runs;
 using IntoChat.OS.Modules.AI.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -27,8 +26,6 @@ internal sealed class AppWorkQueue(IServiceScopeFactory scopes, ILogger<AppWorkQ
         using var scope = scopes.CreateScope();
         var taskEngine = scope.ServiceProvider.GetService<ITaskEngine>();
         AgentTask? task = null;
-        IRunNeuron? runNeuron = null;
-        var (brainId, target) = ResolveTarget(job);
 
         if (taskEngine is not null)
         {
@@ -49,39 +46,15 @@ internal sealed class AppWorkQueue(IServiceScopeFactory scopes, ILogger<AppWorkQ
 
         try
         {
-            var runKey = $"job-{Guid.NewGuid():N}"[..16];
-            runNeuron = SiloNeurons.Get<IRunNeuron>(
-                scope.ServiceProvider,
-                new NeuronId(new BrainId(brainId), "agent.run", runKey));
-            await runNeuron.StartAsync(target, task?.TaskId);
-        }
-        catch (Exception ex)
-        {
-            log.LogDebug(ex, "Could not initialize run neuron for job {Job}", job);
-            runNeuron = null;
-        }
-
-        try
-        {
             await work(scope.ServiceProvider, CancellationToken.None);
             if (taskEngine is not null && task is not null)
             {
                 await taskEngine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed, "Success");
             }
-            if (runNeuron is not null)
-            {
-                try { await runNeuron.CompleteAsync("Completed"); }
-                catch (Exception ex) { log.LogDebug(ex, "Failed to complete run neuron for job {Job}", job); }
-            }
         }
         catch (Exception error)
         {
             log.LogError(error, "App background job {Job} failed", job);
-            if (runNeuron is not null)
-            {
-                try { await runNeuron.CompleteAsync("Failed"); }
-                catch (Exception ex) { log.LogDebug(ex, "Failed to mark run neuron failed for job {Job}", job); }
-            }
             if (taskEngine is not null && task is not null)
             {
                 try
@@ -95,18 +68,5 @@ internal sealed class AppWorkQueue(IServiceScopeFactory scopes, ILogger<AppWorkQ
                 }
             }
         }
-    }
-
-    private static (string BrainId, string Target) ResolveTarget(string job)
-    {
-        var token = (job ?? string.Empty)
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault(part => part.Contains("/apps/", StringComparison.Ordinal));
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            var brain = BrainKey.BrainOf(token);
-            return (string.IsNullOrWhiteSpace(brain) ? "local" : brain, token);
-        }
-        return ("local", string.IsNullOrWhiteSpace(job) ? "AppWorkQueue" : job);
     }
 }

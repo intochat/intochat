@@ -24,6 +24,8 @@ public sealed class CredentialBoundaryFacts
         string[] allowed =
         [
             "IntoChat.OS.Modules.AI.Routing.AppMenuHost",
+            // Stamps a platform caller on its own security-posture reads, like AppMenuHost.
+            "IntoChat.OS.Modules.AI.Agents.Observers.SecurityPostureNeuron",
             "IntoChat.OS.Modules.Apps.AppNeuron",
             "IntoChat.OS.Modules.Apps.HostCaller",
             "IntoChat.OS.Modules.Flutter.Space.SpaceWatcher",

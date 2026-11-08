@@ -120,7 +120,6 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
             {
                 OrleansRun.ClockServices(clock)(services);
                 services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
-                services.TryAddSingleton<IDeepCopier<IntoChat.OS.Modules.AI.Context.ContextSlice>>(new ShallowCopier<IntoChat.OS.Modules.AI.Context.ContextSlice>());
             });
 
     private sealed class EmptyCapabilityConnections : ICapabilityConnections

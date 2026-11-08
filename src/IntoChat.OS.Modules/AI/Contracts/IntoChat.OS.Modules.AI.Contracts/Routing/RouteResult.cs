@@ -4,8 +4,8 @@ using System.Text;
 namespace IntoChat.OS.Modules.AI.Routing;
 
 // The chosen contract (full type name) and method, with the router's confidence in that choice.
-// An app route names the app and operation instead of a contract fill path; Dispatch then posts
-// IApp.Request and no language model runs, when the operation's input needs no filling ("open", a
+// An app route names the app and operation instead of a contract fill path; a caller then posts
+// IApp.Request and the route needs no filling when the operation takes no input ("open", a
 // toolbar button's "").
 public sealed record RouteResult(
     string Contract,
@@ -34,13 +34,3 @@ public sealed record RouteResult(
         return builder.ToString();
     }
 }
-
-// The route, whether it was dispatched, and the call it made: the neuron key, the JSON arguments,
-// and the JSON result (or the refusal reason).
-public sealed record RouteOutcome(
-    RouteResult Route,
-    bool Dispatched,
-    string? Key = null,
-    string? Arguments = null,
-    string? Result = null,
-    string? Error = null);

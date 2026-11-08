@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using DigitalBrain;
 using DigitalBrain.Graph;
-using IntoChat.OS.Modules.AI.Agents.Runs;
 using IntoChat.OS.Modules.AI.Tasks.Signals;
 using IntoChat.OS.Modules.Apps;
 using Orleans;
@@ -88,28 +87,33 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
                 return task;
             }
 
-            var runNeuron = Get<IRunNeuron>(new NeuronId(Id.Brain, "agent.run", $"exec-{task.TaskId}-{nextStep.Index}"));
-            var stepTargetId = $"{Id.Brain.Value}/tasks.task/{task.TaskId}#step/{nextStep.Index}";
-            await TryStartRunAsync(runNeuron, stepTargetId, task.TaskId).ConfigureAwait(false);
-
             if (nextStep.Status == TaskStepStatus.Pending)
             {
                 task = await taskNeuron.AdvanceStepAsync(nextStep.Index, TaskStepStatus.Running).ConfigureAwait(false);
                 if (task.Status == TaskStatus.AwaitingConfirmation)
                 {
-                    await TryTouchRunAsync(runNeuron, "AwaitingConfirmation").ConfigureAwait(false);
                     return task;
                 }
             }
 
-            var implementors = await FindCapabilityImplementorsAsync(nextStep.Capability).ConfigureAwait(false);
+            // A synapse-deploy step names its unit in the IdempotencyKey ({alias}:{hash}) and carries the source in its description.
+            var deploysSynapse = string.Equals(nextStep.Capability, ISynapseStudio.DeployCapability, StringComparison.Ordinal);
+            var implementors = deploysSynapse ? [] : await FindCapabilityImplementorsAsync(nextStep.Capability).ConfigureAwait(false);
             var appImplementor = implementors.FirstOrDefault(id =>
                 id.Contains("/apps/", StringComparison.Ordinal)
                 || (NeuronId.TryParse(id, out var parsed) && (parsed.Type == "app" || parsed.Type.StartsWith("app.", StringComparison.Ordinal))))
                 ?? implementors.FirstOrDefault();
 
             string output;
-            if (!string.IsNullOrWhiteSpace(appImplementor))
+            if (deploysSynapse)
+            {
+                var alias = (nextStep.IdempotencyKey ?? "").Split(':')[0];
+                var deployed = string.IsNullOrWhiteSpace(alias)
+                    ? new InoToolResult("A synapse deploy step needs IdempotencyKey = {alias}:{hash}.", Ok: false)
+                    : await Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value)).Deploy(alias, nextStep.Description).ConfigureAwait(false);
+                output = deployed.Text;
+            }
+            else if (!string.IsNullOrWhiteSpace(appImplementor))
             {
                 var operation = ExtractOperation(nextStep.Capability);
                 try
@@ -130,7 +134,6 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
                 var alreadySynthesized = (task.Links ?? []).Any(l => string.Equals(l.Kind, "produced", StringComparison.OrdinalIgnoreCase));
                 if (alreadySynthesized)
                 {
-                    await TryCompleteRunAsync(runNeuron, "AwaitingConfirmation").ConfigureAwait(false);
                     return task;
                 }
 
@@ -161,7 +164,6 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
             await Save(new TaskExecutorState { ExecutedStepKeys = nextExecuted }, new TaskStepAdvanced(task.TaskId, nextStep.Index, TaskStepStatus.Completed)).ConfigureAwait(false);
 
             task = await taskNeuron.AdvanceStepAsync(nextStep.Index, TaskStepStatus.Completed, output).ConfigureAwait(false);
-            await TryCompleteRunAsync(runNeuron, "Completed").ConfigureAwait(false);
 
             if (task.Status is TaskStatus.Completed or TaskStatus.Failed or TaskStatus.Cancelled or TaskStatus.AwaitingConfirmation)
             {
@@ -245,23 +247,5 @@ public sealed class TaskExecutorNeuron : Neuron<TaskExecutorState>, ITaskExecuto
             cleaned = cleaned.Replace("--", "-", StringComparison.Ordinal);
         }
         return string.IsNullOrWhiteSpace(cleaned) ? "custom-app" : cleaned;
-    }
-
-    private static async Task TryStartRunAsync(IRunNeuron run, string target, string taskId)
-    {
-        try { await run.StartAsync(target, taskId).ConfigureAwait(false); }
-        catch (Exception error) { _ = error; }
-    }
-
-    private static async Task TryTouchRunAsync(IRunNeuron run, string status)
-    {
-        try { await run.TouchAsync(status).ConfigureAwait(false); }
-        catch (Exception error) { _ = error; }
-    }
-
-    private static async Task TryCompleteRunAsync(IRunNeuron run, string status)
-    {
-        try { await run.CompleteAsync(status).ConfigureAwait(false); }
-        catch (Exception error) { _ = error; }
     }
 }

@@ -67,19 +67,11 @@ public sealed class InferenceService(ModelCatalog catalog) : IModelInference
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.Messages is not { Count: > 0 }) { throw new ArgumentException("At least one message is required.", nameof(request)); }
-        var selection = request.Model;
-        if (request.Options?.Reasoning is not null || request.Options?.MaxOutputTokens is not null)
-        {
-            selection = (selection ?? new()) with
-            {
-                Reasoning = request.Options.Reasoning ?? selection?.Reasoning,
-                MaxOutputTokens = request.Options.MaxOutputTokens ?? selection?.MaxOutputTokens,
-            };
-        }
+        var (selection, settings) = InferenceMapping.Merge(request.Model, request.Options);
         var model = await ResolveFor(brainId, selection, marker, request.Tools is { Count: > 0 }, cancellationToken);
         var descriptor = catalog.Describe(model);
         InferenceMapping.ValidateRequest(request, descriptor);
-        var options = InferenceMapping.CreateOptions(model, request.Options is null ? null : request.Options with { Reasoning = null }, descriptor);
+        var options = InferenceMapping.CreateOptions(model, settings, descriptor);
         if (request.Tools is { Count: > 0 })
         {
             if (request.Tools.Select(t => t.Name).Distinct(StringComparer.Ordinal).Count() != request.Tools.Count)

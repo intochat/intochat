@@ -281,7 +281,17 @@ internal sealed partial class AppNeuron(
         { await PublishEphemeral(presentation); }
     }
 
-    public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
+    public async Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash)
+    {
+        if (State.MigrationPaused || State.Status != AppStatus.Building || attempt != State.BuildAttempt) { return Describe(State); }
+        var next = State.Clone();
+        next.Status = AppStatus.Live;
+        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build finished: synapse unit {hash}"];
+        await Persist(next);
+        return Describe(State);
+    }
+
+    public async Task<AppSnapshot> CompleteBuild(Guid attempt,Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
     {
         if (State.MigrationPaused) { return Describe(State); }
         if (State.Status != AppStatus.Building || attempt != State.BuildAttempt) { return Describe(State); }
