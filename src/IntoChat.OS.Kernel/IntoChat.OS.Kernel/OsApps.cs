@@ -1,3 +1,5 @@
+using DigitalBrain.Spi;
+using IntoChat.OS.Runtime;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Signals;
 using DigitalBrain.Capabilities.Identity;
@@ -62,15 +64,14 @@ public static class OsAppsHosting
 // is born with its own room only, the shipped circleroom unit (ShippedApps.CircleUnits). The folder and ShippedApps.Roots load through the feature loader;
 // a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
-    IIntoChatOSBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
+    IIntoChatOSBrains brains, INeuronProxies proxies, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
     ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader) : ICreationHandler
 {
     public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
         if (await (await capabilities.Identity(cancellationToken)).KindOf(brainId, cancellationToken) == BrainKind.Circle)
         {
-            await DeployCircleUnits(brains.Get<ISynapseStudio>($"{brainId}/ino/synapses"),
-                brains.Get<DigitalBrain.Confirmation.IConfirmationInbox>(DigitalBrain.Confirmation.IConfirmationInbox.Key(brainId)), logger, brainId);
+            await DeployCircleUnits(proxies, logger, brainId);
             return;
         }
         await ShippedInstall.Missing(catalog, loader, brainId,
@@ -94,15 +95,21 @@ internal sealed class OsDefaults(
         }
     }
 
-    // A circle's shipped units ask for no slots, so they install without consent. One that fails is logged and the next connect
-    // tries again (OsWorkspaceRoot).
-    internal static async Task DeployCircleUnits(ISynapseStudio studio, DigitalBrain.Confirmation.IConfirmationInbox inbox, ILogger logger, string brainId)
+    // A circle's shipped units ask for no slots; their reactions and view are needs the host asks about, and the ask this deploy
+    // raised for the unit is approved as the creator, in the creator's turn (the framework accepts no platform approval; see
+    // ShippedUnits.Deploy). One that fails is logged and the next connect tries again (OsWorkspaceRoot).
+    internal static async Task DeployCircleUnits(INeuronProxies proxies, ILogger logger, string brainId)
     {
+        var brain = new DigitalBrain.BrainId(brainId);
+        var studio = proxies.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
+        var installs = proxies.Get<DigitalBrain.IInstalls>(new DigitalBrain.NeuronId(brain, "synapse.installs", "default"));
+        var inbox = proxies.Get<DigitalBrain.Confirmation.IConfirmationInbox>(new DigitalBrain.NeuronId(brain, "runtime.confirmations", "confirmations"));
         foreach (var alias in ShippedApps.CircleUnits)
         {
             try
             {
-                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, alias, plan => inbox.Resolve(plan, true));
+                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, alias, async _ => await installs.Pending(CancellationToken.None),
+                    plan => inbox.Resolve(plan, true), line => logger.LogInformation("{Brain}: {Activity}", brainId, line));
                 if (!result.Ok || result.Installs.Values.Any(install => install.Status == DigitalBrain.InstallStatus.Pending)) { logger.LogWarning("Circle unit {Unit} did not deploy in {Brain}: {Reason}", alias, brainId, result.Text); }
             }
             catch (Exception error) when (error is not OperationCanceledException)

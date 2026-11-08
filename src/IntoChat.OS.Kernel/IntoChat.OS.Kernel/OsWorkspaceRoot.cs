@@ -33,7 +33,7 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
         // The same set a new brain is born with: the folder plus ShippedApps.Roots. A circle keeps only its room, deployed again
         // when missing (a circle born before the room shipped); the same files deploy once.
         if (await (await capabilities.Identity(cancellationToken)).KindOf(scope, cancellationToken) == BrainKind.Circle)
-        { await OsDefaults.DeployCircleUnits(Neuron<ISynapseStudio>("ino/synapses"), Neuron<DigitalBrain.Confirmation.IConfirmationInbox>("confirmations"), logger, scope); }
+        { await OsDefaults.DeployCircleUnits(brain, logger, scope); }
         else
         {
             await ShippedInstall.Missing(catalog, loader, scope, async name => await Neuron<IApp>($"apps/{name}").Read(),
