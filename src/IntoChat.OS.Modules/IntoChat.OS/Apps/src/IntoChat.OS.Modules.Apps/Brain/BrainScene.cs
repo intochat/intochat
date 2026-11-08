@@ -2,7 +2,7 @@
 # Brain
 Role: Default
 Shipped: true
-Operations: open, work
+Operations: open, work, drill, focus
 
 The brain app draws the current brain: one sphere for each neuron and one path for each synapse.
 A delivered signal runs particles along that path. A tap zooms the camera.
@@ -45,6 +45,8 @@ public sealed class BrainScene : DigitalBrain.App
             [
                 new("open", "Show the brain."),
                 new("work", "Show active tasks, steps, and runs in the brain."),
+                new("drill", "Drill into the cluster or neurons named by Input."),
+                new("focus", "Focus the neuron named by Input."),
             ],
             Settings: [],
             Slots: [],

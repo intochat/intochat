@@ -371,18 +371,18 @@ internal sealed partial class AppNeuron(
         foreach (var hook in storageHooks) { await hook.OnCreated(BrainId(), Key, CancellationToken.None); }
     }
 
-    public Task<Guid> Request(string operation, string input) => Requested(operation, input, declared: true);
+    // A view's emit is a request by another name: the same rules, judge, retention and AppRequested.
+    public Task<Guid> Emit(string signal, string args) => Request(signal, args);
 
-    public Task<Guid> Emit(string signal, string args) => Requested(signal, args, declared: false);
-
-    private async Task<Guid> Requested(string operation, string input, bool declared)
+    public async Task<Guid> Request(string operation, string input)
     {
         await RequireCreated("Request");
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         ArgumentNullException.ThrowIfNull(input);
         string[] operations = [.. State.Manifest!.Operations.Select(candidate => candidate.Name)];
-        if (declared) { await Check("Request", new OperationIsDeclared(operation, operations, Name()), new RequestPayloadFits(input.Length)); }
-        else { await Check("Request", new RequestPayloadFits(input.Length)); }
+        await Check("Request",
+            new OperationIsDeclared(operation, operations, Name()),
+            new RequestPayloadFits(input.Length));
         var id = Guid.NewGuid();
         if (State.MigrationTarget is { } target)
         {

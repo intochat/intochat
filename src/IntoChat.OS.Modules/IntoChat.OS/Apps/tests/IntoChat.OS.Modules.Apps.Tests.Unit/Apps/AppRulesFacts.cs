@@ -94,4 +94,37 @@ public sealed class AppRulesFacts
         Assert.Equal(created.Version, current.Version);
         Assert.Equal("initial spec", current.Spec);
     }
+
+    [Fact]
+    public async Task AnEmitForAnUndeclaredOperationIsRefused()
+    {
+        await using var os = CreateTestOS();
+        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var app = os.Get<IApp>(id);
+        await app.Create(new AppManifest("Notes", "Keep notes", [new("add", "Add a note.")], [], []), "spec");
+
+        var error = await Assert.ThrowsAsync<RuleViolationException>(() => app.Emit("wipe", "\"all\""));
+        Assert.Equal(["apps.operation"], error.Rejected.Rules);
+        Assert.DoesNotContain(os.Journal(id.Brain).Signals(id), entry => entry.Signal is Signals.AppRequested);
+    }
+
+    [Fact]
+    public async Task AnEmitRunsTheSameRulesAsRequest()
+    {
+        await using var os = CreateTestOS();
+        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var app = os.Get<IApp>(id);
+        await app.Create(new AppManifest("Notes", "Keep notes", [new("add", "Add a note.")], [], []), "spec");
+        var oversized = new string('x', 1_000_000);
+
+        var byRequest = await Assert.ThrowsAsync<RuleViolationException>(() => app.Request("add", oversized));
+        var byEmit = await Assert.ThrowsAsync<RuleViolationException>(() => app.Emit("add", oversized));
+        Assert.Equal(byRequest.Rejected.Rules, byEmit.Rejected.Rules);
+        Assert.Equal(byRequest.Rejected.Operation, byEmit.Rejected.Operation);
+        Assert.NotEmpty(byEmit.Rejected.Rules);
+
+        await app.Emit("add", "\"milk\"");
+        await os.Idle();
+        Assert.Contains(os.Journal(id.Brain).Signals(id), entry => entry.Signal is Signals.AppRequested { Operation: "add", Input: "\"milk\"" });
+    }
 }
