@@ -13,13 +13,21 @@ public sealed class AppUiEventFacts
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    // The OS's own apps, loaded by the host; any other app here is model-authored.
+    private static readonly HostedTypes Hosted = new("owner/apps/ino", "owner/apps/tasks");
+
+    private sealed class HostedTypes(params string[] loaded) : IntoChat.OS.Framework.IHostedAppTypes
+    {
+        public bool IsHostLoaded(string appKey) => loaded.Contains(appKey);
+    }
+
     [Fact]
     public async Task AForeignNeuronButtonReachesThatNeuron()
     {
         var brain = new RecordingBrain();
         var action = NeuronButtonAction.Format(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, ["plan-9", "false"]);
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/ino/main", action, Revision: 1, Field: "approve"), brain, Scope, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/ino/main", action, Revision: 1, Field: "approve"), brain, Scope, Hosted, Ct);
 
         Assert.Equal(("owner/confirmations", "plan-9", false), Assert.Single(brain.Inbox.Resolved));
         Assert.Empty(brain.Views);
@@ -32,7 +40,7 @@ public sealed class AppUiEventFacts
         // The Tasks and Ino approve action as the presentation writes it.
         var action = NeuronButtonAction.Format(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, ["plan-1", "true"]);
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/tasks/side", action), brain, Scope, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/tasks/side", action), brain, Scope, Hosted, Ct);
 
         Assert.Equal(("owner/confirmations", "plan-1", true), Assert.Single(brain.Inbox.Resolved));
     }
@@ -43,7 +51,19 @@ public sealed class AppUiEventFacts
         var brain = new RecordingBrain();
         var action = NeuronButtonAction.Format(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, ["plan-1", "true"]);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/dismisser/view", action), brain, Scope, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/dismisser/view", action), brain, Scope, Hosted, Ct));
+        Assert.Empty(brain.Inbox.Resolved);
+    }
+
+    [Fact]
+    public async Task AnAppNamingACompiledTypeButNotHostLoadedCannotResolveAConfirmation()
+    {
+        var brain = new RecordingBrain();
+        brain.TrustedApps.Add("apps/spoof");
+        var action = NeuronButtonAction.Format(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, ["plan-1", "true"]);
+
+        Assert.True(AppTrust.IsOsTrusted(await brain.Get<IApp>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId(Scope), "app", "apps/spoof")).Read()));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/spoof/view", action), brain, Scope, Hosted, Ct));
         Assert.Empty(brain.Inbox.Resolved);
     }
 
@@ -52,7 +72,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain();
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, IConfirmationInbox.Key(Scope), $"{DigitalBrain.UI.Confirmation.ConfirmView.ResolveOperation}:plan-3:true"), brain, Scope, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, IConfirmationInbox.Key(Scope), $"{DigitalBrain.UI.Confirmation.ConfirmView.ResolveOperation}:plan-3:true"), brain, Scope, Hosted, Ct);
 
         Assert.Equal(("owner/confirmations", "plan-3", true), Assert.Single(brain.Inbox.Resolved));
     }
@@ -63,7 +83,7 @@ public sealed class AppUiEventFacts
         var brain = new RecordingBrain();
         var action = NeuronButtonAction.Format("grants/default", "Revoke", ["g1"]);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/tasks/side", action), brain, Scope, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("view", "owner/apps/tasks/side", action), brain, Scope, Hosted, Ct));
         Assert.Empty(brain.Inbox.Resolved);
     }
 
@@ -72,7 +92,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain();
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("textfield", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("textfield", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Hosted, Ct);
 
         Assert.Equal(("owner/apps/tasks/title", "Ship docs"), Assert.Single(brain.Field.Inputs));
     }
@@ -82,7 +102,7 @@ public sealed class AppUiEventFacts
         public RecordingInbox Inbox { get; } = new();
         public RecordingField Field { get; } = new();
         public List<string> Views { get; } = [];
-        // The OS's own compiled apps; any other app here is model-authored.
+        // Apps whose settings name a compiled type.
         public HashSet<string> TrustedApps { get; } = ["apps/ino", "apps/tasks"];
 
         public T Get<T>(NeuronId id) where T : class

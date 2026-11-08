@@ -1,9 +1,9 @@
 namespace IntoChat.OS.Modules.Apps;
 
-// An app is OS-trusted when it runs a compiled type the host loads in process (the OS's own apps such as Ino and Tasks,
-// or a compiled package the owner approved as trusted code with the host's access). A model-authored app runs a program
-// from sources or prebuilt behaviors and never is. Setting the compiled type swaps the app's program for that host code,
-// so the setting cannot make a model-authored view trusted.
+// Confirmations buttons are an OS-surface privilege, decided in two steps. (1) Formatting hint: AppPresentation formats a
+// confirmations button only for an app whose settings name a compiled type (IsOsTrusted here); any other app's is inert.
+// (2) Authority: AppUiEndpoints.Deliver resolves a confirmation only when IHostedAppTypes says the host itself loaded the
+// app's type from a registered compiled-app assembly. A setting is never authority on its own.
 public static class AppTrust
 {
     public const string CompiledTypeSetting = "__CompiledType";

@@ -54,6 +54,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
         services.TryAddSingleton<SideloadInstaller>();
+        services.TryAddSingleton<IntoChat.OS.Framework.IHostedAppTypes, HostedAppTypes>();
         services.TryAddSingleton<AppPresentationSink>();
         services.TryAddSingleton<IPresentationSink>(sp => sp.GetRequiredService<AppPresentationSink>());
         services.TryAddSingleton<InProcessAppHost>(sp => new InProcessAppHost(

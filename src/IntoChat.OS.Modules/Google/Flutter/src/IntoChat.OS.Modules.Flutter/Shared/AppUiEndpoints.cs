@@ -125,7 +125,8 @@ internal static class AppUiEndpoints
                 _ => throw new ArgumentException("Unknown app UI kind.")
             };
         });
-        apps.MapPost("/event", (UiEvent input, INeuronProxies brain, CancellationToken ct) => Deliver(input, brain, BrainScope.CurrentId(), ct));
+        apps.MapPost("/event", (UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
+            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct));
 
         UiHttp.MapGet<ITable, TableState>(endpoints, "tables", neuron => neuron.Read());
         UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, [MicrosoftSdk.AspNetCore.Mvc.FromServices] IServiceProvider plain, CancellationToken ct) =>
@@ -136,7 +137,8 @@ internal static class AppUiEndpoints
     }
 
     // One UI event from the shell, under the caller the edge stamped on brain.
-    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, CancellationToken ct)
+    // hosted answers whether the host loaded an app's code; without it no view answers a confirmation.
+    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? hosted, CancellationToken ct)
     {
         if (input.Kind == UIVocabulary.ConfirmationType)
         {
@@ -160,7 +162,7 @@ internal static class AppUiEndpoints
         switch (input.Kind)
         {
             case UIVocabulary.ViewType when NeuronButtonAction.TryParse(input.Action, out var target, out var operation, out var arguments):
-                await DeliverNeuronButton(brain, scope, input.Name, target, operation, arguments, ct);
+                await DeliverNeuronButton(brain, scope, hosted, input.Name, target, operation, arguments, ct);
                 break;
             case UIVocabulary.ViewType:
                 await brain.Get<IView>(input.Name).Activate(input.Revision, input.Field ?? "", input.Action ?? "", input.OperationId ?? Guid.Empty).WaitAsync(ct);
@@ -245,10 +247,11 @@ internal static class AppUiEndpoints
 
     // A view button aimed at another neuron (NeuronButtonAction): the clicking person calls it, as a direct inbox click does.
     // Only the confirmations inbox's Resolve is a target; any other is refused.
-    // Confirmations buttons are an OS-surface privilege: the delivering view must belong to an OS-trusted app (AppTrust).
-    private static async Task DeliverNeuronButton(INeuronProxies brain, string scope, string view, string key, string operation, string[] arguments, CancellationToken ct)
+    // Confirmations buttons are an OS-surface privilege: the delivering view's app must be host-loaded (kernel provenance,
+    // IHostedAppTypes), never merely carry the compiled-type setting.
+    private static async Task DeliverNeuronButton(INeuronProxies brain, string scope, IHostedAppTypes? hosted, string view, string key, string operation, string[] arguments, CancellationToken ct)
     {
-        if (key == IConfirmations.ConfirmationsNeuronKey && !await IsOsTrustedView(brain, scope, view, ct))
+        if (key == IConfirmations.ConfirmationsNeuronKey && !IsHostLoadedView(hosted, scope, view))
         { throw new UnauthorizedAccessException($"Only an OS surface can answer a confirmation; {view} cannot."); }
         if (key == IConfirmations.ConfirmationsNeuronKey && operation == IConfirmations.ResolveOperation && arguments.Length == 2 && bool.TryParse(arguments[1], out var approve))
         {
@@ -258,14 +261,13 @@ internal static class AppUiEndpoints
         throw new UnauthorizedAccessException($"A view button cannot call {key}.{operation}.");
     }
 
-    // The view's owning app is {scope}/apps/{name}; only a compiled, host-loaded app is OS-trusted.
-    private static async Task<bool> IsOsTrustedView(INeuronProxies brain, string scope, string view, CancellationToken ct)
+    // The view's owning app is {scope}/apps/{name}.
+    private static bool IsHostLoadedView(IHostedAppTypes? hosted, string scope, string view)
     {
         var prefix = scope + "/apps/";
-        if (!view.StartsWith(prefix, StringComparison.Ordinal)) { return false; }
+        if (hosted is null || !view.StartsWith(prefix, StringComparison.Ordinal)) { return false; }
         var end = view.IndexOf('/', prefix.Length);
-        if (end <= prefix.Length) { return false; }
-        return AppTrust.IsOsTrusted(await brain.Get<IApp>(view[..end]).Read().WaitAsync(ct));
+        return end > prefix.Length && hosted.IsHostLoaded(view[..end]);
     }
 
     private static bool OwnsUi(string scope, string name) =>
