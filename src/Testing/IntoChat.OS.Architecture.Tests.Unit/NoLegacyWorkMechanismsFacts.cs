@@ -19,7 +19,8 @@ public sealed partial class NoLegacyWorkMechanismsFacts
         "IAppDeploy", "IAppMigration", "AppSynapse", "SynapseStatus", "SynapseWritten", "SynapseRejected", "WriteSynapse", "CompleteSynapse",
         "MigrateTasksFlow", "MigrateTasksLifecycle", "LegacyTaskState", "FilePathIsNotAProgram", "SynapseRequestIsPending",
         "SynapseSentenceFits", "ProgramIsNotPaused", "AliasDoesNotRun", "MigrationAdoptsOneSource", "MigrationIsPausedFirst",
-        "MigrationIsRecorded", "MigrationIsSingle", "MigrationRedirectsOnce", "MigrationTargetIsSibling",
+        "MigrationIsRecorded", "MigrationIsSingle", "MigrationRedirectsOnce", "MigrationTargetIsSibling", "RequestIdIsFresh", "RequestIdIsPresent",
+        "PresentationIsPublished", "BlackboardKeyIsDeclared", "INoteFlow",
     ];
 
     // The BCL System.IProgress<T> is generic and stays; only the non-generic module IProgress is deleted.

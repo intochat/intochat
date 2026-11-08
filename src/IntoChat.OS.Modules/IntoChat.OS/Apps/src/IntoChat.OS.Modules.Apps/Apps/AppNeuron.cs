@@ -22,7 +22,7 @@ namespace IntoChat.OS.Modules.Apps;
 internal sealed partial class AppNeuron(
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IAppStorageHook> storageHooks)
-    : DigitalBrain.Neuron<AppState>, IApp
+    : DigitalBrain.Neuron<AppState>, IApp, IAppRestore
 {
     private static readonly AppState Cleared = new();
     // Whether the app has a record: created apps always carry a manifest.
@@ -31,12 +31,12 @@ internal sealed partial class AppNeuron(
     // The os full key "{brain}/apps/{name}" the app was addressed by as a grain.
     private string Key => Id.FullKey();
 
-    // Every activation reconciles an interrupted turn, then queues the program's restore after it.
+    // Every activation reconciles an interrupted turn, then queues the program's restore as its own turn.
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await Interrupt();
         if (State.Manifest is not null && HasProgram(State))
-        { Defer(Restore); }
+        { Defer(() => Get<IAppRestore>(Id).Restore()); }
     }
 
     private Task Save(AppState next, DigitalBrain.Signal first, DigitalBrain.Signal second, DigitalBrain.Signal third) => base.Save(next, [first, second, third]);

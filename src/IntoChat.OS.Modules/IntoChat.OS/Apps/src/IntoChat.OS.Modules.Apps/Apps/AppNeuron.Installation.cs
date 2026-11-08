@@ -129,25 +129,43 @@ internal sealed partial class AppNeuron
             new BundleNameIsValid(bundle.Name, Name()),
             new BundleVersionIsSemantic(bundle.Version));
 
-    // Reassigns the program on activation, as its own turn after the activation (see OnActivate).
-    private async Task Restore()
+    // Reassigns the program on activation, as its own one-way turn after the activation (see OnActivate): whatever goes wrong here is
+    // logged and written to the activity, never thrown at the first caller.
+    async Task IAppRestore.Restore()
     {
-        if (State.Manifest is null) { return; }
-        if (!HasProgram(State)) { return; }
-        var configuration = Configuration(State);
-        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
-        var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
-        if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
-        else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
-        try
-        {
-            // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
-            await Runtime.Deploy(Key, configuration, CancellationToken.None);
-        }
+        try { await RestoreProgram(); }
         catch (Exception error)
         {
-            ServiceProvider.GetRequiredService<ILogger<AppNeuron>>().LogError(error,
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(error,
                 "Could not restore the program of app {App} against the current contracts.", Key);
+            try
+            {
+                if (State.Manifest is not null)
+                {
+                    var next = State.Clone();
+                    next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "restore failed: " + error.Message];
+                    await Persist(next);
+                }
+            }
+            catch (Exception recording)
+            {
+                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(recording, "Could not record the restore failure of app {App}.", Key);
+            }
+        }
+    }
+
+    private async Task RestoreProgram()
+    {
+        if (State.Manifest is null || !HasProgram(State)) { return; }
+        var configuration = Configuration(State);
+        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
+        try
+        {
+            var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
+            if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
+            else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
+            // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
+            await Runtime.Deploy(Key, configuration, CancellationToken.None);
         }
         finally
         {
