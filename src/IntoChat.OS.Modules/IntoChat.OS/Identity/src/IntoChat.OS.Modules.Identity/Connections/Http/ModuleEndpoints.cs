@@ -11,7 +11,7 @@ public static class ModuleEndpoints
     public static WebApplication MapIntoChatOSModules(this WebApplication app)
     {
         foreach (var http in app.Services.GetServices<IHttpModule>()) { http.Configure(app); }
-        app.MapModuleHttpSurfaces();
+        app.MapModuleHttpSurfaces().WithMetadata(IntoChat.OS.Authority.Identity.AccountSession.FrameworkSurface.Instance);
         return app;
     }
 }

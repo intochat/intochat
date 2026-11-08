@@ -1,4 +1,5 @@
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Capabilities;
@@ -56,11 +57,37 @@ public static class AccountSession
             }
 
             RuntimeCallerContext.Stamp(principal);
+            // The framework's session surfaces (the journal tail among them) ask for an authenticated user with the principal
+            // claim, as a cookie session carries. The Basic operator and the Open owner have no cookie, so those routes alone are
+            // shown the resolved caller as that user. Any other route still sees an unauthenticated user for them: the runtime
+            // observation and the circle invitation read that as "not a real session" on purpose.
+            if (context.User.Identity?.IsAuthenticated != true && context.GetEndpoint()?.Metadata.GetMetadata<FrameworkSurface>() is not null)
+            {
+                context.User = SessionUser(principal);
+            }
+
             await next(context).ConfigureAwait(false);
         });
 
         return app;
     }
+
+    // Marks the endpoints of the framework's module HTTP surfaces group (ModuleEndpoints).
+    internal sealed class FrameworkSurface
+    {
+        public static readonly FrameworkSurface Instance = new();
+    }
+
+    internal const string LocalSessionScheme = "IntoChatOS.LocalCaller";
+
+    // The user a cookie session would have been for this caller: the same claim names the framework's membership check reads.
+    internal static ClaimsPrincipal SessionUser(CapabilityCaller caller)
+        => new(new ClaimsIdentity(
+        [
+            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Principal, caller.PrincipalId),
+            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Account, caller.AccountId),
+            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Brain, caller.BrainId),
+        ], LocalSessionScheme));
 
     // A cookie session wins; otherwise the configured Basic bootstrap credential; otherwise only
     // the declared Open posture lets the request act as the synthetic owner — Secured answers 401.
