@@ -260,6 +260,7 @@ internal sealed partial class AppNeuron(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(flowId);
         if (State.Manifest is null || State.BuildFlowId == flowId) { return; }
+        await Context.Synapses.EnsureBrainWide(typeof(DigitalBrain.Flows.FlowDone));
         var next = State.Clone();
         next.BuildFlowId = flowId;
         await Persist(next);

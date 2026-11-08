@@ -3,8 +3,6 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -60,18 +58,11 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
     public Task<FlowHead> Head() => Task.FromResult(new FlowHead([.. Names], State.Owner, State.TraceId, State.ParentFlowId, State.Started,
         JsonSerializer.Serialize(State.Inner, Json), State.Title, State.Status, [.. State.Done], State.Ended, null));
 
-    // An app build reports each finished step on the app's activity; one that fails ends its attempt Failed, so the app does not
-    // stay Building. A failure to record that never masks the build's own error.
+    // An app build reports each finished step on the app's activity. A failure is not recorded here: the framework may treat the
+    // error as an interruption and re-run the step, so the app fails its attempt on the flow's FlowDone instead.
     protected override async Task<StepResult<BuildInner>> Run(string step, BuildInner inner, CancellationToken ct)
     {
-        StepResult<BuildInner> result;
-        try { result = await RunStep(step, inner, ct); }
-        catch (Exception error) when (error is not OperationCanceledException && inner is { Kind: BuildInner.App, AppKey: not null, Attempt: { } attempt })
-        {
-            try { await App(inner).CompleteBuild(attempt, null, error.Message); }
-            catch (Exception recording) when (recording is not OperationCanceledException) { Logger().LogWarning(recording, "Could not fail the build attempt of {Flow}.", Id); }
-            throw;
-        }
+        var result = await RunStep(step, inner, ct);
         if (inner.Kind == BuildInner.App && result.Wait is null)
         {
             var (state, detail) = step switch
@@ -176,7 +167,6 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
         return Context.Get<IApp>(new NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(key.IndexOf('/', StringComparison.Ordinal) + 1)..]));
     }
 
-    private ILogger Logger() => Context.Services.GetService<ILoggerFactory>()?.CreateLogger<BuildFlow>() ?? (ILogger)NullLogger.Instance;
 
     private ISynapseStudio Studio() => Context.Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
 }

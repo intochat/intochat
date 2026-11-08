@@ -63,6 +63,8 @@ public interface IFlowSignalPump
 
     Task Done(string flowId);
 
+    Task Failed(string flowId, string detail);
+
     Task Waiting(string flowId, string step);
 
     Task Resolved(string flowId, string step);
@@ -85,6 +87,8 @@ public sealed class FlowSignalPump : DigitalBrain.Neuron<PumpState>, IFlowSignal
     public Task StepCompleted(string flowId, string step) => Send(new FlowStep(flowId, step, StepOutcome.Completed, null));
 
     public Task Done(string flowId) => Send(new FlowDone(flowId, FlowOutcome.Completed, null));
+
+    public Task Failed(string flowId, string detail) => Send(new FlowDone(flowId, FlowOutcome.Failed, detail));
 
     public Task Waiting(string flowId, string step) => Send(new FlowWaiting(flowId, step, WaitReason.External, null));
 

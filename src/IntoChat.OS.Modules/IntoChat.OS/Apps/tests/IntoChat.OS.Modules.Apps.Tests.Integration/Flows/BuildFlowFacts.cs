@@ -112,7 +112,7 @@ public sealed class BuildFlowFacts
 
     private sealed class BuildFixture(string source, RecordingHost host) : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule)];
+        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(FlowsFactsModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
@@ -123,6 +123,7 @@ public sealed class BuildFlowFacts
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly);
             services.AddJournalPayloads(typeof(DigitalBrain.Signals.Activated).Assembly);
             services.AddJournalPayloads(typeof(FlowStarted).Assembly);
+            services.AddJournalPayloads(typeof(TestFlow).Assembly);
             services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
             services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
@@ -281,6 +282,25 @@ public sealed class BuildFlowFacts
         Assert.Equal(AppStatus.Building, stored.Status);
         Assert.Equal(AppStatus.Failed, shown.Status);
         Assert.Contains(shown.Activity, line => line.StartsWith("build failed: ", StringComparison.Ordinal) && line.Contains("Does not compile", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFailedFlowDoneFailsTheBuildingApp()
+    {
+        await using var fixture = new BuildFixture("# notes", new RecordingHost());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/failing"));
+        await app.Create(new AppManifest("Failing", "Fails", [], [], []), "spec");
+        await app.BeginBuild(null);
+        var flowId = runtime.Brain.Value + "/flow.build/failing";
+        await app.BuildFlowStarted(flowId);
+
+        await runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump")).Failed(flowId, "x");
+
+        AppSnapshot snapshot = await app.Read();
+        for (var i = 0; i < 200 && snapshot.Status == AppStatus.Building; i++) { await Task.Delay(50, Ct); snapshot = await app.Read(); }
+        Assert.Equal(AppStatus.Failed, snapshot.Status);
+        Assert.Equal("build failed: x", snapshot.Activity[^1]);
     }
 
     private static NeuronId Id(string flowId)
