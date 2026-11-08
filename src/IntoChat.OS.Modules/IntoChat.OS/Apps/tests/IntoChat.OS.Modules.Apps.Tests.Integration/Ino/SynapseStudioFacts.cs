@@ -49,16 +49,6 @@ public sealed class SynapseStudioFacts
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private sealed class NoAppRuntime : IAppRuntime
-    {
-        public bool Accepts(AppBundle bundle) => false;
-
-        public Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> files, Dictionary<string, string> configuration, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
     private sealed class EmptyCapabilityConnections : ICapabilityConnections
     {
         public Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct = default)
@@ -105,7 +95,6 @@ public sealed class SynapseStudioFacts
             services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
             services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
-            services.AddSingleton<IAppRuntime>(new NoAppRuntime());
         }
     }
 

@@ -196,7 +196,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                 services =>
                 {
                     AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
-                    foreach (var d in services.Where(d => d.ImplementationType?.Name is "CSharpAppRuntime" or "FeatureBootLifecycle").ToList())
+                    foreach (var d in services.Where(d => d.ImplementationType?.Name is "FeatureBootLifecycle").ToList())
                     {
                         services.Remove(d);
                     }

@@ -45,10 +45,6 @@ internal sealed partial class AppNeuron
         {
             next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
         }
-        if (bundle.PrebuiltBehaviors is { Count: > 0 })
-        {
-            next.PutSetting(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, InProcessAppRuntime.SerializePrebuiltBehaviors(bundle.PrebuiltBehaviors));
-        }
         next.Connections = new Dictionary<string, string>();
         next.Version = bundle.Version;
         next.Installation = installation;
@@ -89,10 +85,6 @@ internal sealed partial class AppNeuron
         if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
         {
             next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
-        }
-        if (bundle.PrebuiltBehaviors is { Count: > 0 })
-        {
-            next.PutSetting(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, InProcessAppRuntime.SerializePrebuiltBehaviors(bundle.PrebuiltBehaviors));
         }
         next.Version = bundle.Version;
         Adopt(next, origin);
@@ -154,8 +146,7 @@ internal sealed partial class AppNeuron
 
     public async Task Restore()
     {
-        if (State.MigrationPaused || State.Manifest is null || Runtime is not { } runtime) { return; }
-        var sources = Sources(State);
+        if (State.MigrationPaused || State.Manifest is null) { return; }
         if (!HasProgram(State)) { return; }
         var configuration = Configuration(State);
         var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
@@ -165,7 +156,7 @@ internal sealed partial class AppNeuron
         try
         {
             // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
-            await runtime.Deploy(Key, sources, configuration, CancellationToken.None);
+            await Runtime.Deploy(Key, configuration, CancellationToken.None);
         }
         catch (Exception error)
         {
@@ -179,33 +170,12 @@ internal sealed partial class AppNeuron
         }
     }
 
-    private IAppRuntime? Runtime => SelectRuntime(State);
+    // The in-process host is the only runtime; it holds nothing, so each call takes a fresh one.
+    private InProcessAppRuntime Runtime => new(ServiceProvider);
 
-    private IAppRuntime? SelectRuntime(AppState state)
-    {
-        var bundle = CurrentBundle(state);
-        return runtimes.FirstOrDefault(r => r.Accepts(bundle)) ?? runtimes.FirstOrDefault();
-    }
-
-    private AppBundle CurrentBundle(AppState state)
-    {
-        state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var compiledType);
-        var prebuilt = InProcessAppRuntime.ExtractPrebuiltBehaviors(new(state.Files, StringComparer.Ordinal), new(state.Settings, StringComparer.Ordinal));
-        return new AppBundle(
-            Name(),
-            state.Version,
-            state.Manifest ?? new("", "", [], [], []),
-            state.Spec,
-            new(state.Files, StringComparer.Ordinal),
-            prebuilt.Count > 0 ? prebuilt : null,
-            compiledType);
-    }
-
+    // An app runs only when it names a compiled module type; anything else is data.
     private static bool HasProgram(AppState state)
-        => state.Files.Keys.Any(AppFiles.IsProgram)
-            || state.Files.Keys.Any(static k => k.EndsWith(".dll.base64", StringComparison.Ordinal))
-            || (state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var ct) && !string.IsNullOrWhiteSpace(ct))
-            || (state.Settings.TryGetValue(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, out var pb) && !string.IsNullOrWhiteSpace(pb));
+        => state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var ct) && !string.IsNullOrWhiteSpace(ct);
 
     private static Dictionary<string, string> Sources(AppState state)
         => state.Files.Where(file => AppFiles.IsProgram(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
@@ -215,15 +185,13 @@ internal sealed partial class AppNeuron
     {
         if (State.MigrationPaused) { return; }
         await RecordFeature();
-        if (Runtime is not { } runtime) { return; }
-        var sources = Sources(State);
-        if (!HasProgram(State)) { await runtime.Retire(Key, CancellationToken.None); return; }
+        if (!HasProgram(State)) { await Runtime.Retire(Key, CancellationToken.None); return; }
         var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
         var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
         if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
         try
         {
-            await runtime.Deploy(Key, sources, Configuration(State), CancellationToken.None);
+            await Runtime.Deploy(Key, Configuration(State), CancellationToken.None);
         }
         finally
         {

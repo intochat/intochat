@@ -29,8 +29,8 @@ internal sealed partial class AppNeuron
         }
         // Retrying retirement is necessary if its acknowledgement was lost. The persisted gate
         // also prevents activation from assigning this old program again.
-        if (State.MigrationPaused && Runtime is { } runtime)
-        { await runtime.Retire(Key, CancellationToken.None); }
+        if (State.MigrationPaused)
+        { await Runtime.Retire(Key, CancellationToken.None); }
     }
 
     public async Task<AppState> Archive(string migration)

@@ -78,8 +78,6 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, CompiledAppsLifecycle>();
         services.AddSingleton<DevAppGate>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, InProcessAppRuntime>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, AppGraphSource>();
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Flows.FlowGraphSource>();
     }

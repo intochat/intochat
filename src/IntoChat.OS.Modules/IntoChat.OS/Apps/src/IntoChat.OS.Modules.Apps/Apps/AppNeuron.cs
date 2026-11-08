@@ -21,7 +21,7 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron(IntoChat.OS.Connections.AppGrainType.Name, State = "app2")]
 internal sealed partial class AppNeuron(
     TimeProvider clock, IOptions<AppsOptions> options,
-    IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
+    IEnumerable<IAppStorageHook> storageHooks)
     : DigitalBrain.Neuron<AppState>, IApp, IAppDeploy, IAppMigration
 {
     private static readonly AppState Cleared = new();
@@ -141,10 +141,9 @@ internal sealed partial class AppNeuron(
         // The whole program goes to the runtime before anything is persisted: a write the
         // compiler refuses leaves the app's files exactly as they were.
         IReadOnlyDictionary<string, string>? hashes = null;
-        if (Runtime is { } runtime)
+        if (HasProgram(next))
         {
-            var sources = Sources(next);
-            hashes = await runtime.Deploy(Key, sources, Configuration(next), CancellationToken.None);
+            hashes = await Runtime.Deploy(Key, Configuration(next), CancellationToken.None);
         }
         // A fast-path write names its deployed synapse on the request; CompleteSynapse lands the outcome.
         var requested = Array.FindIndex(next.Synapses, synapse => synapse.OperationId == operationId && synapse.Status == SynapseStatus.Requested);
@@ -368,7 +367,7 @@ internal sealed partial class AppNeuron(
             && listed.Source.Scope() == BrainId())
         { await Marketplace.Remove(publisher, Name()); }
         // Everything the app owns goes with it: its program, then its storage.
-        if (Runtime is { } runtime) { await runtime.Retire(key, CancellationToken.None); }
+        await Runtime.Retire(key, CancellationToken.None);
         if (ServiceProvider.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(State.BrainScopeId ?? "", key, CancellationToken.None); }
         await RemoveAppPrincipal();

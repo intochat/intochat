@@ -118,14 +118,14 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     }
 
     [Fact]
-    public async Task CSharpAppRuntimeValidatesInputFailClosed()
+    public async Task InProcessAppRuntimeValidatesInputFailClosed()
     {
         var services = new ServiceCollection().BuildServiceProvider();
-        var runtime = new CSharpAppRuntime(services);
+        var runtime = new InProcessAppRuntime(services);
 
         // Deploy with malformed appKey throws ArgumentException synchronously
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("invalid-key", [], [], CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("/invalid-key", [], [], CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("invalid-key", [], CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("/invalid-key", [], CancellationToken.None));
 
         // Retire with malformed appKey throws ArgumentException synchronously
         await Assert.ThrowsAsync<ArgumentException>(() => runtime.Retire("invalid-key", CancellationToken.None));

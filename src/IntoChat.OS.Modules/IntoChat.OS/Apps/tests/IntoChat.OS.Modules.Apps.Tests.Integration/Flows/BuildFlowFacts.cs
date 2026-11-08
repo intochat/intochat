@@ -86,16 +86,6 @@ public sealed class BuildFlowFacts
         public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class NoAppRuntime : IAppRuntime
-    {
-        public bool Accepts(AppBundle bundle) => false;
-
-        public Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> files, Dictionary<string, string> configuration, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
     // The brain's http@1 connections, each with its allow-list: ICapabilityConnections and IConnectionHosts over the same list.
     private sealed class HttpConnections(params (string Id, string[] Hosts)[] connections) : ICapabilityConnections, IConnectionHosts
     {
@@ -137,7 +127,6 @@ public sealed class BuildFlowFacts
             services.AddSingleton<IConnectionHosts>(connections);
             services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
-            services.AddSingleton<IAppRuntime>(new NoAppRuntime());
             services.AddSingleton<IDrafter>(drafter);
             services.AddSingleton<IScriptSandbox>(new RunnableSandbox());
             services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);
