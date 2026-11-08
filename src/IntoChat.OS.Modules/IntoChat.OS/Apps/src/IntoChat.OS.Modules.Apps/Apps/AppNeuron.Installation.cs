@@ -105,6 +105,7 @@ internal sealed partial class AppNeuron
     {
         next.Principal ??= RuntimeCallerContext.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
         next.Status = AppStatus.Deploying;
+        next.Refused = null;
         AdvanceProgram(next);
         Record(next);
         await Persist(next);

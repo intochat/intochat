@@ -31,11 +31,12 @@ internal static class LegacyAppRecord
         return [.. found];
     }
 
-    private static bool IsProgramFile(string path)
+    // Nothing in the units shape stores app.cs (the Builder is refused it; no Author writes it), so it counts as program here.
+    internal static bool IsProgramFile(string path)
         => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || path.EndsWith(PrebuiltSuffix, StringComparison.OrdinalIgnoreCase);
 
     // The kernel's own "__" settings: the compiled type stays, the old prebuilt-behaviors settings do not.
-    private static bool IsPrebuilt(string key)
+    internal static bool IsPrebuilt(string key)
         => key.EndsWith(PrebuiltSuffix, StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("__", StringComparison.Ordinal) && key != AppTrust.CompiledTypeSetting;
 

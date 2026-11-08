@@ -46,6 +46,8 @@ public sealed class AppState
     [Id(44)] public DigitalBrain.DeadLetterEntry[] DeadLetters { get; set; } = [];
     // The IFlows id of the latest build; the build status is the flow's.
     [Id(45)] public string? BuildFlowId { get; set; }
+    // Why a record stored by an older OS was refused on activation; null for a usable app. A Failed status alone stays retryable.
+    [Id(46)] public string? Refused { get; set; }
 
     // The maps as callers read and replace them. Each read is a copy: change a map by assigning a new one.
     [IgnoreDataMember]
@@ -123,6 +125,7 @@ public sealed class AppState
         SignalCursor = SignalCursor,
         DeadLetters = [.. DeadLetters],
         BuildFlowId = BuildFlowId,
+        Refused = Refused,
     };
 }
 

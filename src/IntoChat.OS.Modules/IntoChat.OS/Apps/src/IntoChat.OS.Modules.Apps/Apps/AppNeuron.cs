@@ -35,7 +35,7 @@ internal sealed partial class AppNeuron(
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await Interrupt();
-        if (State.Manifest is null) { return; }
+        if (State.Manifest is null || State.Refused is not null) { return; }
         if (await RefuseLegacy()) { return; }
         if (HasProgram(State)) { Defer(() => Get<IAppRestore>(Id).Restore()); }
     }
@@ -51,8 +51,13 @@ internal sealed partial class AppNeuron(
             if (markers.Length == 0) { return false; }
             ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(
                 "App {App} is a pre-0.18 record ({Markers}); it is refused and must be rebuilt.", Key, string.Join(", ", markers));
-            if (State.Status == AppStatus.Failed && State.Activity.LastOrDefault() == LegacyAppRecord.Refusal) { return true; }
+            // The refusal is durable: the program files and settings are stripped (nothing deploys or retries) and Refused names why, so
+            // the activity line below is written once, not once per activation. A rebuild (Import or CompleteBuild) clears Refused.
             var next = State.Clone();
+            next.Refused = string.Join(", ", markers);
+            next.Files = State.Files.Where(file => !LegacyAppRecord.IsProgramFile(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+            next.Settings = State.Settings.Where(setting => !LegacyAppRecord.IsPrebuilt(setting.Key) && setting.Key != InProcessAppRuntime.CompiledTypeKey)
+                .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
             next.Status = AppStatus.Failed;
             next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), LegacyAppRecord.Refusal];
             await Persist(next);
@@ -143,6 +148,7 @@ internal sealed partial class AppNeuron(
     {
         await Check("Configure",
             new AppExists(Name(), State.Manifest is not null),
+            new AppRecordIsUsable(Name(), State.Refused),
             new SettingsAreNotReserved(settings?.Keys ?? (IReadOnlyCollection<string>)[]));
         // A storage hook vetoes a binding change its data depends on, before anything changes.
         foreach (var (slot, id) in connections ?? [])
@@ -167,6 +173,7 @@ internal sealed partial class AppNeuron(
         string[] known = [.. State.History.Select(item => item.Version)];
         await Check("Rollback",
             new AppExists(Name(), State.Manifest is not null),
+            new AppRecordIsUsable(Name(), State.Refused),
             new VersionExists(version, known));
         var record = State.History.First(item => item.Version == version);
         var next = State.Clone();
@@ -296,6 +303,7 @@ internal sealed partial class AppNeuron(
         }
         foreach (var (path, source) in files) { next.PutFile(path, source); }
         next.Edited = true;
+        next.Refused = null;
         next.Version = Bump(next.Version, minor: firstBuild);
         next.Status = AppStatus.Live;
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
