@@ -35,7 +35,7 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
             flowId,
             "approval",
             $"Approve: {title}",
-            "Pre-filled LFP ApprovalCard ready for 1-click confirmation.",
+            "The build flow asks for this approval once the unit is deployed.",
             "neuron://local/os.confirmations/inbox",
             "pending",
             $"neuron://local/apps/ino#{flowId}");

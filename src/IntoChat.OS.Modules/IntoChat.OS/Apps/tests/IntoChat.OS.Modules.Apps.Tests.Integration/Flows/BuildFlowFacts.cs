@@ -11,6 +11,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Ino;
 using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -24,11 +25,29 @@ public sealed class BuildFlowFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    // Answers every draft with one file of Source.
+    // Answers a unit draft with one file of Source, an app draft with a notes file and the app's own manifest.
     private sealed class ScriptedDrafter(string source) : IDrafter
     {
         public Task<BuildDraft> Draft(BuildRequest request, CancellationToken ct)
-            => Task.FromResult(new BuildDraft(new Dictionary<string, string>(StringComparer.Ordinal) { ["unit.cs"] = source }, null));
+            => Task.FromResult(request.Snapshot is { Manifest.Headless: false } app
+                ? new BuildDraft(new Dictionary<string, string>(StringComparer.Ordinal) { ["notes.md"] = source }, app.Manifest)
+                : new BuildDraft(new Dictionary<string, string>(StringComparer.Ordinal) { ["unit.cs"] = source }, null));
+    }
+
+    // Lets Implement past the sandbox policy; an app of non-program files never compiles.
+    private sealed class RunnableSandbox : IScriptSandbox
+    {
+        public bool CanRun => true;
+
+        public string AuthoringDescription => "";
+
+        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     // Counts completed deploys. With Block set, the first deploy never returns, as one cut off by a crash.
@@ -110,6 +129,8 @@ public sealed class BuildFlowFacts
             services.AddSingleton<IAppRuntime>(new NoAppRuntime());
             services.AddSingleton<IDrafter>(new ScriptedDrafter(source));
             services.AddSingleton<ISynapseHost>(host);
+            services.AddSingleton<IScriptSandbox>(new RunnableSandbox());
+            services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);
         }
     }
 
@@ -133,7 +154,7 @@ public sealed class BuildFlowFacts
     private static async Task<BuildInner> Inner(INeuronRuntime runtime, string flowId)
     {
         Assert.True(NeuronId.TryParse(flowId, out var id));
-        var head = await runtime.Get<IBuildFlow>(id).Head();
+        var head = await runtime.Get<IFlowStarter>(id).Head();
         return JsonSerializer.Deserialize<BuildInner>(head.InnerJson, BuildFlow.Json)!;
     }
 
@@ -183,7 +204,7 @@ public sealed class BuildFlowFacts
 
         var id = await Flows(runtime).Start(BuildFlow.Alias, "Tick poller", null, Unit("Tick poller"), Ct);
         await host.Entered.WaitAsync(TimeSpan.FromSeconds(30), Ct);
-        var before = await runtime.Get<IBuildFlow>(Id(id)).Head();
+        var before = await runtime.Get<IFlowStarter>(Id(id)).Head();
         Assert.Equal(["draft", "check"], before.Done);
 
         // The blocked deploy never returns: the restarted silo reruns the step, as after a crash.
@@ -194,7 +215,7 @@ public sealed class BuildFlowFacts
         for (var i = 0; i < 400 && head is not { Status: FlowStatus.Waiting or FlowStatus.Failed or FlowStatus.Completed or FlowStatus.Cancelled }; i++)
         {
             await Task.Delay(50, Ct);
-            head = await runtime.Get<IBuildFlow>(Id(id)).Head();
+            head = await runtime.Get<IFlowStarter>(Id(id)).Head();
         }
         Assert.True(head is { Status: FlowStatus.Waiting }, $"calls={host.Calls} {head?.Status} done=[{string.Join(",", head?.Done ?? [])}] steps={string.Join(" | ", (await runtime.Signals<FlowStep>(Id(id), Ct)).Select(s => $"{s.Step}:{s.Outcome}:{s.Detail}"))}");
         Assert.Equal(["draft", "check", "deploy"], head!.Done);
@@ -217,6 +238,49 @@ public sealed class BuildFlowFacts
         Assert.Equal(BuildFlow.Alias, view.Type);
         Assert.Equal("Count ticks every five minutes", view.Title);
         Assert.Contains(card.Id, result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ImplementBuildsAnAppThroughTheFlow()
+    {
+        await using var fixture = new BuildFixture("# notes", new RecordingHost());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var appKey = IApp.Key(runtime.Brain.Value, "notes");
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/notes"));
+        await app.Create(new AppManifest("Notes", "Keeps notes", [], [], []), "spec");
+
+        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), appKey, "add notes", Ct);
+
+        var flowId = Assert.IsType<string>(await app.BuildFlow());
+        var view = await Eventually(() => Flows(runtime).Read(flowId, Ct), v => v.Status == FlowStatus.Waiting);
+        Assert.Equal(["draft", "check", "deploy"], view.Done);
+        Assert.Equal("approve", view.WaitingStep);
+        var snapshot = await app.Read();
+        Assert.Equal(AppStatus.Live, snapshot.Status);
+        Assert.Equal("# notes", snapshot.Files["notes.md"]);
+        Assert.Contains(snapshot.Activity, line => line.StartsWith("draft: ", StringComparison.Ordinal));
+    }
+
+    // While the app is Building, a failed build flow shows it Failed with the flow's detail.
+    [Fact]
+    public async Task AFailedBuildFlowShowsTheBuildingAppFailed()
+    {
+        await using var fixture = new BuildFixture("this is not C# {", new RecordingHost());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/broken"));
+        await app.Create(new AppManifest("Broken", "Never builds", [], [], []), "spec");
+        await app.BeginBuild(null);
+        var flows = Flows(runtime);
+        var flowId = await flows.Start(BuildFlow.Alias, "Broken", null, Unit("Broken"), Ct);
+        await Eventually(() => flows.Read(flowId, Ct), v => v.Status == FlowStatus.Failed);
+        await app.BuildFlowStarted(flowId);
+
+        var stored = await app.Read();
+        var shown = await AppBuildStatus.Of(stored, app, flows, Ct);
+
+        Assert.Equal(AppStatus.Building, stored.Status);
+        Assert.Equal(AppStatus.Failed, shown.Status);
+        Assert.Contains(shown.Activity, line => line.StartsWith("build failed: ", StringComparison.Ordinal) && line.Contains("Does not compile", StringComparison.Ordinal));
     }
 
     private static NeuronId Id(string flowId)

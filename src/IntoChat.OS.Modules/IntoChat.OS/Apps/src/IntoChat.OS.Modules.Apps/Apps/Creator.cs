@@ -135,7 +135,9 @@ internal sealed class Creator(
             task.AppendLine().AppendLine("Current files:");
             foreach (var (path, source) in existing) { task.AppendLine($"--- {path} ---").AppendLine(source); }
         }
-        var built = Parse<BuiltApp>(await BuilderConversation(request.Brain, task.ToString(), existing, ct));
+        // An app build lands each Builder round on the app's activity feed.
+        var progress = request.AppKey is { } appKey ? SiloNeurons.Get<IApp>(plain, appKey) : null;
+        var built = Parse<BuiltApp>(await BuilderConversation(request.Brain, progress, task.ToString(), existing, ct));
         var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
         if (files.Count == 0) { throw new InvalidDataException("the Builder produced no files"); }
         if (request.Snapshot is not { Manifest.Headless: false } app) { return new BuildDraft(files, null); }
@@ -195,8 +197,8 @@ internal sealed class Creator(
     }
 
     // The Builder works with tools: it searches the contract catalog, reads details and
-    // compile-checks its C# before answering.
-    private async Task<string> BuilderConversation(string brainId, string task, IReadOnlyDictionary<string, string> existingFiles, CancellationToken cancellationToken)
+    // compile-checks its C# before answering. Each round of an app build lands on the app's activity feed.
+    private async Task<string> BuilderConversation(string brainId, IApp? progress, string task, IReadOnlyDictionary<string, string> existingFiles, CancellationToken cancellationToken)
     {
         var messages = new List<AiMessage>
         {
@@ -224,16 +226,23 @@ internal sealed class Creator(
                 if (program.Count == 0) { return reply; }
                 var check = await Checked(program, cancellationToken);
                 if (check.Success) { return reply; }
+                if (progress is not null) { await progress.Progress("working", $"round {round + 1}: correcting final compile errors"); }
                 messages.Add(new AiMessage("user", [new AiText("The exact final program does not compile. Fix these diagnostics and return the corrected implementation JSON:\n"
                     + JsonSerializer.Serialize(check, Json))]));
                 continue;
             }
+            if (progress is not null) { await progress.Progress(BuilderState(calls), $"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}"); }
             var results = new List<AiContent>();
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
         throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a valid implementation.");
     }
+
+    private static string BuilderState(AiToolCall[] calls)
+        => calls.Any(call => call.Name == BuilderTools.SearchContracts) ? "searching"
+         : calls.Any(call => call.Name is BuilderTools.ReadContracts or BuilderTools.ReadContractDetail) ? "reading"
+         : "working";
 
     private async Task<string> ExecuteBuilderTool(AiToolCall call, CancellationToken cancellationToken)
     {

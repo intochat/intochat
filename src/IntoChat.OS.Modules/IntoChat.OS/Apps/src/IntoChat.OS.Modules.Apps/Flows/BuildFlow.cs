@@ -3,7 +3,8 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -36,18 +37,11 @@ public sealed class BuildInner
     public DateTimeOffset? ApprovalExpires { get; set; }
 }
 
-// The flow's own deferred start: StartFromJson returns at once and the steps run in this later turn, so the caller (an endpoint, Ino)
-// does not wait for the Builder.
-public interface IBuildFlow : IFlowStarter
-{
-    Task Begin(string title, string owner, string? parentFlowId, string innerJson);
-}
-
 // One build: draft (the Creator's Builder loop), check (the compile the deploy will run), deploy (the studio for a unit, CompleteBuild for
 // an app) and approve (a two-day approval of the deployed build). Each step is idempotent on rerun: deploy keys the studio by source
 // hash and CompleteBuild by attempt. Check is an inline call: no compile IOperation exists.
 [DigitalBrain.Neuron(Alias)]
-public sealed class BuildFlow : Flow<BuildInner>, IBuildFlow
+public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
 {
     public const string Alias = "flow.build";
 
@@ -59,34 +53,37 @@ public sealed class BuildFlow : Flow<BuildInner>, IBuildFlow
 
     protected override IReadOnlyList<string> Steps => Names;
 
+    // The base Start saves and returns; the steps run after it, so the caller does not wait for the Builder.
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
-    {
-        // Not awaited: the call queues behind this turn and runs the steps there.
-        _ = Context.Get<IBuildFlow>(Id).Begin(title, owner, parentFlowId, innerJson);
-        return Task.CompletedTask;
-    }
-
-    public Task Begin(string title, string owner, string? parentFlowId, string innerJson)
         => Start(title, owner, parentFlowId, JsonSerializer.Deserialize<BuildInner>(innerJson, Json) ?? new BuildInner());
 
     public Task<FlowHead> Head() => Task.FromResult(new FlowHead([.. Names], State.Owner, State.TraceId, State.ParentFlowId, State.Started,
         JsonSerializer.Serialize(State.Inner, Json), State.Title, State.Status, [.. State.Done], State.Ended, null));
 
-    // A step whose call failed because the host is stopping is not a failed build: it saves nothing and reruns when the flow next
-    // activates, as after a crash. An app build that fails ends its attempt Failed, so the app does not stay Building.
+    // An app build reports each finished step on the app's activity; one that fails ends its attempt Failed, so the app does not
+    // stay Building. A failure to record that never masks the build's own error.
     protected override async Task<StepResult<BuildInner>> Run(string step, BuildInner inner, CancellationToken ct)
     {
-        try { return await RunStep(step, inner, ct); }
-        catch (Exception error) when (error is not OperationCanceledException and not FlowFailed && Stopping)
-        {
-            await Task.Delay(Timeout.Infinite, ct);
-            throw;
-        }
+        StepResult<BuildInner> result;
+        try { result = await RunStep(step, inner, ct); }
         catch (Exception error) when (error is not OperationCanceledException && inner is { Kind: BuildInner.App, AppKey: not null, Attempt: { } attempt })
         {
-            await App(inner).CompleteBuild(attempt, null, error.Message);
+            try { await App(inner).CompleteBuild(attempt, null, error.Message); }
+            catch (Exception recording) when (recording is not OperationCanceledException) { Logger().LogWarning(recording, "Could not fail the build attempt of {Flow}.", Id); }
             throw;
         }
+        if (inner.Kind == BuildInner.App && result.Wait is null)
+        {
+            var (state, detail) = step switch
+            {
+                "draft" => ("working", $"{result.Next.Files?.Count ?? 0} files"),
+                "check" => ("working", "the program compiles"),
+                "deploy" => ("completed", $"Built {inner.Goal}"),
+                _ => ("working", "done"),
+            };
+            await App(inner).Progress(state, $"{step}: {detail}");
+        }
+        return result;
     }
 
     private async Task<StepResult<BuildInner>> RunStep(string step, BuildInner inner, CancellationToken ct)
@@ -97,6 +94,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IBuildFlow
                 {
                     var drafter = Context.Services.GetRequiredService<IDrafter>();
                     var snapshot = inner.Kind == BuildInner.App ? await App(inner).Read() : null;
+                    if (snapshot is not null) { await App(inner).Progress("working", $"Building {inner.Goal}"); }
                     var request = new BuildRequest(Id.Brain.Value, inner.Kind, inner.Goal, inner.AppKey, inner.Instruction, snapshot);
                     // The Builder's model calls run off the flow's scheduler.
                     var draft = await Task.Run(() => drafter.Draft(request, ct), ct);
@@ -159,10 +157,12 @@ public sealed class BuildFlow : Flow<BuildInner>, IBuildFlow
         if (inner.Manifest is null)
         {
             var key = inner.AppKey!;
-            var name = key[(key.LastIndexOf("/apps/", StringComparison.Ordinal) + "/apps/".Length)..];
+            var at = key.LastIndexOf("/apps/", StringComparison.Ordinal);
+            if (at < 0) { throw new FlowFailed("deploy", $"{key} is not an app key"); }
+            var name = key[(at + "/apps/".Length)..];
             var failure = await HeadlessUnit.Complete(app, attempt, Studio(), name, inner.Files!);
             if (failure is not null) { throw new FlowFailed("deploy", failure); }
-            return (await Studio().List()).FirstOrDefault(unit => unit.SourceKey == name)?.Hash ?? "";
+            return (await Studio().List()).FirstOrDefault(unit => unit.SourceKey == name)?.Hash ?? throw new FlowFailed("deploy", "unit not listed");
         }
         var completed = await app.CompleteBuild(attempt, inner.Files, null, inner.Manifest);
         return completed.Status == AppStatus.Live ? completed.Version
@@ -172,10 +172,11 @@ public sealed class BuildFlow : Flow<BuildInner>, IBuildFlow
     private IApp App(BuildInner inner)
     {
         var key = inner.AppKey ?? throw new FlowFailed("draft", "an app build names no app");
+        if (key.IndexOf("/apps/", StringComparison.Ordinal) < 0) { throw new FlowFailed("draft", $"{key} is not an app key"); }
         return Context.Get<IApp>(new NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(key.IndexOf('/', StringComparison.Ordinal) + 1)..]));
     }
 
-    private bool Stopping => Context.Services.GetService<IHostApplicationLifetime>()?.ApplicationStopping.IsCancellationRequested == true;
+    private ILogger Logger() => Context.Services.GetService<ILoggerFactory>()?.CreateLogger<BuildFlow>() ?? (ILogger)NullLogger.Instance;
 
     private ISynapseStudio Studio() => Context.Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
 }

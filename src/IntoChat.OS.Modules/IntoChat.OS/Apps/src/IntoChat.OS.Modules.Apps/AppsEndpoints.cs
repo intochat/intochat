@@ -65,7 +65,8 @@ internal static class AppsEndpoints
         apps.MapGet("/{name}", (string name, INeuronProxies brain, HttpContext http, CancellationToken ct) => Respond(async () =>
         {
             var key = AppKey(name);
-            var snapshot = await App(brain, name).Read().WaitAsync(ct);
+            var app = App(brain, name);
+            var snapshot = await AppBuildStatus.Of(await app.Read().WaitAsync(ct), app, brain.Get<Flows.IFlows>(Flows.IFlows.Key(BrainScope.CurrentId()).ToString()), ct);
             var sink = http.RequestServices.GetService(typeof(AppPresentationSink)) as AppPresentationSink;
             var (side, main, sequence) = sink?.TryGetPresentedViews(key) ?? (null, null, 0L);
             return snapshot.Manifest.Title.Length == 0

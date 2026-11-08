@@ -279,6 +279,10 @@ internal sealed partial class AppNeuron(
             : [];
         await Check("Progress", [new ActivityStateIsKnown(state ?? ""), .. keyRules]);
         detail = (detail ?? "").Trim();
+        // In-memory update without State.Clone() or Save() disk flushes
+        var building = State.Status == AppStatus.Building && detail.Length > 0
+            && State.Activity.LastOrDefault() != detail;
+        if (building) { State.Activity = [.. State.Activity.TakeLast(MaxActivity - 1), detail]; }
         var activity = new AppActivity(Name(), state!, detail);
         State.ActivitySequence++;
         State.LastActivity = activity;
