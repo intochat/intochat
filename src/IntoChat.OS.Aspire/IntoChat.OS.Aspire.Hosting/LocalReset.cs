@@ -45,6 +45,7 @@ public sealed class LocalReset(
     TextWriter output,
     bool interactive)
 {
+    // Legacy cleanup: the deleted CSharp sandbox left this volume on machines that ran it; reset still removes it.
     public const string CSharpCacheVolume = "intochat-os-csharp-cache";
 
     // `reset` on the AppHost command line: clears this checkout's local run state and exits before any resource is added.

@@ -8,7 +8,6 @@ using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 
@@ -21,13 +20,13 @@ internal static class BrainEventsEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
         => BrainRoutes.Group(endpoints).MapGet("/brain/events", Events);
 
-    private static async Task Events(HttpContext http, ILoggerFactory logs, CancellationToken ct)
+    private static async Task Events(HttpContext http, CancellationToken ct)
     {
         var brain = BrainEdge.Open(http.RequestServices, BrainScope.CurrentId());
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         await http.Response.Body.FlushAsync(ct);
-        await foreach (var snapshot in Snapshots(brain, BrainScope.CurrentId(), logs.CreateLogger("IntoChat.OS.Modules.Flutter.BrainEvents"), ct))
+        await foreach (var snapshot in Snapshots(brain, BrainScope.CurrentId(), ct))
         {
             await http.Response.WriteAsync("event: brain-snapshot\ndata: " + snapshot + "\n\n", ct);
             await http.Response.Body.FlushAsync(ct);
@@ -40,9 +39,9 @@ internal static class BrainEventsEndpoints
     // registered the brain is read again, so nothing that happened in between is missed, and a snapshot identical to
     // the last one is not sent. A burst of changes becomes one snapshot. A faulted watch ends the stream with its
     // error, so the client sees a failure, never a clean end.
-    internal static async IAsyncEnumerable<string> Snapshots(BrainEdge brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct)
+    // Activity and synapse data return with the journal tail (Task 21).
+    internal static async IAsyncEnumerable<string> Snapshots(BrainEdge brain, string brainId, [EnumeratorCancellation] CancellationToken ct)
     {
-        _ = log;
         // A change flag: one pending change says everything a hundred would.
         var changes = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest });
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);

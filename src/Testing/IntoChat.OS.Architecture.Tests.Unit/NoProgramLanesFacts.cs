@@ -4,7 +4,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // Units all the way: runtime-authored code is a synapse unit and build-time code is a compiled module app. The sandbox
 // script lane and the prebuilt-assembly lane are gone, and nothing brings them back under another door.
-public sealed class NoProgramLanesFacts
+public sealed partial class NoProgramLanesFacts
 {
     private static readonly string[] DeletedTypes = ["AppRunner", "ViewPresenter", "IAppRuntime", "IScriptSandbox", "CSharpAppRuntime", "IInProcessPrograms"];
 
@@ -27,19 +27,27 @@ public sealed class NoProgramLanesFacts
         Assert.DoesNotContain(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name!.StartsWith("IntoChat.OS.Modules.Microsoft.CSharp", StringComparison.Ordinal));
     }
 
-    // A "__" setting is the kernel's own. The only one left is the compiled type, named once by AppTrust; the prebuilt
-    // lane's __PrebuiltBehaviorsJson is read nowhere.
+    // A "__" setting is the kernel's own. The only one is the compiled type, named once by AppTrust (CompiledTypeSetting);
+    // every other source reads it through that constant, so no other production file spells a "__" key literal.
     [Fact]
     public void NoSettingKeyStartingWithDoubleUnderscoreIsRead()
     {
         var offenders = ProductionSources()
             .Where(path => !path.EndsWith("AppTrust.cs", StringComparison.Ordinal))
-            .Where(path => File.ReadAllText(path) is var source
-                && (source.Contains("\"__PrebuiltBehaviorsJson\"", StringComparison.Ordinal) || source.Contains("\"__CompiledType\"", StringComparison.Ordinal)))
-            .Select(Repository.Relative)
+            .SelectMany(path => ReservedKeyLiterals(File.ReadAllText(path)).Select(literal => Repository.Relative(path) + ": " + literal))
             .ToArray();
         Assert.Empty(offenders);
     }
+
+    [Fact]
+    public void TheReservedKeyScanSeesALiteralAndIgnoresAnEnvironmentSeparator()
+    {
+        Assert.Equal(["\"__PrebuiltBehaviorsJson\""], ReservedKeyLiterals("var json = settings[\"__PrebuiltBehaviorsJson\"];"));
+        Assert.Empty(ReservedKeyLiterals("var name = key.Replace(\":\", \"__\") + \"__\";"));
+    }
+
+    private static string[] ReservedKeyLiterals(string source)
+        => [.. ReservedKey().Matches(source).Select(match => match.Value)];
 
     [Fact]
     public void NoProductionSourceNamesADeletedLaneType()
@@ -54,4 +62,7 @@ public sealed class NoProgramLanesFacts
     private static IEnumerable<string> ProductionSources()
         => Repository.SourceFiles(Repository.SourceRoot, "*.cs", path => !Repository.Relative(path).Split('/')
             .Any(part => part.Contains(".Tests", StringComparison.Ordinal) || part is "tests" or "Testing"));
+
+    [GeneratedRegex(@"""__[A-Za-z]\w*""", RegexOptions.CultureInvariant)]
+    private static partial Regex ReservedKey();
 }
