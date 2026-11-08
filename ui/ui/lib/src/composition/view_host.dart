@@ -57,9 +57,9 @@ class ViewHost extends StatefulWidget {
   /// once per event. Without one it falls back to [refreshEvery].
   final Stream<void> Function(String kind, String name)? watch;
 
-  /// The brain's journal tail after a sequence: given, the view's brain scenes draw it as pulses ([BrainSignals]). Only the
+  /// The brain's journal tail from its head: given, the view's brain scenes draw it as pulses ([BrainSignals]). Only the
   /// Creator's window passes one.
-  final Stream<List<JournalTailSignal>> Function(int since)? signals;
+  final Stream<List<JournalTailSignal>> Function()? signals;
 
   @override
   State<ViewHost> createState() => _ViewHostState();
@@ -77,23 +77,13 @@ class _ViewHostState extends State<ViewHost> {
   late String _focusTarget = '${widget.kind}:${widget.name}';
   Stream<List<JournalTailSignal>>? _signals;
 
-  // One tail per host, opened on first use. The tail starts at the head of the held journal, so what was journaled before
-  // the window opened is dropped rather than replayed as a burst of pulses.
+  // One tail per host, opened on first use and shared by the view's scenes.
   Stream<List<JournalTailSignal>>? get _brainSignals {
     final open = widget.signals;
     if (open == null) return null;
-    return _signals ??= () {
-      final from = DateTime.now().toUtc().subtract(const Duration(seconds: 1));
-      return open(0)
-          .map(
-            (batch) => [
-              for (final signal in batch)
-                if (!signal.at.isBefore(from)) signal,
-            ],
-          )
-          .where((batch) => batch.isNotEmpty)
-          .asBroadcastStream(onCancel: (subscription) => subscription.cancel());
-    }();
+    return _signals ??= open().asBroadcastStream(
+      onCancel: (subscription) => subscription.cancel(),
+    );
   }
 
   @override

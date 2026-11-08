@@ -21,8 +21,8 @@ namespace IntoChat.OS.Modules.Apps
 namespace IntoChat.OS.Modules.Apps.Debugger
 {
     // The Creator's server-side reads of the running brain: a compiled app cannot address a unit's state neuron
-    // ({brain}/{alias}/default) nor the journal, so this neuron proxies IStateReader, IViewReader and the signal history, and
-    // runs a unit's kept scenarios on fakes. Every call is a read: nothing here changes the brain.
+    // ({brain}/{alias}/default) nor the journal, so this neuron proxies IStateReader, IViewReader and the signal history. Every
+    // call is a read: nothing here changes the brain or runs code (the Creator app runs scenarios itself).
     [NeuronAlias("creator.reads"), DefaultNeuronType("creator.reads")]
     public interface IDebuggerReads
     {
@@ -30,6 +30,9 @@ namespace IntoChat.OS.Modules.Apps.Debugger
 
         // The most signals Signals returns.
         const int MaxSignals = 200;
+
+        // How far back from the head Signals looks.
+        const int Window = 5000;
 
         static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "creator.reads", DefaultKey);
 
@@ -41,7 +44,8 @@ namespace IntoChat.OS.Modules.Apps.Debugger
         [DigitalBrain.ReadOnlyCall]
         Task<string?> View(string alias);
 
-        // The last limit (1..MaxSignals) journaled signals of alias, oldest first; publisher, when given, narrows them to one neuron.
+        // The last limit (1..MaxSignals) journaled signals of alias among the last Window entries, oldest first; publisher, when
+        // given, narrows them to one neuron. Empty when no loaded unit reacts to or gates on alias.
         [DigitalBrain.ReadOnlyCall]
         Task<TracePage> Signals(string alias, string? publisher, int limit);
 
@@ -49,8 +53,12 @@ namespace IntoChat.OS.Modules.Apps.Debugger
         [DigitalBrain.ReadOnlyCall]
         Task<BrainTopology> Topology();
 
-        // Runs the unit's kept scenarios (scenarios.json; only the one named, when given) on fakes and returns the transcript.
+        // Whether a loaded unit declares the state alias (always true on a host without a synapse catalog).
         [DigitalBrain.ReadOnlyCall]
-        Task<string> RunScenario(string alias, string? scenario);
+        Task<bool> Loaded(string alias);
+
+        // The brain journal's highest sequence: where a live tail starts so nothing older is replayed.
+        [DigitalBrain.ReadOnlyCall]
+        Task<long> Head();
     }
 }

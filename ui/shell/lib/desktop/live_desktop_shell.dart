@@ -1041,15 +1041,34 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     });
   }
 
-  // Only the Creator's view gets the journal tail: its brain graph is the one place pulses are drawn.
-  Stream<List<JournalTailSignal>> Function(int since)? _journalFor(
-    String view,
-  ) {
+  static const _debuggerContract =
+      'IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads';
+
+  // Only the Creator's view gets the journal tail: its brain graph is the one place pulses are drawn. The tail starts at the
+  // journal's head, read from the Creator's reads neuron, so nothing journaled before the window opened is replayed.
+  Stream<List<JournalTailSignal>> Function()? _journalFor(String view) {
     final journal = widget.journal;
-    if (journal == null || !view.startsWith('${widget.brain}/apps/creator/')) {
+    final read = widget.read;
+    if (journal == null ||
+        read == null ||
+        !view.startsWith('${widget.brain}/apps/creator/')) {
       return null;
     }
-    return (since) => journal(widget.brain, since);
+    return () async* {
+      Object? head;
+      try {
+        head = (await read(
+          _debuggerContract,
+          'creator/reads',
+          'Head',
+        ))?['value'];
+      } catch (_) {
+        // No head, no pulses: the graph stays still rather than replaying the journal.
+        return;
+      }
+      if (head is! num) return;
+      yield* journal(widget.brain, head.toInt());
+    };
   }
 
   @override

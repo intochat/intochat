@@ -34,9 +34,9 @@ public sealed class DesktopAppFacts
         os.Register<RecordingApp>();
         var desktop = await os.Install<DesktopApp>();
 
-        await desktop.Request("open", new DesktopOpen("trace", "trace/t-1"));
+        await desktop.Request("open", new DesktopOpen("creator", "trace/t-1"));
 
-        Assert.Equal(("apps/trace", "open", "trace/t-1"), Assert.Single(RecordingApp.Requests));
+        Assert.Equal(("apps/creator", "open", "trace/t-1"), Assert.Single(RecordingApp.Requests));
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class DesktopAppFacts
 
         // "open:tasks" binds the name alone; no app neuron is registered, so a forward would throw.
         await desktop.Request("open", new DesktopOpen("tasks"));
-        await desktop.Request("open", new DesktopOpen("trace", "trace/t-1"));
+        await desktop.Request("open", new DesktopOpen("creator", "trace/t-1"));
 
         Assert.Empty(RecordingApp.Requests);
         Assert.Null(desktop.App.RecordedError);

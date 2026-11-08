@@ -136,6 +136,50 @@ public sealed class CreatorAppFacts
         Assert.Equal("", creator.App.State.Draft);
     }
 
+    [Fact]
+    public async Task ASecondScenarioRunWhileOneIsInFlightIsRefused()
+    {
+        await using var os = FakeOs();
+        var creator = await os.Install<CreatorApp>();
+        var release = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runs = 0;
+        creator.App.RunScenarios = (_, _, _, _) => { runs++; return release.Task; };
+
+        var first = creator.App.Scenario(new CreatorScenario("ctr"));
+        await creator.App.Scenario(new CreatorScenario("ctr"));
+
+        Assert.Equal("The scenarios of ctr are already running.", creator.App.State.Status);
+        release.SetResult("✓ counts");
+        await first;
+        Assert.Equal(1, runs);
+        Assert.Equal("✓ counts", creator.App.State.Transcript);
+    }
+
+    [Fact]
+    public async Task AScenarioRunHasATimeBudget()
+    {
+        await using var os = FakeOs();
+        var creator = await os.Install<CreatorApp>();
+        creator.App.ScenarioBudget = TimeSpan.FromMilliseconds(50);
+        creator.App.RunScenarios = async (_, _, _, ct) => { await Task.Delay(Timeout.Infinite, ct); return "never"; };
+
+        await creator.Request("scenario", new CreatorScenario("ctr"));
+
+        Assert.StartsWith("✗ budget: the scenarios of ctr did not finish within", creator.App.State.Transcript, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnUnknownGraphKeyReadsNothing()
+    {
+        await using var os = FakeOs();
+        var creator = await os.Install<CreatorApp>();
+
+        await creator.Request("select", new CreatorSelect(Value: BrainGraph.EdgeKey("*", Unit, "other.signal")));
+
+        Assert.Null(FakeReads.Asked);
+        Assert.Contains("Not in the brain graph.", Strings(creator.App.Render()));
+    }
+
     private static TraceEntry Entry(string publisher, long sequence, string? cause, string signal = "test.hop")
         => new(publisher, sequence, signal, T0.AddMilliseconds(sequence * 10), "t1", cause, "{}");
 
@@ -254,8 +298,9 @@ public sealed class CreatorAppFacts
         public Task<string?> State(string alias) => Task.FromResult(States.GetValueOrDefault(alias));
         public Task<string?> View(string alias) => Task.FromResult(Views.GetValueOrDefault(alias));
         public Task<TracePage> Signals(string alias, string? publisher, int limit) { Asked = (alias, publisher); return Task.FromResult(new TracePage(Recent)); }
-        public Task<BrainTopology> Topology() => Task.FromResult(new BrainTopology([new(Unit, "ctr", BrainGraph.Unit)], [new("*", Unit, "ctr.bump", "reaction")]));
-        public Task<string> RunScenario(string alias, string? scenario) => Task.FromResult($"✓ {alias}");
+        public Task<BrainTopology> Topology() => Task.FromResult(new BrainTopology([new(Unit, "ctr", BrainGraph.Unit)], [new("*", Unit, "ctr.bump", "reaction"), new("*", Unit, "ctr.bump", "gate")]));
+        public Task<bool> Loaded(string alias) => Task.FromResult(alias == "ctr");
+        public Task<long> Head() => Task.FromResult(9L);
     }
 
     [Neuron("trace.reader")]

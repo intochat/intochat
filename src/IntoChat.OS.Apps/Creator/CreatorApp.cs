@@ -61,6 +61,13 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
     private FlowView[] _flows = [];
     private Approval[] _approvals = [];
     private Inspection _inspection = Inspection.None;
+    private readonly HashSet<string> _running = new(StringComparer.Ordinal);
+
+    // How long one scenario run may take.
+    public TimeSpan ScenarioBudget { get; set; } = TimeSpan.FromSeconds(30);
+
+    // Runs a unit's scenarios (alias, its files, the scenario name or null, cancellation) into a transcript.
+    public Func<string, IReadOnlyDictionary<string, string>, string?, CancellationToken, Task<string>> RunScenarios { get; set; } = ScenarioTranscripts.Run;
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(CreatorApp));
 
@@ -111,6 +118,13 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var selection = Selection.Parse(Blank(request.Value) ?? Blank(request.Key));
+        if (_topology.Nodes.Count == 0) { await RefreshAsync(); }
+        if (selection is not null && !Known(selection))
+        {
+            _inspection = new Inspection(selection.Kind, selection.Id) { Notice = "Not in the brain graph." };
+            Set(State with { Selected = selection, Transcript = null });
+            return;
+        }
         Set(State with
         {
             Selected = selection,
@@ -160,17 +174,37 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         await RefreshAsync();
     }
 
+    // Runs the unit's kept scenarios here, in the host-loaded Creator: a loaded unit only, one run per alias at a time, at most
+    // ScenarioTranscripts.MaxScenarios scenarios, within ScenarioBudget.
     [DigitalBrain.On]
     public async Task Scenario(CreatorScenario request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if ((Blank(request.Alias) ?? SelectedAlias()) is not { } alias) { return; }
+        lock (_running)
+        {
+            if (!_running.Add(alias)) { Set(State with { Status = $"The scenarios of {alias} are already running." }); return; }
+        }
         string transcript;
-        try { transcript = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).RunScenario(alias, Blank(request.Name)); }
+        using var budget = new CancellationTokenSource(ScenarioBudget);
+        try
+        {
+            transcript = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).Loaded(alias)
+                ? await RunScenarios(alias, await FilesAsync(alias), Blank(request.Name), budget.Token)
+                : $"{alias} is not a loaded unit.";
+        }
+        catch (OperationCanceledException) when (budget.IsCancellationRequested)
+        {
+            transcript = $"✗ budget: the scenarios of {alias} did not finish within {ScenarioBudget.TotalSeconds:0.#}s";
+        }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            Swallow(error, "The scenario runner is optional; the transcript says why it did not run.");
+            Swallow(error, "A scenario run that fails says why in its transcript.");
             transcript = $"The scenarios did not run: {error.Message}";
+        }
+        finally
+        {
+            lock (_running) { _running.Remove(alias); }
         }
         Set(State with { Transcript = transcript, Status = $"Ran the scenarios of {alias}" });
     }
@@ -283,7 +317,12 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         try
         {
             var page = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).Signals(alias, edge.From == "*" ? null : edge.From, EdgeSignals);
-            return new Inspection(Selection.Edge, key) { Alias = alias, Signals = page.Entries };
+            return new Inspection(Selection.Edge, key)
+            {
+                Alias = alias,
+                Signals = page.Entries,
+                Notice = page.Entries.Length == 0 ? $"none in the last {IDebuggerReads.Window} signals" : null,
+            };
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -332,6 +371,15 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The unit's files are optional; the inspector shows what was read."); }
         return files;
     }
+
+    // A selection names something the graph draws: a node, a ghost of a build flow, an edge; a pulse names a trace.
+    private bool Known(Selection selection) => selection.Kind switch
+    {
+        Selection.Pulse => true,
+        Selection.Edge => _topology.Edges.Any(e => BrainGraph.EdgeKey(e.SourceId, e.TargetId, BrainGraph.EdgeLabel(e.SignalType, e.Kind)) == selection.Id),
+        _ when selection.Id.StartsWith("draft:", StringComparison.Ordinal) => _flows.Any(f => f.Type == BuildFlow.Alias && f.Subject == selection.Id["draft:".Length..]),
+        _ => _topology.Nodes.Any(n => n.Id == selection.Id),
+    };
 
     private string? SelectedAlias() => State.Selected is { Kind: Selection.Node } node ? UnitAlias(node.Id) : null;
 

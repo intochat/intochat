@@ -44,7 +44,7 @@ public sealed class IAppSurfaceFacts
         Assert.Contains("Delete", CalledOnIApp("class C { Task M() => Get<IApp>(id).Delete(); }"));
         Assert.Contains("Publish", CalledOnIApp("class C { IApp App(string k) => null!; Task M() => App(\"k\").Publish(); }"));
         Assert.Contains("Export", CalledOnIApp("class C { Task M() { var app = Get<IApp>(id); return app!.Export(); } }"));
-        Assert.Contains("ExportVersion", CalledOnIApp("class C { IApp? Try(string n) => null; Task M() { if (Try(\"n\") is { } app) { return app.ExportVersion(\"1\"); } return Task.CompletedTask; } }"));
+        Assert.Contains("ExportRelease", CalledOnIApp("class C { IApp? Try(string n) => null; Task M() { if (Try(\"n\") is { } app) { return app.ExportRelease(\"1\", \"d\"); } return Task.CompletedTask; } }"));
         Assert.Contains("Read", CalledOnIApp("class C { IApp? _app; Task M() => _app?.Read(); }"));
     }
 

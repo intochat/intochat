@@ -1,33 +1,27 @@
 using System.Reflection;
-using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Spi;
-using DigitalBrain.Testing.Synapses;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Debugger;
 
 // The Creator's reads, run inside the brain. State and View forward to the unit's state neuron; Signals finds the journal's head
-// and reads back a window of it; Topology is the loaded synapse catalog plus the compiled apps; RunScenario runs the kept
-// scenarios through UnitScenario, the runner verify uses, on fakes in a throwaway TestOS.
+// and reads back a window of it; Topology is the loaded synapse catalog plus the compiled apps.
 [DigitalBrain.Neuron("creator.reads"), StatelessNeuron]
 public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
 {
-    // How far back from the head Signals looks for the alias.
-    public const int Window = 5000;
-
     public async Task<string?> State(string alias)
     {
-        if (!Loaded(Require(alias))) { return null; }
+        if (!IsLoaded(Require(alias))) { return null; }
         var state = await Get<IStateReader>(StateNeuron(alias)).Read(alias);
         return state.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? null : state.GetRawText();
     }
 
     public async Task<string?> View(string alias)
     {
-        if (!Loaded(Require(alias))) { return null; }
+        if (!IsLoaded(Require(alias))) { return null; }
         var view = await Get<IViewReader>(StateNeuron(alias)).Read(alias);
         return view is null ? null : JsonSerializer.Serialize(view, JsonSerializerOptions.Web);
     }
@@ -36,9 +30,10 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
         var take = Math.Clamp(limit, 1, IDebuggerReads.MaxSignals);
+        if (!Consumed(alias)) { return new TracePage([]); }
         var history = Context.History;
         var head = await Head(history);
-        var since = Math.Max(0, head - Window);
+        var since = Math.Max(0, head - IDebuggerReads.Window);
         var kept = new Queue<TraceEntry>();
         while (since < head)
         {
@@ -55,6 +50,10 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
         }
         return new TracePage([.. kept]);
     }
+
+    public Task<bool> Loaded(string alias) => Task.FromResult(IsLoaded(Require(alias)));
+
+    public Task<long> Head() => Head(Context.History);
 
     // The highest journaled sequence: doubles until a read after it is empty, then halves back.
     internal static async Task<long> Head(ISignalHistory history)
@@ -107,40 +106,12 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
         return Task.FromResult(new BrainTopology(nodes, [.. edges.Distinct()]));
     }
 
-    public async Task<string> RunScenario(string alias, string? scenario)
-    {
-        Require(alias);
-        var studio = Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
-        var code = UnitFiles.Code(await studio.SourceFiles(alias));
-        var sidecars = await studio.Sidecars(alias);
-        if (code.Count == 0) { return $"{alias} has no stored source."; }
-        if (!sidecars.TryGetValue(UnitFiles.Scenarios, out var json)) { return $"{alias} keeps no {UnitFiles.Scenarios}."; }
-        Scenario[] scenarios;
-        try { scenarios = JsonSerializer.Deserialize<Scenario[]>(json, JsonSerializerOptions.Web) ?? []; }
-        catch (JsonException error) { return $"{UnitFiles.Scenarios} does not read: {error.Message}"; }
-        var chosen = scenarios.Where(s => string.IsNullOrWhiteSpace(scenario) || s.Name == scenario).ToArray();
-        if (chosen.Length == 0) { return string.IsNullOrWhiteSpace(scenario) ? $"{alias} has no scenarios." : $"{alias} has no scenario '{scenario}'."; }
-        var source = new SynapseSource(alias, code, null);
-        var text = new StringBuilder();
-        foreach (var each in chosen)
-        {
-            ScenarioSteps.Parsed parsed;
-            try { parsed = ScenarioSteps.Parse(each); }
-            catch (FormatException error) { text.Append($"✗ {each.Name}: {error.Message}\n"); continue; }
-            var transcript = await UnitScenario.Run(source, parsed.Fakes, parsed.Steps, CancellationToken.None);
-            text.Append($"{(transcript.Passed ? "✓" : "✗")} {each.Name}\n");
-            foreach (var happened in transcript.Events)
-            {
-                var entry = TraceReaderNeuron.Entry(happened.Signal);
-                text.Append($"  step {happened.Step}: {entry.Signal} by {entry.Publisher}\n");
-            }
-            foreach (var failure in transcript.Failures) { text.Append($"  failed: {failure}\n"); }
-        }
-        return text.ToString().TrimEnd();
-    }
-
     // A host with a synapse catalog answers nothing for an alias no loaded unit declares, without activating a neuron for it.
-    private bool Loaded(string alias) => Context.Services.GetService<ISynapseCatalogSource>() is not { } catalog || catalog.Current.States.ContainsKey(alias);
+    private bool IsLoaded(string alias) => Context.Services.GetService<ISynapseCatalogSource>() is not { } catalog || catalog.Current.States.ContainsKey(alias);
+
+    // Whether a loaded synapse reacts to or gates on the signal alias (true without a catalog).
+    private bool Consumed(string signal) => Context.Services.GetService<ISynapseCatalogSource>() is not { } catalog
+        || catalog.Current.Synapses.Any(s => s.Kind != SynapseKind.View && (s.SignalAlias ?? s.Signal?.GetCustomAttribute<SignalAttribute>()?.Alias ?? s.Signal?.Name) == signal);
 
     // An alias is one path segment of a neuron id; anything else would address another neuron.
     private static string Require(string alias)
