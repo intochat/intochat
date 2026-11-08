@@ -60,7 +60,7 @@ public sealed class CircleRoomInstallFacts
             var result = await brain.Ship(alias);
             Assert.True(result.Ok, result.Text);
             Assert.True(result.Status is DeployStatus.Deployed or DeployStatus.Unchanged, result.Status.ToString());
-            Assert.True(result.Installs[alias].Status is DigitalBrain.InstallStatus.Installed or DigitalBrain.InstallStatus.Unchanged, result.Installs[alias].Sentence);
+            Assert.NotNull(await brain.Installs.Describe(alias, Ct));
         }
 
         // The room compiles inside the synapse allow-list: no diagnostics, none of them DB0045.

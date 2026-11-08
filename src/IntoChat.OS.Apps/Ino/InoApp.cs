@@ -185,7 +185,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task Link(InoPasteLink request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Request == Guid.Empty || !ChatAppCard.IsAppName(request.App)) { throw new ArgumentException("A link names its request and an app."); }
+        // An empty or malformed link posts nothing.
+        if (request.Request == Guid.Empty || !ChatAppCard.IsAppName(request.App)) { return; }
         var input = request.Input ?? "";
         if (input.Length > ChatAppCard.MaxInput) { throw new ArgumentException("The link input is too long."); }
         var id = request.Request.ToString("N");

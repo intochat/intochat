@@ -1,7 +1,7 @@
-namespace IntoChat.OS.Apps.Desktop;
+namespace IntoChat.OS.Modules.Apps;
 
 // The Desktop app's persisted state. It lives beside the app contracts (as InoAppState does) so the host that composes the
-// desktop's window shell reads its widgets; the namespace is the app's own, so the stored state is unchanged.
+// desktop's window shell reads its widgets. The app's state is stored as JSON of its members, so the move changes nothing stored.
 public sealed record DesktopAppState(
     string LayoutMode,
     bool IsNarrow,

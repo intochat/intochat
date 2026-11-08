@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Desktop;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
 

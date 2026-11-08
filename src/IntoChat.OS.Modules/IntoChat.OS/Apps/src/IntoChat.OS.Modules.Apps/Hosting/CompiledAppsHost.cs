@@ -143,7 +143,7 @@ internal sealed class CompiledAppsHost(
 
     // The open widgets the desktop app keeps, comma separated as the window shell shows them.
     private async Task<string> DesktopWidgetsAsync(string brain)
-        => await EnsureAssignedAsync(brain, "desktop", IApp.Key(brain, "desktop"), CancellationToken.None) is { App: DigitalBrain.App<IntoChat.OS.Apps.Desktop.DesktopAppState> desktop }
+        => await EnsureAssignedAsync(brain, "desktop", IApp.Key(brain, "desktop"), CancellationToken.None) is { App: DigitalBrain.App<DesktopAppState> desktop }
             ? string.Join(",", desktop.State.Widgets) : string.Empty;
 
     private async Task EnsureDesktopViewAsync(string brain)
