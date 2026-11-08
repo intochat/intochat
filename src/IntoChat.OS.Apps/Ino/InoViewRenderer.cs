@@ -363,12 +363,10 @@ internal static class InoViewRenderer
                 lastExportPath: exportPath,
                 height: 460);
         }
-        else if (card.Kind is "photocraft" or "filmcraft")
+        else if (IntoChat.OS.Modules.ArtCraft.ArtCraftCatalog.TryGet(card.Kind, out var studioDescriptor))
         {
-            var targetApp = card.Kind;
-            var label = targetApp == "photocraft" ? "Open PhotoCraft Studio" : "Open FilmCraft Studio";
             yield return new RecordCardNode(
-                targetApp == "photocraft" ? "PhotoCraft · Image Studio" : "FilmCraft · Video Studio",
+                $"{studioDescriptor.Title} · {studioDescriptor.Subtitle}",
                 card.Title,
                 [
                     new RecordFieldNode("Status", card.Status),
@@ -376,9 +374,12 @@ internal static class InoViewRenderer
                     new RecordFieldNode("Scope", card.EffectiveScopeUri),
                 ],
                 Subtitle: card.Summary,
-                LinkLabel: label,
-                OnOpen: new ButtonAction($"apps/{targetApp}", "open", []));
-            yield return Ui.WebBrowser(targetApp == "photocraft" ? "http://localhost:18082" : "http://localhost:18083", card.Title, $"{card.Id}-studio", 420, "wasm-ui");
+                LinkLabel: $"Open {studioDescriptor.Title} Studio",
+                OnOpen: new ButtonAction($"apps/{studioDescriptor.Id}", "open", []));
+            var webUrl = studioDescriptor.Id is "photocraft" or "filmcraft"
+                ? studioDescriptor.DefaultWebUrl.TrimEnd('/')
+                : studioDescriptor.StaticWebPath;
+            yield return Ui.WebBrowser(webUrl, card.Title, $"{card.Id}-studio", 420, "wasm-ui");
         }
         else
         {

@@ -25,22 +25,6 @@ enum IcBrandGlyph {
   circlesSocial,
   calculatorGrid,
   settingsGear,
-  artcraftEasel,
-  photocraftLens,
-  filmcraftReel,
-  vectorcraftBezier,
-  lightcraftRays,
-  effectcraftPrism,
-  designcraftLayout,
-  pdfcraftDoc,
-  wordcraftPage,
-  soundcraftWave,
-  deckcraftSlides,
-  cadcraftWireframe,
-  gridcraftSheet,
-  figcraftNodes,
-  texturecraftWeave,
-  materialcraftSphere,
   solidcraftCube,
 }
 
@@ -188,6 +172,15 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.activity,
       brandGlyph: IcBrandGlyph.traceTelemetry,
     ),
+    'friends': IcAppIconSpec(
+      appId: 'friends',
+      title: 'Friends',
+      category: 'Social',
+      gradientTop: Color(0xFFFB7185),
+      gradientBottom: Color(0xFFBE123C),
+      icon: LucideIcons.users,
+      brandGlyph: IcBrandGlyph.circlesSocial,
+    ),
     'post': IcAppIconSpec(
       appId: 'post',
       title: 'Post',
@@ -258,7 +251,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFF06B6D4),
       gradientBottom: Color(0xFF0369A1),
       icon: LucideIcons.image,
-      brandGlyph: IcBrandGlyph.photocraftLens,
       pngAsset: 'assets/brands/artcraft/photocraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18082,
@@ -270,7 +262,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFF43F5E),
       gradientBottom: Color(0xFF9F1239),
       icon: LucideIcons.film,
-      brandGlyph: IcBrandGlyph.filmcraftReel,
       pngAsset: 'assets/brands/artcraft/filmcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18083,
@@ -282,7 +273,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFF6366F1),
       gradientBottom: Color(0xFF4338CA),
       icon: LucideIcons.paintbrush,
-      brandGlyph: IcBrandGlyph.artcraftEasel,
       pngAsset: 'assets/brands/artcraft/artcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18080,
@@ -294,7 +284,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFF59E0B),
       gradientBottom: Color(0xFFB45309),
       icon: LucideIcons.penTool,
-      brandGlyph: IcBrandGlyph.vectorcraftBezier,
       pngAsset: 'assets/brands/artcraft/vectorcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18084,
@@ -306,7 +295,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFEAB308),
       gradientBottom: Color(0xFFA16207),
       icon: LucideIcons.sun,
-      brandGlyph: IcBrandGlyph.lightcraftRays,
       pngAsset: 'assets/brands/artcraft/lightcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18085,
@@ -318,7 +306,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFA855F7),
       gradientBottom: Color(0xFF6B21A8),
       icon: LucideIcons.wandSparkles,
-      brandGlyph: IcBrandGlyph.effectcraftPrism,
       pngAsset: 'assets/brands/artcraft/effectcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18086,
@@ -330,7 +317,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFEC4899),
       gradientBottom: Color(0xFF9D174D),
       icon: LucideIcons.layoutGrid,
-      brandGlyph: IcBrandGlyph.designcraftLayout,
       pngAsset: 'assets/brands/artcraft/designcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18087,
@@ -342,7 +328,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFEF4444),
       gradientBottom: Color(0xFF991B1B),
       icon: LucideIcons.fileText,
-      brandGlyph: IcBrandGlyph.pdfcraftDoc,
       pngAsset: 'assets/brands/artcraft/pdfcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18088,
@@ -354,7 +339,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFF2563EB),
       gradientBottom: Color(0xFF1E40AF),
       icon: LucideIcons.fileText,
-      brandGlyph: IcBrandGlyph.wordcraftPage,
       pngAsset: 'assets/brands/artcraft/wordcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18089,
@@ -366,7 +350,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFF10B981),
       gradientBottom: Color(0xFF065F46),
       icon: LucideIcons.music,
-      brandGlyph: IcBrandGlyph.soundcraftWave,
       pngAsset: 'assets/brands/artcraft/soundcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18090,
@@ -378,7 +361,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFF97316),
       gradientBottom: Color(0xFF9A3412),
       icon: LucideIcons.presentation,
-      brandGlyph: IcBrandGlyph.deckcraftSlides,
       pngAsset: 'assets/brands/artcraft/deckcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18091,
@@ -390,7 +372,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFF0EA5E9),
       gradientBottom: Color(0xFF075985),
       icon: LucideIcons.box,
-      brandGlyph: IcBrandGlyph.cadcraftWireframe,
       pngAsset: 'assets/brands/artcraft/cadcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18092,
@@ -402,7 +383,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFF16A34A),
       gradientBottom: Color(0xFF14532D),
       icon: LucideIcons.table,
-      brandGlyph: IcBrandGlyph.gridcraftSheet,
       pngAsset: 'assets/brands/artcraft/gridcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18093,
@@ -414,7 +394,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFD946EF),
       gradientBottom: Color(0xFF86198F),
       icon: LucideIcons.penTool,
-      brandGlyph: IcBrandGlyph.figcraftNodes,
       pngAsset: 'assets/brands/artcraft/figcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18094,
@@ -426,7 +405,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFD97706),
       gradientBottom: Color(0xFF78350F),
       icon: LucideIcons.paintbrush,
-      brandGlyph: IcBrandGlyph.texturecraftWeave,
       pngAsset: 'assets/brands/artcraft/texturecraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18095,
@@ -438,7 +416,6 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFFEA580C),
       gradientBottom: Color(0xFF7C2D12),
       icon: LucideIcons.layers,
-      brandGlyph: IcBrandGlyph.materialcraftSphere,
       pngAsset: 'assets/brands/artcraft/materialcraft.png',
       isArtCraftBridge: true,
       defaultWebPort: 18096,
@@ -541,7 +518,7 @@ class IcAppIcon extends StatelessWidget {
     }
     if (lower.contains('creat')) return 'creator';
     if (lower.contains('galler')) return 'gallery';
-    if (lower.contains('post') || lower.contains('publish')) return 'post';
+    if (lower.contains('friend') || lower.contains('post') || lower.contains('publish')) return 'friends';
     if (lower.contains('setting')) return 'settings';
     if (lower.contains('circle') ||
         lower.contains('space') ||
@@ -992,198 +969,6 @@ class _IcBrandGlyphPainter extends CustomPainter {
         }
         return;
 
-      case IcBrandGlyph.artcraftEasel:
-        // Artist palette + brush stroke + gold craft badge
-        canvas.drawCircle(Offset(cx, cy), w * 0.36, softFill);
-        canvas.drawCircle(Offset(cx, cy), w * 0.36, stroke);
-        canvas.drawCircle(Offset(w * 0.36, h * 0.38), w * 0.07, badgeAccent);
-        canvas.drawCircle(Offset(w * 0.58, h * 0.34), w * 0.07, fill);
-        canvas.drawCircle(Offset(w * 0.38, h * 0.60), w * 0.07, fill);
-        canvas.drawLine(
-          Offset(w * 0.48, h * 0.72),
-          Offset(w * 0.86, h * 0.18),
-          stroke,
-        );
-        return;
-
-      case IcBrandGlyph.photocraftLens:
-        // Camera aperture ring + sun mountain frame
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.12, h * 0.16, w * 0.76, h * 0.68),
-            Radius.circular(w * 0.12),
-          ),
-          stroke,
-        );
-        canvas.drawCircle(Offset(cx, cy), w * 0.18, stroke);
-        canvas.drawCircle(Offset(w * 0.70, h * 0.30), w * 0.06, badgeAccent);
-        return;
-
-      case IcBrandGlyph.filmcraftReel:
-        // Cinema clapper / play frame + sprockets
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.12, h * 0.18, w * 0.76, h * 0.64),
-            Radius.circular(w * 0.10),
-          ),
-          stroke,
-        );
-        final play = Path()
-          ..moveTo(w * 0.40, h * 0.34)
-          ..lineTo(w * 0.68, cy)
-          ..lineTo(w * 0.40, h * 0.66)
-          ..close();
-        canvas.drawPath(play, fill);
-        return;
-
-      case IcBrandGlyph.vectorcraftBezier:
-        // Bezier curve + anchor handles
-        final bez = Path()
-          ..moveTo(w * 0.16, h * 0.78)
-          ..cubicTo(w * 0.16, h * 0.22, w * 0.84, h * 0.22, w * 0.84, h * 0.78);
-        canvas.drawPath(bez, stroke);
-        canvas.drawLine(
-          Offset(w * 0.20, h * 0.24),
-          Offset(w * 0.80, h * 0.24),
-          Paint()
-            ..color = color.withValues(alpha: 0.5)
-            ..strokeWidth = 1.2,
-        );
-        canvas.drawRect(
-          Rect.fromCenter(
-            center: Offset(cx, h * 0.24),
-            width: w * 0.16,
-            height: w * 0.16,
-          ),
-          badgeAccent,
-        );
-        return;
-
-      case IcBrandGlyph.lightcraftRays:
-        canvas.drawCircle(Offset(cx, cy), w * 0.20, fill);
-        for (var i = 0; i < 8; i++) {
-          final a = i * math.pi / 4;
-          canvas.drawLine(
-            Offset(cx + math.cos(a) * w * 0.28, cy + math.sin(a) * h * 0.28),
-            Offset(cx + math.cos(a) * w * 0.42, cy + math.sin(a) * h * 0.42),
-            stroke,
-          );
-        }
-        return;
-
-      case IcBrandGlyph.effectcraftPrism:
-        final prism = Path()
-          ..moveTo(cx, h * 0.14)
-          ..lineTo(w * 0.86, h * 0.82)
-          ..lineTo(w * 0.14, h * 0.82)
-          ..close();
-        canvas.drawPath(prism, softFill);
-        canvas.drawPath(prism, stroke);
-        canvas.drawCircle(Offset(w * 0.78, h * 0.24), w * 0.08, badgeAccent);
-        return;
-
-      case IcBrandGlyph.designcraftLayout:
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.12, h * 0.14, w * 0.76, h * 0.24),
-            Radius.circular(w * 0.06),
-          ),
-          fill,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.12, h * 0.46, w * 0.34, h * 0.40),
-            Radius.circular(w * 0.06),
-          ),
-          softFill,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.54, h * 0.46, w * 0.34, h * 0.40),
-            Radius.circular(w * 0.06),
-          ),
-          stroke,
-        );
-        return;
-
-      case IcBrandGlyph.pdfcraftDoc:
-        final doc = RRect.fromRectAndRadius(
-          Rect.fromLTWH(w * 0.18, h * 0.12, w * 0.64, h * 0.76),
-          Radius.circular(w * 0.08),
-        );
-        canvas.drawRRect(doc, stroke);
-        final loop = Path()
-          ..moveTo(w * 0.34, h * 0.64)
-          ..quadraticBezierTo(cx, h * 0.26, w * 0.68, h * 0.60)
-          ..close();
-        canvas.drawPath(loop, stroke);
-        return;
-
-      case IcBrandGlyph.wordcraftPage:
-        final page = RRect.fromRectAndRadius(
-          Rect.fromLTWH(w * 0.16, h * 0.12, w * 0.68, h * 0.76),
-          Radius.circular(w * 0.08),
-        );
-        canvas.drawRRect(page, softFill);
-        canvas.drawRRect(page, stroke);
-        canvas.drawLine(
-          Offset(w * 0.30, h * 0.36),
-          Offset(w * 0.70, h * 0.36),
-          stroke,
-        );
-        canvas.drawLine(
-          Offset(w * 0.30, h * 0.52),
-          Offset(w * 0.70, h * 0.52),
-          stroke,
-        );
-        canvas.drawLine(
-          Offset(w * 0.30, h * 0.68),
-          Offset(w * 0.56, h * 0.68),
-          stroke,
-        );
-        return;
-
-      case IcBrandGlyph.soundcraftWave:
-        final bars = [0.32, 0.68, 0.86, 0.52, 0.74];
-        for (var i = 0; i < bars.length; i++) {
-          final x = w * (0.18 + i * 0.16);
-          final bh = h * bars[i];
-          canvas.drawLine(
-            Offset(x, cy - bh / 2),
-            Offset(x, cy + bh / 2),
-            stroke,
-          );
-        }
-        return;
-
-      case IcBrandGlyph.deckcraftSlides:
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.12, h * 0.18, w * 0.76, h * 0.52),
-            Radius.circular(w * 0.08),
-          ),
-          softFill,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.12, h * 0.18, w * 0.76, h * 0.52),
-            Radius.circular(w * 0.08),
-          ),
-          stroke,
-        );
-        canvas.drawLine(
-          Offset(cx, h * 0.70),
-          Offset(cx, h * 0.86),
-          stroke,
-        );
-        canvas.drawLine(
-          Offset(w * 0.32, h * 0.86),
-          Offset(w * 0.68, h * 0.86),
-          stroke,
-        );
-        return;
-
-      case IcBrandGlyph.cadcraftWireframe:
       case IcBrandGlyph.solidcraftCube:
         // Isometric 3D cube
         final top = Path()
@@ -1192,10 +977,7 @@ class _IcBrandGlyphPainter extends CustomPainter {
           ..lineTo(cx, h * 0.52)
           ..lineTo(w * 0.14, h * 0.32)
           ..close();
-        canvas.drawPath(
-          top,
-          glyph == IcBrandGlyph.solidcraftCube ? fill : softFill,
-        );
+        canvas.drawPath(top, fill);
         canvas.drawPath(top, stroke);
         final left = Path()
           ..moveTo(w * 0.14, h * 0.32)
@@ -1212,57 +994,6 @@ class _IcBrandGlyphPainter extends CustomPainter {
           ..lineTo(w * 0.86, h * 0.68)
           ..close();
         canvas.drawPath(right, stroke);
-        return;
-
-      case IcBrandGlyph.gridcraftSheet:
-        final rect = Rect.fromLTWH(w * 0.14, h * 0.16, w * 0.72, h * 0.68);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, Radius.circular(w * 0.08)),
-          stroke,
-        );
-        canvas.drawLine(
-          Offset(w * 0.14, h * 0.40),
-          Offset(w * 0.86, h * 0.40),
-          stroke,
-        );
-        canvas.drawLine(
-          Offset(w * 0.14, h * 0.62),
-          Offset(w * 0.86, h * 0.62),
-          stroke,
-        );
-        canvas.drawLine(
-          Offset(w * 0.42, h * 0.16),
-          Offset(w * 0.42, h * 0.84),
-          stroke,
-        );
-        return;
-
-      case IcBrandGlyph.figcraftNodes:
-        // Figma-inspired multi-pill geometric emblem
-        final r = w * 0.15;
-        canvas.drawCircle(Offset(w * 0.36, h * 0.26), r, fill);
-        canvas.drawCircle(Offset(w * 0.64, h * 0.26), r, softFill);
-        canvas.drawCircle(Offset(w * 0.36, h * 0.52), r, badgeAccent);
-        canvas.drawCircle(Offset(w * 0.64, h * 0.52), r, fill);
-        canvas.drawCircle(Offset(w * 0.36, h * 0.78), r, softFill);
-        return;
-
-      case IcBrandGlyph.texturecraftWeave:
-        for (var i = 0; i < 3; i++) {
-          final o = 0.24 + i * 0.26;
-          canvas.drawLine(Offset(w * 0.16, h * o), Offset(w * 0.84, h * o), stroke);
-          canvas.drawLine(Offset(w * o, h * 0.16), Offset(w * o, h * 0.84), stroke);
-        }
-        return;
-
-      case IcBrandGlyph.materialcraftSphere:
-        canvas.drawCircle(Offset(cx, cy), w * 0.36, softFill);
-        canvas.drawCircle(Offset(cx, cy), w * 0.36, stroke);
-        canvas.drawOval(
-          Rect.fromCenter(center: Offset(cx, cy), width: w * 0.72, height: h * 0.28),
-          stroke,
-        );
-        canvas.drawCircle(Offset(w * 0.38, h * 0.36), w * 0.08, badgeAccent);
         return;
     }
   }

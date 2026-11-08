@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
 class WhiteboardCardData {
@@ -30,6 +30,22 @@ class SmartAppTileSpec {
     this.category = 'App',
   });
 
+  factory SmartAppTileSpec.fromIconSpec(
+    String id, {
+    String? categoryOverride,
+  }) {
+    final spec = IcAppIcon.resolveSpec(id);
+    return SmartAppTileSpec(
+      id: id,
+      name: spec.title,
+      icon: spec.icon,
+      color: spec.gradientTop,
+      accentHex: spec.accentHex,
+      category: categoryOverride ?? spec.category,
+      neuronUri: 'neuron://local/apps/$id',
+    );
+  }
+
   final String id;
   final String name;
   final IconData icon;
@@ -39,415 +55,84 @@ class SmartAppTileSpec {
   final String category;
 }
 
-const defaultSmartAppSpecs = <SmartAppTileSpec>[
-  SmartAppTileSpec(
-    id: 'ino',
-    name: 'Ino',
-    icon: LucideIcons.sparkles,
-    color: Color(0xFF3D7EFF),
-    accentHex: '#3D7EFF',
-    category: 'Intelligence',
-    neuronUri: 'neuron://local/apps/ino',
-  ),
-  SmartAppTileSpec(
-    id: 'files',
-    name: 'Files',
-    icon: LucideIcons.folder,
-    color: Color(0xFFF6B73C),
-    accentHex: '#F6B73C',
-    category: 'Workspace',
-    neuronUri: 'neuron://local/apps/files',
-  ),
-  SmartAppTileSpec(
-    id: 'photocraft',
-    name: 'PhotoCraft',
-    icon: LucideIcons.image,
-    color: Color(0xFF06B6D4),
-    accentHex: '#06B6D4',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/photocraft',
-  ),
-  SmartAppTileSpec(
-    id: 'filmcraft',
-    name: 'FilmCraft',
-    icon: LucideIcons.film,
-    color: Color(0xFF8B5CF6),
-    accentHex: '#8B5CF6',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/filmcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'creator',
-    name: 'Creator',
-    icon: LucideIcons.wandSparkles,
-    color: Color(0xFFFF5D8F),
-    accentHex: '#FF5D8F',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/creator',
-  ),
-  SmartAppTileSpec(
-    id: 'gallery',
-    name: 'UI Gallery',
-    icon: LucideIcons.palette,
-    color: Color(0xFF22C55E),
-    accentHex: '#22C55E',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/gallery',
-  ),
-  SmartAppTileSpec(
-    id: 'post',
-    name: 'Post',
-    icon: LucideIcons.megaphone,
-    color: Color(0xFFFB7185),
-    accentHex: '#FB7185',
-    category: 'Reach',
-    neuronUri: 'neuron://local/apps/post',
-  ),
-  SmartAppTileSpec(
-    id: 'circles',
-    name: 'Circles',
-    icon: LucideIcons.circleDot,
-    color: Color(0xFFA855F7),
-    accentHex: '#A855F7',
-    category: 'Social',
-    neuronUri: 'neuron://local/apps/circles',
-  ),
-  SmartAppTileSpec(
-    id: 'workspace',
-    name: 'Workspace',
-    icon: LucideIcons.compass,
-    color: Color(0xFF14B8A6),
-    accentHex: '#14B8A6',
-    category: 'Workspace',
-    neuronUri: 'neuron://local/apps/workspace',
-  ),
-  SmartAppTileSpec(
-    id: 'brain',
-    name: 'Brain',
-    icon: LucideIcons.brainCircuit,
-    color: Color(0xFF6366F1),
-    accentHex: '#6366F1',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/brain',
-  ),
-  SmartAppTileSpec(
-    id: 'settings',
-    name: 'Settings',
-    icon: LucideIcons.slidersHorizontal,
-    color: Color(0xFF64748B),
-    accentHex: '#64748B',
-    category: 'System',
-    neuronUri: 'neuron://local/apps/settings',
-  ),
+const _defaultSmartAppIds = <String>[
+  'ino',
+  'files',
+  'photocraft',
+  'filmcraft',
+  'creator',
+  'gallery',
+  'friends',
+  'circles',
+  'workspace',
+  'brain',
+  'settings',
 ];
 
-const artCraftSmartAppSpecs = <SmartAppTileSpec>[
-  SmartAppTileSpec(
-    id: 'artcraft',
-    name: 'ArtCraft',
-    icon: LucideIcons.brush,
-    color: Color(0xFFF43F5E),
-    accentHex: '#F43F5E',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/artcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'photocraft',
-    name: 'PhotoCraft',
-    icon: LucideIcons.image,
-    color: Color(0xFF06B6D4),
-    accentHex: '#06B6D4',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/photocraft',
-  ),
-  SmartAppTileSpec(
-    id: 'filmcraft',
-    name: 'FilmCraft',
-    icon: LucideIcons.film,
-    color: Color(0xFF8B5CF6),
-    accentHex: '#8B5CF6',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/filmcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'vectorcraft',
-    name: 'VectorCraft',
-    icon: LucideIcons.penTool,
-    color: Color(0xFFF97316),
-    accentHex: '#F97316',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/vectorcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'lightcraft',
-    name: 'LightCraft',
-    icon: LucideIcons.sunMedium,
-    color: Color(0xFFEAB308),
-    accentHex: '#EAB308',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/lightcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'effectcraft',
-    name: 'EffectCraft',
-    icon: LucideIcons.wand,
-    color: Color(0xFFA855F7),
-    accentHex: '#A855F7',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/effectcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'designcraft',
-    name: 'DesignCraft',
-    icon: LucideIcons.layers,
-    color: Color(0xFFEC4899),
-    accentHex: '#EC4899',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/designcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'pdfcraft',
-    name: 'PDFCraft',
-    icon: LucideIcons.fileText,
-    color: Color(0xFFEF4444),
-    accentHex: '#EF4444',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/pdfcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'wordcraft',
-    name: 'WordCraft',
-    icon: LucideIcons.fileEdit,
-    color: Color(0xFF2563EB),
-    accentHex: '#2563EB',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/wordcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'soundcraft',
-    name: 'SoundCraft',
-    icon: LucideIcons.music,
-    color: Color(0xFF10B981),
-    accentHex: '#10B981',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/soundcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'deckcraft',
-    name: 'DeckCraft',
-    icon: LucideIcons.presentation,
-    color: Color(0xFFF59E0B),
-    accentHex: '#F59E0B',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/deckcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'cadcraft',
-    name: 'CADCraft',
-    icon: LucideIcons.compass,
-    color: Color(0xFF0EA5E9),
-    accentHex: '#0EA5E9',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/cadcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'gridcraft',
-    name: 'GridCraft',
-    icon: LucideIcons.table,
-    color: Color(0xFF16A34A),
-    accentHex: '#16A34A',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/gridcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'figcraft',
-    name: 'FigCraft',
-    icon: LucideIcons.penTool,
-    color: Color(0xFFD946EF),
-    accentHex: '#D946EF',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/figcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'texturecraft',
-    name: 'TextureCraft',
-    icon: LucideIcons.grid,
-    color: Color(0xFF14B8A6),
-    accentHex: '#14B8A6',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/texturecraft',
-  ),
-  SmartAppTileSpec(
-    id: 'materialcraft',
-    name: 'MaterialCraft',
-    icon: LucideIcons.droplet,
-    color: Color(0xFF6366F1),
-    accentHex: '#6366F1',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/materialcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'solidcraft',
-    name: 'SolidCraft',
-    icon: LucideIcons.box,
-    color: Color(0xFF3B82F6),
-    accentHex: '#3B82F6',
-    category: 'ArtCraft Studio',
-    neuronUri: 'neuron://local/apps/solidcraft',
-  ),
+const _artCraftAppIds = <String>[
+  'artcraft',
+  'photocraft',
+  'filmcraft',
+  'vectorcraft',
+  'lightcraft',
+  'effectcraft',
+  'designcraft',
+  'pdfcraft',
+  'wordcraft',
+  'soundcraft',
+  'deckcraft',
+  'cadcraft',
+  'gridcraft',
+  'figcraft',
+  'texturecraft',
+  'materialcraft',
+  'solidcraft',
 ];
 
-/// Complete catalog of all 31 DigitalBrain OS & ArtCraft Studio apps for the
-/// All Apps Launcher and Command Palette (`⌘K`).
-const allSmartAppSpecs = <SmartAppTileSpec>[
-  SmartAppTileSpec(
-    id: 'ino',
-    name: 'Ino',
-    icon: LucideIcons.sparkles,
-    color: Color(0xFF3D7EFF),
-    accentHex: '#3D7EFF',
-    category: 'Intelligence',
-    neuronUri: 'neuron://local/apps/ino',
-  ),
-  SmartAppTileSpec(
-    id: 'brain',
-    name: 'Brain',
-    icon: LucideIcons.brainCircuit,
-    color: Color(0xFF6366F1),
-    accentHex: '#6366F1',
-    category: 'Intelligence',
-    neuronUri: 'neuron://local/apps/brain',
-  ),
-  SmartAppTileSpec(
-    id: 'workspace',
-    name: 'Workspace',
-    icon: LucideIcons.compass,
-    color: Color(0xFF14B8A6),
-    accentHex: '#14B8A6',
-    category: 'Workspace',
-    neuronUri: 'neuron://local/apps/workspace',
-  ),
-  SmartAppTileSpec(
-    id: 'files',
-    name: 'Files',
-    icon: LucideIcons.folder,
-    color: Color(0xFFF6B73C),
-    accentHex: '#F6B73C',
-    category: 'Workspace',
-    neuronUri: 'neuron://local/apps/files',
-  ),
-  SmartAppTileSpec(
-    id: 'tasks',
-    name: 'Tasks',
-    icon: LucideIcons.listTodo,
-    color: Color(0xFF10B981),
-    accentHex: '#10B981',
-    category: 'Workspace',
-    neuronUri: 'neuron://local/apps/tasks',
-  ),
-  SmartAppTileSpec(
-    id: 'calculator',
-    name: 'Calculator',
-    icon: LucideIcons.calculator,
-    color: Color(0xFFF59E0B),
-    accentHex: '#F59E0B',
-    category: 'Workspace',
-    neuronUri: 'neuron://local/apps/calculator',
-  ),
-  SmartAppTileSpec(
-    id: 'data',
-    name: 'Data Studio',
-    icon: LucideIcons.barChart2,
-    color: Color(0xFF10B981),
-    accentHex: '#10B981',
-    category: 'Analytics',
-    neuronUri: 'neuron://local/apps/data',
-  ),
-  SmartAppTileSpec(
-    id: 'creator',
-    name: 'Creator',
-    icon: LucideIcons.wandSparkles,
-    color: Color(0xFFFF5D8F),
-    accentHex: '#FF5D8F',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/creator',
-  ),
-  SmartAppTileSpec(
-    id: 'gallery',
-    name: 'UI Gallery',
-    icon: LucideIcons.palette,
-    color: Color(0xFF22C55E),
-    accentHex: '#22C55E',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/gallery',
-  ),
-  SmartAppTileSpec(
-    id: 'markdraw',
-    name: 'Markdraw',
-    icon: LucideIcons.penTool,
-    color: Color(0xFFF59E0B),
-    accentHex: '#F59E0B',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/markdraw',
-  ),
-  SmartAppTileSpec(
-    id: 'aspire',
-    name: '.NET Aspire',
-    icon: LucideIcons.cpu,
-    color: Color(0xFF512BD4),
-    accentHex: '#512BD4',
-    category: 'Developer',
-    neuronUri: 'neuron://local/apps/aspire',
-  ),
-  SmartAppTileSpec(
-    id: 'trace',
-    name: 'Trace',
-    icon: LucideIcons.activity,
-    color: Color(0xFF06B6D4),
-    accentHex: '#06B6D4',
-    category: 'Developer',
-    neuronUri: 'neuron://local/apps/trace',
-  ),
-  SmartAppTileSpec(
-    id: 'post',
-    name: 'Post',
-    icon: LucideIcons.megaphone,
-    color: Color(0xFFFB7185),
-    accentHex: '#FB7185',
-    category: 'Social',
-    neuronUri: 'neuron://local/apps/post',
-  ),
-  SmartAppTileSpec(
-    id: 'circles',
-    name: 'Circles',
-    icon: LucideIcons.circleDot,
-    color: Color(0xFFA855F7),
-    accentHex: '#A855F7',
-    category: 'Social',
-    neuronUri: 'neuron://local/apps/circles',
-  ),
+const _coreSmartAppIds = <String>[
+  'ino',
+  'brain',
+  'workspace',
+  'files',
+  'tasks',
+  'calculator',
+  'data',
+  'creator',
+  'gallery',
+  'markdraw',
+  'aspire',
+  'trace',
+  'friends',
+  'circles',
+];
+
+final List<SmartAppTileSpec> defaultSmartAppSpecs = List.unmodifiable([
+  for (final id in _defaultSmartAppIds) SmartAppTileSpec.fromIconSpec(id),
+]);
+
+final List<SmartAppTileSpec> artCraftSmartAppSpecs = List.unmodifiable([
+  for (final id in _artCraftAppIds)
+    SmartAppTileSpec.fromIconSpec(id, categoryOverride: 'ArtCraft Studio'),
+]);
+
+/// Complete catalog of all 32 DigitalBrain OS & ArtCraft Studio apps for the
+/// All Apps Launcher and Command Palette (`⌘K`), derived directly from `IcAppIcon.builtInSpecs`.
+final List<SmartAppTileSpec> allSmartAppSpecs = List.unmodifiable([
+  for (final id in _coreSmartAppIds) SmartAppTileSpec.fromIconSpec(id),
   ...artCraftSmartAppSpecs,
-  SmartAppTileSpec(
-    id: 'settings',
-    name: 'Settings',
-    icon: LucideIcons.slidersHorizontal,
-    color: Color(0xFF64748B),
-    accentHex: '#64748B',
-    category: 'System',
-    neuronUri: 'neuron://local/apps/settings',
-  ),
-];
+  SmartAppTileSpec.fromIconSpec('settings'),
+]);
 
 /// Full-featured categorized "All Apps" Launcher modal displaying all 31+ apps
 /// (including all 17 `getartcraft.com` apps, `.NET Aspire`, `Brain`, `Ino`, etc.)
 /// with search, category filters, execution runtime badges, and custom brand icons.
 class AllAppsLauncherOverlay extends StatefulWidget {
-  const AllAppsLauncherOverlay({
+  AllAppsLauncherOverlay({
     super.key,
-    this.apps = allSmartAppSpecs,
+    List<SmartAppTileSpec>? apps,
     required this.onLaunchApp,
     required this.onClose,
-  });
+  }) : apps = apps ?? allSmartAppSpecs;
 
   final List<SmartAppTileSpec> apps;
   final ValueChanged<String> onLaunchApp;

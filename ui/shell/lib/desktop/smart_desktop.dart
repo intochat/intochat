@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,13 +11,13 @@ import 'app_catalog_launcher.dart';
 /// with draggable, resizable sticky-note Smart Cards, Pinning, and Auto-Arrange.
 /// (The 3D neural graph now lives exclusively inside the dedicated `Brain` app.)
 class SmartDesktop extends StatefulWidget {
-  const SmartDesktop({
+  SmartDesktop({
     super.key,
     this.hasOpenWindows = false,
     this.stylePreset = IcStylePreset.fluentAcrylic,
     this.barLayout = BarLayout.floatingGlass,
     this.tokensToday = 14800,
-    this.apps = defaultSmartAppSpecs,
+    List<SmartAppTileSpec>? apps,
     this.onLaunchApp,
     this.onOpenAllApps,
     this.onOpenPalette,
@@ -34,7 +34,7 @@ class SmartDesktop extends StatefulWidget {
     this.onWidgetsMenuChanged,
     this.dynamicCards,
     this.cardContentBuilder,
-  });
+  }) : apps = apps ?? defaultSmartAppSpecs;
 
   final bool hasOpenWindows;
   final IcStylePreset stylePreset;

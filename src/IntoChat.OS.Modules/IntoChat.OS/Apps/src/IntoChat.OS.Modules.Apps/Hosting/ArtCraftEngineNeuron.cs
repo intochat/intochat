@@ -31,37 +31,19 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
             TryGetMcpServer);
     }
 
-    public async Task<ArtCraftEngineResult> ExecutePhotoCraft(
+    public Task<ArtCraftEngineResult> ExecutePhotoCraft(
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentDocument,
         string executionMode)
-    {
-        await RequireAdmitted();
-        return await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
-            instructionOrCommand,
-            explicitParamsJson,
-            currentDocument,
-            executionMode,
-            TryGetArtCraftStudio(),
-            TryGetMcpServer);
-    }
+        => Execute("photocraft", instructionOrCommand, explicitParamsJson, currentDocument, executionMode);
 
-    public async Task<ArtCraftEngineResult> ExecuteFilmCraft(
+    public Task<ArtCraftEngineResult> ExecuteFilmCraft(
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentSequence,
         string executionMode)
-    {
-        await RequireAdmitted();
-        return await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
-            instructionOrCommand,
-            explicitParamsJson,
-            currentSequence,
-            executionMode,
-            TryGetArtCraftStudio(),
-            TryGetMcpServer);
-    }
+        => Execute("filmcraft", instructionOrCommand, explicitParamsJson, currentSequence, executionMode);
 
     private IArtCraftStudio? TryGetArtCraftStudio()
     {

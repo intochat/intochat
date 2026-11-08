@@ -385,54 +385,20 @@ public static class ArtCraftEngineRunner
         }
 
         var mode = NormalizeMode(executionMode);
-        var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
-        var inputDoc = extracted ?? (string.IsNullOrWhiteSpace(currentDocument) ? descriptor.DefaultDocument : currentDocument.Trim());
-        if (!inputDoc.StartsWith('/'))
-        {
-            inputDoc = "/work/" + inputDoc;
-        }
-
-        if (vfs is not null)
-        {
-            try
-            {
-                if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
-                {
-                    inputDoc = vfsEntry.VfsPath;
-                }
-                else if (string.Equals(inputDoc, descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
-                {
-                    var files = await vfs.ListFilesAsync().ConfigureAwait(false);
-                    var candidate = files.FirstOrDefault(f =>
-                        descriptor.SupportedExtensions.Any(ext => f.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
-                    if (candidate is not null)
-                    {
-                        inputDoc = candidate.VfsPath;
-                    }
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
-            }
-        }
+        var inputDoc = await ResolveStudioInputDocumentAsync(
+            descriptor,
+            instructionOrCommand,
+            currentDocument,
+            vfs,
+            onRecoverableError).ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(instructionOrCommand))
         {
-            return new ArtCraftEngineResult(
+            return CreateClarificationResult(
                 descriptor.Id,
                 mode,
-                "clarification.required",
-                "Clarification Required",
-                "{}",
                 inputDoc,
-                string.Empty,
-                string.Empty,
-                $"Specify a {descriptor.Title} command or instruction.",
-                string.Empty,
-                [],
-                IsValidCommand: false,
-                OutputNeuronUri: null);
+                $"Specify a {descriptor.Title} command or instruction.");
         }
 
         var raw = instructionOrCommand.Trim();
@@ -452,62 +418,9 @@ public static class ArtCraftEngineRunner
         }
         var outputDoc = $"/work/{stem}.processed{outExt}";
         var cliInvocation = $"{descriptor.CliBinary} run {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
-        var modeBadge = mode == "mcp"
-            ? $"MCP Server ({descriptor.Id}-mcp)"
-            : mode == "wasm-ui"
-                ? "WASM Web UI + Engine"
-                : $"Native Linux CLI ({descriptor.CliBinary})";
 
-        var previewUrl = CyanPreviewPngDataUrl;
-        if (mode == "mcp" && studio is not null && mcpResolver is not null)
-        {
-            try
-            {
-                var session = await studio.Open(descriptor.Id);
-                if (mcpResolver(session.McpKey) is { } mcpServer)
-                {
-                    await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP server is optional when running offline or in TestOS.");
-            }
-        }
-        else if (mode == "native-linux")
-        {
-            var nativePng = await TryRunNativeLinuxBinaryAsync(
-                descriptor.CliBinary,
-                isNewCanvas: false,
-                inputDoc,
-                cmdId,
-                paramsJson,
-                outputDoc,
-                onRecoverableError);
-            if (!string.IsNullOrWhiteSpace(nativePng))
-            {
-                previewUrl = nativePng;
-            }
-        }
-
-        string? outputNeuronUri = null;
-        if (vfs is not null && !string.IsNullOrWhiteSpace(outputDoc))
-        {
-            try
-            {
-                var bytes = Encoding.UTF8.GetBytes($"{descriptor.Title} output ({cmdId}): {inputDoc} -> {outputDoc}");
-                var written = await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false);
-                outputNeuronUri = written.NeuronUri;
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                onRecoverableError?.Invoke(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
-            }
-        }
-
-        var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · Input: `{inputDoc}` -> Output: `{outputDoc}`";
-        return new ArtCraftEngineResult(
-            descriptor.Id,
+        return await RunAndPersistStudioCommandAsync(
+            descriptor,
             mode,
             cmdId,
             title,
@@ -515,11 +428,13 @@ public static class ArtCraftEngineRunner
             inputDoc,
             outputDoc,
             cliInvocation,
-            summary,
-            previewUrl,
             descriptor.DefaultLayersOrTracks,
-            IsValidCommand: true,
-            OutputNeuronUri: outputNeuronUri);
+            inputLabel: "Input",
+            isNewGradient: false,
+            studio,
+            mcpResolver,
+            onRecoverableError,
+            vfs).ConfigureAwait(false);
     }
 
     public static async Task<ArtCraftEngineResult> ExecutePhotoCraftAsync(
@@ -532,6 +447,7 @@ public static class ArtCraftEngineRunner
         Action<Exception, string>? onRecoverableError = null,
         IFilesVfsService? vfs = null)
     {
+        var descriptor = ArtCraftCatalog.Get("photocraft");
         var mode = NormalizeMode(executionMode);
         var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(
             instructionOrCommand,
@@ -542,84 +458,181 @@ public static class ArtCraftEngineRunner
 
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
-            return new ArtCraftEngineResult(
+            return CreateClarificationResult(
                 "photocraft",
                 mode,
-                "clarification.required",
-                "Clarification Required",
-                "{}",
                 resolved.InputDoc,
-                string.Empty,
-                string.Empty,
-                $"Unrecognized photocraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.",
-                string.Empty,
-                [],
-                IsValidCommand: false,
-                OutputNeuronUri: null);
+                $"Unrecognized photocraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
         }
 
         var (cmdId, title, paramsJson, inputDoc, outputDoc, layers) = resolved;
-        if (vfs is not null && cmdId != "layer.newFillLayer.gradient")
+        var isNewGradient = cmdId == "layer.newFillLayer.gradient";
+        if (vfs is not null && !isNewGradient)
         {
-            try
-            {
-                if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
-                {
-                    inputDoc = vfsEntry.VfsPath;
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                onRecoverableError?.Invoke(error, "Could not resolve PhotoCraft input file against Files VFS.");
-            }
+            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "PhotoCraft input file", onRecoverableError).ConfigureAwait(false);
         }
 
-        var isNewGradient = cmdId == "layer.newFillLayer.gradient";
         var cliInvocation = isNewGradient
             ? $"photocraft-cli run --new '{{\"width\":512,\"height\":512}}' --cmd {cmdId} --params '{paramsJson}' --out {outputDoc} --format png"
             : $"photocraft-cli run {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc} --format png";
 
+        return await RunAndPersistStudioCommandAsync(
+            descriptor,
+            mode,
+            cmdId,
+            title,
+            paramsJson,
+            inputDoc,
+            outputDoc,
+            cliInvocation,
+            layers,
+            inputLabel: "Input",
+            isNewGradient,
+            studio,
+            mcpResolver,
+            onRecoverableError,
+            vfs).ConfigureAwait(false);
+    }
+
+    public static async Task<ArtCraftEngineResult> ExecuteFilmCraftAsync(
+        string? instructionOrCommand,
+        string? explicitParamsJson,
+        string? currentSequence,
+        string executionMode,
+        IArtCraftStudio? studio,
+        Func<string, IMcpServer?>? mcpResolver,
+        Action<Exception, string>? onRecoverableError = null,
+        IFilesVfsService? vfs = null)
+    {
+        var descriptor = ArtCraftCatalog.Get("filmcraft");
+        var mode = NormalizeMode(executionMode);
+        var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(
+            instructionOrCommand,
+            currentSequence,
+            vfs,
+            isVideo: true,
+            onRecoverableError).ConfigureAwait(false);
+
+        if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
+        {
+            return CreateClarificationResult(
+                "filmcraft",
+                mode,
+                resolved.InputDoc,
+                $"Unrecognized filmcraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
+        }
+
+        var (cmdId, title, paramsJson, inputDoc, outputDoc, tracks) = resolved;
+        if (vfs is not null)
+        {
+            inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "FilmCraft sequence", onRecoverableError).ConfigureAwait(false);
+        }
+
+        var cliInvocation = $"filmcraft-cli exec {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
+
+        return await RunAndPersistStudioCommandAsync(
+            descriptor,
+            mode,
+            cmdId,
+            title,
+            paramsJson,
+            inputDoc,
+            outputDoc,
+            cliInvocation,
+            tracks,
+            inputLabel: "Sequence",
+            isNewGradient: false,
+            studio,
+            mcpResolver,
+            onRecoverableError,
+            vfs).ConfigureAwait(false);
+    }
+
+    private static ArtCraftEngineResult CreateClarificationResult(
+        string appId,
+        string mode,
+        string inputDoc,
+        string summary) => new(
+            appId,
+            mode,
+            "clarification.required",
+            "Clarification Required",
+            "{}",
+            inputDoc,
+            string.Empty,
+            string.Empty,
+            summary,
+            string.Empty,
+            [],
+            IsValidCommand: false,
+            OutputNeuronUri: null);
+
+    private static async Task<ArtCraftEngineResult> RunAndPersistStudioCommandAsync(
+        ArtCraftAppDescriptor descriptor,
+        string mode,
+        string cmdId,
+        string title,
+        string paramsJson,
+        string inputDoc,
+        string outputDoc,
+        string cliInvocation,
+        string[] layersOrTracks,
+        string inputLabel,
+        bool isNewGradient,
+        IArtCraftStudio? studio,
+        Func<string, IMcpServer?>? mcpResolver,
+        Action<Exception, string>? onRecoverableError,
+        IFilesVfsService? vfs)
+    {
         var previewUrl = isNewGradient ? GradientPreviewPngDataUrl : CyanPreviewPngDataUrl;
-        var modeBadge = mode == "mcp"
-            ? "MCP Server (photocraft-mcp)"
-            : mode == "wasm-ui"
-                ? "WASM Web UI + Engine"
-                : "Native Linux CLI (photocraft-cli)";
+        var modeBadge = mode switch
+        {
+            "mcp" => $"MCP Server ({descriptor.Id}-mcp)",
+            "wasm-ui" => descriptor.Id == "filmcraft" ? "WASM Web UI + Page Bridge" : "WASM Web UI + Engine",
+            _ => $"Native Linux CLI ({descriptor.CliBinary})",
+        };
 
         if (mode == "mcp" && studio is not null && mcpResolver is not null)
         {
             try
             {
-                var session = await studio.Open("photocraft");
+                var session = await studio.Open(descriptor.Id);
                 if (mcpResolver(session.McpKey) is { } mcpServer)
                 {
-                    if (isNewGradient)
+                    if (descriptor.Id == "photocraft")
                     {
-                        await mcpServer.Run("doc_new", "{\"width\":512,\"height\":512,\"name\":\"Gradient\"}");
+                        if (isNewGradient)
+                        {
+                            await mcpServer.Run("doc_new", "{\"width\":512,\"height\":512,\"name\":\"Gradient\"}");
+                        }
+                        else
+                        {
+                            await mcpServer.Run("doc_open", JsonSerializer.Serialize(new { path = inputDoc }));
+                        }
+
+                        await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
+                        var previewResult = await mcpServer.Run("render_preview", "{\"format\":\"png\"}");
+                        if (!previewResult.IsError && previewResult.Blobs is { Length: > 0 } blobs && !string.IsNullOrWhiteSpace(blobs[0].Data))
+                        {
+                            previewUrl = $"data:{blobs[0].MediaType};base64,{blobs[0].Data}";
+                        }
+                        await mcpServer.Run("doc_save", JsonSerializer.Serialize(new { path = outputDoc, format = "png" }));
                     }
                     else
                     {
-                        await mcpServer.Run("doc_open", JsonSerializer.Serialize(new { path = inputDoc }));
+                        await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
                     }
-
-                    await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
-                    var previewResult = await mcpServer.Run("render_preview", "{\"format\":\"png\"}");
-                    if (!previewResult.IsError && previewResult.Blobs is { Length: > 0 } blobs && !string.IsNullOrWhiteSpace(blobs[0].Data))
-                    {
-                        previewUrl = $"data:{blobs[0].MediaType};base64,{blobs[0].Data}";
-                    }
-                    await mcpServer.Run("doc_save", JsonSerializer.Serialize(new { path = outputDoc, format = "png" }));
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                onRecoverableError?.Invoke(error, "PhotoCraft MCP server is optional when running offline or in TestOS; falling back to built-in engine preview.");
+                onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP server is optional when running offline or in TestOS; falling back to built-in engine preview.");
             }
         }
-        else if (mode == "native-linux")
+        else if (mode == "native-linux" && descriptor.Id != "filmcraft")
         {
             var nativePng = await TryRunNativeLinuxBinaryAsync(
-                "photocraft-cli",
+                descriptor.CliBinary,
                 isNewGradient,
                 inputDoc,
                 cmdId,
@@ -637,19 +650,21 @@ public static class ArtCraftEngineRunner
         {
             try
             {
-                var pngBytes = DecodeDataUrlBytes(previewUrl, $"PhotoCraft PNG artifact ({cmdId}) -> {outputDoc}");
-                var written = await vfs.WriteFileAsync(outputDoc, pngBytes).ConfigureAwait(false);
+                var bytes = descriptor.Id == "photocraft"
+                    ? DecodeDataUrlBytes(previewUrl, $"PhotoCraft PNG artifact ({cmdId}) -> {outputDoc}")
+                    : Encoding.UTF8.GetBytes($"{descriptor.Title} output ({cmdId}): {inputDoc} -> {outputDoc}");
+                var written = await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false);
                 outputNeuronUri = written.NeuronUri;
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                onRecoverableError?.Invoke(error, "Could not persist PhotoCraft output artifact to Files VFS.");
+                onRecoverableError?.Invoke(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
             }
         }
 
-        var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · Input: `{inputDoc}` -> Output: `{outputDoc}`";
+        var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · {inputLabel}: `{inputDoc}` -> Output: `{outputDoc}`";
         return new ArtCraftEngineResult(
-            "photocraft",
+            descriptor.Id,
             mode,
             cmdId,
             title,
@@ -659,116 +674,73 @@ public static class ArtCraftEngineRunner
             cliInvocation,
             summary,
             previewUrl,
-            layers,
+            layersOrTracks,
             IsValidCommand: true,
             OutputNeuronUri: outputNeuronUri);
     }
 
-    public static async Task<ArtCraftEngineResult> ExecuteFilmCraftAsync(
+    private static async Task<string> ResolveStudioInputDocumentAsync(
+        ArtCraftAppDescriptor descriptor,
         string? instructionOrCommand,
-        string? explicitParamsJson,
-        string? currentSequence,
-        string executionMode,
-        IArtCraftStudio? studio,
-        Func<string, IMcpServer?>? mcpResolver,
-        Action<Exception, string>? onRecoverableError = null,
-        IFilesVfsService? vfs = null)
+        string? currentDocument,
+        IFilesVfsService? vfs,
+        Action<Exception, string>? onRecoverableError)
     {
-        var mode = NormalizeMode(executionMode);
-        var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(
-            instructionOrCommand,
-            currentSequence,
-            vfs,
-            isVideo: true,
-            onRecoverableError).ConfigureAwait(false);
-
-        if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
+        var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
+        var inputDoc = extracted ?? (string.IsNullOrWhiteSpace(currentDocument) ? descriptor.DefaultDocument : currentDocument.Trim());
+        if (!inputDoc.StartsWith('/'))
         {
-            return new ArtCraftEngineResult(
-                "filmcraft",
-                mode,
-                "clarification.required",
-                "Clarification Required",
-                "{}",
-                resolved.InputDoc,
-                string.Empty,
-                string.Empty,
-                $"Unrecognized filmcraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.",
-                string.Empty,
-                [],
-                IsValidCommand: false,
-                OutputNeuronUri: null);
+            inputDoc = "/work/" + inputDoc;
         }
 
-        var (cmdId, title, paramsJson, inputDoc, outputDoc, tracks) = resolved;
         if (vfs is not null)
         {
             try
             {
                 if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
                 {
-                    inputDoc = vfsEntry.VfsPath;
+                    return vfsEntry.VfsPath;
                 }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                onRecoverableError?.Invoke(error, "Could not resolve FilmCraft sequence against Files VFS.");
-            }
-        }
 
-        var cliInvocation = $"filmcraft-cli exec {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
-        var modeBadge = mode == "mcp"
-            ? "MCP Server (filmcraft-mcp)"
-            : mode == "wasm-ui"
-                ? "WASM Web UI + Page Bridge"
-                : "Native Linux CLI (filmcraft-cli)";
-
-        if (mode == "mcp" && studio is not null && mcpResolver is not null)
-        {
-            try
-            {
-                var session = await studio.Open("filmcraft");
-                if (mcpResolver(session.McpKey) is { } mcpServer)
+                if (string.Equals(inputDoc, descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
                 {
-                    await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
+                    var files = await vfs.ListFilesAsync().ConfigureAwait(false);
+                    var candidate = files.FirstOrDefault(f =>
+                        descriptor.SupportedExtensions.Any(ext => f.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
+                    if (candidate is not null)
+                    {
+                        return candidate.VfsPath;
+                    }
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                onRecoverableError?.Invoke(error, "FilmCraft MCP server is optional when running offline or in TestOS; falling back to built-in timeline engine.");
+                onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
             }
         }
 
-        string? outputNeuronUri = null;
-        if (vfs is not null && !string.IsNullOrWhiteSpace(outputDoc))
+        return inputDoc;
+    }
+
+    private static async Task<string> TryResolveExactVfsPathAsync(
+        string inputDoc,
+        IFilesVfsService vfs,
+        string label,
+        Action<Exception, string>? onRecoverableError)
+    {
+        try
         {
-            try
+            if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
             {
-                var mp4Bytes = Encoding.UTF8.GetBytes($"FilmCraft MP4 render ({cmdId}): {inputDoc} -> {outputDoc}");
-                var written = await vfs.WriteFileAsync(outputDoc, mp4Bytes).ConfigureAwait(false);
-                outputNeuronUri = written.NeuronUri;
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                onRecoverableError?.Invoke(error, "Could not persist FilmCraft output artifact to Files VFS.");
+                return vfsEntry.VfsPath;
             }
         }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            onRecoverableError?.Invoke(error, $"Could not resolve {label} against Files VFS.");
+        }
 
-        var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · Sequence: `{inputDoc}` -> Output: `{outputDoc}`";
-        return new ArtCraftEngineResult(
-            "filmcraft",
-            mode,
-            cmdId,
-            title,
-            paramsJson,
-            inputDoc,
-            outputDoc,
-            cliInvocation,
-            summary,
-            CyanPreviewPngDataUrl,
-            tracks,
-            IsValidCommand: true,
-            OutputNeuronUri: outputNeuronUri);
+        return inputDoc;
     }
 
     private static async Task<string?> ResolveInputDocumentFromVfsAsync(

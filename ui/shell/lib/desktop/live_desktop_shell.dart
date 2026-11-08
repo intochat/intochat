@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -137,7 +137,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     'filmcraft',
     'creator',
     'gallery',
-    'post',
+    'friends',
     'workspace',
     'brain',
     'settings',
