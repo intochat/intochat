@@ -770,6 +770,7 @@ internal sealed class CompiledAppsHost(
                 await host.AssignType(appKey, spec.AppType, new Dictionary<string, string>(StringComparer.Ordinal), ct);
                 turns = host.TryGetTurns(appKey)!;
                 WireInoServices(brain, turns.App);
+                await AttachWatchesAsync(brain, appKey, turns);
             }
             return turns;
         }
@@ -795,11 +796,21 @@ internal sealed class CompiledAppsHost(
                 if (assignedTurns is not null)
                 {
                     WireInoServices(brain, assignedTurns.App);
+                    await AttachWatchesAsync(brain, appKey, assignedTurns);
                 }
                 return assignedTurns;
             }
         }
         return null;
+    }
+
+    // The app's declared watches, served for as long as the host runs; re-assigning the app replaces them (listeners are keyed per app and watch).
+    private async Task AttachWatchesAsync(string brain, string appKey, DigitalBrain.Apps.Hosting.AppTurns turns)
+    {
+        if (turns.App.DeclaredWatches().Count == 0) { return; }
+        _ = await HostedAppWatches.Attach(listeners, turns, new AppAddress(brain, appKey),
+            (contract, id) => SiloNeurons.Get(services, contract, id),
+            (error, watch) => logger.LogWarning(error, "Watch {Watch} of {App} failed.", watch, appKey));
     }
 
     private void WireInoServices(string brain, App instance)

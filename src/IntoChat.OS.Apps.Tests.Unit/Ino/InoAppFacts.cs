@@ -174,7 +174,20 @@ public sealed class InoAppFacts
         Assert.Equal("ino/conversations/main", ino.App.State.AgentKey);
         var started = Assert.Single(os.Journal(Brain).Signals(AgentOf("main")).Select(entry => entry.Signal).OfType<TurnStarted>());
         Assert.Equal("hello there", started.UserText);
-        Assert.Equal(started.RunId, ino.App.State.ActiveRunId);
+    }
+
+    [Fact]
+    public async Task NewConversationMovesTheWatchBeforeTheNextSend()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("first"));
+
+        await ino.Request("new", new InoNew());
+
+        var current = await os.Get<IInoConversations>(new NeuronId(Brain, "ino.conversations", IInoConversations.DefaultKey)).Current();
+        Assert.Equal([$"ino/conversations/{ino.App.State.ConversationId}"], current);
+        Assert.Equal(1, BackgroundAgent.Starts);
     }
 
     [Fact]

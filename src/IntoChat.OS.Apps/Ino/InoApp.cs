@@ -200,6 +200,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             // The run goes on in the agent; its signals reach the [On] handlers below through the set watch.
             var runId = await agent.Start(AgentTurn.Text(text));
             Set(State with { ActiveRunId = runId, Blocked = false, BlockedReason = null, Status = "Thinking" });
+            await ReconcileAsync(agent, runId);
         }
         catch (InvalidOperationException error) when (error.Message.StartsWith(BlockedPrefix, StringComparison.Ordinal))
         {
@@ -210,6 +211,25 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Swallow(error, "The agent could not start; the status line reports why.");
             Set(State with { Status = $"Ino could not answer: {error.Message}", ActiveRunId = null });
         }
+    }
+
+    // A run that ended before the watch saw it (a fast reply, or signals published before the registry moved) is read back once.
+    private async Task ReconcileAsync(IAgent agent, string runId)
+    {
+        var read = await agent.Read();
+        if (read.ActiveRun?.RunId == runId || read.Runs.FirstOrDefault(run => run.RunId == runId) is not { } ended) { return; }
+        _transcript = await agent.Transcript();
+        Set(State with
+        {
+            ActiveRunId = null,
+            Status = ended.Status switch
+            {
+                AgentRunStatus.Completed => "Ready",
+                AgentRunStatus.Cancelled => "Cancelled",
+                AgentRunStatus.Running => State.Status,
+                _ => $"Failed: {ended.Error}",
+            },
+        });
     }
 
     // The set watch follows the registry's current agent; naming it there moves the watch to this conversation.
@@ -293,9 +313,9 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if (State.ActiveRunId is null) { return; }
-        // The agent's TurnFailed (cancelled) clears the active run.
-        await Get<IAgent>(AgentKeyOf(State.ConversationId)).Cancel();
+        // Stopping first: the agent's TurnFailed (cancelled), which may arrive during Cancel, has the last word and clears the run.
         Set(State with { Status = "Stopping" });
+        await Get<IAgent>(AgentKeyOf(State.ConversationId)).Cancel();
     }
 
     [DigitalBrain.On]
@@ -344,7 +364,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         switch (cmd)
         {
             case "new":
-                New(new InoNew());
+                await New(new InoNew());
                 return;
             case "clear":
                 _transcript = [];
@@ -430,20 +450,20 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     }
 
     [DigitalBrain.On]
-    public void New(InoNew request)
+    public Task New(InoNew request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        StartConversation();
+        return StartConversation();
     }
 
     [DigitalBrain.On]
-    public void NewConversation(InoNewConversation request)
+    public Task NewConversation(InoNewConversation request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        StartConversation();
+        return StartConversation();
     }
 
-    private void StartConversation()
+    private async Task StartConversation()
     {
         var conversationId = $"c-{Guid.NewGuid():N}"[..10];
         _transcript = [];
@@ -452,6 +472,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             AgentKey = AgentKeyOf(conversationId),
             GrantSummaries = State.GrantSummaries,
         });
+        // The watch moves now, so the new conversation's first signals are not raced by the next Send.
+        await FollowAsync(AgentKeyOf(conversationId));
     }
 
     [DigitalBrain.On]
