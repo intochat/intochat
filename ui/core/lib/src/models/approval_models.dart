@@ -23,18 +23,18 @@ final class Approval {
     required this.kind,
     required this.subject,
     required this.title,
-    this.detail,
+    required this.detail,
     required this.requested,
-    this.expires,
+    required this.expires,
     required this.traceId,
   });
   final String planId;
   final ApprovalKind kind;
   final String subject;
   final String title;
-  final String? detail;
+  final String detail;
   final String requested;
-  final String? expires;
+  final String expires;
   final String traceId;
 
   factory Approval.fromJson(Map<String, dynamic> json) => Approval(
@@ -42,9 +42,9 @@ final class Approval {
     kind: ApprovalKind.fromWire(json['kind'] as String),
     subject: json['subject'] as String,
     title: json['title'] as String,
-    detail: json['detail'] as String?,
+    detail: json['detail'] as String,
     requested: json['requested'] as String,
-    expires: json['expires'] as String?,
+    expires: json['expires'] as String,
     traceId: json['traceId'] as String,
   );
 

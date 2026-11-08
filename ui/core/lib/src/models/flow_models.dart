@@ -78,7 +78,7 @@ final class FlowRelation {
 }
 
 List<String> _strings(Object? value) =>
-    (value as List? ?? const []).map((e) => '$e').toList(growable: false);
+    (value as List).cast<String>().toList(growable: false);
 
 final class FlowView {
   const FlowView({
@@ -142,9 +142,12 @@ final class FlowView {
     waitingStep: json['waitingStep'] as String?,
     confirmationPlanId: json['confirmationPlanId'] as String?,
     fraction: (json['fraction'] as num).toDouble(),
-    relations: (json['relations'] as List? ?? const [])
-        .whereType<Map>()
-        .map((e) => FlowRelation.fromJson(e.cast<String, dynamic>()))
+    relations: (json['relations'] as List)
+        .map(
+          (e) => e is Map
+              ? FlowRelation.fromJson(e.cast<String, dynamic>())
+              : throw FormatException('Malformed relation', e),
+        )
         .toList(growable: false),
     blockedBy: _strings(json['blockedBy']),
     parentFlowId: json['parentFlowId'] as String?,

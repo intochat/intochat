@@ -24,7 +24,7 @@ final class JournaledSignalView {
         sequence: (json['sequence'] as num).toInt(),
         type: json['type'] as String,
         publisher: json['publisher'] as String,
-        payload: (json['payload'] as Map? ?? const {}).cast<String, dynamic>(),
+        payload: (json['payload'] as Map).cast<String, dynamic>(),
         at: json['at'] as String,
         traceId: json['traceId'] as String?,
         causationId: json['causationId'] as String?,

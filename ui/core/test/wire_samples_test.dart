@@ -47,7 +47,22 @@ void main() {
     (j) => JournaledSignalView.fromJson(j).toJson(),
   );
 
-  test('unknown enum wire value throws', () {
-    expect(() => PresenceState.fromWire('Nope'), throwsFormatException);
+  final fromWires = <String, Object Function(String)>{
+    'PresenceState': PresenceState.fromWire,
+    'FocusTone': FocusTone.fromWire,
+    'ApprovalKind': ApprovalKind.fromWire,
+    'FlowStatus': FlowStatus.fromWire,
+    'WaitReason': WaitReason.fromWire,
+    'RelationKind': RelationKind.fromWire,
+  };
+  fromWires.forEach((name, fromWire) {
+    test('$name.fromWire throws on an unknown value', () {
+      expect(() => fromWire('Nope'), throwsFormatException);
+    });
+  });
+
+  test('a malformed relation entry throws', () {
+    final json = _sample('flow-view.json')..['relations'] = ['x'];
+    expect(() => FlowView.fromJson(json), throwsFormatException);
   });
 }
