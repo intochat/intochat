@@ -1,17 +1,17 @@
 {
   "flowId": "b1/flow.assistant/9f2c41",
-  "type": "assistant.task",
-  "title": "Summarise the quarter",
+  "type": "flow.build",
+  "title": "watch elonmusk on X",
   "owner": "user:ada",
   "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
   "status": "Waiting",
-  "steps": ["Collect reports", "Ask to move files", "Write summary"],
-  "done": ["Collect reports"],
-  "current": "Ask to move files",
-  "waitingFor": "Approval",
-  "waitingStep": "Ask to move files",
+  "steps": ["author", "draft", "verify", "deploy", "install"],
+  "done": ["author", "draft", "verify", "deploy"],
+  "current": "install",
+  "waitingFor": "External",
+  "waitingStep": "install",
   "confirmationPlanId": "plan-7d3e",
-  "fraction": 0.5,
+  "fraction": 0.8,
   "relations": [
     { "targetFlowId": "b1/flow.assistant/1a0b77", "kind": "Follows", "lag": "00:05:00" },
     { "targetFlowId": "b1/flow.assistant/c55d09", "kind": "Subtask", "lag": null }
@@ -20,7 +20,7 @@
   "parentFlowId": "b1/flow.assistant/0e8812",
   "started": "2026-11-08T09:30:00+00:00",
   "ended": null,
-  "detail": "Waiting for the move of 2 files to be approved.",
-  "app": "assistant",
+  "detail": null,
+  "app": "ino",
   "conversation": "conv-3b91"
 }

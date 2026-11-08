@@ -189,13 +189,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.FlowId) is not { } flowId) { return; }
         var unit = await UnitOfAsync(flowId);
-        Set(State with
-        {
-            Selected = flowId,
-            Source = unit is null
-                ? "No deployed unit matches this flow."
-                : $"{unit.SourceKey} · {unit.Status} · build {unit.Hash}\nAliases: {string.Join(", ", unit.Aliases)}\nDeployed {unit.At:u}",
-        });
+        Set(State with { Selected = flowId, Source = unit is null ? await StagedSourceAsync(flowId) : await SourceOfAsync(unit) });
     }
 
     [DigitalBrain.On]
@@ -204,7 +198,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.FlowId) is not { } flowId) { return; }
         var unit = await UnitOfAsync(flowId);
-        var alias = unit?.Aliases.FirstOrDefault() ?? unit?.SourceKey ?? FlowKey(flowId);
+        var alias = unit?.Aliases.FirstOrDefault() ?? unit?.SourceKey ?? AliasOf(flowId) ?? FlowKey(flowId);
         // The focus carries the open-ino action; the shell's presence layer opens Ino from it.
         await Get<IInoFocus>(IInoFocus.DefaultKey).Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
         Set(State with { Status = $"Asked Ino to change {alias}" });
@@ -251,20 +245,59 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         Set(State with { Status = State.Status });
     }
 
-    // The deployed unit whose source key or alias is the flow's key.
+    // The deployed unit whose source key or alias is the unit the flow authored (named by the install consent it waits on) or the flow's key.
     private async Task<DigitalBrain.DeployedSource?> UnitOfAsync(string flowId)
     {
-        var key = FlowKey(flowId);
+        var keys = new[] { AliasOf(flowId), FlowKey(flowId) }.OfType<string>().ToArray();
         try
         {
             var units = await Get<ISynapseStudio>(SynapsesKey).List();
-            return units.FirstOrDefault(u => u.SourceKey == key || u.Aliases.Contains(key, StringComparer.Ordinal));
+            return units.FirstOrDefault(u => keys.Any(key => u.SourceKey == key || u.Aliases.Contains(key, StringComparer.Ordinal)));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The synapse studio is optional; the alias falls back to the flow key.");
             return null;
         }
+    }
+
+    // The alias a build flow waiting at install authored: the SynapseStaged consent its confirmation plan raised names it.
+    private string? AliasOf(string flowId)
+        => _flows.FirstOrDefault(f => f.FlowId == flowId) is { ConfirmationPlanId: { } plan }
+            && _approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == plan) is { } consent ? consent.Subject : null;
+
+    // The source of a deployed unit: spec.md first, then the .cs files, then scenarios.json, each under its path.
+    private async Task<string> SourceOfAsync(DigitalBrain.DeployedSource unit)
+    {
+        var alias = unit.Aliases.FirstOrDefault() ?? unit.SourceKey;
+        var header = $"{unit.SourceKey} · {unit.Status} · build {unit.Hash}\nAliases: {string.Join(", ", unit.Aliases)}\nDeployed {unit.At:u}";
+        return header + await FilesOfAsync(alias);
+    }
+
+    // A flow whose unit is not live yet (waiting for consent) still shows the files the studio kept for its alias.
+    private async Task<string> StagedSourceAsync(string flowId)
+        => AliasOf(flowId) is { } alias && await FilesOfAsync(alias) is { Length: > 0 } files
+            ? $"{alias} · staged, waiting for your consent{files}"
+            : "No deployed unit matches this flow.";
+
+    private async Task<string> FilesOfAsync(string alias)
+    {
+        var studio = Get<ISynapseStudio>(SynapsesKey);
+        Dictionary<string, string> files = new(StringComparer.Ordinal);
+        try
+        {
+            foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
+            foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "The unit's files are optional; the source shows what was read.");
+        }
+        var ordered = files.Where(file => file.Key == "spec.md")
+            .Concat(files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).OrderBy(file => file.Key, StringComparer.Ordinal))
+            .Concat(files.Where(file => file.Key is not "spec.md" and not "scenarios.json" && !file.Key.EndsWith(".cs", StringComparison.Ordinal)).OrderBy(file => file.Key, StringComparer.Ordinal))
+            .Concat(files.Where(file => file.Key == "scenarios.json"));
+        return string.Concat(ordered.Select(file => $"\n\n--- {file.Key} ---\n{file.Value}"));
     }
 
     private static string FlowKey(string flowId) => flowId[(flowId.LastIndexOf('/') + 1)..];

@@ -197,6 +197,71 @@ public sealed class TasksAppFacts
         Assert.Contains("weather", source.Body, StringComparison.Ordinal);
     }
 
+    private static FlowView Unit(FlowStatus status, string? current, string[] done, WaitReason? waiting = null, string? waitingStep = null, string? plan = null, string? detail = null)
+        => Flow("u", status, type: "flow.build") with
+        {
+            Steps = ["author", "draft", "verify", "deploy", "install"], Done = done, Current = current,
+            WaitingFor = waiting, WaitingStep = waitingStep, ConfirmationPlanId = plan, Detail = detail,
+        };
+
+    [Fact]
+    public void AnInstallWaitShowsTheNeedsSentenceAndNoApproveButton()
+    {
+        var flow = Unit(FlowStatus.Waiting, "install", ["author", "draft", "verify", "deploy"], WaitReason.External, "install", "plan-i");
+        var consent = new Approval("plan-i", ApprovalKind.SynapseStaged, "xwatch", "Install xwatch?", "Reads posts. Reads api.x.com.", T0, T0.AddDays(2), flow.TraceId);
+
+        var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [consent], null);
+
+        Assert.Contains("Reads posts. Reads api.x.com.", Strings(side));
+        Assert.Contains("✓ deploy", Strings(side));
+        Assert.Contains("● install", Strings(side));
+        Assert.All(Nodes(side).OfType<ApprovalCardNode>(), card => Assert.Null(card.Resolve));
+        Assert.DoesNotContain(Nodes(side).OfType<Button>(), b => b.Label.Contains("pprove", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AMissingConnectionShowsTheConnectTextWithAnOpenSettingsIntent()
+    {
+        var flow = Unit(FlowStatus.Waiting, "deploy", ["author", "draft", "verify"], WaitReason.External, "deploy", detail: "connect http@1 for api.x.com");
+
+        var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
+
+        Assert.Contains("connect http@1 for api.x.com", Strings(side));
+        var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Key == "open-connections").Intent;
+        Assert.Equal(new Intent(IntentKind.OpenSettings, "connections"), open);
+    }
+
+    [Fact]
+    public void AFailedVerifyShowsTheFirstThreeLinesAndTheCount()
+    {
+        var flow = Unit(FlowStatus.Failed, "verify", ["author", "draft"],
+            detail: "The unit did not pass verify.\nX.cs(3) SYN001: no\nscenario one failed\nscenario two failed\nscenario three failed");
+
+        var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
+
+        var bar = Assert.Single(Nodes(side).OfType<InfoBar>(), b => b.Title == "Verify failed");
+        Assert.Equal("The unit did not pass verify.\nX.cs(3) SYN001: no\nscenario one failed\n(+2 more)", bar.Message);
+    }
+
+    [Fact]
+    public async Task ShowSourceRendersTheSpecFirstThenTheCodeThenTheScenarios()
+    {
+        await using var os = FakeOs();
+        FakeFlows.Views = [Flow("unit1", FlowStatus.Completed, type: "flow.build")];
+        FakeSynapses.Sources = [new DeployedSource("unit1", "h1", ["weather"], DeployStatus.Deployed, null, T0)];
+        FakeSynapses.Files = new() { ["B.cs"] = "class B;", ["A.cs"] = "class A;" };
+        FakeSynapses.SidecarFiles = new() { ["scenarios.json"] = "[]", ["spec.md"] = "# Weather" };
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+
+        await tasks.Request("show-source", new TasksShowSource(FakeFlows.Views[0].FlowId));
+
+        var body = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Card>(), c => c.Title == "Source").Body;
+        var order = new[] { "--- spec.md ---", "--- A.cs ---", "--- B.cs ---", "--- scenarios.json ---" }.Select(marker => body.IndexOf(marker, StringComparison.Ordinal)).ToArray();
+        Assert.All(order, index => Assert.True(index >= 0, body));
+        Assert.Equal(order.Order(), order);
+    }
+
     [Fact]
     public async Task FlowsChangedRefreshesTheBoard()
     {
@@ -240,6 +305,8 @@ public sealed class TasksAppFacts
         FakeFlows.Reset();
         FakeFocus.Points.Clear();
         FakeSynapses.Sources = [];
+        FakeSynapses.SidecarFiles = [];
+        FakeSynapses.Files = [];
         var os = TestOS.Local();
         os.Register<FakeFlows>();
         os.Register<FakeApprovals>();
@@ -331,7 +398,11 @@ public sealed class TasksAppFacts
         public Task<InoToolResult> Check(string source) => Task.FromResult(new InoToolResult(""));
         public Task<InoToolResult> Deploy(string alias, string source) => Task.FromResult(new InoToolResult(""));
         public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings) => Task.FromResult(new UnitDeployResult(true, "", DigitalBrain.DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.InstallOutcome>()));
-        public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(new Dictionary<string, string>());
+        public static Dictionary<string, string> SidecarFiles { get; set; } = [];
+        public static Dictionary<string, string> Files { get; set; } = [];
+
+        public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(SidecarFiles);
+        public Task<Dictionary<string, string>> SourceFiles(string alias) => Task.FromResult(Files);
         public Task<InoToolResult> Retire(string alias) => Task.FromResult(new InoToolResult(""));
         public Task<DeployedSource[]> List() => Task.FromResult(Sources);
     }

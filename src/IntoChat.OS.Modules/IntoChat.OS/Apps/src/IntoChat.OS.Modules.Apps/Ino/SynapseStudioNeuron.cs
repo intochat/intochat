@@ -140,6 +140,10 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
         => Task.FromResult(State.Sidecars?.TryGetValue(alias, out var files) == true
             ? new Dictionary<string, string>(files, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal));
 
+    public async Task<Dictionary<string, string>> SourceFiles(string alias)
+        => Context.Services.GetService<ISourceStore>() is { } store && await store.Get(Id.Brain, alias, CancellationToken.None) is { } record
+            ? new Dictionary<string, string>(record.Files, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal);
+
     private bool SameSidecars(string alias, Dictionary<string, string> sidecars)
         => State.Sidecars?.TryGetValue(alias, out var known) == true && known.Count == sidecars.Count
             && sidecars.All(file => known.TryGetValue(file.Key, out var text) && text == file.Value);

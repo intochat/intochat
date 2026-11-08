@@ -51,6 +51,7 @@ public static class TasksViewRenderer
             new JobCardNode(flow.Title, [.. flow.Steps.Select(step => StepNode(flow, step))], flow.Fraction, flow.Status.ToString().ToLowerInvariant()),
         ];
         if (flow.WaitingFor is { } waiting) { children.Add(new InfoBar("Waiting", $"{waiting} on {flow.WaitingStep}", "warning")); }
+        if (flow.Type == BuildFlow.Alias) { children.AddRange(BuildNodes(flow, approvals)); }
         if (approvals.FirstOrDefault(a => a.Subject == flow.FlowId) is { } approval)
         {
             children.Add(new ApprovalCardNode("approval", approval.PlanId, approval.Title, approval.Detail, [], Resolve: new Resolve(approval.PlanId)));
@@ -74,6 +75,52 @@ public static class TasksViewRenderer
         if (source is not null) { children.Add(new Card("Source", source, [])); }
         return new View(flow.Title, new Column(children));
     }
+
+    // A unit flow's own cards: the consent its install waits on (the needs sentence; answered in the OS inbox, so no resolve here), the
+    // connection its deploy waits for, and the verify failures of a flow that failed there.
+    private static IEnumerable<Node> BuildNodes(FlowView flow, Approval[] approvals)
+    {
+        if (flow is { Status: FlowStatus.Waiting, WaitingStep: "install" }
+            && approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == flow.ConfirmationPlanId) is { } consent)
+        {
+            yield return new ApprovalCardNode("consent", consent.PlanId, consent.Title, consent.Detail, []);
+            yield return new Text("Approve or deny in the inbox.") { Tone = "muted" };
+        }
+        if (flow is { Status: FlowStatus.Waiting, WaitingStep: "deploy" })
+        {
+            var missing = approvals.FirstOrDefault(a => a.Kind == ApprovalKind.Other && a.Subject == flow.FlowId)?.Detail ?? flow.Detail;
+            if (!string.IsNullOrWhiteSpace(missing))
+            {
+                yield return new InfoBar("Needs a connection", missing, "warning",
+                    new Button("open-connections", "Open connections", Intent: new Intent(IntentKind.OpenSettings, "connections")) { Small = true, Icon = "plug" });
+            }
+        }
+        if (flow is { Status: FlowStatus.Failed, Detail: { Length: > 0 } detail } && FailedAt(flow) == "verify")
+        {
+            yield return new InfoBar("Verify failed", FirstLines(detail, 3), "danger");
+        }
+    }
+
+    // The step a failed flow stopped at: the current one, else the first not done.
+    private static string? FailedAt(FlowView flow) => flow.Current ?? flow.Steps.FirstOrDefault(step => !flow.Done.Contains(step, StringComparer.Ordinal));
+
+    // The first lines of a transcript and how many follow.
+    public static string FirstLines(string text, int count)
+    {
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return lines.Length <= count ? string.Join('\n', lines) : string.Join('\n', lines.Take(count)) + $"\n(+{lines.Length - count} more)";
+    }
+
+    // What a unit flow's step does, shown beside a step that has not finished.
+    private static string? Hint(string type, string step) => type != BuildFlow.Alias ? null : step switch
+    {
+        "author" => "Writes the spec, needs and scenarios",
+        "draft" => "Writes the code",
+        "verify" => "Runs the scenarios on fakes",
+        "deploy" => "Binds connections and deploys",
+        "install" => "Waits for your consent to the needs",
+        _ => null,
+    };
 
     // Opens the Trace app's window at the view trace/{traceId}.
     public static Intent OpenTrace(string traceId) => AppSignals.OpenApp("trace", $"trace/{traceId}");
@@ -223,8 +270,8 @@ public static class TasksViewRenderer
     private static JobStepNode StepNode(FlowView flow, string step)
     {
         if (flow.Done.Contains(step, StringComparer.Ordinal)) { return new JobStepNode($"✓ {step}", "done"); }
-        if (flow.Current == step) { return new JobStepNode($"● {step}", "running", flow.WaitingStep == step ? $"{flow.WaitingFor}" : null); }
-        return new JobStepNode($"○ {step}", "waiting");
+        if (flow.Current == step) { return new JobStepNode($"● {step}", "running", flow.WaitingStep == step ? $"{flow.WaitingFor}" : Hint(flow.Type, step)); }
+        return new JobStepNode($"○ {step}", "waiting", Hint(flow.Type, step));
     }
 
     private static string Lag(TimeSpan lag) => lag.TotalDays >= 1 ? $"{lag.TotalDays:0.#}d" : $"{lag.TotalHours:0.#}h";

@@ -468,8 +468,28 @@ public sealed class BuildFlowFacts
         var card = Assert.IsType<InoCard>(result.Card);
         var view = await Settled(runtime, card.Id);
         Assert.Equal(BuildFlow.Alias, view.Type);
+        Assert.Equal(["author", "draft", "verify", "deploy", "install"], view.Steps);
         Assert.Equal("install", view.WaitingStep);
         Assert.Contains(card.Id, result.Text, StringComparison.Ordinal);
+        Assert.Equal($"neuron://local/apps/tasks#{card.Id}", card.SourceNeuronUri);
+        Assert.Contains("Tasks board", result.Text, StringComparison.Ordinal);
+        Assert.Equal("x.watch", (await Inner(runtime, card.Id)).Alias);
+    }
+
+    [Fact]
+    public async Task ListShowsDeployedUnitsWithTheirSidecars()
+    {
+        await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var ino = runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio"));
+        var card = Assert.IsType<InoCard>((await ino.Make("watch elonmusk on X")).Card);
+        await Settled(runtime, card.Id);
+
+        var listed = await ino.List();
+
+        Assert.Contains("markdraw", listed.Text, StringComparison.Ordinal);
+        Assert.Contains("x.watch", listed.Text, StringComparison.Ordinal);
+        Assert.Contains("spec.md kept, scenarios.json kept", listed.Text, StringComparison.Ordinal);
     }
 
     // While the app is Building, a failed build flow shows it Failed with the flow's detail.

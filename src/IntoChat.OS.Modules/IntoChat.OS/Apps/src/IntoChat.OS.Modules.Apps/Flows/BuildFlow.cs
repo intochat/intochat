@@ -163,7 +163,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                         // The answers come back through the mailbox, so after the base has saved this wait.
                         RaiseChoices(inner);
                         await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
-                        return new StepResult<BuildInner>(inner, new Waiting(step, WaitReason.External, null, null));
+                        return new StepResult<BuildInner>(inner, new Waiting(step, WaitReason.External, null, null), [MissingNote(inner)]);
                     }
                     await DeployUnit(inner, unit);
                     return new StepResult<BuildInner>(inner);
@@ -370,7 +370,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         if (Bind(State.Inner, await Resolve(UnitOf(State.Inner).Needs, State.Inner.Chosen, CancellationToken.None)))
         {
             var after = State.Inner.ChoicePlans?.Keys.Order(StringComparer.Ordinal).ToArray() ?? [];
-            if (!before.SequenceEqual(after) || missing != State.Inner.Missing) { await Save(State, [StillWaiting()]); }
+            if (!before.SequenceEqual(after) || missing != State.Inner.Missing) { await Save(State, [StillWaiting(), MissingNote(State.Inner)]); }
             RaiseChoices(State.Inner);
             return;
         }
@@ -379,6 +379,9 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     }
 
     private Task StopRecheck() => Context.Reminders.Stop(Recheck);
+
+    // The flow's detail while deploy waits: what no connection satisfies ("connect http@1 for api.x.com"), cleared once it is none.
+    private FlowStep MissingNote(BuildInner inner) => new(Id.ToString(), "deploy", StepOutcome.Interrupted, inner.Missing);
 
     // What the deploy wait waits for changed (a connection arrived, a choice was answered): the same wait, announced again.
     private FlowWaiting StillWaiting() => new(Id.ToString(), "deploy", WaitReason.External, null);

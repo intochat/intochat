@@ -46,6 +46,10 @@ public interface ISynapseStudio
     // studio keeps them beside the source. Empty for an alias never deployed or retired.
     [DigitalBrain.ReadOnlyCall]
     Task<Dictionary<string, string>> Sidecars(string alias);
+
+    // The files of the source the host stores for alias (its compiled .cs files); empty when nothing is stored there.
+    [DigitalBrain.ReadOnlyCall]
+    Task<Dictionary<string, string>> SourceFiles(string alias);
 }
 
 // One DeployFiles outcome: Ok with the host's status and build hash, else Text is why. Installs is the host's install outcome per
