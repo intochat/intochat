@@ -269,7 +269,7 @@ final class IntoChatOSUiClient {
         (kind == 'person' && name.endsWith('/profile')) ||
         (kind == 'collection' && name.endsWith('/posts')) ||
         (kind == 'card' && RegExp(r'^.+/posts/[A-Za-z0-9_-]+$').hasMatch(name));
-    final contract = NodeContracts.of(friendSlot ? 'scene' : kind);
+    final contract = NodeContracts.of(friendSlot ? 'friends.space' : kind);
     final source = friendSlot ? '$brainId/space' : name;
     final signals = kind == 'confirmation'
         ? ['ConfirmationRequested', 'ConfirmationResolved']

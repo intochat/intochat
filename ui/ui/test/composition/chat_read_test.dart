@@ -14,7 +14,7 @@ void main() {
       final events = <Map<String, dynamic>>[];
       Widget view(int revision) => MaterialApp(
         home: Scaffold(
-          body: NeuronView(
+          body: ViewHost(
             kind: 'chat',
             name: 'transcript',
             revision: revision,
@@ -33,6 +33,7 @@ void main() {
             onAction: (event) async {
               events.add(event);
               if (fail) throw StateError('Outdated transcript');
+              return null;
             },
           ),
         ),

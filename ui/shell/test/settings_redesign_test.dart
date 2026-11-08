@@ -5,37 +5,49 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   paletteTests();
-  testWidgets('declared select options send selection to their neuron', (
-    tester,
-  ) async {
+  testWidgets('a select option activates its key on the view', (tester) async {
     final events = <Map<String, dynamic>>[];
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: NeuronView(
-            kind: 'select',
-            name: 'model',
+          body: ViewHost(
+            kind: 'view',
+            name: 'brain-1/apps/settings/view',
             load: (_, _) async => {
-              'label': 'Model',
-              'selected': null,
-              'options': [
-                {'id': 'profile:fast', 'label': 'Fast', 'enabled': true},
-              ],
+              'generation': 4,
+              'view': {
+                'title': 'Settings',
+                'root': {
+                  'kind': 'select',
+                  'label': 'Model',
+                  'selected': '',
+                  'options': [
+                    {
+                      'key': 'model-fast',
+                      'id': 'profile:fast',
+                      'label': 'Fast',
+                      'emit': {'owner': 'apps/settings', 'signal': 'model'},
+                    },
+                  ],
+                },
+              },
             },
+            watch: (_, _) => const Stream.empty(),
             onAction: (event) async => events.add(event),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Model'));
+    await tester.tap(find.byType(UiKitSelect<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Fast'));
     await tester.pumpAndSettle();
     expect(events.single, {
-      'kind': 'select',
-      'name': 'model',
-      'value': 'profile:fast',
+      'kind': 'view',
+      'name': 'brain-1/apps/settings/view',
+      'generation': 4,
+      'key': 'model-fast',
     });
     await tester.pumpWidget(const SizedBox());
   });

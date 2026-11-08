@@ -17,7 +17,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: NeuronView(
+          body: ViewHost(
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {'title': 'Customer Researcher', 'uri': ''},
@@ -45,11 +45,11 @@ void main() {
             home: Scaffold(
               body: SizedBox(
                 width: 360,
-                child: NeuronView(
+                child: ViewHost(
                   kind: 'webbrowser',
                   name: 'workspace/app/browser',
                   load: (_, _) async => {'title': title, 'uri': ''},
-                  onAction: (_) async {},
+                  onAction: (_) async => null,
                 ),
               ),
             ),
@@ -77,7 +77,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: NeuronView(
+          body: ViewHost(
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {'title': 'Preview', 'uri': 'http://intent/'},
@@ -100,7 +100,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: NeuronView(
+          body: ViewHost(
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {'title': 'Browser', 'uri': 'http://intent/'},
@@ -131,11 +131,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: NeuronView(
+          body: ViewHost(
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {'title': 'Browser', 'uri': 'http://intent/'},
-            onAction: (_) async {},
+            onAction: (_) async => null,
           ),
         ),
       ),
@@ -154,7 +154,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: NeuronView(
+          body: ViewHost(
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {
@@ -164,7 +164,7 @@ void main() {
               'connection': 'attached',
               'error': '',
             },
-            onAction: (_) async {},
+            onAction: (_) async => null,
           ),
         ),
       ),

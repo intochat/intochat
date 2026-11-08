@@ -22,7 +22,7 @@ const assistantView = {
   'name': 'assistant',
   'manifest': {
     'title': 'Assistant',
-    'entry': {'kind': 'surface', 'name': 'surface'},
+    'entry': {'kind': 'view', 'name': 'surface'},
     'description': 'Chat with your brain',
     'icon': null,
     'operations': [
@@ -52,49 +52,7 @@ Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
   if (!request.url.path.endsWith('/apps/node')) return null;
   final name = request.url.queryParameters['name'] ?? '';
   return switch (request.url.queryParameters['kind']) {
-    'surface' => {
-      'definition': {
-        'mode': 'column',
-        'children': [
-          {'kind': 'layout', 'name': '$root/messages'},
-          {'kind': 'layout', 'name': '$root/prompts'},
-          {'kind': 'textfield', 'name': '$root/draft'},
-          {'kind': 'layout', 'name': '$root/footer'},
-        ],
-        'extents': [-1, 50, 70, 48],
-      },
-    },
-    'layout' =>
-      name.endsWith('/messages')
-          ? {'mode': 'list', 'children': <Object>[]}
-          : name.endsWith('/prompts')
-          ? {
-              'mode': 'row',
-              'children': [
-                {'kind': 'button', 'name': '$root/prompt-one'},
-                {'kind': 'button', 'name': '$root/prompt-two'},
-              ],
-            }
-          : {
-              'mode': 'row',
-              'children': [
-                {'kind': 'fileinput', 'name': '$root/file'},
-                {'kind': 'voiceinput', 'name': '$root/voice'},
-                {'kind': 'button', 'name': '$root/send'},
-              ],
-            },
-    'textfield' => {'label': 'Message', 'kind': 'multiline', 'value': ''},
-    'voiceinput' => {'label': 'Dictate'},
-    'fileinput' => {'label': 'Attach'},
-    'button' => {
-      'label': name.endsWith('prompt-one')
-          ? 'Ask the assistant'
-          : name.endsWith('prompt-two')
-          ? 'Work with Salesforce'
-          : 'Send',
-      'enabled': true,
-      'action': 'click',
-    },
+    'field' => {'owner': root, 'name': name, 'value': '', 'version': 1},
     'view' =>
       name.endsWith('/apps/desktop/view')
           ? {
@@ -143,7 +101,7 @@ Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
                             'kind': 5,
                             'key': 'body-w1',
                             'reference': {
-                              'kind': 'surface',
+                              'kind': 'view',
                               'name': '${segments[1]}/apps/ino/surface',
                             },
                           },
@@ -155,8 +113,50 @@ Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
                 ],
               },
             }
-          : null,
+          : assistantPublishedView(root),
     _ => null,
+  };
+}
+
+/// The assistant's published view: prompts, the draft field and Send.
+Map<String, dynamic> assistantPublishedView(String root) {
+  final owner = root.substring(root.indexOf('/') + 1);
+  Map<String, dynamic> button(String key, String label) => {
+    'kind': 'button',
+    'key': key,
+    'label': label,
+    'emit': {'owner': owner, 'signal': key},
+    'enabled': true,
+  };
+  return {
+    'generation': 1,
+    'view': {
+      'title': 'Assistant',
+      'root': {
+        'kind': 'column',
+        'children': [
+          {'kind': 'collection', 'entries': <Object>[]},
+          {
+            'kind': 'row',
+            'children': [
+              button('prompt-one', 'Ask the assistant'),
+              button('prompt-two', 'Work with Salesforce'),
+            ],
+          },
+          {
+            'kind': 'field',
+            'key': 'draft',
+            'name': '$owner/draft',
+            'fieldKind': 'Multiline',
+            'placeholder': 'Message',
+          },
+          {
+            'kind': 'row',
+            'children': [button('send', 'Send')],
+          },
+        ],
+      },
+    },
   };
 }
 
@@ -292,7 +292,7 @@ class ApplicationServer extends http.BaseClient {
               'state': 'ready',
               if (focus == '$brain/apps/$app')
                 'main': jsonEncode({
-                  'kind': 'surface',
+                  'kind': 'view',
                   'name': '$brain/apps/$app/surface',
                 }),
               if (focus == '$brain/apps/$app')
@@ -313,7 +313,10 @@ class ApplicationServer extends http.BaseClient {
         },
       });
     }
-    if (request.url.queryParameters['kind'] == 'surface') {
+    if (request.url.queryParameters['kind'] == 'view' &&
+        !(request.url.queryParameters['name'] ?? '').endsWith(
+          '/desktop/view',
+        )) {
       renderedSurface = request.url.queryParameters['name'];
     }
     if (path.endsWith('/apps/assistant') || path.endsWith('/apps/ino')) {

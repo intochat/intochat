@@ -74,7 +74,7 @@ class LiveDesktopShell extends StatefulWidget {
   final String name;
   final NeuronLoader load;
   final Stream<void> Function(String kind, String name)? watch;
-  final Future<void> Function(Map<String, dynamic>) onAction;
+  final NeuronAction onAction;
   final ValueChanged<Map<String, dynamic>> onActivate;
   final IcStylePreset stylePreset;
   final BarLayout barLayout;
@@ -878,7 +878,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
             'action': 'navigate:$settingsSection',
             'operationId': _operationId(),
           })
-          .catchError((Object _) {}),
+          .catchError((Object _) => null),
     );
   }
 
@@ -1047,7 +1047,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       if (_error != null && data == null) {
         return Center(child: Text('$_error'));
       }
-      return NeuronView(
+      return ViewHost(
         key: ValueKey('fallback:${widget.name}'),
         kind: 'view',
         name: widget.name,
@@ -1055,9 +1055,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         watch: widget.watch,
         onAction: widget.onAction,
         onActivate: widget.onActivate,
-        scenes: widget.scenes,
-        entries: widget.entries,
-        localPreferences: widget.localPreferences,
       );
     }
 
@@ -1382,7 +1379,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 windowBuilders: {
                                   for (final w in visibleWindows)
                                     if (w.windowId != spec.windowId)
-                                      w.windowId: (context) => NeuronView(
+                                      w.windowId: (context) => ViewHost(
                                         key: ValueKey(
                                           'canvas-viewport:${w.viewportRef['name']}:${_windowStates[w.windowId]?.reloadEpoch ?? 0}',
                                         ),
@@ -1397,14 +1394,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                               windows,
                                               dockButtons,
                                             ),
-                                        scenes: widget.scenes,
-                                        entries: widget.entries,
-                                        localPreferences:
-                                            widget.localPreferences,
                                       ),
                                 },
                               )
-                            : NeuronView(
+                            : ViewHost(
                                 key: ValueKey(
                                   'viewport:${spec.viewportRef['name']}:${_windowStates[spec.windowId]?.reloadEpoch ?? 0}',
                                 ),
@@ -1419,9 +1412,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                       windows,
                                       dockButtons,
                                     ),
-                                scenes: widget.scenes,
-                                entries: widget.entries,
-                                localPreferences: widget.localPreferences,
                               ),
                       ),
                   ],

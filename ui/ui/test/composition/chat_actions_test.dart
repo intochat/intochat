@@ -9,7 +9,7 @@ void main() {
     var running = true;
     Widget view(int revision) => MaterialApp(
       home: Scaffold(
-        body: NeuronView(
+        body: ViewHost(
           kind: 'chat',
           name: 'transcript',
           revision: revision,
@@ -55,7 +55,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: NeuronView(
+          body: ViewHost(
             kind: 'chat',
             name: 'transcript',
             load: (_, _) async => {

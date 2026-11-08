@@ -87,11 +87,20 @@ void main() {
     });
   }
 
-  test('the view tree decodes as nodes with kind, key and children', () {
-    final view = states['IntoChat.OS.Modules.Flutter.Views.UiView'] as Map;
-    expect(view['generation'], isNotNull);
-    expectNode('UiView.root', view['root']);
-    expectNode('UiNode', states['IntoChat.OS.Modules.Flutter.Views.UiNode']);
+  test('a published view decodes into the generated node models', () {
+    final view = AppView.fromJson({
+      'title': 'Sample',
+      'root': {
+        'kind': 'column',
+        'children': [
+          {'kind': 'text', 'value': 'Hello'},
+          {'kind': 'button', 'key': 'go', 'label': 'Go'},
+        ],
+      },
+    });
+    final root = view.root as ColumnNode;
+    expect((root.children.first as TextNode).value, 'Hello');
+    expect((root.children.last as ButtonNode).enabled, isTrue);
   });
 
   test('the posted UI event carries its kind, name and action', () {

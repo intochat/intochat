@@ -189,12 +189,9 @@ void main() {
                 }
                 return {
                   'generation': 1,
-                  'root': {
-                    'kind': 2,
-                    'key': 'app-body',
-                    'children': [
-                      {'kind': 6, 'key': 'txt', 'text': 'Viewport: $name'},
-                    ],
+                  'view': {
+                    'title': name,
+                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
                   },
                 };
               },
@@ -260,12 +257,9 @@ void main() {
                 }
                 return {
                   'generation': 1,
-                  'root': {
-                    'kind': 2,
-                    'key': 'app-body',
-                    'children': [
-                      {'kind': 6, 'key': 'txt', 'text': 'Viewport: $name'},
-                    ],
+                  'view': {
+                    'title': name,
+                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
                   },
                 };
               },
@@ -489,12 +483,9 @@ void main() {
                 }
                 return {
                   'generation': 1,
-                  'root': {
-                    'kind': 2,
-                    'key': 'app-body',
-                    'children': [
-                      {'kind': 0, 'key': 'txt', 'text': 'Viewport: $name'},
-                    ],
+                  'view': {
+                    'title': name,
+                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
                   },
                 };
               },
@@ -515,7 +506,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      // 1. Short click (<500ms) on Reload button refreshes the window's NeuronView
+      // 1. Short click (<500ms) on Reload button refreshes the window's ViewHost
       final loadsBefore = viewportLoads;
       await tester.tap(find.byKey(const ValueKey('window-reload-btn-2')));
       await tester.pump();
@@ -601,12 +592,9 @@ void main() {
                 }
                 return {
                   'generation': 1,
-                  'root': {
-                    'kind': 2,
-                    'key': 'app-body',
-                    'children': [
-                      {'kind': 6, 'key': 'txt', 'text': 'Viewport: $name'},
-                    ],
+                  'view': {
+                    'title': name,
+                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
                   },
                 };
               },
@@ -689,12 +677,9 @@ void main() {
                 }
                 return {
                   'generation': 1,
-                  'root': {
-                    'kind': 2,
-                    'key': 'app-body',
-                    'children': [
-                      {'kind': 0, 'key': 'txt', 'text': 'Viewport: $name'},
-                    ],
+                  'view': {
+                    'title': name,
+                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
                   },
                 };
               },

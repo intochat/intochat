@@ -64,7 +64,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: NeuronView(
+            body: ViewHost(
               kind: 'chat',
               name: 'reading',
               load: (_, _) async => {
@@ -120,7 +120,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: NeuronView(
+            body: ViewHost(
               kind: 'chat',
               name: 'conversation',
               load: (_, _) async => {

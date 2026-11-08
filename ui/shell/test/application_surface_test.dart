@@ -17,24 +17,20 @@ void main() {
       baseUri: Uri.parse('http://test'),
       httpClient: MockClient((request) async {
         final workspace = request.url.pathSegments[1];
-        final kind = request.url.queryParameters['kind'];
-        final Object response;
-        if (kind == 'surface') {
-          response = {
-            'definition': {
-              'children': [
-                {
-                  'kind': conversation ? 'card' : 'text',
-                  'name': '$workspace/content',
-                },
-              ],
-            },
-          };
-        } else {
-          response = conversation
-              ? {'title': 'Research companion', 'body': ''}
-              : {'markdown': 'The application selected text'};
-        }
+        final response = {
+          'generation': 1,
+          'view': {
+            'title': workspace,
+            'root': conversation
+                ? {
+                    'kind': 'card',
+                    'title': 'Research companion',
+                    'body': '',
+                    'children': <Object>[],
+                  }
+                : {'kind': 'text', 'value': 'The application selected text'},
+          },
+        };
         return http.Response(jsonEncode(response), 200);
       }),
     );
@@ -46,7 +42,7 @@ void main() {
           application: 'assistant',
           start: () async {
             starts.add(workspace);
-            return {'kind': 'surface', 'name': '$workspace/root'};
+            return {'kind': 'view', 'name': '$workspace/root'};
           },
         ),
       ),
@@ -75,7 +71,16 @@ void main() {
     final client = IntoChatOSUiClient(
       baseUri: Uri.parse('http://test'),
       httpClient: MockClient((request) async {
-        return http.Response(jsonEncode({'markdown': 'Ready'}), 200);
+        return http.Response(
+          jsonEncode({
+            'generation': 1,
+            'view': {
+              'title': 'Ready',
+              'root': {'kind': 'text', 'value': 'Ready'},
+            },
+          }),
+          200,
+        );
       }),
     );
     await tester.pumpWidget(
@@ -87,7 +92,7 @@ void main() {
             application: 'assistant',
             start: () async {
               if (++attempts == 1) throw StateError('Unavailable');
-              return {'kind': 'text', 'name': 'ready'};
+              return {'kind': 'view', 'name': 'ready'};
             },
           ),
         ),

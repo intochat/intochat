@@ -1,6 +1,7 @@
 import 'package:intochat_os_ui/intochat_os_ui.dart' show kitToastLifetime;
 
-import 'dart:convert' show jsonEncode, jsonDecode;
+import 'dart:async' show unawaited;
+import 'dart:convert' show jsonDecode;
 
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:flutter/widgets.dart' show Size;
@@ -17,7 +18,14 @@ void main() {
     ) async {
       final server = ActivationServer(target);
       final fixture = await ApplicationFixture.start(tester, server: server);
-      await tester.tap(find.text('Open target'));
+      unawaited(
+        fixture.appState.activateAction({
+          'brainId': target,
+          'application': 'target',
+          'operation': 'profile',
+          'input': 'person-1',
+        }),
+      );
       await tester.pumpAndSettle();
       final requests = server.requestsTo(
         '/brains/$target/apps/navigation/request',
@@ -46,7 +54,7 @@ void main() {
     'server-selected root mounts without legacy workspace navigation',
     (tester) async {
       final server = ApplicationServer()
-        ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+        ..root = {'kind': 'view', 'name': 'brain-1/apps/assistant/surface'};
       final fixture = await ApplicationFixture.start(tester, server: server);
       expect(find.byType(LiveDesktopShell), findsNothing);
       expect(find.text('Ask the assistant'), findsOneWidget);
@@ -65,7 +73,7 @@ void main() {
     tester,
   ) async {
     final server = ApplicationServer()
-      ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+      ..root = {'kind': 'view', 'name': 'brain-1/apps/assistant/surface'};
     final fixture = await ApplicationFixture.start(tester, server: server);
     await tester.pump(const Duration(milliseconds: 100));
     final watched = {
@@ -82,7 +90,7 @@ void main() {
     fixture.link.events.add(
       const NeuronSignal(
         source: 'brain-1/apps/assistant/draft',
-        type: 'TextFieldChanged',
+        type: 'FieldChanged',
         publisher: 'brain-1/apps/assistant/draft',
         sequence: 0,
         payload: {},
@@ -100,9 +108,9 @@ void main() {
     tester,
   ) async {
     final server = ReconnectServer()
-      ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+      ..root = {'kind': 'view', 'name': 'brain-1/apps/assistant/surface'};
     final fixture = await ApplicationFixture.start(tester, server: server);
-    await tester.tap(find.text('Classic layout'));
+    unawaited(fixture.appState.activateAction(_classicLayout));
     await tester.pumpAndSettle();
     expect(server.connects, 2);
     final switched = server.requestsTo('/brains/brain-1/apps/desktop/request');
@@ -113,6 +121,7 @@ void main() {
       server.requestsTo('/brains/brain-1/apps/navigation/request'),
       isEmpty,
     );
+    await tester.pump(kitToastLifetime);
     await fixture.dispose();
   });
 
@@ -142,7 +151,7 @@ void main() {
 
   testWidgets('other roots get no width hint', (tester) async {
     final server = ApplicationServer()
-      ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+      ..root = {'kind': 'view', 'name': 'brain-1/apps/assistant/surface'};
     final fixture = await ApplicationFixture.start(tester, server: server);
     expect(server.requestsTo('/brains/brain-1/apps/desktop/request'), isEmpty);
     await fixture.dispose();
@@ -152,9 +161,9 @@ void main() {
     tester,
   ) async {
     final server = ReconnectServer(switches: false)
-      ..root = {'kind': 'surface', 'name': 'brain-1/apps/assistant/surface'};
+      ..root = {'kind': 'view', 'name': 'brain-1/apps/assistant/surface'};
     final fixture = await ApplicationFixture.start(tester, server: server);
-    await tester.tap(find.text('Classic layout'));
+    unawaited(fixture.appState.activateAction(_classicLayout));
     for (var i = 0; i < 12; i++) {
       await tester.pump(const Duration(milliseconds: 300));
     }
@@ -166,6 +175,14 @@ void main() {
   });
 }
 
+const _classicLayout = {
+  'kind': 'reconnect',
+  'brainId': 'brain-1',
+  'application': 'desktop',
+  'operation': 'layout',
+  'input': 'classic',
+};
+
 class ActivationServer extends ApplicationServer {
   ActivationServer(this.targetBrain);
   final String targetBrain;
@@ -175,20 +192,8 @@ class ActivationServer extends ApplicationServer {
       requests.add(RecordedAppRequest(request.url.path, body(request)));
       final brain = request.url.pathSegments[1];
       return json({
-        'root': {'kind': 'button', 'name': '$brain/apps/source/go'},
+        'root': {'kind': 'view', 'name': '$brain/apps/assistant/surface'},
         'activationApp': 'navigation',
-      });
-    }
-    if (request.url.path.endsWith('/apps/node')) {
-      return json({
-        'label': 'Open target',
-        'enabled': true,
-        'activation': jsonEncode({
-          'brainId': targetBrain,
-          'application': 'target',
-          'operation': 'profile',
-          'input': 'person-1',
-        }),
       });
     }
     return super.send(request);
@@ -205,24 +210,10 @@ class ReconnectServer extends ApplicationServer {
       connects++;
       if (connects == 1 || !switches) {
         return json({
-          'root': {'kind': 'button', 'name': 'brain-1/apps/source/go'},
+          'root': {'kind': 'view', 'name': 'brain-1/apps/assistant/surface'},
           'activationApp': 'navigation',
         });
       }
-    }
-    if (request.url.path.endsWith('/apps/node') &&
-        (connects == 1 || !switches)) {
-      return json({
-        'label': 'Classic layout',
-        'enabled': true,
-        'activation': jsonEncode({
-          'kind': 'reconnect',
-          'brainId': 'brain-1',
-          'application': 'desktop',
-          'operation': 'layout',
-          'input': 'classic',
-        }),
-      });
     }
     return super.send(request);
   }

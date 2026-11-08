@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:intochat_os_ui/src/components/button/ui_neuron_select.dart';
+import 'package:intochat_os_ui/src/composition/value_nodes/view_avatar.dart';
+import 'package:intochat_os_ui/src/composition/value_nodes/view_divider.dart';
+import 'package:intochat_os_ui/src/composition/value_nodes/view_list.dart';
+import 'package:intochat_os_ui/src/composition/value_nodes/view_menu.dart';
+import 'package:intochat_os_ui/src/composition/value_nodes/view_modal.dart';
+import 'package:intochat_os_ui/src/composition/value_nodes/view_toast.dart';
 
 /// A fixed sheet of kit components for golden comparison across palettes,
 /// mirroring the Figma `ComponentsPage` sections. Kit widgets are used
 /// directly; menu, modal, toast, list, badge, avatar and divider are value
-/// nodes rendered through [NeuronView]. Each overlay demo gets its own
+/// nodes drawn with their widgets. Each overlay demo gets its own
 /// [Overlay] so the open menu, modal and toast stay inside their section.
 class KitSheet extends StatelessWidget {
   const KitSheet({super.key});
@@ -274,30 +280,60 @@ class KitSheet extends StatelessWidget {
   }
 }
 
-/// A value-tree root rendered through [NeuronView] inside a private
+/// A value-node tree drawn with the value-node widgets inside a private
 /// [Overlay], so overlay kinds draw within this box.
 class _ValueTree extends StatelessWidget {
   const _ValueTree(this.root);
   final Map<String, dynamic> root;
 
+  static VoidCallback? _action(Map node) => () {};
+
+  static Widget _node(Map node) {
+    final children = [
+      for (final child in (node['children'] as List? ?? const []))
+        if (child is Map) child,
+    ];
+    final text = node['text'] as String? ?? '';
+    return switch (node['kind']) {
+      0 => Text(text),
+      1 => UiKitButton(
+        label: text,
+        icon: node['icon'] as String?,
+        style: UiKitButtonStyle.values[(node['style'] as int? ?? 0)],
+        onPressed: () {},
+      ),
+      2 => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 8,
+        children: [for (final child in children) _node(child)],
+      ),
+      3 => Row(
+        spacing: (node['gap'] as num? ?? 0).toDouble(),
+        children: [
+          for (var i = 0; i < children.length; i++)
+            SizedBox(
+              width: ((node['extents'] as List?)?[i] as num?)?.toDouble(),
+              child: _node(children[i]),
+            ),
+        ],
+      ),
+      6 => ViewMenu(node: node, action: _action),
+      7 => ViewModal(
+        node: node,
+        children: [for (final child in children) (child, _node(child))],
+        action: _action,
+      ),
+      8 => ViewToast(node: node, generation: 1, action: _action),
+      9 => ViewList(count: children.length, row: (i) => _node(children[i])),
+      10 => ViewBadge(text: text, tone: node['tone']),
+      11 => ViewAvatar(initials: text),
+      12 => ViewDivider(label: text),
+      _ => const SizedBox.shrink(),
+    };
+  }
+
   @override
   Widget build(BuildContext context) => ClipRect(
-    child: Overlay(
-      initialEntries: [
-        OverlayEntry(
-          builder: (_) => NeuronView(
-            kind: 'view',
-            name: root['key'] as String,
-            load: (kind, name) async => {
-              'generation': 1,
-              'version': 1,
-              'root': root,
-            },
-            watch: (kind, name) => const Stream.empty(),
-            onAction: (event) async {},
-          ),
-        ),
-      ],
-    ),
+    child: Overlay(initialEntries: [OverlayEntry(builder: (_) => _node(root))]),
   );
 }

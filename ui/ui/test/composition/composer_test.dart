@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:intochat_os_ui/src/chat/ui_composer.dart';
-import 'package:intochat_os_ui/src/composition/neuron_view.dart';
+import 'package:intochat_os_ui/src/composition/view_host.dart';
 import 'package:intochat_os_ui/src/voice_input/ui_voice_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -59,7 +59,7 @@ void main() {
         home: Scaffold(
           body: SizedBox(
             height: 152,
-            child: NeuronView(
+            child: ViewHost(
               kind: 'composer',
               name: 'composer',
               load: (_, _) async => {
@@ -71,6 +71,7 @@ void main() {
                 final completion = [first, second, third][count++];
                 await completion.future;
                 draft = event['value'] as String;
+                return null;
               },
             ),
           ),

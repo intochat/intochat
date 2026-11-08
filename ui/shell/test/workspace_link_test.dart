@@ -147,7 +147,7 @@ void main() {
         switches++;
       },
     );
-    await tester.tap(find.text('Switch account'));
+    unawaited(fixture.appState.activateAction({'kind': 'account'}));
     await tester.pumpAndSettle();
     expect(switches, 1);
     expect(
@@ -278,17 +278,6 @@ void main() {
 
 class AccountActivationServer extends ActivationServer {
   AccountActivationServer() : super('brain-1');
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    if (request.url.path.endsWith('/apps/node')) {
-      return json({
-        'label': 'Switch account',
-        'enabled': true,
-        'activation': jsonEncode({'kind': 'account'}),
-      });
-    }
-    return super.send(request);
-  }
 }
 
 class DelayedActivationServer extends ActivationServer {

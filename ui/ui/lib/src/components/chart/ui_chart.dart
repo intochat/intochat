@@ -1,7 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/ui_part.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
 
@@ -440,4 +439,66 @@ final class _ChartTone {
       slices: light ? UiChart._lightSlices : UiChart._darkSlices(colors),
     );
   }
+}
+
+final class UiChartPoint {
+  const UiChartPoint({required this.label, required this.value});
+
+  final String label;
+  final num value;
+
+  factory UiChartPoint.fromJson(Map<String, dynamic> json) {
+    return UiChartPoint(
+      label: json['label'] as String? ?? '',
+      value: json['value'] as num? ?? 0,
+    );
+  }
+
+  Map<String, Object?> toJson() => {'label': label, 'value': value};
+}
+
+final class UiChartPart {
+  const UiChartPart({
+    required this.title,
+    required this.points,
+    this.chartKind = 'bar',
+  });
+
+  static const kindName = 'chart';
+
+  final String title;
+  final List<UiChartPoint> points;
+  final String chartKind;
+
+  String get kind => kindName;
+
+  String get copyText {
+    final rows = [for (final point in points) '${point.label}\t${point.value}'];
+    return [title, ...rows].join('\n');
+  }
+
+  factory UiChartPart.fromMetadata(Map<String, dynamic> metadata) {
+    final raw = metadata['points'];
+    final points = raw is List
+        ? raw
+              .whereType<Map>()
+              .map((e) => UiChartPoint.fromJson(Map<String, dynamic>.from(e)))
+              .toList(growable: false)
+        : const <UiChartPoint>[];
+    return UiChartPart(
+      title: metadata['title'] as String? ?? 'Chart',
+      points: points,
+      chartKind:
+          metadata['chartKind'] as String? ??
+          metadata['kind'] as String? ??
+          'bar',
+    );
+  }
+
+  Map<String, Object?> toMetadata() => {
+    'kind': kindName,
+    'title': title,
+    'chartKind': chartKind,
+    'points': [for (final p in points) p.toJson()],
+  };
 }

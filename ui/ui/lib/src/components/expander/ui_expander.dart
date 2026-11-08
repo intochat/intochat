@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../models/ui_part.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_theme.dart';
 
@@ -58,4 +57,36 @@ final class UiExpander extends StatelessWidget {
       children: [header, ...children],
     );
   }
+}
+
+final class UiExpanderPart {
+  const UiExpanderPart({
+    required this.name,
+    required this.header,
+    required this.expanded,
+  });
+
+  static const kindName = 'expander';
+
+  final String name;
+  final String header;
+  final bool expanded;
+
+  String get kind => kindName;
+
+  String get copyText => header;
+
+  factory UiExpanderPart.fromMetadata(Map<String, dynamic> metadata) =>
+      UiExpanderPart(
+        name: metadata['name'] as String? ?? '',
+        header: metadata['header'] as String? ?? '',
+        expanded: metadata['expanded'] as bool? ?? false,
+      );
+
+  Map<String, Object?> toMetadata() => {
+    'kind': kindName,
+    'name': name,
+    'header': header,
+    'expanded': expanded,
+  };
 }

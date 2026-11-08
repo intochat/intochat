@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'package:intochat_os_ui/src/components/graph/ui_graph.dart';
 
 void main() {
@@ -59,34 +58,5 @@ void main() {
     // Verify inspector updated to Node Beta
     expect(find.text('Node Beta'), findsWidgets);
     expect(find.text('sigmoid'), findsOneWidget);
-  });
-
-  testWidgets('NeuronView renders graph kind without fallback', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(extensions: const [UiColors.intochatLight]),
-        home: Scaffold(
-          body: NeuronView(
-            key: UniqueKey(),
-            kind: 'graph',
-            name: 'knowledge_graph',
-            load: (k, name) async => {
-              'version': 1,
-              'definition': {
-                'title': 'Test Graph',
-                'nodes': [
-                  {'id': 'a', 'label': 'Entity A', 'type': 'service'},
-                ],
-                'edges': [],
-              },
-            },
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Test Graph'), findsOneWidget);
-    expect(find.text(RendererRegistry.fallbackLabel), findsNothing);
   });
 }

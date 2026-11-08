@@ -674,13 +674,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
-                                onAction: (event) async {
-                                  await widget.programmingClient!.appRequest(
-                                    _brain!,
-                                    'event',
-                                    body: event,
-                                  );
-                                },
+                                onAction: (event) => widget.programmingClient!
+                                    .appRequest(_brain!, 'event', body: event),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
                                 stylePreset: preset,
@@ -715,7 +710,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .channel
                                     .call(_brain!, contract, key, method, []),
                               )
-                            : NeuronView(
+                            : ViewHost(
                                 key: ValueKey(_rootName),
                                 kind: _renderKind,
                                 name: _rootName!,
@@ -728,23 +723,10 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
-                                onAction: (event) async {
-                                  await widget.programmingClient!.appRequest(
-                                    _brain!,
-                                    'event',
-                                    body: event,
-                                  );
-                                },
+                                onAction: (event) => widget.programmingClient!
+                                    .appRequest(_brain!, 'event', body: event),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
-                                scenes: widget.programmingClient!.scenes(
-                                  _brain!,
-                                ),
-                                entries: (brain) => EntriesClient(
-                                  widget.programmingClient!,
-                                  brain,
-                                ),
-                                localPreferences: _localPreferences,
                               ),
                       ),
                     )

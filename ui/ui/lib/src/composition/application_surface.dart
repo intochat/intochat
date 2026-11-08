@@ -1,6 +1,6 @@
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
-import 'neuron_view.dart';
+import 'view_host.dart';
 
 import 'package:flutter/material.dart';
 
@@ -59,7 +59,7 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         return const Center(child: CircularProgressIndicator());
       }
       final surface = snapshot.data!;
-      return NeuronView(
+      return ViewHost(
         key: ValueKey('${widget.workspace}/${widget.application}'),
         kind: surface['kind'] as String,
         name: surface['name'] as String,
@@ -67,13 +67,8 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
           widget.workspace,
           'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
         ),
-        onAction: (event) async {
-          await widget.client.appRequest(
-            widget.workspace,
-            'event',
-            body: event,
-          );
-        },
+        onAction: (event) =>
+            widget.client.appRequest(widget.workspace, 'event', body: event),
         onActivate: widget.onActivate,
       );
     },

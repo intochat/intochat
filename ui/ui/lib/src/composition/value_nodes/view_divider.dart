@@ -18,7 +18,14 @@ final class ViewDivider extends StatelessWidget {
       children: [
         Expanded(child: line),
         const SizedBox(width: 14),
-        Text(label, style: UiType.of(context).bodyMuted.copyWith(fontSize: 13)),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: UiType.of(context).bodyMuted.copyWith(fontSize: 13),
+          ),
+        ),
         const SizedBox(width: 14),
         Expanded(child: line),
       ],

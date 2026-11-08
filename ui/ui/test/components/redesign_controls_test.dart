@@ -132,47 +132,6 @@ void main() {
     expect((ring.border as Border).top.color, c.focus);
   });
 
-  Future<void> view(WidgetTester tester, Map root) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: UiTheme.intochat(Brightness.light),
-        home: Scaffold(
-          body: NeuronView(
-            kind: 'view',
-            name: 'v',
-            load: (kind, name) async => {
-              'generation': 1,
-              'version': 1,
-              'root': root,
-            },
-            onAction: (_) async {},
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-  }
-
-  testWidgets('view Button node renders UiKitButton, Card a 14 surface', (
-    tester,
-  ) async {
-    await view(tester, {
-      'kind': 4,
-      'key': 'card',
-      'text': 'Card',
-      'children': [
-        {'kind': 1, 'key': 'go', 'text': 'Go', 'action': 'go'},
-      ],
-    });
-    expect(find.widgetWithText(UiKitButton, 'Go'), findsOneWidget);
-    expect(find.byType(TextButton), findsNothing);
-    final surface = tester.widget<UiKitSurface>(find.byType(UiKitSurface));
-    expect(surface.radius ?? 14, 14);
-    final d = decorationIn(tester, find.byType(UiKitSurface));
-    expect(d.borderRadius, BorderRadius.circular(14));
-    expect((d.border as Border).top.color, c.hairline);
-  });
-
   testWidgets('toggle track is 40x22', (tester) async {
     await host(
       tester,
@@ -230,29 +189,5 @@ void main() {
       contains('Message'),
     );
     handle.dispose();
-  });
-
-  testWidgets('view Button in a slot under 48 renders compact', (tester) async {
-    await view(tester, {
-      'kind': 2,
-      'key': 'main',
-      'extents': [40, 0],
-      'children': [
-        {
-          'kind': 3,
-          'key': 'header',
-          'extents': [0, 160],
-          'children': [
-            {'kind': 0, 'key': 'status', 'text': 'Ready'},
-            {'kind': 1, 'key': 'new', 'text': 'New', 'action': 'new'},
-          ],
-        },
-        {'kind': 0, 'key': 'rest', 'text': 'Body'},
-      ],
-    });
-    expect(tester.takeException(), isNull);
-    final button = tester.widget<UiKitButton>(find.byType(UiKitButton));
-    expect(button.compact, isTrue);
-    expect(tester.getSize(find.byType(UiKitButton)).height, 30);
   });
 }

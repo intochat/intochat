@@ -59,75 +59,72 @@ Widget _entry(String scene) {
   final name = collection
       ? '$_brain/settings/variables'
       : '$_brain/settings/keys-openai';
-  return NeuronView(
+  return UiEntryControl(
     key: ValueKey(name),
-    kind: 'entrycontrol',
-    name: name,
-    load: (kind, n) async => {
-      'name': n,
-      'version': 1,
-      'spec': collection
-          ? {'mode': 1, 'label': 'Variables and secrets'}
-          : {'mode': 0, 'label': 'OpenAI', 'entryName': 'provider:openai'},
-    },
-    onAction: (event) async {},
-    entries: (brain) => entries,
+    mode: collection ? EntryControlMode.collection : EntryControlMode.key,
+    label: collection ? 'Variables and secrets' : 'OpenAI',
+    entryName: collection ? null : 'provider:openai',
+    entries: entries,
+    onChanged: () async {},
   );
 }
 
 Widget _preference(String scene) {
   final toggle = scene == 'toggle';
-  return NeuronView(
-    kind: 'preference',
-    name: '$_brain/settings/pref',
-    load: (kind, n) async => {
-      'name': n,
-      'version': 1,
-      'spec': toggle
-          ? {'store': 1, 'label': 'Notifications', 'kind': 0}
-          : {
-              'store': 14,
-              'label': 'Default model',
-              'kind': 1,
-              'choices': [
-                {'id': 'auto', 'label': 'Auto, cheapest model with tools'},
-                {
-                  'id': 'gpt',
-                  'label': 'GPT',
-                  'enabled': false,
-                  'detail': 'Not available. Add a key in API keys or pick another model.',
-                },
-              ],
-            },
-      'value': toggle ? 'on' : 'auto',
-    },
-    onAction: (event) async {},
-    localPreferences: _FakeLocal(),
+  return UiPreferenceControl(
+    store: PreferenceStore.parse(toggle ? 1 : 14)!,
+    label: toggle ? 'Notifications' : 'Default model',
+    kind: PreferenceKind.parse(toggle ? 0 : 1),
+    choices: toggle
+        ? const []
+        : const [
+            PreferenceChoiceItem('auto', 'Auto, cheapest model with tools'),
+            PreferenceChoiceItem(
+              'gpt',
+              'GPT',
+              enabled: false,
+              detail:
+                  'Not available. Add a key in API keys or pick another model.',
+            ),
+          ],
+    value: toggle ? 'on' : 'auto',
+    local: _FakeLocal(),
+    onSet: (value) async {},
   );
 }
 
-Widget _copy() => NeuronView(
+// A copy button: the server answers its activation with a Copy intent the client performs.
+Widget _copy() => ViewHost(
   kind: 'view',
-  name: 'share',
+  name: 'local/apps/share/view',
   load: (kind, name) async => {
     'generation': 1,
-    'version': 1,
-    'root': {
-      'kind': 2,
-      'key': 'root',
-      'children': [
-        {
-          'kind': 1,
-          'key': 'copy',
-          'text': 'Copy link',
-          'action': 'copy:https://example.test/#/open?app=fixture-app',
-          'icon': 'copy',
-        },
-      ],
+    'view': {
+      'title': 'Share',
+      'root': {
+        'kind': 'column',
+        'children': [
+          {
+            'kind': 'button',
+            'key': 'copy',
+            'label': 'Copy link',
+            'intent': {
+              'intentKind': 'Copy',
+              'arg': 'https://example.test/#/open?app=fixture-app',
+            },
+            'icon': 'copy',
+          },
+        ],
+      },
     },
   },
   watch: (kind, name) => const Stream.empty(),
-  onAction: (event) async {},
+  onAction: (event) async => {
+    'intent': {
+      'kind': 'Copy',
+      'arg': 'https://example.test/#/open?app=fixture-app',
+    },
+  },
 );
 
 void main() {
