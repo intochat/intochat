@@ -32,7 +32,7 @@ public sealed class AppRulesFacts
         var names = rules.Select(t => CreateDefault(t).Name).ToArray();
         Assert.All(names, n => Assert.StartsWith("apps.", n, StringComparison.Ordinal));
         Assert.Equal(names.Length, names.Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(42, rules.Length);
+        Assert.Equal(43, rules.Length);
     }
 
     [Fact]
@@ -47,6 +47,18 @@ public sealed class AppRulesFacts
 
         var error = await Assert.ThrowsAsync<RuleViolationException>(() => app.Create(manifest, "spec"));
         Assert.Equal(["apps.name-free"], error.Rejected.Rules);
+    }
+
+    [Fact]
+    public async Task ConfigureRefusesReservedSettingKeys()
+    {
+        await using var os = CreateTestOS();
+        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var app = os.Get<IApp>(id);
+        await app.Create(new AppManifest("Notes", "Keep notes", [], [], []), "spec");
+
+        var error = await Assert.ThrowsAsync<RuleViolationException>(() => app.Configure(new() { [AppTrust.CompiledTypeSetting] = "Evil, Evil" }, []));
+        Assert.Equal(["apps.settings-reserved"], error.Rejected.Rules);
     }
 
     [Fact]

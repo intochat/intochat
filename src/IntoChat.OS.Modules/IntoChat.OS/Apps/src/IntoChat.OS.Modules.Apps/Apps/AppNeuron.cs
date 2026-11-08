@@ -176,7 +176,8 @@ internal sealed partial class AppNeuron(
     {
         await Check("Configure",
             new ProgramIsNotPaused(State.MigrationPaused),
-            new AppExists(Name(), State.Manifest is not null));
+            new AppExists(Name(), State.Manifest is not null),
+            new SettingsAreNotReserved(settings?.Keys ?? (IReadOnlyCollection<string>)[]));
         // A storage hook vetoes a binding change its data depends on, before anything changes.
         foreach (var (slot, id) in connections ?? [])
         {
