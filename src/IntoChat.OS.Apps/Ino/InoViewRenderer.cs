@@ -3,6 +3,7 @@ using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -98,18 +99,21 @@ internal static class InoViewRenderer
                     Kind: SurfaceKind.Elevated,
                     Title: turn.UserMessage,
                     Subtitle: turn.RouteHint)),
-                .. transcript.Select(RenderMessage).OfType<Node>(),
+                ChatNodes.Transcript([.. transcript.Select(ToEntry).OfType<ChatEntry>()]),
+                ChatNodes.Composer(ComposerKey, ComposerField, AppSignals.Emit("ino", "send"), "Message Ino"),
             ])
             { Gap = 12 });
     }
 
-    private static Node? RenderMessage(AiMessage message)
+    // The composer is the field neuron apps/ino/composer; its submit sends the text to the agent.
+    public const string ComposerKey = "composer";
+    public const string ComposerField = "apps/ino/composer";
+
+    private static ChatEntry? ToEntry(AiMessage message, int index)
     {
         var text = string.Join("\n", message.Content.OfType<AiText>().Select(t => t.Text).Where(t => !string.IsNullOrWhiteSpace(t)));
         if (text.Length == 0 || message.Role is not ("user" or "assistant")) { return null; }
-        return message.Role == "user"
-            ? new Surface([new Heading(text, Level: 3)], Kind: SurfaceKind.Elevated, Title: "You")
-            : new Surface([new Text(text)], Kind: SurfaceKind.Elevated, Title: "Ino");
+        return new ChatEntry($"message-{index}", message.Role == "user" ? ChatRole.User : ChatRole.Assistant, text);
     }
 
     public static InoAppState BuildAppInstallLinkState(InoAppState currentState, string text)

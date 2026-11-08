@@ -10,10 +10,10 @@ namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;
 // (DartNodeModelsFacts in IntoChat.OS.Architecture.Tests.Unit), so there is no hand-written renderer kind list to mirror.
 public sealed partial class DartVocabularyFacts
 {
-    // The kept kinds the client reads by GET /apps/node and watches: one view tree, its fields and the hosted surfaces.
+    // The kept kinds the client reads by GET /apps/node and watches: one view tree, its fields and the hosted surfaces (a chat
+    // and its composer are view nodes).
     private static readonly string[] KeptKinds =
-        [UIVocabulary.ViewType, "field", UIVocabulary.ConfirmationType, UIVocabulary.ViewportType, UIVocabulary.ChatType,
-            UIVocabulary.ComposerType, UIVocabulary.WebBrowserType];
+        [UIVocabulary.ViewType, "field", UIVocabulary.ConfirmationType, UIVocabulary.ViewportType, UIVocabulary.WebBrowserType];
 
     // The wire spells the field kind "field" (GET /apps/node?kind=field); its vocabulary type is the neuron alias.
     private static string VocabularyKind(string kind) => kind == "field" ? UIVocabulary.FieldType : kind;

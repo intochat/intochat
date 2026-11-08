@@ -220,8 +220,8 @@ const nodeSamples = <String, Map<String, dynamic>>{
   },
   'neuronRef': {
     'kind': 'neuronRef',
-    'refKind': 'chat',
-    'neuronUri': 'neuron://brain/chat',
+    'refKind': 'viewport',
+    'neuronUri': 'neuron://brain/viewport',
   },
   'appShell': {
     'kind': 'appShell',

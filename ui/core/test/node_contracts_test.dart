@@ -18,13 +18,21 @@ void main() {
       'IntoChat.OS.Modules.Flutter.Viewport.IViewport',
     );
     expect(NodeContracts.of('viewport').changed, 'ViewportChanged');
-    for (final kind in ['chat', 'composer', 'webbrowser', 'confirmation']) {
+    for (final kind in ['webbrowser', 'confirmation']) {
       expect(NodeContracts.tryResolve(kind), isNotNull, reason: kind);
     }
   });
 
   test('the per-widget kinds are gone', () {
-    for (final kind in ['button', 'text', 'surface', 'scene', 'toggle']) {
+    for (final kind in [
+      'button',
+      'text',
+      'surface',
+      'scene',
+      'toggle',
+      'chat',
+      'composer',
+    ]) {
       expect(() => NodeContracts.of(kind), throwsArgumentError, reason: kind);
     }
   });

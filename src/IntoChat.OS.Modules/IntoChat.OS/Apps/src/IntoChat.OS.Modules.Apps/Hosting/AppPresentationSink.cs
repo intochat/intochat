@@ -54,7 +54,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             View mainView;
             if (instance is DigitalBrain.App<InoAppState> ino)
             {
-                await SyncInoChatAndComposerAsync(brain, appKey, ino.State);
+                await SyncInoTranscriptAsync(brain, appKey, ino.State);
                 mainView = side is not null ? main with { Root = new Row([side.Root, main.Root]) { Gap = 0, Extents = [256, 0] } } : main;
             }
             else if (side is not null)
@@ -112,15 +112,8 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         }
     }
 
-    private async Task SyncInoChatAndComposerAsync(string brain, string appKey, InoAppState state)
+    private async Task SyncInoTranscriptAsync(string brain, string appKey, InoAppState state)
     {
-        var composer = SiloNeurons.Get<IComposer>(services, appKey + "/composer");
-        var currentComposer = await composer.Read();
-        if (currentComposer.Generation < 1 || !string.Equals(currentComposer.Context, appKey, StringComparison.Ordinal))
-        {
-            await composer.Configure(appKey, 1L, "Message Ino (local model, SQL, PhotoCraft, or apps)...");
-        }
-
         var dvKey = IApp.Key(brain, "datavisualizer");
         if (state.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Columns is { Length: > 0 } && c.Rows is { Length: > 0 }) is { } tableCard)
         {

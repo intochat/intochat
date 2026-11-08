@@ -9,7 +9,9 @@ public sealed class OneUiPathFacts
 {
     private static readonly string[] Kept =
     [
-        "view", "ui.field", "chat", "composer", "webbrowser", "viewport",
+        "view", "ui.field", "webbrowser", "viewport",
+        // Non-UI neurons of the module: a chat's stored projection (rendered as view nodes by its app) and the shell's sources.
+        "chat",
         "chat-index", "ui.compute", "ui.problem-reports", "ui.space", "ui.workspace",
     ];
 

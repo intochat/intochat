@@ -21,14 +21,6 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Fields.IField',
       'FieldChanged',
     ),
-    'chat': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Chat.IChat',
-      'ChatChanged',
-    ),
-    'composer': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Chat.IComposer',
-      'ComposerChanged',
-    ),
     'webbrowser': NodeContract(
       'IntoChat.OS.Modules.Flutter.WebBrowser.IWebBrowser',
       'BrowserObservationChanged',

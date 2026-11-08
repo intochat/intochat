@@ -6,7 +6,6 @@ using DigitalBrain.Errors;
 using System.Text.Json;
 using DigitalBrain.Confirmation;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Table;
 using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Viewport;
@@ -85,8 +84,6 @@ internal static class AppUiEndpoints
         return kind switch
         {
             "field" => Results.Ok(await brain.Get<IField>(name).Read().WaitAsync(ct)),
-            UIVocabulary.ChatType => Results.Ok(await brain.Get<IChat>(name).Read().WaitAsync(ct)),
-            UIVocabulary.ComposerType => Results.Ok(await brain.Get<IComposer>(name).Read().WaitAsync(ct)),
             UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
             _ => throw new ArgumentException("Unknown app UI kind.")
         };
@@ -108,28 +105,6 @@ internal static class AppUiEndpoints
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
         switch (input.Kind)
         {
-            case UIVocabulary.ChatType:
-                var chat = brain.Get<IChat>(input.Name);
-                if (input.Read is { } read)
-                {
-                    if (input.Action is not null) { throw new ArgumentException("Choose a chat action or a read acknowledgement."); }
-                    await chat.MarkRead(input.Context ?? "", input.Revision, read.Version, read.MessageIds).WaitAsync(ct);
-                }
-                else { await chat.Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct); }
-                break;
-            case UIVocabulary.ComposerType:
-                var composer = brain.Get<IComposer>(input.Name);
-                switch (input.Action)
-                {
-                    case "edit": await (input.SelectionRevision is { } editGeneration ? composer.Edit(input.Context ?? "", editGeneration, input.Value ?? "") : composer.Edit(input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
-                    case "submit": await (input.SelectionRevision is { } submitGeneration ? composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", submitGeneration, input.Value ?? "") : composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", input.Value ?? "")).WaitAsync(ct); break;
-                    case "voice-begin": await (input.SelectionRevision is { } voiceGeneration ? composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "", voiceGeneration) : composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "")).WaitAsync(ct); break;
-                    case "voice-audio": await composer.CaptureVoice(input.OperationId ?? Guid.Empty, DecodeAudio(input.Value), input.MimeType ?? "").WaitAsync(ct); break;
-                    case "voice-cancel": await composer.CancelVoice(input.OperationId ?? Guid.Empty).WaitAsync(ct); break;
-                    case "voice-error": await composer.CompleteVoice(input.OperationId ?? Guid.Empty, null, input.Value ?? "Recording failed. Try again.").WaitAsync(ct); break;
-                    default: throw new ArgumentException("Unknown composer action.");
-                }
-                break;
             case UIVocabulary.WebBrowserType:
                 var browser = brain.Get<IWebBrowserConnector>(input.Name);
                 if (input.Action == "unavailable")
@@ -233,15 +208,8 @@ internal static class AppUiEndpoints
     private static bool OwnsUi(string scope, string name) =>
         new[] { "/apps/", "/images/", "/applications/" }.Any(area => name.StartsWith(scope + area, StringComparison.Ordinal));
 
-    private static byte[] DecodeAudio(string? base64)
-    {
-        try { return Convert.FromBase64String(base64 ?? ""); }
-        catch (FormatException) { throw new ArgumentException("Audio must be base64 encoded."); }
-    }
-
-    internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null, string? MimeType = null,
-        string? Context = null, Guid? OperationId = null, ChatReadInput? Read = null, long? SelectionRevision = null, long? Generation = null, string? Key = null);
-    internal sealed record ChatReadInput(long Version, string[] MessageIds);
+    internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null,
+        long? Generation = null, string? Key = null);
     private sealed record BrowserConnect(int Port, string SessionId);
 }
 

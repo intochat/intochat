@@ -7,8 +7,6 @@ public static class UIVocabulary
     public const string FieldType = "ui.field";
     public const string ConfirmationType = "confirmation";
     public const string ViewportType = "viewport";
-    public const string ChatType = "chat";
-    public const string ComposerType = "composer";
     public const string WebBrowserType = "webbrowser";
 
     // Widget neurons non-UI modules still read or write (Kernel, Apps, Circles, features/os); each goes with its last user.

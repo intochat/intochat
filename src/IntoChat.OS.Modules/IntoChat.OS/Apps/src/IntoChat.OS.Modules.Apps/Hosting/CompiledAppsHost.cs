@@ -114,14 +114,6 @@ internal sealed class CompiledAppsHost(
             return Task.CompletedTask;
         });
 
-        _ = await listeners.Listen<ComposerSubmitted>(nameof(CompiledAppsHost), (publisher, signal, token) =>
-        {
-            TriggerEnsureAll(publisher.Brain.Value);
-            if (publisher.Key != "apps/ino/composer") { return Task.CompletedTask; }
-            _ = Task.Run(() => HandleComposerSubmittedAsync(publisher.Brain.Value, signal, token), CancellationToken.None);
-            return Task.CompletedTask;
-        });
-
         TriggerEnsureAll("owner");
         cancellationToken.ThrowIfCancellationRequested();
     }
@@ -854,44 +846,6 @@ internal sealed class CompiledAppsHost(
         catch (Exception error) when (error is not OperationCanceledException)
         {
             logger.LogWarning(error, "Compiled app {App} did not complete {Operation} in {Brain}.", appName, request.Operation, brain);
-        }
-    }
-
-    private async Task HandleComposerSubmittedAsync(string brain, ComposerSubmitted signal, CancellationToken ct)
-    {
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        try
-        {
-            if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
-            var appKey = IApp.Key(brain, "ino");
-            var composer = SiloNeurons.Get<IComposer>(services, appKey + "/composer");
-            var composerState = await composer.Read();
-            var submission = composerState.Submissions.FirstOrDefault(item => item.Id == signal.RequestId);
-            if (submission is null || string.IsNullOrWhiteSpace(submission.Text)) { return; }
-
-            await composer.Settle(signal.RequestId);
-            var shortText = submission.Text.Length <= 42 ? submission.Text : submission.Text[..42] + "…";
-            await SiloNeurons.Get<IApp>(services, appKey).Progress("working", $"Thinking · Processing '{shortText}'…");
-            InoTurn? latestTurn = null;
-            var gate = _gates.GetOrAdd(appKey, static _ => new SemaphoreSlim(1, 1));
-            await gate.WaitAsync(ct);
-            try
-            {
-                var turns = await EnsureAssignedAsync(brain, "ino", appKey, ct);
-                if (turns is not null && turns.Definition.FindOperation("send") is { } sendMethod)
-                {
-                    await turns.Request("send", BindArgument(sendMethod, submission.Text), ct);
-                }
-                await SiloNeurons.Get<IApp>(services, appKey).Progress("idle", "Ino: answered");
-                if (turns?.App is App<InoAppState> ino && ino.State.Turns is { Length: > 0 } inoTurns) { latestTurn = inoTurns[^1]; }
-            }
-            finally { gate.Release(); }
-
-            if (latestTurn is not null) { await ForwardStudioPromptIfRoutedAsync(brain, latestTurn, ct); }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            logger.LogWarning(error, "Ino composer submission {RequestId} failed in {Brain}.", signal.RequestId, brain);
         }
     }
 

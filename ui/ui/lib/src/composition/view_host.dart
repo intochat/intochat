@@ -2,15 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../chat/chat_run_link.dart';
-import '../chat/ui_chat_transcript.dart';
-import '../chat/ui_composer.dart';
 import '../components/browser/ui_web_browser.dart';
-import '../components/kit/ui_kit_button.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../focus_registry.dart';
 import '../models/window_state.dart';
@@ -19,8 +13,8 @@ import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
-/// window onto another app's view (`viewport`), or a hosted surface (`chat`,
-/// `composer`, `webbrowser`). It reads the node once on mount and once per
+/// window onto another app's view (`viewport`), or the hosted web browser
+/// (`webbrowser`). A chat transcript and its composer are view nodes. It reads the node once on mount and once per
 /// change signal (`ViewChanged` for a view) and hands a view to [NodeRenderer].
 class ViewHost extends StatefulWidget {
   const ViewHost({
@@ -91,7 +85,6 @@ class _ViewHostState extends State<ViewHost> {
     super.initState();
     FocusRegistry.instance.register(_focusTarget, _focusKey);
     _events.addListener(_reload);
-    ChatRunLinks.follows.addListener(_followsChanged);
     _reload();
     final watch = widget.watch;
     if (watch == null) {
@@ -209,20 +202,6 @@ class _ViewHostState extends State<ViewHost> {
     enabled: widget.enabled,
   );
 
-  Widget _markdown(String text) => SelectionArea(
-    child: GptMarkdown(
-      text,
-      key: ValueKey(text),
-      onLinkTap: (url, _) async {
-        final link = Uri.tryParse(url);
-        final uri = link == null ? null : Uri.base.resolveUri(link);
-        if (uri != null && const {'https', 'http'}.contains(uri.scheme)) {
-          await launchUrl(uri);
-        }
-      },
-    ),
-  );
-
   @override
   Widget build(BuildContext context) =>
       KeyedSubtree(key: _focusKey, child: _content(context));
@@ -292,18 +271,6 @@ class _ViewHostState extends State<ViewHost> {
           );
         }
         return Center(child: Text('${data['error'] ?? ''}'));
-      case 'composer':
-        return UiComposer(
-          key: ValueKey(
-            '${widget.name}:${data['context']}:${data['generation']}',
-          ),
-          state: data,
-          enabled: enabled,
-          dispatch: (event) =>
-              _dispatch({...event, 'kind': 'composer', 'name': widget.name}),
-        );
-      case 'chat':
-        return _chat(data, enabled);
       case 'webbrowser':
         final send = widget.onAction;
         if (send == null) {
@@ -353,137 +320,9 @@ class _ViewHostState extends State<ViewHost> {
     return const Center(child: Text('This component cannot be displayed.'));
   }
 
-  Widget _chat(Map<String, dynamic> data, bool enabled) {
-    final projection = data['projection'] as Map? ?? const {};
-    final unreadIds = (data['unreadMessageIds'] as List? ?? const [])
-        .whereType<String>()
-        .toList();
-    final transcript = UiChatTranscript(
-      key: ValueKey('${projection['source']}:${projection['generation']}'),
-      messages: [
-        for (final message
-            in (projection['messages'] as List? ?? const []).whereType<Map>())
-          Map<String, dynamic>.from(message),
-      ],
-      markdown: _markdown,
-      onRetry: enabled
-          ? (text) => unawaited(
-              ChatRunLinks.resend(widget.name)?.call(text) ??
-                  Future<void>.value(),
-            )
-          : null,
-      onOpenApp: widget.enabled ? widget.onActivate : null,
-    );
-    void act(Map action) => unawaited(
-      _dispatch({
-        'kind': 'chat',
-        'name': widget.name,
-        'action': action['id'],
-        'context': projection['source'],
-        'revision': projection['generation'],
-      }).catchError((Object _) => null),
-    );
-    bool usable(Map action) => enabled && action['enabled'] != false;
-    var actions = (projection['actions'] as List? ?? const [])
-        .whereType<Map>()
-        .toList();
-    // A following composer shows Stop in place of Send; the chat keeps only its other actions.
-    final stop = actions
-        .where((action) => '${action['id']}'.startsWith('stop/'))
-        .firstOrNull;
-    final follower = ChatRunLinks.followed(widget.name);
-    _publishStop(
-      follower && stop != null && usable(stop)
-          ? ('${stop['id']}', () => act(stop))
-          : null,
-    );
-    if (follower) {
-      actions = [
-        for (final action in actions)
-          if (!identical(action, stop)) action,
-      ];
-    }
-    return Column(
-      children: [
-        if (unreadIds.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Wrap(
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text('${unreadIds.length} unread'),
-                TextButton(
-                  onPressed: enabled
-                      ? () => unawaited(
-                          _dispatch({
-                            'kind': 'chat',
-                            'name': widget.name,
-                            'context': projection['source'],
-                            'revision': projection['generation'],
-                            'read': {
-                              'version': projection['version'],
-                              'messageIds': unreadIds,
-                            },
-                          }).catchError((Object _) => null),
-                        )
-                      : null,
-                  child: const Text('Mark read'),
-                ),
-              ],
-            ),
-          ),
-        Expanded(child: transcript),
-        if (actions.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final action in actions)
-                  UiKitButton(
-                    label: '${action['label'] ?? ''}',
-                    icon: '${action['id']}'.startsWith('stop/')
-                        ? 'square'
-                        : null,
-                    compact: true,
-                    style: UiKitButtonStyle.secondary,
-                    onPressed: usable(action) ? () => act(action) : null,
-                  ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  // The Stop this chat offers its following composer, keyed by action id so
-  // a rebuild does not republish it.
-  String? _stopId;
-  void _publishStop((String, VoidCallback)? stop) {
-    if (stop?.$1 == _stopId) return;
-    _stopId = stop?.$1;
-    final name = widget.name;
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => ChatRunLinks.publishStop(name, stop?.$2),
-    );
-  }
-
-  void _followsChanged() {
-    if (mounted && widget.kind == 'chat') setState(() {});
-  }
-
   @override
   void dispose() {
     FocusRegistry.instance.unregister(_focusTarget, _focusKey);
-    ChatRunLinks.follows.removeListener(_followsChanged);
-    if (_stopId != null) {
-      final name = widget.name;
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => ChatRunLinks.publishStop(name, null),
-      );
-    }
     _timer?.cancel();
     _resubscribe?.cancel();
     _watch?.cancel();

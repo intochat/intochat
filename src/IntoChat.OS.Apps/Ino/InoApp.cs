@@ -23,10 +23,11 @@ namespace IntoChat.OS.Apps.Ino;
 public sealed record InoOpen(string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("ino.send")]
-public sealed record InoSend(string? Message = null, string? Text = null) : DigitalBrain.Signal
+public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : DigitalBrain.Signal
 {
+    // Value is the composer field's text, which a view submit adds to the emit.
     [System.Text.Json.Serialization.JsonIgnore]
-    public string? EffectiveMessage => !string.IsNullOrWhiteSpace(Message) ? Message : Text;
+    public string? EffectiveMessage => !string.IsNullOrWhiteSpace(Message) ? Message : !string.IsNullOrWhiteSpace(Text) ? Text : Value;
 }
 
 [DigitalBrain.Signal("ino.new")]

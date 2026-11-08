@@ -15,14 +15,14 @@ public sealed record ChatAgentSubscription(DigitalBrain.NeuronId Source, Type[] 
 public sealed record ChatAgentSnapshot(ChatProjection Projection, ChatRunSnapshot? Run);
 
 // Infrastructure only: neither interface is exposed to scripts/model tools.
-[DigitalBrain.Contracts.NeuronAlias("ui.chat-migration"), DigitalBrain.Contracts.DefaultNeuronType(UIVocabulary.ChatType)]
+[DigitalBrain.Contracts.NeuronAlias("ui.chat-migration"), DigitalBrain.Contracts.DefaultNeuronType(IChat.Type)]
 public interface IChatMigration
 {
     Task AdoptAgent(string agent, long generation, Guid operationId);
 }
 
 // The chat's reconciliation as its own one-way turn: a deferred turn would hold the call that queued it.
-[DigitalBrain.Contracts.NeuronAlias("ui.chat-reconciliation"), DigitalBrain.Contracts.DefaultNeuronType(UIVocabulary.ChatType)]
+[DigitalBrain.Contracts.NeuronAlias("ui.chat-reconciliation"), DigitalBrain.Contracts.DefaultNeuronType(IChat.Type)]
 internal interface IChatReconciliation
 {
     [DigitalBrain.OneWayCall] Task Reconcile();

@@ -39,7 +39,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace IntoChat.OS.Kernel.Tests.Integration.Apps;
 
 /// <summary>
-/// Exercises the signal-driven <see cref="CompiledAppsHost"/>, <see cref="IApp"/>, <see cref="IComposer"/>,
+/// Exercises the signal-driven <see cref="CompiledAppsHost"/>, <see cref="IApp"/>,
 /// <see cref="IChat"/>, <see cref="IView"/>, and <see cref="IAppStudio"/> neurons on the real DigitalBrain SiloHost.
 /// </summary>
 public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.KernelAppsSiloFixture fixture)
@@ -187,7 +187,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                 typeof(IAspire).Assembly,
                 typeof(FlutterModule).Assembly,
                 typeof(IView).Assembly,
-                typeof(ComposerSubmitted).Assembly,
+                typeof(ChatChanged).Assembly,
                 typeof(FlameModule).Assembly,
             }.Distinct().ToArray();
 
