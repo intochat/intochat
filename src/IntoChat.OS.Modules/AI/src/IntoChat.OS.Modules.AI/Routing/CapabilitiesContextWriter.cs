@@ -16,22 +16,18 @@ internal static class CapabilitiesContextWriter
     {
         var entries = Entries(apps);
         var names = entries.Select(entry => entry.Name).ToHashSet(StringComparer.Ordinal);
-        foreach (var stale in (await context.Read()).Entries.Where(entry => !names.Contains(entry.Name) && !IsInterrupt(entry))) { await context.Remove(stale.Name); }
-        foreach (var entry in entries)
-        {
-            if ((await context.Read()).Entries.Any(held => held.Name == entry.Name && IsInterrupt(held))) { continue; }
-            await context.Set(entry);
-        }
+        // One read, as a fast path only: the context neuron's Upsert and Withdraw are the guard, inside its own turn.
+        var held = (await context.Read()).Entries;
+        var interrupts = held.Where(IsInterrupt).Select(entry => entry.Name).ToHashSet(StringComparer.Ordinal);
+        foreach (var stale in held.Where(entry => !names.Contains(entry.Name) && !interrupts.Contains(entry.Name))) { await context.Withdraw(stale.Name); }
+        foreach (var entry in entries.Where(entry => !interrupts.Contains(entry.Name))) { await context.Upsert(entry); }
     }
 
-    // An app's name never replaces or removes an interrupt entry a user or the platform wrote in this context.
+    // An app's name never replaces or removes an interrupt entry a user or the platform wrote in this context; the neuron enforces it.
     public static async Task Upsert(IAgentContext context, string app, MenuOperation[] operations)
-    {
-        if ((await context.Read()).Entries.Any(entry => entry.Name == app && IsInterrupt(entry))) { return; }
-        await (operations.Length == 0 ? context.Remove(app) : context.Set(Entry(app, operations)));
-    }
+        => _ = await (operations.Length == 0 ? context.Withdraw(app) : context.Upsert(Entry(app, operations)));
 
-    // Only an interrupt a user or the platform wrote is protected; one a model or an app planted under an app's name is replaceable.
+    // The fast path's view of the neuron's rule. Only an interrupt a user or the platform wrote is protected; one a model or an app planted under an app's name is replaceable.
     private static bool IsInterrupt(ContextEntry entry)
         => entry.EffectiveTags.Contains(ContextTags.Interrupt) && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
 

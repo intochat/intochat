@@ -70,6 +70,10 @@ public sealed class FakeAgentContext : DigitalBrain.Neuron<FakeContextState>, IA
     public Task Remove(string name) => Save(State with { Entries = [.. State.Entries.Where(item => item.Name != name)] }, new ContextRemoved(Id.ToString(), 0, name));
 
     public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(0, State.Entries));
+
+    public async Task<bool> Upsert(ContextEntry entry) { await Set(entry); return true; }
+
+    public async Task<bool> Withdraw(string name) { await Remove(name); return true; }
 }
 
 public sealed record FakeFlowsState(FlowView[] Flows)

@@ -45,6 +45,29 @@ public sealed class AgentContextFacts(AiFixture fixture) : IClassFixture<AiFixtu
         Assert.Contains(ContextTags.Interrupt, entry.EffectiveTags);
     }
 
+    // The race the capabilities writer had: its read saw no interrupt, then one was stamped. The writer's Upsert runs under
+    // platform trust, yet the neuron's own turn refuses it, so the interrupt written in between is never dropped.
+    [Fact]
+    public async Task AProducerUpsertNeverDropsAnInterruptWrittenBeforeIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct);
+        var context = runtime.Get<IAgentContext>(runtime.Id("agent-context", "context/upsert-race"));
+
+        await As(CallerKind.Platform, runtime, () => context.Set(new("notes", "halt now", [], [ContextTags.Interrupt])), ct);
+        var written = true;
+        var withdrawn = true;
+        await As(CallerKind.Platform, runtime, async () => written = await context.Upsert(new("notes", "notes.add", [], [])), ct);
+        await As(CallerKind.App, runtime, async () => withdrawn = await context.Withdraw("notes"), ct);
+        await Assert.ThrowsAsync<RuleViolationException>(() => As(CallerKind.App, runtime, () => context.Set(new("notes", "notes.add", [], [])), ct));
+
+        Assert.False(written);
+        Assert.False(withdrawn);
+        var entry = Assert.Single((await context.Read()).Entries, item => item.Name == "notes");
+        Assert.Equal("halt now", entry.Text);
+        Assert.Contains(ContextTags.Interrupt, entry.EffectiveTags);
+    }
+
     [Fact]
     public async Task UserCanClearATrustedInterrupt()
     {

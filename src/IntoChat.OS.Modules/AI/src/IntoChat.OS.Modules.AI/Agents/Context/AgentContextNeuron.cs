@@ -54,11 +54,29 @@ internal sealed class AgentContextNeuron
         await Save(Snapshot with { Revision = revision, Entries = entries }, new ContextRemoved(FullKey, revision, name));
     }
 
+    public async Task<bool> Upsert(ContextEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        // The same rule as Set, applied as for an app whatever the caller: a producer's entry never clears an interrupt.
+        if (new InterruptClearedByTrust(HoldsTrustedInterrupt(entry.Name), ContextTrust.App).Broken) { return false; }
+        await Set(entry);
+        return true;
+    }
+
+    public async Task<bool> Withdraw(string name)
+    {
+        if (new InterruptClearedByTrust(HoldsTrustedInterrupt(name), ContextTrust.App).Broken) { return false; }
+        await Remove(name);
+        return true;
+    }
+
+    private bool HoldsTrustedInterrupt(string name)
+        => Snapshot.Entries.FirstOrDefault(item => item.Name == name) is { } held
+            && held.EffectiveTags.Contains(ContextTags.Interrupt) && held.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
+
     // Refused for a model or an app caller, and for a call with no caller (which reads as app).
     private InterruptClearedByTrust HeldInterrupt(string name, DigitalBrain.Capabilities.CapabilityCaller? caller)
-        => new(Snapshot.Entries.FirstOrDefault(item => item.Name == name) is { } held
-                && held.EffectiveTags.Contains(ContextTags.Interrupt) && held.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform,
-            ContextTrust.Of(caller));
+        => new(HoldsTrustedInterrupt(name), ContextTrust.Of(caller));
 
     public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(Snapshot.Revision, Snapshot.Entries.ToArray()));
 }

@@ -11,6 +11,16 @@ public sealed class CapabilitiesContextWriterFacts
         public Task Set(ContextEntry entry) { Held[entry.Name] = entry; return Task.CompletedTask; }
         public Task Remove(string name) { Held.Remove(name); return Task.CompletedTask; }
         public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(0, [.. Held.Values]));
+        // As the neuron: a user's or the platform's interrupt holds its name against a producer's entry.
+        public Task<bool> Upsert(ContextEntry entry)
+        {
+            if (Guarded(entry.Name)) { return Task.FromResult(false); }
+            Held[entry.Name] = entry;
+            return Task.FromResult(true);
+        }
+        public Task<bool> Withdraw(string name) => Task.FromResult(!Guarded(name) && Held.Remove(name));
+        private bool Guarded(string name) => Held.TryGetValue(name, out var held) && held.EffectiveTags.Contains(ContextTags.Interrupt)
+            && held.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
     }
 
     private static (string App, MenuOperation[] Operations) Notes() => ("notes", [
