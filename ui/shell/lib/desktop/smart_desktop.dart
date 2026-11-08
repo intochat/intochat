@@ -147,6 +147,8 @@ class SmartDesktop extends StatefulWidget {
     this.openCardIds,
     this.onOpenCard,
     this.onCloseCard,
+    this.widgetsMenuOpen,
+    this.onWidgetsMenuChanged,
   });
 
   final bool hasOpenWindows;
@@ -165,6 +167,8 @@ class SmartDesktop extends StatefulWidget {
   final List<String>? openCardIds;
   final ValueChanged<String>? onOpenCard;
   final ValueChanged<String>? onCloseCard;
+  final bool? widgetsMenuOpen;
+  final ValueChanged<bool>? onWidgetsMenuChanged;
 
   @override
   State<SmartDesktop> createState() => SmartDesktopState();
@@ -189,6 +193,8 @@ class SmartDesktopState extends State<SmartDesktop> {
   bool _briefApproved = false;
   bool _initializedBounds = false;
   bool _widgetsMenuOpen = false;
+
+  bool get isWidgetsMenuOpen => widget.widgetsMenuOpen ?? _widgetsMenuOpen;
 
   final Map<String, Rect> _cardBounds = {};
   final Set<String> _pinnedCardIds = {};
@@ -432,9 +438,11 @@ class SmartDesktopState extends State<SmartDesktop> {
                           label: 'Widgets (${visibleCardIds.length})',
                           small: true,
                           icon: LucideIcons.stickyNote,
-                          onTap: () => setState(
-                            () => _widgetsMenuOpen = !_widgetsMenuOpen,
-                          ),
+                          onTap: () {
+                            final next = !isWidgetsMenuOpen;
+                            setState(() => _widgetsMenuOpen = next);
+                            widget.onWidgetsMenuChanged?.call(next);
+                          },
                         ),
                         const SizedBox(width: 8),
                         Btn(
@@ -447,7 +455,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                       ],
                     ),
                   ),
-                  if (_widgetsMenuOpen) ...[
+                  if (isWidgetsMenuOpen) ...[
                     const SizedBox(height: 8),
                     IcAcrylicBox(
                       key: const ValueKey('whiteboard-widgets-menu'),

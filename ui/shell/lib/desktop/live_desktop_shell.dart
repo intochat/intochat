@@ -144,6 +144,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   bool _switcherOpen = false;
   int _switcherIndex = 0;
   DesktopSystemSheetKind _systemSheet = DesktopSystemSheetKind.none;
+  StreamSubscription<void>? _shellControlSub;
+  bool _widgetsMenuOpen = false;
 
   @override
   void initState() {
@@ -152,12 +154,57 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _reload();
     _subscribe();
     _watchSettings();
+    _watchShellControl();
   }
 
   static const _settingsContract = 'IntoChat.OS.Modules.Apps.IUserSettings';
   static const _presenceContract = 'IntoChat.OS.Modules.Apps.IPresence';
   static const _approvalsContract =
       'IntoChat.OS.Modules.Apps.Approvals.IApprovals';
+  static const _shellControlContract =
+      'IntoChat.OS.Modules.Apps.IShellControl';
+
+  void _watchShellControl() {
+    _shellControlSub?.cancel();
+    final watch = widget.watch;
+    if (watch == null) return;
+    _shellControlSub = watch('shell.control', 'shell/control').listen(
+      (_) => unawaited(_readShellControl()),
+      onError: (_) {},
+    );
+    unawaited(_readShellControl());
+  }
+
+  Future<void> _readShellControl() async {
+    try {
+      final json = await widget.read?.call(
+        _shellControlContract,
+        'shell/control',
+        'GetState',
+      );
+      if (json == null || !mounted) return;
+      final val = json['value'] ?? json;
+      if (val is Map) {
+        final menuOpen = val['widgetsMenuOpen'] ?? val['WidgetsMenuOpen'];
+        if (menuOpen is bool && menuOpen != _widgetsMenuOpen) {
+          setState(() => _widgetsMenuOpen = menuOpen);
+        }
+        final openCards = val['openCardIds'] ?? val['OpenCardIds'];
+        if (openCards is List) {
+          setState(() {
+            for (final card in openCards) {
+              if (card is String) {
+                _clientClosedWidgets.remove(card);
+                _clientOpenedWidgets.add(card);
+              }
+            }
+          });
+        }
+      }
+    } catch (_) {
+      // The next change signal reads again.
+    }
+  }
 
   void _watchSettings() {
     unawaited(_readSmart());
@@ -289,6 +336,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _settingsSub?.cancel();
     _presenceSub?.cancel();
     _presenceReopen?.cancel();
+    _shellControlSub?.cancel();
     unawaited(_presence.close());
     for (final w in _windowStates.values) {
       w.dispose();
@@ -1140,6 +1188,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   stylePreset: widget.stylePreset,
                   barLayout: widget.barLayout,
                   openCardIds: openWidgets,
+                  widgetsMenuOpen: _widgetsMenuOpen,
+                  onWidgetsMenuChanged: (open) =>
+                      setState(() => _widgetsMenuOpen = open),
                   onOpenCard: (cardId) {
                     setState(() {
                       _clientClosedWidgets.remove(cardId);

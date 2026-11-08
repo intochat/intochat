@@ -22,11 +22,11 @@ public static class InoAgentDefinition
             Contracts =
             [
                 typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,
-                typeof(IMemory).FullName!, typeof(IRouter).FullName!,
+                typeof(IShellControl).FullName!, typeof(IMemory).FullName!, typeof(IRouter).FullName!,
             ],
             Contexts =
             [
-                .. new[] { "user.profile", "conversation.inference.tone", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "memory.recall" }
+                .. new[] { "user.profile", "conversation.inference.tone", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "ui.state", "memory.recall" }
                     .Select(name => "context/" + name),
             ],
         };
