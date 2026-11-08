@@ -28,8 +28,7 @@ public static class OsAppsHosting
 {
     private sealed class OsAppsRegistered;
 
-    // The operating system installs the folder plus ShippedApps.Roots; a distribution's configure only adds.
-    // The apps themselves are features the host loads from its script folder (AppsOptions.Features).
+    // The operating system installs its shipped compiled apps plus ShippedApps.Roots; a distribution's configure only adds.
     // Idempotent: the composition wires this itself, and a host calling it again is a no-op
     // apart from its own configure delegate.
     public static IServiceCollection AddOperatingSystemApps(this IServiceCollection services, Action<OsAppsOptions>? configure = null)

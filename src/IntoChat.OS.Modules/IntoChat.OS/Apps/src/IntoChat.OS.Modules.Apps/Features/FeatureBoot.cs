@@ -37,12 +37,12 @@ internal sealed class FeatureBoot(
         try
         {
             var loaded = await catalog.Bundles();
-            logger.LogInformation("Loaded {Count} features from {Path}.", loaded.Count, catalog.Directory?.Path ?? "(none)");
+            logger.LogInformation("Loaded {Count} shipped apps.", loaded.Count);
             foreach (var failure in await catalog.Failures())
             { logger.LogError("Feature {Owner}/{Name} {Version} was skipped: {Reason}", failure.Owner, failure.Name, failure.Version, failure.Reason); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
-        { logger.LogError(error, "The features folder {Path} did not load.", catalog.Directory?.Path); }
+        { logger.LogError(error, "The shipped apps did not load."); }
     }
 
     private async Task ReconcileAsync(string brainId, CancellationToken cancellationToken)

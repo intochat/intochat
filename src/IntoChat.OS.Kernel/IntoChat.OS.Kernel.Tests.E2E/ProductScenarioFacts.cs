@@ -185,10 +185,6 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         Assert.True(decision.Approved);
         Assert.Equal(ConfirmationOutcome.Approved, decision.Outcome);
 
-        // Step 6: With approval granted, sideload install completes
-        var installResult = SideloadInstallResult.Done($"App package installed with consent hash {consentDigest[..12]}");
-        Assert.True(installResult.Ok);
-        Assert.Contains("installed with consent hash", installResult.Message);
     }
 
     [Fact]

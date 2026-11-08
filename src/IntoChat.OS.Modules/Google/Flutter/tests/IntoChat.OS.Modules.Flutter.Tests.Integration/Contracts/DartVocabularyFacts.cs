@@ -71,9 +71,8 @@ public sealed partial class DartVocabularyFacts
             UIVocabulary.CardType, UIVocabulary.ImageType, UIVocabulary.ChartType, UIVocabulary.TableType, UIVocabulary.PersonType,
             UIVocabulary.FormType];
 
-    // Runtime-compiled source apps that still compose per-widget neurons the client no longer draws (units all the way):
-    // each leaves this list when it publishes a DigitalBrain.UI view instead.
-    private static readonly string[] PendingWidgetEmitters = ["features/os/Circle/PublicationUi.cs", "features/os/Usage/Usage.cs"];
+    // Production files that still compose per-widget neurons the client no longer draws: none since the script apps went.
+    private static readonly string[] PendingWidgetEmitters = [];
 
     [Fact]
     public void EveryKindTheServerCanEmitHasADartNodeContract()

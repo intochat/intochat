@@ -53,9 +53,6 @@ public interface IApp
     // Install records where the copy came from; recording it again (after an update) also
     // clears Edited, because the program is the publisher's again.
     Task RecordOrigin(AppOrigin origin);
-    // Development only, for a copy of a feature: writes this program back into its owner's
-    // features folder as the next version, then re-attaches the copy to it.
-    [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> SaveToSource();
     [DigitalBrain.CallTimeout(600_000)] Task Delete();
     // Publishes AppRequested for a synapse to react to. Nothing waits for it: the answer is neuron state.
     Task<Guid> Request(string operation, string input);

@@ -86,7 +86,6 @@ static void StartKernel(string osDirectory, Uri url, string home, string masterK
     environment["IntoChatOS__MasterKey"] = masterKey;
     environment["IntoChatOS__Home"] = home;
     environment["IntoChatOS__Topology"] = "local";
-    environment["IntoChatOS__Modules__apps__Options__Features"] = Path.Combine(osDirectory, "features");
     // The kernel switches off the local topology's container-backed modules itself (IntoChatOSNames.LocalDisabledModules). An
     // installed desktop also leaves out these integrations; the Windows module stays on: it is the device connector this package ships.
     foreach (var module in (string[])["github", "time", "salesforce", "gmail"])

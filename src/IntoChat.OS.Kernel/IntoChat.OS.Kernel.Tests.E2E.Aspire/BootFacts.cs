@@ -52,8 +52,7 @@ public sealed class BootFacts(OsAppHostFixture host)
     [Fact]
     public async Task AFailedStartLeavesNoProcessBehind()
     {
-        var fileInsteadOfDir = Path.Combine(OsAppHostFixture.RepoRoot(), "Intochat.OS.slnx");
-        var bad = new OsAppHostFixture(fileInsteadOfDir);
+        var bad = new OsAppHostFixture([$"--{IntoChat.OS.Contracts.Configuration.IntoChatOSNames.TopologyKey}=nowhere"]);
         var tempHome = bad.Home;
 
         await Assert.ThrowsAnyAsync<Exception>(async () => await bad.InitializeAsync());

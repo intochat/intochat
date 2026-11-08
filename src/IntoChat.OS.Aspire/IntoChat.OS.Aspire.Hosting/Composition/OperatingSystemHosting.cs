@@ -35,10 +35,8 @@ public static class OperatingSystemHosting
         var workdir = AspireModuleHosting.WorkdirOf(builder);
         var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
             AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "IntoChat.OS.Kernel.dll") is { } live
-                // A live build reads the features published with it (AddLiveBuild), not the working tree's.
                 ? Primary(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
-                : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<TProject>(name))
-                    .WithEnvironment(ModuleConfiguration.EnvironmentName(DeploymentProfile.FeaturesKey), profile.Features))).ToArray();
+                : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<TProject>(name)))).ToArray();
         if (profile.FrontEnabled)
         {
             var front = AspireModuleHosting.AddFront(builder, "OperatingSystem", profile.UiPort, silos.Select(silo => silo.GetEndpoint("https")));

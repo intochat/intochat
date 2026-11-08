@@ -46,14 +46,12 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IIncomingGrainCallFilter, MarketplaceWriteGuard>();
-        services.TryAddSingleton<GitSideload>();
         services.AddSingleton(new CompiledAppsRegistration(typeof(AppsModule).Assembly));
         services.TryAddSingleton(FeatureCatalog.From);
         services.TryAddSingleton<FeatureLoader>();
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
-        services.TryAddSingleton<SideloadInstaller>();
         services.TryAddSingleton<IntoChat.OS.Framework.IHostedAppTypes, HostedAppTypes>();
         services.TryAddSingleton<AppPresentationSink>();
         services.TryAddSingleton<IPresentationSink>(sp => sp.GetRequiredService<AppPresentationSink>());
@@ -74,8 +72,6 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, Flows.MigrateTasksLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, CompiledAppsLifecycle>();
-        services.AddSingleton<DevAppGate>();
-        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, AppGraphSource>();
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Flows.FlowGraphSource>();
     }
@@ -109,6 +105,5 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         AppsEndpoints.Map(endpoints);
         PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
-        DevAppEndpoints.Map(endpoints);
     }
 }

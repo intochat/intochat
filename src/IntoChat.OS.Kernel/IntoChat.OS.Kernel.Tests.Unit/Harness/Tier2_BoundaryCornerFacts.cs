@@ -455,16 +455,6 @@ public sealed class Tier2_BoundaryCornerFacts
     [Fact]
     [Trait("Category", "Tier2_BoundaryCorner")]
     [Trait("Feature", "F7")]
-    public void F7_B04_SideloadInstallResult_EmptyMessage_HandlesCleanly()
-    {
-        var res = SideloadInstallResult.Fail("");
-        Assert.False(res.Ok);
-        Assert.Empty(res.Message);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F7")]
     public void F7_B05_AppOrigin_NullOptionals_InitializesWithDefaults()
     {
         var origin = new AppOrigin("Pub", new AppSource.Shipped(), "App", "1.0");

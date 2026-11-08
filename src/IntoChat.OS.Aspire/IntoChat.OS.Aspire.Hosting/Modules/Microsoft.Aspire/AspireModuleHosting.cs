@@ -55,12 +55,6 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
             {
                 context.EnvironmentVariables[AspNetCoreContentRoot] = Folder();
                 context.EnvironmentVariables[DotnetContentRoot] = Folder();
-                // The published OS carries the features of its own commit: the live apps are the promoted ones,
-                // never the working tree's.
-                if (Directory.Exists(Path.Combine(Folder(), FeaturesFolder)))
-                {
-                    context.EnvironmentVariables[FeaturesVariable] = Path.Combine(Folder(), FeaturesFolder);
-                }
             })
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
             .WithOtlpExporter();
@@ -165,15 +159,12 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
     public const string OtlpHttpEndpoint = IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment.OtlpHttpEndpoint;
     public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";
     public const string DotnetContentRoot = "DOTNET_CONTENTROOT";
-    public const string FeaturesFolder = "features";
-    public static string FeaturesKey => ModuleConfiguration.ModuleOptionsSection("apps") + ":Features";
 
     // The model Integrations a candidate keeps (the AI module's provider ids); every other Integration it boots
     // with is its own.
     public static readonly string[] ModelIntegrations = ["openai", "anthropic", "google", "xai", "openrouter", "typesafe"];
 
     public static string CandidateModelVariable => ModuleConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.CandidateModelField));
-    public static string FeaturesVariable => ModuleConfiguration.EnvironmentName(FeaturesKey);
     public static string IntegrationVariable(string id, string field) => ModuleConfiguration.IntegrationEnvironmentName(id, field);
 
     private sealed class Workdir(string path) : IntoChatOSModuleProjection

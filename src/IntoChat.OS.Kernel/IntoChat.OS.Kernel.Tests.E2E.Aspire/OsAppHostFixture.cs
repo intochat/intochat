@@ -29,17 +29,18 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     ];
 
     private readonly TestHome _home = new();
-    private readonly string _features;
+    private readonly string[] _extra;
     private IDistributedApplicationTestingBuilder? _builder;
 
     public OsAppHostFixture()
-        : this(DefaultFeaturesPath())
+        : this([])
     {
     }
 
-    internal OsAppHostFixture(string features)
+    // Extra command-line settings, applied after the defaults (a later setting wins).
+    internal OsAppHostFixture(string[] extra)
     {
-        _features = features;
+        _extra = extra;
     }
 
     public DistributedApplication App { get; private set; } = null!;
@@ -61,19 +62,18 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     {
         InitializeConfigurationRoot();
         var started = DateTimeOffset.UtcNow;
-        var featuresKey = ModuleConfiguration.ModuleOptionsSection("apps") + ":Features";
         var args = new List<string>
         {
             $"--{IntoChatOSNames.HomeKey}={Home}",
             $"--{IntoChatOSNames.TopologyKey}={IntoChatOSNames.TopologyLocal}",
             $"--{IntoChatOSNames.ShellEnabledKey}=false",
             $"--{IntoChatOSNames.FrontEnabledKey}=false",
-            $"--{featuresKey}={_features}",
         };
         foreach (var module in DisabledModules)
         {
             args.Add($"--{ModuleConfiguration.ModuleSection(module)}:Enabled=false");
         }
+        args.AddRange(_extra);
 
         try
         {
@@ -209,6 +209,4 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         }
         throw new InvalidOperationException("Repository root containing Intochat.OS.slnx was not found.");
     }
-
-    private static string DefaultFeaturesPath() => Path.Combine(RepoRoot(), "features", "os");
 }

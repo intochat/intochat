@@ -43,20 +43,6 @@ public sealed class BoundaryFacts
         }
     }
 
-    // R124: a circle's shared apps and its room load through the Apps module's one load path, FeatureLoader; that is the
-    // Circles module's only reference to another module's implementation.
-    [Fact]
-    public void TheCirclesModuleLoadsThroughTheAppsFeatureLoader()
-    {
-        var implementations = Repository.References(Repository.ProjectNamed("IntoChat.OS.Modules.Circles").Path)
-            .Where(reference => reference.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && !reference.EndsWith(".Contracts", StringComparison.Ordinal))
-            .ToArray();
-        Assert.Equal(["IntoChat.OS.Modules.Apps", "IntoChat.OS.Modules.Identity"], implementations);
-        var circles = Assert.Single(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name == "IntoChat.OS.Modules.Circles");
-        Assert.Contains(circles.GetTypes(), type => type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .Any(constructor => constructor.GetParameters().Any(parameter => parameter.ParameterType.FullName == "IntoChat.OS.Modules.Apps.FeatureLoader")));
-    }
-
     [Fact]
     public void FeatureModulesNeverDependOnTheCredentialImplementation()
     {

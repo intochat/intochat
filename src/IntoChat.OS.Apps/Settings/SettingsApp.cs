@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, sideload-list, sideload-install, sideload-add-git, navigate, go-back
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back
 
 Declarative macOS System Settings-style application for IntoChat OS.
 Owns the 13 settings sections, master-detail subpages (AppPage, MemoryPage, ConnectionPage, PersonPage, LocalServerPage),
@@ -42,15 +42,6 @@ public sealed record SettingsReloadPreferences : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.reconcile-preferences")]
 public sealed record SettingsReconcilePreferences : DigitalBrain.Signal;
-
-[DigitalBrain.Signal("settings.sideload-list")]
-public sealed record SettingsSideloadList : DigitalBrain.Signal;
-
-[DigitalBrain.Signal("settings.sideload-install")]
-public sealed record SettingsSideloadInstall(string? Name = null, string? Consent = null) : DigitalBrain.Signal;
-
-[DigitalBrain.Signal("settings.sideload-add-git")]
-public sealed record SettingsSideloadAddGit(string? Url = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("settings.navigate")]
 public sealed record SettingsNavigate(
@@ -138,7 +129,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     [
         new("general", "General", "appearance theme dark light auto glass acrylic spatial cyber synaptic warm paper midnight nordic language timezone date format", "os://window/profile", "sliders-horizontal", "Preferences"),
         new("desktop", "Desktop & Dock", "dock pinned apps bar widgets notifications tokens clock background tone cream sand peat ink", "os://window/settings?section=desktop", "monitor", "Preferences"),
-        new("apps", "Apps", "installed apps store link install sideload git permissions capabilities memory ino", "os://sheet/install", "layout-grid", "Capabilities & Data"),
+        new("apps", "Apps", "installed apps store link install permissions capabilities memory ino", "os://sheet/install", "layout-grid", "Capabilities & Data"),
         new("connections", "Connections", "postgres salesforce google drive github slack integrations webhook oauth reconnect", "os://window/settings?section=connections", "plug", "Capabilities & Data"),
         new("files", "Files", "storage drive local computer root desktop mode synced folders conflict naming", "os://sheet/conflict", "folder", "Capabilities & Data"),
         new("models", "AI models", "ollama lm studio claude gpt gemini local inference reasoning effort default model", "os://window/settings?section=models", "sparkles", "Capabilities & Data"),
@@ -468,30 +459,6 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         Update(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
     }
 
-    [DigitalBrain.On]
-    public async Task SideloadList(SettingsSideloadList request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        var view = await SettingsSideload.List(Get<ISideload>("apps/sideload"));
-        Update(State with { Title = view.Title, OverrideBody = view.Root });
-    }
-
-    [DigitalBrain.On]
-    public async Task SideloadInstall(SettingsSideloadInstall request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        var view = await SettingsSideload.Install(Get<ISideload>("apps/sideload"), request.Name, request.Consent);
-        Update(State with { Title = view.Title, OverrideBody = view.Root });
-    }
-
-    [DigitalBrain.On]
-    public async Task SideloadAddGit(SettingsSideloadAddGit request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        var view = await SettingsSideload.AddGit(Get<ISideload>("apps/sideload"), request.Url);
-        Update(State with { Title = view.Title, OverrideBody = view.Root });
-    }
-
     public View RenderSide()
     {
         var matches = FilterSections(State.SearchQuery);
@@ -586,7 +553,6 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             new Text(sheet switch
             {
                 "install-link" => "Paste a verified Smart App link (https://intochat.app/a/...) to inspect its manifest and capability requirements.",
-                "sideload-git" => "Clone and sideload a C# App<TState> repository from an HTTPS or SSH Git URL.",
                 "add-connection" or "google-drive" => "Authorize an OAuth 2.0 or token-based integration through the zero-leakage Capability Broker.",
                 "ollama-config" => "Configure local Ollama / LM Studio server endpoint (http://localhost:11434) and reasoning effort.",
                 "invite" => "Invite a teammate to this brain and assign Owner, Member, or Guest circle permissions.",
@@ -748,14 +714,13 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
 
         return new Surface(
             [
-                new Heading("Installed Smart Apps & Sideloading", Level: 3, Subtitle: "Manage installed apps, inspect permissions, or sideload from Git."),
+                new Heading("Installed Smart Apps", Level: 3, Subtitle: "Manage installed apps and inspect permissions."),
                 new Row(
                 [
                     new Button("inspect-ino-app", "Inspect Ino App", Emit: AppSignals.Emit("settings", "navigate", "apps", "ino"), Tone: ButtonTone.Accent) { Small = true, Icon = "sparkles" },
                     new Button("inspect-creator-app", "Inspect Creator App", Emit: AppSignals.Emit("settings", "navigate", "apps", "creator")) { Small = true, Icon = "wand-sparkles" },
                     new Button("ino-memorypage", "Ino MemoryPage", Emit: AppSignals.Emit("settings", "navigate", "apps", "memory")) { Small = true, Icon = "brain" },
                     new Button("install-from-link", "Install from Link", Emit: AppSignals.Emit("settings", "navigate", "apps", "", "install-link")) { Small = true, Icon = "package-plus" },
-                    new Button("sideload-git", "Sideload Git", Emit: AppSignals.Emit("settings", "navigate", "apps", "", "sideload-git")) { Small = true, Icon = "git-branch" },
                 ]) { Gap = 8 },
             ],
             Kind: SurfaceKind.Elevated,

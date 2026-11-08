@@ -104,10 +104,6 @@ internal static class AppsEndpoints
         apps.MapPost("/{name}/publish", (string name, INeuronProxies brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).Publish()))));
 
-        // Development only: writes an edited copy of a feature back into its owner's features folder.
-        apps.MapPost("/{name}/save-to-source", (string name, INeuronProxies brain) => Respond(async ()
-            => Results.Ok(View(await App(brain, name).SaveToSource()))));
-
         // The one install path over HTTP: a person's own session, never an app's.
         apps.MapPost("/install", (InstallRequest request, [FromServices] AppInstaller installer, CancellationToken ct) => Install(request, installer, ct));
 

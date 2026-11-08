@@ -26,17 +26,12 @@ namespace IntoChat.OS.Modules.Apps.Tests.Integration;
 
 public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
 {
-    private readonly string _sideloadRoot = Directory.CreateTempSubdirectory("inproc-sideload-").FullName;
     private IInProcessHost? _host;
 
     private IServiceProvider Services => (_host ?? throw new InvalidOperationException("Host not started.")).Services;
 
     public async ValueTask InitializeAsync()
     {
-        var Folder = Directory.CreateDirectory(Path.Combine(_sideloadRoot, "notes"));
-        await File.WriteAllTextAsync(Path.Combine(Folder.FullName, "app.cs"), Declarations.Of("notes", "1.0.0", "Notes", "Notes."));
-        await File.WriteAllTextAsync(Path.Combine(Folder.FullName, "note.cs"), "static class Note { }\n");
-
         var signalAssemblies = new[]
         {
             typeof(AppsModule).Assembly,
@@ -53,12 +48,6 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
                 AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
                 services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
                 services.TryAddSingleton<ICallFilter, CallFilter>();
-                services.AddSingleton(sp =>
-                {
-                    var git = new GitSideload((_, _) => Task.FromResult(0), GitSideload.MaxBytes);
-                    var catalog = new FeatureCatalog(directory: null, dev: null, sideload: new SideloadDirectory(_sideloadRoot), git: git);
-                    return new SideloadInstaller(catalog, git, (req, _) => Task.FromResult(InstallOutcome.Installed(req.Ref.App)));
-                });
             });
 
         // Boot the silo; compiled apps need no other module.
@@ -80,10 +69,6 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
         if (_host is not null)
         {
             await _host.DisposeAsync();
-        }
-        if (Directory.Exists(_sideloadRoot))
-        {
-            Directory.Delete(_sideloadRoot, recursive: true);
         }
     }
 
@@ -110,12 +95,6 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
         Assert.NotNull(snapshot.Presentation);
         var mainView = await SiloNeurons.Get<IView>(Services, appKey + "/view").Read();
         Assert.Equal(System.Text.Json.JsonValueKind.Object, mainView?.View.GetProperty("root").ValueKind);
-
-        // SideloadNeuron answers on the silo.
-        var sideload = SiloNeurons.Get<ISideload>(Services, $"{brain}/sideload");
-        var rows = await sideload.List();
-        var entry = Assert.Single(rows);
-        Assert.Equal("notes", entry.Name);
     }
 
     private static IDisposable StampCaller(string brain)

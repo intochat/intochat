@@ -147,36 +147,4 @@ public sealed class SettingsAppFacts
         Assert.Equal("models", filtered[0].SectionId);
     }
 
-    [Fact]
-    public async Task SettingsPresentsTheSideloadListInstallAndCloneThroughTheNeuron()
-    {
-        await using var os = TestOS.Local();
-        os.Register<FakeSideloadNeuron>();
-        var installed = await os.Install<SettingsApp>();
-
-        await installed.Request("sideload-list", new SettingsSideloadList());
-        var listed = Assert.IsType<Collection>(installed.App.State.OverrideBody);
-        var entry = Assert.Single(listed.Entries);
-        Assert.Equal("notes", entry.Id);
-        Assert.Equal("not installed", entry.Subtitle);
-
-        await installed.Request("sideload-install", new SettingsSideloadInstall("notes"));
-        Assert.Equal("Installed notes.", Assert.IsType<Text>(installed.App.State.OverrideBody).Value);
-
-        await installed.Request("sideload-add-git", new SettingsSideloadAddGit("https://example.com/notes.git"));
-        Assert.Equal("Cloned notes.", Assert.IsType<Text>(installed.App.State.OverrideBody).Value);
-    }
-
-    [Neuron("apps.sideload")]
-    private sealed class FakeSideloadNeuron : Neuron, ISideload
-    {
-        public Task<SideloadRow[]> List()
-            => Task.FromResult<SideloadRow[]>([new SideloadRow("notes", "Notes", false)]);
-
-        public Task<SideloadResult> Install(string? name, string? consent = null)
-            => Task.FromResult(new SideloadResult(true, $"Installed {name}."));
-
-        public Task<SideloadResult> AddGit(string? url)
-            => Task.FromResult(new SideloadResult(true, "Cloned notes."));
-    }
 }

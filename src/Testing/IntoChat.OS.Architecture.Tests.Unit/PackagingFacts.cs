@@ -51,10 +51,10 @@ public sealed partial class PackagingFacts
     }
 
     [Fact]
-    public void OsHostIsPackableWithoutFeatures()
+    public void OsHostIsPackableWithoutAFeaturesFolder()
     {
         var csproj = File.ReadAllText(Repository.ProjectNamed("IntoChat.OS.Kernel").Path);
         Assert.Contains("<IsPackable>true</IsPackable>", csproj, StringComparison.Ordinal);
-        Assert.Contains("Pack=\"false\"", csproj, StringComparison.Ordinal);
+        Assert.DoesNotContain("features", csproj, StringComparison.Ordinal);
     }
 }

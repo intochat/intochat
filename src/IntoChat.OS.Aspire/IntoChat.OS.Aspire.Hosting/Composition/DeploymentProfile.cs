@@ -30,12 +30,10 @@ public sealed record DeploymentProfile
     public const string UiPortKey = "IntoChatOS:Http:UiPort";
     public const string McpPortKey = "IntoChatOS:Http:McpPort";
     public const string ConfigFileKey = "IntoChatOS:ConfigFile";
-    public static string FeaturesKey => AspireModuleHosting.FeaturesKey;
 
     public required string Topology { get; init; }
     public bool Cloud => Topology == IntoChatOSNames.TopologyCloud;
     public required string Home { get; init; }
-    public required string Features { get; init; }
     public int UiPort { get; init; } = 5080;
     public int McpPort { get; init; } = 5081;
     public bool ShellEnabled { get; init; } = true;
@@ -59,11 +57,6 @@ public sealed record DeploymentProfile
         var overrides = ExplicitModuleSettings(configuration, topology);
         LocalRunDefaults.Apply(configuration);
 
-        var features = configuration[FeaturesKey] is { Length: > 0 } configured
-            ? Path.GetFullPath(configured)
-            : Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "features"));
-        if (File.Exists(features)) { throw new InvalidOperationException($"{FeaturesKey} must name a directory, not a file: {features}"); }
-
         var cloud = topology == IntoChatOSNames.TopologyCloud;
         var orleans = new OrleansOptions();
         // Azurite carries grain state and the cookie key ring on cloud; a local run keeps both on the machine.
@@ -72,7 +65,6 @@ public sealed record DeploymentProfile
         {
             Topology = topology,
             Home = IntoChatOSHome.Resolve(configuration),
-            Features = features,
             UiPort = configuration.GetValue(UiPortKey, 5080),
             McpPort = configuration.GetValue(McpPortKey, 5081),
             ShellEnabled = configuration.GetValue(IntoChatOSNames.ShellEnabledKey, true),

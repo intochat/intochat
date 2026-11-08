@@ -26,19 +26,12 @@ namespace IntoChat.OS.Kernel.Tests.Integration.Apps;
 
 public sealed class ShellAppsLoadFacts : IAsyncLifetime
 {
-    private readonly string _sideloadRoot = Directory.CreateTempSubdirectory("shell-apps-load-").FullName;
     private IInProcessHost? _host;
 
     private IServiceProvider Services => (_host ?? throw new InvalidOperationException("Silo host is not started.")).Services;
 
     public async ValueTask InitializeAsync()
     {
-        var folder = Directory.CreateDirectory(Path.Combine(_sideloadRoot, "notes"));
-        await File.WriteAllTextAsync(
-            Path.Combine(folder.FullName, "app.cs"),
-            AppDeclaration.Write(new("notes", "1.0.0", new AppManifest("Notes", "Notes.", [], [], []), "")));
-        await File.WriteAllTextAsync(Path.Combine(folder.FullName, "note.cs"), "static class Note { }\n");
-
         var signalAssemblies = new[]
         {
             typeof(Activated).Assembly,
@@ -58,22 +51,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
                 services.AddOperatingSystemBoot();
                 services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
                 services.AddIdentityCapability<TestIdentityDirectoryPort>();
-                services.AddSingleton(sp =>
-                {
-                    var git = new GitSideload((_, _) => Task.FromResult(0), GitSideload.MaxBytes);
-                    var catalog = new FeatureCatalog(
-                        directory: null,
-                        modules: sp.GetServices<CompiledAppsRegistration>().Select(r => r.Assembly),
-                        dev: null,
-                        sideload: new SideloadDirectory(_sideloadRoot),
-                        git: git);
-                    return catalog;
-                });
-                services.AddSingleton(sp =>
-                {
-                    var git = new GitSideload((_, _) => Task.FromResult(0), GitSideload.MaxBytes);
-                    return new SideloadInstaller(sp.GetRequiredService<FeatureCatalog>(), git, (req, _) => Task.FromResult(IntoChat.OS.Modules.Apps.InstallOutcome.Installed(req.Ref.App)));
-                });
+                services.AddSingleton(sp => new FeatureCatalog(sp.GetServices<CompiledAppsRegistration>().Select(r => r.Assembly)));
             });
 
         _host = await factory.Start(
@@ -97,17 +75,12 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         {
             await _host.DisposeAsync();
         }
-        if (Directory.Exists(_sideloadRoot))
-        {
-            Directory.Delete(_sideloadRoot, recursive: true);
-        }
     }
 
     [Fact]
-    public async Task ShellAppsLoadWithoutAFeaturesFolder()
+    public async Task ShellAppsLoadFromTheirAssemblies()
     {
         var catalog = Services.GetRequiredService<FeatureCatalog>();
-        Assert.Null(catalog.Directory);
 
         var listings = await catalog.Listings();
         Assert.Contains(listings, listing => listing.Publisher == "os" && listing.Name == "settings");
@@ -143,9 +116,6 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
 
             var localModules = os.Get<IInstalledModules>(new NeuronId(new BrainId("local"), "apps.installed-modules", "modules"));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(localModules.List);
-
-            var localSideload = os.Get<ISideload>(new NeuronId(new BrainId("local"), "apps.sideload", "sideload"));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(localSideload.List);
         }
 
         // 2. Silo tier
@@ -159,9 +129,6 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         {
             var siloModules = SiloNeurons.Get<IInstalledModules>(Services, $"{brain}/modules");
             await Assert.ThrowsAsync<UnauthorizedAccessException>(siloModules.List);
-
-            var siloSideload = SiloNeurons.Get<ISideload>(Services, $"{brain}/sideload");
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(siloSideload.List);
         }
 
         // 3. Granted SettingsApp succeeds on the silo
@@ -175,10 +142,6 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
             var siloModules = SiloNeurons.Get<IInstalledModules>(Services, $"{brain}/modules");
             var rows = await siloModules.List();
             Assert.Contains(rows, r => r.Id == "apps");
-
-            var siloSideload = SiloNeurons.Get<ISideload>(Services, $"{brain}/sideload");
-            var sideloadRows = await siloSideload.List();
-            Assert.Contains(sideloadRows, r => r.Name == "notes");
         }
     }
 
@@ -205,13 +168,10 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
 
         var host = Services.GetRequiredService<IntoChat.OS.Modules.Apps.Hosting.InProcess.InProcessAppHost>();
         await host.Request(appKey, "open", new SettingsOpen(), TestContext.Current.CancellationToken);
-        await host.Request(appKey, "sideload-list", new SettingsSideloadList(), TestContext.Current.CancellationToken);
 
         var turns = host.TryGetTurns(appKey);
         Assert.NotNull(turns);
-        var settingsInstance = Assert.IsType<SettingsApp>(turns.App);
-        var listed = Assert.IsType<Collection>(settingsInstance.State.OverrideBody);
-        Assert.Contains(listed.Entries, e => e.Id == "notes");
+        Assert.IsType<SettingsApp>(turns.App);
     }
 
     [DigitalBrain.Module("flame-stub")]
