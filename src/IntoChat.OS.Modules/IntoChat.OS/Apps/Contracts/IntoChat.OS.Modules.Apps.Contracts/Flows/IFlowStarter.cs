@@ -18,6 +18,18 @@ public interface IFlowStarter
     Task Relate(FlowRelation relation);
 }
 
-// A flow's declared steps and the parts of its state the index does not learn from signals. InnerJson is its own state as JSON;
-// a top-level "operationId" string names the leaf operation of the running step.
-public sealed record FlowHead(string[] Steps, string Owner, string TraceId, string? ParentFlowId, DateTimeOffset Started, string InnerJson);
+// What a flow reports of itself: its declared steps and the parts of its state the index cannot learn from signals alone, so an
+// index that missed signals catches up. InnerJson is its own state as JSON; OperationId is the top-level "operationId" string of
+// that state (the leaf operation of the current step), if any.
+public sealed record FlowHead(
+    string[] Steps,
+    string Owner,
+    string TraceId,
+    string? ParentFlowId,
+    DateTimeOffset Started,
+    string InnerJson,
+    string Title,
+    FlowStatus Status,
+    string[] Done,
+    DateTimeOffset? Ended,
+    string? OperationId);

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Operations;
@@ -12,7 +11,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace IntoChat.OS.Modules.Apps.Flows;
 
 // The brain's flows index. It holds a brain-wide synapse on the six flow.* signals and folds each into its entry; only those
-// handlers save. The commands find the flow neuron by id and call it, so they interleave with the handlers.
+// handlers save. A signal for a flow the index does not know yet makes a placeholder entry; the flow's FlowHead fills it in when
+// it can be read (retried on the flow's next signal, and on reads without saving). Signals are folded idempotently: a repeated
+// or stale one does not move an entry back. The commands find the flow neuron by id and call it, so they interleave.
 [DigitalBrain.Neuron("flows")]
 public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
 {
@@ -30,7 +31,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
                 && (query.Type is null || entry.Type == query.Type)
                 && (query.ParentFlowId is null || entry.ParentFlowId == query.ParentFlowId))
             .Select(entry => (Entry: entry, Status: StatusOf(entry, flows)))
-            .Where(item => query.Status is null || item.Status == query.Status)
+            .Where(item => (query.Status is null || item.Status == query.Status) && (query.AnyStatus is null || query.AnyStatus.Contains(item.Status)))
             .OrderByDescending(item => item.Entry.Started)
             .Take(Math.Max(0, query.Limit))
             .ToArray();
@@ -68,9 +69,10 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         var flow = Flow(flowId);
-        if (OperationOf((await flow.Head()).InnerJson) is { } operation)
+        if ((await flow.Head()).OperationId is { Length: > 0 } id)
         {
             // An operation that already ended (or is unknown to the brain) has nothing to cancel.
+            var operation = new OperationId(id);
             if (await Context.OperationsQuery.Read(operation, ct) is { Result: null }) { await Context.Operations.Cancel(operation, ct); }
         }
         await flow.Cancel(reason);
@@ -83,46 +85,55 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     }
 
     [On]
-    public async Task OnFlowStarted(FlowStarted started)
+    public Task OnFlowStarted(FlowStarted started)
     {
         ArgumentNullException.ThrowIfNull(started);
-        if (State.Flows.ContainsKey(started.FlowId)) { return; }
-        FlowHead? head = null;
-        try { head = await Flow(started.FlowId).Head(); }
-        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.HeadUnread(Logger(), error, started.FlowId); }
-        await Put(new FlowEntry(started.FlowId, started.Type, started.Title, head?.Owner ?? SystemOwner, head?.TraceId ?? "", FlowStatus.Running,
-            head?.Steps ?? [], [], null, null, [], head?.ParentFlowId, head?.Started ?? Context.Time.GetUtcNow(), null, null));
+        return Fold(started.FlowId, entry => entry with
+        {
+            Type = started.Type,
+            Title = started.Title,
+            Status = entry.Status == FlowStatus.Pending ? FlowStatus.Running : entry.Status,
+        }, readHead: true);
     }
 
     [On]
     public Task OnFlowStep(FlowStep step)
     {
         ArgumentNullException.ThrowIfNull(step);
-        return Change(step.FlowId, entry => step.Outcome switch
+        return step.Outcome switch
         {
-            StepOutcome.Started => entry with { Status = entry.Finished ? entry.Status : FlowStatus.Running, Current = step.Step },
-            StepOutcome.Completed => entry with { Done = entry.Done.Contains(step.Step) ? entry.Done : [.. entry.Done, step.Step], Current = null },
-            _ => entry with { Detail = step.Detail },
-        });
+            // A start redelivered after the step completed or the flow ended is stale.
+            StepOutcome.Started => Fold(step.FlowId, entry => entry.Finished || entry.Done.Contains(step.Step) ? entry
+                : entry with { Status = FlowStatus.Running, Current = step.Step, OperationId = null }, readHead: true),
+            StepOutcome.Completed => Fold(step.FlowId, entry => entry.Done.Contains(step.Step) ? entry : entry with
+            {
+                Done = [.. entry.Done, step.Step],
+                Status = entry.Status == FlowStatus.Pending ? FlowStatus.Running : entry.Status,
+                Current = entry.Current == step.Step ? null : entry.Current,
+                OperationId = entry.Current == step.Step ? null : entry.OperationId,
+            }),
+            _ => Fold(step.FlowId, entry => entry.Detail == step.Detail ? entry : entry with { Detail = step.Detail }),
+        };
     }
 
     [On]
     public Task OnFlowWaiting(FlowWaiting waiting)
     {
         ArgumentNullException.ThrowIfNull(waiting);
-        return Change(waiting.FlowId, entry => entry.Finished ? entry : entry with
+        return Fold(waiting.FlowId, entry => entry.Finished || entry.Done.Contains(waiting.Step) ? entry : entry with
         {
             Status = FlowStatus.Waiting,
             Current = waiting.Step,
             Waiting = new Waiting(waiting.Step, waiting.Reason, null, waiting.ConfirmationPlanId),
-        });
+        }, readHead: true);
     }
 
     [On]
     public Task OnFlowResolve(FlowResolve resolve)
     {
         ArgumentNullException.ThrowIfNull(resolve);
-        return Change(resolve.FlowId, entry => entry with
+        // Only the wait the entry shows is ended; a late resolve of an older wait is stale.
+        return Fold(resolve.FlowId, entry => entry.Waiting?.Step != resolve.Step ? entry : entry with
         {
             Status = resolve.Outcome is WaitOutcome.Approved or WaitOutcome.Arrived && !entry.Finished ? FlowStatus.Running : entry.Status,
             Waiting = null,
@@ -134,11 +145,12 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     public Task OnFlowDone(FlowDone done)
     {
         ArgumentNullException.ThrowIfNull(done);
-        return Change(done.FlowId, entry => entry with
+        return Fold(done.FlowId, entry => entry.Finished ? entry : entry with
         {
             Status = done.Outcome switch { FlowOutcome.Completed => FlowStatus.Completed, FlowOutcome.Failed => FlowStatus.Failed, _ => FlowStatus.Cancelled },
             Current = null,
             Waiting = null,
+            OperationId = null,
             Ended = Context.Time.GetUtcNow(),
             Detail = done.Detail ?? entry.Detail,
         });
@@ -148,7 +160,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     public Task OnFlowRelated(FlowRelated related)
     {
         ArgumentNullException.ThrowIfNull(related);
-        return Change(related.FlowId, entry => entry.Relations.Contains(related.Relation) ? entry : entry with { Relations = [.. entry.Relations, related.Relation] });
+        return Fold(related.FlowId, entry => entry.Relations.Contains(related.Relation) ? entry : entry with { Relations = [.. entry.Relations, related.Relation] });
     }
 
     private IFlowStarter Flow(string flowId)
@@ -158,39 +170,42 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
         return Context.Get<IFlowStarter>(id);
     }
 
-    private Task Change(string flowId, Func<FlowEntry, FlowEntry> change)
+    // Applies change to the flow's entry (a placeholder when the index has none) and saves it when it changed. The flow's head is
+    // read when readHead asks for it or the entry has none yet.
+    private async Task Fold(string flowId, Func<FlowEntry, FlowEntry> change, bool readHead = false)
     {
-        if (!State.Flows.TryGetValue(flowId, out var entry)) { return Task.CompletedTask; }
+        var known = State.Flows.TryGetValue(flowId, out var existing);
+        var entry = known ? existing! : Placeholder(flowId);
         var next = change(entry);
-        return ReferenceEquals(next, entry) ? Task.CompletedTask : Put(next);
+        if (readHead || !next.HeadKnown) { next = await WithHead(next); }
+        if (known && ReferenceEquals(next, existing)) { return; }
+        await Save(State.With(next), new FlowsChanged(flowId));
     }
 
-    private Task Put(FlowEntry entry)
+    private FlowEntry Placeholder(string flowId)
+        => new(flowId, NeuronId.TryParse(flowId, out var id) ? id.Type : "", "", SystemOwner, "", FlowStatus.Pending, [], [], null, null, [], null,
+            Context.Time.GetUtcNow(), null, null);
+
+    private async Task<FlowEntry> WithHead(FlowEntry entry)
     {
-        var flows = new Dictionary<string, FlowEntry>(State.Flows, StringComparer.Ordinal) { [entry.FlowId] = entry };
-        var finished = flows.Values.Where(candidate => candidate.Finished).ToArray();
-        if (finished.Length > FlowsState.KeepFinished)
+        try { return entry.Merge(await Flow(entry.FlowId).Head()); }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
-            foreach (var old in finished.OrderBy(candidate => candidate.Ended).Take(finished.Length - FlowsState.KeepFinished)) { flows.Remove(old.FlowId); }
+            FlowsLog.HeadUnread(Logger(), error, entry.FlowId);
+            return entry;
         }
-        return Save(State with { Flows = flows }, new FlowsChanged(entry.FlowId));
     }
 
     private async Task<FlowView> View(FlowEntry entry, IReadOnlyDictionary<string, FlowEntry> flows, CancellationToken ct)
     {
+        // Steps not known yet: read the flow for this view only; the next signal of the flow saves it.
+        if (!entry.HeadKnown) { entry = await WithHead(entry); }
         var steps = entry.Steps.Length;
         var fraction = steps == 0 ? (entry.Status == FlowStatus.Completed ? 1d : 0d) : (double)entry.Done.Length / steps;
-        if (steps > 0 && entry is { Status: FlowStatus.Running, Current: not null })
+        if (steps > 0 && entry is { Status: FlowStatus.Running, Current: not null, OperationId: { Length: > 0 } operation }
+            && await Context.OperationsQuery.Read(new OperationId(operation), ct) is { Result: null } running)
         {
-            try
-            {
-                if (OperationOf((await Flow(entry.FlowId).Head()).InnerJson) is { } operation
-                    && await Context.OperationsQuery.Read(operation, ct) is { Result: null } running)
-                {
-                    fraction += Math.Clamp(running.Fraction, 0, 1) / steps;
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.HeadUnread(Logger(), error, entry.FlowId); }
+            fraction += Math.Clamp(running.Fraction, 0, 1) / steps;
         }
         return new FlowView(entry.FlowId, entry.Type, entry.Title, entry.Owner, entry.TraceId, StatusOf(entry, flows), entry.Steps, entry.Done,
             entry.Current, entry.Waiting?.Reason, entry.Waiting?.Step, entry.Waiting?.ConfirmationPlanId, Math.Min(1d, fraction), entry.Relations,
@@ -200,27 +215,14 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     private static FlowStatus StatusOf(FlowEntry entry, IReadOnlyDictionary<string, FlowEntry> flows)
         => BlockersOf(entry, flows).Any() ? FlowStatus.Blocked : entry.Status;
 
-    // The BlockedBy targets of a Pending or Running flow that have not completed; a target the index does not know counts as open.
+    // The BlockedBy targets of a Pending or Running flow that the index knows and that have not completed. A target the index does
+    // not know (never seen, or evicted once finished) does not block.
     private static IEnumerable<string> BlockersOf(FlowEntry entry, IReadOnlyDictionary<string, FlowEntry> flows)
         => entry.Status is FlowStatus.Pending or FlowStatus.Running
             ? entry.Relations.Where(relation => relation.Kind == RelationKind.BlockedBy
-                    && !(flows.TryGetValue(relation.TargetFlowId, out var target) && target.Status == FlowStatus.Completed))
+                    && flows.TryGetValue(relation.TargetFlowId, out var target) && target.Status != FlowStatus.Completed)
                 .Select(relation => relation.TargetFlowId).Distinct(StringComparer.Ordinal)
             : [];
-
-    private static OperationId? OperationOf(string innerJson)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(innerJson);
-            return document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("operationId", out var value) && value.ValueKind == JsonValueKind.String
-                && value.GetString() is { Length: > 0 } id
-                ? new OperationId(id)
-                : null;
-        }
-        catch (JsonException) { return null; }
-    }
 
     private ILogger Logger() => Context.Services.GetService<ILoggerFactory>()?.CreateLogger<FlowsNeuron>() ?? (ILogger)NullLogger.Instance;
 
@@ -230,7 +232,10 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
 
 internal static partial class FlowsLog
 {
-    // The index shows the flow without its steps, owner or progress.
+    // The index shows the flow without its steps, owner or progress until a later read succeeds.
     [LoggerMessage(Level = LogLevel.Warning, Message = "The flows index could not read flow {FlowId}")]
     public static partial void HeadUnread(ILogger logger, Exception exception, string flowId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The flows graph source could not list the flows of brain {Brain}")]
+    public static partial void GraphUnlisted(ILogger logger, Exception exception, string brain);
 }

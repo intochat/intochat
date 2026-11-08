@@ -3,6 +3,8 @@ using DigitalBrain.Flows;
 using DigitalBrain.Graph;
 using DigitalBrain.Spi;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -10,13 +12,19 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 // between two shown flows. The graph has no flow node kind; a flow shows as a Task.
 internal sealed class FlowGraphSource(IServiceProvider services) : IGraphSource
 {
+    private static readonly FlowStatus[] Open = [FlowStatus.Pending, FlowStatus.Running, FlowStatus.Waiting, FlowStatus.Blocked];
+
     public async Task Contribute(BrainId brain, GraphSink sink, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sink);
         if (services.GetService<INeuronProxies>() is not { } proxies) { return; }
         FlowView[] flows;
-        try { flows = await proxies.Get<IFlows>(IFlows.Key(brain.Value)).List(new FlowQuery(Limit: int.MaxValue), cancellationToken).ConfigureAwait(false); }
-        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { return; }
+        try { flows = await proxies.Get<IFlows>(IFlows.Key(brain.Value)).List(new FlowQuery(Limit: FlowsState.KeepFinished, AnyStatus: Open), cancellationToken).ConfigureAwait(false); }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+        {
+            FlowsLog.GraphUnlisted(services.GetService<ILoggerFactory>()?.CreateLogger<FlowGraphSource>() ?? (ILogger)NullLogger.Instance, error, brain.Value);
+            return;
+        }
         Contribute(brain, sink, flows);
     }
 

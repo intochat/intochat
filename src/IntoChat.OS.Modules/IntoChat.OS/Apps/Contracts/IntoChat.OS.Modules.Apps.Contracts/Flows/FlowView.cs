@@ -26,5 +26,6 @@ public sealed record FlowView(
     DateTimeOffset? Ended,
     string? Detail);
 
-// Null fields do not filter. Newest started first, at most Limit.
-public sealed record FlowQuery(string? Owner = null, FlowStatus? Status = null, string? Type = null, string? ParentFlowId = null, int Limit = 200);
+// Null fields do not filter; AnyStatus keeps views whose status is one of them. Newest started first, at most Limit.
+public sealed record FlowQuery(string? Owner = null, FlowStatus? Status = null, string? Type = null, string? ParentFlowId = null, int Limit = 200,
+    FlowStatus[]? AnyStatus = null);

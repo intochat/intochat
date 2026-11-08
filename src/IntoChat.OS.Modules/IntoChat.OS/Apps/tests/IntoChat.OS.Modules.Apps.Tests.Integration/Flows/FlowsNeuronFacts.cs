@@ -1,6 +1,9 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Flows;
+using DigitalBrain.Operations;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -171,6 +174,137 @@ public sealed class FlowsNeuronFacts
         Assert.All(two, view => Assert.Equal(FlowStatus.Waiting, view.Status));
         Assert.Equal([done], completed.Select(view => view.FlowId));
         Assert.Empty(none);
+    }
+
+    [Fact]
+    public async Task DuplicateAndOutOfOrderSignalsFoldOnce()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        await flows.List(new FlowQuery(), Ct);
+        var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
+        var id = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N")).ToString();
+
+        await pump.Done(id);
+        await pump.StepCompleted(id, "first");
+        await pump.StepCompleted(id, "first");
+        await pump.Started(id, TestFlow.Alias, "Late");
+
+        var view = await Eventually(flows, id, v => v.Title == "Late");
+        Assert.Equal(FlowStatus.Completed, view.Status);
+        Assert.Equal(["first"], view.Done);
+        Assert.Equal(["first", "second", "third"], view.Steps);
+        Assert.NotNull(view.Ended);
+    }
+
+    [Fact]
+    public void EvictionKeepsLast2000Finished()
+    {
+        var start = DateTimeOffset.UnixEpoch;
+        FlowEntry Entry(string id, FlowStatus status, int minute)
+            => new(id, TestFlow.Alias, id, "system", "", status, [], [], null, null, [], null, start, status == FlowStatus.Running ? null : start.AddMinutes(minute), null);
+        var flows = new Dictionary<string, FlowEntry>(StringComparer.Ordinal) { ["running"] = Entry("running", FlowStatus.Running, 0) };
+        for (var i = 0; i < FlowsState.KeepFinished; i++) { flows[$"done-{i}"] = Entry($"done-{i}", FlowStatus.Completed, i + 1); }
+
+        var next = new FlowsState(flows).With(Entry("newest", FlowStatus.Cancelled, FlowsState.KeepFinished + 1));
+
+        Assert.Equal(FlowsState.KeepFinished, next.Flows.Values.Count(entry => entry.Finished));
+        Assert.DoesNotContain("done-0", next.Flows.Keys);
+        Assert.Contains("done-1", next.Flows.Keys);
+        Assert.Contains("newest", next.Flows.Keys);
+        Assert.Contains("running", next.Flows.Keys);
+    }
+
+    [Fact]
+    public async Task UnknownBlockedByTargetDoesNotBlock()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        var gate = Guid.NewGuid().ToString("N");
+        var gone = runtime.Id(TestFlow.Alias, "evicted").ToString();
+
+        var id = await flows.Start(TestFlow.Alias, "Free", null, Inner(new TestInner { Wait = true, Gate = gate }), Ct);
+        await Eventually(flows, id, v => v.Status == FlowStatus.Waiting);
+        await flows.Relate(id, new FlowRelation(gone, RelationKind.BlockedBy, null), Ct);
+        await Eventually(flows, id, v => v.Relations.Length == 1);
+        var resumed = flows.Resume(id, "second", WaitOutcome.Arrived, Ct);
+        try
+        {
+            var view = await Eventually(flows, id, v => v.Current == "third");
+            Assert.Equal(FlowStatus.Running, view.Status);
+            Assert.Empty(view.BlockedBy);
+        }
+        finally
+        {
+            TestFlow.Gate(gate).TrySetResult();
+            await resumed;
+        }
+    }
+
+    [Fact]
+    public async Task FractionIncludesLeafOperation()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        var gate = Guid.NewGuid().ToString("N");
+
+        var started = flows.Start(TestFlow.Alias, "Leaf", null, Inner(new TestInner { LeafInFirst = true, Gate = gate }), Ct);
+        try
+        {
+            FlowView? view = null;
+            for (var i = 0; i < 200 && view is null; i++)
+            {
+                await Task.Delay(50, Ct);
+                var running = await flows.List(new FlowQuery(), Ct);
+                view = running.FirstOrDefault(v => v.Current == "third" && Math.Abs(v.Fraction - 5d / 6) < 1e-6);
+            }
+            Assert.NotNull(view);
+            Assert.Equal(["first", "second"], view.Done);
+        }
+        finally
+        {
+            TestFlow.Gate(gate).TrySetResult();
+            await started;
+        }
+    }
+
+    [Fact]
+    public async Task CallerBecomesOwner()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+
+        string id;
+        using (RuntimeCallerContext.Stamp(new CapabilityCaller("person-1", "account-1", runtime.Brain.Value)))
+        {
+            id = await flows.Start(TestFlow.Alias, "Mine", null, Inner(new TestInner { Wait = true }), Ct);
+        }
+
+        var view = await Eventually(flows, id, v => v.Status == FlowStatus.Waiting);
+        Assert.Equal("person-1", view.Owner);
+    }
+
+    [Fact]
+    public async Task CancelAfterOperationEndedDoesNotCancelAgain()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+
+        var id = await flows.Start(TestFlow.Alias, "Ended", null, Inner(new TestInner { Wait = true, StartOperation = true }), Ct);
+        await Eventually(flows, id, v => v.Status == FlowStatus.Waiting);
+        var operationId = (await runtime.Get<IFlowStarter>(NeuronId.Parse(id)).Head()).OperationId!;
+        var operation = TestFlow.Operations[operationId];
+        await operation.Complete(new OperationResult.Succeeded());
+
+        await flows.Cancel(id, "stop", Ct);
+
+        Assert.False(operation.Cancellation.IsCancellationRequested);
+        await Eventually(flows, id, v => v.Status == FlowStatus.Cancelled);
     }
 
     // A flow waiting at "second" is related BlockedBy a target that waits too, then resumed into "third", which holds on the gate,
