@@ -380,7 +380,7 @@ public sealed class InoAppFacts
             yield return new AgentTurnEvent.Started("run-1");
         }
 
-        public Task<string> Start(AgentTurn turn) => throw new NotSupportedException();
+        public Task<string> Start(AgentTurn turn, string? flowId = null) => throw new NotSupportedException();
         public Task Cancel() => Task.CompletedTask;
         public Task CancelRun(string runId) => Task.CompletedTask;
         public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
@@ -407,7 +407,7 @@ public sealed class InoAppFacts
             throw new OperationCanceledException("The run was cancelled.");
         }
 
-        public Task<string> Start(AgentTurn turn) => throw new NotSupportedException();
+        public Task<string> Start(AgentTurn turn, string? flowId = null) => throw new NotSupportedException();
         public Task Cancel() => Task.CompletedTask;
         public Task CancelRun(string runId) => Task.CompletedTask;
         public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));

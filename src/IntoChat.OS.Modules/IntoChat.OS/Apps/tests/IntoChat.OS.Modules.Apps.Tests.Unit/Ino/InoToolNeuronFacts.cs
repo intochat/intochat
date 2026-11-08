@@ -2,7 +2,6 @@ using DigitalBrain;
 using global::Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Agents.Context;
-using IntoChat.OS.Modules.AI.Tasks;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 

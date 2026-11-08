@@ -1,7 +1,6 @@
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Ino;
@@ -23,7 +22,7 @@ public static class InoAgentDefinition
             Contracts =
             [
                 typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(ISynapseStudio).FullName!,
-                typeof(ITaskEngine).FullName!, typeof(IMemory).FullName!, typeof(IRouter).FullName!,
+                typeof(IMemory).FullName!, typeof(IRouter).FullName!,
             ],
             Contexts =
             [

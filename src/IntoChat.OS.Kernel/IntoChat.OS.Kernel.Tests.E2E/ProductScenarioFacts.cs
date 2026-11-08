@@ -12,15 +12,12 @@ using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
-using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -32,79 +29,6 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
     : IClassFixture<ProductHostFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    [Fact]
-    [Trait("Category", "Tier4_RealWorldScenarios")]
-    [Trait("Scenario", "AutonomousAgentSelfImprovementLoop")]
-    public async Task Scenario01_AutonomousAgentSelfImprovementLoop_ExecutesFullLifecycle()
-    {
-        var brain = fixture.NewBrain("s01");
-        var agentCaller = CapabilityCallers.Of("agent-optimizer-01", "account-system", brain, CallerKind.User);
-        Assert.True(RuntimeCallerContext.IsTrusted(agentCaller));
-        using var stamp = RuntimeCallerContext.Stamp(agentCaller);
-
-        var taskEngine = new TaskEngine(
-            taskId => SiloNeurons.Get<ITaskNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.task", taskId)),
-            () => SiloNeurons.Get<ITaskDirectoryNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.directory", "default")));
-        var aspire = SiloNeurons.Get<IAspire>(fixture.Services, $"{brain}/aspire");
-        var siloBdd = SiloNeurons.Get<IBdd>(fixture.Services, new NeuronId(new BrainId(brain), "bdd", "kernel"));
-
-        // Step 2: Formulate improvement goal and enqueue task in TaskEngine on the real silo
-        var steps = new[]
-        {
-            new TaskStepDefinition("deconstruct", "Objective deconstructed", "kernel"),
-            new TaskStepDefinition("assess", "Capabilities assessed", "kernel"),
-            new TaskStepDefinition("synthesize", "Plan synthesized", "kernel"),
-        };
-        var taskReq = new CreateTaskRequest("Kernel Latency Optimization", "Optimize kernel signal dispatch latency", "admin", steps);
-        var agentTask = await taskEngine.CreateTaskAsync(taskReq, Ct);
-        Assert.Equal(TaskStatus.Pending, agentTask.Status);
-        Assert.Equal(3, agentTask.Steps.Length);
-
-        // Step 3: Execute the benchmark, recording performance telemetry on AspireNeuron on the silo
-        {
-            await aspire.RecordTraceAsync(new AspireTraceSpan(
-                "trace-bench-01",
-                "span-bench-01",
-                "OperatingSystem",
-                "benchmark.baseline.latency_ms",
-                "Ok",
-                14,
-                "14.2ms"));
-            await aspire.RecordTraceAsync(new AspireTraceSpan(
-                "trace-bench-02",
-                "span-bench-02",
-                "OperatingSystem",
-                "benchmark.candidate.latency_ms",
-                "Ok",
-                4,
-                "4.1ms"));
-
-            await taskEngine.AdvanceTaskStepAsync(agentTask.TaskId, 0, TaskStepStatus.Completed, ct: Ct);
-            await taskEngine.AdvanceTaskStepAsync(agentTask.TaskId, 1, TaskStepStatus.Completed, ct: Ct);
-        }
-
-        // Step 4: Automated regression verification persisted in BddNeuron on the silo
-        var bddReport = await siloBdd.Record(
-            new BddReport(
-                "kernel",
-                [new ScenarioVerdict("Tier1_FeatureCoverage.F1", Passed: true, Error: null, Elapsed: TimeSpan.FromMilliseconds(5))],
-                BaselinePassed: true,
-                BaselineError: null,
-                Elapsed: TimeSpan.FromMilliseconds(5)),
-            Ct);
-        Assert.True(bddReport.Passed);
-
-        // Step 5: Finalize remaining task step and verify complete task resolution on the silo
-        var finalTask = await taskEngine.AdvanceTaskStepAsync(agentTask.TaskId, 2, TaskStepStatus.Completed, ct: Ct);
-        Assert.Equal(TaskStatus.Completed, finalTask.Status);
-
-        var taskVerification = await taskEngine.VerifyTaskStepAsync(agentTask.TaskId, 2, Ct);
-        Assert.True(taskVerification.Passed);
-
-        var traces = await aspire.GetTracesAsync("OperatingSystem");
-        Assert.Equal(2, traces.Length);
-    }
 
     [Fact]
     [Trait("Category", "Tier4_RealWorldScenarios")]
@@ -308,88 +232,5 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
 
         var searchHits = await store.SemanticSearchAsync("Media Storage", limit: 3);
         Assert.NotEmpty(searchHits);
-
-        // Step 3: Execute task plan synthesis on TaskNeuron on the silo
-        var taskEngine = new TaskEngine(
-            taskId => SiloNeurons.Get<ITaskNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.task", taskId)),
-            () => SiloNeurons.Get<ITaskDirectoryNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.directory", "default")));
-        var constraints = topology.Nodes.Select(n => $"{n.Label}:{n.Type}").ToArray();
-        var createdTask = await taskEngine.CreateTaskAsync(
-            new CreateTaskRequest(
-                "Optimize media ingestion route through storage-s3",
-                string.Join(", ", constraints),
-                "admin",
-                [
-                    new TaskStepDefinition("deconstruct", "Objective deconstructed", "kernel"),
-                    new TaskStepDefinition("assess", $"Capabilities: {constraints.Length}", "kernel"),
-                    new TaskStepDefinition("synthesize", "Plan synthesized", "kernel"),
-                ]),
-            Ct);
-        Assert.Equal(3, createdTask.Steps.Length);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier4_RealWorldScenarios")]
-    [Trait("Scenario", "FaultInjectionAndResilientRecovery")]
-    public async Task Scenario05_FaultInjectionAndResilientRecovery_GuaranteesFailClosedResilience()
-    {
-        var brain = fixture.NewBrain("s05");
-        var caller = CapabilityCallers.Of("watchdog_agent", "acc_infra", brain, CallerKind.User);
-        using var stamp = RuntimeCallerContext.Stamp(caller);
-
-        var taskEngine = new TaskEngine(
-            taskId => SiloNeurons.Get<ITaskNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.task", taskId)),
-            () => SiloNeurons.Get<ITaskDirectoryNeuron>(fixture.Services, new NeuronId(new BrainId(brain), "tasks.directory", "default")));
-        var aspire = SiloNeurons.Get<IAspire>(fixture.Services, $"{brain}/aspire");
-
-        // Step 2: Execute task with simulated subsystem failure on TaskNeuron on the silo
-        var task = await taskEngine.CreateTaskAsync(
-            new CreateTaskRequest(
-                "Primary Node Health Check",
-                "Detect and recover from unresponsive cluster node",
-                "admin",
-                [
-                    new TaskStepDefinition("s1", "ping_primary", "kernel"),
-                    new TaskStepDefinition("s2", "trigger_failover", "kernel"),
-                    new TaskStepDefinition("s3", "verify_standby", "kernel")
-                ]),
-            Ct);
-
-        // Step 3: Step 1 fails due to injected timeout
-        var failedTask = await taskEngine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Failed, "Connection timed out after 5000ms", Ct);
-        Assert.Equal(TaskStatus.Failed, failedTask.Status);
-        await aspire.RecordLogAsync(new AspireLogEntry(
-            DateTimeOffset.UtcNow,
-            "OperatingSystem",
-            "Error",
-            "node.failures.injected: primary-01 timed out",
-            "System.TimeoutException"));
-
-        // Step 4: Recovery task initiated and verified on TaskNeuron on the silo
-        var recoveryTask = await taskEngine.CreateTaskAsync(
-            new CreateTaskRequest(
-                "Execute Failover",
-                "Promote standby node",
-                "admin",
-                [
-                    new TaskStepDefinition("r1", "route_traffic_standby", "kernel"),
-                    new TaskStepDefinition("r2", "verify_quorum", "kernel")
-                ]),
-            Ct);
-
-        await taskEngine.AdvanceTaskStepAsync(recoveryTask.TaskId, 0, TaskStepStatus.Completed, ct: Ct);
-        var completedRecovery = await taskEngine.AdvanceTaskStepAsync(recoveryTask.TaskId, 1, TaskStepStatus.Completed, ct: Ct);
-        Assert.Equal(TaskStatus.Completed, completedRecovery.Status);
-
-        await aspire.RecordLogAsync(new AspireLogEntry(
-            DateTimeOffset.UtcNow,
-            "OperatingSystem",
-            "Information",
-            "node.failover.succeeded: standby promoted",
-            null));
-
-        // Step 5: Confirm all incident logs persisted on AspireNeuron on the silo
-        var errorLogs = await aspire.GetStructuredLogsAsync("OperatingSystem", "Error");
-        Assert.Contains(errorLogs, log => log.Message.Contains("node.failures.injected", StringComparison.Ordinal));
     }
 }

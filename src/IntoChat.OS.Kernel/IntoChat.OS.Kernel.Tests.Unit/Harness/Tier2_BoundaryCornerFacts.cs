@@ -18,13 +18,10 @@ using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
-using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
@@ -770,68 +767,6 @@ public sealed class Tier2_BoundaryCornerFacts
         var graph = await store.QueryGraphAsync("prop_node", depth: 1);
 
         Assert.Equal(100, graph.Nodes[0].Properties.Count);
-    }
-
-    #endregion
-
-    #region F17: Canonical Task Engine for Self-Improvement Boundaries
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F17")]
-    public async Task F17_B01_CreateTaskAsync_ZeroSteps_CreatesValidPendingTask()
-    {
-        var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Empty Task", "Nothing", "admin", []));
-
-        Assert.NotNull(task.TaskId);
-        Assert.Equal(TaskStatus.Pending, task.Status);
-        Assert.Empty(task.Steps);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F17")]
-    public async Task F17_B02_TaskEngine_ManySteps_HandlesFiftySteps()
-    {
-        var engine = new InMemoryTaskEngine();
-        var steps = Enumerable.Range(1, 50).Select(i => new TaskStepDefinition($"step_{i}", $"step description {i}", "kernel")).ToArray();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Long Task", "Multi step", "admin", steps));
-
-        Assert.Equal(50, task.Steps.Length);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F17")]
-    public async Task F17_B03_UpdateStepStatusAsync_UnknownStepId_DoesNotAlterOtherSteps()
-    {
-        var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Task", "Obj", "admin", [new TaskStepDefinition("s1", "s1", "kernel"), new TaskStepDefinition("s2", "s2", "kernel")]));
-
-        var updated = await engine.AdvanceTaskStepAsync(task.TaskId, 999, TaskStepStatus.Completed);
-        Assert.All(updated.Steps, s => Assert.Equal(TaskStepStatus.Pending, s.Status));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F17")]
-    public async Task F17_B04_UpdateStepStatusAsync_UnknownTaskId_ThrowsKeyNotFoundException()
-    {
-        var engine = new InMemoryTaskEngine();
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            engine.AdvanceTaskStepAsync("non_existent_task", 0, TaskStepStatus.Completed));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F17")]
-    public async Task F17_B05_VerifyTaskAsync_UnknownTaskId_ReturnsInvalid()
-    {
-        var engine = new InMemoryTaskEngine();
-        var result = await engine.VerifyTaskAsync("missing_task_id");
-        Assert.False(result.Passed);
-        Assert.NotEmpty(result.Violations!);
     }
 
     #endregion

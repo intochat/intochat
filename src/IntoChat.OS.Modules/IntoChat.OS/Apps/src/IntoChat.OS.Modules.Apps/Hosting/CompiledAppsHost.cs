@@ -6,7 +6,6 @@ using DigitalBrain.Runtime.Apps;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Memory;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
@@ -807,7 +806,6 @@ internal sealed class CompiledAppsHost(
     {
         var type = instance.GetType();
         type.GetProperty("FilesVfs")?.SetValue(instance, _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b)));
-        type.GetProperty("TaskEngine")?.SetValue(instance, services.GetService(typeof(ITaskEngine)));
     }
 
     private async Task HandleAppRequestedAsync(string brain, string appName, AppRequested request, CancellationToken ct)

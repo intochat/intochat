@@ -8,8 +8,7 @@
     "IntoChat.OS.Kernel.Composition.CompiledTypeTableGrain": "kernel.compiledtypes",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "kernel.instances",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "kernel.types",
-    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable",
-    "IntoChat.OS.Modules.AI.Tasks.TaskNeuron": "taskneuron"
+    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable"
   },
   "GrainInterfaces": {
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain",
@@ -81,10 +80,6 @@
     "IntoChat.OS.Modules.AI.Metering.IntentUsageStorage": "ai.intent-usage-storage; Entries=0",
     "IntoChat.OS.Modules.AI.Routing.RouteRecord": "ai.router.record; Request=0, Contract=1, Method=2",
     "IntoChat.OS.Modules.AI.Routing.RouterStorage": "ai.router.storage; Recent=0, Asked=1",
-    "IntoChat.OS.Modules.AI.Tasks.TaskDirectoryEntryState": "tasks.directory-entry; TaskId=0, Title=1, Description=2, Owner=3, Status=4, CreatedAt=5, CompletedAt=6, StepCount=7, CompletedStepCount=8",
-    "IntoChat.OS.Modules.AI.Tasks.TaskDirectoryState": "tasks.directory-state; Entries=0",
-    "IntoChat.OS.Modules.AI.Tasks.TaskState": "tasks.state; TaskId=0, Title=1, Description=2, Owner=3, Status=4, Steps=5, CreatedAt=6, CompletedAt=7, RollbackReason=8",
-    "IntoChat.OS.Modules.AI.Tasks.TaskStepState": "tasks.step-state; Index=0, Title=1, Description=2, Capability=3, Status=4, RollbackCapability=5, Output=6, StartedAt=7, CompletedAt=8, IdempotencyKey=9",
     "IntoChat.OS.Modules.AI.Testing.TestVerificationState": "testing.verification-state; SuiteId=0, Runs=1",
     "IntoChat.OS.Modules.Apps.AppReleaseRecord": "apps.release-record; Publication=0, Bundle=1",
     "IntoChat.OS.Modules.Apps.AppState": "apps.state2; Manifest=0, Spec=1, Version=5, Status=6, Activity=7, History=8, BuildAttempt=9, BuildStartedAt=10, BrainScopeId=11, Principal=12, Receipts=17, PublishedVersion=18, Origin=19, Edited=20, Published=21, Publisher=22, RequestRetention=23, RequestSequence=24, LastActivity=25, ActivitySequence=26, Synapses=27, Releases=28, Installation=29, ProgramRevision=30, Presentation=31, Migration=32, MigrationPaused=33, MigrationArchive=34, MigrationSource=35, MigrationTarget=36, MigrationRequests=37, FileEntries=38, SettingEntries=39, ConnectionEntries=40, RuntimeStateJson=41, RuntimeStateRevision=42, SignalCursor=43, DeadLetters=44",
@@ -294,11 +289,6 @@
     "IntoChat.OS.Modules.AI.Models.Signals.InferenceStarted": "InferenceStarted",
     "IntoChat.OS.Modules.AI.Routing.RouterDecided": "RouterDecided",
     "IntoChat.OS.Modules.AI.SystemOne.Signals.SystemOneDecided": "SystemOneDecided",
-    "IntoChat.OS.Modules.AI.Tasks.Signals.TaskCompleted": "TaskCompleted",
-    "IntoChat.OS.Modules.AI.Tasks.Signals.TaskCreated": "TaskCreated",
-    "IntoChat.OS.Modules.AI.Tasks.Signals.TaskDirectoryChanged": "TaskDirectoryChanged",
-    "IntoChat.OS.Modules.AI.Tasks.Signals.TaskRolledBack": "TaskRolledBack",
-    "IntoChat.OS.Modules.AI.Tasks.Signals.TaskStepAdvanced": "TaskStepAdvanced",
     "IntoChat.OS.Modules.AI.Testing.Signals.TestSuiteVerified": "TestSuiteVerified",
     "IntoChat.OS.Modules.Apps.BrainSceneOpen": "BrainSceneOpen",
     "IntoChat.OS.Modules.Apps.FilesWorkspaceChanged": "FilesWorkspaceChanged",

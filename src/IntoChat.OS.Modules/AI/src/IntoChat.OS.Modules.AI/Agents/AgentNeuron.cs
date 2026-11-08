@@ -1,4 +1,5 @@
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Compute;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -350,7 +351,7 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         finally { _mutating = false; }
     }
 
-    public async Task<string> Start(AgentTurn turn)
+    public async Task<string> Start(AgentTurn turn, string? flowId = null)
     {
         await Fresh();
         EnsureUnblocked();
@@ -361,7 +362,7 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
             await Notify(new TurnCompleted(Key, runId, await Mask(replay.Reply ?? "")));
             return runId;
         }
-        await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), DateTimeOffset.UtcNow) });
+        await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), DateTimeOffset.UtcNow) { FlowId = flowId, TraceId = TraceContext.Current?.TraceId } });
         try
         {
             await AcquireContinuation(runId);
@@ -418,7 +419,7 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
 
         var definition = State.Definition;
         var input = Stored(turn.Message);
-        var run = State.ActiveRun is { } active && active.RunId == runId ? active : new AgentRun(runId, AgentRunStatus.Running, UserText(input), DateTimeOffset.UtcNow);
+        var run = State.ActiveRun is { } active && active.RunId == runId ? active : new AgentRun(runId, AgentRunStatus.Running, UserText(input), DateTimeOffset.UtcNow) { TraceId = TraceContext.Current?.TraceId };
         // The timeout has its own source, so a run that ran out of time is told apart from a cancelled one.
         using var timeout = new CancellationTokenSource(definition.Timeout);
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
@@ -715,6 +716,10 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
 
     private string RunKeyOf(string runId) => $"{Scope}/agent.run/{runId}";
 
+    // The trace stored with the active run when it was admitted, else the trace of the call announcing it.
+    private string? TraceOf(string runId)
+        => (State.ActiveRun is { } active && active.RunId == runId ? active.TraceId : null) ?? TraceContext.Current?.TraceId;
+
     private async Task Notify(DigitalBrain.Signal signal, bool persisted = true)
     {
         // Failed persistence needs a fresh Read to reactivate/recover the abandoned run,
@@ -722,7 +727,7 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         var version = persisted ? Committed.Version : 0;
         signal = signal switch
         {
-            TurnStarted started => started with { Version = version, RunKey = started.RunKey ?? RunKeyOf(started.RunId) },
+            TurnStarted started => started with { Version = version, RunKey = started.RunKey ?? RunKeyOf(started.RunId), TraceId = started.TraceId ?? TraceOf(started.RunId) },
             TurnProgressed progressed => progressed with { Version = version, RunKey = progressed.RunKey ?? RunKeyOf(progressed.RunId) },
             TurnCompleted completed => completed with { Version = version, RunKey = completed.RunKey ?? RunKeyOf(completed.RunId) },
             TurnFailed failed => failed with { Version = version, RunKey = failed.RunKey ?? RunKeyOf(failed.RunId) },

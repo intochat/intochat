@@ -17,13 +17,10 @@ using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
-using TaskStatus = IntoChat.OS.Modules.AI.Tasks.TaskStatus;
-using TaskStepStatus = IntoChat.OS.Modules.AI.Tasks.TaskStepStatus;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 
@@ -33,65 +30,6 @@ namespace IntoChat.OS.Kernel.Tests.Unit.Harness;
 /// </summary>
 public sealed class Tier3_CrossFeaturePairwiseFacts
 {
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F17_F20")]
-    public async Task TF04_TaskEngine_WithTestVerification_EnablesAutonomousSelfImprovementCycle()
-    {
-        // F17 (Canonical Task Engine) + F20 (Reusable Test Verification Framework)
-        var engine = new InMemoryTaskEngine();
-        var verifier = new InMemoryTestVerificationService();
-
-        // 1. Enqueue self-improvement task
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Run Unit Benchmarks", "Improve latency", "admin", [new TaskStepDefinition("s1", "run_tests", "kernel"), new TaskStepDefinition("s2", "record_metric", "kernel")]));
-        Assert.Equal(TaskStatus.Pending, task.Status);
-
-        // 2. Automated verification execution
-        var testResult = await verifier.RunTargetedSuiteAsync(new TestExecutionRequest("Tier1_FeatureCoverage", "F1"));
-        Assert.True(testResult.Success);
-
-        // 3. Update task steps based on test pass
-        var t1 = await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed);
-        Assert.Equal(TaskStatus.Running, t1.Status);
-
-        var t2 = await engine.AdvanceTaskStepAsync(task.TaskId, 1, TaskStepStatus.Completed);
-        Assert.Equal(TaskStatus.Completed, t2.Status);
-
-        // 4. Verify overall task completion
-        var verification = await engine.VerifyTaskAsync(task.TaskId);
-        Assert.True(verification.Passed);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F3_F17")]
-    public async Task TF05_ConfirmationResolution_WithTaskEngine_BlocksTaskUntilUserApproval()
-    {
-        // F3 (Confirmations) + F17 (Canonical Task Engine)
-        var engine = new InMemoryTaskEngine();
-        var task = await engine.CreateTaskAsync(new CreateTaskRequest("Database Migration", "Apply schema", "admin", [new TaskStepDefinition("s1", "await_confirmation", "kernel"), new TaskStepDefinition("s2", "apply_sql", "kernel")]));
-
-        var tcs = new TaskCompletionSource<ConfirmationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        // Simulate operator confirmation
-        var confirmTask = Task.Run(async () =>
-        {
-            await Task.Yield();
-            tcs.TrySetResult(new ConfirmationResult(task.TaskId, ConfirmationOutcome.Approved, ConfirmationDenyReason.None, Skipped: false));
-        });
-
-        var confirmation = await tcs.Task;
-        await confirmTask;
-
-        Assert.Equal(ConfirmationOutcome.Approved, confirmation.Outcome);
-        Assert.True(confirmation.Approved);
-
-        // Once confirmed, steps advance to Succeeded
-        await engine.AdvanceTaskStepAsync(task.TaskId, 0, TaskStepStatus.Completed);
-        var finalTask = await engine.AdvanceTaskStepAsync(task.TaskId, 1, TaskStepStatus.Completed);
-        Assert.Equal(TaskStatus.Completed, finalTask.Status);
-    }
-
     [Fact]
     [Trait("Category", "Tier3_CrossFeature")]
     [Trait("Pairwise", "F4_F21")]

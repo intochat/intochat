@@ -12,6 +12,9 @@ public sealed record TurnStarted(string AgentId, string RunId, string UserText) 
     public long Version { get; init; }
 
     public string? RunKey { get; init; }
+
+    // The request trace the run started under, null outside a trace.
+    public string? TraceId { get; init; }
 }
 
 // Sequence numbers a run's progress from 1; delivery is at-least-once, so handlers key their

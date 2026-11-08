@@ -23,7 +23,6 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Modules.AI.Memory;
-using IntoChat.OS.Modules.AI.Tasks;
 using IntoChat.OS.Modules.AI.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -83,9 +82,6 @@ public sealed class AIModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<IKnowledgeStore, InMemoryKnowledgeStore>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Memory.KnowledgeGraphSource>();
-        services.AddSingleton<DigitalBrain.Graph.IGraphSource, Tasks.TaskGraphSource>();
-        services.AddSingleton<DigitalBrain.Graph.IGraphSource, Agents.RunGraphSource>();
-        services.TryAddSingleton<ITaskEngine, TaskEngine>();
         services.TryAddSingleton<ITestVerificationService, TestVerificationService>();
     }
 
