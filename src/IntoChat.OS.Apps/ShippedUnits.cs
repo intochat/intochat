@@ -3,8 +3,8 @@ using IntoChat.OS.Modules.Apps;
 namespace IntoChat.OS.Apps;
 
 // The unit sources the OS ships (src/IntoChat.OS.Apps/Units/<Unit>): embedded as files, deployed through the synapse studio like
-// any authored unit. A shipped unit asks for no slots; its reactions and view are still needs the host asks about, and the OS
-// answers that ask for its own source, as it installs its default apps (OsDefaults), so the person is not asked.
+// any authored unit, with a headless app record whose activity says what the install waits on. A shipped unit asks for no slots;
+// its reactions and view are needs the person consents to, through the normal approvals: the OS never approves them.
 public static class ShippedUnits
 {
     private const string Prefix = "IntoChat.OS.Apps.Units.";
@@ -25,43 +25,29 @@ public static class ShippedUnits
         return files;
     }
 
-    // Deploys alias's shipped files; the same files deploy once (the studio's step key), so a repeat is answered as landed. Only
-    // the ask this deploy raised for alias itself (its own install outcome, matched against the brain's pending installs by plan
-    // and alias) is approved, through approve, after activity names the unit and what it asks for; any other pending install in
-    // the brain, an authored unit's, is never touched. The deploy is then read again until it has landed (a bounded wait).
-    //
-    // Who approves: the framework's confirmations accept an approval only from a person (a direct, authenticated user call); a
-    // Platform caller's approval is recorded as a denial (ConfirmationsNeuron.Resolve, SelfApproval). So a shipped unit is
-    // approved as the brain's creator in the creator's own turn, the precedent OsDefaults follows for default apps. A platform
-    // consent for shipped sources needs a DigitalBrain change (fix wave).
-    public static async Task<UnitDeployResult> Deploy(ISynapseStudio studio, string alias, Func<string, Task<IReadOnlyList<DigitalBrain.PendingInstall>>> pending,
-        Func<string, Task> approve, Action<string> activity)
+    // Deploys alias's shipped files and leaves the install as the host answers it, Pending until the person approves. The first
+    // deploy records the unit as a headless app and ends its build by the install (its activity names what it waits on); a later
+    // deploy (a retried birth, a connect) only deploys again: the same files deploy once, so it answers Unchanged or Pending.
+    public static async Task<UnitDeployResult> Deploy(ISynapseStudio studio, IApp app, string alias, string title)
     {
         ArgumentNullException.ThrowIfNull(studio);
-        ArgumentNullException.ThrowIfNull(pending);
-        ArgumentNullException.ThrowIfNull(approve);
-        ArgumentNullException.ThrowIfNull(activity);
+        ArgumentNullException.ThrowIfNull(app);
         var files = Files(alias);
         if (files.Count == 0) { throw new ArgumentException($"The OS ships no unit {alias}.", nameof(alias)); }
         var none = new Dictionary<string, string>(StringComparer.Ordinal);
+        if ((await app.Read()).Manifest.Title.Length > 0) { return await studio.DeployFiles(alias, files, none); }
+        await app.Create(new AppManifest(title, files.TryGetValue("spec.md", out var spec) ? FirstLine(spec) : title, [], [], [], Headless: true), spec ?? "");
+        await app.BeginBuild("shipped unit " + alias);
+        var attempt = await app.CurrentBuildAttempt();
         var result = await studio.DeployFiles(alias, files, none);
-        var approved = false;
-        for (var attempt = 0; result.Ok && Waiting(result, alias) is { } own && attempt < 50; attempt++)
-        {
-            if (!approved)
-            {
-                // The plan must be this alias's waiting install in the brain, not merely some pending plan.
-                if ((await pending(alias)).FirstOrDefault(ask => ask.PlanId == own.Reason && ask.Alias == alias) is not { } ask) { return result; }
-                activity($"Approving the shipped unit {alias}: {ask.Sentence}");
-                await approve(ask.PlanId);
-                approved = true;
-            }
-            else { await Task.Delay(TimeSpan.FromMilliseconds(100)); }
-            result = await studio.DeployFiles(alias, files, none);
-        }
+        if (!result.Ok) { await app.CompleteBuild(attempt, null, result.Text); return result; }
+        var install = result.Installs.TryGetValue(alias, out var own) ? own : new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Unchanged, "", null);
+        if (install.Status is DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied)
+        { await app.CompleteBuild(attempt, null, $"{alias} was not installed: {install.Reason ?? install.Status.ToString()}"); }
+        else { await app.CompleteUnitBuild(attempt, result.Hash ?? "", install.Status, install.Sentence); }
         return result;
     }
 
-    private static DigitalBrain.InstallOutcome? Waiting(UnitDeployResult result, string alias)
-        => result.Installs.TryGetValue(alias, out var own) && own.Status == DigitalBrain.InstallStatus.Pending && own.Reason is { Length: > 0 } ? own : null;
+    private static string FirstLine(string text)
+        => text.Split('\n').Select(line => line.Trim().TrimStart('#').Trim()).FirstOrDefault(line => line.Length > 0) ?? "";
 }

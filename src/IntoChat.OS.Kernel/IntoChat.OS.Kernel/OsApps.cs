@@ -95,22 +95,17 @@ internal sealed class OsDefaults(
         }
     }
 
-    // A circle's shipped units ask for no slots; their reactions and view are needs the host asks about, and the ask this deploy
-    // raised for the unit is approved as the creator, in the creator's turn (the framework accepts no platform approval; see
-    // ShippedUnits.Deploy). One that fails is logged and the next connect tries again (OsWorkspaceRoot).
+    // A circle's shipped units (its room) deploy at birth and wait, Pending, for the creator's consent in the approvals: the OS never
+    // approves them. One that fails is logged and the next connect deploys again (OsWorkspaceRoot); a deploy never approves.
     internal static async Task DeployCircleUnits(INeuronProxies proxies, ILogger logger, string brainId)
     {
-        var brain = new DigitalBrain.BrainId(brainId);
         var studio = proxies.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
-        var installs = proxies.Get<DigitalBrain.IInstalls>(new DigitalBrain.NeuronId(brain, "synapse.installs", "default"));
-        var inbox = proxies.Get<DigitalBrain.Confirmation.IConfirmationInbox>(new DigitalBrain.NeuronId(brain, "runtime.confirmations", "confirmations"));
         foreach (var alias in ShippedApps.CircleUnits)
         {
             try
             {
-                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, alias, async _ => await installs.Pending(CancellationToken.None),
-                    plan => inbox.Resolve(plan, true), line => logger.LogInformation("{Brain}: {Activity}", brainId, line));
-                if (!result.Ok || result.Installs.Values.Any(install => install.Status == DigitalBrain.InstallStatus.Pending)) { logger.LogWarning("Circle unit {Unit} did not deploy in {Brain}: {Reason}", alias, brainId, result.Text); }
+                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, proxies.Get<IApp>(IApp.Key(brainId, alias)), alias, "Circle room");
+                if (!result.Ok) { logger.LogWarning("Circle unit {Unit} did not deploy in {Brain}: {Reason}", alias, brainId, result.Text); }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Circle unit {Unit} did not deploy in {Brain}.", alias, brainId); }
