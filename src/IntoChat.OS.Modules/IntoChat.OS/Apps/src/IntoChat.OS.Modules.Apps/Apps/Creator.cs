@@ -317,6 +317,6 @@ internal sealed class Creator(
     }
 
     private sealed record AuthoredApp(string Name, string Title, string Description, string Spec,
-        AppOperation[]? Operations = null, AppSetting[]? Settings = null, AppSlot[]? Slots = null, UiChildRef? Entry = null);
+        AppOperation[]? Operations = null, AppSetting[]? Settings = null, AppSlot[]? Slots = null, ViewRef? Entry = null);
     private sealed record BuiltUnit(IReadOnlyDictionary<string, string>? Files);
 }

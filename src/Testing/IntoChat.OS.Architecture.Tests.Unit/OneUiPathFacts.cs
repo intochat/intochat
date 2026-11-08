@@ -3,8 +3,8 @@ using System.Reflection;
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
 // Units all the way: DigitalBrain.UI.View is the one UI tree. The Flutter module keeps the view, one field neuron per view field,
-// the hosted surfaces (chat, composer, web browser, viewport) and its non-widget neurons; the per-widget neurons are gone. The
-// widget neurons still listed under "Pending" are read or written by a non-UI module and leave with their last user.
+// the hosted surfaces (web browser, viewport) and its non-widget neurons; the per-widget neurons are gone, and a chat transcript
+// and its composer are view nodes.
 public sealed class OneUiPathFacts
 {
     private static readonly string[] Kept =
@@ -15,7 +15,7 @@ public sealed class OneUiPathFacts
         "chat-index", "ui.compute", "ui.problem-reports", "ui.space", "ui.workspace",
     ];
 
-    private static readonly string[] Pending = ["text", "button", "layout", "collection", "infobar", "card", "image", "chart", "table", "person", "form", "ui.binding"];
+    private static readonly string[] Pending = [];
 
     [Fact]
     public void NoNeuronOutsideTheKeptUiKinds()
@@ -28,5 +28,17 @@ public sealed class OneUiPathFacts
         Assert.Contains("ui.field", aliases);
         var outside = aliases.Except(Kept).Except(Pending).Order(StringComparer.Ordinal).ToArray();
         Assert.True(outside.Length == 0, "Neurons outside the kept UI kinds: " + string.Join(", ", outside));
+    }
+
+    [Fact]
+    public void OnlyViewAndFieldNeuronKindsRemain()
+    {
+        Assert.Empty(Pending);
+        var kinds = typeof(IntoChat.OS.Modules.Flutter.UIVocabulary)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .Order(StringComparer.Ordinal);
+        Assert.Equal(["confirmation", "ui.field", "view", "viewport", "webbrowser"], kinds);
     }
 }

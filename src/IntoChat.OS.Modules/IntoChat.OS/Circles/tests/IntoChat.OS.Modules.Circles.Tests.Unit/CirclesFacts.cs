@@ -1,4 +1,3 @@
-using IntoChat.OS.Modules.Flutter.Button.Signals;
 
 namespace IntoChat.OS.Modules.Circles.Tests.Unit;
 
@@ -52,11 +51,6 @@ public sealed class CirclesFacts
         Assert.Equal(binding, new CircleBinding("acct", "notes", "tables", "conn-1"));
         Assert.NotEqual(binding, binding with { Slot = "other" });
     }
-
-    [Fact]
-    public async Task ThePublicationButtonRefusesACallWithNoSignedInCaller()
-        => await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            PublicationButton.Handle(null!, "c1", "app", "publish", IntoChat.OS.Modules.Flutter.UiEvent.Of(new ButtonClicked("c1/app/publish", "{}", Guid.NewGuid())), (_, _, _) => throw new InvalidOperationException()));
 
     [Fact]
     public async Task ACircleBirthRefusesANullBrain()

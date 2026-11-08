@@ -1,8 +1,6 @@
 using DigitalBrain.Brains;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles;
-using IntoChat.OS.Modules.Flutter.Card;
-using IntoChat.OS.Modules.Flutter.Person;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -80,18 +78,26 @@ internal sealed class CircleMembers(ICapabilityBroker broker, IServiceProvider p
         foreach (var friend in await FriendsOf(viewer))
         {
             var profileKey = friend.Brain + "/profile";
-            var profile = await SiloNeurons.Get<ISharedPersonReader>(plain, profileKey).Read();
+            var records = await RecordsOf(plain, friend.Brain);
+            var profile = records.Profile;
             entries.Add(new(profileKey, string.IsNullOrWhiteSpace(profile.DisplayName) ? "Friend" : profile.DisplayName, "Friend",
-                new(0, profile.Version, new(new Sphere("person", []), Side: new("collection", friend.Brain + "/posts"), Main: new("person", profileKey)), null, []), []));
+                new(0, profile.Version, new(new Sphere("person", [])), null, []), []));
             if (focus != profileKey && PostBrain(focus) != friend.Brain) { continue; }
             foreach (var key in await Posts(friend))
             {
-                var card = await SiloNeurons.Get<ISharedCardReader>(plain, key).Read();
-                entries.Add(new(key, card.Title, "Post", new(0, card.Version, new(new Sphere("post", []), Main: new("card", key)), null, []), []));
+                var card = Post(records, key);
+                entries.Add(new(key, card.Title, "Post", new(0, card.Version, new(new Sphere("post", [])), null, []), []));
             }
         }
         return entries.ToArray();
     }
+
+    // A brain's Space records, read by the module after its caller authorized the reference.
+    public static Task<SpaceRecords> RecordsOf(IServiceProvider plain, string brain)
+        => SiloNeurons.Get<ISpaceRecords>(plain, ISpace.Key(brain)).Records();
+
+    public static CardState Post(SpaceRecords records, string key)
+        => records.Posts.FirstOrDefault(post => post.Name == key) ?? new CardState { Name = key };
 
     public static string? PostBrain(string key)
     {

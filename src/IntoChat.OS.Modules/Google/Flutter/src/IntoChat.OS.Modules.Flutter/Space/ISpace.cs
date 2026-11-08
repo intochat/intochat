@@ -14,7 +14,7 @@ public interface ISpace
     [DigitalBrain.OneWayCall, DigitalBrain.Interleaves] Task Rebuild();
     [DigitalBrain.OneWayCall, DigitalBrain.Interleaves] Task RefreshApp(string key);
     [DigitalBrain.OneWayCall, DigitalBrain.Interleaves] Task Recompose();
-    Task<IntoChat.OS.Modules.Flutter.Person.PersonState> ReadProfile(string key);
-    Task<IntoChat.OS.Modules.Flutter.Card.CardState> ReadPost(string key);
-    Task<IntoChat.OS.Modules.Flutter.Collection.CollectionState> ReadPosts(string key);
+    Task<PersonState> ReadProfile(string key);
+    Task<CardState> ReadPost(string key);
+    Task<CollectionState> ReadPosts(string key);
 }

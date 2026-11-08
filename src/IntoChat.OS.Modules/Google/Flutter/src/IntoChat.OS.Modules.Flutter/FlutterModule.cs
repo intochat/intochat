@@ -20,7 +20,7 @@ public sealed class FlutterModule : DigitalBrain.Module, IHttpModule
 {
     internal const string ModuleName = "flutter";
 
-    public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Modules.Flutter.Button.IButton).Assembly;
+    public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly;
 
     // R4-04: what the module needs from its host. Registrations of neurons that are still grains (Chat, Space) stay here.
     public static DigitalBrain.ModuleManifest Manifest { get; } = new(

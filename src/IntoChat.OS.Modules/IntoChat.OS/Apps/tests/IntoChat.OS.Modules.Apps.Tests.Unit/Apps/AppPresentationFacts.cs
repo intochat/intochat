@@ -11,7 +11,7 @@ public sealed class AppPresentationFacts
         var state = new AppState { BrainScopeId = "owner", ProgramRevision = 2 };
         var spec = new IntoChat.OS.Modules.Apps.Presentation(
             new Sphere("icon.svg", ["count"]),
-            Views: [new PresentationView("main", new UiChildRef("view", "owner/apps/notes/view"))]);
+            Views: [new PresentationView("main", new ViewRef("view", "owner/apps/notes/view"))]);
 
         var published = new PresentationCollaborator(state).Publish(spec);
         Assert.NotNull(published);

@@ -12,11 +12,4 @@ internal abstract class UiNeuron<TState> : DigitalBrain.Neuron<TState> where TSt
 
     protected IServiceProvider ServiceProvider => Context.Services;
 
-    // The type of the control's UI binding, a plain neuron of the same key (06-08).
-    internal const string BindingType = "ui.binding";
-
-    // Sends a UI event to the handler bound to this control. The binding sees this control as the caller, and the os caller stamp
-    // of the call that raised the event flows on to the handler (UiEvent.Caller). An unbound control has no handler to tell.
-    protected Task Dispatch(UiEvent uiEvent)
-        => Get<IUiBinding>(new DigitalBrain.NeuronId(Id.Brain, BindingType, Id.Key)).Dispatch(uiEvent);
 }

@@ -67,19 +67,6 @@ internal sealed class CircleNeuron(
     // ICircle.State names the circle's view; the persisted record is the base neuron's State.
     public new Task<CircleState> State() => Task.FromResult(Describe(Core()));
 
-    public Task BindPublicationButton()
-    {
-        MemberChange();
-        return SiloNeurons.Get<IntoChat.OS.Modules.Flutter.IUiBinding>(plain, IApp.Key(CircleBrain, "circleroom") + "/bring-button")
-            .Bind(IntoChat.OS.Modules.Flutter.UiHandlers.IdOf(Id));
-    }
-
-    public Task HandleUiEvent(IntoChat.OS.Modules.Flutter.UiEvent uiEvent)
-    {
-        MemberChange();
-        return PublicationButton.Handle(plain, CircleBrain, "circleroom", "bring-button", uiEvent, BringPublication);
-    }
-
     public async Task Found(string name)
     {
         await Check("Found", new CircleNameIsValid(name));

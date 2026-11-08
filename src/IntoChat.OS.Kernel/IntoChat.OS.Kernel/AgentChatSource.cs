@@ -6,7 +6,6 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -29,9 +28,9 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {
         var state = await SiloNeurons.Get<IAgent>(services, key).Read();
-        // A pasted link's app and input live in the links store beside the conversations, never in the run.
-        var links = state.Runs.Any(run => ChatAppCard.TryReadLinkPost(run.RunId, out _)) && ChatAppCard.LinksKey(key) is { } store
-            ? (await SiloNeurons.Get<IText>(services, store).Read()).Markdown : null;
+        // A pasted link's app and input lived in a text neuron beside the conversations; that widget neuron is gone, so a link
+        // post shows without its card.
+        string? links = null;
         var runs = state.Runs.ToList();
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
         var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(run => Entries(run, links))]))

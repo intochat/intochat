@@ -6,7 +6,6 @@ using DigitalBrain.Errors;
 using System.Text.Json;
 using DigitalBrain.Confirmation;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Table;
 using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Views;
@@ -39,12 +38,6 @@ internal static class AppUiEndpoints
         apps.MapPost("/event", (UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct));
 
-        UiHttp.MapGet<ITable, TableState>(endpoints, "tables", neuron => neuron.Read());
-        UiHttp.MapPost(endpoints, "tables/{name}/replace", async (string name, TableReplace body, [MicrosoftSdk.AspNetCore.Mvc.FromServices] IServiceProvider plain, CancellationToken ct) =>
-        {
-            await SiloNeurons.Get<ITable>(plain, name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
-            return Results.Accepted();
-        });
     }
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
@@ -61,7 +54,7 @@ internal static class AppUiEndpoints
         {
             var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
             if (viewport.Target is not { } target)
-            { return Results.Ok(new { viewport.Revision, Root = (UiChildRef?)null, Error = (string?)null }); }
+            { return Results.Ok(new { viewport.Revision, Root = (ViewRef?)null, Error = (string?)null }); }
             if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
             var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
             var presentation = app.Presentation;

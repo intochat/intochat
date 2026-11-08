@@ -3,9 +3,6 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flame.Scene;
-using IntoChat.OS.Modules.Flutter.Card;
-using IntoChat.OS.Modules.Flutter.Collection;
-using IntoChat.OS.Modules.Flutter.Person;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -17,13 +14,13 @@ namespace IntoChat.OS.Modules.Flutter.Space;
 
 [Neuron("ui.space")]
 internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogger<SpaceNeuron> logger, CircleMembers friends,
-    IServiceProvider plain) : DigitalBrain.Neuron, ISpace
+    IServiceProvider plain) : DigitalBrain.Neuron, ISpace, ISpaceRecords
 {
     public Task<PersonState> ReadProfile(string key) => ReadShared(async () =>
     {
         if (!key.EndsWith("/profile", StringComparison.Ordinal)) { throw new UnauthorizedAccessException(); }
         await AuthorizeFriend(key[..^8]);
-        return await SiloNeurons.Get<ISharedPersonReader>(plain, key).Read();
+        return (await CircleMembers.RecordsOf(plain, key[..^8])).Profile;
     });
 
     public Task<CardState> ReadPost(string key) => ReadShared(async () =>
@@ -32,20 +29,23 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         var friend = await AuthorizeFriend(author);
         if (friend is not null && !(await friends.Posts(friend)).Contains(key, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The post is not published in a shared circle."); }
-        var card = await SiloNeurons.Get<ISharedCardReader>(plain, key).Read();
+        var card = CircleMembers.Post(await CircleMembers.RecordsOf(plain, author), key);
         return new CardState { Name = key, Version = card.Version, Title = card.Title, Body = card.Body };
     });
 
     public Task<CollectionState> ReadPosts(string key) => ReadShared(async () =>
     {
         if (!key.EndsWith("/posts", StringComparison.Ordinal)) { throw new UnauthorizedAccessException(); }
-        var friend = await AuthorizeFriend(key[..^6]);
-        if (friend is null) { return await SiloNeurons.Get<ICollectionView>(plain, key).Read(); }
-        List<CollectionItem> items = [];
-        foreach (var post in await friends.Posts(friend))
-        { items.Add(new(post, (await SiloNeurons.Get<ISharedCardReader>(plain, post).Read()).Title, "post")); }
-        return new CollectionState { Name = key, Revision = 1, Definition = new(items.ToArray(), FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet") };
+        var author = key[..^6];
+        var friend = await AuthorizeFriend(author);
+        var records = await CircleMembers.RecordsOf(plain, author);
+        var keys = friend is null ? records.Posts.Select(post => post.Name).ToArray() : await friends.Posts(friend);
+        CollectionItem[] items = [.. keys.Select(post => new CollectionItem(post, CircleMembers.Post(records, post).Title, "post"))];
+        return new CollectionState { Name = key, Revision = 1, Definition = new(items, FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet") };
     });
+
+    // This brain's Space records; nothing in the OS writes them since the widget neurons went (the profile and posts were theirs).
+    public async Task<SpaceRecords> Records() => await Context.State.Load<SpaceRecords>() ?? new();
 
     private async Task<CircleMembers.Friend?> AuthorizeFriend(string author)
     {

@@ -9,7 +9,7 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Modules.Flutter.Text;
+using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -150,7 +150,7 @@ internal sealed class CompiledAppsHost(
             if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
             var workspace = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(services, IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(brain));
             var state = await workspace.Read();
-            var widgetsText = (await SiloNeurons.Get<IText>(services, $"{brain}/apps/desktop/widgets").Read()).Markdown ?? string.Empty;
+            var widgetsText = (await SiloNeurons.Get<IField>(services, $"{brain}/apps/desktop/widgets").Read()).Value ?? string.Empty;
 
             var activeWindows = state.Windows
                 .Where(w => w.Tabs is { Length: > 0 } && w.Tabs.Any(t => IApp.NameOf(brain, t.App) is not "desktop"))
@@ -636,8 +636,8 @@ internal sealed class CompiledAppsHost(
                     var widgetId = (isOpen ? action["widget-open:".Length..] : action["widget-close:".Length..]).Trim().ToLowerInvariant();
                     if (!string.IsNullOrWhiteSpace(widgetId))
                     {
-                        var widgetsNeuron = SiloNeurons.Get<IText>(services, $"{brain}/apps/desktop/widgets");
-                        var currentCsv = (await widgetsNeuron.Read()).Markdown ?? string.Empty;
+                        var widgetsNeuron = SiloNeurons.Get<IField>(services, $"{brain}/apps/desktop/widgets");
+                        var currentCsv = (await widgetsNeuron.Read()).Value ?? string.Empty;
                         var list = currentCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
                         if (isOpen)
                         {
@@ -828,12 +828,6 @@ internal sealed class CompiledAppsHost(
                 if (appName == "ino" && request.Operation == "send" && turns.App is App<InoAppState> inoRuntime && inoRuntime.State.Turns is { Length: > 0 } inoTurns)
                 {
                     await ForwardStudioPromptIfRoutedAsync(brain, inoTurns[^1], ct);
-                }
-                if (appName == "ino" && request.Operation == "open")
-                {
-                    try { await SiloNeurons.Get<IText>(services, IApp.Key(brain, "desktop") + "/greeted").Set("true"); }
-                    catch (Exception error) when (error is not OperationCanceledException)
-                    { logger.LogDebug(error, "Could not mark desktop greeted in {Brain}.", brain); }
                 }
             }
             finally { gate.Release(); }

@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text;
 using DigitalBrain.Capabilities.Storage;
 using IntoChat.Files;
-using IntoChat.OS.Modules.Flutter.Collection;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -132,7 +131,7 @@ internal static class FilesScreen
             }
         }
 
-        var preview = Preview(state, revision, appKey);
+        var preview = Preview(state, revision);
         var itemsNode = BuildItemList(state, rev, pageOffset);
         var list = FilesUi.Column([headers, .. notices, itemsNode]);
         var chrome = new DigitalBrain.UI.Node[]
@@ -422,7 +421,7 @@ internal static class FilesScreen
         return FilesUi.Row([.. nodes]);
     }
 
-    private static DigitalBrain.UI.Node? Preview(FilesState state, long revision, string appKey)
+    private static DigitalBrain.UI.Node? Preview(FilesState state, long revision)
     {
         var selected = state.Selected;
         if (selected is null && state.PreviewApp is null && state.PreviewUrl is null && state.Preview is null)
@@ -502,7 +501,7 @@ internal static class FilesScreen
                 children.Add(FilesUi.Column([
                     FilesUi.Text(url),
                     FilesUi.Text("image"),
-                    FilesUi.Reference(IntoChat.OS.Modules.Flutter.UIVocabulary.ImageType, appKey + "/preview")
+                    FilesUi.Card(selected?.Item.Name ?? "Preview", url)
                 ]));
             }
         }
@@ -544,3 +543,16 @@ internal static class FilesScreen
             : items.OrderBy(item => item.Item.Name, StringComparer.OrdinalIgnoreCase),
     };
 }
+
+// The listing the screen derives from the state: the rows, selection and breadcrumbs it draws.
+internal sealed record CollectionDefinition(CollectionItem[] Items, string? Selection = null, string? Cursor = null, string? Error = null,
+    bool FileMode = true, bool SelectionEnabled = true,
+    string? EmptyLabel = null, CollectionBreadcrumb[]? Breadcrumbs = null);
+
+internal sealed record CollectionBreadcrumb(string Id, string Label);
+
+internal sealed record CollectionItem(
+    string Id, string Label,
+    string Kind, string? SecondaryText = null,
+    long? SizeBytes = null, DateTimeOffset? ModifiedAt = null,
+    bool CanActivate = true, string? TrailingText = null);

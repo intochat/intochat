@@ -29,7 +29,6 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;

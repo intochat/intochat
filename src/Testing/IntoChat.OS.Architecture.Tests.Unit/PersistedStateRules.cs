@@ -97,12 +97,6 @@ internal static class PersistedStateRules
         "IntoChat.OS.Authority.Integrations.IntegrationState.Settings",
         "IntoChat.OS.Authority.Secrets.SecretsState.Fields",
         "IntoChat.OS.Modules.Flame.Scene.SceneNode.Parameters",
-        "IntoChat.OS.Modules.Flutter.Card.CardState.Children",
-        "IntoChat.OS.Modules.Flutter.Chart.ChartState.Points",
-        "IntoChat.OS.Modules.Flutter.Form.FormFieldState.Choices",
-        "IntoChat.OS.Modules.Flutter.Form.FormState.Fields",
-        "IntoChat.OS.Modules.Flutter.Table.TableState.Columns",
-        "IntoChat.OS.Modules.Flutter.Table.TableState.Rows",
     };
 
     internal static IEnumerable<string> ConcreteCollectionMembers(Type type) => Members(type)

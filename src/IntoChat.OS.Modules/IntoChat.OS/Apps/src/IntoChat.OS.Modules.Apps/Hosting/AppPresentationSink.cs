@@ -5,10 +5,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Chart;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Modules.Flutter.Table;
-using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
 using Orleans.Runtime;
 
@@ -54,7 +51,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             View mainView;
             if (instance is DigitalBrain.App<InoAppState> ino)
             {
-                await SyncInoTranscriptAsync(brain, appKey, ino.State);
+                await SyncInoTranscriptAsync(appKey, ino.State);
                 mainView = side is not null ? main with { Root = new Row([side.Root, main.Root]) { Gap = 0, Extents = [256, 0] } } : main;
             }
             else if (side is not null)
@@ -77,9 +74,9 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         var icon = string.IsNullOrWhiteSpace(snapshot.Manifest.Icon) ? "icon.svg" : snapshot.Manifest.Icon;
         var presentation = new Presentation(
             new Sphere(icon, []),
-            Side: side is not null ? new UiChildRef(UIVocabulary.ViewType, appKey + "/side") : null,
-            Main: new UiChildRef(UIVocabulary.ViewType, appKey + "/view"),
-            Views: [new PresentationView("full", new UiChildRef(UIVocabulary.ViewType, appKey + "/view"))]);
+            Side: side is not null ? new ViewRef(UIVocabulary.ViewType, appKey + "/side") : null,
+            Main: new ViewRef(UIVocabulary.ViewType, appKey + "/view"),
+            Views: [new PresentationView("full", new ViewRef(UIVocabulary.ViewType, appKey + "/view"))]);
 
         var previousCaller = RuntimeCallerContext.TryGet(out var existingCaller) ? existingCaller : null;
         var baseCaller = previousCaller ?? await HostCaller.ForBrain(services, brain);
@@ -112,27 +109,8 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         }
     }
 
-    private async Task SyncInoTranscriptAsync(string brain, string appKey, InoAppState state)
+    private async Task SyncInoTranscriptAsync(string appKey, InoAppState state)
     {
-        var dvKey = IApp.Key(brain, "datavisualizer");
-        if (state.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Columns is { Length: > 0 } && c.Rows is { Length: > 0 }) is { } tableCard)
-        {
-            var tableCols = tableCard.Columns!.Select((col, idx) => new TableColumn($"col_{idx + 1}", col)).ToArray();
-            var tableRows = tableCard.Rows!.Select(row => (IReadOnlyList<string>)row).ToArray();
-            await SiloNeurons.Get<ITable>(services, appKey + "/table").Replace(tableCard.Title, tableCols, tableRows);
-            await SiloNeurons.Get<ITable>(services, dvKey + "/views/main/table").Replace(tableCard.Title, tableCols, tableRows);
-            await SiloNeurons.Get<IText>(services, dvKey + "/last-view").Set("main");
-        }
-
-        if (state.ActiveCards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 }) is { } chartCard)
-        {
-            var chartKind = string.IsNullOrWhiteSpace(chartCard.ChartKind) ? "bar" : chartCard.ChartKind;
-            var points = chartCard.ChartPoints!.Select(p => new ChartPoint(p.Id, p.Label, p.Value)).ToArray();
-            await SiloNeurons.Get<IChart>(services, appKey + "/chart").Render(chartCard.Title, chartKind, points);
-            await SiloNeurons.Get<IChart>(services, dvKey + "/views/main/chart").Render(chartCard.Title, chartKind, points);
-            await SiloNeurons.Get<IText>(services, dvKey + "/last-view").Set("main");
-        }
-
         var chat = SiloNeurons.Get<IChat>(services, appKey + "/transcript");
         var currentChat = await chat.Read();
         var chatGen = currentChat.Projection?.Generation is > 0 and var g ? g : 1L;

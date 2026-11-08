@@ -128,8 +128,8 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "design",
             "Typography (Inter + InterDisplay + tnum)",
             "Inter and InterDisplay scale with strict tabular numerals (tnum) for live telemetry.",
-            "IntoChat.OS.Modules.Flutter.Text.IText@1",
-            ["TextChanged"],
+            "IntoChat.OS.Modules.Flutter.Views.IView@1",
+            ["ViewChanged"],
             "neuron://local/ui.gallery/typography",
             "new Heading(\"InterDisplay 32 · 1,492,048 tok\", Level: 1, Subtitle: \"Tabular numerals keep live telemetry aligned.\");")
         { Icon = "type" },
@@ -160,8 +160,8 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "controls",
             "Btn (Styles, Sizes & Icons)",
             "Primary, Secondary, Ghost, and Danger buttons in Standard (36px) and Small (30px) sizes.",
-            "IntoChat.OS.Modules.Flutter.Button.IButton@1",
-            ["ButtonClickedSignal"],
+            "IntoChat.OS.Modules.Flutter.Views.IView@1",
+            ["ViewChanged"],
             "neuron://local/ui.gallery/buttons",
             "new Button(\"execute\", \"Execute Action\", Emit: new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")), Tone: ButtonTone.Accent) { Icon = \"sparkles\", Small = false };")
         { Icon = "mouse-pointer-click" },
@@ -210,8 +210,8 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "controls",
             "Progress & InfoBar",
             "Determinate progress bars and contextual status banners with action buttons.",
-            "IntoChat.OS.Modules.Flutter.InfoBar.IInfoBar@1",
-            ["InfoBarUpdatedSignal"],
+            "IntoChat.OS.Modules.Flutter.Views.IView@1",
+            ["ViewChanged"],
             "neuron://local/ui.gallery/progress-infobar",
             "new InfoBar(\"Orleans grain pool synced\", \"14/14 [Scenario] gates passed without warnings.\", Tone: \"info\");")
         { Icon = "loader" },

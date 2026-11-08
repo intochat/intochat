@@ -81,7 +81,6 @@ internal sealed partial class ChatNeuron : UiNeuron<ChatState>, IChat, IChatReco
         var activated = new ChatActionActivated(FullKey, source, generation,
             action.Id, action.Payload, Guid.NewGuid());
         await Publish(activated);
-        await Dispatch(UiEvent.Of(activated));
     }
 
     public async Task MarkRead(string source, long generation, long version, string[] messageIds)

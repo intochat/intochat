@@ -63,13 +63,9 @@ public sealed partial class DartVocabularyFacts
     public void EveryServedKindHasANodeContract()
         => Assert.Empty(KeptKinds.Except(NodeContracts().Select(entry => entry.Kind)));
 
-    // Renderer vocabulary kinds the shell has no node contract for yet (no Flutter contract is watched for them). Known gap,
-    // pinned so the guard passes at head: a kind that gains a Dart entry must leave this list (checked below); a kind
-    // emitted by a UiChildRef call site must never be added here.
-    private static readonly string[] VocabularyKindsWithoutADartContract =
-        [UIVocabulary.TextType, UIVocabulary.ButtonType, UIVocabulary.LayoutType, UIVocabulary.CollectionType, UIVocabulary.InfoBarType,
-            UIVocabulary.CardType, UIVocabulary.ImageType, UIVocabulary.ChartType, UIVocabulary.TableType, UIVocabulary.PersonType,
-            UIVocabulary.FormType];
+    // Renderer vocabulary kinds the shell has no node contract for: none since the widget neurons went. A kind emitted by a
+    // ViewRef call site must never be added here.
+    private static readonly string[] VocabularyKindsWithoutADartContract = [];
 
     // Production files that still compose per-widget neurons the client no longer draws: none since the script apps went.
     private static readonly string[] PendingWidgetEmitters = [];
@@ -77,7 +73,7 @@ public sealed partial class DartVocabularyFacts
     [Fact]
     public void EveryKindTheServerCanEmitHasADartNodeContract()
     {
-        // Emittable = renderer vocabulary + the literal kind of every UiChildRef("<kind>", ...) in production source.
+        // Emittable = renderer vocabulary + the literal kind of every ViewRef("<kind>", ...) in production source.
         var emitters = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
         var pending = new HashSet<string>(StringComparer.Ordinal);
         foreach (var kind in Vocabulary()) { emitters[kind] = ["UIVocabulary"]; }
@@ -111,7 +107,7 @@ public sealed partial class DartVocabularyFacts
         Assert.True(missing.Length == 0, "Kinds the server can emit have no entry in node_contracts.dart:\n" + string.Join('\n', missing));
     }
 
-    [GeneratedRegex(@"UiChildRef\(\s*""(?<kind>\w+)""")]
+    [GeneratedRegex(@"ViewRef\(\s*""(?<kind>\w+)""")]
     private static partial Regex LiteralUiChildRef();
 
     [GeneratedRegex(@"'(?<kind>\w+)':\s*NodeContract\(\s*'(?<contract>[\w.]+)',\s*'(?<changed>\w+)',?\s*\)")]

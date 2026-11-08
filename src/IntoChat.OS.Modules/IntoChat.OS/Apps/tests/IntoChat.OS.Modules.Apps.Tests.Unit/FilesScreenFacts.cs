@@ -5,7 +5,6 @@ using DigitalBrain.Operations;
 using DigitalBrain.Testing.Conformance.Storage;
 using IntoChat.Files;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Collection;
 using IntoChat.OS.Modules.Flutter.Views;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
@@ -443,7 +442,7 @@ public sealed class FilesMediaPreviewFacts
         Assert.Null(app.Snapshot.Preview);
 
         var screen = FilesScreen.Compose(app.Snapshot, 1440, false);
-        Assert.Contains(Walk.Nodes(screen.Main), n => Walk.Kind(n) == "neuronRef" && Walk.Str(n, "neuronUri") == "owner/apps/files/preview");
+        Assert.Contains(Walk.Nodes(screen.Main), n => Walk.Kind(n) == "card" && Walk.Str(n, "body") == app.Snapshot.PreviewUrl);
     }
 }
 

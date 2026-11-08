@@ -29,7 +29,7 @@ internal sealed partial class AppNeuron
                 ? 17
                 : Math.Max(1, views.Length);
         var declaredKeys = presentation.Sphere?.BlackboardKeys ?? [];
-        var slotRules = new[] { presentation.Side, presentation.Main }.OfType<UiChildRef>().Concat(views.Where(v => v?.Root is not null).Select(view => view.Root))
+        var slotRules = new[] { presentation.Side, presentation.Main }.OfType<ViewRef>().Concat(views.Where(v => v?.Root is not null).Select(view => view.Root))
             .Select(slot => (Rule)new SlotNamesABrainNeuron(string.IsNullOrWhiteSpace(slot.Kind) ? "" : slot.Name, State.BrainScopeId ?? ""));
         await Check("Present",
             [new PresentationHasViews(viewCount), .. slotRules, new BlackboardKeysAreDeclarable(declaredKeys)]);

@@ -2,8 +2,6 @@ using DigitalBrain.Brains;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Circles.Signals;
-using IntoChat.OS.Modules.Flutter.Card.Signals;
-using IntoChat.OS.Modules.Flutter.Person.Signals;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -53,12 +51,8 @@ internal sealed class SpaceWatcher(ILogger<SpaceWatcher> logger, CircleMembers f
         foreach (var friend in await friends.FriendsOf(brain)) { await Listen(friend.Brain); }
     }
 
-    private Task Listen(string brain) => _followed.GetOrAdd(brain, async key =>
-    {
-        var id = new DigitalBrain.BrainId(key);
-        await listeners.Listen<PersonChanged>(id, (change, _) => Guarded(change, change => RebuildAuthorAndFriends(change.Name.EndsWith("/profile", StringComparison.Ordinal) ? change.Name[..^8] : null)));
-        await listeners.Listen<CardChanged>(id, (change, _) => Guarded(change, change => RebuildAuthorAndFriends(CircleMembers.PostBrain(change.Name))));
-    });
+    private Task Listen(string brain) => _followed.GetOrAdd(brain, key =>
+        listeners.Listen<SpaceRecordsChanged>(new DigitalBrain.BrainId(key), (change, _) => Guarded(change, change => RebuildAuthorAndFriends(change.Brain))));
 
     private static async Task<IAsyncDisposable> Optional(Func<Task<IAsyncDisposable>> listen)
     {

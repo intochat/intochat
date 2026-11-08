@@ -4,9 +4,6 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
 using IntoChat.Files;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Collection;
-using IntoChat.OS.Modules.Flutter.Image;
-using IntoChat.OS.Modules.Flutter.InfoBar;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,7 +16,6 @@ internal sealed partial class FilesWorkspaceNeuron
     {
         var files = State.Files;
         var screen = FilesScreen.Compose(files, State.Width, State.PreviewOpen, files.Revision, AppKey, State.PageOffset);
-        await Push(screen);
         var rev = files.Revision.ToString(CultureInfo.InvariantCulture);
         DigitalBrain.UI.Node Button(string key, string text, string verb, bool enabled = true, int? index = null, string style = FilesUi.Secondary)
             => FilesUi.Button(key, text, FilesUi.Act(rev, verb, index), enabled, style);
@@ -94,32 +90,4 @@ internal sealed partial class FilesWorkspaceNeuron
         return cards;
     }
 
-    private async Task Push(FilesScreen.Model screen)
-    {
-        try
-        {
-            var list = Get<ICollectionView>(new(Id.Brain, UIVocabulary.CollectionType, AppPath + "/items"));
-            var current = await list.Read();
-            try { await list.Set(screen.Files, current.Revision); }
-            catch (RevisionConflictException)
-            {
-                current = await list.Read();
-                await list.Set(screen.Files, current.Revision);
-            }
-            var bar = Get<IInfoBar>(new(Id.Brain, UIVocabulary.InfoBarType, AppPath + "/status"));
-            if (State.Files.StatusTitle is { } title && !State.Files.Loading)
-            {
-                await bar.Show(State.Files.StatusSeverity, title, State.Files.StatusBody ?? "");
-            }
-            else { await bar.Dismiss(); }
-            if (screen.ImageUrl is { } url)
-            {
-                await Get<IImage>(new(Id.Brain, UIVocabulary.ImageType, AppPath + "/preview")).Set(url, "image", State.Files.Selected?.Item.Name ?? "Preview");
-            }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "Files child views were not updated.");
-        }
-    }
 }
