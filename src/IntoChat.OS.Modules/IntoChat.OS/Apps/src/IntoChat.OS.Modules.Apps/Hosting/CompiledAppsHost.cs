@@ -101,7 +101,6 @@ internal sealed class CompiledAppsHost(
             TriggerEnsureAll(publisher.Brain.Value);
             if (!publisher.Key.StartsWith("apps/", StringComparison.Ordinal)) { return Task.CompletedTask; }
             var appName = publisher.Key["apps/".Length..];
-            if (appName == "brain") { return Task.CompletedTask; }
             if (appName == "desktop" && DesktopWindowVerbs.Contains(signal.Operation))
             {
                 _ = Task.Run(() => HandleDesktopActionAsync(publisher.Brain.Value, signal, token), CancellationToken.None);
@@ -144,9 +143,7 @@ internal sealed class CompiledAppsHost(
         "creator" => "Creator",
         "gallery" => "Gallery",
         "tasks" => "Tasks",
-        "trace" => "Trace",
         "post" => "Post",
-        "brain" => "Brain",
         "settings" => "Settings",
         "circle" or "circles" => "Circles",
         "workspace" => "Workspace",
@@ -219,7 +216,7 @@ internal sealed class CompiledAppsHost(
                     Extents = [.. activeWindows.Chunk(3).Select(_ => 0.0)],
                 };
 
-            string[] dockApps = ["ino", "files", "data", "markdraw", "photocraft", "filmcraft", "creator", "gallery", "post", "brain", "settings"];
+            string[] dockApps = ["ino", "files", "data", "markdraw", "photocraft", "filmcraft", "creator", "gallery", "post", "settings"];
             var dock = new DigitalBrain.UI.Row(
             [
                 new DigitalBrain.UI.Row(
@@ -247,7 +244,7 @@ internal sealed class CompiledAppsHost(
 
     private async Task EnsureOpenAppViewAsync(string brain, string appName, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(appName) || appName is "desktop" or "workspace" or "brain") { return; }
+        if (string.IsNullOrWhiteSpace(appName) || appName is "desktop" or "workspace") { return; }
         try
         {
             var baseCaller = await HostCaller.ForBrain(services, brain);

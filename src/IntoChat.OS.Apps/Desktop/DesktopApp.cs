@@ -172,8 +172,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film"),
             ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid"),
             ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks"),
-            ("trace", "Trace", "neuron://local/apps/trace", "activity"),
-            ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu"),
+            ("creator", "Creator", "neuron://local/apps/creator", "cpu"),
             ("post", "Post", "neuron://local/apps/post", "send"),
             ("settings", "Settings", "neuron://local/apps/settings", "settings"),
         };
@@ -257,7 +256,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     new BrainGraphNode("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "studio", 125, -35, 20, "idle"),
                     new BrainGraphNode("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "studio", -125, -30, -15, "idle"),
                     new BrainGraphNode("gallery", "UI Gallery", "neuron://local/apps/gallery", "ui", 85, -60, 25, "idle"),
-                    new BrainGraphNode("creator", "Creator 3D Loop", "neuron://local/apps/creator", "studio", -90, -55, -25, "working"),
+                    new BrainGraphNode("creator", "Creator", "neuron://local/apps/creator", "studio", -90, -55, -25, "working"),
                 ],
                 [
                     new BrainGraphSynapse("os", "ino", "InoSend", true),

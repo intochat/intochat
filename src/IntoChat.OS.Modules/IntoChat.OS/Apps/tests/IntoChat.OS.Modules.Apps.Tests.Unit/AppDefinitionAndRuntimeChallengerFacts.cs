@@ -30,7 +30,6 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     [InlineData(typeof(InoApp), "ino", "#3D7EFF", "Intelligence", "InoApp")]
     [InlineData(typeof(PostApp), "post", "#FB7185", "Reach", "PostApp")]
     [InlineData(typeof(WorkspaceApp), "workspace", "#A855F7", "Social", "WorkspaceApp")]
-    [InlineData(typeof(BrainScene), "brain", null, null, "BrainScene")]
     [InlineData(typeof(FilesApp), "files", "#F6B73C", "Workspace", "FilesApp")]
     public void ShellAppDefinitionMetadataMatchesContract(
         Type appType,

@@ -33,9 +33,6 @@ public interface IApp
     [Public] Task<AppBundle> ExportPublished();
     [Public, DigitalBrain.ReadOnlyCall] Task<AppPublication[]> PublishedReleases();
     [Public, DigitalBrain.ReadOnlyCall] Task<AppBundle> ExportRelease(string version, string digest);
-    // A version this app still holds in its history, for development sync to prove a folder is
-    // unchanged since that version; null once the version has aged out.
-    [DigitalBrain.ReadOnlyCall] Task<AppBundle?> ExportVersion(string version);
     // The bundle and its origin land in one write before the runtime is asked, so a deploy that
     // fails or outlasts the caller leaves the copy Deploying or Failed, never without its origin.
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null);

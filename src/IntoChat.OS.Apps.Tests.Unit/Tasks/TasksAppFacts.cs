@@ -97,16 +97,16 @@ public sealed class TasksAppFacts
         Assert.Equal(started.Id, tasks.App.State.Selected);
     }
 
-    // The presentation turns this action into os://window/open?app=trace&input=trace%2Ftrace-c (AppPresentationForeignActionFacts).
+    // The presentation turns this action into os://window/open?app=creator&input=trace%2Ftrace-c (AppPresentationForeignActionFacts).
     [Fact]
-    public void OpenTraceNavigatesToTraceApp()
+    public void OpenTraceNavigatesToTheCreator()
     {
         var flow = Flow("c", FlowStatus.Running);
         var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
 
         var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Open trace").Intent;
 
-        Assert.Equal(new Intent(IntentKind.OpenWindow, "os://window/open?app=trace&input=trace%2Ftrace-c"), open);
+        Assert.Equal(new Intent(IntentKind.OpenWindow, "os://window/open?app=creator&input=trace%2Ftrace-c"), open);
     }
 
     [Fact]

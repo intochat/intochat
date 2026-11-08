@@ -54,13 +54,6 @@ internal sealed partial class AppNeuron
         return Describe(State);
     }
 
-    public Task<AppBundle?> ExportVersion(string version)
-    {
-        var record = State.History.LastOrDefault(item => item.Version == version);
-        return Task.FromResult(record is null ? null
-            : new AppBundle(Name(), record.Version, record.Manifest, record.Spec, new(record.Files, StringComparer.Ordinal)));
-    }
-
     public async Task<AppBundle> ExportPublished()
     {
         await Check("ExportPublished", new HasPublishedVersion(State.Published is not null));

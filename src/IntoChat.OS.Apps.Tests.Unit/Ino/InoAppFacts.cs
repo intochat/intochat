@@ -74,17 +74,6 @@ public sealed class InoAppFacts
         Assert.True(postReport.Passed);
         Assert.Single(postReport.Scenarios);
 
-        var creatorReport = await BddRunner.VerifyAsync<CreatorApp>(
-            fakes: os =>
-            {
-                os.Register(typeof(CreatorApp).Assembly);
-                os.Register<DigitalBrain.BddNeuron>();
-                os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
-            },
-            cancellationToken: ct);
-        Assert.True(creatorReport.Passed);
-        Assert.Single(creatorReport.Scenarios);
-
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(CreatorApp).Assembly);
@@ -128,26 +117,6 @@ public sealed class InoAppFacts
         await desktopInstalled.Request("auto-arrange", new DesktopAutoArrange());
         Assert.Contains("Auto-Arranged", desktopInstalled.App.State.Status, StringComparison.Ordinal);
 
-        os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
-        var creatorInstalled = await os.Install<CreatorApp>();
-        await creatorInstalled.Request("open");
-        await creatorInstalled.Request("prompt", new CreatorPrompt("Track Elon Musk posts", "post", "uk"));
-        Assert.True(creatorInstalled.App.State.SceneRotationPaused);
-        Assert.Equal(1.65, creatorInstalled.App.State.CameraZoom);
-        Assert.Equal("uk", creatorInstalled.App.State.BddLanguage);
-        Assert.Equal("1.1.0", creatorInstalled.App.State.CurrentVersion);
-        Assert.True(creatorInstalled.App.State.SandboxCompiled);
-        Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("3D BrainScene", StringComparison.Ordinal));
-        Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("SANDBOX / TEST CREDENTIALS", StringComparison.Ordinal));
-
-        await creatorInstalled.Request("language", new CreatorSwitchLanguage("es"));
-        Assert.Equal("es", creatorInstalled.App.State.BddLanguage);
-
-        await creatorInstalled.Request("hot-restart", new CreatorHotRestart());
-        Assert.Equal(1, creatorInstalled.App.State.SandboxRestartCount);
-
-        await creatorInstalled.Request("rollback", new CreatorRollback("1.0.0"));
-        Assert.Equal("1.0.0", creatorInstalled.App.State.CurrentVersion);
     }
 
     private static readonly BrainId Brain = new("local");

@@ -122,8 +122,8 @@ public static class TasksViewRenderer
         _ => null,
     };
 
-    // Opens the Trace app's window at the view trace/{traceId}.
-    public static Intent OpenTrace(string traceId) => AppSignals.OpenApp("trace", $"trace/{traceId}");
+    // Opens the Creator at the trace: its inspector shows trace/{traceId}.
+    public static Intent OpenTrace(string traceId) => AppSignals.OpenApp("creator", $"trace/{traceId}");
 
     // A field is the textfield neuron apps/tasks/{field}; the app watches it.
     public static string FieldKey(string field) => $"apps/{App}/{field}";

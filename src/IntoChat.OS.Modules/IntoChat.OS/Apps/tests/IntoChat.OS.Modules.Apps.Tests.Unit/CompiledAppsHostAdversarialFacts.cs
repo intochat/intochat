@@ -307,7 +307,6 @@ public sealed class CompiledAppsHostAdversarialFacts
         public Task<AppBundle> ExportPublished() => throw new NotImplementedException();
         public Task<AppPublication[]> PublishedReleases() => throw new NotImplementedException();
         public Task<AppBundle> ExportRelease(string version, string digest) => throw new NotImplementedException();
-        public Task<AppBundle?> ExportVersion(string version) => throw new NotImplementedException();
         public Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null) => throw new NotImplementedException();
         public Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null) => throw new NotImplementedException();
         public Task Delete() => throw new NotImplementedException();

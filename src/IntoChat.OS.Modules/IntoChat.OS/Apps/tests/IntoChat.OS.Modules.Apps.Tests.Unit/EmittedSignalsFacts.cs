@@ -75,8 +75,7 @@ public sealed partial class EmittedSignalsFacts
         var bundles = typeof(IntoChat.OS.Apps.AppSignals).Assembly.GetTypes()
             .Select(type => type.GetProperty("Bundle", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null))
             .OfType<AppBundle>()
-            .Append(FilesRequests.Bundle)
-            .Append(BrainScene.Bundle);
+            .Append(FilesRequests.Bundle);
         var result = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         foreach (var bundle in bundles)
         {

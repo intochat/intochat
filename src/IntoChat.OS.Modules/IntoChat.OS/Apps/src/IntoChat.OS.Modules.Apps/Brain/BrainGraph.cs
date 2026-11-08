@@ -5,28 +5,31 @@ using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// One node of the brain's topology as the brain-snapshot stream lists it: Role is "unit" for an installed unit's state neuron,
-// "app" for a compiled app, anything else a kernel neuron.
-public sealed record BrainTopologyNode(string Id, string Label, string Role);
-
-// One reaction or gate: SourceId "*" means any publisher of SignalType (the alias); the journal tail names who published.
-public sealed record BrainTopologyEdge(string SourceId, string TargetId, string SignalType, string Kind);
-
-public sealed record BrainTopology(IReadOnlyList<BrainTopologyNode> Nodes, IReadOnlyList<BrainTopologyEdge> Edges)
-{
-    // Build flows under way; one past `author` whose subject has no installed unit yet is drawn as a ghost.
-    public IReadOnlyList<FlowView> Flows { get; init; } = [];
-}
-
-// The Creator's brain graph: a sphere per unit, compiled app and kernel neuron, a ghost per unit under construction, an edge per
+// The Creator's brain graph (owner is the app its select buttons emit to): a sphere per unit, compiled app and kernel neuron, a ghost per unit under construction, an edge per
 // reaction or gate labelled with its alias. The inspector reads three keys: `node:<id>` (a node's select button), `edge:<from>→<to>:<alias>`
-// and `pulse:<traceId>` (activated by the renderer, which owns edges and pulses on screen).
+// and `pulse:<traceId>`. Edges and pulses are not nodes of the view: the renderer activates SelectKey with their key as the value.
 public static class BrainGraph
 {
     public const string Unit = "unit", App = "app", Kernel = "kernel", Draft = "draft";
     private const double Radius = 320;
 
     public static string NodeKey(string id) => $"node:{id}";
+
+    // The key of the view's button that selects an edge or a pulse; the renderer sends their key as its value.
+    public const string SelectKey = "graph:select";
+
+    // An edge key back into its parts: split on the arrow first (ids hold ':'), then on the last ':' (an alias holds none).
+    public static (string From, string To, string Alias)? ParseEdge(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        if (!key.StartsWith("edge:", StringComparison.Ordinal)) { return null; }
+        var body = key["edge:".Length..];
+        var arrow = body.IndexOf('→', StringComparison.Ordinal);
+        if (arrow <= 0) { return null; }
+        var rest = body[(arrow + 1)..];
+        var colon = rest.LastIndexOf(':');
+        return colon <= 0 || colon == rest.Length - 1 ? null : (body[..arrow], rest[..colon], rest[(colon + 1)..]);
+    }
 
     public static string EdgeKey(string from, string to, string alias) => $"edge:{from}→{to}:{alias}";
 
@@ -37,7 +40,7 @@ public static class BrainGraph
     public static string EdgeLabel(string alias, string kind) => kind == "gate" ? alias + GateSuffix : alias;
 
     // An installed unit's state neuron is `{brain}/{alias}/default`; its alias is the middle segment.
-    internal static string? AliasOf(string id)
+    public static string? AliasOf(string id)
     {
         var parts = id.Split('/');
         return parts.Length == 3 && parts[2] == "default" ? parts[1] : null;
@@ -47,7 +50,7 @@ public static class BrainGraph
 
     public static string DraftId(string alias) => $"draft:{alias}";
 
-    public static BrainSceneNode Build(BrainTopology topology, string? selection)
+    public static BrainSceneNode Build(BrainTopology topology, string? selection, string owner = "creator")
     {
         ArgumentNullException.ThrowIfNull(topology);
         List<(string Id, string Label, string Kind, string? Subtitle)> members = [];
@@ -76,7 +79,7 @@ public static class BrainGraph
             nodes[i] = new BrainGraphNode(id, label, $"neuron://{id}", kind,
                 Math.Round(radius * Math.Cos(angle), 2), Math.Round(radius * Math.Sin(angle), 2), 0,
                 Status: kind == Draft ? "building" : "idle", Subtitle: subtitle,
-                Select: new Button(NodeKey(id), label, new Emit("brain", "focus", JsonSerializer.SerializeToElement(id))));
+                Select: new Button(NodeKey(id), label, new Emit(owner, "select", JsonSerializer.SerializeToElement(NodeKey(id)))));
         }
         var synapses = topology.Edges
             .Where(edge => seen.Contains(edge.TargetId))
