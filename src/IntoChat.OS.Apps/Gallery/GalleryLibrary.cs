@@ -170,8 +170,8 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "controls",
             "Field & TextField",
             "Desktop-first EditableText fields with neuron:// address validation and instant submit.",
-            "IntoChat.OS.Modules.Flutter.TextField.ITextField@1",
-            ["TextFieldChanged"],
+            "IntoChat.OS.Modules.Flutter.Fields.IField@1",
+            ["FieldChanged"],
             "neuron://local/ui.gallery/inputs",
             "new Field(\"address\", \"address\", FieldKind.Text, \"Enter neuron:// address…\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")));")
         { Icon = "text-cursor-input" },
@@ -190,7 +190,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "controls",
             "Select & Dropdown",
             "Single-choice segmented and dropdown selectors backed by DigitalBrain.UI.Select.",
-            "IntoChat.OS.Modules.Flutter.Select.ISelect@1",
+            "DigitalBrain.UI.Select@1",
             ["SelectionChangedSignal"],
             "neuron://local/ui.gallery/select",
             "new Select(\"Active Reasoning Model\", \"claude-sonnet-4-5\", [new SelectOption(\"claude\", \"claude-sonnet-4-5\", \"Claude Sonnet 4.5\"), new SelectOption(\"gpt\", \"gpt-5-thinking\", \"GPT-5 Thinking\")]);")
@@ -242,7 +242,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "layout",
             "Tabs & Segmented Views",
             "Multi-pane tab strips switching live DigitalBrain.UI view subtrees.",
-            "IntoChat.OS.Modules.Flutter.Tabs.ITabs@1",
+            "DigitalBrain.UI.Tabs@1",
             ["ActiveTabChanged"],
             "neuron://local/ui.gallery/tabs",
             "new Tabs(\"overview\", [new TabItem(\"overview\", \"overview\", \"Overview\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"shell:overview\"))), new TabItem(\"signals\", \"signals\", \"Signals\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"shell:signals\")))]);")
@@ -252,7 +252,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "layout",
             "IcAcrylicBox Surfaces",
             "Acrylic, Elevated, and Recessed containers with adaptive border hairlines.",
-            "IntoChat.OS.Modules.Flutter.Surface.ISurface@1",
+            "DigitalBrain.UI.Surface@1",
             ["SurfaceMutatedSignal"],
             "neuron://local/ui.gallery/surfaces",
             "new Surface([new Text(\"Adaptive glass surface\")], Kind: SurfaceKind.Acrylic, Title: \"Acrylic Surface\", Subtitle: \"1px specular border\");")

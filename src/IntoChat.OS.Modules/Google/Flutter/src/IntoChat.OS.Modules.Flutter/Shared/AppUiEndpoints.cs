@@ -8,7 +8,7 @@ using DigitalBrain.Confirmation;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Table;
-using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.WebBrowser;
@@ -78,7 +78,7 @@ internal static class AppUiEndpoints
             }
             return kind switch
             {
-                "textfield" => Results.Ok(await brain.Get<ITextField>(name).Read().WaitAsync(ct)),
+                "field" => Results.Ok(await brain.Get<IField>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ChatType => Results.Ok(await brain.Get<IChat>(name).Read().WaitAsync(ct)),
                 UIVocabulary.ComposerType => Results.Ok(await brain.Get<IComposer>(name).Read().WaitAsync(ct)),
                 UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
@@ -148,7 +148,7 @@ internal static class AppUiEndpoints
                 else if (input.Action == "disconnect") { await browser.Disconnect(connection.SessionId).WaitAsync(ct); }
                 else { throw new ArgumentException("Unknown browser action."); }
                 break;
-            case "textfield": await brain.Get<ITextField>(input.Name).Input(input.Value ?? "").WaitAsync(ct); break;
+            case "field": await brain.Get<IField>(input.Name).Input(input.Value ?? "").WaitAsync(ct); break;
             default: throw new ArgumentException("Unknown UI event.");
         }
         return Results.Ok(new { delivered = true });

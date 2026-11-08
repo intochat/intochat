@@ -11,8 +11,7 @@ using IntoChat.Files;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.TextField;
-using IntoChat.OS.Modules.Flutter.TextField.Signals;
+using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -48,7 +47,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     private string AppKey => Id.Brain.Value + "/" + AppPath;
     private FilesApp App => new(broker is CapabilityBroker runtime ? runtime.ForApp(AppKey) : broker, Id.Brain, State.Files);
     private IView View(string slot) => Get<IView>(new(Id.Brain, UIVocabulary.ViewType, AppPath + "/" + slot));
-    private ITextField Field(string name) => Get<ITextField>(new(Id.Brain, UIVocabulary.TextFieldType, AppPath + "/" + name));
+    private IField Field(string name) => Get<IField>(new(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + name));
 
     public Task<long> Revision() { RequireAccess(); return Task.FromResult(State.Files.Revision); }
 
@@ -89,12 +88,12 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     private async Task Recover(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        await Field("search").Configure("Search all storages", "text", "Search");
-        await Field("filter").Configure("Filter by name", "text");
-        await Field("name").Configure("Name", "text");
-        await Field("content").Configure("File content", "multiline");
+        await Field("search").Configure(DigitalBrain.UI.FieldKind.Text);
+        await Field("filter").Configure(DigitalBrain.UI.FieldKind.Text);
+        await Field("name").Configure(DigitalBrain.UI.FieldKind.Text);
+        await Field("content").Configure(DigitalBrain.UI.FieldKind.Multiline);
         foreach (var field in new[] { "search", "filter" })
-        { await Context.Synapses.Ensure<TextFieldChanged>(new(Id.Brain, UIVocabulary.TextFieldType, AppPath + "/" + field)); }
+        { await Context.Synapses.Ensure<FieldChanged>(new(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + field)); }
         foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
@@ -145,7 +144,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     else if (State.Files.Connection is { } connection) { await app.Browse(new(connection), ct); }
                     else { await app.Open(new(), ct); }
                     await Store(app, resetPage: true); break;
-                case "search": await app.Search(new(input.Query ?? (await Field("search").Read()).Value, input.Everywhere), ct); await Store(app, resetPage: true); break;
+                case "search": await app.Search(new(input.Query ?? (await Field("search").Read()).Value ?? "", input.Everywhere), ct); await Store(app, resetPage: true); break;
                 case "more":
                     var offset = State.Files.Items.Length;
                     await app.More(new(), ct);
@@ -177,8 +176,8 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                 case "dry-run": app.Options(State.Files.Conflict, !State.Files.DryRun); await Store(app); break;
                 case "mkdir" or "write" or "rename" or "delete" or "paste":
                     if (State.Started.Count(item => !item.Done) >= 8) { throw new InvalidOperationException("Wait for a running operation before starting another."); }
-                    var name = input.Name ?? (await Field("name").Read()).Value;
-                    var text = operation == "write" ? input.Text ?? (await Field("content").Read()).Value : "";
+                    var name = input.Name ?? (await Field("name").Read()).Value ?? "";
+                    var text = operation == "write" ? input.Text ?? (await Field("content").Read()).Value ?? "" : "";
                     if (System.Text.Encoding.UTF8.GetByteCount(text) > 256 * 1024) { throw new InvalidOperationException("Text files entered here are limited to 256 KiB."); }
                     var plan = app.Plan(operation, name, text);
                     await Persist(State with { PendingRequest = operation });
@@ -194,7 +193,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     var cancelling = At(State.Started, input.Index);
                     if (!cancelling.Done) { await Context.Operations.Cancel(new(cancelling.Id), ct); }
                     break;
-                case "filter": app.Filter(input.Query ?? (await Field("filter").Read()).Value); await Store(app); break;
+                case "filter": app.Filter(input.Query ?? (await Field("filter").Read()).Value ?? ""); await Store(app); break;
                 case "clear-filter": app.Filter(""); await Store(app); break;
                 case "sort-name": app.SortBy("name"); await Store(app); break;
                 case "sort-size": app.SortBy("size"); await Store(app); break;
@@ -226,26 +225,30 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     }
 
     [On]
-    public async Task On(TextFieldChanged changed)
+    public async Task On(FieldChanged changed)
     {
-        if (changed.Name == AppKey + "/filter")
+        var full = changed.Owner + "/" + changed.Name;
+        var field = full == AppKey + "/filter" ? "filter" : full == AppKey + "/search" ? "search" : null;
+        if (field is null) { return; }
+        var value = (await Field(field).Read()).Value ?? "";
+        if (field == "filter")
         {
-            if (string.Equals(State.Files.Filter, changed.Value, StringComparison.Ordinal)) { return; }
+            if (string.Equals(State.Files.Filter, value, StringComparison.Ordinal)) { return; }
             await WithAppCallerAsync(async () =>
             {
-                try { await Request("filter", new(Query: changed.Value), State.Files.Revision, Guid.NewGuid()); }
+                try { await Request("filter", new(Query: value), State.Files.Revision, Guid.NewGuid()); }
                 catch (StaleActionException error)
                 {
                     Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files filter action was stale.");
                 }
             });
         }
-        else if (changed.Name == AppKey + "/search" && !string.IsNullOrWhiteSpace(changed.Value))
+        else if (field == "search" && !string.IsNullOrWhiteSpace(value))
         {
-            if (State.Files.Searching && string.Equals(State.Files.Search, changed.Value, StringComparison.Ordinal)) { return; }
+            if (State.Files.Searching && string.Equals(State.Files.Search, value, StringComparison.Ordinal)) { return; }
             await WithAppCallerAsync(async () =>
             {
-                try { await Request("search", new(Query: changed.Value, Everywhere: true), State.Files.Revision, Guid.NewGuid()); }
+                try { await Request("search", new(Query: value, Everywhere: true), State.Files.Revision, Guid.NewGuid()); }
                 catch (StaleActionException error)
                 {
                     Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files search action was stale.");

@@ -14,8 +14,7 @@ using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Flutter.TextField;
-using IntoChat.OS.Modules.Flutter.TextField.Signals;
+using IntoChat.OS.Modules.Flutter.Fields;
 
 namespace IntoChat.OS.Apps.Tasks;
 
@@ -216,17 +215,18 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         ArgumentNullException.ThrowIfNull(watch);
         foreach (var field in TasksViewRenderer.Fields)
         {
-            watch.On<ITextField, TextFieldChanged>($"{field}-changed", app => $"apps/{app.App}/{field}", changed => OnField(field, changed));
+            watch.On<IField, FieldChanged>($"{field}-changed", app => $"apps/{app.App}/{field}", changed => OnField(field, changed));
         }
         watch.On<IFlows, FlowsChanged>("flows-changed", _ => FlowsKey, _ => RefreshAsync());
         watch.On<IConfirmationInbox, ConfirmationRequested>("confirmation-requested", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
         watch.On<IConfirmationInbox, ConfirmationResolved>("confirmation-resolved", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
     }
 
-    public Task OnField(string field, TextFieldChanged changed)
+    // The signal names the change; the value is read from the field.
+    public async Task OnField(string field, FieldChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);
-        var value = changed.Value ?? "";
+        var value = (await Get<IField>(TasksViewRenderer.FieldKey(field)).Read()).Value ?? "";
         Set(State with
         {
             Draft = field switch
@@ -236,7 +236,6 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
                 _ => State.Draft with { Lag = value },
             },
         });
-        return Task.CompletedTask;
     }
 
     public View Render() => TasksViewRenderer.Render(State, _flows, _approvals, Time.GetUtcNow());

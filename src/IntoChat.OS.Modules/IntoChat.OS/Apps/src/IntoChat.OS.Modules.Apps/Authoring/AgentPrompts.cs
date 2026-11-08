@@ -106,8 +106,8 @@ internal static class AgentPrompts
         Every setting a behavior reads must be declared. Setting names are letters and digits.
         Every visual result must be reachable from the declared entry. Return "entry" with "kind" and
         installation-relative "name" when adding a UI. Resolve its neuron as brain.Setting("App") + "/" + name.
-        Return the entry that matches the root you actually compose: an ISurface at app + "/notes"
-        requires {"kind":"surface","name":"notes"}, not a text entry at "answer". The examples in
+        Return the entry that matches the root you actually compose: an ILayout at app + "/notes"
+        requires {"kind":"layout","name":"notes"}, not a text entry at "answer". The examples in
         this prompt are illustrative; every returned entry must match your implementation.
         For each user-facing operation, write its result to the neuron the person reads from that entry.
         Console.WriteLine is diagnostics, never the person's answer; logging an answer does not display it.
@@ -117,7 +117,7 @@ internal static class AgentPrompts
         "alpha" and "beta" in Name, never Kind. Different text children all use kind "text".
         Use UIVocabulary constants from IntoChat.OS.Modules.Flutter when writing C#: for example
         new UiChildRef(UIVocabulary.TextType, brain.Setting("App") + "/alpha") for a text child,
-        and UIVocabulary.SurfaceType for a surface. Do not invent renderer kinds.
+        and UIVocabulary.LayoutType for a layout. Do not invent renderer kinds.
         Initialize or rebuild derived UI cheaply and idempotently before the one reaction; retain existing
         result state on restart. Never focus or reopen a workspace entry when composition or work completes.
         Mounting and reconnecting read current state. An entry declaration does not certify readiness.

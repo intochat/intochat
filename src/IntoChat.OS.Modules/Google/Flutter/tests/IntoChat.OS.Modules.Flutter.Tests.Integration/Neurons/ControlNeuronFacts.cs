@@ -4,8 +4,7 @@ using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Button.Signals;
 using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Text.Signals;
-using IntoChat.OS.Modules.Flutter.TextField;
-using IntoChat.OS.Modules.Flutter.TextField.Signals;
+using IntoChat.OS.Modules.Flutter.Fields;
 using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Flutter.Tests;
@@ -96,16 +95,16 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
-        var id = runtime.Id(UIVocabulary.TextFieldType, "secret");
-        var field = runtime.Get<ITextField>(id);
+        var id = runtime.Id(UIVocabulary.FieldType, "apps/login/secret");
+        var field = runtime.Get<IField>(id);
 
-        await field.Configure("Password", "secret");
-        await field.SetValue("hunter2-set");
+        await field.Configure(DigitalBrain.UI.FieldKind.Secret);
+        await field.Set("hunter2-set");
         await field.Input("hunter2-input");
 
-        var changes = await runtime.WaitForSignals<TextFieldChanged>(id, 2, Within, ct);
-        Assert.All(changes, change => Assert.Equal("", change.Value));
-        Assert.DoesNotContain("hunter2", (await field.Read()).Value, StringComparison.Ordinal);
+        var changes = await runtime.WaitForSignals<FieldChanged>(id, 3, Within, ct);
+        Assert.All(changes, change => Assert.Equal("secret", change.Name));
+        Assert.Equal("••••••••", (await field.Read()).Value);
     }
     // 06-05b: the chat index is plain; it titles a default entry from the first message and announces each change.
     [Theory, MemberData(nameof(Kinds))]

@@ -4,7 +4,7 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Spi;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.AspNetCore.Http;
 using TestOS = DigitalBrain.Testing.TestOS;
@@ -178,7 +178,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(ViewActivation.None);
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("textfield", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Hosted, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Hosted, Ct);
 
         Assert.Equal(("owner/apps/tasks/title", "Ship docs"), Assert.Single(brain.Field.Inputs));
     }
@@ -210,7 +210,7 @@ public sealed class AppUiEventFacts
             var key = id.Brain.Value + "/" + id.Key;
             if (typeof(T) == typeof(IConfirmationInbox)) { Inbox.Key = key; return (T)(object)Inbox; }
             if (typeof(T) == typeof(IApp)) { return (T)(object)FakeApp.For(key, this); }
-            if (typeof(T) == typeof(ITextField)) { Field.Key = key; return (T)(object)Field; }
+            if (typeof(T) == typeof(IField)) { Field.Key = key; return (T)(object)Field; }
             if (typeof(T) == typeof(IView)) { return (T)(object)new FakeView(key, this, activation); }
             throw new InvalidOperationException($"No {typeof(T).Name} in this fake.");
         }
@@ -235,15 +235,14 @@ public sealed class AppUiEventFacts
         public Task Resolve(string planId, bool approve) { Resolved.Add((Key, planId, approve)); return Task.CompletedTask; }
     }
 
-    private sealed class RecordingField : ITextField
+    private sealed class RecordingField : IField
     {
         public string Key { get; set; } = "";
         public List<(string Key, string Value)> Inputs { get; } = [];
-        public Task Configure(string label, string kind, string? submitButton = null) => Task.CompletedTask;
-        public Task SetValue(string value) => Task.CompletedTask;
-        public Task<bool> TrySetValue(string value, int expectedVersion) => Task.FromResult(true);
+        public Task Configure(FieldKind kind) => Task.CompletedTask;
+        public Task Set(string? value) => Task.CompletedTask;
         public Task Input(string value) { Inputs.Add((Key, value)); return Task.CompletedTask; }
-        public Task<TextFieldState> Read() => Task.FromResult(new TextFieldState());
+        public Task<FieldState> Read() => Task.FromResult(new FieldState());
     }
 
     private class FakeApp : System.Reflection.DispatchProxy

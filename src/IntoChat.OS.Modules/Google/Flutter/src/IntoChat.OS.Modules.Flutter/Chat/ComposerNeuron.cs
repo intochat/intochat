@@ -1,5 +1,4 @@
 using DigitalBrain.Brains;
-using IntoChat.OS.Modules.Flutter.VoiceInput;
 using IntoChat.OS.Framework;
 using DigitalBrain.State;
 
@@ -18,6 +17,8 @@ internal sealed record ComposerStorage
 [DigitalBrain.Neuron(UIVocabulary.ComposerType)]
 internal sealed class ComposerNeuron : UiNeuron<ComposerStorage>, IComposer, IComposerReconciliation, IComposerMigration
 {
+    private const int MaxAudioBytes = 8 * 1024 * 1024;
+
     private ComposerState Current => Snapshot.State;
 
     public async Task Follow(string chat)
@@ -251,7 +252,7 @@ internal sealed class ComposerNeuron : UiNeuron<ComposerStorage>, IComposer, ICo
     {
         ArgumentNullException.ThrowIfNull(audio);
         ArgumentException.ThrowIfNullOrWhiteSpace(mimeType);
-        if (audio.Length is 0 or > IVoiceInput.MaxAudioBytes) { throw new ArgumentException("Audio must contain between 1 byte and 8 MiB."); }
+        if (audio.Length is 0 or > MaxAudioBytes) { throw new ArgumentException("Audio must contain between 1 byte and 8 MiB."); }
         if (!mimeType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)) { throw new ArgumentException("Only audio can be captured."); }
         if (Current.Voice is not { } voice || voice.Id != captureId) { return Task.CompletedTask; }
         if (voice.Status == "transcribing") { return Publish(new ComposerVoiceCaptured(FullKey, captureId)); }

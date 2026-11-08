@@ -18,13 +18,28 @@ namespace IntoChat.OS.Modules.Flutter.Views;
 internal sealed class ViewNeuron
     : UiNeuron<ViewState>, IView
 {
-    public Task Publish(long generation, View view)
+    public async Task Publish(long generation, View view)
     {
         RequireWriter();
         var json = ViewValidation.Serialize(view);
-        if (generation < Snapshot.Source || json == Snapshot.Json) { return Task.CompletedTask; }
+        if (generation < Snapshot.Source || json == Snapshot.Json) { return; }
         var next = checked(Snapshot.Generation + 1);
-        return Save(new() { Json = json, Generation = next, Source = generation, Changes = Snapshot.Changes + 1 }, new ViewChanged(FullKey, next));
+        await Save(new() { Json = json, Generation = next, Source = generation, Changes = Snapshot.Changes + 1 }, new ViewChanged(FullKey, next));
+        // The view carries no field values; it tells its own app's field neurons their kind, so a secret is never stored. Values
+        // stay with the field: nothing is seeded, the app pre-fills with IField.Set.
+        var app = AppPrefix(Id.Key);
+        foreach (var (name, kind) in ViewValidation.Fields(ViewValidation.Parse(json)))
+        {
+            if (app is not null && name.StartsWith(app, StringComparison.Ordinal) && name.Length > app.Length)
+            { await Get<Fields.IField>(new DigitalBrain.NeuronId(Id.Brain, UIVocabulary.FieldType, name)).Configure(kind); }
+        }
+    }
+
+    // "apps/{app}/" of a view keyed under an app, else null.
+    private static string? AppPrefix(string key)
+    {
+        var parts = key.Split('/');
+        return parts.Length > 2 && parts[0] == "apps" ? $"apps/{parts[1]}/" : null;
     }
 
     [DigitalBrain.ReadOnlyCall]
@@ -97,6 +112,31 @@ internal static class ViewValidation
             }
         }
     }
+
+    // Every Field node's name (its field neuron's key) and kind, depth first.
+    public static IEnumerable<(string Name, FieldKind Kind)> Fields(JsonElement root)
+    {
+        var pending = new Stack<JsonElement>([root]);
+        while (pending.Count > 0)
+        {
+            var element = pending.Pop();
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                if (Text(element, "name") is { Length: > 0 } name && element.TryGetProperty("fieldKind", out var kind) && KindOf(kind) is { } parsed)
+                { yield return (name, parsed); }
+                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("emit" or "args"))) { pending.Push(property.Value); }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray()) { pending.Push(item); }
+            }
+        }
+    }
+
+    private static FieldKind? KindOf(JsonElement kind)
+        => kind.ValueKind == JsonValueKind.String && Enum.TryParse<FieldKind>(kind.GetString(), ignoreCase: true, out var parsed) ? parsed
+            : kind.ValueKind == JsonValueKind.Number && kind.TryGetInt32(out var number) && Enum.IsDefined((FieldKind)number) ? (FieldKind)number
+            : null;
 
     public static JsonElement Parse(string json)
     {

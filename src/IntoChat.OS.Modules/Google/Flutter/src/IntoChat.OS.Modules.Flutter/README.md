@@ -21,6 +21,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Flutter.Contracts` (`IButton`, `ICalendar`, `ICard`, `IChart`, `IChatIndex`, `IChat`, `IClock`, `ICollectionView`, `IColor`, `IComposer`, `ICompute`, `IEntryControl`, `IExpander`, `IFileInput`, `IForm`, `IGraph`, `IImageCanvas`, `IImage`, `IInfoBar`, `ILayout`, `IMap`, `IPerson`, `IPreferenceControl`, `IRating`, `ISelect`, `ISheet`, `ISlider`, `ISurface`, `ITable`, `ITabs`, `ITextField`, `IText`, `IToggle`, `ITree`, `IUiBinding`, `IUiEventHandler`, `IVideo`, `IView`, `IViewport`, `IVoiceInput`, `IWebBrowser`, `IWorkspace`).
+Contracts: assembly `IntoChat.OS.Modules.Flutter.Contracts` (`IButton`, `ICard`, `IChart`, `IChatIndex`, `IChat`, `ICollectionView`, `IComposer`, `ICompute`, `IField`, `IForm`, `IImage`, `IInfoBar`, `ILayout`, `IPerson`, `ITable`, `IText`, `IUiBinding`, `IUiEventHandler`, `IView`, `IViewport`, `IWebBrowser`, `IWorkspace`).
 Hosting: runs in process.
 <!-- END GENERATED -->

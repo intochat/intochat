@@ -13,7 +13,13 @@ public sealed partial class DartVocabularyFacts
     // Kinds the C# vocabulary declares that the renderer registry does not list: the shell draws chat and composer
     // through the workspace, not NeuronView; a viewport is a window onto another app's view, so it has no standalone
     // gallery sample. Confirmation is a host-owned inbox rendered through the view tree, never a gallery-owned neuron.
-    private static readonly string[] CSharpOnlyKinds = ["chat", "composer", "viewport", UIVocabulary.ConfirmationType];
+    // The field neuron has no client entry until the client reads field values from it (Task 13, units all the way).
+    private static readonly string[] CSharpOnlyKinds = ["chat", "composer", "viewport", UIVocabulary.ConfirmationType, UIVocabulary.FieldType];
+
+    // Per-widget kinds the server no longer has (Task 12) that the client still lists until it renders the one View tree (Task 13).
+    private static readonly string[] RetiredAwaitingTheClient =
+        ["calendar", "clock", "color", "entrycontrol", "expander", "fileinput", "graph", "imagecanvas", "map", "preference", "progress", "rating",
+            "scene", "select", "sheet", "slider", "surface", "tabs", "textfield", "toggle", "tree", "video", "voiceinput"];
 
     internal static string[] Vocabulary() => [.. typeof(UIVocabulary).GetFields(BindingFlags.Public | BindingFlags.Static)
         .Where(field => field.IsLiteral && field.FieldType == typeof(string) && field.Name.EndsWith("Type", StringComparison.Ordinal))
@@ -45,7 +51,7 @@ public sealed partial class DartVocabularyFacts
     [Fact]
     public void TheRendererRegistryMirrorsTheVocabulary()
     {
-        Assert.Equal(Vocabulary().Except(CSharpOnlyKinds), RendererKinds());
+        Assert.Equal(Vocabulary().Except(CSharpOnlyKinds), RendererKinds().Except(RetiredAwaitingTheClient));
     }
 
     [Fact]
@@ -55,7 +61,7 @@ public sealed partial class DartVocabularyFacts
         Assert.Equal(29, table.Length);
         var assemblies = new[] { typeof(UIVocabulary).Assembly, typeof(IScene).Assembly };
         var offenders = new List<string>();
-        foreach (var (kind, contract, changed) in table)
+        foreach (var (kind, contract, changed) in table.Where(entry => !RetiredAwaitingTheClient.Contains(entry.Kind)))
         {
             if (!Vocabulary().Contains(kind)) { offenders.Add($"{kind}: not a UIVocabulary kind"); }
             if (kind == UIVocabulary.ConfirmationType)
@@ -89,7 +95,7 @@ public sealed partial class DartVocabularyFacts
     // pinned so the guard passes at head: a kind that gains a Dart entry must leave this list (checked below); a kind
     // emitted by a UiChildRef call site must never be added here.
     private static readonly string[] VocabularyKindsWithoutADartContract =
-        ["calendar", "clock", "color", "graph", "map", "progress", "rating", "sheet", "slider", "tree", "video"];
+        ["calendar", "clock", "color", "graph", "map", "progress", "rating", "sheet", "slider", "tree", "video", UIVocabulary.FieldType];
 
     [Fact]
     public void EveryKindTheServerCanEmitHasADartNodeContract()

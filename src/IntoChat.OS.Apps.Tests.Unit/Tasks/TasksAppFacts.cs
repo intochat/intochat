@@ -3,12 +3,11 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Flutter.TextField;
-using IntoChat.OS.Modules.Flutter.TextField.Signals;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Tasks;
 
@@ -213,8 +212,11 @@ public sealed class TasksAppFacts
 
     // TestOS does not serve declared watches: hand the field's change to the watch on apps/tasks/{field}, as the host does.
     private static Task Field(InstalledApp<TasksApp> tasks, string field, string value)
-        => Assert.Single(tasks.App.DeclaredWatches(), w => w.SignalType == typeof(TextFieldChanged) && w.Key(new AppAddress("local", "tasks")) == $"apps/tasks/{field}")
-            .Handle(new TextFieldChanged($"local/apps/tasks/{field}", value));
+    {
+        FakeField.Values[$"apps/tasks/{field}"] = value;
+        return Assert.Single(tasks.App.DeclaredWatches(), w => w.SignalType == typeof(FieldChanged) && w.Key(new AppAddress("local", "tasks")) == $"apps/tasks/{field}")
+            .Handle(new FieldChanged("local/apps/tasks", field, 1));
+    }
 
     [Fact]
     public async Task AskInoToChangeWritesUiFocus()
@@ -243,6 +245,7 @@ public sealed class TasksAppFacts
         os.Register<FakeApprovals>();
         os.Register<FakeFocus>();
         os.Register<FakeSynapses>();
+        os.Register<FakeField>();
         return os;
     }
 
@@ -286,6 +289,17 @@ public sealed class TasksAppFacts
         public Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default) => Task.CompletedTask;
         public Task Cancel(string flowId, string reason, CancellationToken ct = default) { Cancels.Add(flowId); return Task.CompletedTask; }
         public Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default) { Relations.Add((flowId, relation)); return Task.CompletedTask; }
+    }
+
+    [Neuron("ui.field")]
+    private sealed class FakeField : Neuron, IField
+    {
+        public static Dictionary<string, string?> Values { get; } = [];
+
+        public Task Configure(FieldKind kind) => Task.CompletedTask;
+        public Task Set(string? value) { Values[Id.Key] = value; return Task.CompletedTask; }
+        public Task Input(string value) => Set(value);
+        public Task<FieldState> Read() => Task.FromResult(new FieldState { Value = Values.GetValueOrDefault(Id.Key) });
     }
 
     [Neuron("approvals")]
