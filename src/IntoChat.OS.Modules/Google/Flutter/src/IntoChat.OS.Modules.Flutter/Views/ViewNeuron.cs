@@ -30,7 +30,7 @@ internal sealed class ViewNeuron
         var app = AppPrefix(Id.Key);
         foreach (var (name, kind) in ViewValidation.Fields(ViewValidation.Parse(json)))
         {
-            if (app is not null && name.StartsWith(app, StringComparison.Ordinal) && name.Length > app.Length)
+            if (app is not null && name.StartsWith(app, StringComparison.Ordinal) && name.Length > app.Length && !name.Split('/').Any(segment => segment.Length == 0 || segment.StartsWith('.')))
             { await Get<Fields.IField>(new DigitalBrain.NeuronId(Id.Brain, UIVocabulary.FieldType, name)).Configure(kind); }
         }
     }

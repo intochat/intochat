@@ -10,10 +10,10 @@ public sealed class OneUiPathFacts
     private static readonly string[] Kept =
     [
         "view", "ui.field", "chat", "composer", "webbrowser", "viewport",
-        "ui.binding", "chat-index", "ui.compute", "ui.problem-reports", "ui.space", "ui.workspace",
+        "chat-index", "ui.compute", "ui.problem-reports", "ui.space", "ui.workspace",
     ];
 
-    private static readonly string[] Pending = ["text", "button", "layout", "collection", "infobar", "card", "image", "chart", "table", "person", "form"];
+    private static readonly string[] Pending = ["text", "button", "layout", "collection", "infobar", "card", "image", "chart", "table", "person", "form", "ui.binding"];
 
     [Fact]
     public void NoNeuronOutsideTheKeptUiKinds()

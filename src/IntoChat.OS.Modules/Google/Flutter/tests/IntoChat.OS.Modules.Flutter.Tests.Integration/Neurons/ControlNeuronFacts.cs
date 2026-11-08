@@ -102,7 +102,7 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
         await field.Set("hunter2-set");
         await field.Input("hunter2-input");
 
-        var changes = await runtime.WaitForSignals<FieldChanged>(id, 3, Within, ct);
+        var changes = await runtime.WaitForSignals<FieldChanged>(id, 2, Within, ct);
         Assert.All(changes, change => Assert.Equal("secret", change.Name));
         Assert.Equal("••••••••", (await field.Read()).Value);
     }

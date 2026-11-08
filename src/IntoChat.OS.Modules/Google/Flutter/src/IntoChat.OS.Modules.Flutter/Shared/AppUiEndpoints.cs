@@ -36,55 +36,7 @@ internal static class AppUiEndpoints
             var provider = providers.SingleOrDefault();
             return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
         });
-        apps.MapGet("/node", async (string kind, string name, INeuronProxies brain, CancellationToken ct) =>
-        {
-            var scope = BrainScope.CurrentId();
-            if (kind == UIVocabulary.ConfirmationType)
-            {
-                if (name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
-                return Results.Json(ConfirmationView.Render(await brain.Get<IConfirmationInbox>(name).Read().WaitAsync(ct)), ViewJson);
-            }
-            var unit = kind == UIVocabulary.ViewType ? UnitAlias(scope, name) : null;
-            if (unit is null && !OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
-            if (kind == UIVocabulary.ViewType && unit is null) { name = await ResolveViewAlias(brain, scope, name, ct); }
-            if (kind == "viewport")
-            {
-                var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
-                if (viewport.Target is not { } target)
-                { return Results.Ok(new { viewport.Revision, Root = (UiChildRef?)null, Error = (string?)null }); }
-                if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
-                var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
-                if (app.MigrationTarget is { } migrated)
-                {
-                    if (!OwnsUi(scope, migrated)) { throw new UnauthorizedAccessException(); }
-                    app = await brain.Get<IApp>(migrated).Read().WaitAsync(ct);
-                }
-                var presentation = app.Presentation;
-                var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
-                if (root is not null && !OwnsUi(scope, root.Name)) { throw new UnauthorizedAccessException(); }
-                return Results.Ok(new
-                {
-                    viewport.Revision,
-                    viewport.Target,
-                    Root = root,
-                    Error = presentation?.Error ?? (root is null ? "This app has not published this view." : null)
-                });
-            }
-            if (kind == UIVocabulary.ViewType)
-            {
-                return Results.Json(unit is not null
-                    ? await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct)
-                    : await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
-            }
-            return kind switch
-            {
-                "field" => Results.Ok(await brain.Get<IField>(name).Read().WaitAsync(ct)),
-                UIVocabulary.ChatType => Results.Ok(await brain.Get<IChat>(name).Read().WaitAsync(ct)),
-                UIVocabulary.ComposerType => Results.Ok(await brain.Get<IComposer>(name).Read().WaitAsync(ct)),
-                UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
-                _ => throw new ArgumentException("Unknown app UI kind.")
-            };
-        });
+        apps.MapGet("/node", (string kind, string name, INeuronProxies brain, CancellationToken ct) => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct));
         apps.MapPost("/event", (UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct));
 
@@ -94,6 +46,56 @@ internal static class AppUiEndpoints
             await SiloNeurons.Get<ITable>(plain, name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
             return Results.Accepted();
         });
+    }
+
+    // GET /apps/node: one app UI node of the caller's brain, by kind.
+    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct)
+    {
+        if (kind == UIVocabulary.ConfirmationType)
+        {
+            if (name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
+            return Results.Json(ConfirmationView.Render(await brain.Get<IConfirmationInbox>(name).Read().WaitAsync(ct)), ViewJson);
+        }
+        var unit = kind == UIVocabulary.ViewType ? UnitAlias(scope, name) : null;
+        if (unit is null && !OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
+        if (kind == UIVocabulary.ViewType && unit is null) { name = await ResolveViewAlias(brain, scope, name, ct); }
+        if (kind == "viewport")
+        {
+            var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
+            if (viewport.Target is not { } target)
+            { return Results.Ok(new { viewport.Revision, Root = (UiChildRef?)null, Error = (string?)null }); }
+            if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
+            var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
+            if (app.MigrationTarget is { } migrated)
+            {
+                if (!OwnsUi(scope, migrated)) { throw new UnauthorizedAccessException(); }
+                app = await brain.Get<IApp>(migrated).Read().WaitAsync(ct);
+            }
+            var presentation = app.Presentation;
+            var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
+            if (root is not null && !OwnsUi(scope, root.Name)) { throw new UnauthorizedAccessException(); }
+            return Results.Ok(new
+            {
+                viewport.Revision,
+                viewport.Target,
+                Root = root,
+                Error = presentation?.Error ?? (root is null ? "This app has not published this view." : null)
+            });
+        }
+        if (kind == UIVocabulary.ViewType)
+        {
+            return Results.Json(unit is not null
+                ? await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct)
+                : await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
+        }
+        return kind switch
+        {
+            "field" => Results.Ok(await brain.Get<IField>(name).Read().WaitAsync(ct)),
+            UIVocabulary.ChatType => Results.Ok(await brain.Get<IChat>(name).Read().WaitAsync(ct)),
+            UIVocabulary.ComposerType => Results.Ok(await brain.Get<IComposer>(name).Read().WaitAsync(ct)),
+            UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
+            _ => throw new ArgumentException("Unknown app UI kind.")
+        };
     }
 
     // One UI event from the shell, under the caller the edge stamped on brain.

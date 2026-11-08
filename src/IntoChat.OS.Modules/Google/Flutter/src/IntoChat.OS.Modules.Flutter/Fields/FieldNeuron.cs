@@ -1,9 +1,14 @@
 using DigitalBrain;
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.UI;
 
 namespace IntoChat.OS.Modules.Flutter.Fields;
 
-// One view field's value, at {brain}/apps/{app}/{field}. A secret kind persists only that a value is set.
+// One view field's value, at {brain}/apps/{app}/{field}. Only the owning app (or the platform) configures, sets or takes it; a
+// person's input arrives through the edge. A secret kind persists and journals only that a value is set: the raw value lives in
+// this activation's memory until the owner takes it once, and is gone when the neuron deactivates.
 [Neuron(UIVocabulary.FieldType)]
 internal sealed class FieldNeuron
     : UiNeuron<FieldState>, IField
@@ -12,6 +17,8 @@ internal sealed class FieldNeuron
 
     internal const int MaxInput = 32_000;
 
+    private string? _secret;
+
     private static bool IsSecret(FieldKind kind) => kind is FieldKind.Password or FieldKind.Secret;
 
     private static string? Stored(FieldKind kind, string? value) => !IsSecret(kind) || value is null ? value : value.Length == 0 ? "" : SecretSetMarker;
@@ -19,25 +26,36 @@ internal sealed class FieldNeuron
     public Task Configure(FieldKind kind)
     {
         if (!Enum.IsDefined(kind)) { throw new ArgumentOutOfRangeException(nameof(kind)); }
+        RequireOwner();
         var current = Snapshot;
         if (current.Kind == kind && current.Version > 0) { return Task.CompletedTask; }
         var value = current.Value;
         if (IsSecret(kind)) { value = Stored(kind, value); }
         // The marker is not a value: a secret that becomes plain starts empty.
-        else if (IsSecret(current.Kind) && value is not null) { value = ""; }
-        return Write(kind, value);
+        else if (IsSecret(current.Kind)) { _secret = null; value = value is null ? null : ""; }
+        // A field's first configuration only records its kind: it journals FieldConfigured, not FieldChanged.
+        return current.Version == 0 ? Write(kind, value, journal: false) : Write(kind, value);
     }
 
     public Task Set(string? value)
     {
-        if (value is { Length: > MaxInput }) { throw new ArgumentException("A field holds at most 32000 characters.", nameof(value)); }
-        return Write(Snapshot.Kind, Stored(Snapshot.Kind, value));
+        RequireOwner();
+        return Assign(value);
     }
 
     public Task Input(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return Set(value);
+        if (Snapshot.Version == 0) { throw new InvalidOperationException("This field is not configured yet: its view has not been published."); }
+        return Assign(value);
+    }
+
+    public Task<string?> TakeSecret()
+    {
+        RequireOwner();
+        var taken = _secret;
+        _secret = null;
+        return Task.FromResult(taken);
     }
 
     [DigitalBrain.ReadOnlyCall]
@@ -47,11 +65,30 @@ internal sealed class FieldNeuron
         return Task.FromResult(new FieldState { Owner = owner, Name = name, Kind = Snapshot.Kind, Value = Snapshot.Value, Version = Snapshot.Version });
     }
 
-    private Task Write(FieldKind kind, string? value)
+    private Task Assign(string? value)
+    {
+        if (value is { Length: > MaxInput }) { throw new ArgumentException("A field holds at most 32000 characters.", nameof(value)); }
+        var kind = Snapshot.Kind;
+        if (IsSecret(kind)) { _secret = value is { Length: > 0 } ? value : null; }
+        return Write(kind, Stored(kind, value));
+    }
+
+    private Task Write(FieldKind kind, string? value, bool journal = true)
     {
         var (owner, name) = Address();
         var version = checked(Snapshot.Version + 1);
-        return Save(new FieldState { Owner = owner, Name = name, Kind = kind, Value = value, Version = version }, new FieldChanged(owner, name, version));
+        var next = new FieldState { Owner = owner, Name = name, Kind = kind, Value = value, Version = version };
+        return Save(next, journal ? new FieldChanged(owner, name, version) : new FieldConfigured(owner, name, kind));
+    }
+
+    // The owning app ({brain}/apps/{app}/…), its brain's person, or the platform; as the view neuron's writer rule.
+    private void RequireOwner()
+    {
+        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind == CallerKind.Platform) { return; }
+        var name = FullKey;
+        if (!BrainKey.BelongsTo(name, caller.BrainId) || caller.Kind == CallerKind.App &&
+            (string.IsNullOrEmpty(caller.AppId) || !name.StartsWith(caller.AppId + "/", StringComparison.Ordinal)))
+        { throw new UnauthorizedAccessException("Only the owning brain and app may change this field."); }
     }
 
     // {brain}/apps/{app}/{field…}: the owner is the app, the name the rest; any other key splits at its last segment.

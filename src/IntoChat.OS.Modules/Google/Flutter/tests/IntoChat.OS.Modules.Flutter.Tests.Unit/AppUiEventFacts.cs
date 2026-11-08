@@ -242,6 +242,7 @@ public sealed class AppUiEventFacts
         public Task Configure(FieldKind kind) => Task.CompletedTask;
         public Task Set(string? value) => Task.CompletedTask;
         public Task Input(string value) { Inputs.Add((Key, value)); return Task.CompletedTask; }
+        public Task<string?> TakeSecret() => Task.FromResult<string?>(null);
         public Task<FieldState> Read() => Task.FromResult(new FieldState());
     }
 

@@ -299,6 +299,7 @@ public sealed class TasksAppFacts
         public Task Configure(FieldKind kind) => Task.CompletedTask;
         public Task Set(string? value) { Values[Id.Key] = value; return Task.CompletedTask; }
         public Task Input(string value) => Set(value);
+        public Task<string?> TakeSecret() => Task.FromResult<string?>(null);
         public Task<FieldState> Read() => Task.FromResult(new FieldState { Value = Values.GetValueOrDefault(Id.Key) });
     }
 

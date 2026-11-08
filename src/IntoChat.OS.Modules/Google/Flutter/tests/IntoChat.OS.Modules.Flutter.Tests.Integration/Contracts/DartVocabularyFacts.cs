@@ -51,6 +51,8 @@ public sealed partial class DartVocabularyFacts
     [Fact]
     public void TheRendererRegistryMirrorsTheVocabulary()
     {
+        // The retired list only shrinks: an entry the client has dropped must leave it.
+        Assert.Empty(RetiredAwaitingTheClient.Except(RendererKinds()));
         Assert.Equal(Vocabulary().Except(CSharpOnlyKinds), RendererKinds().Except(RetiredAwaitingTheClient));
     }
 
