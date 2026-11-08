@@ -31,8 +31,8 @@ public sealed record ChatAppCard(
 
     public const int MaxLinksKept = 200;
 
-    // A pasted link is posted (IAgent.Post) under a plain id; its app and opaque input are kept beside the
-    // conversations, in the links store, so neither enters the post id, the posted text or the transcript.
+    // A pasted link is posted (IAgent.Post) under a plain id; its app and opaque input are kept in Ino's own state
+    // (InoAppState.Links), so neither enters the post id, the posted text or the transcript.
     public static string LinkPostId(Guid request) => LinkPrefix + request.ToString("N");
 
     public static bool TryReadLinkPost(string runId, out Guid request)
@@ -41,10 +41,6 @@ public sealed record ChatAppCard(
         const string posted = "post/" + LinkPrefix;
         return runId.StartsWith(posted, StringComparison.Ordinal) && Guid.TryParseExact(runId[posted.Length..], "N", out request);
     }
-
-    // The store for a conversation agent at "{data}/conversations/{id}" is "{data}/links" (an IText of JSON).
-    public static string? LinksKey(string conversationKey)
-        => conversationKey.LastIndexOf("/conversations/", StringComparison.Ordinal) is var cut and > 0 ? conversationKey[..cut] + "/links" : null;
 
     private sealed record StoredLink(string Request, string App, string Input);
 

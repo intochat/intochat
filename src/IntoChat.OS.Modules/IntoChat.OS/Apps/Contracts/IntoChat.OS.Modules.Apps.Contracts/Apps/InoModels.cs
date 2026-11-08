@@ -48,4 +48,12 @@ public sealed record InoAppState(
     public InoAppState() : this("main", "New chat", "Ready", "idle", [], [], null, true) { }
 
     public InoCard[] ActiveCards => Cards ?? [];
+
+    // Pasted links (added field; absent in state saved before it): a link's app and opaque input, by the request its post was
+    // made under, newest last, at most ChatAppCard.MaxLinksKept. They lived in a text neuron beside the conversations before;
+    // that store is not migrated.
+    public InoLink[] Links { get; init; } = [];
 }
+
+// One pasted link; serialised as the chat's link store reads it (Request is the post's request id, "N" format).
+public sealed record InoLink(string Request, string App, string Input);

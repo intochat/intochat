@@ -13,6 +13,7 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
@@ -29,6 +30,9 @@ public sealed record InoSend(string? Message = null, string? Text = null, string
     [System.Text.Json.Serialization.JsonIgnore]
     public string? EffectiveMessage => !string.IsNullOrWhiteSpace(Message) ? Message : !string.IsNullOrWhiteSpace(Text) ? Text : Value;
 }
+
+[DigitalBrain.Signal("ino.link")]
+public sealed record InoPasteLink(Guid Request = default, string? App = null, string? Input = null, string? Text = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("ino.new")]
 public sealed record InoNew : DigitalBrain.Signal;
@@ -95,6 +99,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 new("new-conversation", "Alias for new."),
                 new("voice", "Begin voice input."),
                 new("make", "Apply a sentence to the focused app, or Scratch."),
+                new("link", "Post a pasted workspace link: its app, opaque input and text."),
             ],
             Settings: [],
             Slots: [],
@@ -173,6 +178,20 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         {
             Swallow(error, "The grants neuron is optional when Ino runs without the identity module.");
         }
+    }
+
+    // A pasted link is remembered in Ino's own state (the chat reads its card from there) and posted to the agent under its plain id.
+    [DigitalBrain.On]
+    public async Task Link(InoPasteLink request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Request == Guid.Empty || !ChatAppCard.IsAppName(request.App)) { throw new ArgumentException("A link names its request and an app."); }
+        var input = request.Input ?? "";
+        if (input.Length > ChatAppCard.MaxInput) { throw new ArgumentException("The link input is too long."); }
+        var id = request.Request.ToString("N");
+        if (!State.Links.Any(link => link.Request == id))
+        { Set(State with { Links = [.. State.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] }); }
+        await Get<IAgent>(AgentKeyOf(State.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
     }
 
     [DigitalBrain.On]

@@ -17,4 +17,8 @@ public interface ISpace
     Task<PersonState> ReadProfile(string key);
     Task<CardState> ReadPost(string key);
     Task<CollectionState> ReadPosts(string key);
+
+    // The brain's own person writes its profile and posts ({brain}/profile, {brain}/posts/{id}); they are the Space's records.
+    Task SetProfile(string displayName, string avatarUrl);
+    Task Post(string id, string title, string body);
 }

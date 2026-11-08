@@ -13,9 +13,14 @@ using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Flutter.Space;
 
 [Neuron("ui.space")]
-internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogger<SpaceNeuron> logger, CircleMembers friends,
-    IServiceProvider plain) : DigitalBrain.Neuron, ISpace, ISpaceRecords
+internal sealed class SpaceNeuron(IServiceProvider plain) : DigitalBrain.Neuron, ISpace, ISpaceRecords
 {
+    // Resolved when used, so the Space's own records need none of the composition services.
+    private IKernel Kernel => MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IKernel>(plain);
+    private CompiledTypes Compiled => MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<CompiledTypes>(plain);
+    private ILogger<SpaceNeuron> Logger => MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<ILogger<SpaceNeuron>>(plain);
+    private CircleMembers Friends => MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<CircleMembers>(plain);
+
     public Task<PersonState> ReadProfile(string key) => ReadShared(async () =>
     {
         if (!key.EndsWith("/profile", StringComparison.Ordinal)) { throw new UnauthorizedAccessException(); }
@@ -27,7 +32,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
     {
         var author = CircleMembers.PostBrain(key) ?? throw new UnauthorizedAccessException();
         var friend = await AuthorizeFriend(author);
-        if (friend is not null && !(await friends.Posts(friend)).Contains(key, StringComparer.Ordinal))
+        if (friend is not null && !(await Friends.Posts(friend)).Contains(key, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The post is not published in a shared circle."); }
         var card = CircleMembers.Post(await CircleMembers.RecordsOf(plain, author), key);
         return new CardState { Name = key, Version = card.Version, Title = card.Title, Body = card.Body };
@@ -39,19 +44,49 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         var author = key[..^6];
         var friend = await AuthorizeFriend(author);
         var records = await CircleMembers.RecordsOf(plain, author);
-        var keys = friend is null ? records.Posts.Select(post => post.Name).ToArray() : await friends.Posts(friend);
+        var keys = friend is null ? records.Posts.Select(post => post.Name).ToArray() : await Friends.Posts(friend);
         CollectionItem[] items = [.. keys.Select(post => new CollectionItem(post, CircleMembers.Post(records, post).Title, "post"))];
         return new CollectionState { Name = key, Revision = 1, Definition = new(items, FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet") };
     });
 
-    // This brain's Space records; nothing in the OS writes them since the widget neurons went (the profile and posts were theirs).
+    // This brain's Space records: its profile and posts.
     public async Task<SpaceRecords> Records() => await Context.State.Load<SpaceRecords>() ?? new();
+
+    public Task SetProfile(string displayName, string avatarUrl) => Write(records =>
+    {
+        ArgumentNullException.ThrowIfNull(displayName);
+        ArgumentNullException.ThrowIfNull(avatarUrl);
+        var key = Id.Brain.Value + "/profile";
+        records.Profile = new PersonState { Name = key, Version = records.Profile.Version + 1, DisplayName = displayName.Trim(), AvatarUrl = avatarUrl.Trim() };
+    });
+
+    public Task Post(string id, string title, string body) => Write(records =>
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(title);
+        ArgumentNullException.ThrowIfNull(body);
+        var key = Id.Brain.Value + "/posts/" + id;
+        if (CircleMembers.PostBrain(key) != Id.Brain.Value) { throw new ArgumentException("A post id is letters, digits, '-' and '_'.", nameof(id)); }
+        var prior = records.Posts.FirstOrDefault(post => post.Name == key);
+        records.Posts = [.. records.Posts.Where(post => post.Name != key), new CardState { Name = key, Version = (prior?.Version ?? 0) + 1, Title = title, Body = body }];
+    });
+
+    // Only the brain's own person changes its records; the change rebuilds the spaces that show them.
+    private async Task Write(Action<SpaceRecords> change)
+    {
+        var caller = RuntimeCallerContext.Require();
+        if (caller.BrainId != Id.Brain.Value || caller.Kind != DigitalBrain.Capabilities.CallerKind.User)
+        { throw new UnauthorizedAccessException("Only the brain's own person changes its profile and posts."); }
+        var records = await Records();
+        change(records);
+        await Context.State.Save(records, [new SpaceRecordsChanged(Id.Brain.Value)]);
+    }
 
     private async Task<CircleMembers.Friend?> AuthorizeFriend(string author)
     {
         var viewer = Id.Brain.Value;
         if (author == viewer) { return null; }
-        return (await friends.FriendsOf(viewer)).SingleOrDefault(friend => friend.Brain == author)
+        return (await Friends.FriendsOf(viewer)).SingleOrDefault(friend => friend.Brain == author)
             ?? throw new UnauthorizedAccessException("The author is not a current circle friend.");
     }
 
@@ -121,7 +156,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
                     if (!_rebuildPending) { throw; }
                     // An accepted invalidation must survive a failed scan even
                     // if no later event arrives to start another worker.
-                    logger.LogWarning(error, "Space {Brain} scan failed; rebuilding its pending invalidation.", Id.Brain.Value);
+                    Logger.LogWarning(error, "Space {Brain} scan failed; rebuilding its pending invalidation.", Id.Brain.Value);
                 }
             }
             while (_rebuildPending);
@@ -132,7 +167,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
     private async Task RebuildOnce(bool fullRefresh, bool sourcesStale, string[] dirtyApps)
     {
         var brain = Id.Brain.Value;
-        var types = compiled.Entries;
+        var types = Compiled.Entries;
         if (!types.Any(type => type.Name == typeof(IApp).FullName) || !types.Any(type => type.Name == typeof(IScene).FullName)) { return; }
         // This is the module's derived write, even when an app's Show caused the invalidation.
         var inherited = Orleans.Runtime.RequestContext.Get(RuntimeCallerContext.RequestContextKey);
@@ -146,7 +181,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
             if (fullRefresh)
             {
                 HashSet<string> members = new(StringComparer.Ordinal);
-                await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp))))
+                await foreach (var instance in Kernel.InstancesIn(brain, Kernel.TypeOf(typeof(IApp))))
                 { members.Add(instance.Key); }
                 foreach (var key in _entries.Keys.Where(key => !members.Contains(key)).ToArray())
                 { _entries.Remove(key); }
@@ -156,7 +191,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
             {
                 // Membership is what removes a deleted app. Its grain can still be read after it leaves the directory.
                 HashSet<string> members = new(StringComparer.Ordinal);
-                await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp))))
+                await foreach (var instance in Kernel.InstancesIn(brain, Kernel.TypeOf(typeof(IApp))))
                 { members.Add(instance.Key); }
                 foreach (var key in _entries.Keys.Where(key => !members.Contains(key)).ToArray())
                 { _entries.Remove(key); }
@@ -173,7 +208,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
             if (fullRefresh || sourcesStale || !_friendsFresh || focus != _friendFocus)
             {
                 _friendEntries = types.Any(type => type.Name == typeof(IntoChat.OS.Modules.Circles.ICircle).FullName)
-                    ? await friends.Entries(brain, focus) : [];
+                    ? await Friends.Entries(brain, focus) : [];
                 _friendFocus = focus;
                 _friendsFresh = true;
             }
@@ -209,7 +244,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
             _entries.Remove(key);
             // Retry transient failures on the next event, without a hot retry loop.
             _dirtyApps.Add(key);
-            logger.LogWarning(error, "Could not read {App} while rebuilding space {Brain}.", key, brain);
+            Logger.LogWarning(error, "Could not read {App} while rebuilding space {Brain}.", key, brain);
         }
     }
 
@@ -220,6 +255,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         var watcher = Context.Services.GetService(typeof(IEnumerable<MicrosoftSdk.Extensions.Hosting.IHostedService>)) is IEnumerable<MicrosoftSdk.Extensions.Hosting.IHostedService> hosted
             ? hosted.OfType<SpaceWatcher>().FirstOrDefault() : null;
         if (watcher is not null) { await watcher.Follow(Id.Brain.Value); }
-        await Rebuild();
+        // A host without the composition services (CompiledTypes) composes no scene; the Space's own records still serve.
+        if (plain.GetService(typeof(CompiledTypes)) is not null) { await Rebuild(); }
     }
 }

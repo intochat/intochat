@@ -434,6 +434,28 @@ public sealed class InoAppFacts
     }
 
     [Fact]
+    public async Task APastedLinkIsInosOwnRecordAcrossRestart()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<RecordingAgent>();
+        RecordingAgent.Posts.Clear();
+        var ino = await os.Install<InoApp>();
+        var request = Guid.NewGuid();
+
+        await ino.Request("link", new InoPasteLink(request, "notes", "page=3", "Notes, page 3"));
+        await ino.Request("link", new InoPasteLink(request, "notes", "page=3", "Notes, page 3"));
+        await os.Restart();
+
+        var link = Assert.Single(ino.App.State.Links);
+        Assert.Equal(new InoLink(request.ToString("N"), "notes", "page=3"), link);
+        // The chat reads the card from the same record, stored as JSON.
+        var stored = System.Text.Json.JsonSerializer.Serialize(ino.App.State.Links, System.Text.Json.JsonSerializerOptions.Web);
+        Assert.Equal("page=3", IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.FindLink(stored, request)?.Input);
+        Assert.Contains(RecordingAgent.Posts, post => post == ("Notes, page 3", IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.LinkPostId(request)));
+    }
+
+    [Fact]
     public async Task ABadQuerySurfacesInStatus()
     {
         await using var os = TestOS.Local();
