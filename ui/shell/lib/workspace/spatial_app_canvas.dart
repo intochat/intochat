@@ -43,8 +43,7 @@ enum CanvasSector {
       'creator' ||
       'photocraft' ||
       'filmcraft' ||
-      'gallery' ||
-      'brain' => CanvasSector.studio,
+      'gallery' => CanvasSector.studio,
       'files' ||
       'calculator' ||
       'settings' ||

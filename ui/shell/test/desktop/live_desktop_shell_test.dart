@@ -533,7 +533,7 @@ void main() {
   );
 
   testWidgets(
-    'Clicking App settings in dock menu or window titlebar opens Brain graph focused on that app',
+    'Clicking App settings in dock menu or window titlebar opens the Creator graph focused on that app',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -602,15 +602,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
 
-      // Brain window opens immediately and focuses on brain-1/apps/photocraft
+      // The Creator opens immediately with brain-1/apps/photocraft selected in its graph
       expect(find.byType(WindowFrame), findsNWidgets(3));
-      expect(find.text('Viewport: brain-1/apps/brain/view'), findsOneWidget);
       expect(
         activations.any(
           (a) =>
-              a['application'] == 'brain' &&
+              a['application'] == 'creator' &&
               a['operation'] == 'open' &&
-              a['input'] == '{"focus":"brain-1/apps/photocraft"}',
+              a['input'] == 'node:brain-1/apps/photocraft',
         ),
         isTrue,
       );

@@ -14,6 +14,7 @@ import '../components/kit/ui_kit_button.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../focus_registry.dart';
 import '../models/window_state.dart';
+import '../nodes/brain_scene.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
 
@@ -36,6 +37,7 @@ class ViewHost extends StatefulWidget {
     this.events,
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
+    this.signals,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -55,6 +57,10 @@ class ViewHost extends StatefulWidget {
   /// once per event. Without one it falls back to [refreshEvery].
   final Stream<void> Function(String kind, String name)? watch;
 
+  /// The brain's journal tail after a sequence: given, the view's brain scenes draw it as pulses ([BrainSignals]). Only the
+  /// Creator's window passes one.
+  final Stream<List<JournalTailSignal>> Function(int since)? signals;
+
   @override
   State<ViewHost> createState() => _ViewHostState();
 }
@@ -69,6 +75,26 @@ class _ViewHostState extends State<ViewHost> {
   late final NeuronEventQueue _events = widget.events ?? NeuronEventQueue();
   final GlobalKey _focusKey = GlobalKey();
   late String _focusTarget = '${widget.kind}:${widget.name}';
+  Stream<List<JournalTailSignal>>? _signals;
+
+  // One tail per host, opened on first use. The tail starts at the head of the held journal, so what was journaled before
+  // the window opened is dropped rather than replayed as a burst of pulses.
+  Stream<List<JournalTailSignal>>? get _brainSignals {
+    final open = widget.signals;
+    if (open == null) return null;
+    return _signals ??= () {
+      final from = DateTime.now().toUtc().subtract(const Duration(seconds: 1));
+      return open(0)
+          .map(
+            (batch) => [
+              for (final signal in batch)
+                if (!signal.at.isBefore(from)) signal,
+            ],
+          )
+          .where((batch) => batch.isNotEmpty)
+          .asBroadcastStream(onCancel: (subscription) => subscription.cancel());
+    }();
+  }
 
   @override
   void initState() {
@@ -256,13 +282,17 @@ class _ViewHostState extends State<ViewHost> {
           confirmation: widget.kind == 'confirmation',
           enabled: enabled,
         );
-        return SingleChildScrollView(
+        final rendered = SingleChildScrollView(
           primary: false,
           child: NodeRenderer.view(
             AppView.fromJson(Map<String, dynamic>.from(view)),
             ctx,
           ),
         );
+        final signals = _brainSignals;
+        return signals == null
+            ? rendered
+            : BrainSignals(signals: signals, child: rendered);
       case 'viewport':
         final root = data['root'];
         if (root is Map && root['kind'] is String && root['name'] is String) {

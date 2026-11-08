@@ -6,7 +6,6 @@ export 'src/models/cluster.dart';
 export 'src/models/marketplace.dart';
 export 'src/models/brain_models.dart';
 export 'src/models/compute_usage.dart';
-export 'src/models/session_capabilities.dart';
 export 'src/models/approval_models.dart';
 export 'src/models/flow_models.dart';
 export 'src/models/journal_models.dart';

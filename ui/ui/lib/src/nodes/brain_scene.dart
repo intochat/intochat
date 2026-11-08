@@ -34,6 +34,10 @@ const _tints = {
 /// A `*` edge (any publisher) is drawn as a stub this far above its target.
 const _stub = 90.0;
 
+/// The key of the view's button that selects an edge or a pulse: they are not nodes of the view, so the scene activates
+/// this key with theirs as the value (BrainGraph.SelectKey).
+const brainSelectKey = 'graph:select';
+
 /// The inspector's key for an edge: `edge:<from>→<to>:<alias>`.
 String brainEdgeKey(BrainGraphSynapse edge) =>
     'edge:${edge.fromId}→${edge.toId}:${edge.signalLabel ?? ''}';
@@ -208,7 +212,8 @@ class BrainSceneViewState extends State<BrainSceneView> {
       game.world.add(
         SignalPulseComponent(
           pulse,
-          onTap: (key) => unawaited(widget.ctx.activate(key)),
+          onTap: (key) =>
+              unawaited(widget.ctx.activate(brainSelectKey, value: key)),
           onArrived: pulses.arrived,
         ),
       );
@@ -219,7 +224,7 @@ class BrainSceneViewState extends State<BrainSceneView> {
   void _input(String id, String kind, double x, double y, String? payload) {
     if (kind != 'tap') return;
     if (id.startsWith('edge:')) {
-      unawaited(widget.ctx.activate(id));
+      unawaited(widget.ctx.activate(brainSelectKey, value: id));
       return;
     }
     pressOf(_nodes[id]?.select, widget.ctx)?.call();

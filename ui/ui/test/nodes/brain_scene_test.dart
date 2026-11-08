@@ -57,9 +57,7 @@ void main() {
     expect(lines.single.id, 'edge:*→ada/notes/default:note.added');
   });
 
-  testWidgets('a tap on a node, an edge or a pulse emits its key', (
-    tester,
-  ) async {
+  testWidgets('a tap on a node, an edge or a pulse selects it', (tester) async {
     final events = <Map<String, dynamic>>[];
     final tail = StreamController<List<JournalTailSignal>>();
     final ctx = NodeContext(
@@ -99,10 +97,11 @@ void main() {
         .single;
     pulse.onTap!(pulse.pulse.key);
     await tester.pump();
-    expect(events.map((e) => e['key']), [
-      'node:ada/notes/default',
-      'edge:*→ada/notes/default:note.added',
-      'pulse:tr',
+    // An edge or a pulse is not a node of the view: it goes through the select key, its own key as the value.
+    expect(events.map((e) => [e['key'], e['value']]), [
+      ['node:ada/notes/default', null],
+      [brainSelectKey, 'edge:*→ada/notes/default:note.added'],
+      [brainSelectKey, 'pulse:tr'],
     ]);
     await tester.pump(const Duration(seconds: 1));
     await tail.close();

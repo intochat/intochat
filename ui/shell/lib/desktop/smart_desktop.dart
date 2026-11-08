@@ -107,15 +107,6 @@ const defaultSmartAppSpecs = <SmartAppTileSpec>[
     neuronUri: 'neuron://local/apps/workspace',
   ),
   SmartAppTileSpec(
-    id: 'brain',
-    name: 'Brain',
-    icon: LucideIcons.brainCircuit,
-    color: Color(0xFF6366F1),
-    accentHex: '#6366F1',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/brain',
-  ),
-  SmartAppTileSpec(
     id: 'settings',
     name: 'Settings',
     icon: LucideIcons.slidersHorizontal,

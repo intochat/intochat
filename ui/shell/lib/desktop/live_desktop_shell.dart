@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -64,6 +63,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.onOpenCompute,
     this.scenes,
     this.entries,
+    this.journal,
     this.localPreferences,
     this.profileMenu,
     this.read,
@@ -86,6 +86,10 @@ class LiveDesktopShell extends StatefulWidget {
   final VoidCallback? onOpenCompute;
   final SceneClient? scenes;
   final EntriesClient Function(String brainId)? entries;
+
+  /// The brain's journal tail after a sequence; the Creator's window draws it as pulses on its brain graph.
+  final Stream<List<JournalTailSignal>> Function(String brainId, int since)?
+  journal;
   final LocalPreferences? localPreferences;
   final Widget? profileMenu;
 
@@ -147,7 +151,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     'gallery',
     'post',
     'workspace',
-    'brain',
     'settings',
   };
   bool _switcherOpen = false;
@@ -558,7 +561,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       'gallery' => 'UI Gallery',
       'post' => 'Post',
       'workspace' => 'Workspace',
-      'brain' => 'Brain',
       'settings' => 'Settings',
       _ =>
         appId.isEmpty
@@ -582,7 +584,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     if (lower.contains('file')) return 'files';
     if (lower.contains('post')) return 'post';
     if (lower.contains('workspace')) return 'workspace';
-    if (lower.contains('brain')) return 'brain';
     if (lower.contains('setting')) return 'settings';
     if (lower.contains('circle')) return 'circleroom';
     return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
@@ -666,7 +667,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         continue;
       }
 
-      if (appId == 'photocraft' || appId == 'filmcraft' || appId == 'brain') {
+      if (appId == 'photocraft' || appId == 'filmcraft') {
         viewportRef = <String, dynamic>{
           'kind': 'view',
           'name': '${widget.brain}/apps/$appId/view',
@@ -949,12 +950,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     List<_ParsedDesktopWindow> windows,
     Map<String, Map<String, dynamic>> dockButtons,
   ) {
-    final focusKey = '${widget.brain}/apps/$appId';
+    // The Creator opens with the app's node selected in its brain graph.
     _launchOrFocusApp(
-      'brain',
+      'creator',
       windows,
       dockButtons,
-      openInput: jsonEncode({'focus': focusKey}),
+      openInput: 'node:${widget.brain}/apps/$appId',
     );
   }
 
@@ -1038,6 +1039,17 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       'operation': 'open',
       'input': ?openInput,
     });
+  }
+
+  // Only the Creator's view gets the journal tail: its brain graph is the one place pulses are drawn.
+  Stream<List<JournalTailSignal>> Function(int since)? _journalFor(
+    String view,
+  ) {
+    final journal = widget.journal;
+    if (journal == null || !view.startsWith('${widget.brain}/apps/creator/')) {
+      return null;
+    }
+    return (since) => journal(widget.brain, since);
   }
 
   @override
@@ -1348,6 +1360,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         watch: widget.watch,
                                         onAction: widget.onAction,
                                         knowsApp: widget.knowsApp,
+                                        signals: _journalFor(
+                                          w.viewportRef['name'] as String,
+                                        ),
                                         onActivate: (activation) =>
                                             _handleChildActivation(
                                               activation,
@@ -1367,6 +1382,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 watch: widget.watch,
                                 onAction: widget.onAction,
                                 knowsApp: widget.knowsApp,
+                                signals: _journalFor(
+                                  spec.viewportRef['name'] as String,
+                                ),
                                 onActivate: (activation) =>
                                     _handleChildActivation(
                                       activation,

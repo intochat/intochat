@@ -22,7 +22,6 @@ import 'neuron_channel.dart';
 import 'neuron_watch_mux.dart';
 import 'node_contracts.dart';
 import 'scene_client.dart';
-import 'models/session_capabilities.dart';
 import 'models/table_models.dart';
 import 'models/workspace_models.dart';
 
@@ -286,18 +285,6 @@ final class IntoChatOSUiClient {
       );
       return signal;
     });
-  }
-
-  /// Server-owned capabilities; the shell hides developer-only surfaces when this is off.
-  Future<SessionCapabilities> readCapabilities() async {
-    final response = await _request(
-      'GET',
-      '/session/capabilities',
-      timeout: const Duration(seconds: 10),
-    );
-    return SessionCapabilities.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
   }
 
   Future<List<TableSummary>> listTables(String workspace) async {
@@ -894,27 +881,6 @@ final class IntoChatOSUiClient {
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
-  /// Calls the developer-mode C# file API; [path] is relative to `/csharp` (empty for the list).
-  Future<Map<String, dynamic>> csharpRequest(
-    String workspace,
-    String method,
-    String path, {
-    Map<String, Object?>? body,
-  }) async {
-    try {
-      final result = await _tableRequest(
-        method,
-        '/brains/${Uri.encodeComponent(workspace)}/csharp${path.isEmpty ? '' : '/$path'}',
-        body: body,
-        // Starting builds the app inside a .NET SDK container, which can take minutes.
-        timeout: const Duration(minutes: 3),
-      );
-      return result is Map ? Map<String, dynamic>.from(result) : {};
-    } on TableRequestException catch (error) {
-      throw CSharpFileRequestException(error.statusCode, error.message);
-    }
-  }
-
   Future<Map<String, dynamic>> storeSecret(
     String name,
     String label,
@@ -1130,12 +1096,4 @@ final class UiRequestException extends StateError {
 
   @override
   String toString() => detail ?? super.toString();
-}
-
-final class CSharpFileRequestException implements Exception {
-  const CSharpFileRequestException(this.statusCode, this.message);
-  final int statusCode;
-  final String message;
-  @override
-  String toString() => 'C# file request failed ($statusCode): $message';
 }

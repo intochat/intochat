@@ -17,7 +17,6 @@ import 'known_apps.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
 import 'compute_usage_panel.dart';
-import 'csharp/csharp_manager.dart';
 import 'workspace_preferences_io.dart'
     if (dart.library.js_interop) 'workspace_preferences_web.dart'
     as preferences;
@@ -91,7 +90,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
   String? _focusedNeuron;
   WorkspaceSnapshot? _workspaceSnapshot;
   Object? _startupError;
-  bool _developerMode = false;
   bool _ready = false;
   bool _paletteOpen = false;
   BarLayout _barLayout = BarLayout.floatingGlass;
@@ -198,14 +196,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
       if (workspaceLink(location) case final action?) {
         await _openLink(location!, action);
       }
-      unawaited(
-        client
-            .readCapabilities()
-            .then((value) {
-              if (mounted) setState(() => _developerMode = value.developerMode);
-            })
-            .catchError((Object _) {}),
-      );
       if (!_hasExplicitRoot &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
         unawaited(_activate({'kind': 'settings'}));
@@ -508,24 +498,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
               ),
             ),
           );
-        case 'csharp':
-          if (_developerMode) {
-            navigator.push(
-              MaterialPageRoute<void>(
-                builder: (_) => Scaffold(
-                  appBar: AppBar(title: const Text('C# files')),
-                  body: CSharpManager(
-                    request: (method, path, {body}) =>
-                        client.csharpRequest(_brain!, method, path, body: body),
-                    onAsk: (id, prompt) => unawaited(
-                      client.requestApp(_brain!, 'ino', 'ask', prompt),
-                    ),
-                    onSelected: (_) {},
-                  ),
-                ),
-              ),
-            );
-          }
         case 'new':
           final brain = await client.createWorkspace();
           if (mounted) await _selectBrain(brain);
@@ -627,8 +599,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
         value: 'palette',
         child: Text('Command Palette (⌘K)'),
       ),
-      if (_developerMode)
-        const PopupMenuItem(value: 'csharp', child: Text('C# files')),
       const PopupMenuItem(value: 'new', child: Text('New workspace')),
       if (widget.onSwitchAccount != null)
         const PopupMenuItem(value: 'switch', child: Text('Switch account')),
@@ -725,6 +695,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 scenes: widget.programmingClient!.scenes(
                                   _brain!,
                                 ),
+                                journal: (brain, since) => widget
+                                    .programmingClient!
+                                    .watchJournal(brain, since: since),
                                 entries: (brain) => EntriesClient(
                                   widget.programmingClient!,
                                   brain,
