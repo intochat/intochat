@@ -8,6 +8,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'view',
             name: 'test',
             watch: (_, _) => const Stream<void>.empty(),
@@ -26,6 +27,7 @@ void main() {
     Widget view(String name) => MaterialApp(
       home: Scaffold(
         body: ViewHost(
+          knowsApp: (_) => false,
           kind: 'view',
           name: name,
           watch: (_, _) => const Stream<void>.empty(),

@@ -95,6 +95,7 @@ Widget _preference(String scene) {
 
 // A copy button: the server answers its activation with a Copy intent the client performs.
 Widget _copy() => ViewHost(
+  knowsApp: (_) => false,
   kind: 'view',
   name: 'local/apps/share/view',
   load: (kind, name) async => {

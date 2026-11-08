@@ -65,6 +65,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ViewHost(
+              knowsApp: (_) => false,
               kind: 'chat',
               name: 'reading',
               load: (_, _) async => {
@@ -121,6 +122,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ViewHost(
+              knowsApp: (_) => false,
               kind: 'chat',
               name: 'conversation',
               load: (_, _) async => {

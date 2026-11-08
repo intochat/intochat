@@ -36,6 +36,7 @@ Future<void> _host(
       theme: UiTheme.light('intochat'),
       home: Scaffold(
         body: ViewHost(
+          knowsApp: knowsApp ?? (_) => false,
           kind: kind,
           name: name,
           load: (kind, name) async => kind == 'field'
@@ -47,7 +48,6 @@ Future<void> _host(
             return answer?.call(event);
           },
           onActivate: onActivate,
-          knowsApp: knowsApp,
         ),
       ),
     ),
@@ -135,8 +135,16 @@ void main() {
       },
     );
     expect(find.text('Draft'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Fin');
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.enterText(find.byType(TextField), 'Final');
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
+    expect(
+      events.where((event) => event['kind'] == 'field'),
+      hasLength(1),
+      reason: 'edits within the debounce post once',
+    );
     expect(events.last, {
       'kind': 'field',
       'name': 'local/apps/sample/title',
@@ -228,6 +236,29 @@ void main() {
       expect(IntentGate.check(open('os://evil.example/open?app=x')), isNull);
     });
 
+    test('refuses every window without a known-app set', () {
+      expect(IntentGate.check(open('os://window/open?app=trace')), isNull);
+    });
+
+    test('rebuilds the window URI from the app and an opaque input only', () {
+      final action = IntentGate.check(
+        open(
+          'os://window/open?app=trace&input=javascript:alert(1)&url=https://evil.example',
+        ),
+        knowsApp: (app) => app == 'trace',
+      );
+      final uri = Uri.parse(action!['uri'] as String);
+      expect(uri.queryParameters, {
+        'app': 'trace',
+        'input': 'javascript:alert(1)',
+      });
+    });
+
+    test('an unknown intent kind is refused, never a copy', () {
+      expect(NodeContext.intentKindOf('Explode'), isNull);
+      expect(NodeContext.intentKindOf('OpenWindow'), IntentKind.openWindow);
+    });
+
     test('refuses an app the shell does not know', () {
       expect(
         IntentGate.check(
@@ -260,6 +291,57 @@ void main() {
         'os://window/open?app=settings&section=keys',
       );
     });
+  });
+
+  testWidgets('a view host without a known-app set opens no window', (
+    tester,
+  ) async {
+    final opened = <Map<String, dynamic>>[];
+    await _host(
+      tester,
+      nodeSamples['button']!,
+      answer: (_) => {
+        'intent': {
+          'intentKind': 'OpenWindow',
+          'arg': 'os://window/open?app=tasks',
+        },
+      },
+      onActivate: opened.add,
+    );
+    await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
+    await tester.pumpAndSettle();
+    expect(opened, isEmpty);
+  });
+
+  testWidgets('an unknown intent kind performs nothing', (tester) async {
+    final opened = <Map<String, dynamic>>[];
+    var copied = false;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') copied = true;
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await _host(
+      tester,
+      nodeSamples['button']!,
+      answer: (_) => {
+        'intent': {'intentKind': 'Explode', 'arg': 'x'},
+      },
+      onActivate: opened.add,
+      knowsApp: (_) => true,
+    );
+    await tester.tap(find.widgetWithText(UiKitButton, 'Go'));
+    await tester.pumpAndSettle();
+    expect(opened, isEmpty);
+    expect(copied, isFalse);
   });
 
   testWidgets('a refused intent is not performed', (tester) async {
@@ -328,6 +410,7 @@ void main() {
         theme: UiTheme.light('intochat'),
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'confirmation',
             name: 'local/confirmations',
             load: (kind, name) async => {
@@ -357,6 +440,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'view',
             name: _view,
             load: (kind, name) async => {'generation': 0},
@@ -374,6 +458,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'view',
             name: _view,
             load: (kind, name) async => throw StateError('down'),

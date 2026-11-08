@@ -36,6 +36,7 @@ void main() {
           ),
           home: Scaffold(
             body: LiveDesktopShell(
+              knowsApp: (app) => app == 'ino' || app == 'files',
               brain: 'brain-1',
               name: 'brain-1/apps/desktop/view',
               load: (kind, name) async {
@@ -109,6 +110,7 @@ void main() {
           ),
           home: Scaffold(
             body: LiveDesktopShell(
+              knowsApp: (app) => app == 'ino' || app == 'files',
               brain: 'brain-1',
               name: 'brain-1/apps/desktop/view',
               load: (kind, name) async {
@@ -337,6 +339,7 @@ void main() {
           ),
           home: Scaffold(
             body: LiveDesktopShell(
+              knowsApp: (app) => app == 'ino' || app == 'files',
               brain: 'brain-1',
               name: 'brain-1/apps/desktop/view',
               load: (kind, name) async {
@@ -455,6 +458,7 @@ void main() {
           ),
           home: Scaffold(
             body: LiveDesktopShell(
+              knowsApp: (app) => app == 'ino' || app == 'files',
               brain: 'brain-1',
               name: 'brain-1/apps/desktop/view',
               load: (kind, name) async {
@@ -546,6 +550,7 @@ void main() {
           ),
           home: Scaffold(
             body: LiveDesktopShell(
+              knowsApp: (app) => app == 'ino' || app == 'files',
               brain: 'brain-1',
               name: 'brain-1/apps/desktop/view',
               load: (kind, name) async {
@@ -641,6 +646,7 @@ void main() {
           ),
           home: Scaffold(
             body: LiveDesktopShell(
+              knowsApp: (app) => app == 'ino' || app == 'files',
               brain: 'brain-1',
               name: 'brain-1/apps/desktop/view',
               load: (kind, name) async => emptyTree,
@@ -713,6 +719,7 @@ void main() {
           ),
           home: Scaffold(
             body: LiveDesktopShell(
+              knowsApp: (app) => app == 'ino' || app == 'files',
               brain: 'brain-1',
               name: 'brain-1/apps/desktop/view',
               load: (kind, name) async => switch (kind) {
@@ -748,6 +755,76 @@ void main() {
       expect(find.text('Viewport: brain-1/apps/ino/view'), findsOneWidget);
       expect(find.text('Viewport: brain-1/apps/files/view'), findsOneWidget);
       expect(find.text('This component cannot be displayed.'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'an OpenWindow input reaches the app as plain text, never as a URL',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final activations = <Map<String, dynamic>>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.dark('fluent-acrylic'),
+          builder: (context, child) => IcTheme(
+            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: LiveDesktopShell(
+              knowsApp: (app) => app == 'files' || app == 'ino',
+              brain: 'brain-1',
+              name: 'brain-1/apps/desktop/view',
+              load: (kind, name) async => switch (kind) {
+                'viewport' => viewportJson(name),
+                _ when name == 'brain-1/apps/desktop/view' =>
+                  buildSampleDesktopTree(),
+                _ => {
+                  'generation': 1,
+                  'view': {
+                    'title': name,
+                    'root': {
+                      'kind': 'button',
+                      'key': 'open-${name.split('/')[2]}',
+                      'label': 'Open ${name.split('/')[2]}',
+                      'intent': {'intentKind': 'OpenWindow', 'arg': ''},
+                    },
+                  },
+                },
+              },
+              watch: (kind, name) => const Stream.empty(),
+              onAction: (event) async => {
+                'intent': {
+                  'intentKind': 'OpenWindow',
+                  'arg': 'os://window/open?app=files&input=javascript:alert(1)&url=https://evil.example',
+                },
+              },
+              onActivate: activations.add,
+              stylePreset: IcStylePreset.fluentAcrylic,
+              barLayout: BarLayout.floatingGlass,
+              paletteOpen: false,
+              onTogglePalette: () {},
+              onSelectPreset: (_) {},
+              onCycleBarLayout: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.text('Open files'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final opened = activations
+          .where((a) => a['application'] == 'files')
+          .toList();
+      expect(opened, isNotEmpty);
+      expect(opened.last['operation'], 'open');
+      expect(opened.last['input'], 'javascript:alert(1)');
+      expect(activations.any((a) => '$a'.contains('evil.example')), isFalse);
       await tester.pumpWidget(const SizedBox());
     },
   );

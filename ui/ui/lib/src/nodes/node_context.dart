@@ -134,20 +134,26 @@ class NodeContext {
     BuildContext? context,
   }) async {
     if (!interactive) return;
-    final response = await _send({
-      'kind': 'view',
-      'name': view,
-      'generation': generation,
-      'key': key,
-      'value': ?value,
-    });
+    final Object? response;
+    try {
+      response = await _send({
+        'kind': 'view',
+        'name': view,
+        'generation': generation,
+        'key': key,
+        'value': ?value,
+      });
+    } catch (_) {
+      // The host has shown the refusal and reads the view again.
+      return;
+    }
     if (response is Map && response['intent'] is Map) {
       final intent = Map<String, dynamic>.from(response['intent'] as Map);
+      // An intent kind this client does not know is refused, never guessed.
+      final kind = intentKindOf(intent['intentKind'] ?? intent['kind']);
+      if (kind == null) return;
       await perform(
-        IntentNode(
-          intentKind: _intentKind(intent['intentKind'] ?? intent['kind']),
-          arg: intent['arg'] as String?,
-        ),
+        IntentNode(intentKind: kind, arg: intent['arg'] as String?),
         context: context != null && context.mounted ? context : null,
       );
     }
@@ -195,12 +201,12 @@ class NodeContext {
     return onActivate != null;
   }
 
-  static IntentKind _intentKind(Object? value) {
+  /// The intent kind a response names; null for one this client does not know.
+  static IntentKind? intentKindOf(Object? value) {
     final name = '$value'.toLowerCase();
-    return IntentKind.values.firstWhere(
-      (kind) => kind.name.toLowerCase() == name,
-      orElse: () => IntentKind.copy,
-    );
+    return IntentKind.values
+        .where((kind) => kind.name.toLowerCase() == name)
+        .firstOrNull;
   }
 }
 
@@ -246,10 +252,20 @@ abstract final class IntentGate {
           return null;
         }
         final app = uri.queryParameters['app'] ?? '';
-        if (!_appKey.hasMatch(app) || !(knowsApp?.call(app) ?? true)) {
+        // Without the shell's known-app set nothing opens.
+        if (!_appKey.hasMatch(app) || !(knowsApp?.call(app) ?? false)) {
           return null;
         }
-        return {'kind': 'os_uri', 'uri': uri.toString(), 'host': 'window'};
+        // Rebuilt from the allowed keys only: the app, and an opaque input the shell hands to the app's open
+        // operation as text (never a URL it follows).
+        final input = uri.queryParameters['input'];
+        final rebuilt = Uri(
+          scheme: 'os',
+          host: 'window',
+          path: '/open',
+          queryParameters: {'app': app, 'input': ?input},
+        );
+        return {'kind': 'os_uri', 'uri': rebuilt.toString(), 'host': 'window'};
     }
   }
 }

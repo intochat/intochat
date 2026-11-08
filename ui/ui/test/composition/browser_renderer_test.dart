@@ -18,6 +18,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {'title': 'Customer Researcher', 'uri': ''},
@@ -46,6 +47,7 @@ void main() {
               body: SizedBox(
                 width: 360,
                 child: ViewHost(
+                  knowsApp: (_) => false,
                   kind: 'webbrowser',
                   name: 'workspace/app/browser',
                   load: (_, _) async => {'title': title, 'uri': ''},
@@ -78,6 +80,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {'title': 'Preview', 'uri': 'http://intent/'},
@@ -101,6 +104,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {'title': 'Browser', 'uri': 'http://intent/'},
@@ -132,6 +136,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {'title': 'Browser', 'uri': 'http://intent/'},
@@ -155,6 +160,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'webbrowser',
             name: 'workspace/app/browser',
             load: (_, _) async => {

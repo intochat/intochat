@@ -38,6 +38,7 @@ void main() {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: ViewHost(
+                  knowsApp: (_) => false,
                   kind: 'view',
                   name: 'local/apps/sample/view',
                   load: (kind, name) async => {

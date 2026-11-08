@@ -11,6 +11,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'canvas',
             load: (kind, name) async => kind == 'viewport'
@@ -45,6 +46,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'viewport',
             name: 'canvas',
             load: (_, _) async => {

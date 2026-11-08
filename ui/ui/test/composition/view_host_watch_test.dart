@@ -15,6 +15,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/hello/view',
             load: (kind, name) async {
@@ -62,6 +63,7 @@ void _resubscribe() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'view',
             name: 'local/apps/hello/view',
             load: (kind, name) async {

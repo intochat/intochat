@@ -114,6 +114,7 @@ void main() {
                     width: size.width,
                     height: size.height,
                     child: ApplicationSurface(
+                      knowsApp: (_) => false,
                       client: client,
                       workspace: 'local',
                       application: app,

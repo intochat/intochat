@@ -10,6 +10,7 @@ void main() {
     Widget view(int revision) => MaterialApp(
       home: Scaffold(
         body: ViewHost(
+          knowsApp: (_) => false,
           kind: 'chat',
           name: 'transcript',
           revision: revision,
@@ -56,6 +57,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'chat',
             name: 'transcript',
             load: (_, _) async => {

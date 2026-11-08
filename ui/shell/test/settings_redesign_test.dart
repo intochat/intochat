@@ -11,6 +11,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'view',
             name: 'brain-1/apps/settings/view',
             load: (_, _) async => {

@@ -68,7 +68,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.profileMenu,
     this.read,
     this.requestApp,
-    this.knowsApp,
+    required this.knowsApp,
   });
 
   final String brain;
@@ -94,8 +94,8 @@ class LiveDesktopShell extends StatefulWidget {
   final Future<void> Function(String app, String operation, String input)?
   requestApp;
 
-  /// The apps an OpenWindow intent from a window's view may open.
-  final bool Function(String app)? knowsApp;
+  /// The apps the shell knows: an OpenWindow intent from a window's view may open only these.
+  final bool Function(String app) knowsApp;
 
   /// A read-only contract call (contract, key, method) answering its decoded result; smart mode stays off
   /// without it.
@@ -471,28 +471,39 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   Set<String> _viewKeys = const {};
 
   void _dispatchViewNode(Map<String, dynamic>? node) {
-    if (node == null || node['enabled'] == false) return;
-    final key = node['key'] as String?;
-    final Future<Object?> sent;
-    if (key != null && _viewKeys.contains(key)) {
-      sent = widget.onAction({
-        'kind': 'view',
-        'name': widget.name,
-        'generation': _generation,
-        'key': key,
-      });
-    } else if (node['action'] case final String action
-        when widget.requestApp != null) {
-      final colon = action.indexOf(':');
-      sent = widget.requestApp!(
-        node['app'] as String? ?? 'desktop',
-        colon < 0 ? action : action.substring(0, colon),
-        colon < 0 ? '' : action.substring(colon + 1),
+    final event = desktopViewEvent(node, _viewKeys, widget.name, _generation);
+    if (event == null) return;
+    unawaited(
+      widget.onAction(event).then((_) => _reload()).catchError(_refused),
+    );
+  }
+
+  // A refused activation (a stale generation, a changed view): read the view again and say so.
+  void _refused(Object error) {
+    unawaited(_reload());
+    if (mounted) {
+      showKitToast(
+        context,
+        'The desktop changed. Try again.',
+        tone: UiTone.error,
       );
-    } else {
+    }
+  }
+
+  void _shellGesture(String app, String operation, String input) {
+    final request = widget.requestApp;
+    final scope = app == 'desktop' || app == 'settings' ? app : 'window';
+    if (request == null || !desktopShellOperationAllowed(scope, operation)) {
       return;
     }
-    unawaited(sent.then((_) => _reload()).catchError((Object _) {}));
+    if (scope == 'window' && !widget.knowsApp(app)) return;
+    unawaited(
+      request(
+        app,
+        operation,
+        input,
+      ).then((_) => _reload()).catchError(_refused),
+    );
   }
 
   // A desktop button as the window chrome reads it: its key, label, argument and state.
@@ -834,14 +845,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _clientOpenedApps.remove(spec.appId);
       _clientClosedWindowIds.add('${spec.windowId}:${spec.appId}');
     });
-    _dispatchViewNode(
-      spec.closeNode ??
-          <String, dynamic>{
-            'key': 'close-${spec.windowId}',
-            'action': 'close-app:${spec.appId}',
-            'enabled': true,
-          },
-    );
+    if (spec.closeNode case final close?) {
+      _dispatchViewNode(close);
+    } else {
+      _shellGesture('desktop', 'close-app', spec.appId);
+    }
   }
 
   /// Auto-arranges all unpinned windows into a clean grid while strictly
@@ -883,11 +891,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   void _navigateSettingsSection(String? settingsSection) {
     if (settingsSection == null || settingsSection.isEmpty) return;
-    unawaited(
-      (widget.requestApp?.call('settings', 'navigate', settingsSection) ??
-              Future<void>.value())
-          .catchError((Object _) {}),
-    );
+    _shellGesture('settings', 'navigate', settingsSection);
   }
 
   void _handleChildActivation(
@@ -1014,14 +1018,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _zOrder.add(localWinId);
       _normalizeZOrder();
     });
-    final dockBtn =
-        dockButtons['dock-$appId'] ??
-        <String, dynamic>{
-          'key': 'dock-$appId',
-          'action': 'open:$appId',
-          'enabled': true,
-        };
-    _dispatchViewNode(dockBtn);
+    if (dockButtons['dock-$appId'] case final dockBtn?) {
+      _dispatchViewNode(dockBtn);
+    } else {
+      _shellGesture('desktop', 'open', appId);
+    }
     if (appId == 'settings') {
       widget.onActivate({
         'kind': 'settings',
@@ -1152,22 +1153,14 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                       _clientClosedWidgets.remove(cardId);
                       _clientOpenedWidgets.add(cardId);
                     });
-                    _dispatchViewNode(<String, dynamic>{
-                      'key': 'widget-open-$cardId',
-                      'action': 'widget-open:$cardId',
-                      'enabled': true,
-                    });
+                    _shellGesture('desktop', 'widget-open', cardId);
                   },
                   onCloseCard: (cardId) {
                     setState(() {
                       _clientOpenedWidgets.remove(cardId);
                       _clientClosedWidgets.add(cardId);
                     });
-                    _dispatchViewNode(<String, dynamic>{
-                      'key': 'widget-close-$cardId',
-                      'action': 'widget-close:$cardId',
-                      'enabled': true,
-                    });
+                    _shellGesture('desktop', 'widget-close', cardId);
                   },
                   onLaunchApp: (appId) =>
                       _launchOrFocusApp(appId, windows, dockButtons),
@@ -1233,28 +1226,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                           unawaited(_reload());
                         },
                         onHardRestartSandbox: () {
-                          unawaited(
-                            (widget.requestApp?.call(
-                                      spec.appId,
-                                      'sandbox-restart',
-                                      '',
-                                    ) ??
-                                    Future<void>.value())
-                                .then((_) => _reload())
-                                .catchError((Object _) {}),
-                          );
+                          _shellGesture(spec.appId, 'sandbox-restart', '');
                         },
                         onSwitchExecutionMode: (mode) {
-                          unawaited(
-                            (widget.requestApp?.call(
-                                      spec.appId,
-                                      'switch-mode',
-                                      mode,
-                                    ) ??
-                                    Future<void>.value())
-                                .then((_) => _reload())
-                                .catchError((Object _) {}),
-                          );
+                          _shellGesture(spec.appId, 'switch-mode', mode);
                         },
                         onInspectSandbox: () {
                           _launchOrFocusApp('creator', windows, dockButtons);
@@ -1303,30 +1278,20 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 onHardRestartWindow: (id) {
                                   final target = byId[id];
                                   if (target != null) {
-                                    unawaited(
-                                      (widget.requestApp?.call(
-                                                target.appId,
-                                                'sandbox-restart',
-                                                '',
-                                              ) ??
-                                              Future<void>.value())
-                                          .then((_) => _reload())
-                                          .catchError((Object _) {}),
+                                    _shellGesture(
+                                      target.appId,
+                                      'sandbox-restart',
+                                      '',
                                     );
                                   }
                                 },
                                 onSwitchExecutionMode: (id, mode) {
                                   final target = byId[id];
                                   if (target != null) {
-                                    unawaited(
-                                      (widget.requestApp?.call(
-                                                target.appId,
-                                                'switch-mode',
-                                                mode,
-                                              ) ??
-                                              Future<void>.value())
-                                          .then((_) => _reload())
-                                          .catchError((Object _) {}),
+                                    _shellGesture(
+                                      target.appId,
+                                      'switch-mode',
+                                      mode,
                                     );
                                   }
                                 },
@@ -1656,3 +1621,33 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     );
   }
 }
+
+/// The view event a desktop node sends: only a node the published view holds activates, only by its key; any
+/// other data on the node (an old `action`) is never sent anywhere.
+Map<String, dynamic>? desktopViewEvent(
+  Map<String, dynamic>? node,
+  Set<String> viewKeys,
+  String name,
+  int generation,
+) {
+  if (node == null || node['enabled'] == false) return null;
+  final key = node['key'] as String?;
+  if (key == null || !viewKeys.contains(key)) return null;
+  return {'kind': 'view', 'name': name, 'generation': generation, 'key': key};
+}
+
+// The shell's own desktop gestures that no view node carries. Task 22 debt: each becomes a node of the desktop
+// view. Only these (app, operation) pairs are sent, with arguments the shell itself holds; anything else is refused.
+// `window` stands for the app of a window the shell shows (sandbox controls).
+const _desktopShellOperations = <(String, String)>{
+  ('desktop', 'open'),
+  ('desktop', 'close-app'),
+  ('desktop', 'widget-open'),
+  ('desktop', 'widget-close'),
+  ('settings', 'navigate'),
+  ('window', 'sandbox-restart'),
+  ('window', 'switch-mode'),
+};
+
+bool desktopShellOperationAllowed(String app, String operation) =>
+    _desktopShellOperations.contains((app, operation));

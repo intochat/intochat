@@ -29,7 +29,12 @@ class _FieldNodeViewState extends State<FieldNodeView> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
   StreamSubscription<void>? _watch;
+  Timer? _debounce;
   bool _dirty = false;
+  // Each posted edit's number: only the latest response clears [_dirty].
+  int _sent = 0;
+
+  static const debounce = Duration(milliseconds: 250);
 
   bool get _secret =>
       widget.node.fieldKind == FieldKind.secret ||
@@ -63,16 +68,28 @@ class _FieldNodeViewState extends State<FieldNodeView> {
 
   void _changed(String value) {
     _dirty = true;
+    _debounce?.cancel();
+    _debounce = Timer(debounce, _post);
+  }
+
+  // Posts the text as typed now; the event queue keeps it before any later activation.
+  void _post() {
+    _debounce?.cancel();
+    _debounce = null;
+    final number = ++_sent;
     unawaited(
       widget.ctx
-          .input(widget.node.name, value)
-          .whenComplete(() => _dirty = false)
+          .input(widget.node.name, _controller.text)
+          .whenComplete(() {
+            if (number == _sent) _dirty = false;
+          })
           .catchError((Object _) {}),
     );
   }
 
   void _submitted(String value) {
     if (widget.node.onSubmit == null) return;
+    if (_debounce != null) _post();
     unawaited(
       widget.ctx
           .activate(widget.node.key, value: value)
@@ -83,6 +100,8 @@ class _FieldNodeViewState extends State<FieldNodeView> {
 
   @override
   void dispose() {
+    // An edit still waiting out its debounce is sent, not lost.
+    if (_debounce != null) _post();
     _watch?.cancel();
     _controller.dispose();
     _focus.dispose();

@@ -13,6 +13,7 @@ class ApplicationSurface extends StatefulWidget {
     required this.workspace,
     required this.application,
     required this.start,
+    required this.knowsApp,
     this.onActivate,
   });
 
@@ -20,6 +21,9 @@ class ApplicationSurface extends StatefulWidget {
   final String workspace, application;
   final Future<Map<String, dynamic>> Function() start;
   final ValueChanged<Map<String, dynamic>>? onActivate;
+
+  /// The apps an OpenWindow intent may open.
+  final bool Function(String app) knowsApp;
 
   @override
   State<ApplicationSurface> createState() => _ApplicationSurfaceState();
@@ -70,6 +74,7 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         onAction: (event) =>
             widget.client.appRequest(widget.workspace, 'event', body: event),
         onActivate: widget.onActivate,
+        knowsApp: widget.knowsApp,
       );
     },
   );

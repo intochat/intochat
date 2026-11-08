@@ -60,6 +60,7 @@ void main() {
           body: SizedBox(
             height: 152,
             child: ViewHost(
+              knowsApp: (_) => false,
               kind: 'composer',
               name: 'composer',
               load: (_, _) async => {

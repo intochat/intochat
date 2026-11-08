@@ -29,7 +29,7 @@ class ViewHost extends StatefulWidget {
     required this.load,
     this.onActivate,
     this.onAction,
-    this.knowsApp,
+    required this.knowsApp,
     this.ancestors = const {},
     this.revision = 0,
     this.enabled = true,
@@ -42,8 +42,9 @@ class ViewHost extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final NeuronAction? onAction;
 
-  /// The app keys the shell can open; an `OpenWindow` intent for any other is refused.
-  final bool Function(String app)? knowsApp;
+  /// The app keys the shell can open; an `OpenWindow` intent for any other is refused. Pass `(_) => false` where
+  /// no window may open.
+  final bool Function(String app) knowsApp;
   final Set<String> ancestors;
   final int revision;
   final bool enabled;
@@ -165,6 +166,8 @@ class _ViewHostState extends State<ViewHost> {
     try {
       return await _events.dispatch(send, event);
     } catch (error) {
+      // A refusal (a stale generation, a changed view) shows and the view is read again.
+      unawaited(_reload());
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text('Could not save change: $error')),

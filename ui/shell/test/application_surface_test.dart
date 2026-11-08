@@ -37,6 +37,7 @@ void main() {
     Widget view(String workspace) => MaterialApp(
       home: Scaffold(
         body: ApplicationSurface(
+          knowsApp: (app) => app == 'ino',
           client: client,
           workspace: workspace,
           application: 'assistant',
@@ -87,6 +88,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ApplicationSurface(
+            knowsApp: (app) => app == 'ino',
             client: client,
             workspace: 'one',
             application: 'assistant',
