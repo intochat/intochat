@@ -6,42 +6,59 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
-// A roll's own state. Rolled then Remaining is always the roll order, so the steps never change while the roll moves: a step moves
-// its instance from Remaining to Rolled. Handover is the instance that hosted the flow when it was restarted.
+// The restart a roll step issued, saved with the step's wait: a later step waits for readiness since At and never restarts again.
+internal sealed record RestartIssued(string Instance, DateTimeOffset At);
+
+// A roll's own state. Remaining is the instances to move as the deployment listed them; Order is the roll order the "order" step fixes
+// (the silo hosting the flow last) and never changes after it. Rolled is the instances already ready on TargetSha.
 internal sealed class DeployInner
 {
     public string TargetSha { get; set; } = "";
 
     public string[] Remaining { get; set; } = [];
 
+    public string[] Order { get; set; } = [];
+
     public string[] Rolled { get; set; } = [];
 
     public string? PreviousSha { get; set; }
 
-    public string? Handover { get; set; }
-
-    public DateTimeOffset? HandoverAt { get; set; }
+    public RestartIssued? RestartIssued { get; set; }
 }
 
-// One roll, instance by instance onto TargetSha: a "roll:{instance}" step per instance (the one running the flow last), each followed
-// by a one-minute schedule wait, then "handover" (the instance restarted under the flow is ready). A step that fails throws FlowFailed;
-// going back is a second DeployFlow, started by the deployment when this one ends Failed. Bodies are idempotent: an instance already
-// on TargetSha is not restarted again, so a step cut off by its own silo's restart completes when it runs again.
+// One roll onto TargetSha: "order", then per instance "roll:{x}:restart" (live.json, drain, restart, recorded as RestartIssued and
+// followed by a one-minute schedule wait) and "roll:{x}:ready" (ready since the restart; never restarts), then "handover". A step that
+// fails throws FlowFailed; going back is a second DeployFlow, started by the deployment when this one ends Failed. A restart step run
+// again with its RestartIssued saved issues no second restart; the flow's own silo's restart is detached, so the step returns and saves
+// before the silo stops, and the ready step runs on the restarted silo.
 [DigitalBrain.Neuron(Alias)]
 internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
 {
     public const string Alias = "flow.deploy";
 
+    public const string OrderStep = "order";
+
     public const string Handover = "handover";
 
-    public static string RollStep(string instance) => "roll:" + instance;
+    public static string RestartStep(string instance) => $"roll:{instance}:restart";
+
+    public static string ReadyStep(string instance) => $"roll:{instance}:ready";
+
+    // The instance a roll step names: "roll:{x}:restart" or "roll:{x}:ready".
+    public static string? InstanceOf(string step)
+    {
+        if (!step.StartsWith("roll:", StringComparison.Ordinal)) { return null; }
+        var end = step.LastIndexOf(':');
+        return end > "roll:".Length ? step["roll:".Length..end] : null;
+    }
 
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    // The pause between two instances, as the roll reminder gave.
+    // The pause between a restart and its readiness check, as the roll reminder gave between steps.
     internal static readonly TimeSpan Pause = TimeSpan.FromMinutes(1);
 
-    protected override IReadOnlyList<string> Steps => [.. State.Inner.Rolled.Concat(State.Inner.Remaining).Select(RollStep), Handover];
+    protected override IReadOnlyList<string> Steps
+        => [OrderStep, .. State.Inner.Order.SelectMany(name => new[] { RestartStep(name), ReadyStep(name) }), Handover];
 
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
         => Start(title, owner, parentFlowId, JsonSerializer.Deserialize<DeployInner>(innerJson, Json) ?? new DeployInner());
@@ -55,103 +72,83 @@ internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
 
     protected override async Task<StepResult<DeployInner>> Run(string step, DeployInner inner, CancellationToken ct)
     {
-        if (step == Handover) { return new StepResult<DeployInner>(await HandOver(inner, ct)); }
-        if (!step.StartsWith("roll:", StringComparison.Ordinal)) { throw new FlowFailed(step, $"Unknown step {step}."); }
-        var next = await RollOne(step, step["roll:".Length..], inner, ct);
-        return new StepResult<DeployInner>(next, new Waiting(step, WaitReason.Schedule, Context.Time.GetUtcNow() + Pause, null));
+        if (step == OrderStep) { return new StepResult<DeployInner>(Ordered(inner)); }
+        if (step == Handover) { return new StepResult<DeployInner>(inner); }
+        if (InstanceOf(step) is not { } name) { throw new FlowFailed(step, $"Unknown step {step}."); }
+        if (step == RestartStep(name))
+        {
+            var next = await Restart(step, name, inner, ct);
+            return new StepResult<DeployInner>(next, new Waiting(step, WaitReason.Schedule, Context.Time.GetUtcNow() + Pause, null));
+        }
+        return new StepResult<DeployInner>(await Ready(step, name, inner, ct));
     }
 
-    // What one Step() of the reminder loop did for one instance: live.json on TargetSha, drain, restart, wait until ready.
-    private async Task<DeployInner> RollOne(string step, string name, DeployInner inner, CancellationToken ct)
+    // The silo hosting this flow goes last: its restart ends this activation, and the steps after it run on the restarted silo.
+    private DeployInner Ordered(DeployInner inner)
     {
+        if (inner.Order.Length > 0) { return inner; }
+        var self = Host.Self;
+        return With(inner, order: [.. inner.Remaining.Where(name => name != self), .. inner.Remaining.Where(name => name == self).Take(1)]);
+    }
+
+    private async Task<DeployInner> Restart(string step, string name, DeployInner inner, CancellationToken ct)
+    {
+        // Run again with its restart saved: the instance is already moving, so nothing is issued twice.
+        if (inner.RestartIssued?.Instance == name) { return inner; }
         var host = Host;
         var target = inner.TargetSha;
-        try
-        {
-            if (await host.CurrentSha(ct) != target) { await host.SetLive(target, ct); }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            throw new FlowFailed(step, $"{name} never became ready on {target}: live.json could not be written: {error.Message}");
-        }
-        var self = host.Self;
-        // Run again after its own silo's restart (or any cut-off restart): the instance already runs TargetSha.
-        if (OnTarget(name, target))
-        {
-            return Moved(inner, name, handover: name == self || inner.Handover == name, at: inner.HandoverAt);
-        }
-        await Drain(step, name, ct);
-        if (name == self)
-        {
-            // The calling silo's own restart is detached: the next activation, on the restarted silo, runs the handover.
-            var at = Context.Time.GetUtcNow();
-            await Guard(step, name, target, () => host.RestartInstance(name, ct));
-            return Moved(inner, name, handover: true, at);
-        }
-        var since = DateTimeOffset.UtcNow;
-        var budget = Budget;
-        using (var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct))
-        {
-            bounded.CancelAfter(budget);
-            try { await host.RestartInstance(name, bounded.Token); }
-            catch (OperationCanceledException) when (bounded.IsCancellationRequested && !ct.IsCancellationRequested)
-            {
-                throw new FlowFailed(step, $"{name} never became ready on {target}: instance {name} did not restart within {budget}");
-            }
-            catch (Exception error) when (error is not OperationCanceledException and not FlowFailed)
-            {
-                throw new FlowFailed(step, $"{name} never became ready on {target}: instance {name} failed to restart: {error.Message}");
-            }
-        }
-        await Guard(step, name, target, () => host.WaitInstance(name, since, budget, ct));
-        return Moved(inner, name, handover: false, null);
-    }
-
-    // A single instance restarts with a brief interruption; only one with a peer of its role waits for failover.
-    private async Task Drain(string step, string name, CancellationToken ct)
-    {
-        var host = Host;
-        await Guard(step, name, null, async () =>
+        await Guard(step, name, target, async () => { if (await host.CurrentSha(ct) != target) { await host.SetLive(target, ct); } }, "live.json could not be written");
+        await Guard(step, name, target, async () =>
         {
             await host.DrainInstance(name, ct);
             var instances = await host.Instances(ct);
             if (instances.Any(peer => peer != name && AspireCliClusterHost.RoleOf(peer) == AspireCliClusterHost.RoleOf(name)))
             { await host.WaitOutOfFront(name, Budget, ct); }
-        });
+        }, $"instance {name} could not drain");
+        var issued = new RestartIssued(name, Context.Time.GetUtcNow());
+        var budget = Budget;
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        bounded.CancelAfter(budget);
+        try { await host.RestartInstance(name, bounded.Token); }
+        catch (OperationCanceledException) when (bounded.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            throw new FlowFailed(step, $"{name} never became ready on {target}: instance {name} did not restart within {budget}");
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            throw new FlowFailed(step, $"{name} never became ready on {target}: instance {name} failed to restart: {error.Message}");
+        }
+        return With(inner, restart: issued);
     }
 
-    private async Task<DeployInner> HandOver(DeployInner inner, CancellationToken ct)
+    // On the restarted silo itself this activation is its readiness; any other instance is waited for since its restart.
+    private async Task<DeployInner> Ready(string step, string name, DeployInner inner, CancellationToken ct)
     {
-        if (inner.Handover is not { } handover || handover == Host.Self) { return inner; }
-        await Guard(Handover, handover, inner.TargetSha, () => Host.WaitInstance(handover, inner.HandoverAt ?? DateTimeOffset.MinValue, Budget, ct));
-        return inner;
+        if (name != Host.Self)
+        {
+            var since = inner.RestartIssued is { } issued && issued.Instance == name ? issued.At : DateTimeOffset.MinValue;
+            await Guard(step, name, inner.TargetSha, () => Host.WaitInstance(name, since, Budget, ct), null);
+        }
+        return With(inner, rolled: inner.Rolled.Contains(name) ? inner.Rolled : [.. inner.Rolled, name], restart: null, clearRestart: true);
     }
 
-    private async Task Guard(string step, string name, string? target, Func<Task> work)
+    private static async Task Guard(string step, string name, string target, Func<Task> work, string? what)
     {
         try { await work(); }
         catch (Exception error) when (error is not OperationCanceledException and not FlowFailed)
         {
-            var why = error is InstanceNeverReadyException ? error.Message : $"instance {name} could not move: {error.Message}";
-            throw new FlowFailed(step, $"{name} never became ready on {target ?? State.Inner.TargetSha}: {why}");
+            var why = error is InstanceNeverReadyException ? error.Message : $"{what ?? $"instance {name} readiness check failed"}: {error.Message}";
+            throw new FlowFailed(step, $"{name} never became ready on {target}: {why}");
         }
     }
 
-    // A silo that Orleans reports Active on target: the membership names silos, so MCP instances are never "already moved".
-    private bool OnTarget(string name, string target)
-    {
-        var membership = Context.Services.GetService<IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed>();
-        return membership?.Current.Silos.Any(silo => silo.Name == name && silo.Sha == target
-            && string.Equals(silo.Status, "Active", StringComparison.OrdinalIgnoreCase)) == true;
-    }
-
-    private static DeployInner Moved(DeployInner inner, string name, bool handover, DateTimeOffset? at) => new()
+    private static DeployInner With(DeployInner inner, string[]? order = null, string[]? rolled = null, RestartIssued? restart = null, bool clearRestart = false) => new()
     {
         TargetSha = inner.TargetSha,
         PreviousSha = inner.PreviousSha,
-        Remaining = [.. inner.Remaining.Where(remaining => remaining != name)],
-        Rolled = inner.Rolled.Contains(name) ? inner.Rolled : [.. inner.Rolled, name],
-        Handover = handover ? name : inner.Handover,
-        HandoverAt = handover ? at : inner.HandoverAt,
+        Remaining = inner.Remaining,
+        Order = order ?? inner.Order,
+        Rolled = rolled ?? inner.Rolled,
+        RestartIssued = clearRestart ? null : restart ?? inner.RestartIssued,
     };
 }

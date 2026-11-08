@@ -21,6 +21,7 @@ public sealed class DeployFlowFacts
         public string[] InstanceNames { get; set; } = ["mcp-a", "silo-0", "silo-1"];
         public string? Self { get; set; } = "silo-1";
         public List<string> Restarted { get; } = [];
+        public List<string> Waited { get; } = [];
         // "name@sha": that instance never becomes ready on that build.
         public HashSet<string> NeverReady { get; } = [];
 
@@ -31,7 +32,8 @@ public sealed class DeployFlowFacts
         public Task DrainInstance(string name, CancellationToken ct) => Task.CompletedTask;
         public Task WaitOutOfFront(string name, TimeSpan budget, CancellationToken ct) => Task.CompletedTask;
         public Task WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct)
-            => NeverReady.Contains($"{name}@{Current}") ? Task.FromException(new InstanceNeverReadyException($"{name} not ready within {budget}")) : Task.CompletedTask;
+            => Record($"{name}@{Current}") && NeverReady.Contains($"{name}@{Current}") ? Task.FromException(new InstanceNeverReadyException($"{name} not ready within {budget}")) : Task.CompletedTask;
+        private bool Record(string entry) { Waited.Add(entry); return true; }
         public Task<string[]> Instances(CancellationToken ct) => Task.FromResult(InstanceNames);
         public Task<int> Spans(string service, string span, CancellationToken ct) => Task.FromResult(0);
     }
@@ -85,8 +87,12 @@ public sealed class DeployFlowFacts
         await os.Idle();
     }
 
-    private static IDeployment Deployment(TestOS os)
-        => os.Get<IDeployment>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IDeployment), IDeployment.Key(Brain.Value)));
+    private static NeuronId DeploymentId => DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IDeployment), IDeployment.Key(Brain.Value));
+
+    private static IDeployment Deployment(TestOS os) => os.Get<IDeployment>(DeploymentId);
+
+    private static readonly string[] Rolled =
+        ["order", "roll:mcp-a:restart", "roll:mcp-a:ready", "roll:silo-0:restart", "roll:silo-0:ready", "roll:silo-1:restart", "roll:silo-1:ready", "handover"];
 
     [Fact]
     public async Task OneStepPerSiloWithScheduleWaitBetween()
@@ -95,21 +101,23 @@ public sealed class DeployFlowFacts
         await using var os = Os(host);
         var flow = os.Get<IFlowStarter>(new NeuronId(Brain, DeployFlow.Alias, "deploy-new111"));
 
-        await flow.StartFromJson("Roll onto new111", "test", null, Inner("mcp-a", "silo-0", "silo-1"));
+        // Listed with the flow's own silo first: the order step moves it last.
+        await flow.StartFromJson("Roll onto new111", "test", null, Inner("silo-1", "mcp-a", "silo-0"));
         await os.Idle();
 
         var head = await flow.Head();
-        Assert.Equal(["roll:mcp-a", "roll:silo-0", "roll:silo-1", "handover"], head.Steps);
+        Assert.Equal(Rolled, head.Steps);
         Assert.Equal(FlowStatus.Waiting, head.Status);
         Assert.Equal(["mcp-a@new111"], host.Restarted);
 
-        // The schedule wait holds the next instance until the minute passes, then the expiry reminder resumes the flow.
+        // The schedule wait after each restart holds the readiness check and the next instance until the minute passes.
         os.Clock.Advance(DeployFlow.Pause - TimeSpan.FromSeconds(1));
         await os.Idle();
         Assert.Equal(["mcp-a@new111"], host.Restarted);
         os.Clock.Advance(TimeSpan.FromSeconds(1));
         await os.Idle();
         Assert.Equal(["mcp-a@new111", "silo-0@new111"], host.Restarted);
+        Assert.Contains("mcp-a@new111", host.Waited);
 
         await Minute(os);
         Assert.Equal(["mcp-a@new111", "silo-0@new111", "silo-1@new111"], host.Restarted);
@@ -118,22 +126,25 @@ public sealed class DeployFlowFacts
         await Minute(os);
         head = await flow.Head();
         Assert.Equal(FlowStatus.Completed, head.Status);
-        Assert.Equal(["roll:mcp-a", "roll:silo-0", "roll:silo-1", "handover"], head.Done);
+        Assert.Equal(Rolled, head.Done);
+        // The flow's own silo is ready by running the step; it is never waited for from itself.
+        Assert.DoesNotContain("silo-1@new111", host.Waited);
     }
 
     [Fact]
-    public async Task ARollStepRunAgainAfterItsOwnSilosRestartDoesNotRestartItTwice()
+    public async Task AnInterruptedRestartStepDoesNotRestartTwice()
     {
         var host = new Host();
-        var membership = new Membership { Current = new([new SiloView("silo-1", "10.0.0.1", "Active", null, "new111")], 2) };
-        await using var os = Os(host, membership);
+        await using var os = Os(host);
         var flow = os.Get<IFlowStarter>(new NeuronId(Brain, DeployFlow.Alias, "deploy-new111"));
+        var issued = new DeployInner { TargetSha = "new111", PreviousSha = "base000", Remaining = ["silo-0"], Order = ["silo-0"], RestartIssued = new RestartIssued("silo-0", os.Clock.GetUtcNow()) };
 
-        await flow.StartFromJson("Roll onto new111", "test", null, Inner("silo-1"));
+        await flow.StartFromJson("Roll onto new111", "test", null, JsonSerializer.Serialize(issued, DeployFlow.Json));
         await os.Idle();
         await Minute(os);
 
         Assert.Empty(host.Restarted);
+        Assert.Equal(["silo-0@base000"], host.Waited);
         Assert.Equal(FlowStatus.Completed, (await flow.Head()).Status);
     }
 
@@ -149,11 +160,13 @@ public sealed class DeployFlowFacts
         await deployment.Roll("new111");
         await os.Idle();
         await Minute(os);
+        await Minute(os);
 
-        // silo-0 failed: a second flow goes back onto base000, the failed instance first, then the moved ones newest first.
+        // silo-0's ready step failed: a second flow goes back onto base000, the failed instance first, then the moved ones newest first.
         var back = await deployment.Read();
         Assert.Equal(DeploymentStage.RollingBack, back.Stage);
         Assert.Equal("base000", back.TargetSha);
+        Assert.Equal(["silo-0", "mcp-a"], back.Remaining);
         Assert.Contains("silo-0 never became ready on new111", back.Failure, StringComparison.Ordinal);
         Assert.Equal(["mcp-a@new111", "silo-0@new111", "silo-0@base000"], host.Restarted);
 
@@ -176,20 +189,53 @@ public sealed class DeployFlowFacts
 
         var started = await deployment.Roll("new111");
         Assert.Equal(DeploymentStage.Rolling, started.Stage);
-        Assert.Equal(["mcp-a", "silo-0", "silo-1"], started.Remaining);
         await os.Idle();
+        Assert.Equal(["mcp-a", "silo-0", "silo-1"], (await deployment.Read()).Remaining);
 
+        await Minute(os);
         Assert.Equal(["silo-0", "silo-1"], (await deployment.Read()).Remaining);
         await Minute(os);
         Assert.Equal(["silo-1"], (await deployment.Read()).Remaining);
-        await Minute(os);
-        Assert.Empty((await deployment.Read()).Remaining);
         Assert.Equal(DeploymentStage.Rolling, (await deployment.Read()).Stage);
 
         await Minute(os);
         var done = await deployment.Read();
         Assert.Equal(DeploymentStage.Steady, done.Stage);
         Assert.Equal("new111", done.CurrentSha);
+        Assert.Empty(done.Remaining);
         Assert.Null(done.Failure);
     }
+
+    [Fact]
+    public async Task LegacyRollInProgressIsCompletedOnActivation()
+    {
+        var host = new Host { Current = "new111" };
+        await using var os = Os(host);
+        // What the reminder loop left after its own silo's handover: Rolling, nothing remaining, no flow.
+        Seed(os, new DeploymentState { CurrentSha = "base000", Stage = DeploymentStage.Rolling, TargetSha = "new111", PreviousSha = "base000", Rolled = ["mcp-a", "silo-0", "silo-1"], Handover = "silo-1" });
+
+        var read = await Deployment(os).Read();
+
+        Assert.Equal(DeploymentStage.Steady, read.Stage);
+        Assert.Equal("new111", read.CurrentSha);
+        Assert.Null(read.Failure);
+    }
+
+    [Fact]
+    public async Task ALegacyRollCutOffBeforeItsHandoverEndsInterrupted()
+    {
+        var host = new Host { Current = "new111" };
+        await using var os = Os(host);
+        Seed(os, new DeploymentState { CurrentSha = "base000", Stage = DeploymentStage.Rolling, TargetSha = "new111", PreviousSha = "base000", Remaining = ["silo-1"], Rolled = ["mcp-a", "silo-0"] });
+
+        var read = await Deployment(os).Read();
+
+        Assert.Equal(DeploymentStage.Steady, read.Stage);
+        Assert.Equal("the roll was interrupted", read.Failure);
+    }
+
+    // TestOS offers no public seed of a neuron's state; its journal's internal Save is the store the neuron loads from.
+    private static void Seed(TestOS os, DeploymentState state)
+        => typeof(TestJournal).GetMethod("Save", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .MakeGenericMethod(typeof(DeploymentState)).Invoke(os.Journal(Brain), [DeploymentId, state, Array.Empty<Signal>()]);
 }
