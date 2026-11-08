@@ -54,11 +54,11 @@ internal sealed class AgentContextNeuron
         await Save(Snapshot with { Revision = revision, Entries = entries }, new ContextRemoved(FullKey, revision, name));
     }
 
-    // A caller stamped as a model or an app; a call with no caller is the platform's own.
+    // Refused for a caller stamped as a model or an app; an unstamped call is the exception the rule names.
     private InterruptClearedByTrust HeldInterrupt(string name, DigitalBrain.Capabilities.CapabilityCaller? caller)
         => new(Snapshot.Entries.FirstOrDefault(item => item.Name == name) is { } held
                 && held.EffectiveTags.Contains(ContextTags.Interrupt) && held.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform,
-            caller is null ? null : ContextTrust.Of(caller));
+            caller is null, ContextTrust.Of(caller));
 
     public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(Snapshot.Revision, Snapshot.Entries.ToArray()));
 }

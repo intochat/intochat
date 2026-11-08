@@ -48,4 +48,20 @@ public sealed class CapabilitiesContextWriterFacts
         await CapabilitiesContextWriter.Upsert(context, "notes", []);
         Assert.Empty(context.Held);
     }
+
+    [Fact]
+    public async Task AnAppNeverReplacesOrDropsAnInterruptEntry()
+    {
+        var context = new FakeContext();
+        await context.Set(new ContextEntry("stop", "halt", [], [ContextTags.Interrupt]));
+        await context.Set(new ContextEntry("halt", "also halt", [], [ContextTags.Interrupt]));
+
+        await CapabilitiesContextWriter.Upsert(context, "stop", Notes().Operations);
+        await CapabilitiesContextWriter.Upsert(context, "stop", []);
+        await CapabilitiesContextWriter.Replace(context, [Notes(), ("stop", [new MenuOperation("stop", "run", null)])]);
+
+        Assert.Equal("halt", context.Held["stop"].Text);
+        Assert.True(context.Held.ContainsKey("halt"));
+        Assert.True(context.Held.ContainsKey("notes"));
+    }
 }

@@ -58,4 +58,18 @@ public sealed class AgentContextFacts(AiFixture fixture) : IClassFixture<AiFixtu
         await As(CallerKind.User, runtime, () => context.Remove("stop"), ct);
         Assert.Empty((await context.Read()).Entries);
     }
+
+    // Unstamped writers are platform code (the audit in the Task 20 report); the rule names that exception.
+    [Fact]
+    public async Task UnstampedPlatformCallerMayClearAnInterrupt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct);
+        var context = await Held(runtime, "unstamped-clear", ct);
+        Assert.Single((await context.Read()).Entries);
+
+        await Task.Run(() => context.Remove("stop"), ct);
+
+        Assert.Empty((await context.Read()).Entries);
+    }
 }

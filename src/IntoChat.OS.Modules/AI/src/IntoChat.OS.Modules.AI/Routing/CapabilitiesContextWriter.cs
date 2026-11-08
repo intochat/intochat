@@ -16,12 +16,22 @@ internal static class CapabilitiesContextWriter
     {
         var entries = Entries(apps);
         var names = entries.Select(entry => entry.Name).ToHashSet(StringComparer.Ordinal);
-        foreach (var stale in (await context.Read()).Entries.Where(entry => !names.Contains(entry.Name))) { await context.Remove(stale.Name); }
-        foreach (var entry in entries) { await context.Set(entry); }
+        foreach (var stale in (await context.Read()).Entries.Where(entry => !names.Contains(entry.Name) && !IsInterrupt(entry))) { await context.Remove(stale.Name); }
+        foreach (var entry in entries)
+        {
+            if ((await context.Read()).Entries.Any(held => held.Name == entry.Name && IsInterrupt(held))) { continue; }
+            await context.Set(entry);
+        }
     }
 
-    public static Task Upsert(IAgentContext context, string app, MenuOperation[] operations)
-        => operations.Length == 0 ? context.Remove(app) : context.Set(Entry(app, operations));
+    // An app's name never replaces or removes an interrupt entry a user or the platform wrote in this context.
+    public static async Task Upsert(IAgentContext context, string app, MenuOperation[] operations)
+    {
+        if ((await context.Read()).Entries.Any(entry => entry.Name == app && IsInterrupt(entry))) { return; }
+        await (operations.Length == 0 ? context.Remove(app) : context.Set(Entry(app, operations)));
+    }
+
+    private static bool IsInterrupt(ContextEntry entry) => entry.EffectiveTags.Contains(ContextTags.Interrupt);
 
     private static ContextEntry Entry(string app, MenuOperation[] operations)
         => new(app, string.Join('\n', operations.Select(operation =>
