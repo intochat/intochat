@@ -100,10 +100,12 @@ internal sealed class Creator(
         var attempt = await app.CurrentBuildAttempt().WaitAsync(cancellationToken);
         var inner = new BuildInner { Kind = BuildInner.App, Goal = snapshot.Manifest.Title, AppKey = appKey, Instruction = instruction, Attempt = attempt };
         var flows = SiloNeurons.Get<IFlows>(plain, IFlows.Key(BrainKey.BrainOf(appKey)).ToString());
+        // BeginBuild named the attempt's flow; the flow starts under that key.
+        var flowId = await app.BuildFlow().WaitAsync(cancellationToken) ?? throw new InvalidOperationException("BeginBuild named no build flow.");
         try
         {
-            var flowId = await flows.Start(BuildFlow.Alias, snapshot.Manifest.Title, null, JsonSerializer.Serialize(inner, BuildFlow.Json), cancellationToken);
-            await app.BuildFlowStarted(flowId).WaitAsync(cancellationToken);
+            await flows.Start(BuildFlow.Alias, snapshot.Manifest.Title, null, JsonSerializer.Serialize(inner, BuildFlow.Json), cancellationToken,
+                flowId[(flowId.LastIndexOf('/') + 1)..]);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

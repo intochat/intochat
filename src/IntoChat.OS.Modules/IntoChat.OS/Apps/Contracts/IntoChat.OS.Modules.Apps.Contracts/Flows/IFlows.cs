@@ -17,9 +17,11 @@ public interface IFlows
     [DigitalBrain.ReadOnlyCall]
     Task<FlowView?> Read(string flowId, CancellationToken ct = default);
 
-    // Refused (rule apps.flows-parent-not-blocked, "blocked by {targetId}") while the parent flow is blocked.
+    // Refused (rule apps.flows-parent-not-blocked, "blocked by {targetId}") while the parent flow is blocked. FlowId, when given, is
+    // the new flow's key (non-empty, no '/'): the flow is {brain}/{type}/{flowId}, and a key already started is refused (rule
+    // apps.flows-flow-is-new, "flow exists: {id}").
     [DigitalBrain.Interleaves]
-    Task<string> Start(string type, string title, string? parentFlowId, string innerJson, CancellationToken ct = default);
+    Task<string> Start(string type, string title, string? parentFlowId, string innerJson, CancellationToken ct = default, string? flowId = null);
 
     [DigitalBrain.Interleaves]
     Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default);

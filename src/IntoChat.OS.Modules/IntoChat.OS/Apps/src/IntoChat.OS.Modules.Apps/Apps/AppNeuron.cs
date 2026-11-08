@@ -229,6 +229,9 @@ internal sealed partial class AppNeuron(
         next.Status = AppStatus.Building;
         next.BuildAttempt = Guid.NewGuid();
         next.BuildStartedAt = clock.GetUtcNow();
+        // The build flow's id is known before the flow starts, so its FlowDone, however early, is this attempt's.
+        next.BuildFlowId = new DigitalBrain.NeuronId(Id.Brain, Flows.BuildFlow.Alias, BuildFlowKey(next.BuildAttempt)).ToString();
+        await Context.Synapses.EnsureBrainWide(typeof(DigitalBrain.Flows.FlowDone));
         next.Activity = string.IsNullOrWhiteSpace(instruction) ? ["build started"] : ["build started: " + instruction.Trim()];
         await Persist(next);
         return Describe(State);
@@ -256,15 +259,9 @@ internal sealed partial class AppNeuron(
 
     public Task<Guid> CurrentBuildAttempt() => Task.FromResult(State.BuildAttempt);
 
-    public async Task BuildFlowStarted(string flowId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(flowId);
-        if (State.Manifest is null || State.BuildFlowId == flowId) { return; }
-        await Context.Synapses.EnsureBrainWide(typeof(DigitalBrain.Flows.FlowDone));
-        var next = State.Clone();
-        next.BuildFlowId = flowId;
-        await Persist(next);
-    }
+    // The key of an attempt's build flow: the app's name and the attempt, unique per attempt and free of '/'.
+    internal string BuildFlowKey(Guid attempt) => $"{Name()}-{attempt:N}";
+
 
     public Task<string?> BuildFlow() => Task.FromResult(State.BuildFlowId);
 

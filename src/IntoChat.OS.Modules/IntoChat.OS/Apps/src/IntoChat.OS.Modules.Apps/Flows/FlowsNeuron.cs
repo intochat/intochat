@@ -48,14 +48,17 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
         return flows.TryGetValue(flowId, out var entry) ? await View(entry, flows, ct) : null;
     }
 
-    public async Task<string> Start(string type, string title, string? parentFlowId, string innerJson, CancellationToken ct = default)
+    public async Task<string> Start(string type, string title, string? parentFlowId, string innerJson, CancellationToken ct = default, string? flowId = null)
     {
+        await Check("Start", new FlowKeyIsValid(flowId));
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentNullException.ThrowIfNull(innerJson);
         var blocker = parentFlowId is not null && State.Flows.TryGetValue(parentFlowId, out var parent) ? BlockersOf(parent, State.Flows).FirstOrDefault() : null;
-        await Check("Start", new ParentNotBlocked(blocker));
-        var id = new NeuronId(Id.Brain, type, Guid.NewGuid().ToString("N"));
+        var id = new NeuronId(Id.Brain, type, flowId ?? Guid.NewGuid().ToString("N"));
+        var exists = flowId is not null && (State.Flows.ContainsKey(id.ToString())
+            || (await Context.Get<IFlowStarter>(id).Head()).Status != DigitalBrain.Flows.FlowStatus.Pending);
+        await Check("Start", new ParentNotBlocked(blocker), new FlowIsNew(id.ToString(), exists));
         await Context.Get<IFlowStarter>(id).StartFromJson(title, Caller(), parentFlowId, innerJson);
         return id.ToString();
     }

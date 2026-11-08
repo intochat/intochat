@@ -25,11 +25,11 @@ public sealed class BuildFlowFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    // Answers a unit draft with one file of Source, an app draft with a notes file and the app's own manifest.
-    private sealed class ScriptedDrafter(string source) : IDrafter
+    // Answers a unit draft with one file of Source, an app draft with a notes file and the app's own manifest; with no Source it throws.
+    private sealed class ScriptedDrafter(string? source) : IDrafter
     {
         public Task<BuildDraft> Draft(BuildRequest request, CancellationToken ct)
-            => Task.FromResult(request.Snapshot is { Manifest.Headless: false } app
+            => source is null ? throw new InvalidOperationException("the drafter failed") : Task.FromResult(request.Snapshot is { Manifest.Headless: false } app
                 ? new BuildDraft(new Dictionary<string, string>(StringComparer.Ordinal) { ["notes.md"] = source }, app.Manifest)
                 : new BuildDraft(new Dictionary<string, string>(StringComparer.Ordinal) { ["unit.cs"] = source }, null));
     }
@@ -110,7 +110,7 @@ public sealed class BuildFlowFacts
             => Task.CompletedTask;
     }
 
-    private sealed class BuildFixture(string source, RecordingHost host) : BothRuntimesFixture
+    private sealed class BuildFixture(string? source, RecordingHost host) : BothRuntimesFixture
     {
         protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(FlowsFactsModule)];
 
@@ -253,6 +253,7 @@ public sealed class BuildFlowFacts
         await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), appKey, "add notes", Ct);
 
         var flowId = Assert.IsType<string>(await app.BuildFlow());
+        Assert.StartsWith(runtime.Brain.Value + "/" + BuildFlow.Alias + "/notes-", flowId, StringComparison.Ordinal);
         var view = await Eventually(() => Flows(runtime).Read(flowId, Ct), v => v.Status == FlowStatus.Waiting);
         Assert.Equal(["draft", "check", "deploy"], view.Done);
         Assert.Equal("approve", view.WaitingStep);
@@ -272,14 +273,13 @@ public sealed class BuildFlowFacts
         await app.Create(new AppManifest("Broken", "Never builds", [], [], []), "spec");
         await app.BeginBuild(null);
         var flows = Flows(runtime);
-        var flowId = await flows.Start(BuildFlow.Alias, "Broken", null, Unit("Broken"), Ct);
+        var flowId = Assert.IsType<string>(await app.BuildFlow());
+        await flows.Start(BuildFlow.Alias, "Broken", null, Unit("Broken"), Ct, Id(flowId).Key);
         await Eventually(() => flows.Read(flowId, Ct), v => v.Status == FlowStatus.Failed);
-        await app.BuildFlowStarted(flowId);
 
-        var stored = await app.Read();
-        var shown = await AppBuildStatus.Of(stored, app, flows, Ct);
+        // The app's own FlowDone reaction may already have failed it; the read-side status agrees either way.
+        var shown = await AppBuildStatus.Of(await app.Read(), app, flows, Ct);
 
-        Assert.Equal(AppStatus.Building, stored.Status);
         Assert.Equal(AppStatus.Failed, shown.Status);
         Assert.Contains(shown.Activity, line => line.StartsWith("build failed: ", StringComparison.Ordinal) && line.Contains("Does not compile", StringComparison.Ordinal));
     }
@@ -292,15 +292,61 @@ public sealed class BuildFlowFacts
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/failing"));
         await app.Create(new AppManifest("Failing", "Fails", [], [], []), "spec");
         await app.BeginBuild(null);
-        var flowId = runtime.Brain.Value + "/flow.build/failing";
-        await app.BuildFlowStarted(flowId);
+        var flowId = Assert.IsType<string>(await app.BuildFlow());
 
         await runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump")).Failed(flowId, "x");
 
-        AppSnapshot snapshot = await app.Read();
-        for (var i = 0; i < 200 && snapshot.Status == AppStatus.Building; i++) { await Task.Delay(50, Ct); snapshot = await app.Read(); }
+        var snapshot = await Settled(app);
         Assert.Equal(AppStatus.Failed, snapshot.Status);
         Assert.Equal("build failed: x", snapshot.Activity[^1]);
+    }
+
+    [Fact]
+    public async Task AStaleFlowDoneDoesNotFailAFreshAttempt()
+    {
+        await using var fixture = new BuildFixture("# notes", new RecordingHost());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/retried"));
+        await app.Create(new AppManifest("Retried", "Fails once", [], [], []), "spec");
+        var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
+        await app.BeginBuild(null);
+        var first = Assert.IsType<string>(await app.BuildFlow());
+        await pump.Failed(first, "first");
+        Assert.Equal(AppStatus.Failed, (await Settled(app)).Status);
+
+        await app.BeginBuild(null);
+        var second = Assert.IsType<string>(await app.BuildFlow());
+        await pump.Failed(first, "stale");
+        await pump.Done(second);
+        await Task.Delay(500, Ct);
+
+        var snapshot = await app.Read();
+        Assert.NotEqual(first, second);
+        Assert.Equal(AppStatus.Building, snapshot.Status);
+        Assert.DoesNotContain(snapshot.Activity, line => line.Contains("stale", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFlowThatFailsImmediatelyFailsTheApp()
+    {
+        await using var fixture = new BuildFixture(null, new RecordingHost());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/doomed"));
+        await app.Create(new AppManifest("Doomed", "Never drafts", [], [], []), "spec");
+
+        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IApp.Key(runtime.Brain.Value, "doomed"), null, Ct);
+
+        var snapshot = await Settled(app);
+        Assert.Equal(AppStatus.Failed, snapshot.Status);
+        Assert.Contains("the drafter failed", snapshot.Activity[^1], StringComparison.Ordinal);
+    }
+
+    // The app's status once it leaves Building, or Building after ten seconds.
+    private static async Task<AppSnapshot> Settled(IApp app)
+    {
+        var snapshot = await app.Read();
+        for (var i = 0; i < 200 && snapshot.Status == AppStatus.Building; i++) { await Task.Delay(50, Ct); snapshot = await app.Read(); }
+        return snapshot;
     }
 
     private static NeuronId Id(string flowId)

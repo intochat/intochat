@@ -110,6 +110,20 @@ public sealed class FlowsNeuronFacts
     }
 
     [Fact]
+    public async Task StartWithExistingKeyIsRefused()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+
+        var id = await flows.Start(TestFlow.Alias, "Keyed", null, Inner(new TestInner()), Ct, "keyed");
+        var refused = await Assert.ThrowsAsync<DigitalBrain.Rules.RuleViolationException>(() => flows.Start(TestFlow.Alias, "Again", null, Inner(new TestInner()), Ct, "keyed"));
+
+        Assert.Equal(runtime.Brain.Value + "/" + TestFlow.Alias + "/keyed", id);
+        Assert.Contains($"flow exists: {id}", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task StartRefusedWhileBlocked()
     {
         await using var fixture = new FlowsFixture();

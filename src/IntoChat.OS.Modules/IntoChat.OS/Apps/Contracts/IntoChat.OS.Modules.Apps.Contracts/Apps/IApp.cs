@@ -24,8 +24,7 @@ public interface IApp
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Rollback(string version);
     Task<AppSnapshot> BeginBuild(string? instruction);
     Task<Guid> CurrentBuildAttempt();
-    // Records the build flow (an IFlows id) of the running attempt; its status is read through IFlows.Read.
-    Task BuildFlowStarted(string flowId);
+    // The running attempt's build flow (an IFlows id), named by BeginBuild before the flow starts; its status is read through IFlows.Read.
     [DigitalBrain.ReadOnlyCall] Task<string?> BuildFlow();
     // Ends a headless build whose synapse unit deployed: the app goes Live with no program, the unit's hash on its activity feed.
     Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash);
