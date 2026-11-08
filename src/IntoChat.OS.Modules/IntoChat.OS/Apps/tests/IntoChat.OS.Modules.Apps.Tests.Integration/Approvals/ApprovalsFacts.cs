@@ -34,6 +34,21 @@ public sealed class PlanRaiser : DigitalBrain.Neuron, IPlanRaiser
     }
 }
 
+public interface IPlanResolver
+{
+    Task Resolve(string planId, bool approve);
+}
+
+// A neuron answering a plan through the inbox, as a flow step or a synapse would.
+[DigitalBrain.Neuron(Alias), StatelessNeuron]
+public sealed class PlanResolver : DigitalBrain.Neuron, IPlanResolver
+{
+    public const string Alias = "test.plan-resolver";
+
+    public Task Resolve(string planId, bool approve)
+        => Context.Get<IConfirmationInbox>(new NeuronId(Id.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey)).Resolve(planId, approve);
+}
+
 // Stands in for the silo's synapse host with one staged source.
 internal sealed class StagedHost : ISynapseHost
 {
@@ -114,24 +129,82 @@ public sealed class ApprovalsFacts
         Assert.All(pending, a => Assert.True(a.Expires > a.Requested));
     }
 
+    private static async Task<FlowStatus> EndOf(IFlows flows, string flowId)
+    {
+        for (var i = 0; i < 200 && (await flows.Read(flowId, Ct))?.Status is FlowStatus.Waiting or FlowStatus.Running or FlowStatus.Pending; i++) { await Task.Delay(50, Ct); }
+        return (await flows.Read(flowId, Ct))!.Status;
+    }
+
     [Fact]
-    public async Task DecideResolvesThePlan()
+    public async Task ResolvingThroughTheInboxEdgeRemovesThePending()
     {
         await using var fixture = new ApprovalsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
         var flows = Flows(runtime);
-        var flowId = await flows.Start(TestFlow.Alias, "Decide", null, Inner(), Ct);
+        var flowId = await flows.Start(TestFlow.Alias, "Edge", null, Inner(), Ct);
         var pending = await Eventually(runtime, list => list.Any(a => a.Kind == ApprovalKind.FlowStep));
-        var plan = pending.Single(a => a.Kind == ApprovalKind.FlowStep).PlanId;
 
-        using (AsPerson(runtime))
-        {
-            await Approvals(runtime).Decide(plan, approve: true, note: null, Ct);
-        }
+        await runtime.ApproveAsPerson(pending.Single(a => a.Kind == ApprovalKind.FlowStep).PlanId, Ct);
 
-        for (var i = 0; i < 200 && (await flows.Read(flowId, Ct))?.Status != FlowStatus.Completed; i++) { await Task.Delay(50, Ct); }
-        Assert.Equal(FlowStatus.Completed, (await flows.Read(flowId, Ct))!.Status);
+        Assert.Equal(FlowStatus.Completed, await EndOf(flows, flowId));
         using (AsPerson(runtime)) { Assert.Empty(await Approvals(runtime).Pending(Ct)); }
+    }
+
+    [Fact]
+    public async Task ANeuronCannotResolveAPlanThroughTheInbox()
+    {
+        await using var fixture = new ApprovalsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        var flowId = await flows.Start(TestFlow.Alias, "Self", null, Inner(), Ct);
+        var pending = await Eventually(runtime, list => list.Any(a => a.Kind == ApprovalKind.FlowStep));
+        var resolver = runtime.Get<IPlanResolver>(new NeuronId(runtime.Brain, PlanResolver.Alias, "resolver"));
+
+        using (AsPerson(runtime)) { await resolver.Resolve(pending.Single(a => a.Kind == ApprovalKind.FlowStep).PlanId, approve: true); }
+
+        var end = await EndOf(flows, flowId);
+        Assert.NotEqual(FlowStatus.Completed, end);
+        Assert.Equal(FlowStatus.Cancelled, end);
+    }
+
+    [Fact]
+    public async Task UnstampedAndForeignBrainCallersCannotReadPending()
+    {
+        await using var fixture = new ApprovalsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        await Raiser(runtime).Raise("delete:2", ConfirmationAction.Delete, "Delete a.txt?", "Gone.", "a.txt");
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Approvals(runtime).Pending(Ct));
+        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", "another-brain")))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Approvals(runtime).Pending(Ct));
+        }
+    }
+
+    [Fact]
+    public async Task UnmatchedPlanIsOther()
+    {
+        await using var fixture = new ApprovalsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        await Raiser(runtime).Raise("other:1", ConfirmationAction.Other, "Do a thing", "Really.", "thing");
+
+        var approval = Assert.Single(await Eventually(runtime, list => list.Count == 1));
+
+        Assert.Equal(ApprovalKind.Other, approval.Kind);
+        Assert.Equal("thing", approval.Subject);
+    }
+
+    [Fact]
+    public async Task GrantPlanIsGrant()
+    {
+        await using var fixture = new ApprovalsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        await Raiser(runtime).Raise("grant:1", ConfirmationAction.Other, "Allow calendar", "Read your calendar.", "grant:calendar.read");
+
+        var approval = Assert.Single(await Eventually(runtime, list => list.Count == 1));
+
+        Assert.Equal(ApprovalKind.Grant, approval.Kind);
+        Assert.Equal("calendar.read", approval.Subject);
     }
 
     [Fact]
