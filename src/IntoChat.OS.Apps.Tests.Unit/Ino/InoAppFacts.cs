@@ -174,6 +174,7 @@ public sealed class InoAppFacts
         Assert.Equal("ino/conversations/main", ino.App.State.AgentKey);
         var started = Assert.Single(os.Journal(Brain).Signals(AgentOf("main")).Select(entry => entry.Signal).OfType<TurnStarted>());
         Assert.Equal("hello there", started.UserText);
+        Assert.Equal(started.RunId, ino.App.State.ActiveRunId);
     }
 
     [Fact]
@@ -541,7 +542,8 @@ public sealed class InoAppFacts
         public Task<string> Start(AgentTurn turn, string? flowId = null) { Starts++; return Task.FromResult("run-1"); }
         public Task Cancel() { Cancels++; return Task.CompletedTask; }
         public Task CancelRun(string runId) => Task.CompletedTask;
-        public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
+        public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null,
+            Starts > 0 ? new AgentRun("run-1", AgentRunStatus.Running, "hello", DateTimeOffset.UtcNow) : null, []));
         public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript()
             => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>(
                 Reply is null ? [] : [new("assistant", [new IntoChat.OS.Modules.AI.Inference.AiText(Reply)])]);

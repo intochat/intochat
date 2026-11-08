@@ -138,6 +138,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             var read = await agent.Read();
             _transcript = await agent.Transcript();
             Set(State with { Blocked = read.Blocked, BlockedReason = read.Blocked ? State.BlockedReason ?? "An interrupt holds the agent." : null });
+            await ReconcileAsync(agent, State.ActiveRunId);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -213,11 +214,23 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         }
     }
 
-    // A run that ended before the watch saw it (a fast reply, or signals published before the registry moved) is read back once.
-    private async Task ReconcileAsync(IAgent agent, string runId)
+    // The agent's own record settles what a missed signal would have: a run Ino holds that has ended (a fast reply, a signal published
+    // before the watch moved, or one lost while the host was down) is closed, and a run the agent has that Ino lost is adopted.
+    private async Task ReconcileAsync(IAgent agent, string? runId)
     {
         var read = await agent.Read();
-        if (read.ActiveRun?.RunId == runId || read.Runs.FirstOrDefault(run => run.RunId == runId) is not { } ended) { return; }
+        if (runId is null)
+        {
+            if (read.ActiveRun is { } running) { Set(State with { ActiveRunId = running.RunId, Status = "Thinking" }); }
+            return;
+        }
+        if (read.ActiveRun?.RunId == runId) { return; }
+        if (read.Runs.FirstOrDefault(run => run.RunId == runId) is not { } ended)
+        {
+            // Not active and not recorded (the agent was cleared): nothing is running.
+            Set(State with { ActiveRunId = null, Status = State.Status == "Thinking" || State.Status.StartsWith("Using ", StringComparison.Ordinal) ? "Ready" : State.Status });
+            return;
+        }
         _transcript = await agent.Transcript();
         Set(State with
         {
@@ -312,10 +325,12 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task Stop(InoStop request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
+        if (State.ActiveRunId is null) { await ReconcileAsync(agent, null); }
         if (State.ActiveRunId is null) { return; }
         // Stopping first: the agent's TurnFailed (cancelled), which may arrive during Cancel, has the last word and clears the run.
         Set(State with { Status = "Stopping" });
-        await Get<IAgent>(AgentKeyOf(State.ConversationId)).Cancel();
+        await agent.Cancel();
     }
 
     [DigitalBrain.On]

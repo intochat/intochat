@@ -770,14 +770,15 @@ internal sealed class CompiledAppsHost(
                 await host.AssignType(appKey, spec.AppType, new Dictionary<string, string>(StringComparer.Ordinal), ct);
                 turns = host.TryGetTurns(appKey)!;
                 WireInoServices(brain, turns.App);
-                await AttachWatchesAsync(brain, appKey, turns);
             }
+            await AttachWatchesAsync(brain, appKey, turns);
             return turns;
         }
 
         var existingTurns = host.TryGetTurns(appKey);
         if (existingTurns is not null)
         {
+            await AttachWatchesAsync(brain, appKey, existingTurns);
             return existingTurns;
         }
 
@@ -804,13 +805,35 @@ internal sealed class CompiledAppsHost(
         return null;
     }
 
-    // The app's declared watches, served for as long as the host runs; re-assigning the app replaces them (listeners are keyed per app and watch).
-    private async Task AttachWatchesAsync(string brain, string appKey, DigitalBrain.Apps.Hosting.AppTurns turns)
+    // Each assigned app's watch subscriptions, by app key, with the turns they feed: a reassigned app (new turns) gets new ones and
+    // the old ones are disposed; a retired app's are disposed on its next ensure.
+    private readonly ConcurrentDictionary<string, (DigitalBrain.Apps.Hosting.AppTurns Turns, IAsyncDisposable Watches)> _watches = new(StringComparer.Ordinal);
+
+    internal async Task AttachWatchesAsync(string brain, string appKey, DigitalBrain.Apps.Hosting.AppTurns? turns)
     {
-        if (turns.App.DeclaredWatches().Count == 0) { return; }
-        _ = await HostedAppWatches.Attach(listeners, turns, new AppAddress(brain, appKey),
+        if (_watches.TryGetValue(appKey, out var attached) && ReferenceEquals(attached.Turns, turns)) { return; }
+        if (attached.Watches is not null && _watches.TryRemove(new(appKey, attached)))
+        {
+            try { await attached.Watches.DisposeAsync(); }
+            catch (Exception error) when (error is not OperationCanceledException) { logger.LogWarning(error, "Watches of {App} did not stop cleanly.", appKey); }
+        }
+        if (turns is null || turns.App.DeclaredWatches().Count == 0) { return; }
+        if (services.GetService<IIntoChatOSBrains>() is not { } brains)
+        {
+            logger.LogWarning("App {App} declares watches but this host has no brain client; its watches are not served.", appKey);
+            return;
+        }
+        var watches = HostedAppWatches.Attach(brains.Open(brain), turns, new AppAddress(brain, appKey),
             (contract, id) => SiloNeurons.Get(services, contract, id),
             (error, watch) => logger.LogWarning(error, "Watch {Watch} of {App} failed.", watch, appKey));
+        if (!_watches.TryAdd(appKey, (turns, watches))) { await watches.DisposeAsync(); }
+    }
+
+    // Test seam: ensure one app as the host does on activation and return its turns.
+    internal async Task<DigitalBrain.Apps.Hosting.AppTurns?> EnsureForTestAsync(string brain, string appName, CancellationToken ct)
+    {
+        var turns = await EnsureAssignedAsync(brain, appName, IApp.Key(brain, appName), ct);
+        return turns;
     }
 
     private void WireInoServices(string brain, App instance)

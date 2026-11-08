@@ -17,6 +17,8 @@ public sealed partial class NoSignalLoopFacts
         "IntoChat.OS.Modules.Microsoft.CSharp/Authoring/CSharpScriptSandbox.cs",
         "IntoChat.OS.Modules.Microsoft.CSharp/Catalog/CSharpContractDiscovery.cs",
         "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/AppRunner.cs",
+        // Host infrastructure that drives app turns from declared watches, as AppRunner does; not module logic.
+        "IntoChat.OS.Modules.Apps/Hosting/HostedAppWatches.cs",
     ];
 
     [GeneratedRegex(@"WatchRenewing\(|\bObserverManager\b|\bINeuronObserver\b|\bI?LocalSignalHub\b|\bSignalNudge\b|\.Watch\(|\.Unwatch\(", RegexOptions.CultureInvariant)]
