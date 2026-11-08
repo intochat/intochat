@@ -30,6 +30,8 @@ internal sealed class FakeClusterHost : IClusterHost
 
     public string[] InstanceNames { get; set; } = ["mcp-a", "mcp-b", "silo-0", "silo-1"];
     public string? Self { get; set; }
+    public DateTimeOffset SelfStarted { get; set; } = DateTimeOffset.MinValue;
+    public Task<DateTimeOffset?> StartedAt(string name, CancellationToken ct) => Task.FromResult<DateTimeOffset?>(name == Self ? SelfStarted : DateTimeOffset.MinValue);
     public List<string> RestartedSilos { get; } = [];
     // "name@sha": that instance never becomes ready on that build; "name@sha exits": it stops while starting.
     public HashSet<string> NeverHealthy { get; } = [];

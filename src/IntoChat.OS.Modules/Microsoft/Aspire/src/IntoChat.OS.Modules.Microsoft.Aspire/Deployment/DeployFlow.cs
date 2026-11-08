@@ -26,11 +26,12 @@ internal sealed class DeployInner
     public RestartIssued? RestartIssued { get; set; }
 }
 
-// One roll onto TargetSha: "order", then per instance "roll:{x}:restart" (live.json, drain, restart, recorded as RestartIssued and
-// followed by a one-minute schedule wait) and "roll:{x}:ready" (ready since the restart; never restarts), then "handover". A step that
-// fails throws FlowFailed; going back is a second DeployFlow, started by the deployment when this one ends Failed. A restart step run
-// again with its RestartIssued saved issues no second restart; the flow's own silo's restart is detached, so the step returns and saves
-// before the silo stops, and the ready step runs on the restarted silo.
+// One roll onto TargetSha: "order", then per instance "roll:{x}:mark" (saves RestartIssued, no side effect), "roll:{x}:restart"
+// (live.json, then drain and restart only if the instance's process started at or before the mark; a one-minute schedule wait) and
+// "roll:{x}:ready" (ready since the mark; never restarts), then "handover". The mark is durable before the restart is issued, so a
+// restart step run again (cut off by its own silo's restart) sees the restarted process and issues nothing; an instance whose start
+// time is unknown is never restarted and fails the roll. A step that fails throws FlowFailed; going
+// back is a second DeployFlow, started by the deployment when this one ends Failed.
 [DigitalBrain.Neuron(Alias)]
 internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
 {
@@ -39,6 +40,8 @@ internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
     public const string OrderStep = "order";
 
     public const string Handover = "handover";
+
+    public static string MarkStep(string instance) => $"roll:{instance}:mark";
 
     public static string RestartStep(string instance) => $"roll:{instance}:restart";
 
@@ -58,7 +61,7 @@ internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
     internal static readonly TimeSpan Pause = TimeSpan.FromMinutes(1);
 
     protected override IReadOnlyList<string> Steps
-        => [OrderStep, .. State.Inner.Order.SelectMany(name => new[] { RestartStep(name), ReadyStep(name) }), Handover];
+        => [OrderStep, .. State.Inner.Order.SelectMany(name => new[] { MarkStep(name), RestartStep(name), ReadyStep(name) }), Handover];
 
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
         => Start(title, owner, parentFlowId, JsonSerializer.Deserialize<DeployInner>(innerJson, Json) ?? new DeployInner());
@@ -75,6 +78,7 @@ internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
         if (step == OrderStep) { return new StepResult<DeployInner>(Ordered(inner)); }
         if (step == Handover) { return new StepResult<DeployInner>(inner); }
         if (InstanceOf(step) is not { } name) { throw new FlowFailed(step, $"Unknown step {step}."); }
+        if (step == MarkStep(name)) { return new StepResult<DeployInner>(With(inner, restart: new RestartIssued(name, Context.Time.GetUtcNow()))); }
         if (step == RestartStep(name))
         {
             var next = await Restart(step, name, inner, ct);
@@ -93,11 +97,16 @@ internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
 
     private async Task<DeployInner> Restart(string step, string name, DeployInner inner, CancellationToken ct)
     {
-        // Run again with its restart saved: the instance is already moving, so nothing is issued twice.
-        if (inner.RestartIssued?.Instance == name) { return inner; }
+        if (inner.RestartIssued is not { } mark || mark.Instance != name) { throw new FlowFailed(step, $"{name} has no restart mark"); }
         var host = Host;
         var target = inner.TargetSha;
         await Guard(step, name, target, async () => { if (await host.CurrentSha(ct) != target) { await host.SetLive(target, ct); } }, "live.json could not be written");
+        // A process started after the mark is the restart this step issued before it was cut off. An unknown start is never restarted:
+        // the roll fails cleanly rather than risk a second restart.
+        DateTimeOffset? started = null;
+        await Guard(step, name, target, async () => started = await host.StartedAt(name, ct), $"instance {name} start time could not be read");
+        if (started is not { } start) { throw new FlowFailed(step, $"{name} never became ready on {target}: its start time is unknown"); }
+        if (start > mark.At) { return inner; }
         await Guard(step, name, target, async () =>
         {
             await host.DrainInstance(name, ct);
@@ -105,7 +114,6 @@ internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
             if (instances.Any(peer => peer != name && AspireCliClusterHost.RoleOf(peer) == AspireCliClusterHost.RoleOf(name)))
             { await host.WaitOutOfFront(name, Budget, ct); }
         }, $"instance {name} could not drain");
-        var issued = new RestartIssued(name, Context.Time.GetUtcNow());
         var budget = Budget;
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bounded.CancelAfter(budget);
@@ -118,16 +126,28 @@ internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
         {
             throw new FlowFailed(step, $"{name} never became ready on {target}: instance {name} failed to restart: {error.Message}");
         }
-        return With(inner, restart: issued);
+        return inner;
     }
 
-    // On the restarted silo itself this activation is its readiness; any other instance is waited for since its restart.
+    // Another instance is waited for since the mark. The flow's own silo is ready when this process started after the mark; until the
+    // budget is spent the step is interrupted (the old process still running it is about to stop, and the nudge runs it again), then
+    // the roll fails rather than end Steady on a silo still running the old build.
     private async Task<DeployInner> Ready(string step, string name, DeployInner inner, CancellationToken ct)
     {
-        if (name != Host.Self)
+        var since = inner.RestartIssued is { } issued && issued.Instance == name ? issued.At : DateTimeOffset.MinValue;
+        var host = Host;
+        if (name != host.Self)
         {
-            var since = inner.RestartIssued is { } issued && issued.Instance == name ? issued.At : DateTimeOffset.MinValue;
-            await Guard(step, name, inner.TargetSha, () => Host.WaitInstance(name, since, Budget, ct), null);
+            await Guard(step, name, inner.TargetSha, () => host.WaitInstance(name, since, Budget, ct), null);
+            // Ready is not enough: the process answering must be one started after the mark.
+            DateTimeOffset? started = null;
+            await Guard(step, name, inner.TargetSha, async () => started = await host.StartedAt(name, ct), $"instance {name} start time could not be read");
+            if (started is not { } start || start <= since) { throw new FlowFailed(step, $"{name} never became ready on {inner.TargetSha}: it did not restart"); }
+        }
+        else if (host.SelfStarted <= since)
+        {
+            if (Context.Time.GetUtcNow() - since < Budget) { throw new OperationCanceledException($"{name} has not restarted since {since:O}"); }
+            throw new FlowFailed(step, $"{name} never became ready on {inner.TargetSha}: its process did not restart within {Budget}");
         }
         return With(inner, rolled: inner.Rolled.Contains(name) ? inner.Rolled : [.. inner.Rolled, name], restart: null, clearRestart: true);
     }

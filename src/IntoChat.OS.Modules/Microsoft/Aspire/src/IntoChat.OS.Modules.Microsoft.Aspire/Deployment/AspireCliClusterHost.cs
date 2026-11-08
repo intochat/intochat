@@ -107,6 +107,18 @@ internal sealed class AspireCliClusterHost : IClusterHost
         return [.. names.Where(name => Instance(name, McpResource)), .. names.Where(name => Instance(name, SiloResource))];
     }
 
+    public DateTimeOffset SelfStarted { get; } = new(System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime());
+
+    public async Task<DateTimeOffset?> StartedAt(string name, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (name == self) { return SelfStarted; }
+        var resource = (await Describe(ct)).FirstOrDefault(item => Text(item, "displayName", "name") == name);
+        return resource.ValueKind == JsonValueKind.Object && Text(resource, "startTimestamp") is { } started
+            && DateTimeOffset.TryParse(started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var start)
+            ? start : null;
+    }
+
     // Restarting the silo this call runs in ends the caller: that restart is detached, as in RestartSilos.
     public async Task RestartInstance(string name, CancellationToken ct)
     {

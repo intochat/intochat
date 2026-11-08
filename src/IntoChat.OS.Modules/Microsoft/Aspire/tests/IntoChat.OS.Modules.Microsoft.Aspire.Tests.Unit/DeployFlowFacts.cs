@@ -28,7 +28,22 @@ public sealed class DeployFlowFacts
         public Task<string> CurrentSha(CancellationToken ct) => Task.FromResult(Current);
         public Task SetLive(string sha, CancellationToken ct) { Current = sha; return Task.CompletedTask; }
         public Task RestartSilos(CancellationToken ct) => Task.CompletedTask;
-        public Task RestartInstance(string name, CancellationToken ct) { Restarted.Add($"{name}@{Current}"); return Task.CompletedTask; }
+        // When each instance's current process started; a restart starts a new one just after now.
+        public Dictionary<string, DateTimeOffset> Started { get; } = [];
+        public Func<DateTimeOffset> Now { get; set; } = () => DateTimeOffset.UtcNow;
+        public DateTimeOffset SelfStarted => Self is { } self ? Started.GetValueOrDefault(self, DateTimeOffset.MinValue) : DateTimeOffset.MinValue;
+        public Task<DateTimeOffset?> StartedAt(string name, CancellationToken ct) => Task.FromResult<DateTimeOffset?>(Started.GetValueOrDefault(name, DateTimeOffset.MinValue));
+        // An instance in this set ignores its restart, as a detached restart that never ran.
+        public HashSet<string> NeverRestarts { get; } = [];
+        public HashSet<string> CutOffAfter { get; } = [];
+        public Task RestartInstance(string name, CancellationToken ct)
+        {
+            Restarted.Add($"{name}@{Current}");
+            if (!NeverRestarts.Contains(name)) { Started[name] = Now().AddTicks(1); }
+            // The restart went out and the process running the step stopped before the step could save.
+            if (CutOffAfter.Remove(name)) { throw new OperationCanceledException($"cut off after restarting {name}"); }
+            return Task.CompletedTask;
+        }
         public Task DrainInstance(string name, CancellationToken ct) => Task.CompletedTask;
         public Task WaitOutOfFront(string name, TimeSpan budget, CancellationToken ct) => Task.CompletedTask;
         public Task WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct)
@@ -72,6 +87,7 @@ public sealed class DeployFlowFacts
         services.AddOptions<AspireOptions>();
         var provider = services.BuildServiceProvider();
         var os = TestOS.Local(options => options.Services = provider);
+        host.Now = os.Clock.GetUtcNow;
         os.Register<DeployFlow>();
         os.Register<DeploymentNeuron>();
         os.Register<StartOnlyFlows>();
@@ -92,7 +108,8 @@ public sealed class DeployFlowFacts
     private static IDeployment Deployment(TestOS os) => os.Get<IDeployment>(DeploymentId);
 
     private static readonly string[] Rolled =
-        ["order", "roll:mcp-a:restart", "roll:mcp-a:ready", "roll:silo-0:restart", "roll:silo-0:ready", "roll:silo-1:restart", "roll:silo-1:ready", "handover"];
+        ["order", "roll:mcp-a:mark", "roll:mcp-a:restart", "roll:mcp-a:ready", "roll:silo-0:mark", "roll:silo-0:restart", "roll:silo-0:ready",
+         "roll:silo-1:mark", "roll:silo-1:restart", "roll:silo-1:ready", "handover"];
 
     [Fact]
     public async Task OneStepPerSiloWithScheduleWaitBetween()
@@ -135,17 +152,61 @@ public sealed class DeployFlowFacts
     public async Task AnInterruptedRestartStepDoesNotRestartTwice()
     {
         var host = new Host();
+        host.CutOffAfter.Add("silo-1");
         await using var os = Os(host);
         var flow = os.Get<IFlowStarter>(new NeuronId(Brain, DeployFlow.Alias, "deploy-new111"));
-        var issued = new DeployInner { TargetSha = "new111", PreviousSha = "base000", Remaining = ["silo-0"], Order = ["silo-0"], RestartIssued = new RestartIssued("silo-0", os.Clock.GetUtcNow()) };
 
-        await flow.StartFromJson("Roll onto new111", "test", null, JsonSerializer.Serialize(issued, DeployFlow.Json));
+        // The mark is saved by its own step; the restart step is cut off after issuing the restart, before it saves.
+        await flow.StartFromJson("Roll onto new111", "test", null, Inner("silo-1"));
+        await os.Idle();
+        var head = await flow.Head();
+        Assert.Equal(["silo-1@new111"], host.Restarted);
+        Assert.Contains("roll:silo-1:mark", head.Done);
+        Assert.DoesNotContain("roll:silo-1:restart", head.Done);
+
+        // The nudge runs the restart step again on the restarted process (started after the mark): nothing is issued twice.
+        await Minute(os);
+        await Minute(os);
+        Assert.Equal(["silo-1@new111"], host.Restarted);
+        Assert.Equal(FlowStatus.Completed, (await flow.Head()).Status);
+    }
+
+    [Fact]
+    public async Task AReRunRestartStepAfterTheMarkIssuesNothingForAnInstanceAlreadyRestarted()
+    {
+        var host = new Host();
+        await using var os = Os(host);
+        var flow = os.Get<IFlowStarter>(new NeuronId(Brain, DeployFlow.Alias, "deploy-new111"));
+        // silo-0 restarted after the mark: its process started later than the marker's time.
+        host.Started["silo-0"] = os.Clock.GetUtcNow().AddSeconds(1);
+
+        await flow.StartFromJson("Roll onto new111", "test", null, Inner("silo-0"));
         await os.Idle();
         await Minute(os);
 
         Assert.Empty(host.Restarted);
-        Assert.Equal(["silo-0@base000"], host.Waited);
         Assert.Equal(FlowStatus.Completed, (await flow.Head()).Status);
+    }
+
+    [Fact]
+    public async Task SelfReadyRequiresAProcessStartedAfterTheMarker()
+    {
+        var host = new Host();
+        host.NeverRestarts.Add("silo-1");
+        await using var os = Os(host);
+        var flow = os.Get<IFlowStarter>(new NeuronId(Brain, DeployFlow.Alias, "deploy-new111"));
+
+        await flow.StartFromJson("Roll onto new111", "test", null, Inner("silo-1"));
+        await os.Idle();
+        await Minute(os);
+        // The detached restart never ran: the old process is not ready, and the step is retried while the budget lasts.
+        Assert.Equal(FlowStatus.Running, (await flow.Head()).Status);
+
+        os.Clock.Advance(new AspireOptions().SiloStepBudget);
+        await os.Idle();
+        var head = await flow.Head();
+        Assert.Equal(FlowStatus.Failed, head.Status);
+        Assert.DoesNotContain("roll:silo-1:ready", head.Done);
     }
 
     [Fact]
