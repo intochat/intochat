@@ -73,7 +73,9 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
         foreach (var unit in units)
         {
             var alias = unit.Aliases.FirstOrDefault() ?? unit.SourceKey;
-            var sidecars = await studio.Sidecars(alias);
+            Dictionary<string, string> sidecars;
+            try { sidecars = await studio.Sidecars(alias); }
+            catch (Exception error) when (error is not OperationCanceledException) { lines.Add($"- {alias} ({unit.Status}): sidecars unavailable"); continue; }
             lines.Add($"- {alias} ({unit.Status}): spec.md {Kept(sidecars, "spec.md")}, scenarios.json {Kept(sidecars, "scenarios.json")}");
         }
         return new InoToolResult(text + "\nUnits:\n" + string.Join("\n", lines));

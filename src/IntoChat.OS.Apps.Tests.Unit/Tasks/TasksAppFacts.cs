@@ -263,6 +263,19 @@ public sealed class TasksAppFacts
     }
 
     [Fact]
+    public void AMissingConnectionApprovalIsOneReadOnlyCard()
+    {
+        var flow = Unit(FlowStatus.Waiting, "deploy", ["author", "draft", "verify"], WaitReason.External, "deploy");
+        var other = new Approval("plan-o", ApprovalKind.Other, flow.FlowId, "Connect", "connect http@1 for api.x.com", T0, T0.AddDays(2), flow.TraceId);
+
+        var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [other], null);
+
+        Assert.All(Nodes(side).OfType<ApprovalCardNode>(), card => Assert.Null(card.Resolve));
+        Assert.Single(Nodes(side).OfType<InfoBar>(), b => b.Title == "Needs a connection");
+        Assert.Contains("connect http@1 for api.x.com", Strings(side));
+    }
+
+    [Fact]
     public async Task ShowSourceOfACompletedBuildFollowsItsSubject()
     {
         await using var os = FakeOs();

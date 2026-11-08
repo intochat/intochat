@@ -32,10 +32,6 @@ public sealed record FlowView(
     // What the flow is about, once known: a build flow's unit alias (the synapse source key); null otherwise.
     string? Subject = null);
 
-// A flow names what it is about; the index folds it into FlowView.Subject.
-[DigitalBrain.Signal("flow.subject")]
-public sealed record FlowSubject(string FlowId, string Subject) : DigitalBrain.Signal;
-
 // Null fields do not filter; AnyStatus keeps views whose status is one of them. Newest started first, at most Limit.
 public sealed record FlowQuery(string? Owner = null, FlowStatus? Status = null, string? Type = null, string? ParentFlowId = null, int Limit = 200,
     FlowStatus[]? AnyStatus = null);

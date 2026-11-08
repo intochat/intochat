@@ -47,6 +47,7 @@ public interface ISynapseStudio
     [DigitalBrain.ReadOnlyCall]
     Task<Dictionary<string, string>> Sidecars(string alias);
 
+    // Any app in the brain may read a unit's source and sidecars: units are the person's own.
     // The files of the source the host stores for alias (its compiled .cs files); empty when nothing is stored there.
     [DigitalBrain.ReadOnlyCall]
     Task<Dictionary<string, string>> SourceFiles(string alias);

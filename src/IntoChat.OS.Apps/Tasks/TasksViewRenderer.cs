@@ -52,7 +52,7 @@ public static class TasksViewRenderer
         ];
         if (flow.WaitingFor is { } waiting) { children.Add(new InfoBar("Waiting", $"{waiting} on {flow.WaitingStep}", "warning")); }
         if (flow.Type == BuildFlow.Alias) { children.AddRange(BuildNodes(flow, approvals)); }
-        if (approvals.FirstOrDefault(a => a.Subject == flow.FlowId) is { } approval)
+        if (approvals.FirstOrDefault(a => a.Subject == flow.FlowId && a.Kind != ApprovalKind.Other) is { } approval)
         {
             children.Add(new ApprovalCardNode("approval", approval.PlanId, approval.Title, approval.Detail, [], Resolve: new Resolve(approval.PlanId)));
         }

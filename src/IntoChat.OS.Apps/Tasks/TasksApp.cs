@@ -198,7 +198,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.FlowId) is not { } flowId) { return; }
         var unit = await UnitOfAsync(flowId);
-        var alias = unit?.Aliases.FirstOrDefault() ?? unit?.SourceKey ?? AliasOf(flowId) ?? FlowKey(flowId);
+        var alias = unit?.Aliases.FirstOrDefault() ?? unit?.SourceKey ?? AliasOrKey(flowId);
         // The focus carries the open-ino action; the shell's presence layer opens Ino from it.
         await Get<IInoFocus>(IInoFocus.DefaultKey).Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
         Set(State with { Status = $"Asked Ino to change {alias}" });
@@ -248,7 +248,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
     // The deployed unit whose source key or alias is the unit the flow authored (named by the install consent it waits on) or the flow's key.
     private async Task<DigitalBrain.DeployedSource?> UnitOfAsync(string flowId)
     {
-        var keys = new[] { AliasOf(flowId), FlowKey(flowId) }.OfType<string>().ToArray();
+        var keys = new[] { AliasOf(flowId), FlowKey(flowId) }.OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
         try
         {
             var units = await Get<ISynapseStudio>(SynapsesKey).List();
@@ -270,6 +270,8 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
             && _approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == plan) is { } consent ? consent.Subject : null;
     }
 
+    private string AliasOrKey(string flowId) => AliasOf(flowId) ?? FlowKey(flowId);
+
     // The source of a deployed unit: spec.md first, then the .cs files, then scenarios.json, each under its path.
     private async Task<string> SourceOfAsync(DigitalBrain.DeployedSource unit)
     {
@@ -288,6 +290,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
     {
         var studio = Get<ISynapseStudio>(SynapsesKey);
         Dictionary<string, string> files = new(StringComparer.Ordinal);
+        var unavailable = false;
         try
         {
             foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
@@ -296,12 +299,14 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The unit's files are optional; the source shows what was read.");
+            unavailable = true;
         }
         var ordered = files.Where(file => file.Key == "spec.md")
             .Concat(files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).OrderBy(file => file.Key, StringComparer.Ordinal))
             .Concat(files.Where(file => file.Key is not "spec.md" and not "scenarios.json" && !file.Key.EndsWith(".cs", StringComparison.Ordinal)).OrderBy(file => file.Key, StringComparer.Ordinal))
             .Concat(files.Where(file => file.Key == "scenarios.json"));
-        return string.Concat(ordered.Select(file => $"\n\n--- {file.Key} ---\n{file.Value}"));
+        var listing = string.Concat(ordered.Select(file => $"\n\n--- {file.Key} ---\n{file.Value}"));
+        return unavailable ? listing + "\n\n(files unavailable)" : listing;
     }
 
     private static string FlowKey(string flowId) => flowId[(flowId.LastIndexOf('/') + 1)..];
