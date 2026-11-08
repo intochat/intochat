@@ -1,4 +1,5 @@
-using IntoChat.OS.Modules.AI.Tasks;
+using System.Text.Json;
+using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -13,39 +14,32 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
         ("data", "Query and chart data"),
     ];
 
-    private IUserSettings Settings => Get<IUserSettings>(new DigitalBrain.NeuronId(Id.Brain, "os.settings", "settings"));
-
+    // Starts a build flow of kind unit; the card is its approval, keyed by the flow id.
     public async Task<InoToolResult> Make(string goal)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
         var text = goal.Trim();
-        if (Context.Services.GetService(typeof(ITaskEngine)) is not ITaskEngine engine)
-        {
-            return new InoToolResult($"Task engine is unavailable, so I could not start '{text}'.");
-        }
-
         var title = text.Length <= 52 ? text : text[..52];
-        AgentTask created;
+        string flowId;
         try
         {
-            var settings = await Settings.Read();
-            created = await engine.CreateTaskAsync(new CreateTaskRequest(title, text, settings.DisplayName, [new TaskStepDefinition(title, text, "app.execute")]));
+            var inner = JsonSerializer.Serialize(new BuildInner { Kind = BuildInner.Unit, Goal = text }, BuildFlow.Json);
+            flowId = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Start(BuildFlow.Alias, title, null, inner);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             return new InoToolResult($"Could not start '{title}': {error.Message}");
         }
 
-        var cardId = $"approval-{created.TaskId}";
         var card = new InoCard(
-            cardId,
+            flowId,
             "approval",
             $"Approve: {title}",
             "Pre-filled LFP ApprovalCard ready for 1-click confirmation.",
             "neuron://local/os.confirmations/inbox",
             "pending",
-            $"neuron://local/apps/ino#{cardId}");
-        return new InoToolResult($"Created task {title} ({created.TaskId}); it waits for your approval.", card);
+            $"neuron://local/apps/ino#{flowId}");
+        return new InoToolResult($"Started build {title} ({flowId}); it waits for your approval once deployed.", card);
     }
 
     public async Task<InoToolResult> Launch(string appId)

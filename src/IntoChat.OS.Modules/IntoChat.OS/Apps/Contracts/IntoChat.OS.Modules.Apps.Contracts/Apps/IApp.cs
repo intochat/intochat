@@ -24,9 +24,12 @@ public interface IApp
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Rollback(string version);
     Task<AppSnapshot> BeginBuild(string? instruction);
     Task<Guid> CurrentBuildAttempt();
+    // Records the build flow (an IFlows id) of the running attempt; its status is read through IFlows.Read.
+    Task BuildFlowStarted(string flowId);
+    [DigitalBrain.ReadOnlyCall] Task<string?> BuildFlow();
     // Ends a headless build whose synapse unit deployed: the app goes Live with no program, the unit's hash on its activity feed.
     Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash);
-    // Publishes AppActivity (State is one of AppActivity.States) and, while building, appends Detail to the activity feed.
+    // Publishes AppActivity (State is one of AppActivity.States).
     Task Progress(string state, string detail);
     // The same activity write, plus declared blackboard values, in one presentation revision.
     Task Progress(string state, string detail, Dictionary<string, string> blackboard);

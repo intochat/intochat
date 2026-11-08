@@ -63,7 +63,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
             sink: sp.GetRequiredService<IPresentationSink>(),
             services: serviceType => sp.GetService(serviceType)));
         services.TryAddSingleton<IAppHost>(sp => sp.GetRequiredService<InProcessAppHost>());
-        services.TryAddSingleton<AppWorkQueue>();
+        services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
         services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
         services.AddNeuronProxies();

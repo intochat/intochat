@@ -125,6 +125,20 @@ public sealed class SynapseStudioFacts
     }
 
     [Fact]
+    public async Task CheckReportsCompileFailure()
+    {
+        await using var fixture = new StudioFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+
+        var clean = await Studio(runtime).Check(TickPoller);
+        var broken = await Studio(runtime).Check("this is not C# {");
+
+        Assert.True(clean.Ok, clean.Text);
+        Assert.False(broken.Ok);
+        Assert.StartsWith("Does not compile", broken.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CheckCsharpRunsSynapseAnalyzersOnSynapseSource()
     {
         await using var fixture = new StudioFixture();

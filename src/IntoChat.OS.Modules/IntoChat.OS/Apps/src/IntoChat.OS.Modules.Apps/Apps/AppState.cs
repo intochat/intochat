@@ -54,6 +54,8 @@ public sealed class AppState
     [Id(42)] public long RuntimeStateRevision { get; set; }
     [Id(43)] public long SignalCursor { get; set; }
     [Id(44)] public DigitalBrain.DeadLetterEntry[] DeadLetters { get; set; } = [];
+    // The IFlows id of the latest build; the build status is the flow's.
+    [Id(45)] public string? BuildFlowId { get; set; }
 
     // The maps as callers read and replace them. Each read is a copy: change a map by assigning a new one.
     [IgnoreDataMember]
@@ -139,6 +141,7 @@ public sealed class AppState
         RuntimeStateRevision = RuntimeStateRevision,
         SignalCursor = SignalCursor,
         DeadLetters = [.. DeadLetters],
+        BuildFlowId = BuildFlowId,
     };
 }
 

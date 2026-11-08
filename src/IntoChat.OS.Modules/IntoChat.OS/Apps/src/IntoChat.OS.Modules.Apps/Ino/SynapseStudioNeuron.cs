@@ -20,7 +20,7 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
         var build = compiler.Compile(new SynapseSource("check", new Dictionary<string, string> { ["unit.cs"] = source }, null));
         return Task.FromResult(new InoToolResult(build.Diagnostics.Count == 0
             ? "No diagnostics; the unit compiles."
-            : (build.Success ? "Compiles with diagnostics:\n" : "Does not compile:\n") + Describe(build.Diagnostics)));
+            : (build.Success ? "Compiles with diagnostics:\n" : "Does not compile:\n") + Describe(build.Diagnostics), Ok: build.Success));
     }
 
     public Task<InoToolResult> Deploy(string alias, string source)

@@ -256,6 +256,17 @@ internal sealed partial class AppNeuron(
 
     public Task<Guid> CurrentBuildAttempt() => Task.FromResult(State.BuildAttempt);
 
+    public async Task BuildFlowStarted(string flowId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(flowId);
+        if (State.Manifest is null || State.BuildFlowId == flowId) { return; }
+        var next = State.Clone();
+        next.BuildFlowId = flowId;
+        await Persist(next);
+    }
+
+    public Task<string?> BuildFlow() => Task.FromResult(State.BuildFlowId);
+
     public Task Progress(string state, string detail) => Progress(state, detail, []);
 
     public async Task Progress(string state, string detail, Dictionary<string, string> blackboard)
@@ -268,10 +279,6 @@ internal sealed partial class AppNeuron(
             : [];
         await Check("Progress", [new ActivityStateIsKnown(state ?? ""), .. keyRules]);
         detail = (detail ?? "").Trim();
-        // In-memory update without State.Clone() or Save() disk flushes
-        var building = State.Status == AppStatus.Building && detail.Length > 0
-            && State.Activity.LastOrDefault() != detail;
-        if (building) { State.Activity = [.. State.Activity.TakeLast(MaxActivity - 1), detail]; }
         var activity = new AppActivity(Name(), state!, detail);
         State.ActivitySequence++;
         State.LastActivity = activity;

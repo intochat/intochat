@@ -11,6 +11,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Logging;
@@ -18,17 +19,15 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The Creator's two agents on the app neuron. Author is one synchronous model call that
-// shapes the spec; the Builder loop runs on the work queue, streaming progress into the
-// neuron — never inside a request, never inside a grain turn.
+// The Creator's two agents. Author is one synchronous model call that shapes the spec; the Builder loop is the build flow's
+// draft step (IDrafter), and Implement starts that flow.
 internal sealed class Creator(
     IServiceProvider plain,
     NeuronTypeSearch search,
     IOptions<AppsOptions> options,
     AppAuthoringPolicy policy,
-    AppWorkQueue queue,
     ILogger<Creator> logger,
-    IScriptSandbox? csharp = null)
+    IScriptSandbox? csharp = null) : IDrafter
 {
     private const int MaxAuthorRetries = 2;
     private const int MaxBuilderRounds = 12;
@@ -86,12 +85,12 @@ internal sealed class Creator(
         catch (Exception error) when (reporting is not null && error is not OperationCanceledException)
         {
             // Reporting must not mask the Author's own error.
-            await TryReport(reporting, null, "attention", error.Message, failureIsVisibleElsewhere: true, CancellationToken.None);
+            await TryReport(reporting, "attention", error.Message, failureIsVisibleElsewhere: true);
             throw;
         }
     }
 
-    // Flips the app to Building and returns; the Builder loop lands the files in the background.
+    // Flips the app to Building, starts its build flow and returns; the flow drafts, checks and lands the files.
     public async Task<AppSnapshot> Implement(INeuronProxies brain, string appKey, string? instruction, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(brain);
@@ -99,90 +98,84 @@ internal sealed class Creator(
         var app = brain.Get<IApp>(appKey);
         var snapshot = await app.BeginBuild(instruction).WaitAsync(cancellationToken);
         var attempt = await app.CurrentBuildAttempt().WaitAsync(cancellationToken);
-        queue.Enqueue($"implement {appKey}", (services, ct) => Build(appKey, attempt, snapshot, instruction, ct));
-        return snapshot;
-    }
-
-    private async Task Build(string appKey, Guid attempt, AppSnapshot snapshot, string? instruction, CancellationToken cancellationToken)
-    {
-        // The queue's grain client is unstamped (trusted cluster path); progress and results
-        // land on the neuron, which is the only durable record of this run.
-        var app = SiloNeurons.Get<IApp>(plain, appKey);
+        var inner = new BuildInner { Kind = BuildInner.App, Goal = snapshot.Manifest.Title, AppKey = appKey, Instruction = instruction, Attempt = attempt };
+        var flows = SiloNeurons.Get<IFlows>(plain, IFlows.Key(BrainKey.BrainOf(appKey)).ToString());
         try
         {
-            var task = new StringBuilder()
-                .AppendLine($"App: {snapshot.Manifest.Title}")
-                .AppendLine().AppendLine("Specification:").AppendLine(snapshot.Spec);
-            task.AppendLine().AppendLine("Manifest:").AppendLine(JsonSerializer.Serialize(snapshot.Manifest, Json));
-            if (!string.IsNullOrWhiteSpace(instruction)) { task.AppendLine().AppendLine("The person asked:").AppendLine(instruction.Trim()); }
-            if (snapshot.Files.Count > 0)
-            {
-                task.AppendLine().AppendLine("Current files:");
-                foreach (var (path, source) in snapshot.Files) { task.AppendLine($"--- {path} ---").AppendLine(source); }
-            }
-            await app.Progress("working", $"Building {snapshot.Manifest.Title}");
-            var built = Parse<BuiltApp>(await BuilderConversation(BrainKey.BrainOf(appKey), app, task.ToString(), snapshot.Files, cancellationToken));
-            var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
-            if (files.Count == 0)
-            {
-                await app.CompleteBuild(attempt, null, "the Builder produced no files");
-                await ReportIfCurrent(app, attempt, "attention", "The Builder produced no files", cancellationToken);
-                return;
-            }
-            if (snapshot.Manifest.Headless)
-            {
-                // The unit's alias is the app name; no program files land on the app.
-                var unit = appKey[(appKey.LastIndexOf("/apps/", StringComparison.Ordinal) + "/apps/".Length)..];
-                var studio = SiloNeurons.Get<ISynapseStudio>(plain, ISynapseStudio.Key(BrainKey.BrainOf(appKey)).ToString());
-                var failure = await HeadlessUnit.Complete(app, attempt, studio, unit, files);
-                await ReportIfCurrent(app, attempt, failure is null ? "completed" : "attention", failure ?? $"Deployed {snapshot.Manifest.Title} as a synapse unit", cancellationToken);
-                return;
-            }
-            // Manifest changes land with the files, inside the attempt check: a stale
-            // worker's manifest is discarded with its files. The code is the operation list;
-            // the Builder's and the authored lists only describe what the code has.
-            var derived = AppShape.Operations(files);
-            var manifest = snapshot.Manifest with
-            {
-                Operations = derived.Length > 0
-                    ? AppShape.Merge(derived, (built.Operations ?? []).Concat(snapshot.Manifest.Operations))
-                    : built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
-                Settings = built.Settings is { Count: > 0 }
-                        ? [.. built.Settings.Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))]
-                        : snapshot.Manifest.Settings,
-            };
-            var completed = await app.CompleteBuild(attempt, files, null, manifest);
-            if (completed.Status == AppStatus.Live) { await ReportIfCurrent(app, attempt, "completed", $"Built {snapshot.Manifest.Title}", cancellationToken); }
-            else { await ReportIfCurrent(app, attempt, "attention", completed.Activity.LastOrDefault() ?? "The build did not complete", cancellationToken); }
+            var flowId = await flows.Start(BuildFlow.Alias, snapshot.Manifest.Title, null, JsonSerializer.Serialize(inner, BuildFlow.Json), cancellationToken);
+            await app.BuildFlowStarted(flowId).WaitAsync(cancellationToken);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             await app.CompleteBuild(attempt, null, error.Message);
-            // Reporting must not mask the build's own error.
-            await TryReport(app, attempt, "attention", error.Message, failureIsVisibleElsewhere: false, CancellationToken.None);
+            throw;
         }
+        return await app.Read().WaitAsync(cancellationToken);
+    }
+
+    public async Task<BuildDraft> Draft(BuildRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var task = new StringBuilder();
+        IReadOnlyDictionary<string, string> existing = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (request.Snapshot is { } snapshot)
+        {
+            task.AppendLine($"App: {snapshot.Manifest.Title}")
+                .AppendLine().AppendLine("Specification:").AppendLine(snapshot.Spec);
+            task.AppendLine().AppendLine("Manifest:").AppendLine(JsonSerializer.Serialize(snapshot.Manifest, Json));
+            existing = snapshot.Files;
+        }
+        else
+        {
+            task.AppendLine("Write a headless synapse unit (synapse source files only, no program files) for:").AppendLine(request.Goal.Trim());
+        }
+        if (!string.IsNullOrWhiteSpace(request.Instruction)) { task.AppendLine().AppendLine("The person asked:").AppendLine(request.Instruction.Trim()); }
+        if (existing.Count > 0)
+        {
+            task.AppendLine().AppendLine("Current files:");
+            foreach (var (path, source) in existing) { task.AppendLine($"--- {path} ---").AppendLine(source); }
+        }
+        var built = Parse<BuiltApp>(await BuilderConversation(request.Brain, task.ToString(), existing, ct));
+        var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
+        if (files.Count == 0) { throw new InvalidDataException("the Builder produced no files"); }
+        if (request.Snapshot is not { Manifest.Headless: false } app) { return new BuildDraft(files, null); }
+        // The code is the operation list; the Builder's and the authored lists only describe what the code has.
+        var derived = AppShape.Operations(files);
+        var manifest = app.Manifest with
+        {
+            Operations = derived.Length > 0
+                ? AppShape.Merge(derived, (built.Operations ?? []).Concat(app.Manifest.Operations))
+                : built.Operations is { Length: > 0 } ? built.Operations : app.Manifest.Operations,
+            Settings = built.Settings is { Count: > 0 }
+                    ? [.. built.Settings.Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))]
+                    : app.Manifest.Settings,
+        };
+        return new BuildDraft(files, manifest);
+    }
+
+    // The program an app build lands (the existing files with the draft over them), checked as the landing deploy will; null when it
+    // has no program files.
+    internal async Task<ScriptCompilationCheck?> CheckProgram(IReadOnlyDictionary<string, string> existing, IReadOnlyDictionary<string, string> draft, CancellationToken ct)
+    {
+        var files = new Dictionary<string, string>(existing, StringComparer.Ordinal);
+        foreach (var (path, source) in draft) { files[path] = source; }
+        var program = files.Where(file => AppFiles.IsProgram(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        return program.Count == 0 ? null : await Checked(program, ct);
     }
 
     // The attention report is best effort, but its failure is logged: Debug when the caller still sees the
     // original error, Warning when the report was the only way the person would have learned of it.
-    private async Task TryReport(IApp app, Guid? attempt, string state, string detail, bool failureIsVisibleElsewhere, CancellationToken cancellationToken)
+    private async Task TryReport(IApp app, string state, string detail, bool failureIsVisibleElsewhere)
     {
         try
         {
-            if (attempt is { } current) { await ReportIfCurrent(app, current, state, detail, cancellationToken); }
-            else { await app.Progress(state, detail); }
+            await app.Progress(state, detail);
         }
         catch (Exception failure)
         {
             if (failureIsVisibleElsewhere) { logger.LogSwallowed(failure, "attention report failed"); }
             else { logger.LogWarning(failure, "attention report failed for an app."); }
         }
-    }
-
-    // A stale worker's outcome was discarded by the neuron; it must not show as the app's activity either.
-    private static async Task ReportIfCurrent(IApp app, Guid attempt, string state, string detail, CancellationToken cancellationToken)
-    {
-        if (await app.CurrentBuildAttempt().WaitAsync(cancellationToken) == attempt) { await app.Progress(state, detail).WaitAsync(cancellationToken); }
     }
 
     private async Task<AuthoredApp> Authored(string brainId, string prompt, CancellationToken cancellationToken)
@@ -202,8 +195,8 @@ internal sealed class Creator(
     }
 
     // The Builder works with tools: it searches the contract catalog, reads details and
-    // compile-checks its C# before answering. Each round lands on the app's activity feed.
-    private async Task<string> BuilderConversation(string brainId, IApp app, string task, IReadOnlyDictionary<string, string> existingFiles, CancellationToken cancellationToken)
+    // compile-checks its C# before answering.
+    private async Task<string> BuilderConversation(string brainId, string task, IReadOnlyDictionary<string, string> existingFiles, CancellationToken cancellationToken)
     {
         var messages = new List<AiMessage>
         {
@@ -231,23 +224,16 @@ internal sealed class Creator(
                 if (program.Count == 0) { return reply; }
                 var check = await Checked(program, cancellationToken);
                 if (check.Success) { return reply; }
-                await app.Progress("working", $"round {round + 1}: correcting final compile errors");
                 messages.Add(new AiMessage("user", [new AiText("The exact final program does not compile. Fix these diagnostics and return the corrected implementation JSON:\n"
                     + JsonSerializer.Serialize(check, Json))]));
                 continue;
             }
-            await app.Progress(BuilderState(calls), $"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
             var results = new List<AiContent>();
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
         throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a valid implementation.");
     }
-
-    private static string BuilderState(AiToolCall[] calls)
-        => calls.Any(call => call.Name == BuilderTools.SearchContracts) ? "searching"
-         : calls.Any(call => call.Name is BuilderTools.ReadContracts or BuilderTools.ReadContractDetail) ? "reading"
-         : "working";
 
     private async Task<string> ExecuteBuilderTool(AiToolCall call, CancellationToken cancellationToken)
     {
