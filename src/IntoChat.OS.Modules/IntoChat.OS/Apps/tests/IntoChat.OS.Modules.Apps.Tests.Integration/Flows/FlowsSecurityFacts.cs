@@ -5,7 +5,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
-using System.Collections.Concurrent;
+using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -14,32 +14,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Flows;
-
-// The agent context of the facts. The real one is in AIModule, whose "agent" neuron type collides with the facts' ScriptedAgent in this
-// assembly, so this keeps entries as the real one does (trust stamped from the capability caller) and publishes its signals.
-[DigitalBrain.Neuron("agent-context")]
-public sealed class FactsAgentContext : DigitalBrain.Neuron<PumpState>, IAgentContext
-{
-    private static readonly ConcurrentDictionary<string, ContextEntry[]> Entries = new(StringComparer.Ordinal);
-
-    private string Full => $"{Id.Brain.Value}/{Id.Key}";
-
-    public Task Set(ContextEntry entry)
-    {
-        var caller = RuntimeCallerContext.Current;
-        var kept = entry with { Provenance = new EntryProvenance(caller?.PrincipalId ?? "", DateTimeOffset.UtcNow, ContextTrust.Of(caller)) };
-        var entries = Entries.AddOrUpdate(Full, [kept], (_, old) => [.. old.Where(item => item.Name != entry.Name), kept]);
-        return Save(State with { Sent = State.Sent + 1 }, new ContextUpdated(Full, State.Sent + 1, entry.Name));
-    }
-
-    public Task Remove(string name)
-    {
-        Entries.AddOrUpdate(Full, [], (_, old) => [.. old.Where(item => item.Name != name)]);
-        return Save(State with { Sent = State.Sent + 1 }, new ContextRemoved(Full, State.Sent + 1, name));
-    }
-
-    public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(State.Sent, Entries.GetValueOrDefault(Full, [])));
-}
 
 // A trusted security interrupt on a real silo: it refuses Ino flow starts, and with the cancel-flows tag cancels Ino flows that run.
 public sealed class FlowsSecurityFacts
@@ -50,9 +24,8 @@ public sealed class FlowsSecurityFacts
 
     private sealed class SecurityFixture : BothRuntimesFixture
     {
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlowsFactsModule)];
+        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(AIModule), typeof(FlowsFactsModule)];
 
-        public override BrainId Brain { get; } = new("security-" + Guid.NewGuid().ToString("N"));
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
@@ -158,10 +131,23 @@ public sealed class FlowsSecurityFacts
         await Flows(runtime).List(new FlowQuery(), Ct);
         var running = await StartInoFlow(runtime, "Running");
 
+        // The model's entry is stored but not acted on. A user's marker written after it is folded after it, so once the marker
+        // refuses a start the model's entry has been folded too; the refusal names only the marker.
         using (As(runtime, CallerKind.Agent)) { await Posture(runtime).Set(new ContextEntry("stop", "Model says stop.", [], [ContextTags.Interrupt, "cancel-flows"])); }
-        await Task.Delay(500, Ct);
+        using (As(runtime, CallerKind.User)) { await Posture(runtime).Set(new ContextEntry("marker", "User marker.", [], [ContextTags.Interrupt])); }
+        var refusal = await RefusedEventually(runtime);
+        Assert.Contains("blocked by security interrupt: User marker.", refusal.ToString(), StringComparison.Ordinal);
+        Assert.Equal(FlowStatus.Waiting, (await Flows(runtime).Read(running, Ct))!.Status);
 
-        var started = await StartInoFlow(runtime, "Still allowed");
+        // With the marker gone nothing holds: the model's entry never counted.
+        await Posture(runtime).Remove("marker");
+        string started = "";
+        for (var i = 0; i < 200 && started.Length == 0; i++)
+        {
+            try { started = await StartInoFlow(runtime, "Still allowed"); }
+            catch (Exception error) when (IsRefusal(error)) { await Task.Delay(50, Ct); }
+        }
+        Assert.NotEqual("", started);
         Assert.NotEqual(running, started);
         Assert.Equal(FlowStatus.Waiting, (await Flows(runtime).Read(running, Ct))!.Status);
     }
@@ -194,7 +180,7 @@ public sealed class FlowsSecurityFacts
 
         using (As(runtime, CallerKind.User)) { await Posture(runtime).Set(new ContextEntry("stop", "Just pause.", [], [ContextTags.Interrupt])); }
         await RefusedEventually(runtime);
-        await Task.Delay(500, Ct);
+        await Flows(runtime).List(new FlowQuery(), Ct); // queues behind the handler that folded the entry
 
         var view = (await Flows(runtime).Read(ino, Ct))!;
         Assert.Equal(FlowStatus.Waiting, view.Status);

@@ -40,6 +40,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     private async Task RebuildInterrupts()
     {
         _interrupts.Clear();
+        var cancel = false;
         var prefix = Id.Brain.Value + "/";
         string[] contexts = ["context/security.posture"];
         try
@@ -57,9 +58,20 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
             try
             {
                 var snapshot = await Context.Get<IAgentContext>(new NeuronId(Id.Brain, "agent-context", key)).Read();
-                foreach (var entry in snapshot.Entries) { _interrupts.Keep(prefix + key, entry.Name, entry); }
+                foreach (var entry in snapshot.Entries) { cancel |= _interrupts.Keep(prefix + key, entry.Name, entry); }
             }
             catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptsUnread(Logger(), error, key); }
+        }
+        if (cancel) { await CancelInoFlows(); }
+    }
+
+    // Cancels every running or waiting Ino flow; one that cannot be cancelled is logged and the rest still are.
+    private async Task CancelInoFlows()
+    {
+        foreach (var flow in State.Flows.Values.Where(entry => entry.App == AssistantApp && entry.Status is FlowStatus.Running or FlowStatus.Waiting).ToArray())
+        {
+            try { await Cancel(flow.FlowId, "security interrupt"); }
+            catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptCancelFailed(Logger(), error, flow.FlowId); }
         }
     }
 
@@ -80,11 +92,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
             FlowsLog.InterruptsUnread(Logger(), error, updated.ContextId);
             return;
         }
-        if (!cancel) { return; }
-        foreach (var flow in State.Flows.Values.Where(entry => entry.App == AssistantApp && entry.Status is FlowStatus.Running or FlowStatus.Waiting).ToArray())
-        {
-            await Cancel(flow.FlowId, "security interrupt");
-        }
+        if (cancel) { await CancelInoFlows(); }
     }
 
     [On]
@@ -328,6 +336,9 @@ internal static partial class FlowsLog
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The flows index could not read {What} for security interrupts; it keeps what it had")]
     public static partial void InterruptsUnread(ILogger logger, Exception exception, string what);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The flows index could not cancel flow {FlowId} on a security interrupt; it goes on with the others")]
+    public static partial void InterruptCancelFailed(ILogger logger, Exception exception, string flowId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The flows graph source could not list the flows of brain {Brain}")]
     public static partial void GraphUnlisted(ILogger logger, Exception exception, string brain);
