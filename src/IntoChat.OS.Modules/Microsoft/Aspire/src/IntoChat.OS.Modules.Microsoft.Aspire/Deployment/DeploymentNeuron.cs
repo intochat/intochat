@@ -1,10 +1,10 @@
+using DigitalBrain;
 using DigitalBrain.Contracts;
+using DigitalBrain.Flows;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
@@ -13,7 +13,6 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 internal sealed class DeploymentNeuron(
     IClusterHost host,
     IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
-    IOptions<AspireOptions> options,
     ILogger<DeploymentNeuron> log)
     : DigitalBrain.Neuron, IDeployment, IDeploymentDriver
 {
@@ -52,24 +51,17 @@ internal sealed class DeploymentNeuron(
         return Describe();
     }
 
-    public const string RollReminder = "aspire.deployment.roll";
-    private static readonly TimeSpan ReminderPeriod = TimeSpan.FromMinutes(1);
-
-    // A Step is queued or running in this activation: a reminder tick or a resend meanwhile does nothing.
-    private bool driving;
-    // This activation issued its own silo's restart: it ends with that silo, and the next activation finishes.
-    private bool handedOver;
-
     private static bool Moving(DeploymentStage stage) => stage is DeploymentStage.Rolling or DeploymentStage.RollingBack;
 
-    // Validates and records the roll, points live.json at sha, and answers: the steps run one-way (Step).
+    // Validates and records the roll, points live.json at sha, starts its DeployFlow and answers: the flow drives the steps, this
+    // neuron folds the flow's signals into DeploymentState.
     public async Task<DeploymentSnapshot> Roll(string sha)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sha);
         if (Snapshot.Stage == DeploymentStage.Restarting) { throw new InvalidOperationException($"the cluster is restarting onto {Snapshot.TargetSha}"); }
         if (Snapshot.Stage == DeploymentStage.RollingBack) { throw new InvalidOperationException($"the cluster is rolling back onto {Snapshot.TargetSha}"); }
         if (Snapshot.Stage == DeploymentStage.Rolling && Snapshot.TargetSha != sha) { throw new InvalidOperationException($"the cluster is rolling onto {Snapshot.TargetSha}"); }
-        if (Snapshot.Stage == DeploymentStage.Rolling) { Drive(); return Describe(); }
+        if (Snapshot.Stage == DeploymentStage.Rolling) { return Describe(); }
         if (Snapshot.CurrentSha == sha) { return Describe(); }
         // A roll can only go back to a build that runs; the first move off source is a Restart.
         if (Snapshot.CurrentSha.Length == 0) { throw new InvalidOperationException("the cluster runs no live build to roll back to; restart onto the first one"); }
@@ -77,183 +69,104 @@ internal sealed class DeploymentNeuron(
         var instances = await host.Instances(CancellationToken.None);
         // The roll ends on the silo running it: a process that is none of the instances could never hand over.
         if (host.Self is not { } self || !instances.Contains(self)) { throw new InvalidOperationException("this process is not a cluster instance"); }
-        // The reminder reactivates the cluster when nothing else would: after its own silo's restart, or a crash
-        // mid-roll. Registered before the roll is recorded, so no recorded roll is ever without it.
-        await Context.Reminders.Start(RollReminder, ReminderPeriod, ReminderPeriod);
-        await Save(new DeploymentState { CurrentSha = previous, Stage = DeploymentStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances },
+        await Context.Synapses.EnsureBrainWide(typeof(FlowWaiting), typeof(FlowStep), typeof(FlowDone));
+        var key = FlowKey(sha);
+        await Save(new DeploymentState { CurrentSha = previous, Stage = DeploymentStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = SelfLast(instances, self), FlowId = FlowIdOf(key) },
             Changed(previous, DeploymentStage.Rolling));
-        try { await host.SetLive(sha, CancellationToken.None); }
+        try
+        {
+            await host.SetLive(sha, CancellationToken.None);
+            await StartFlow(key, $"Roll onto {sha}");
+        }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Deployment} could not point the live build at {Target}.", Id.ToString(), sha);
+            log.LogWarning(error, "Cluster {Deployment} could not start rolling onto {Target}.", Id.ToString(), sha);
+            await Guarded(() => host.SetLive(previous, CancellationToken.None), "point live.json back");
             await Save(new DeploymentState { CurrentSha = previous, Failure = error.Message }, Changed(previous, DeploymentStage.Steady));
-            await StopReminder();
             throw;
         }
-        Drive();
         return Describe();
     }
 
-    protected override async Task OnReminder(string reminderName, CancellationToken cancellationToken)
+    // The flow's key: unique per roll, so a roll onto a build rolled before (or rolled back from) starts a new flow.
+    private static string FlowKey(string sha) => $"deploy-{sha}-{Guid.NewGuid():N}";
+
+    private string FlowIdOf(string key) => new NeuronId(Id.Brain, DeployFlow.Alias, key).ToString();
+
+    private static string[] SelfLast(string[] instances, string? self)
+        => [.. instances.Where(name => name != self), .. instances.Where(name => name == self).Take(1)];
+
+    private Task StartFlow(string key, string title)
     {
-        if (reminderName != RollReminder) { return; }
-        if (Moving(Snapshot.Stage)) { Drive(); }
-        else { await StopReminder(); }
+        var inner = new DeployInner { TargetSha = Snapshot.TargetSha!, PreviousSha = Snapshot.PreviousSha, Remaining = Snapshot.Remaining };
+        return Get<IntoChat.OS.Modules.Apps.Flows.IFlows>(IntoChat.OS.Modules.Apps.Flows.IFlows.Key(BrainId))
+            .Start(DeployFlow.Alias, title, null, System.Text.Json.JsonSerializer.Serialize(inner, DeployFlow.Json), CancellationToken.None, key);
     }
 
-    private void Drive()
+    private bool Ours(string flowId) => Moving(Snapshot.Stage) && Snapshot.FlowId == flowId;
+
+    // A roll step that waits (or completes) moved its instance.
+    [On]
+    public Task OnDeployFlowWaiting(FlowWaiting waiting)
     {
-        if (driving || handedOver || !Moving(Snapshot.Stage)) { return; }
-        driving = true;
-        _ = Get<IDeploymentDriver>(Id).Step();
+        ArgumentNullException.ThrowIfNull(waiting);
+        return Ours(waiting.FlowId) ? Rolled(waiting.Step) : Task.CompletedTask;
     }
 
-    // One instance per Step: restart it onto TargetSha, wait until it is ready, record it, hand on to the next Step.
-    public async Task Step()
+    [On]
+    public Task OnDeployFlowStep(FlowStep step)
     {
-        driving = false;
-        if (handedOver || !Moving(Snapshot.Stage)) { return; }
-        var target = Snapshot.TargetSha!;
-        var self = host.Self;
-        try
-        {
-            if (await host.CurrentSha(CancellationToken.None) != target) { await host.SetLive(target, CancellationToken.None); }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            log.LogWarning(error, "Cluster {Deployment} could not set live to {Target} at step.", Id.ToString(), target);
-            var name = Snapshot.Remaining.FirstOrDefault(n => n != self) ?? self!;
-            await NeverReady(name, new InstanceNeverReadyException($"live.json could not be written: {error.Message}", error));
-            return;
-        }
-        if (Snapshot.Handover is { } handover)
-        {
-            // On the handed-over silo this activation is its readiness; elsewhere that silo is waited for.
-            if (handover == self || await Ready(handover, Snapshot.HandoverAt ?? DateTimeOffset.MinValue)) { await Complete(); }
-            return;
-        }
-        var next = Snapshot.Remaining.FirstOrDefault(name => name != self);
-        if (next is null && Snapshot.Remaining.Length == 0)
-        {
-            await Complete();
-            return;
-        }
-        if (next is null)
-        {
-            if (!await Drained(self!)) { return; }
-            await SaveQuietly(Snapshot with { Handover = self, HandoverAt = DateTimeOffset.UtcNow, Remaining = [], Rolled = [.. Snapshot.Rolled, self!], Draining = null });
-            handedOver = true;
-            await host.RestartInstance(self!, CancellationToken.None);
-            return;
-        }
-        if (!await Drained(next) || !await Moved(next)) { return; }
-        await SaveQuietly(Snapshot with { Remaining = [.. Snapshot.Remaining.Where(name => name != next)], Rolled = [.. Snapshot.Rolled, next], Draining = null });
-        Drive();
+        ArgumentNullException.ThrowIfNull(step);
+        return Ours(step.FlowId) && step.Outcome == StepOutcome.Completed ? Rolled(step.Step) : Task.CompletedTask;
     }
 
-    // A single instance restarts with a brief interruption. Only deployments with a peer wait for failover.
-    private async Task<bool> Drained(string name)
+    private async Task Rolled(string step)
     {
-        try
-        {
-            if (Snapshot.Draining != name)
-            {
-                await host.DrainInstance(name, CancellationToken.None);
-                await SaveQuietly(Snapshot with { Draining = name });
-            }
-            var instances = await host.Instances(CancellationToken.None);
-            if (instances.Any(peer => peer != name && AspireCliClusterHost.RoleOf(peer) == AspireCliClusterHost.RoleOf(name)))
-            { await host.WaitOutOfFront(name, options.Value.SiloStepBudget, CancellationToken.None); }
-            return true;
-        }
-        catch (InstanceNeverReadyException error)
-        {
-            await NeverReady(name, error);
-            return false;
-        }
-        catch (Exception error)
-        {
-            await NeverReady(name, new InstanceNeverReadyException($"instance {name} could not drain: {error.Message}", error));
-            return false;
-        }
+        if (!step.StartsWith("roll:", StringComparison.Ordinal)) { return; }
+        var name = step["roll:".Length..];
+        if (!Snapshot.Remaining.Contains(name)) { return; }
+        await SaveQuietly(Snapshot with { Remaining = [.. Snapshot.Remaining.Where(remaining => remaining != name)], Rolled = [.. Snapshot.Rolled, name] });
     }
 
-    // The restart itself is bounded too: an instance whose start waits on something that never comes (a failed
-    // dependency) holds `aspire resource restart` open.
-    private async Task<bool> Moved(string name)
+    // The flow's end is the roll's end. A roll that fails goes back over every instance it moved, the failed one first, as a second
+    // DeployFlow onto PreviousSha. A roll back that fails as well stops there, Steady on the build it was going back to, naming both.
+    [On]
+    public async Task OnDeployFlowDone(FlowDone done)
     {
-        var budget = options.Value.SiloStepBudget;
-        var since = DateTimeOffset.UtcNow;
-        using var bounded = new CancellationTokenSource(budget);
-        try { await host.RestartInstance(name, bounded.Token); }
-        catch (OperationCanceledException error) when (bounded.IsCancellationRequested)
-        {
-            await NeverReady(name, new InstanceNeverReadyException($"instance {name} did not restart within {budget}", error));
-            return false;
-        }
-        catch (Exception error)
-        {
-            await NeverReady(name, new InstanceNeverReadyException($"instance {name} failed to restart: {error.Message}", error));
-            return false;
-        }
-        return await Ready(name, since);
-    }
-
-    private async Task<bool> Ready(string name, DateTimeOffset since)
-    {
-        try
-        {
-            await host.WaitInstance(name, since, options.Value.SiloStepBudget, CancellationToken.None);
-            return true;
-        }
-        catch (InstanceNeverReadyException error)
-        {
-            await NeverReady(name, error);
-            return false;
-        }
-        catch (Exception error)
-        {
-            await NeverReady(name, new InstanceNeverReadyException($"instance {name} readiness check failed: {error.Message}", error));
-            return false;
-        }
-    }
-
-    // A roll whose instance never becomes ready goes back over every instance it moved, the failed one included.
-    // A roll back that fails as well stops there, Steady on the build it was going back to, naming both failures.
-    private async Task NeverReady(string name, InstanceNeverReadyException error)
-    {
-        var reason = $"{name} never became ready on {Snapshot.TargetSha}: {error.Message}";
+        ArgumentNullException.ThrowIfNull(done);
+        if (!Ours(done.FlowId)) { return; }
+        if (done.Outcome == FlowOutcome.Completed) { await Finish(Snapshot.Failure); return; }
+        var reason = done.Detail ?? done.Outcome.ToString();
         if (Snapshot.Stage == DeploymentStage.RollingBack)
         {
-            log.LogError(error, "Cluster {Deployment}: rolling back failed at {Instance}.", Id.ToString(), name);
+            log.LogError("Cluster {Deployment}: rolling back failed: {Reason}.", Id.ToString(), reason);
             await Finish($"{Snapshot.Failure}; rolling back: {reason}");
             return;
         }
-        log.LogWarning(error, "Cluster {Deployment}: {Reason}; rolling back to {Previous}.", Id.ToString(), reason, Snapshot.PreviousSha);
-        // The failed instance first, then the moved ones newest first: silos come back before the MCP servers that
-        // wait for them to start.
-        string[] back = [name, .. Snapshot.Rolled.Reverse().Where(rolled => rolled != name)];
-        await Save(Snapshot with { Stage = DeploymentStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = back, Rolled = [], Handover = null, HandoverAt = null, Draining = null, Failure = reason },
+        log.LogWarning("Cluster {Deployment}: {Reason}; rolling back to {Previous}.", Id.ToString(), reason, Snapshot.PreviousSha);
+        // The failed instance (the first not yet moved) first, then the moved ones newest first: silos come back before the MCP
+        // servers that wait for them to start.
+        var failed = Snapshot.Remaining.FirstOrDefault();
+        string[] back = [.. Snapshot.Remaining.Take(1), .. Snapshot.Rolled.Reverse().Where(rolled => rolled != failed)];
+        var key = FlowKey(Snapshot.PreviousSha!);
+        await Save(Snapshot with { Stage = DeploymentStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = SelfLast(back, host.Self), Rolled = [], Handover = null, HandoverAt = null, Draining = null, Failure = reason, FlowId = FlowIdOf(key) },
             Changed(Snapshot.CurrentSha, DeploymentStage.RollingBack));
-        Drive();
+        try { await StartFlow(key, $"Roll back onto {Snapshot.TargetSha}"); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            log.LogError(error, "Cluster {Deployment} could not start rolling back.", Id.ToString());
+            await Finish($"{reason}; rolling back: {error.Message}");
+        }
     }
 
     private ICandidate CandidatePeer(string sha) => Peer<ICandidate>(ICandidate.Relative(sha));
-
-    private Task Complete() => Finish(Snapshot.Failure);
 
     private async Task Finish(string? failure)
     {
         var current = Snapshot.TargetSha!;
         var rolledForward = Snapshot.Stage == DeploymentStage.Rolling;
         await Save(new DeploymentState { CurrentSha = current, Failure = failure }, Changed(current, DeploymentStage.Steady));
-        await StopReminder();
         if (rolledForward) { await Guarded(() => CandidatePeer(current).Finish(), "finish the promoted candidate"); }
-    }
-
-    private async Task StopReminder()
-    {
-        if ((await Context.Reminders.Names()).Contains(RollReminder)) { await Context.Reminders.Stop(RollReminder); }
     }
 
     // Runs on every activation: completes a restart the previous build began, and sweeps container orphans.
@@ -264,8 +177,9 @@ internal sealed class DeploymentNeuron(
         string? abandoned = null;
         if (Moving(Snapshot.Stage))
         {
-            // A roll outlives its activation: this one continues at the persisted step.
-            Drive();
+            // A roll outlives its activation: its flow continues by itself and this neuron folds its signals. A roll recorded before
+            // rolls were flows has none, so it ends Steady on what runs.
+            if (Snapshot.FlowId is null) { await Save(new DeploymentState { CurrentSha = current, Failure = "the roll was interrupted" }, Changed(current, DeploymentStage.Steady)); }
         }
         else if (Snapshot.Stage == DeploymentStage.Restarting && current == Snapshot.TargetSha)
         {
