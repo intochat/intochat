@@ -4,6 +4,7 @@ using IntoChat.OS.Apps.Workspace;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
 
+[Collection(nameof(RecordingApp))]
 public sealed class DesktopAppFacts
 {
     public static IEnumerable<TheoryDataRow<AppOperationCase>> DesktopOperations => AppBaseline.Cases(typeof(DesktopApp));

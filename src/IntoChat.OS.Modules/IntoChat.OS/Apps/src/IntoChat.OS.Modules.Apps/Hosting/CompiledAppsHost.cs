@@ -9,7 +9,6 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -142,6 +141,11 @@ internal sealed class CompiledAppsHost(
         _ => string.IsNullOrEmpty(appId) ? "App" : char.ToUpperInvariant(appId[0]) + appId[1..],
     };
 
+    // The open widgets the desktop app keeps, comma separated as the window shell shows them.
+    private async Task<string> DesktopWidgetsAsync(string brain)
+        => await EnsureAssignedAsync(brain, "desktop", IApp.Key(brain, "desktop"), CancellationToken.None) is { App: DigitalBrain.App<IntoChat.OS.Apps.Desktop.DesktopAppState> desktop }
+            ? string.Join(",", desktop.State.Widgets) : string.Empty;
+
     private async Task EnsureDesktopViewAsync(string brain)
     {
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
@@ -150,7 +154,7 @@ internal sealed class CompiledAppsHost(
             if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
             var workspace = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(services, IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(brain));
             var state = await workspace.Read();
-            var widgetsText = (await SiloNeurons.Get<IField>(services, $"{brain}/apps/desktop/widgets").Read()).Value ?? string.Empty;
+            var widgetsText = await DesktopWidgetsAsync(brain);
 
             var activeWindows = state.Windows
                 .Where(w => w.Tabs is { Length: > 0 } && w.Tabs.Any(t => IApp.NameOf(brain, t.App) is not "desktop"))
@@ -636,18 +640,10 @@ internal sealed class CompiledAppsHost(
                     var widgetId = (isOpen ? action["widget-open:".Length..] : action["widget-close:".Length..]).Trim().ToLowerInvariant();
                     if (!string.IsNullOrWhiteSpace(widgetId))
                     {
-                        var widgetsNeuron = SiloNeurons.Get<IField>(services, $"{brain}/apps/desktop/widgets");
-                        var currentCsv = (await widgetsNeuron.Read()).Value ?? string.Empty;
-                        var list = currentCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-                        if (isOpen)
-                        {
-                            if (!list.Contains(widgetId, StringComparer.OrdinalIgnoreCase)) { list.Add(widgetId); }
-                        }
-                        else
-                        {
-                            list.RemoveAll(item => string.Equals(item, widgetId, StringComparison.OrdinalIgnoreCase));
-                        }
-                        await widgetsNeuron.Set(string.Join(",", list));
+                        // The desktop app keeps its widgets in its own state.
+                        if (await EnsureAssignedAsync(brain, "desktop", desktopKey, ct) is { } desktopTurns
+                            && desktopTurns.Definition.FindOperation(isOpen ? "widget-open" : "widget-close") is { } widgetMethod)
+                        { await desktopTurns.Request(isOpen ? "widget-open" : "widget-close", BindArgument(widgetMethod, widgetId), ct); }
                     }
                 }
                 else
