@@ -1,0 +1,31 @@
+namespace IntoChat.OS.Modules.Apps;
+
+// The store behind the Desktop's records: what the app writes is what it reads after any activation.
+[DigitalBrain.Neuron("apps.desktop-records")]
+public sealed class DesktopRecordsNeuron : DigitalBrain.Neuron<DesktopRecords>, IDesktopRecords
+{
+    public Task<DesktopRecords> Read() => Task.FromResult(State);
+
+    public async Task Write(DesktopRecords records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(records.Widgets);
+        // A desktop keeps at most 64 widgets, the first opened.
+        await Save(records with { Widgets = [.. records.Widgets.Take(64)], Layout = records.Layout ?? "" }, new DesktopRecordsChanged());
+    }
+}
+
+// The store behind Ino's records.
+[DigitalBrain.Neuron("apps.ino-records")]
+public sealed class InoRecordsNeuron : DigitalBrain.Neuron<InoRecords>, IInoRecords
+{
+    public Task<InoRecords> Read() => Task.FromResult(State);
+
+    public async Task Write(InoRecords records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(records.Links);
+        // Ino keeps the newest links only.
+        await Save(records with { Links = [.. records.Links.TakeLast(IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.MaxLinksKept)] }, new InoRecordsChanged());
+    }
+}

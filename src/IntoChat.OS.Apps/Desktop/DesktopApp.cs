@@ -35,6 +35,18 @@ public sealed record DesktopWidgetClose(string? Widget = null) : DigitalBrain.Si
 [DigitalBrain.Signal("desktop.pin")]
 public sealed record DesktopPinApp(string? AppId = null, bool Pinned = true) : DigitalBrain.Signal;
 
+public sealed record DesktopAppState(
+    string LayoutMode,
+    bool IsNarrow,
+    string StylePreset,
+    string BarLayout,
+    int ActiveNeurons,
+    string Status,
+    string[] PinnedApps)
+{
+    public DesktopAppState() : this("smart-desktop", false, "fluent-acrylic", "floating-glass", 10, "Smart Desktop Ready", ["ino", "creator"]) { }
+}
+
 [DigitalBrain.App("desktop")]
 public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 {
@@ -74,34 +86,39 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         CompiledType = typeof(DesktopApp).AssemblyQualifiedName,
     };
 
+    // The desktop's durable records (widgets, greeted, layout); State is this activation's working state.
+    private IDesktopRecords Records => Get<IDesktopRecords>(IDesktopRecords.Key);
+
     [DigitalBrain.On]
     public async Task Start(DesktopStart request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await SyncSmartDesktopAsync("smart-desktop", State.IsNarrow);
-        if (!State.Greeted)
+        var records = await Records.Read();
+        await SyncSmartDesktopAsync(records.Layout is { Length: > 0 } layout ? layout : "smart-desktop", State.IsNarrow);
+        if (!records.Greeted)
         {
-            // Ino greets once: the flag is the desktop's own state, so a restart does not greet again.
+            // Ino greets once: the flag is the desktop's record, so another activation or a restart does not greet again.
             try { await Get<IntoChat.OS.Modules.Apps.IApp>("apps/ino").Request("open", "greet"); }
             catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Ino was not there to greet; the desktop starts without it."); }
-            Set(State with { Greeted = true });
+            await Records.Write(records with { Greeted = true });
         }
     }
 
     [DigitalBrain.On]
-    public Task WidgetOpen(DesktopWidgetOpen request)
+    public async Task WidgetOpen(DesktopWidgetOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (WidgetId(request.Widget) is { } id && !State.Widgets.Contains(id, StringComparer.Ordinal)) { Set(State with { Widgets = [.. State.Widgets, id] }); }
-        return Task.CompletedTask;
+        var records = await Records.Read();
+        if (WidgetId(request.Widget) is { } id && !records.Widgets.Contains(id, StringComparer.Ordinal)) { await Records.Write(records with { Widgets = [.. records.Widgets, id] }); }
     }
 
     [DigitalBrain.On]
-    public Task WidgetClose(DesktopWidgetClose request)
+    public async Task WidgetClose(DesktopWidgetClose request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (WidgetId(request.Widget) is { } id) { Set(State with { Widgets = [.. State.Widgets.Where(known => known != id)] }); }
-        return Task.CompletedTask;
+        var records = await Records.Read();
+        if (WidgetId(request.Widget) is { } id && records.Widgets.Contains(id, StringComparer.Ordinal))
+        { await Records.Write(records with { Widgets = [.. records.Widgets.Where(known => known != id)] }); }
     }
 
     private static string? WidgetId(string? widget) => string.IsNullOrWhiteSpace(widget) ? null : widget.Trim().ToLowerInvariant();
@@ -112,6 +129,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         ArgumentNullException.ThrowIfNull(request);
         var nextLayout = State.LayoutMode == "smart-desktop" ? "spatial-grid" : "smart-desktop";
         await SyncSmartDesktopAsync(nextLayout, State.IsNarrow);
+        await Records.Write(await Records.Read() with { Layout = nextLayout });
     }
 
     [DigitalBrain.On]

@@ -37,7 +37,7 @@ public sealed class InoAppFacts
     public async Task InoAndPostBddScenariosAndSystemNeuronsPass()
     {
         var ct = TestContext.Current.CancellationToken;
-        var desktopReport = await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct);
+        var desktopReport = await BddRunner.VerifyAsync<DesktopApp>(fakes: os => os.Register<DesktopRecordsNeuron>(), cancellationToken: ct);
         Assert.True(desktopReport.Passed);
         Assert.Single(desktopReport.Scenarios);
 
@@ -445,12 +445,12 @@ public sealed class InoAppFacts
 
         await ino.Request("link", new InoPasteLink(request, "notes", "page=3", "Notes, page 3"));
         await ino.Request("link", new InoPasteLink(request, "notes", "page=3", "Notes, page 3"));
+        // The records neuron is deactivated and activated again: the link reads back from its store.
         await os.Restart();
 
-        var link = Assert.Single(ino.App.State.Links);
-        Assert.Equal(new InoLink(request.ToString("N"), "notes", "page=3"), link);
-        // The chat reads the card from the same record, stored as JSON.
-        var stored = System.Text.Json.JsonSerializer.Serialize(ino.App.State.Links, System.Text.Json.JsonSerializerOptions.Web);
+        var records = await os.Get<IInoRecords>(new NeuronId(Brain, "apps.ino-records", IInoRecords.Key)).Read();
+        Assert.Equal(new InoLink(request.ToString("N"), "notes", "page=3"), Assert.Single(records.Links));
+        var stored = System.Text.Json.JsonSerializer.Serialize(records.Links, System.Text.Json.JsonSerializerOptions.Web);
         Assert.Equal("page=3", IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.FindLink(stored, request)?.Input);
         Assert.Contains(RecordingAgent.Posts, post => post == ("Notes, page 3", IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.LinkPostId(request)));
     }

@@ -180,7 +180,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         }
     }
 
-    // A pasted link is remembered in Ino's own state (the chat reads its card from there) and posted to the agent under its plain id.
+    // A pasted link is remembered in Ino's records neuron (the chat reads its card from there) and posted to the agent under its plain id.
     [DigitalBrain.On]
     public async Task Link(InoPasteLink request)
     {
@@ -190,8 +190,10 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         var input = request.Input ?? "";
         if (input.Length > ChatAppCard.MaxInput) { throw new ArgumentException("The link input is too long."); }
         var id = request.Request.ToString("N");
-        if (!State.Links.Any(link => link.Request == id))
-        { Set(State with { Links = [.. State.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] }); }
+        var records = Get<IInoRecords>(IInoRecords.Key);
+        var kept = await records.Read();
+        if (!kept.Links.Any(link => link.Request == id))
+        { await records.Write(kept with { Links = [.. kept.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] }); }
         await Get<IAgent>(AgentKeyOf(State.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
     }
 

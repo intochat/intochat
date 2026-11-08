@@ -28,9 +28,9 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
     public async Task<ChatAgentSnapshot> Read(string key, long selectionRevision)
     {
         var state = await SiloNeurons.Get<IAgent>(services, key).Read();
-        // A pasted link's app and input are Ino's own record, never in the run.
+        // A pasted link's app and input are Ino's records, never in the run.
         var links = state.Runs.Any(run => ChatAppCard.TryReadLinkPost(run.RunId, out _))
-            ? IntoChat.OS.Modules.Apps.InoLinks.Json(services, DigitalBrain.Brains.BrainKey.BrainOf(key)) : null;
+            ? await IntoChat.OS.Modules.Apps.InoLinks.Json(services, DigitalBrain.Brains.BrainKey.BrainOf(key)) : null;
         var runs = state.Runs.ToList();
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
         var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(run => Entries(run, links))]))

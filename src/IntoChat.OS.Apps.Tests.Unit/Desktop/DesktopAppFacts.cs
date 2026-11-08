@@ -1,13 +1,14 @@
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Workspace;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
 
 [Collection(nameof(RecordingApp))]
 public sealed class DesktopAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> DesktopOperations => AppBaseline.Cases(typeof(DesktopApp));
+    public static IEnumerable<TheoryDataRow<AppOperationCase>> DesktopOperations => AppBaseline.Cases(typeof(DesktopApp), os => os.Register<DesktopRecordsNeuron>());
 
     [Theory, MemberData(nameof(DesktopOperations))]
     public Task DesktopBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
@@ -15,7 +16,7 @@ public sealed class DesktopAppFacts
     [Fact]
     public async Task DesktopScenariosPass()
     {
-        var report = await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: TestContext.Current.CancellationToken);
+        var report = await BddRunner.VerifyAsync<DesktopApp>(fakes: os => os.Register<DesktopRecordsNeuron>(), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(report.Passed);
         Assert.Single(report.Scenarios);
     }

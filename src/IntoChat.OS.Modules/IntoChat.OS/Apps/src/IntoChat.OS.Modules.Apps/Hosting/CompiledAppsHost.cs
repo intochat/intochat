@@ -141,10 +141,9 @@ internal sealed class CompiledAppsHost(
         _ => string.IsNullOrEmpty(appId) ? "App" : char.ToUpperInvariant(appId[0]) + appId[1..],
     };
 
-    // The open widgets the desktop app keeps, comma separated as the window shell shows them.
+    // The open widgets the desktop app keeps in its records, comma separated as the window shell shows them.
     private async Task<string> DesktopWidgetsAsync(string brain)
-        => await EnsureAssignedAsync(brain, "desktop", IApp.Key(brain, "desktop"), CancellationToken.None) is { App: DigitalBrain.App<DesktopAppState> desktop }
-            ? string.Join(",", desktop.State.Widgets) : string.Empty;
+        => string.Join(",", (await SiloNeurons.Get<IDesktopRecords>(services, $"{brain}/{IDesktopRecords.Key}").Read()).Widgets);
 
     private async Task EnsureDesktopViewAsync(string brain)
     {
