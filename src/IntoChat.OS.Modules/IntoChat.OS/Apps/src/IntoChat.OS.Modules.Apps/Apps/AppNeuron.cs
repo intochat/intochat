@@ -291,12 +291,22 @@ internal sealed partial class AppNeuron(
         { await PublishEphemeral(presentation); }
     }
 
-    public async Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash)
+    public async Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.InstallStatus status, string sentence)
     {
         if (State.MigrationPaused || State.Status != AppStatus.Building || attempt != State.BuildAttempt) { return Describe(State); }
         var next = State.Clone();
-        next.Status = AppStatus.Live;
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build finished: synapse unit {hash}"];
+        if (status is DigitalBrain.InstallStatus.Installed or DigitalBrain.InstallStatus.Updated or DigitalBrain.InstallStatus.Unchanged)
+        {
+            next.Status = AppStatus.Live;
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build finished: synapse unit {hash}"];
+        }
+        else
+        {
+            // Pending: the unit is deployed but its needs wait for the person; the app stays Building until they are installed.
+            var line = $"waiting for approval: {sentence}";
+            if (next.Activity.LastOrDefault() == line) { return Describe(State); }
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), line];
+        }
         await Persist(next);
         return Describe(State);
     }

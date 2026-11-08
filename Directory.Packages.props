@@ -132,6 +132,7 @@
     <PackageVersion Include="DigitalBrain.Analyzers" Version="0.18.0-units.2" />
     <PackageVersion Include="DigitalBrain.Capabilities.Compute" Version="0.18.0-units.2" />
     <PackageVersion Include="DigitalBrain.Capabilities.Connections" Version="0.18.0-units.2" />
+    <PackageVersion Include="DigitalBrain.Capabilities.Http" Version="0.18.0-units.2" />
     <PackageVersion Include="DigitalBrain.Capabilities.Identity" Version="0.18.0-units.2" />
     <PackageVersion Include="DigitalBrain.Capabilities.Secrets" Version="0.18.0-units.2" />
     <PackageVersion Include="DigitalBrain.Capabilities.Storage" Version="0.18.0-units.2" />

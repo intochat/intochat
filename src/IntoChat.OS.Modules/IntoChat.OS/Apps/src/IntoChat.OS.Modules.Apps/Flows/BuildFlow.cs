@@ -1,78 +1,109 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Runtime.Synapses;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
-// A build flow's own state. Kind "unit" builds a synapse unit from Goal and deploys it under the flow's key; kind "app" builds the
-// app AppKey for its BeginBuild Attempt and lands the files through CompleteBuild. Draft fills Files (and an app's Manifest); deploy
-// fills Hash (a unit's build hash, or an app's landed version).
+// A build flow's own state. Goal is the person's sentence (an app's title, spec and instruction when AppKey/Attempt name the app
+// build it ends). Author fills UnitJson (the AuthoredUnit) under GoalHash; draft fills Files under UnitHash; deploy fills Bindings
+// (slot -> connection key), or Choices/Missing while it waits, then Deployed with Hash and the install outcome.
 public sealed class BuildInner
 {
-    public const string Unit = "unit";
-    public const string App = "app";
-
-    public string Kind { get; set; } = Unit;
-
     public string Goal { get; set; } = "";
 
     public string? AppKey { get; set; }
 
-    public string? Instruction { get; set; }
-
     public Guid? Attempt { get; set; }
+
+    public string? GoalHash { get; set; }
+
+    public string? UnitJson { get; set; }
+
+    public string? Alias { get; set; }
+
+    public string? UnitHash { get; set; }
+
+    public Dictionary<string, string>? Existing { get; set; }
 
     public Dictionary<string, string>? Files { get; set; }
 
-    public AppManifest? Manifest { get; set; }
+    public Dictionary<string, string>? Bindings { get; set; }
+
+    // A slot several connections satisfy: the candidates in the brain's Settings order; approving binds the first.
+    public Dictionary<string, string[]>? Choices { get; set; }
+
+    // What deploy waits for when no connection satisfies a slot, e.g. "connect http@1 for api.x.com".
+    public string? Missing { get; set; }
+
+    public bool Deployed { get; set; }
 
     public string? Hash { get; set; }
 
-    public string? Diagnostics { get; set; }
+    public DigitalBrain.InstallStatus? Install { get; set; }
 
-    public DateTimeOffset? ApprovalExpires { get; set; }
+    // The installs neuron's confirmation plan while Install is Pending, and the needs sentence it asks.
+    public string? PlanId { get; set; }
+
+    public string? Sentence { get; set; }
 }
 
-// One build: draft (the Creator's Builder loop), check (the compile the deploy will run), deploy (the studio for a unit, CompleteBuild for
-// an app) and approve (a two-day approval of the deployed build). Each step is idempotent on rerun: deploy keys the studio by source
-// hash and CompleteBuild by attempt. Check is an inline call: no compile IOperation exists.
+// One sentence becomes one unit: author (the Creator's Author), draft (the Builder), verify (the unit's scenarios on fakes), deploy
+// (bind each slot to a connection, then the studio) and install (the host's install outcome; consent to new needs is the only
+// approval). Each step is idempotent on rerun: author by goal hash, draft by unit hash, deploy through the studio's step key.
+// Deploy waits External when a slot has no connection (re-checked on ConnectionsChanged and every minute) and on an approval when
+// several connections fit; install waits External on the installs neuron's own plan, ended by Installed or InstallDenied.
 [DigitalBrain.Neuron(Alias)]
 public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
 {
     public const string Alias = "flow.build";
 
+    internal const string Recheck = "build-recheck";
+
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    private static readonly string[] Names = ["draft", "check", "deploy", "approve"];
-
-    private static readonly TimeSpan ApprovalWindow = TimeSpan.FromDays(2);
+    private static readonly string[] Names = ["author", "draft", "verify", "deploy", "install"];
 
     protected override IReadOnlyList<string> Steps => Names;
 
-    // The base Start saves and returns; the steps run after it, so the caller does not wait for the Builder.
+    // The base Start saves and returns; the steps run after it, so the caller does not wait for the Author.
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
         => Start(title, owner, parentFlowId, JsonSerializer.Deserialize<BuildInner>(innerJson, Json) ?? new BuildInner());
 
     public Task<FlowHead> Head() => Task.FromResult(new FlowHead([.. Names], State.Owner, State.TraceId, State.ParentFlowId, State.Started,
         JsonSerializer.Serialize(State.Inner, Json), State.Title, State.Status, [.. State.Done], State.Ended, null));
 
-    // An app build reports each finished step on the app's activity. A failure is not recorded here: the framework may treat the
-    // error as an interruption and re-run the step, so the app fails its attempt on the flow's FlowDone instead.
+    internal static AuthoredUnit UnitOf(BuildInner inner)
+        => JsonSerializer.Deserialize<AuthoredUnit>(inner.UnitJson ?? throw new FlowFailed("draft", "the build has no authored unit"), Json)
+            ?? throw new FlowFailed("draft", "the authored unit is empty");
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await Context.Synapses.EnsureBrainWide(typeof(Installed), typeof(InstallDenied), typeof(ConnectionsChanged));
+        await base.OnActivate(cancellationToken);
+    }
+
+    // An app build reports each finished step on the app's activity. A failure is not recorded here: the app fails its attempt on
+    // the flow's FlowDone.
     protected override async Task<StepResult<BuildInner>> Run(string step, BuildInner inner, CancellationToken ct)
     {
         var result = await RunStep(step, inner, ct);
-        if (inner.Kind == BuildInner.App && result.Wait is null)
+        if (inner.AppKey is not null && result.Wait is null && step != "install")
         {
-            var (state, detail) = step switch
+            await App(inner).Progress("working", step switch
             {
-                "draft" => ("working", $"{result.Next.Files?.Count ?? 0} files"),
-                "check" => ("working", "the program compiles"),
-                "deploy" => ("completed", $"Built {inner.Goal}"),
-                _ => ("working", "done"),
-            };
-            await App(inner).Progress(state, $"{step}: {detail}");
+                "author" => $"author: {inner.Alias}",
+                "draft" => $"draft: {inner.Files?.Count ?? 0} files",
+                "verify" => "verify: the scenarios pass",
+                _ => $"{step}: done",
+            });
         }
         return result;
     }
@@ -81,92 +112,249 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter
     {
         switch (step)
         {
-            case "draft":
+            case "author":
                 {
-                    var drafter = Context.Services.GetRequiredService<IDrafter>();
-                    var snapshot = inner.Kind == BuildInner.App ? await App(inner).Read() : null;
-                    if (snapshot is not null) { await App(inner).Progress("working", $"Building {inner.Goal}"); }
-                    var request = new BuildRequest(Id.Brain.Value, inner.Kind, inner.Goal, inner.AppKey, inner.Instruction, snapshot);
-                    // The Builder's model calls run off the flow's scheduler.
-                    var draft = await Task.Run(() => drafter.Draft(request, ct), ct);
-                    inner.Files = draft.Files;
-                    inner.Manifest = draft.Manifest;
+                    var goalHash = Sha(inner.Goal);
+                    if (inner.UnitJson is null || inner.GoalHash != goalHash)
+                    {
+                        var drafter = Context.Services.GetRequiredService<IDrafter>();
+                        // The Author's model call runs off the flow's scheduler.
+                        var unit = await Task.Run(() => drafter.Author(Id.Brain.Value, inner.Goal, ct), ct);
+                        inner.UnitJson = JsonSerializer.Serialize(unit, Json);
+                        inner.GoalHash = goalHash;
+                        inner.Alias = unit.Alias;
+                    }
                     return new StepResult<BuildInner>(inner);
                 }
-            case "check":
-                inner.Diagnostics = await Check(inner, ct);
+            case "draft":
+                {
+                    var unitHash = Sha(inner.UnitJson ?? "");
+                    if (inner.Files is { Count: > 0 } && inner.UnitHash == unitHash) { return new StepResult<BuildInner>(inner); }
+                    var unit = UnitOf(inner);
+                    // "Change it": a unit already deployed under the alias is drafted over its current files.
+                    inner.Existing ??= await Current(unit.Alias, ct);
+                    var drafter = Context.Services.GetRequiredService<IDrafter>();
+                    var draft = await Task.Run(() => drafter.Draft(Id.Brain.Value, unit, inner.Existing, ct), ct);
+                    inner.Files = draft.Files;
+                    inner.UnitHash = unitHash;
+                    return new StepResult<BuildInner>(inner);
+                }
+            case "verify":
+                await Verify(inner, ct);
                 return new StepResult<BuildInner>(inner);
             case "deploy":
-                inner.Hash = inner.Kind == BuildInner.App ? await LandApp(inner) : await DeployUnit(inner);
-                return new StepResult<BuildInner>(inner);
-            case "approve":
-                inner.ApprovalExpires = Context.Time.GetUtcNow() + ApprovalWindow;
-                return new StepResult<BuildInner>(inner, new Waiting(step, WaitReason.Approval, inner.ApprovalExpires, null));
+                {
+                    if (inner.Deployed) { return new StepResult<BuildInner>(inner); }
+                    var unit = UnitOf(inner);
+                    var resolved = await Resolve(unit.Needs, ct);
+                    inner.Bindings = resolved.Bound;
+                    inner.Choices = resolved.Several.Count == 0 ? null : resolved.Several;
+                    inner.Missing = resolved.Missing.Count == 0 ? null : string.Join("; ", resolved.Missing);
+                    if (inner.Missing is not null)
+                    {
+                        await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+                        return new StepResult<BuildInner>(inner, new Waiting(step, WaitReason.External, null, null));
+                    }
+                    if (inner.Choices is not null) { return new StepResult<BuildInner>(inner, new Waiting(step, WaitReason.Approval, null, null)); }
+                    await DeployUnit(inner, unit);
+                    return new StepResult<BuildInner>(inner);
+                }
+            case "install":
+                return await Install(inner);
             default:
                 throw new FlowFailed(step, $"Unknown step {step}.");
         }
     }
 
+    // The several-connections ask: approving binds each such slot to its first candidate in the brain's Settings order.
     protected override ConfirmationPlan PlanFor(string step, BuildInner inner)
-        => base.PlanFor(step, inner) with
+    {
+        var choices = inner.Choices ?? [];
+        return base.PlanFor(step, inner) with
         {
-            Title = $"Deploy {inner.Goal}",
-            Body = (inner.Hash is null ? "" : $"Build {inner.Hash}. ") + (string.IsNullOrWhiteSpace(inner.Diagnostics) ? "No diagnostics." : inner.Diagnostics),
+            Title = $"Which connection for {inner.Alias ?? inner.Goal}?",
+            Body = string.Join(" ", choices.Select(choice =>
+                $"Slot {choice.Key} can use {string.Join(" or ", choice.Value)}; approving binds {choice.Value[0]}.")),
         };
-
-    private async Task<string> Check(BuildInner inner, CancellationToken ct)
-    {
-        var files = inner.Files is { Count: > 0 } drafted ? drafted : throw new FlowFailed("check", "the draft has no files");
-        if (inner.Kind == BuildInner.App && inner.Manifest is not null)
-        {
-            var existing = (await App(inner).Read()).Files;
-            var checkedProgram = await Context.Services.GetRequiredService<Creator>().CheckProgram(existing, files, ct);
-            if (checkedProgram is { Success: false }) { throw new FlowFailed("check", JsonSerializer.Serialize(checkedProgram, Json)); }
-            return checkedProgram is null ? "" : JsonSerializer.Serialize(checkedProgram.Errors, Json);
-        }
-        if (files.Count == 1)
-        {
-            var result = await Studio().Check(files.Values.Single());
-            return result.Ok ? result.Text : throw new FlowFailed("check", result.Text);
-        }
-        var unit = SynapseCheck.Compile(Context.Services, files) ?? throw new FlowFailed("check", "the draft is not synapse source");
-        return unit.Success ? JsonSerializer.Serialize(unit.Errors, Json) : throw new FlowFailed("check", JsonSerializer.Serialize(unit, Json));
     }
 
-    // A unit's alias is the flow's key; the studio deploys the same source once.
-    private async Task<string> DeployUnit(BuildInner inner)
+    private async Task Verify(BuildInner inner, CancellationToken ct)
     {
-        var (hash, failure) = await HeadlessUnit.Deploy(Studio(), Id.Key, inner.Files!);
-        return hash ?? throw new FlowFailed("deploy", failure ?? "the unit did not deploy");
+        var files = inner.Files is { Count: > 0 } drafted ? drafted : throw new FlowFailed("verify", "the draft has no files");
+        var unit = UnitOf(inner);
+        var compiler = Context.Services.GetService<SynapseCompiler>() ?? throw new FlowFailed("verify", SynapseStudioNeuron.Unavailable);
+        var check = await BuilderTools.Check(compiler, unit.Alias, files, unit.Needs, unit.Scenarios, ct);
+        if (check.Passed) { return; }
+        var transcript = new StringBuilder("The unit did not pass verify.");
+        foreach (var diagnostic in check.Diagnostics) { transcript.Append('\n').Append($"{diagnostic.File}({diagnostic.Line}) {diagnostic.Id}: {diagnostic.Message}"); }
+        foreach (var failure in check.Failures) { transcript.Append('\n').Append(failure); }
+        throw new FlowFailed("verify", transcript.ToString());
     }
 
-    // An app lands as Creator.Build did: a headless app as its synapse unit (alias = app name), any other through CompleteBuild.
-    private async Task<string> LandApp(BuildInner inner)
+    private async Task DeployUnit(BuildInner inner, AuthoredUnit unit)
     {
-        var app = App(inner);
-        var attempt = inner.Attempt ?? throw new FlowFailed("deploy", "the build has no attempt");
-        if (inner.Manifest is null)
-        {
-            var key = inner.AppKey!;
-            var at = key.LastIndexOf("/apps/", StringComparison.Ordinal);
-            if (at < 0) { throw new FlowFailed("deploy", $"{key} is not an app key"); }
-            var name = key[(at + "/apps/".Length)..];
-            var failure = await HeadlessUnit.Complete(app, attempt, Studio(), name, inner.Files!);
-            if (failure is not null) { throw new FlowFailed("deploy", failure); }
-            return (await Studio().List()).FirstOrDefault(unit => unit.SourceKey == name)?.Hash ?? throw new FlowFailed("deploy", "unit not listed");
-        }
-        var completed = await app.CompleteBuild(attempt, inner.Files, null, inner.Manifest);
-        return completed.Status == AppStatus.Live ? completed.Version
-            : throw new FlowFailed("deploy", completed.Activity.LastOrDefault() ?? "the build did not complete");
+        var bindings = new Dictionary<string, string>(inner.Bindings ?? [], StringComparer.Ordinal);
+        foreach (var (slot, candidates) in inner.Choices ?? []) { bindings[slot] = candidates[0]; }
+        // The host compiles every file it is given, so only the unit's C# deploys; spec.md and scenarios.json stay in the flow.
+        var result = await Studio().DeployFiles(unit.Alias, UnitFiles.Code(inner.Files!), bindings);
+        if (!result.Ok) { throw new FlowFailed("deploy", result.Text); }
+        var install = UnitDeploy.Install(result, unit.Alias);
+        inner.Bindings = bindings;
+        inner.Choices = null;
+        inner.Deployed = true;
+        inner.Hash = result.Hash;
+        inner.Install = install.Status;
+        inner.PlanId = install.Status == DigitalBrain.InstallStatus.Pending ? install.Reason : null;
+        inner.Sentence = install.Sentence;
+        if (install.Status is DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied) { inner.Missing = install.Reason; }
     }
+
+    // A deploy that waited ends with its bindings in Inner, not deployed: install deploys first.
+    private async Task<StepResult<BuildInner>> Install(BuildInner inner)
+    {
+        if (!inner.Deployed) { await DeployUnit(inner, UnitOf(inner)); }
+        switch (inner.Install)
+        {
+            case DigitalBrain.InstallStatus.Pending:
+                await Report(inner, DigitalBrain.InstallStatus.Pending);
+                await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+                return new StepResult<BuildInner>(inner, new Waiting("install", WaitReason.External, null, null));
+            case DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied:
+                throw new FlowFailed("install", $"{inner.Alias} was not installed: {inner.Missing ?? inner.Install.ToString()}");
+            default:
+                await Report(inner, inner.Install ?? DigitalBrain.InstallStatus.Unchanged);
+                await StopRecheck();
+                return new StepResult<BuildInner>(inner);
+        }
+    }
+
+    // The installs neuron journals Installed when the person approves; the record is read back, since any neuron can journal it.
+    [On]
+    public async Task OnInstalled(Installed installed)
+    {
+        ArgumentNullException.ThrowIfNull(installed);
+        if (!WaitingOnInstall() || installed.Alias != State.Inner.Alias) { return; }
+        await CheckInstall();
+    }
+
+    [On]
+    public async Task OnInstallDenied(InstallDenied denied)
+    {
+        ArgumentNullException.ThrowIfNull(denied);
+        if (!WaitingOnInstall() || denied.PlanId != State.Inner.PlanId) { return; }
+        await CheckInstall();
+    }
+
+    [On]
+    public Task OnConnectionsChanged(ConnectionsChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        return WaitingOnConnection() ? CheckConnections() : Task.CompletedTask;
+    }
+
+    protected override async Task OnReminder(string name, CancellationToken cancellationToken)
+    {
+        if (name != Recheck) { await base.OnReminder(name, cancellationToken); return; }
+        if (WaitingOnConnection()) { await CheckConnections(); }
+        else if (WaitingOnInstall()) { await CheckInstall(); }
+        else { await StopRecheck(); }
+    }
+
+    private bool WaitingOnInstall() => State is { Status: FlowStatus.Waiting, Waiting: { Reason: WaitReason.External, Step: "install" } };
+
+    private bool WaitingOnConnection() => State is { Status: FlowStatus.Waiting, Waiting: { Reason: WaitReason.External, Step: "deploy" } };
+
+    // Installed (a record exists) ends the wait and the app goes live; a pending ask that is gone without a record was denied.
+    private async Task CheckInstall()
+    {
+        var alias = State.Inner.Alias ?? "";
+        var installs = Context.Get<IInstalls>(new NeuronId(Id.Brain, "synapse.installs", "default"));
+        if (await installs.Describe(alias, CancellationToken.None) is not null)
+        {
+            State.Inner.Install = DigitalBrain.InstallStatus.Installed;
+            await Report(State.Inner, DigitalBrain.InstallStatus.Installed);
+            await StopRecheck();
+            await Resume("install", WaitOutcome.Arrived, null);
+            return;
+        }
+        if ((await installs.Pending(CancellationToken.None)).Any(pending => pending.PlanId == State.Inner.PlanId)) { return; }
+        State.Inner.Install = DigitalBrain.InstallStatus.Denied;
+        await StopRecheck();
+        await Resume("install", WaitOutcome.Denied, null);
+    }
+
+    private async Task CheckConnections()
+    {
+        var resolved = await Resolve(UnitOf(State.Inner).Needs, CancellationToken.None);
+        if (resolved.Missing.Count > 0) { return; }
+        State.Inner.Bindings = resolved.Bound;
+        // Several now fitting is resolved as the approval would: the first in the Settings order. The install consent still asks.
+        State.Inner.Choices = resolved.Several.Count == 0 ? null : resolved.Several;
+        State.Inner.Missing = null;
+        await StopRecheck();
+        await Resume("deploy", WaitOutcome.Arrived, null);
+    }
+
+    private Task StopRecheck() => Context.Reminders.Stop(Recheck);
+
+    internal sealed record Resolution(Dictionary<string, string> Bound, Dictionary<string, string[]> Several, List<string> Missing);
+
+    // Per slot: the brain's connected connections providing the slot's capability whose allow-list covers every host it needs. One
+    // binds; several are asked; none is missing.
+    private async Task<Resolution> Resolve(UnitNeeds needs, CancellationToken ct)
+    {
+        var resolution = new Resolution(new Dictionary<string, string>(StringComparer.Ordinal), new Dictionary<string, string[]>(StringComparer.Ordinal), []);
+        if (needs.Slots.Count == 0) { return resolution; }
+        var connections = Context.Services.GetService<ICapabilityConnections>() is { } broker ? await broker.ListInOrder(Id.Brain, ct) : [];
+        var hosts = Context.Services.GetService<IConnectionHosts>();
+        foreach (var slot in needs.Slots)
+        {
+            var capability = CapabilityOf(slot.Capability);
+            var fitting = new List<string>();
+            foreach (var connection in connections.Where(c => c.Connected && c.Provides.Any(provided => provided.Satisfies(capability))))
+            {
+                if (slot.Hosts.Count > 0)
+                {
+                    var allowed = hosts is null ? null : await hosts.AllowedHosts(Id.Brain, connection.Key, ct);
+                    if (allowed is null || !slot.Hosts.All(host => IConnectionHosts.Covers(allowed, host))) { continue; }
+                }
+                fitting.Add(connection.Key);
+            }
+            switch (fitting.Count)
+            {
+                case 0: resolution.Missing.Add($"connect {capability} for {(slot.Hosts.Count == 0 ? slot.Name : string.Join(", ", slot.Hosts))}"); break;
+                case 1: resolution.Bound[slot.Name] = fitting[0]; break;
+                default: resolution.Several[slot.Name] = [.. fitting]; break;
+            }
+        }
+        return resolution;
+    }
+
+    // "http" is http@1, "tool" tool@1; a versioned id is taken as given.
+    internal static CapabilityId CapabilityOf(string capability)
+        => CapabilityId.Parse(capability.Contains('@', StringComparison.Ordinal) ? capability : capability + "@1");
+
+    private async Task Report(BuildInner inner, DigitalBrain.InstallStatus status)
+    {
+        if (inner.AppKey is null || inner.Attempt is not { } attempt) { return; }
+        await App(inner).CompleteUnitBuild(attempt, inner.Hash ?? "", status, inner.Sentence ?? "");
+    }
+
+    // The deployed source's files under alias, without spec.md/scenarios.json stripped; null when nothing is deployed there.
+    private async Task<Dictionary<string, string>?> Current(string alias, CancellationToken ct)
+    {
+        if (Context.Services.GetService<ISourceStore>() is not { } store) { return null; }
+        return await store.Get(Id.Brain, alias, ct) is { } record ? new Dictionary<string, string>(record.Files, StringComparer.Ordinal) : null;
+    }
+
+    private static string Sha(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 
     private IApp App(BuildInner inner)
     {
-        var key = inner.AppKey ?? throw new FlowFailed("draft", "an app build names no app");
-        if (key.IndexOf("/apps/", StringComparison.Ordinal) < 0) { throw new FlowFailed("draft", $"{key} is not an app key"); }
+        var key = inner.AppKey ?? throw new FlowFailed("install", "the build names no app");
+        if (key.IndexOf("/apps/", StringComparison.Ordinal) < 0) { throw new FlowFailed("install", $"{key} is not an app key"); }
         return Context.Get<IApp>(new NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(key.IndexOf('/', StringComparison.Ordinal) + 1)..]));
     }
-
 
     private ISynapseStudio Studio() => Context.Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
 }

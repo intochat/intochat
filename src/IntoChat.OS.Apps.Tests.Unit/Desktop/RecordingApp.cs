@@ -33,7 +33,7 @@ internal sealed class RecordingApp : Neuron, IApp
         public Task<AppSnapshot> BeginBuild(string? instruction) => throw new NotSupportedException();
         public Task<Guid> CurrentBuildAttempt() => throw new NotSupportedException();
         public Task<string?> BuildFlow() => throw new NotSupportedException();
-        public Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash) => throw new NotSupportedException();
+        public Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.InstallStatus status, string sentence) => throw new NotSupportedException();
         public Task Progress(string state, string detail) => throw new NotSupportedException();
         public Task Progress(string state, string detail, Dictionary<string, string> blackboard) => throw new NotSupportedException();
         public Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null) => throw new NotSupportedException();

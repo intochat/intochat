@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Wraps the silo's synapse host for Ino. A deploy whose step key ({alias}:{source hash}) already landed does not reach the host
+// Wraps the silo's synapse host for Ino. A deploy whose step key ({alias}:{source and bindings hash}) already landed does not reach the host
 // again, so a re-advanced task step is not rerun. Failures come back as readable text.
 [DigitalBrain.Neuron("ino.synapses")]
 public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState>, ISynapseStudio
@@ -23,42 +23,74 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
             : (build.Success ? "Compiles with diagnostics:\n" : "Does not compile:\n") + Describe(build.Diagnostics), Ok: build.Success));
     }
 
-    public Task<InoToolResult> Deploy(string alias, string source)
+    public async Task<InoToolResult> Deploy(string alias, string source)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        return DeployFiles(alias, ISynapseStudio.SingleFile(alias, source));
+        var result = await DeployFiles(alias, ISynapseStudio.SingleFile(alias, source), new Dictionary<string, string>());
+        return new InoToolResult(result.Text, Ok: result.Ok);
     }
 
-    public async Task<InoToolResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files)
+    // The bindings travel with the source (SynapseSource.Bindings), so restore and re-deploy bind the same connections. A step key
+    // already landed is answered from the installs neuron: installed reads Unchanged, a waiting ask reads Pending with its plan.
+    public async Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
         ArgumentNullException.ThrowIfNull(files);
-        if (files.Count == 0) { return new InoToolResult($"Could not deploy {alias}: no files.", Ok: false); }
-        if (Host is not { } host) { return new InoToolResult(Unavailable, Ok: false); }
-        var step = ISynapseStudio.StepKey(alias, files);
-        if (State.Deployed.TryGetValue(step, out var done)) { return new InoToolResult($"{alias} is already deployed (hash {done})."); }
+        ArgumentNullException.ThrowIfNull(bindings);
+        if (files.Count == 0) { return Failed($"Could not deploy {alias}: no files."); }
+        if (Host is not { } host) { return Failed(Unavailable); }
+        var step = ISynapseStudio.StepKey(alias, files, bindings);
+        if (State.Deployed.TryGetValue(step, out var done) && await Landed(alias, done) is { } landed) { return landed; }
         DeployOutcome outcome;
         try
         {
-            outcome = await host.Deploy(Id.Brain, new SynapseSource(alias, new Dictionary<string, string>(files, StringComparer.Ordinal), null),
+            var bound = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal)
+            {
+                [alias] = new Dictionary<string, string>(bindings, StringComparer.Ordinal),
+            };
+            outcome = await host.Deploy(Id.Brain, new SynapseSource(alias, new Dictionary<string, string>(files, StringComparer.Ordinal), null, bound),
                 new Dictionary<string, IReadOnlyDictionary<string, string>>(), CancellationToken.None);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            return new InoToolResult($"Could not deploy {alias}: {error.Message}", Ok: false);
+            return Failed($"Could not deploy {alias}: {error.Message}");
         }
 
         if (outcome.Status is DeployStatus.Failed or DeployStatus.Refused)
         {
-            return new InoToolResult($"Could not deploy {alias}: {outcome.Reason ?? outcome.Status.ToString()}"
-                + (outcome.Diagnostics.Count == 0 ? "" : "\n" + Describe(outcome.Diagnostics)), Ok: false);
+            return Failed($"Could not deploy {alias}: {outcome.Reason ?? outcome.Status.ToString()}"
+                + (outcome.Diagnostics.Count == 0 ? "" : "\n" + Describe(outcome.Diagnostics)), outcome);
         }
 
         var deployed = Without(alias);
         deployed[step] = outcome.Hash ?? "";
         await Save(State with { Deployed = deployed }, new SynapseStudioChanged(alias));
-        return new InoToolResult($"{alias} is {outcome.Status.ToString().ToLowerInvariant()} (hash {outcome.Hash}).");
+        return new UnitDeployResult(true, $"{alias} is {outcome.Status.ToString().ToLowerInvariant()} (hash {outcome.Hash}).", outcome.Status, outcome.Hash, outcome.Installs);
+    }
+
+    private static UnitDeployResult Failed(string text, DeployOutcome? outcome = null)
+        => new(false, text, outcome?.Status ?? DeployStatus.Failed, outcome?.Hash, outcome?.Installs ?? new Dictionary<string, DigitalBrain.InstallOutcome>());
+
+    // The outcome of a step key that already landed, or null when the installs neuron knows nothing of the alias (deploy again).
+    private async Task<UnitDeployResult?> Landed(string alias, string hash)
+    {
+        var installs = Context.Get<IInstalls>(new NeuronId(Id.Brain, "synapse.installs", "default"));
+        DigitalBrain.InstallOutcome install;
+        try
+        {
+            if (await installs.Describe(alias, CancellationToken.None) is not null) { install = new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Unchanged, "", null); }
+            else if ((await installs.Pending(CancellationToken.None)).FirstOrDefault(pending => pending.Alias == alias) is { } pending)
+            { install = new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Pending, pending.Sentence, pending.PlanId); }
+            else { return null; }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // A brain hosting no installs neuron installs nothing: the unit is deployed and that is all.
+            return new UnitDeployResult(true, $"{alias} is already deployed (hash {hash}).", DeployStatus.Unchanged, hash, new Dictionary<string, DigitalBrain.InstallOutcome>());
+        }
+        return new UnitDeployResult(true, $"{alias} is already deployed (hash {hash}).", DeployStatus.Unchanged, hash,
+            new Dictionary<string, DigitalBrain.InstallOutcome>(StringComparer.Ordinal) { [alias] = install });
     }
 
     public async Task<InoToolResult> Retire(string alias)

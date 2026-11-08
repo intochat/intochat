@@ -26,8 +26,9 @@ public interface IApp
     Task<Guid> CurrentBuildAttempt();
     // The running attempt's build flow (an IFlows id), named by BeginBuild before the flow starts; its status is read through IFlows.Read.
     [DigitalBrain.ReadOnlyCall] Task<string?> BuildFlow();
-    // Ends a headless build whose synapse unit deployed: the app goes Live with no program, the unit's hash on its activity feed.
-    Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash);
+    // Ends a build whose synapse unit deployed, by its install: Installed, Updated or Unchanged goes Live with the unit's hash on the
+    // activity feed; Pending stays Building with "waiting for approval: {sentence}" until a later call reports it installed.
+    Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.InstallStatus status, string sentence);
     // Publishes AppActivity (State is one of AppActivity.States).
     Task Progress(string state, string detail);
     // The same activity write, plus declared blackboard values, in one presentation revision.

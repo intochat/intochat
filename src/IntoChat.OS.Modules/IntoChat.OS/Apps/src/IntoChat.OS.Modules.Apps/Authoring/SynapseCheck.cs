@@ -21,24 +21,33 @@ internal static class SynapseCheck
     }
 }
 
-// A headless app's build emits a synapse unit through the studio instead of an app program.
-internal static class HeadlessUnit
+// A unit lands through the studio; its install outcome, not the deploy, says whether it is live.
+internal static class UnitDeploy
 {
-    // The live build hash when the unit deployed; else Failure is the studio's reason.
-    public static async Task<(string? Hash, string? Failure)> Deploy(ISynapseStudio studio, string alias, IReadOnlyDictionary<string, string> files)
-    {
-        var result = await studio.DeployFiles(alias, files);
-        if (!result.Ok) { return (null, result.Text); }
-        var live = (await studio.List()).FirstOrDefault(unit => unit.SourceKey == alias);
-        return live is null ? (null, $"{alias} deployed but is not live.") : (live.Hash, null);
-    }
+    // The install outcome of alias in result: its own entry, the only entry, or Unchanged when the host installed nothing (a unit
+    // with no state alias, or a brain with no installs neuron).
+    public static DigitalBrain.InstallOutcome Install(UnitDeployResult result, string alias)
+        => result.Installs.TryGetValue(alias, out var own) ? own
+            : result.Installs.Count == 1 ? result.Installs.Values.Single()
+            : new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Unchanged, "", null);
 
-    // Deploys the build's files and ends the attempt: Live with the unit's hash, or Failed with the reason.
-    public static async Task<string?> Complete(IApp app, Guid attempt, ISynapseStudio studio, string alias, IReadOnlyDictionary<string, string> files)
+    public static bool IsLive(DigitalBrain.InstallStatus status) => status is DigitalBrain.InstallStatus.Installed or DigitalBrain.InstallStatus.Updated or DigitalBrain.InstallStatus.Unchanged;
+
+    // Deploys the build's files and ends the attempt by the install: Live, Building while the needs wait for the person, else Failed
+    // with the reason. Returns the failure, or null.
+    public static async Task<string?> Complete(IApp app, Guid attempt, ISynapseStudio studio, string alias, IReadOnlyDictionary<string, string> files,
+        IReadOnlyDictionary<string, string> bindings)
     {
-        var (hash, failure) = await Deploy(studio, alias, files);
-        if (hash is not null) { await app.CompleteHeadlessBuild(attempt, hash); }
-        else { await app.CompleteBuild(attempt, null, failure); }
-        return failure;
+        var result = await studio.DeployFiles(alias, files, bindings);
+        if (!result.Ok) { await app.CompleteBuild(attempt, null, result.Text); return result.Text; }
+        var install = Install(result, alias);
+        if (install.Status is DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied)
+        {
+            var failure = $"{alias} was not installed: {install.Reason ?? install.Status.ToString()}";
+            await app.CompleteBuild(attempt, null, failure);
+            return failure;
+        }
+        await app.CompleteUnitBuild(attempt, result.Hash ?? "", install.Status, install.Sentence);
+        return null;
     }
 }

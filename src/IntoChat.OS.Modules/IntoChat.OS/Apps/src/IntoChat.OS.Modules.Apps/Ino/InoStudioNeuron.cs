@@ -23,7 +23,7 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
         string flowId;
         try
         {
-            var inner = JsonSerializer.Serialize(new BuildInner { Kind = BuildInner.Unit, Goal = text }, BuildFlow.Json);
+            var inner = JsonSerializer.Serialize(new BuildInner { Goal = text }, BuildFlow.Json);
             flowId = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Start(BuildFlow.Alias, title, null, inner);
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -35,7 +35,7 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
             flowId,
             "approval",
             $"Approve: {title}",
-            "The build flow asks for this approval once the unit is deployed.",
+            "The build flow asks for consent to the unit's needs once it is deployed.",
             "neuron://local/os.confirmations/inbox",
             "pending",
             $"neuron://local/apps/ino#{flowId}");

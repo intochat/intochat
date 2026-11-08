@@ -21,14 +21,13 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The Creator's two agents. Author is one synchronous model call that shapes the spec; the Builder loop is the build flow's
-// draft step (IDrafter), and Implement starts that flow.
+// The Creator's two agents. Author is one synchronous model call that shapes the spec or describes a unit; the Builder loop writes
+// the unit. The build flow's author and draft steps call them (IDrafter), and Implement starts that flow for an app.
 internal sealed class Creator(
     IServiceProvider plain,
     IOptions<AppsOptions> options,
     AppAuthoringPolicy policy,
     ILogger<Creator> logger,
-    IScriptSandbox? csharp = null,
     ICreatorModel? model = null,
     SynapseCompiler? compiler = null) : IDrafter
 {
@@ -95,7 +94,7 @@ internal sealed class Creator(
         }
     }
 
-    // Flips the app to Building, starts its build flow and returns; the flow drafts, checks and lands the files.
+    // Flips the app to Building, starts its build flow and returns; the flow authors, drafts, verifies, deploys and installs the unit.
     public async Task<AppSnapshot> Implement(INeuronProxies brain, string appKey, string? instruction, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(brain);
@@ -103,7 +102,9 @@ internal sealed class Creator(
         var app = brain.Get<IApp>(appKey);
         var snapshot = await app.BeginBuild(instruction).WaitAsync(cancellationToken);
         var attempt = await app.CurrentBuildAttempt().WaitAsync(cancellationToken);
-        var inner = new BuildInner { Kind = BuildInner.App, Goal = snapshot.Manifest.Title, AppKey = appKey, Instruction = instruction, Attempt = attempt };
+        // The app builds as a unit: its spec and the person's instruction are the Author's request.
+        var goal = $"{snapshot.Manifest.Title}\n\n{snapshot.Spec}" + (string.IsNullOrWhiteSpace(instruction) ? "" : $"\n\nThe person asked: {instruction.Trim()}");
+        var inner = new BuildInner { Goal = goal.Length <= MaxRequestLength ? goal : goal[..MaxRequestLength], AppKey = appKey, Attempt = attempt };
         var flows = SiloNeurons.Get<IFlows>(plain, IFlows.Key(BrainKey.BrainOf(appKey)).ToString());
         // BeginBuild named the attempt's flow; the flow starts under that key.
         var flowId = await app.BuildFlow().WaitAsync(cancellationToken) ?? throw new InvalidOperationException("BeginBuild named no build flow.");
@@ -118,29 +119,6 @@ internal sealed class Creator(
             throw;
         }
         return await app.Read().WaitAsync(cancellationToken);
-    }
-
-    // The build flow's draft: the Builder loop over a goal or an app's spec, with no authored scenarios to run.
-    public async Task<BuildDraft> Draft(BuildRequest request, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        var task = new StringBuilder();
-        IReadOnlyDictionary<string, string> existing = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (request.Snapshot is { } snapshot)
-        {
-            task.AppendLine($"Unit: {snapshot.Manifest.Title}").AppendLine().AppendLine("Specification:").AppendLine(snapshot.Spec);
-            existing = snapshot.Files;
-        }
-        else
-        {
-            task.AppendLine("Write a synapse unit for:").AppendLine(request.Goal.Trim());
-        }
-        if (!string.IsNullOrWhiteSpace(request.Instruction)) { task.AppendLine().AppendLine("The person asked:").AppendLine(request.Instruction.Trim()); }
-        AppendFiles(task, existing);
-        // An app build lands each Builder round on the app's activity feed.
-        var progress = request.AppKey is { } appKey ? SiloNeurons.Get<IApp>(plain, appKey) : null;
-        var files = await BuilderConversation(request.Brain, progress, Alias(request.Goal), task.ToString(), null, [], ct);
-        return new BuildDraft(files, request.Snapshot is { Manifest.Headless: false } app ? app.Manifest : null);
     }
 
     // The Author for a unit: one request in, one described unit out. A reply that is not a valid unit is asked for again, twice.
@@ -183,16 +161,6 @@ internal sealed class Creator(
         if (existing.Count == 0) { return; }
         task.AppendLine().AppendLine("Current files:");
         foreach (var (path, source) in existing) { task.AppendLine($"--- {path} ---").AppendLine(source); }
-    }
-
-    // The program an app build lands (the existing files with the draft over them), checked as the landing deploy will; null when it
-    // has no program files.
-    internal async Task<ScriptCompilationCheck?> CheckProgram(IReadOnlyDictionary<string, string> existing, IReadOnlyDictionary<string, string> draft, CancellationToken ct)
-    {
-        var files = new Dictionary<string, string>(existing, StringComparer.Ordinal);
-        foreach (var (path, source) in draft) { files[path] = source; }
-        var program = files.Where(file => AppFiles.IsProgram(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-        return program.Count == 0 ? null : await Checked(program, ct);
     }
 
     // The attention report is best effort, but its failure is logged: Debug when the caller still sees the
@@ -327,19 +295,6 @@ internal sealed class Creator(
     }
 
     // A goal's unit alias for a build flow draft: "unit." and the goal's first letters and digits.
-    private static string Alias(string goal)
-    {
-        var word = new string([.. goal.ToLowerInvariant().Where(char.IsAsciiLetterOrDigit).Take(24)]);
-        return "unit." + (word.Length > 0 && char.IsAsciiLetterLower(word[0]) ? word : "u" + word);
-    }
-
-    // CheckProgram answers what the app gates will: the compiler check on the app bundle.
-    private async Task<ScriptCompilationCheck> Checked(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
-    {
-        if (SynapseCheck.Compile(plain, files) is { } synapse) { return synapse; }
-        return await (csharp ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing)).Compile(files, cancellationToken);
-    }
-
     private static void ValidateName(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
