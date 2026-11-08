@@ -13,7 +13,16 @@ public sealed class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReader
     public async Task<TracePage> ReadTrace(string traceId, long since, int limit)
     {
         var page = await Context.History.ReadTrace(traceId, since, limit);
-        return new TracePage(page.Floor, page.Last, [.. page.Signals.Select(Entry)]);
+        return new TracePage([.. page.Signals.Select(Entry)]);
+    }
+
+    // Cuts at PayloadLimit UTF-16 units without splitting a surrogate pair.
+    public static string Trim(string payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (payload.Length <= PayloadLimit) { return payload; }
+        var cut = char.IsHighSurrogate(payload[PayloadLimit - 1]) ? PayloadLimit - 1 : PayloadLimit;
+        return payload[..cut] + "…";
     }
 
     public static TraceEntry Entry(JournaledSignal journaled)
@@ -23,7 +32,7 @@ public sealed class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReader
         string payload;
         try { payload = JsonSerializer.Serialize(journaled.Signal, type, JsonSerializerOptions.Web); }
         catch (Exception error) when (error is NotSupportedException or InvalidOperationException) { payload = type.Name; }
-        if (payload.Length > PayloadLimit) { payload = payload[..PayloadLimit] + "…"; }
+        payload = Trim(payload);
         return new TraceEntry(journaled.Publisher.ToString(), journaled.Sequence, type.GetCustomAttribute<SignalAttribute>()?.Alias ?? type.Name,
             journaled.At, journaled.TraceId, journaled.CausationId, payload);
     }

@@ -44,8 +44,9 @@ public sealed class TraceAppFacts
         Assert.Equal(["1", "2", "3", "4", "5"], table.Rows.Select(r => r[0]));
         Assert.Equal([0, 2, 4, 2, 0], table.Rows.Select(r => r[2].Length - r[2].TrimStart().Length));
         var scene = Assert.Single(Nodes(trace.App.Render()).OfType<BrainSceneNode>());
-        Assert.Equal(3, scene.Nodes.Count);
-        Assert.Equal(3, scene.Synapses.Count);
+        Assert.Equal(4, scene.Nodes.Count);
+        Assert.Equal(4, scene.Synapses.Count);
+        Assert.Contains(scene.Synapses, s => s.FromId == Ino.ToString() && s.ToId == Flows.ToString() && !s.Active);
         var flowButton = Assert.Single(Nodes(TraceViewRenderer.Side(TraceViewRenderer.Fold(Script()).Single(h => h.Sequence == 2))).OfType<Button>());
         Assert.Equal(new ButtonAction("apps/tasks", "open", ["local/flow.plan/1"]), flowButton.Action);
     }
@@ -54,6 +55,7 @@ public sealed class TraceAppFacts
     public async Task EmptyStateExplainsMissingTraceIds()
     {
         await using var os = FakeOs([J(Ino, 1, trace: null), J(Agent, 2, trace: null)]);
+        FakeReader.Untraced = "t1";
         var trace = await os.Install<TraceApp>();
         await trace.Request("open", new TraceOpen("trace/t1"));
 
@@ -112,9 +114,65 @@ public sealed class TraceAppFacts
         Assert.Equal(["Play", "Pause", "Back", "Forward", "Live"], buttons.Where(b => b is "Play" or "Pause" or "Back" or "Forward" or "Live"));
     }
 
+    [Fact]
+    public async Task SelectedRootHopIsLit()
+    {
+        await using var os = FakeOs(Script());
+        var trace = await os.Install<TraceApp>();
+        await trace.Request("open", new TraceOpen("trace/t1"));
+
+        var scene = Assert.Single(Nodes(trace.App.Render()).OfType<BrainSceneNode>());
+        var lit = Assert.Single(scene.Synapses, s => s.Active);
+        Assert.Equal((TraceViewRenderer.Origin, Agent.ToString()), (lit.FromId, lit.ToId));
+        Assert.Equal(Agent.ToString(), scene.SelectedId);
+    }
+
+    [Fact]
+    public async Task UnknownTraceShowsNoEntries()
+    {
+        await using var os = FakeOs(Script());
+        var trace = await os.Install<TraceApp>();
+        await trace.Request("open", new TraceOpen("trace/nope"));
+
+        Assert.Contains(TraceViewRenderer.NoEntries("nope"), Strings(trace.App.Render()));
+        FakeReader.Failure = "down";
+        await trace.Request("live", new TraceLive());
+        Assert.Contains(TraceViewRenderer.ReaderFailed("down"), Strings(trace.App.Render()));
+    }
+
+    [Fact]
+    public async Task MalformedOpenShowsHint()
+    {
+        await using var os = FakeOs(Script());
+        var trace = await os.Install<TraceApp>();
+        await trace.Request("open", new TraceOpen("t1"));
+
+        Assert.Null(trace.App.State.TraceId);
+        Assert.Contains("open a trace: trace/{id}", Strings(trace.App.Render()));
+    }
+
+    [Fact]
+    public async Task RehydratedAppReloadsItsTrace()
+    {
+        await using var os = FakeOs(Script());
+        var trace = await os.Install<TraceApp>();
+        await trace.Request("open", new TraceOpen("trace/t1"));
+
+        // TestOS.Restart keeps the app instance: a rehydrated activation is a fresh instance holding the state, so drop the read hops.
+        typeof(TraceApp).GetField("_hops", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(trace.App, Array.Empty<TraceHop>());
+        typeof(TraceApp).GetField("_loaded", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(trace.App, false);
+
+        Assert.Equal("t1", trace.App.State.TraceId);
+        Assert.Empty(Nodes(trace.App.Render()).OfType<DataTable>());
+        for (var i = 0; i < 100 && !Nodes(trace.App.Render()).OfType<DataTable>().Any(); i++) { await Task.Delay(20, TestContext.Current.CancellationToken); }
+        Assert.Equal(5, Assert.Single(Nodes(trace.App.Render()).OfType<DataTable>()).Rows.Count);
+    }
+
     private static TestOS FakeOs(TraceEntry[] signals)
     {
         FakeReader.Signals = signals;
+        FakeReader.Untraced = null;
+        FakeReader.Failure = null;
         var os = TestOS.Local();
         os.Register<FakeReader>();
         return os;
@@ -142,11 +200,15 @@ public sealed class TraceAppFacts
     private sealed class FakeReader : Neuron, ITraceReader
     {
         public static TraceEntry[] Signals { get; set; } = [];
+        public static string? Untraced { get; set; }
+        public static string? Failure { get; set; }
 
         public Task<TracePage> ReadTrace(string traceId, long since, int limit)
         {
-            var page = Signals.Where(s => s.Sequence > since).Take(limit).ToArray();
-            return Task.FromResult(new TracePage(Signals.Length == 0 ? 0 : Signals.Min(s => s.Sequence), Signals.Length == 0 ? 0 : Signals.Max(s => s.Sequence), page));
+            if (Failure is { } failure) { throw new InvalidOperationException(failure); }
+            // The journal's trace index holds an untraced entry under no trace: Untraced stands in for an older journal's read.
+            var page = Signals.Where(s => (s.TraceId ?? Untraced) == traceId && s.Sequence > since).Take(limit).ToArray();
+            return Task.FromResult(new TracePage(page));
         }
     }
 }

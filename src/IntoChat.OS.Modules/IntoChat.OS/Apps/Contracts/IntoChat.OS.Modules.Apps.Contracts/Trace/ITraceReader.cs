@@ -6,8 +6,8 @@ namespace IntoChat.OS.Modules.Apps.Trace;
 // Publisher is the NeuronId text Causation.Address uses; Signal is the alias; Payload is the signal's web JSON, trimmed.
 public sealed record TraceEntry(string Publisher, long Sequence, string Signal, DateTimeOffset At, string? TraceId, string? CausationId, string Payload);
 
-// A page of a trace: Floor and Last as the journal's SignalPage reports them.
-public sealed record TracePage(long Floor, long Last, TraceEntry[] Entries);
+// A page of a trace, by sequence.
+public sealed record TracePage(TraceEntry[] Entries);
 
 // Reads one trace from the brain's journal for the Trace app, which cannot reach the signal history itself.
 [NeuronAlias("trace.reader"), DefaultNeuronType("trace.reader")]

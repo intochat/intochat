@@ -9,6 +9,13 @@ public static class TraceViewRenderer
 {
     public const string App = "trace";
     public const string BeforeTracing = "before tracing: this journal has no trace ids";
+    public const string OpenHint = "open a trace: trace/{id}";
+    public const string Origin = "origin";
+    public const int MaxIndent = 12;
+
+    public static string NoEntries(string traceId) => $"no journal entries carry trace {traceId}";
+
+    public static string ReaderFailed(string message) => $"trace reader unavailable: {message}";
 
     // Folds the journaled signals into a causation tree, depth first from each root in sequence order.
     // A hop whose cause is not among the signals is a root.
@@ -58,13 +65,13 @@ public static class TraceViewRenderer
     public static double ProgressValue(long selected, long floor, long last)
         => last == floor ? 0 : Math.Clamp((double)(selected - floor) / (last - floor), 0, 1);
 
-    public static View Render(TraceState state, TraceHop[] hops, bool untraced)
+    public static View Render(TraceState state, TraceHop[] hops, string? notice)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(hops);
-        if (hops.Length == 0 || untraced)
+        if (notice is not null || hops.Length == 0)
         {
-            return new View("Trace", new Column([new InfoBar("No trace", BeforeTracing, "warning")]));
+            return new View("Trace", new Column([new InfoBar("No trace", notice ?? OpenHint, "warning")]));
         }
         var selected = Selected(state, hops);
         var first = hops.Min(h => h.At);
@@ -74,7 +81,7 @@ public static class TraceViewRenderer
             [.. hops.Select(h => (IReadOnlyList<string>)[
                 h.Sequence.ToString(CultureInfo.InvariantCulture),
                 string.Create(CultureInfo.InvariantCulture, $"+{(h.At - first).TotalMilliseconds:0}ms"),
-                new string(' ', 2 * h.Depth) + h.Publisher,
+                Indent(h.Depth) + h.Publisher,
                 h.Alias,
                 h.Cause ?? "",
             ])]);
@@ -102,8 +109,15 @@ public static class TraceViewRenderer
         var synapses = hops.OrderBy(h => h.Sequence)
             .Where(h => h.Cause is { } c && byAddress.ContainsKey(c))
             .Select(h => new BrainGraphSynapse(byAddress[h.Cause!].Publisher, h.Publisher, h.Alias, Active: h.Sequence == selected))
-            .ToArray();
-        return new BrainSceneNode(nodes, synapses, hops.FirstOrDefault(h => h.Sequence == selected)?.Publisher);
+            .ToList();
+        var lit = hops.FirstOrDefault(h => h.Sequence == selected);
+        // A selected root hop has no in-page cause: an origin node feeds it so the replay still lights an edge.
+        if (lit is not null && (lit.Cause is not { } cause || !byAddress.ContainsKey(cause)))
+        {
+            nodes = [.. nodes, new BrainGraphNode(Origin, lit.Cause ?? Origin, "", "origin", 0, 0, 10)];
+            synapses.Add(new BrainGraphSynapse(Origin, lit.Publisher, lit.Alias, Active: true));
+        }
+        return new BrainSceneNode(nodes, synapses, lit?.Publisher);
     }
 
     public static Node ReplayBar(TraceState state, long selected, long floor, long last)
@@ -129,6 +143,9 @@ public static class TraceViewRenderer
         }
         return new Card($"{hop.Alias} · #{hop.Sequence}", $"{hop.Publisher}\n{hop.Payload}", children);
     }
+
+    // Two spaces per level, capped at MaxIndent levels; a deeper hop is marked with ».
+    public static string Indent(int depth) => depth > MaxIndent ? new string(' ', 2 * MaxIndent) + "» " : new string(' ', 2 * depth);
 
     public static string AddressOf(TraceEntry entry) => $"{entry.Publisher}:{entry.Sequence}";
 

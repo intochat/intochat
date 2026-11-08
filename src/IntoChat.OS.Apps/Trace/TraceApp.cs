@@ -39,7 +39,10 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
 
     // Render cannot await: the last read of the open trace, refreshed on open and on Play or Live.
     private TraceHop[] _hops = [];
-    private bool _untraced = true;
+    // Why there is nothing to show, or null when the hops render.
+    private string? _notice = TraceViewRenderer.OpenHint;
+    private bool _loaded;
+    private int _loading;
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(TraceApp));
 
@@ -73,8 +76,9 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var input = request.Input?.Trim() ?? "";
-        var traceId = input.StartsWith("trace/", StringComparison.Ordinal) ? input["trace/".Length..] : input;
-        Set(State with { TraceId = string.IsNullOrWhiteSpace(traceId) ? State.TraceId : traceId, Since = 0, Live = true, SelectedSequence = null });
+        var traceId = input.StartsWith("trace/", StringComparison.Ordinal) ? input["trace/".Length..].Trim() : null;
+        Volatile.Write(ref _loading, 1);
+        Set(State with { TraceId = string.IsNullOrEmpty(traceId) ? null : traceId, Since = 0, Live = true, SelectedSequence = null });
         return RefreshAsync();
     }
 
@@ -111,15 +115,26 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
     public Task Live(TraceLive request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        Volatile.Write(ref _loading, 1);
         Set(State with { Live = true });
         return RefreshAsync();
     }
 
-    public View Render() => TraceViewRenderer.Render(State, _hops, _untraced);
+    // A rehydrated app holds its TraceId but not the hops: the first render starts the read, and its Set re-renders.
+    public View Render()
+    {
+        if (!_loaded && State.TraceId is not null && Interlocked.Exchange(ref _loading, 1) == 0)
+        {
+            _ = RefreshAsync();
+            return new View("Trace", new Column([new InfoBar("Loading", $"reading trace {State.TraceId}", "neutral")]));
+        }
+        return TraceViewRenderer.Render(State, _hops, _notice);
+    }
 
     private async Task RefreshAsync()
     {
         var signals = new List<TraceEntry>();
+        string? failure = null;
         if (State.TraceId is { } traceId)
         {
             try
@@ -135,12 +150,19 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Swallow(error, "The trace reader is optional; the view shows what was read.");
+                Swallow(error, "The trace reader is optional; the view says it is unavailable.");
+                failure = error.Message;
             }
         }
         var held = signals.Take(MaxHops).ToArray();
-        _untraced = held.Length == 0 || held.All(s => s.TraceId is null);
+        _notice = State.TraceId is not { } id ? TraceViewRenderer.OpenHint
+            : failure is not null ? TraceViewRenderer.ReaderFailed(failure)
+            : held.Length == 0 ? TraceViewRenderer.NoEntries(id)
+            : held.All(s => s.TraceId is null) ? TraceViewRenderer.BeforeTracing
+            : null;
         _hops = TraceViewRenderer.Fold(held);
+        _loaded = true;
+        Volatile.Write(ref _loading, 0);
         Set(State);
     }
 }
