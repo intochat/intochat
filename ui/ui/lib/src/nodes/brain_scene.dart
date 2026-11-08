@@ -1,23 +1,219 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
-import 'node_context.dart';
+import '../flame/prefabs/signal_pulse.dart';
+import '../flame/scene_game.dart';
+import '../flame/scene_view.dart';
 import 'node_common.dart';
+import 'node_context.dart';
 
-/// The neuron topology as a list of its nodes; the 3D scene is the brain app's own surface.
-Widget renderBrainScene(BrainSceneNode node, NodeContext ctx) => Wrap(
-  spacing: 8,
-  runSpacing: 8,
-  children: [
-    for (final neuron in node.nodes)
-      ChoiceChip(
-        key: ValueKey('neuron:${neuron.id}'),
-        label: Text(neuron.label),
-        selected: neuron.id == node.selectedId,
-        onSelected: switch (pressOf(neuron.select, ctx)) {
-          final press? => (_) => press(),
-          null => null,
+/// The journal tail a brain scene draws as pulses; the Creator provides it above its view, and a scene without one stays still.
+class BrainSignals extends InheritedWidget {
+  const BrainSignals({super.key, required this.signals, required super.child});
+
+  final Stream<List<JournalTailSignal>> signals;
+
+  static Stream<List<JournalTailSignal>>? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BrainSignals>()?.signals;
+
+  @override
+  bool updateShouldNotify(BrainSignals old) => old.signals != signals;
+}
+
+const _tints = {
+  'unit': '#4FC3F7',
+  'app': '#81C784',
+  'kernel': '#9E9E9E',
+  'draft': '#80CE93D8',
+};
+
+/// A `*` edge (any publisher) is drawn as a stub this far above its target.
+const _stub = 90.0;
+
+/// The inspector's key for an edge: `edge:<from>→<to>:<alias>`.
+String brainEdgeKey(BrainGraphSynapse edge) =>
+    'edge:${edge.fromId}→${edge.toId}:${edge.signalLabel ?? ''}';
+
+/// The drawable edges of [node]: those whose target is a drawn node, from the source node or, for `*`, from a stub above it.
+List<PulseEdge> brainEdges(BrainSceneNode node) {
+  final at = {for (final n in node.nodes) n.id: Vector2(n.x, n.y)};
+  return [
+    for (final edge in node.synapses)
+      if (at[edge.toId] case final to?)
+        if (edge.fromId == '*' || at.containsKey(edge.fromId))
+          PulseEdge(
+            key: brainEdgeKey(edge),
+            fromId: edge.fromId,
+            toId: edge.toId,
+            alias: edge.signalLabel ?? '',
+            start: edge.fromId == '*'
+                ? to + Vector2(0, -_stub)
+                : at[edge.fromId]!.clone(),
+            end: to.clone(),
+          ),
+  ];
+}
+
+/// The scene of [node]: a sphere per node, kind-tinted (a draft is a half-transparent ghost), a line per edge.
+SceneState brainSceneState(BrainSceneNode node, {int revision = 1}) {
+  final nodes = <SceneNode>[];
+  for (final edge in brainEdges(node)) {
+    final left = math.min(edge.start.x, edge.end.x);
+    final top = math.min(edge.start.y, edge.end.y);
+    final w = (edge.start.x - edge.end.x).abs(),
+        h = (edge.start.y - edge.end.y).abs();
+    nodes.add(
+      SceneNode(
+        id: edge.key,
+        type: 'path',
+        transform: SceneTransform(x: left + w / 2, y: top + h / 2),
+        style: '#66FFFFFF',
+        parameters: {
+          'd':
+              'M ${edge.start.x - left} ${edge.start.y - top} L ${edge.end.x - left} ${edge.end.y - top}',
+          'stroke': '2',
+          'alias': edge.alias,
         },
+        inputs: const ['tap'],
       ),
-  ],
+    );
+  }
+  for (final n in node.nodes) {
+    nodes.add(
+      SceneNode(
+        id: n.id,
+        type: 'sphere',
+        transform: SceneTransform(
+          x: n.x,
+          y: n.y,
+          opacity: n.kind == 'draft' ? .5 : 1,
+        ),
+        style: _tints[n.kind] ?? _tints['kernel'],
+        parameters: {
+          'title': n.label,
+          'description': n.subtitle ?? n.kind,
+          'kind': n.kind,
+          if (n.kind == 'draft') 'state': 'unready',
+        },
+        inputs: const ['tap'],
+      ),
+    );
+  }
+  return SceneState(
+    name: 'brain',
+    revision: revision,
+    definition: SceneDefinition(
+      nodes: nodes,
+      camera: const SceneCamera(zoom: .5),
+    ),
+  );
+}
+
+/// The brain as a graph with live pulses.
+Widget renderBrainScene(BrainSceneNode node, NodeContext ctx) => SizedBox(
+  height: 420,
+  child: BrainSceneView(node: node, ctx: ctx),
 );
+
+class BrainSceneView extends StatefulWidget {
+  const BrainSceneView({
+    super.key,
+    required this.node,
+    required this.ctx,
+    this.signals,
+  });
+
+  final BrainSceneNode node;
+  final NodeContext ctx;
+
+  /// The tail to draw; [BrainSignals] above when null.
+  final Stream<List<JournalTailSignal>>? signals;
+
+  @override
+  State<BrainSceneView> createState() => BrainSceneViewState();
+}
+
+class BrainSceneViewState extends State<BrainSceneView> {
+  final game = SceneGame();
+  final pulses = SignalPulses();
+  late SceneState _state;
+  int _revision = 1;
+  StreamSubscription<List<JournalTailSignal>>? _tail;
+  Stream<List<JournalTailSignal>>? _source;
+
+  @override
+  void initState() {
+    super.initState();
+    _layout();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _listen(widget.signals ?? BrainSignals.of(context));
+  }
+
+  @override
+  void didUpdateWidget(BrainSceneView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.node, widget.node)) {
+      _revision++;
+      _layout();
+    }
+    _listen(widget.signals ?? BrainSignals.of(context));
+  }
+
+  void _layout() {
+    _state = brainSceneState(widget.node, revision: _revision);
+    pulses.layout(brainEdges(widget.node), {
+      for (final n in widget.node.nodes) n.id: Vector2(n.x, n.y),
+    });
+  }
+
+  void _listen(Stream<List<JournalTailSignal>>? source) {
+    if (identical(source, _source)) return;
+    _source = source;
+    unawaited(_tail?.cancel());
+    _tail = source?.listen(_feed);
+  }
+
+  void _feed(List<JournalTailSignal> batch) {
+    final added = pulses.feed(batch);
+    if (added.isEmpty || !mounted) return;
+    for (final pulse in added) {
+      game.world.add(
+        SignalPulseComponent(
+          pulse,
+          onTap: (key) => unawaited(widget.ctx.activate(key)),
+          onArrived: pulses.arrived,
+        ),
+      );
+    }
+    game.wake();
+  }
+
+  void _input(String id, String kind, double x, double y, String? payload) {
+    if (kind != 'tap') return;
+    if (id.startsWith('edge:')) {
+      unawaited(widget.ctx.activate(id));
+      return;
+    }
+    for (final n in widget.node.nodes) {
+      if (n.id == id) pressOf(n.select, widget.ctx)?.call();
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_tail?.cancel());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      SceneView(sceneKey: 'brain', state: _state, game: game, onInput: _input);
+}

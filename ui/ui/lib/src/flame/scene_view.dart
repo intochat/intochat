@@ -23,6 +23,7 @@ class SceneView extends StatefulWidget {
     this.animateChanges = true,
     this.onInput,
     this.loadIcon,
+    this.game,
   });
 
   final String sceneKey;
@@ -34,12 +35,15 @@ class SceneView extends StatefulWidget {
   final SceneInputHandler? onInput;
   final SphereIconLoader? loadIcon;
 
+  /// The game to draw into, for a host that adds components of its own (the brain scene's pulses); a fresh one by default.
+  final SceneGame? game;
+
   @override
   State<SceneView> createState() => _SceneViewState();
 }
 
 class _SceneViewState extends State<SceneView> {
-  late final SceneGame _game = SceneGame()
+  late final SceneGame _game = (widget.game ?? SceneGame())
     ..onInput = _report
     ..loadIcon = widget.loadIcon;
   StreamSubscription<void>? _refresh;

@@ -1,0 +1,88 @@
+import 'package:flame/components.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
+import 'package:intochat_os_ui/intochat_os_ui.dart';
+
+JournalTailSignal signal(
+  String alias, {
+  String publisher = 'ada/x/default',
+  String trace = 't1',
+  int seq = 1,
+}) => JournalTailSignal(
+  seq: seq,
+  publisher: publisher,
+  alias: alias,
+  at: DateTime.utc(2026),
+  traceId: trace,
+);
+
+SignalPulses field({int cap = 64}) => SignalPulses(cap: cap)
+  ..layout(
+    [
+      PulseEdge(
+        key: 'edge:*→u:note.added',
+        fromId: '*',
+        toId: 'u',
+        alias: 'note.added',
+        start: Vector2(0, -90),
+        end: Vector2(0, 0),
+      ),
+      PulseEdge(
+        key: 'edge:*→v:other',
+        fromId: '*',
+        toId: 'v',
+        alias: 'other',
+        start: Vector2(100, -90),
+        end: Vector2(100, 0),
+      ),
+    ],
+    {
+      'u': Vector2(0, 0),
+      'v': Vector2(100, 0),
+      'ada/x/default': Vector2(-50, 20),
+    },
+  );
+
+void main() {
+  test('a signal spawns a pulse on the matching edge', () {
+    final pulses = field();
+    final added = pulses.feed([signal('note.added')]);
+    final pulse = added.single;
+    expect(pulse.edge.key, 'edge:*→u:note.added');
+    expect(pulse.key, 'pulse:t1');
+    expect(
+      pulse.start,
+      Vector2(-50, 20),
+      reason: 'a * source starts at its publisher',
+    );
+    expect(pulse.end, Vector2(0, 0));
+    expect(pulseColor('t1'), pulseColor('t1'));
+    expect(pulseColor('t1'), isNot(pulseColor('t2')));
+    final unknown = pulses.feed([
+      signal('note.added', publisher: 'elsewhere', trace: 't9'),
+    ]).single;
+    expect(
+      unknown.start,
+      Vector2(0, -45),
+      reason: 'an unknown publisher starts at the midpoint',
+    );
+  });
+
+  test('the cap holds and a burst of one trace coalesces', () {
+    final pulses = field(cap: 3);
+    pulses.feed([for (var i = 0; i < 5; i++) signal('note.added', seq: i)]);
+    expect(pulses.pulses, hasLength(1));
+    pulses.feed([
+      for (var i = 0; i < 10; i++) signal('note.added', trace: 'x$i', seq: i),
+    ]);
+    expect(pulses.pulses, hasLength(3));
+    pulses.arrived(pulses.pulses.first);
+    expect(pulses.pulses, hasLength(2));
+  });
+
+  test('a signal with no matching edge spawns nothing', () {
+    final pulses = field();
+    expect(pulses.feed([signal('nobody.listens')]), isEmpty);
+    expect(pulses.pulses, isEmpty);
+  });
+}

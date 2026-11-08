@@ -31,6 +31,7 @@ export 'src/theme/ui_colors.dart';
 export 'src/theme/ui_theme.dart';
 
 export 'src/composition/view_host.dart';
+export 'src/nodes/brain_scene.dart';
 export 'src/nodes/node_context.dart';
 export 'src/nodes/node_renderer.dart';
 export 'src/flame/behavior/default_idle_tree.dart';
@@ -41,6 +42,7 @@ export 'src/flame/node_schema.dart';
 export 'src/flame/placeholder_node.dart';
 export 'src/flame/prefabs/activity_ring.dart';
 export 'src/flame/prefabs/glass_sphere.dart';
+export 'src/flame/prefabs/signal_pulse.dart';
 export 'src/flame/prefabs/sphere.dart';
 export 'src/flame/primitive_nodes.dart' hide TextNode;
 export 'src/flame/scene_game.dart';
