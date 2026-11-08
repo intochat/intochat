@@ -112,31 +112,6 @@ internal static class InoViewRenderer
             : new Surface([new Text(text)], Kind: SurfaceKind.Elevated, Title: "Ino");
     }
 
-    public static InoAppState BuildAppInstallLinkState(InoAppState currentState, string text)
-    {
-        var cardId = $"install-{currentState.ActiveCards.Length + 1}";
-        var card = new InoCard(
-            cardId,
-            "app-install",
-            "Tripletex Accounting Sync (v1.4.0)",
-            "Verified Smart App from Nordlys Digital · Requests read access to Files & Postgres.",
-            "neuron://local/apps/tripletex-sync",
-            "pending",
-            $"neuron://local/apps/ino#{cardId}");
-        var turns = currentState.Turns.Append(new InoTurn(
-            text,
-            "Detected a Smart App install link (`nordlys/tripletex-sync`). Review its manifest and capability permissions below before installing.",
-            "store:install-link",
-            0)).ToArray();
-        return currentState with
-        {
-            Title = "Install Tripletex Accounting Sync",
-            Status = "Waiting for Smart App capability review",
-            Turns = turns,
-            Cards = [.. currentState.ActiveCards, card],
-        };
-    }
-
     public static InoAppState BuildScenarioSessionState(string scenarioId, UserSettingsState settings) => scenarioId switch
     {
         "morning-brief" => new InoAppState(

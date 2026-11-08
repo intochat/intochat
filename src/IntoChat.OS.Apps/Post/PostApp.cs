@@ -67,7 +67,7 @@ public sealed class PostApp : DigitalBrain.App<PostAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var profile = await Get<IProfile>("profile").Read();
-        Update(new PostAppState(profile.Handle, profile.Bio, profile.PinnedApps, profile.Posts, $"@{profile.Handle} · {profile.Posts.Length} posts"));
+        ApplyProfile(profile, $"@{profile.Handle} · {profile.Posts.Length} posts");
     }
 
     [DigitalBrain.On]
@@ -76,7 +76,7 @@ public sealed class PostApp : DigitalBrain.App<PostAppState>
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.Content))
         {
-            Update(State with { Status = "Post content cannot be empty." });
+            Set(State with { Status = "Post content cannot be empty." });
             return;
         }
 
@@ -85,12 +85,7 @@ public sealed class PostApp : DigitalBrain.App<PostAppState>
             : request.Id.Trim();
         var circle = string.IsNullOrWhiteSpace(request.Circle) ? "public" : request.Circle.Trim();
         var profile = await Get<IProfile>("profile").PublishPost(postId, request.Content.Trim(), circle);
-        Update(new PostAppState(
-            profile.Handle,
-            profile.Bio,
-            profile.PinnedApps,
-            profile.Posts,
-            $"Published {postId} [{circle}]"));
+        ApplyProfile(profile, $"Published {postId} [{circle}]");
     }
 
     [DigitalBrain.On]
@@ -101,13 +96,11 @@ public sealed class PostApp : DigitalBrain.App<PostAppState>
             request.Handle,
             request.Bio,
             request.PinnedApps ?? State.PinnedApps);
-        Update(new PostAppState(
-            profile.Handle,
-            profile.Bio,
-            profile.PinnedApps,
-            profile.Posts,
-            $"Updated profile @{profile.Handle}"));
+        ApplyProfile(profile, $"Updated profile @{profile.Handle}");
     }
+
+    private void ApplyProfile(ProfileState profile, string status)
+        => Set(new PostAppState(profile.Handle, profile.Bio, profile.PinnedApps, profile.Posts, status));
 
     public View RenderSide() => new(
         "Circles & Pinned",
@@ -165,11 +158,6 @@ public sealed class PostApp : DigitalBrain.App<PostAppState>
         }
 
         return new View("Post", new Column(items.ToArray()) { Gap = 12 });
-    }
-
-    private void Update(PostAppState next)
-    {
-        Set(next);
     }
 
     [DigitalBrain.Scenario("Publishing a post records it in ProfileNeuron with Circle visibility and renders feed")]

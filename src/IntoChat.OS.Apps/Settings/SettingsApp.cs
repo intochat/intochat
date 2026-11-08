@@ -205,27 +205,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Update(new SettingsAppState(
-            "Settings",
-            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
-            user.DisplayName,
-            user.Theme,
-            user.DefaultModel,
-            Section: State.Section,
-            SubPage: State.SubPage,
-            Sheet: State.Sheet,
-            History: State.History ?? [],
-            SearchQuery: State.SearchQuery,
-            OverrideBody: null,
-            StylePreset: user.StylePreset,
-            BarLayout: user.BarLayout,
-            ThemeMode: user.ThemeMode,
-            DesktopTone: user.DesktopTone,
-            Language: user.Language,
-            TimeZone: user.TimeZone,
-            DateFormat: user.DateFormat,
-            ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
+        ApplyUserSettings(user, $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})");
     }
 
     [DigitalBrain.On]
@@ -233,27 +213,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Update(new SettingsAppState(
-            "Settings",
-            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
-            user.DisplayName,
-            user.Theme,
-            user.DefaultModel,
-            Section: State.Section,
-            SubPage: State.SubPage,
-            Sheet: State.Sheet,
-            History: State.History ?? [],
-            SearchQuery: State.SearchQuery,
-            OverrideBody: null,
-            StylePreset: user.StylePreset,
-            BarLayout: user.BarLayout,
-            ThemeMode: user.ThemeMode,
-            DesktopTone: user.DesktopTone,
-            Language: user.Language,
-            TimeZone: user.TimeZone,
-            DateFormat: user.DateFormat,
-            ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
+        ApplyUserSettings(user, $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})");
     }
 
     [DigitalBrain.On]
@@ -297,7 +257,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 history.RemoveAt(0);
             }
         }
-        Update(State with
+        Set(State with
         {
             Title = $"Settings · {targetSection}",
             Status = $"Navigated to {targetSection}" + (targetSubPage != null ? $" / {targetSubPage}" : ""),
@@ -317,7 +277,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         var history = (State.History ?? []).ToList();
         if (history.Count == 0)
         {
-            Update(State with { Sheet = null, SubPage = null });
+            Set(State with { Sheet = null, SubPage = null });
             return;
         }
         var last = history[^1];
@@ -325,7 +285,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         var parts = last.Split('/', 2);
         var section = parts[0];
         var subPage = parts.Length > 1 ? parts[1] : null;
-        Update(State with
+        Set(State with
         {
             Title = $"Settings · {section}",
             Status = $"Back to {section}" + (subPage != null ? $" / {subPage}" : ""),
@@ -355,7 +315,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 grants.Add(grantEntry);
             }
         }
-        Update(State with
+        Set(State with
         {
             Title = "Settings",
             Status = "Connections",
@@ -380,7 +340,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             && string.IsNullOrWhiteSpace(request.TimeZone)
             && string.IsNullOrWhiteSpace(request.DateFormat))
         {
-            Update(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
+            Set(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
             return;
         }
 
@@ -408,27 +368,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 request.TimeZone ?? State.TimeZone,
                 request.DateFormat ?? State.DateFormat);
         }
-        Update(new SettingsAppState(
-            "Settings",
-            $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})",
-            updated.DisplayName,
-            updated.Theme,
-            updated.DefaultModel,
-            State.Section,
-            State.SubPage,
-            State.Sheet,
-            State.History ?? [],
-            State.SearchQuery,
-            null,
-            updated.StylePreset,
-            updated.BarLayout,
-            updated.ThemeMode,
-            updated.DesktopTone,
-            updated.Language,
-            updated.TimeZone,
-            updated.DateFormat,
-            State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
+        ApplyUserSettings(updated, $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})");
     }
 
     [DigitalBrain.On]
@@ -436,34 +376,14 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var user = await Get<IUserSettings>("settings").Read();
-        Update(new SettingsAppState(
-            "Settings",
-            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
-            user.DisplayName,
-            user.Theme,
-            user.DefaultModel,
-            State.Section,
-            State.SubPage,
-            State.Sheet,
-            State.History ?? [],
-            State.SearchQuery,
-            null,
-            user.StylePreset,
-            user.BarLayout,
-            user.ThemeMode,
-            user.DesktopTone,
-            user.Language,
-            user.TimeZone,
-            user.DateFormat,
-            State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
+        ApplyUserSettings(user, $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})");
     }
 
     [DigitalBrain.On]
     public void ReconcilePreferences(SettingsReconcilePreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Update(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
+        Set(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
     }
 
     [DigitalBrain.On]
@@ -471,7 +391,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var view = await SettingsSideload.List(Get<ISideload>("apps/sideload"));
-        Update(State with { Title = view.Title, OverrideBody = view.Root });
+        Set(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
     [DigitalBrain.On]
@@ -479,7 +399,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var view = await SettingsSideload.Install(Get<ISideload>("apps/sideload"), request.Name, request.Consent);
-        Update(State with { Title = view.Title, OverrideBody = view.Root });
+        Set(State with { Title = view.Title, OverrideBody = view.Root });
     }
 
     [DigitalBrain.On]
@@ -487,8 +407,29 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var view = await SettingsSideload.AddGit(Get<ISideload>("apps/sideload"), request.Url);
-        Update(State with { Title = view.Title, OverrideBody = view.Root });
+        Set(State with { Title = view.Title, OverrideBody = view.Root });
     }
+
+    private void ApplyUserSettings(UserSettingsState user, string status)
+        => Set(State with
+        {
+            Title = "Settings",
+            Status = status,
+            DisplayName = user.DisplayName,
+            Theme = user.Theme,
+            DefaultModel = user.DefaultModel,
+            History = State.History ?? [],
+            OverrideBody = null,
+            StylePreset = user.StylePreset,
+            BarLayout = user.BarLayout,
+            ThemeMode = user.ThemeMode,
+            DesktopTone = user.DesktopTone,
+            Language = user.Language,
+            TimeZone = user.TimeZone,
+            DateFormat = user.DateFormat,
+            ConnectionKeys = State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
+            FriendGrants = State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
+        });
 
     public View RenderSide()
     {
@@ -987,8 +928,6 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         ],
         Kind: SurfaceKind.Elevated,
         Title: "Danger zone");
-
-    private void Update(SettingsAppState next) => Set(next);
 
     [DigitalBrain.Scenario("Saving user preferences and navigating across the 13 sections updates UserSettingsNeuron and view")]
     public async Task VerifySavePreferencesScenario()

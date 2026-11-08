@@ -47,6 +47,13 @@ public interface ICreatorSession
 [DigitalBrain.Neuron("os.creator.session")]
 public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, ICreatorSession
 {
+    private static readonly CSharpParseOptions ParseOptions = new(LanguageVersion.Preview);
+    private static readonly SyntaxTree PreludeTree = CSharpSyntaxTree.ParseText(
+        "global using System;\nglobal using System.Collections.Generic;\nglobal using System.Linq;\nglobal using System.Threading;\nglobal using System.Threading.Tasks;\nglobal using DigitalBrain;\nglobal using DigitalBrain.UI;\n",
+        ParseOptions);
+    private static readonly CSharpCompilationOptions CompilationOptions = new(OutputKind.DynamicallyLinkedLibrary);
+    private static readonly Lazy<MetadataReference[]> SandboxReferences = new(LoadSandboxReferences);
+
     public const string DefaultSandboxCode = """
         [App("elon-tracker", Title = "X Post Tracker", Icon = "radar", Accent = "#5B8CFF", Category = "Intelligence")]
         public sealed class ElonTrackerApp : App<TrackerState>
@@ -87,13 +94,7 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
     {
         var lang = NormalizeLanguage(language ?? State.BddLanguage);
         var steps = BuildActivitySteps([], lang, targetApp, instruction, compiled, diagnostics);
-        var nextVersion = compiled ? BumpMinorVersion(State.CurrentVersion) : State.CurrentVersion;
-        var historyList = State.VersionHistory is { Length: > 0 } ? State.VersionHistory.ToList() : ["1.0.0"];
-        if (compiled && !historyList.Contains(nextVersion, StringComparer.Ordinal))
-        {
-            historyList.Add(nextVersion);
-        }
-        var history = historyList.Distinct(StringComparer.Ordinal).ToArray();
+        var (nextVersion, history) = AdvanceVersionHistory(State.CurrentVersion, State.VersionHistory, compiled);
         var next = State with
         {
             TargetApp = targetApp,
@@ -131,24 +132,7 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
 
     public async Task<CreatorSessionState> Rollback(string? version, string? restoredSource)
     {
-        var history = State.VersionHistory is { Length: > 0 } ? State.VersionHistory : ["1.0.0"];
-        var requestedVersion = version?.Trim();
-
-        string targetVersion;
-        if (!string.IsNullOrWhiteSpace(requestedVersion) && history.Contains(requestedVersion, StringComparer.Ordinal))
-        {
-            targetVersion = requestedVersion;
-        }
-        else if (history.Length >= 2)
-        {
-            var currentIdx = Array.IndexOf(history, State.CurrentVersion);
-            targetVersion = currentIdx > 0 ? history[currentIdx - 1] : history[^2];
-        }
-        else
-        {
-            targetVersion = history[0];
-        }
-
+        var targetVersion = ResolveRollbackVersion(State.VersionHistory, State.CurrentVersion, version);
         var next = State with
         {
             CurrentVersion = targetVersion,
@@ -181,9 +165,7 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
             return (false, ["Source code is empty."]);
         }
 
-        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
-        var preludeTree = CSharpSyntaxTree.ParseText("global using System;\nglobal using System.Collections.Generic;\nglobal using System.Linq;\nglobal using System.Threading;\nglobal using System.Threading.Tasks;\nglobal using DigitalBrain;\nglobal using DigitalBrain.UI;\n", parseOptions);
-        var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, ParseOptions);
         var syntaxErrors = syntaxTree.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .Select(d => $"{d.Id}: {d.GetMessage(CultureInfo.InvariantCulture)}")
@@ -193,7 +175,21 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
             return (false, syntaxErrors);
         }
 
-        var references = new List<MetadataReference>();
+        var compilation = CSharpCompilation.Create(
+            "CreatorInMemorySandbox",
+            [PreludeTree, syntaxTree],
+            SandboxReferences.Value,
+            CompilationOptions);
+
+        var semanticErrors = compilation.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d => $"{d.Id}: {d.GetMessage(CultureInfo.InvariantCulture)}")
+            .ToArray();
+        return (semanticErrors.Length == 0, semanticErrors);
+    }
+
+    private static MetadataReference[] LoadSandboxReferences()
+    {
         var coreAssemblies = new[]
         {
             typeof(object).Assembly,
@@ -202,23 +198,15 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
             typeof(DigitalBrain.App).Assembly,
             typeof(View).Assembly,
         };
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic)
-            .Concat(coreAssemblies)
-            .Where(a => !string.IsNullOrWhiteSpace(a.Location))
-            .DistinctBy(a => a.GetName().Name, StringComparer.OrdinalIgnoreCase))
-        {
-            references.Add(MetadataReference.CreateFromFile(assembly.Location));
-        }
-
-        var compilation = CSharpCompilation.Create(
-            "CreatorInMemorySandbox",
-            [preludeTree, syntaxTree],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var semanticErrors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d.Id}: {d.GetMessage(CultureInfo.InvariantCulture)}").ToArray();
-        return (semanticErrors.Length == 0, semanticErrors);
+        return
+        [
+            .. AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic)
+                .Concat(coreAssemblies)
+                .Where(a => !string.IsNullOrWhiteSpace(a.Location))
+                .DistinctBy(a => a.GetName().Name, StringComparer.OrdinalIgnoreCase)
+                .Select(a => (MetadataReference)MetadataReference.CreateFromFile(a.Location)),
+        ];
     }
 
     public static string NormalizeLanguage(string? language)
@@ -264,6 +252,33 @@ public sealed class CreatorSession : DigitalBrain.Neuron<CreatorSessionState>, I
             new($"[{language.ToUpperInvariant()}] round 1: check_csharp ({targetApp})", passed, errorText, stepElapsed),
             new($"[{language.ToUpperInvariant()}] {(passed ? $"Built {targetApp}" : $"build failed: {errorText}")}", passed, errorText, stepElapsed),
         ];
+    }
+
+    public static (string NextVersion, string[] History) AdvanceVersionHistory(string currentVersion, string[]? versionHistory, bool compiled)
+    {
+        var nextVersion = compiled ? BumpMinorVersion(currentVersion) : currentVersion;
+        var historyList = versionHistory is { Length: > 0 } ? versionHistory.ToList() : ["1.0.0"];
+        if (compiled && !historyList.Contains(nextVersion, StringComparer.Ordinal))
+        {
+            historyList.Add(nextVersion);
+        }
+        return (nextVersion, historyList.Distinct(StringComparer.Ordinal).ToArray());
+    }
+
+    public static string ResolveRollbackVersion(string[]? versionHistory, string currentVersion, string? requested)
+    {
+        var history = versionHistory is { Length: > 0 } ? versionHistory : ["1.0.0"];
+        var requestedVersion = requested?.Trim();
+        if (!string.IsNullOrWhiteSpace(requestedVersion) && history.Contains(requestedVersion, StringComparer.Ordinal))
+        {
+            return requestedVersion;
+        }
+        if (history.Length >= 2)
+        {
+            var currentIdx = Array.IndexOf(history, currentVersion);
+            return currentIdx > 0 ? history[currentIdx - 1] : history[^2];
+        }
+        return history[0];
     }
 
     public static string BumpMinorVersion(string currentVersion)

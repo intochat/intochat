@@ -39,12 +39,6 @@ public sealed record CreatorRollback(string? Version = null) : DigitalBrain.Sign
 [DigitalBrain.Signal("creator.hot-restart")]
 public sealed record CreatorHotRestart : DigitalBrain.Signal;
 
-[Obsolete("Use AppNeuron version history.")]
-public sealed record CreatorVersionEntry(
-    string Version,
-    string Source,
-    string Instruction);
-
 public sealed record CreatorAppState(
     string TargetApp,
     string Status,
@@ -63,10 +57,6 @@ public sealed record CreatorAppState(
     bool SandboxCompiled = true,
     string[]? RoslynDiagnostics = null,
     int SandboxRestartCount = 0,
-#pragma warning disable CS0618
-    [property: Obsolete("Creator no longer duplicates app version snapshots; AppNeuron is the single source of truth.")]
-    CreatorVersionEntry[]? VersionSnapshots = null,
-#pragma warning restore CS0618
     CreatorStepVerdict[]? ScenarioSteps = null)
 {
     public CreatorAppState() : this(
@@ -87,7 +77,6 @@ public sealed record CreatorAppState(
         true,
         [],
         0,
-        [],
         [])
     {
     }
@@ -226,13 +215,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
         var lang = CreatorSession.NormalizeLanguage(request.Language ?? State.BddLanguage);
         var steps = CreatorSession.BuildActivitySteps(activity, lang, target, instruction, compiled, diagnostics, elapsed);
-        var nextVersion = compiled ? CreatorSession.BumpMinorVersion(State.CurrentVersion) : State.CurrentVersion;
-        var historyList = State.VersionHistory is { Length: > 0 } ? State.VersionHistory.ToList() : ["1.0.0"];
-        if (compiled && !historyList.Contains(nextVersion, StringComparer.Ordinal))
-        {
-            historyList.Add(nextVersion);
-        }
-        var history = historyList.Distinct(StringComparer.Ordinal).ToArray();
+        var (nextVersion, history) = CreatorSession.AdvanceVersionHistory(State.CurrentVersion, State.VersionHistory, compiled);
 
         if (TryGetSession() is { } session)
         {
@@ -287,7 +270,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
             VersionHistory = history,
             SandboxCompiled = compiled,
             RoslynDiagnostics = diagnostics,
-            VersionSnapshots = null,
             ScenarioSteps = steps,
         });
     }
@@ -341,29 +323,11 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         });
     }
 
-    public Task SwitchLanguage(CreatorSwitchLanguage request) => Language(request);
-
     [DigitalBrain.On]
     public async Task Rollback(CreatorRollback request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var history = State.VersionHistory is { Length: > 0 } ? State.VersionHistory : ["1.0.0"];
-        var requestedVersion = request.Version?.Trim();
-
-        string targetVersion;
-        if (!string.IsNullOrWhiteSpace(requestedVersion) && history.Contains(requestedVersion, StringComparer.Ordinal))
-        {
-            targetVersion = requestedVersion;
-        }
-        else if (history.Length >= 2)
-        {
-            var currentIdx = Array.IndexOf(history, State.CurrentVersion);
-            targetVersion = currentIdx > 0 ? history[currentIdx - 1] : history[^2];
-        }
-        else
-        {
-            targetVersion = history[0];
-        }
+        var targetVersion = CreatorSession.ResolveRollbackVersion(State.VersionHistory, State.CurrentVersion, request.Version);
 
         var restoredSource = string.IsNullOrWhiteSpace(State.GeneratedSource) ? CreatorSession.DefaultSandboxCode : State.GeneratedSource;
         if (TryGetApp(State.TargetApp) is { } app)
@@ -567,81 +531,28 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorAppState>
         return (resources, errors);
     }
 
-    private ICreatorSession? TryGetSession()
-    {
-        try
-        {
-            return Get<ICreatorSession>("session");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "CreatorSession neuron is optional when running CreatorApp in isolation.");
-            return null;
-        }
-    }
+    private ICreatorSession? TryGetSession() => TryGetOptional<ICreatorSession>("session", "CreatorSession neuron is optional when running CreatorApp in isolation.");
 
-    private DigitalBrain.Graph.IBrainGraph? TryGetGraph()
-    {
-        try
-        {
-            return Get<DigitalBrain.Graph.IBrainGraph>("default");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "The brain graph neuron is optional when running without the graph module registered.");
-            return null;
-        }
-    }
+    private DigitalBrain.Graph.IBrainGraph? TryGetGraph() => TryGetOptional<DigitalBrain.Graph.IBrainGraph>("default", "The brain graph neuron is optional when running without the graph module registered.");
 
-    private IAspire? TryGetAspire()
-    {
-        try
-        {
-            return Get<IAspire>("aspire");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "AspireNeuron is optional when running without AspireModule registered.");
-            return null;
-        }
-    }
+    private IAspire? TryGetAspire() => TryGetOptional<IAspire>("aspire", "AspireNeuron is optional when running without AspireModule registered.");
 
-    private IApp? TryGetApp(string targetApp)
-    {
-        if (string.IsNullOrWhiteSpace(targetApp)) { return null; }
-        try
-        {
-            return Get<IApp>($"apps/{targetApp}");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, $"App {targetApp} is not registered.");
-            return null;
-        }
-    }
+    private IApp? TryGetApp(string targetApp) => string.IsNullOrWhiteSpace(targetApp) ? null : TryGetOptional<IApp>($"apps/{targetApp}", $"App {targetApp} is not registered.");
 
-    private IAppStudio? TryGetStudio()
-    {
-        try
-        {
-            return Get<IAppStudio>("main");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "AppStudioNeuron is optional when running in unit tests without Creator registered.");
-            return null;
-        }
-    }
+    private IAppStudio? TryGetStudio() => TryGetOptional<IAppStudio>("main", "AppStudioNeuron is optional when running in unit tests without Creator registered.");
 
-    private IBdd? TryGetBdd()
+    private IBdd? TryGetBdd() => TryGetOptional<IBdd>("bdd", "BddNeuron is optional when running without bdd neuron registered.");
+
+    private T? TryGetOptional<T>(string key, string reason)
+        where T : class
     {
         try
         {
-            return Get<IBdd>("bdd");
+            return Get<T>(key);
         }
         catch (InvalidOperationException error)
         {
-            Swallow(error, "BddNeuron is optional when running without bdd neuron registered.");
+            Swallow(error, reason);
             return null;
         }
     }

@@ -12,7 +12,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-// The one resolver from a model key to a client. A key is a marker name or a configured profile
+// The one resolver from a model key to a client. A key is a marker name, a model ID, or a configured profile
 // name; null is the deployment default. brainId is the calling brain: its own provider keys make
 // models available to it alone and win over the deployment registration. A null brain sees only the
 // deployment's registrations.
@@ -40,6 +40,11 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         var reasoning = Clean(selection.Reasoning) ?? (useDefault ? Clean(configuration.Default.Reasoning) : null);
         var maxTokens = selection.MaxOutputTokens ?? (useDefault ? configuration.Default.MaxOutputTokens : null);
 
+        if (key is not null && key.StartsWith("profile:", StringComparison.OrdinalIgnoreCase))
+        {
+            key = Clean(key["profile:".Length..]);
+        }
+
         AiProvider provider;
         string modelId;
         string? endpoint = null;
@@ -63,23 +68,31 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             provider = preset.Provider;
             modelId = preset.Id;
         }
-        else if (configuration.ModelProfiles.TryGetValue(key, out var profile))
+        else if (TryFindProfile(configuration, key, out var matchedProfileName, out var profile))
         {
-            profileName = key;
-            provider = ParseProvider(Clean(profile.Provider) ?? throw new ArgumentException($"Model profile '{key}' requires a provider.", nameof(selection)));
-            modelId = Clean(profile.Model) ?? throw new ArgumentException($"Model profile '{key}' requires a model ID.", nameof(selection));
+            profileName = matchedProfileName;
+            provider = ParseProvider(Clean(profile.Provider) ?? throw new ArgumentException($"Model profile '{matchedProfileName}' requires a provider.", nameof(selection)));
+            modelId = Clean(profile.Model) ?? throw new ArgumentException($"Model profile '{matchedProfileName}' requires a model ID.", nameof(selection));
             endpoint = Clean(profile.Endpoint);
             reasoning = Clean(selection.Reasoning) ?? Clean(profile.Reasoning);
             maxTokens = selection.MaxOutputTokens ?? profile.MaxOutputTokens;
             declared = profile.Capabilities;
-            preset = LLMModel.FindById(modelId);
+            preset = LLMModel.Find(modelId);
             if (preset is not null && preset.Provider != provider) { preset = null; }
         }
-        else if (LLMModel.FindByMarkerName(key) is { } marker)
+        else if (LLMModel.Find(key) is { } marker)
         {
             preset = marker;
             provider = marker.Provider;
             modelId = marker.Id;
+        }
+        else if (TryInferModel(key, out var inferredProvider, out var inferredModelId, out var inferredCapabilities))
+        {
+            provider = inferredProvider;
+            modelId = inferredModelId;
+            declared = inferredCapabilities;
+            preset = LLMModel.Find(modelId);
+            if (preset is not null && preset.Provider != provider) { preset = null; }
         }
         else
         {
@@ -94,6 +107,13 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         var factory = AIClients.Factory(provider);
         if (!await factory.IsConfigured(configuration, credentials, ct) && !(provider == AiProvider.Ollama && endpoint is not null))
         {
+            // When running against a test/host-supplied IChatClient with no external providers configured,
+            // preserve the requested model ID on the Host client so dynamic model selection is observable.
+            if (services.GetService<IChatClient>() is not null && !await AnyProviderConfigured(configuration, credentials, ct))
+            {
+                var host = new ResolvedModel(AiProvider.Host, modelId, null, profileName, string.Empty, declared ?? preset?.Capabilities ?? LlmCapabilities.Tools, NormalizeReasoning(reasoning), maxTokens);
+                return host with { Revision = Revision(host) };
+            }
             if (provider == AiProvider.Ollama) { throw new InvalidOperationException($"Provider 'Ollama' is not configured. Set {AIKeys.OllamaEndpoint}."); }
             await credentials.RequireReady(AiIntegrations.IdOf(provider), ct);
         }
@@ -116,6 +136,179 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         if (maxTokens is < 1 or > 1_000_000) { throw new ArgumentException("MaxOutputTokens must be between 1 and 1000000.", nameof(selection)); }
         var resolved = new ResolvedModel(provider, modelId, endpoint, profileName, string.Empty, capabilities, reasoning, maxTokens);
         return resolved with { Revision = Revision(resolved) };
+    }
+
+    private static bool TryFindProfile(AIOptions configuration, string key, out string profileName, out AIModelProfileOptions profile)
+    {
+        if (configuration.ModelProfiles.TryGetValue(key, out var exact))
+        {
+            profileName = key;
+            profile = exact;
+            return true;
+        }
+        foreach (var entry in configuration.ModelProfiles)
+        {
+            if (string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                profileName = entry.Key;
+                profile = entry.Value;
+                return true;
+            }
+        }
+        profileName = string.Empty;
+        profile = null!;
+        return false;
+    }
+
+    private static readonly AiProvider[] ExternalChatProviders =
+    [
+        AiProvider.OpenAI,
+        AiProvider.Anthropic,
+        AiProvider.Google,
+        AiProvider.XAI,
+        AiProvider.OpenRouter,
+        AiProvider.Ollama,
+    ];
+
+    private static async Task<bool> AnyProviderConfigured(AIOptions configuration, IAiCredentials credentials, CancellationToken ct)
+    {
+        if (configuration.ModelProfiles.Values.Any(profile => !string.IsNullOrWhiteSpace(profile.Endpoint))) { return true; }
+        foreach (var provider in ExternalChatProviders)
+        {
+            if (await AIClients.Factory(provider).IsConfigured(configuration, credentials, ct)) { return true; }
+        }
+        return false;
+    }
+
+    // Recognizes standard provider-prefixed or family-prefixed model IDs (e.g. "claude-sonnet-4-5",
+    // "gpt-5", "gpt-4o", "gemini-2.5-pro", "grok-3", "openrouter/...", "ollama/...", "qwen3.5:2b", "gemma4:e2b").
+    private static bool TryInferModel(string key, out AiProvider provider, out string modelId, out LlmCapabilities capabilities)
+    {
+        capabilities = LlmCapabilities.Tools;
+        var trimmed = key.Trim();
+        if (trimmed.StartsWith("preset:", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["preset:".Length..].Trim();
+        }
+
+        if (trimmed.StartsWith("ollama/", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("ollama:", StringComparison.OrdinalIgnoreCase))
+        {
+            var tag = Clean(trimmed[7..]);
+            if (tag is not null)
+            {
+                provider = AiProvider.Ollama;
+                modelId = tag;
+                return true;
+            }
+        }
+        if (trimmed.StartsWith("openrouter/", StringComparison.OrdinalIgnoreCase))
+        {
+            var route = Clean(trimmed["openrouter/".Length..]);
+            if (route is not null)
+            {
+                provider = AiProvider.OpenRouter;
+                modelId = route;
+                return true;
+            }
+        }
+        if (trimmed.StartsWith("anthropic/", StringComparison.OrdinalIgnoreCase) && !trimmed["anthropic/".Length..].Contains('/'))
+        {
+            var id = Clean(trimmed["anthropic/".Length..]);
+            if (id is not null)
+            {
+                provider = AiProvider.Anthropic;
+                modelId = id;
+                capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+                return true;
+            }
+        }
+        if (trimmed.StartsWith("openai/", StringComparison.OrdinalIgnoreCase) && !trimmed["openai/".Length..].Contains('/'))
+        {
+            var id = Clean(trimmed["openai/".Length..]);
+            if (id is not null)
+            {
+                provider = AiProvider.OpenAI;
+                modelId = id;
+                capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+                return true;
+            }
+        }
+        if (trimmed.StartsWith("google/", StringComparison.OrdinalIgnoreCase) && !trimmed["google/".Length..].Contains('/'))
+        {
+            var id = Clean(trimmed["google/".Length..]);
+            if (id is not null)
+            {
+                provider = AiProvider.Google;
+                modelId = id;
+                capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+                return true;
+            }
+        }
+        if (trimmed.StartsWith("xai/", StringComparison.OrdinalIgnoreCase) && !trimmed["xai/".Length..].Contains('/'))
+        {
+            var id = Clean(trimmed["xai/".Length..]);
+            if (id is not null)
+            {
+                provider = AiProvider.XAI;
+                modelId = id;
+                return true;
+            }
+        }
+
+        if (trimmed.StartsWith("claude-", StringComparison.OrdinalIgnoreCase))
+        {
+            provider = AiProvider.Anthropic;
+            modelId = trimmed;
+            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            return true;
+        }
+        if (trimmed.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("o1-", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("o3-", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("o4-", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(trimmed, "o1", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(trimmed, "o3", StringComparison.OrdinalIgnoreCase))
+        {
+            provider = AiProvider.OpenAI;
+            modelId = trimmed;
+            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            return true;
+        }
+        if (trimmed.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase))
+        {
+            provider = AiProvider.Google;
+            modelId = trimmed;
+            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
+            return true;
+        }
+        if (trimmed.StartsWith("grok-", StringComparison.OrdinalIgnoreCase))
+        {
+            provider = AiProvider.XAI;
+            modelId = trimmed;
+            return true;
+        }
+        if (trimmed.Contains('/', StringComparison.Ordinal))
+        {
+            provider = AiProvider.OpenRouter;
+            modelId = trimmed;
+            return true;
+        }
+        if (trimmed.Contains(':', StringComparison.Ordinal)
+            || trimmed.StartsWith("qwen", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("gemma", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("llama", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("mistral", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("deepseek", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("phi", StringComparison.OrdinalIgnoreCase))
+        {
+            provider = AiProvider.Ollama;
+            modelId = trimmed;
+            return true;
+        }
+
+        provider = default;
+        modelId = string.Empty;
+        return false;
     }
 
     // By default the pipeline carries GenAI telemetry and metering but never function invocation:
@@ -213,9 +406,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
 
     public async Task<ModelSelection?> Select(string? brainId, string? id, string? defaultModel, CancellationToken ct)
     {
-        var selection = id is null ? Default(defaultModel)
-            : Choices().FirstOrDefault(choice => string.Equals(choice.Id, id, StringComparison.Ordinal))?.Selection
-                ?? throw new ArgumentException("The selected model is unavailable. Choose a model from Settings.");
+        var selection = ResolveSelection(id, defaultModel);
         const string Unavailable = "The selected model is unavailable or does not support assistant tools. Choose a model from Settings.";
         ResolvedModel resolved;
         try { resolved = await Resolve(brainId, selection, requiresTools: true, ct); }
@@ -226,6 +417,16 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         if (resolved.Provider is AiProvider.Host) { throw new ArgumentException(Unavailable); }
         return selection;
     }
+
+    private ModelSelection? ResolveSelection(string? id, string? defaultModel) => id is null ? Default(defaultModel)
+        : Choices().FirstOrDefault(choice =>
+            string.Equals(choice.Id, id, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(choice.Label, id, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(choice.Selection.Model, id, StringComparison.OrdinalIgnoreCase)) is { } matched ? matched.Selection
+        : LLMModel.Find(id) is { } preset ? new(preset.Marker.Name)
+        : TryFindProfile(options.CurrentValue, id, out var profileName, out _) ? new(profileName)
+        : TryInferModel(id, out _, out var inferredId, out _) ? new(inferredId)
+        : throw new ArgumentException("The selected model is unavailable. Choose a model from Settings.");
 
     private static ModelSelection? Default(string? defaultModel) => defaultModel is { Length: > 0 } model ? new(model) : null;
 

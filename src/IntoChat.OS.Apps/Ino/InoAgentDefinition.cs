@@ -1,5 +1,6 @@
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
 
@@ -19,6 +20,7 @@ public static class InoAgentDefinition
             DisplayName = "Ino",
             Description = "The brain's personal assistant.",
             Instructions = Persona.Replace("{user}", settings.DisplayName, StringComparison.Ordinal).Trim(),
+            Model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : new ModelSelection(settings.DefaultModel.Trim()),
             Contracts =
             [
                 typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,

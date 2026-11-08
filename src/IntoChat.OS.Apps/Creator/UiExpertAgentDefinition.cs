@@ -1,5 +1,6 @@
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Creator;
@@ -19,6 +20,7 @@ public static class UiExpertAgentDefinition
             DisplayName = "UI Expert",
             Description = "Specialized UI builder and design system expert for IntoChat OS.",
             Instructions = Persona.Replace("{user}", settings.DisplayName, StringComparison.Ordinal).Trim(),
+            Model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : new ModelSelection(settings.DefaultModel.Trim()),
             Contracts =
             [
                 typeof(IShellControl).FullName!,

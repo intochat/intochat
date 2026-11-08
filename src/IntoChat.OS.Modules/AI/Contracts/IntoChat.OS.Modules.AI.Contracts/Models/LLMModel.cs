@@ -39,6 +39,24 @@ public abstract class LLMModel : AiModel
 
     public static LLMModel? FindById(string id)
         => All.FirstOrDefault(model => string.Equals(model.Id, id, StringComparison.Ordinal));
+
+    // Resolves a catalogued model by its marker name (with or without leading 'I', e.g. "IQwen35" or "Qwen35"),
+    // choice prefix ("preset:IQwen35"), or model ID (e.g. "qwen3.5:4b", "claude-sonnet-5", case-insensitive).
+    public static LLMModel? Find(string nameOrId)
+    {
+        if (string.IsNullOrWhiteSpace(nameOrId)) { return null; }
+        var key = nameOrId.Trim();
+        if (key.StartsWith("preset:", StringComparison.OrdinalIgnoreCase))
+        {
+            key = key["preset:".Length..].Trim();
+        }
+        return FindByMarkerName(key)
+            ?? FindById(key)
+            ?? All.FirstOrDefault(model =>
+                string.Equals(model.Marker.Name, key, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(model.Marker.Name, "I" + key, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(model.Id, key, StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 public abstract class LLMModel<TMarker> : LLMModel

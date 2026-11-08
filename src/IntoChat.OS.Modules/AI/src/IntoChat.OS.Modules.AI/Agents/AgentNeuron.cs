@@ -201,6 +201,17 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
             .Select(key => new DigitalBrain.NeuronId(Id.Brain, "agent-context", key[prefix.Length..]))];
     }
 
+    private Task<ContextSnapshot> ReadContext(string key, CancellationToken ct)
+    {
+        var prefix = Id.Brain.Value + "/";
+        var absolute = AgentTurnLoop.Absolute(Id.Brain.Value, key);
+        if (!absolute.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return Task.FromResult(new ContextSnapshot(0, []));
+        }
+        return Context.Get<IAgentContext>(new DigitalBrain.NeuronId(Id.Brain, "agent-context", absolute[prefix.Length..])).Read().WaitAsync(ct);
+    }
+
     // The contexts a definition lists under the given name; the producers below write only where the agent asked for it.
     private DigitalBrain.NeuronId[] ContextsNamed(string[] keys, string name)
         => ContextIds([.. keys.Select(key => AgentTurnLoop.Absolute(Id.Brain.Value, key)).Where(key => key.EndsWith("/context/" + name, StringComparison.Ordinal))]);
@@ -485,7 +496,7 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
             var plan = new TurnPlan(Scope, Key, runId, bounded.Messages, bounded.Summary, input,
                 turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, turn.Contexts ?? definition.Contexts,
                 turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, true);
-            var loop = new AgentTurnLoop(ServiceProvider).Run(plan, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
+            var loop = new AgentTurnLoop(ServiceProvider, ReadContext).Run(plan, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
             try
             {
                 while (true)

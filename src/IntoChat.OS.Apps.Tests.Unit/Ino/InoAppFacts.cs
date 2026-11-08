@@ -15,6 +15,7 @@ using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Post;
+using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
@@ -175,6 +176,58 @@ public sealed class InoAppFacts
         var started = Assert.Single(os.Journal(Brain).Signals(AgentOf("main")).Select(entry => entry.Signal).OfType<TurnStarted>());
         Assert.Equal("hello there", started.UserText);
         Assert.Equal(started.RunId, ino.App.State.ActiveRunId);
+    }
+
+    [Fact]
+    public async Task RuntimeModelSwitchViaSlashCommandSettingsAppAndUserSettingsPropagatesToAgentAndProfileContext()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        var settingsApp = await os.Install<SettingsApp>();
+        var userSettings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
+        // 1. Initial send uses the default model ("qwen3.5:4b")
+        await ino.Request("send", new InoSend("turn 1"));
+        Assert.Equal("qwen3.5:4b", BackgroundAgent.LastConfiguredModel);
+        Assert.Equal("qwen3.5:4b", BackgroundAgent.LastTurnModel);
+        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "reply 1"));
+        BackgroundAgent.Starts = 0;
+
+        // 2. Switch model via `/model claude-sonnet-4-5` slash command in InoApp
+        await ino.Request("send", new InoSend("/model claude-sonnet-4-5"));
+        Assert.Equal("Switched model to claude-sonnet-4-5", ino.App.State.Status);
+        await os.Idle();
+        Assert.Contains("claude-sonnet-4-5", ino.App.State.Status, StringComparison.Ordinal);
+        Assert.Equal("claude-sonnet-4-5", (await userSettings.Read()).DefaultModel);
+        Assert.Equal("claude-sonnet-4-5", BackgroundAgent.LastConfiguredModel);
+
+        await ino.Request("send", new InoSend("turn 2"));
+        Assert.Equal("claude-sonnet-4-5", BackgroundAgent.LastTurnModel);
+        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "reply 2"));
+        BackgroundAgent.Starts = 0;
+
+        // 3. Switch model via SettingsApp.SavePreferences ("gpt-5")
+        await settingsApp.Request("save-preferences", new SettingsSavePreferences(
+            DisplayName: "Ada Lovelace",
+            Theme: "dark",
+            DefaultModel: "gpt-5",
+            StylePreset: "fluent-acrylic",
+            BarLayout: "floating-glass"));
+        await os.Idle();
+        Assert.Equal("gpt-5", (await userSettings.Read()).DefaultModel);
+        Assert.Equal("gpt-5", BackgroundAgent.LastConfiguredModel);
+
+        await ino.Request("send", new InoSend("turn 3"));
+        Assert.Equal("gpt-5", BackgroundAgent.LastTurnModel);
+
+        // 4. Verify real AgentContextNeuron + AgentNeuron on AgentOs also receive the switched model and start the turn with it
+        await using var agentOs = AgentOs();
+        var liveIno = await agentOs.Install<InoApp>();
+        var liveProfile = agentOs.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
+        var liveAgent = agentOs.Get<IAgent>(AgentOf("main"));
+        await liveIno.Request("send", new InoSend("/model claude-sonnet-4-5"));
+        await agentOs.Idle();
+        Assert.Equal("claude-sonnet-4-5", (await liveAgent.Read()).Definition.Model?.Model);
+        Assert.Equal("""{"model":"claude-sonnet-4-5"}""", Assert.Single((await liveProfile.Read()).Entries, e => e.Name == "inference").Text);
     }
 
     [Fact]
@@ -528,10 +581,30 @@ public sealed class InoAppFacts
         public static int Runs { get; set; }
         public static int Cancels { get; set; }
         public static string? Reply { get; set; }
+        public static string? LastConfiguredModel { get; set; }
+        public static string? LastTurnModel { get; set; }
+        private static long _revision;
+        private static AgentDefinition _definition = new();
 
-        public static void Reset() { Starts = 0; Runs = 0; Cancels = 0; Reply = null; }
+        public static void Reset()
+        {
+            Starts = 0;
+            Runs = 0;
+            Cancels = 0;
+            Reply = null;
+            LastConfiguredModel = null;
+            LastTurnModel = null;
+            _revision = 0;
+            _definition = new();
+        }
 
-        public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
+        public Task Configure(AgentDefinition definition, long expectedRevision)
+        {
+            _definition = definition;
+            _revision++;
+            LastConfiguredModel = definition.Model?.Model;
+            return Task.CompletedTask;
+        }
 
         public IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default)
         {
@@ -539,10 +612,16 @@ public sealed class InoAppFacts
             throw new NotSupportedException("Ino starts runs in the background.");
         }
 
-        public Task<string> Start(AgentTurn turn, string? flowId = null) { Starts++; return Task.FromResult("run-1"); }
+        public Task<string> Start(AgentTurn turn, string? flowId = null)
+        {
+            Starts++;
+            LastTurnModel = turn.Model?.Model ?? _definition.Model?.Model;
+            return Task.FromResult("run-1");
+        }
+
         public Task Cancel() { Cancels++; return Task.CompletedTask; }
         public Task CancelRun(string runId) => Task.CompletedTask;
-        public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null,
+        public Task<AgentState> Read() => Task.FromResult(new AgentState(_revision, _definition, null,
             Starts > 0 ? new AgentRun("run-1", AgentRunStatus.Running, "hello", DateTimeOffset.UtcNow) : null, []));
         public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript()
             => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>(

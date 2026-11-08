@@ -180,6 +180,48 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         Assert.Equal(0.2f, options()!.Temperature);
     }
 
+    [Fact]
+    public async Task ModelResolutionHandlesCataloguedIdsAliasesAndMissingCredentialsDiagnostics()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var server = new LoopbackServer();
+        var qwenReply = server.ReplyOnce("application/x-ndjson",
+            """{"model":"qwen3.5:4b","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"from qwen"},"done":true,"done_reason":"stop"}""" + "\n", ct);
+        await using var runtime = await Start(StubChatClient.Replying("host"), ct, options => options.Ollama.Endpoint = server.Url);
+        var catalog = runtime.Services.GetRequiredService<ModelCatalog>();
+
+        // 1. Resolve catalogued model by ID ("qwen3.5:4b") and marker ("IQwen35" / "Qwen35")
+        var qwenById = await catalog.Resolve(new ModelSelection("qwen3.5:4b"), requiresTools: true, ct);
+        var qwenByMarker = await catalog.Resolve(new ModelSelection("IQwen35"), requiresTools: true, ct);
+        Assert.Equal((AiProvider.Ollama, "qwen3.5:4b"), (qwenById.Provider, qwenById.Model));
+        Assert.Equal((AiProvider.Ollama, "qwen3.5:4b"), (qwenByMarker.Provider, qwenByMarker.Model));
+
+        // 2. Execute turn loop with "qwen3.5:4b" in user.profile context and verify ModelSelected event
+        await Write(runtime, "user.profile", new("inference", """{"model":"qwen3.5:4b"}""", [], [ContextTags.Inference]));
+        var firstTurnEvents = await TurnLoops.Collect(runtime.Services, "hello qwen", [], ct, [Key(runtime, "user.profile")]);
+        var selectedQwen = Assert.Single(firstTurnEvents.OfType<AgentTurnEvent.ModelSelected>());
+        Assert.Equal((AiProvider.Ollama, "qwen3.5:4b"), (selectedQwen.Model.Provider, selectedQwen.Model.Model));
+        Assert.IsType<AgentTurnEvent.Completed>(firstTurnEvents[^2]);
+        Assert.Contains("\"qwen3.5:4b\"", (await qwenReply).Body);
+
+        // 3. Switch model at runtime to an unconfigured cloud provider ("claude-sonnet-4-5") and verify graceful diagnostic failure
+        await Write(runtime, "user.profile", new("inference", """{"model":"claude-sonnet-4-5"}""", [], [ContextTags.Inference]));
+        var failedTurnEvents = await TurnLoops.Collect(runtime.Services, "hello claude", [], ct, [Key(runtime, "user.profile")]);
+        var failed = Assert.Single(failedTurnEvents.OfType<AgentTurnEvent.Failed>());
+        Assert.False(failed.Cancelled);
+        Assert.Contains("anthropic", failed.Message, StringComparison.OrdinalIgnoreCase);
+
+        // 4. Switch model at runtime to another local Ollama tag ("gemma4:e2b") and verify ModelSelected updates immediately
+        var gemmaReply = server.ReplyOnce("application/x-ndjson",
+            """{"model":"gemma4:e2b","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"from gemma"},"done":true,"done_reason":"stop"}""" + "\n", ct);
+        await Write(runtime, "user.profile", new("inference", """{"model":"gemma4:e2b"}""", [], [ContextTags.Inference]));
+        var thirdTurnEvents = await TurnLoops.Collect(runtime.Services, "hello gemma", [], ct, [Key(runtime, "user.profile")]);
+        var selectedGemma = Assert.Single(thirdTurnEvents.OfType<AgentTurnEvent.ModelSelected>());
+        Assert.Equal((AiProvider.Ollama, "gemma4:e2b"), (selectedGemma.Model.Provider, selectedGemma.Model.Model));
+        Assert.IsType<AgentTurnEvent.Completed>(thirdTurnEvents[^2]);
+        Assert.Contains("\"gemma4:e2b\"", (await gemmaReply).Body);
+    }
+
     // A stub that answers "ok" and keeps the options of its last request.
     private static StubChatClient Capturing(out Func<ChatOptions?> options)
     {

@@ -75,9 +75,10 @@ public sealed class CSharpModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
             using var proc = Process.Start(psi);
             proc?.WaitForExit(60000);
         }
-        catch
+        catch (Exception error) when (error is not OperationCanceledException)
         {
             // If host publish fails, container build failure will surface diagnostics.
+            Debug.WriteLine(error);
         }
     }
 
