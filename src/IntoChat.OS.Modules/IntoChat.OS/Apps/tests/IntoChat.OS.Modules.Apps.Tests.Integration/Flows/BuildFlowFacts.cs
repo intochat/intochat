@@ -477,6 +477,18 @@ public sealed class BuildFlowFacts
     }
 
     [Fact]
+    public async Task ABuildFlowCarriesItsUnitAliasAsSubject()
+    {
+        await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var id = await Start(runtime);
+
+        var view = await Eventually(() => Flows(runtime).Read(id, Ct), v => v.Subject is not null);
+
+        Assert.Equal("x.watch", view.Subject);
+    }
+
+    [Fact]
     public async Task ListShowsDeployedUnitsWithTheirSidecars()
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);

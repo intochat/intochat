@@ -261,10 +261,14 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         }
     }
 
-    // The alias a build flow waiting at install authored: the SynapseStaged consent its confirmation plan raised names it.
+    // The alias a build flow authored: the subject the flow named, else the SynapseStaged consent its confirmation plan raised.
     private string? AliasOf(string flowId)
-        => _flows.FirstOrDefault(f => f.FlowId == flowId) is { ConfirmationPlanId: { } plan }
+    {
+        var flow = _flows.FirstOrDefault(f => f.FlowId == flowId);
+        if (flow?.Subject is { Length: > 0 } subject) { return subject; }
+        return flow is { ConfirmationPlanId: { } plan }
             && _approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == plan) is { } consent ? consent.Subject : null;
+    }
 
     // The source of a deployed unit: spec.md first, then the .cs files, then scenarios.json, each under its path.
     private async Task<string> SourceOfAsync(DigitalBrain.DeployedSource unit)

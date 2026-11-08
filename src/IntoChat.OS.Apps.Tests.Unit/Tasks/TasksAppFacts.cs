@@ -263,6 +263,23 @@ public sealed class TasksAppFacts
     }
 
     [Fact]
+    public async Task ShowSourceOfACompletedBuildFollowsItsSubject()
+    {
+        await using var os = FakeOs();
+        FakeFlows.Views = [Flow("done", FlowStatus.Completed, type: "flow.build") with { Subject = "x.watch" }];
+        FakeSynapses.Sources = [new DeployedSource("x.watch", "h2", ["x.watch"], DeployStatus.Deployed, null, T0)];
+        FakeSynapses.Files = new() { ["XWatch.cs"] = "class XWatch;" };
+        FakeSynapses.SidecarFiles = new() { ["spec.md"] = "# Watches mentions" };
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+
+        await tasks.Request("show-source", new TasksShowSource(FakeFlows.Views[0].FlowId));
+
+        var body = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Card>(), c => c.Title == "Source").Body;
+        Assert.True(body.IndexOf("--- spec.md ---", StringComparison.Ordinal) is >= 0 and var spec && spec < body.IndexOf("--- XWatch.cs ---", StringComparison.Ordinal), body);
+    }
+
+    [Fact]
     public async Task FlowsChangedRefreshesTheBoard()
     {
         await using var os = FakeOs();

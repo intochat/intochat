@@ -136,7 +136,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                         inner.GoalHash = goalHash;
                         inner.Alias = unit.Alias;
                     }
-                    return new StepResult<BuildInner>(inner);
+                    return new StepResult<BuildInner>(inner, null, [new FlowSubject(Id.ToString(), inner.Alias!)]);
                 }
             case "draft":
                 {
