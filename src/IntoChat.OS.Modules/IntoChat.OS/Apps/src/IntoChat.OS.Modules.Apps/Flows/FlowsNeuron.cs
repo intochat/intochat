@@ -60,6 +60,11 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
             || (await Context.Get<IFlowStarter>(id).Head()).Status != DigitalBrain.Flows.FlowStatus.Pending);
         await Check("Start", new ParentNotBlocked(blocker), new FlowIsNew(id.ToString(), exists));
         await Context.Get<IFlowStarter>(id).StartFromJson(title, Caller(), parentFlowId, innerJson);
+        if (RuntimeCallerContext.TryGet(out var caller) && (caller.AppId is { Length: > 0 } || caller.ConversationId is { Length: > 0 }))
+        {
+            await Fold(id.ToString(), entry => entry.App == caller.AppId && entry.Conversation == caller.ConversationId ? entry
+                : entry with { App = caller.AppId, Conversation = caller.ConversationId });
+        }
         return id.ToString();
     }
 
@@ -220,7 +225,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
         }
         return new FlowView(entry.FlowId, entry.Type, entry.Title, entry.Owner, entry.TraceId, StatusOf(entry, flows), entry.Steps, entry.Done,
             entry.Current, entry.Waiting?.Reason, entry.Waiting?.Step, entry.Waiting?.ConfirmationPlanId, Math.Min(1d, fraction), entry.Relations,
-            [.. BlockersOf(entry, flows)], entry.ParentFlowId, entry.Started, entry.Ended, entry.Detail);
+            [.. BlockersOf(entry, flows)], entry.ParentFlowId, entry.Started, entry.Ended, entry.Detail, entry.App, entry.Conversation);
     }
 
     private static FlowStatus StatusOf(FlowEntry entry, IReadOnlyDictionary<string, FlowEntry> flows)

@@ -51,6 +51,11 @@ public sealed record FlowEntry(
 {
     public const int MaxHeadAttempts = 3;
 
+    // The starting caller's AppId and ConversationId, recorded by Start; null for a flow started elsewhere or before they were kept.
+    public string? App { get; init; }
+
+    public string? Conversation { get; init; }
+
     public bool Finished => Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled;
 
     // The entry with what the flow reports merged in; a status the index already folded wins unless the flow reports an end.

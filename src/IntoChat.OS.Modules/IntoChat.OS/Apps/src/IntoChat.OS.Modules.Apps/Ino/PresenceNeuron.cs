@@ -2,6 +2,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
@@ -16,16 +17,20 @@ namespace IntoChat.OS.Modules.Apps;
 // The sphere's fold. It holds brain-wide synapses on the current conversation agent's turn signals, context changes, the
 // confirmation inbox and the flows index, and derives one Presence with a fixed precedence: a trusted interrupt pauses; an approval
 // Ino waits on; a tool in flight (searching for search/read tools); a turn under 2 s old with no tool listens; a failed Ino flow
-// under 10 s old needs attention; else idle. It saves only when the derived record changes. What it folds from (the run in flight,
-// interrupts, the last failure) is kept in memory and rebuilt from later signals after a restart; the focus and the approvals are
-// re-read on activation. A focus lapses when a turn of the current agent starts after it was written.
+// under 10 s old needs attention; else idle. A timer recomputes when the listening or attention window closes. It saves only when
+// the derived record changes. What it folds from is kept in memory; on activation and when the conversation changes it is rebuilt
+// from the agent (its active run and blocked flag), the agent's listed contexts (trusted interrupts, the focus) and the approvals.
+// The last failure is not rebuilt. A flow is Ino's when an agent's tool call started it (App "assistant"). A focus lapses when a
+// turn of the current agent starts after it was written.
 [DigitalBrain.Neuron("ino.presence")]
 public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
 {
     private static readonly TimeSpan ListeningWindow = TimeSpan.FromSeconds(2), AttentionWindow = TimeSpan.FromSeconds(10);
 
-    // The app id an agent's tool calls carry (CapabilityCallers.AssistantApp); a flow owned by it is Ino's.
-    private const string AssistantOwner = "assistant";
+    // The app id an agent's tool calls carry (CapabilityCallers.AssistantApp); a flow started under it is Ino's.
+    private const string AssistantApp = "assistant";
+
+    private const string WindowTimer = "presence.window";
 
     private sealed record Run(string RunId, DateTimeOffset Started, string? TraceId, string? Tool, string? Arguments);
 
@@ -50,8 +55,45 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
         await Context.Synapses.EnsureBrainWide([.. AgentSignals.All, typeof(InoConversationsChanged), typeof(ContextUpdated), typeof(ContextRemoved),
             typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged), typeof(FlowDone)]);
         await Quietly(async () => _agent = (await Get<IInoConversations>(new NeuronId(Id.Brain, "ino.conversations", IInoConversations.DefaultKey)).Current()).FirstOrDefault(), "conversations");
-        await Quietly(() => ReadContext(ContextKeys.Of(Id.Brain.Value, IInoFocus.ContextKey), IInoFocus.EntryName), "focus");
+        await Rebuild();
+    }
+
+    protected override Task OnReminder(string name, CancellationToken cancellationToken) => name == WindowTimer ? Recompute() : Task.CompletedTask;
+
+    // Re-reads what the fold keeps in memory: the current agent's run and blocked flag, its contexts and the approvals; then recomputes.
+    private async Task Rebuild()
+    {
+        _run = null;
+        _lastTrace = null;
+        _blocked = false;
+        _interrupts.Clear();
+        _focus = null;
+        _focusAt = null;
+        string[] contexts = [IInoFocus.ContextKey];
+        if (_agent is { } agent)
+        {
+            await Quietly(async () =>
+            {
+                var state = await Get<IAgent>(new NeuronId(Id.Brain, AgentSignals.NeuronType, agent)).Read();
+                _blocked = state.Blocked;
+                if (state.ActiveRun is { } active)
+                {
+                    var tool = active.ToolCalls.LastOrDefault(call => call is { Result: null, Code: null, Error: null });
+                    _run = new Run(active.RunId, active.StartedAt, active.TraceId, tool?.Name, tool?.Arguments);
+                }
+                _lastTrace = state.ActiveRun?.TraceId ?? state.Runs.LastOrDefault(run => run.TraceId is not null)?.TraceId;
+                var started = state.ActiveRun?.StartedAt ?? state.Runs.LastOrDefault()?.StartedAt;
+                if (started is { } at && at > _turnStarted) { _turnStarted = at; }
+                contexts = [.. contexts, .. state.Definition.Contexts];
+            }, "agent");
+        }
+        var prefix = Id.Brain.Value + "/";
+        foreach (var key in contexts.Select(key => key.StartsWith(prefix, StringComparison.Ordinal) ? key[prefix.Length..] : key).Distinct(StringComparer.Ordinal))
+        {
+            await Quietly(() => ReadContextEntries(prefix + key), "context");
+        }
         await Quietly(ReadApprovals, "approvals");
+        await Recompute();
     }
 
     public Task<Presence> Read(CancellationToken ct = default) => Task.FromResult(State);
@@ -62,10 +104,7 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
         ArgumentNullException.ThrowIfNull(changed);
         if (changed.Current == _agent) { return Task.CompletedTask; }
         _agent = changed.Current;
-        _run = null;
-        _lastTrace = null;
-        _blocked = false;
-        return Recompute();
+        return Rebuild();
     }
 
     [On]
@@ -183,7 +222,7 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
         if (done.Outcome != FlowOutcome.Failed) { return; }
         FlowView? flow = null;
         await Quietly(async () => flow = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Read(done.FlowId), "flow");
-        if (flow is null || !IsInoOwned(flow.Owner)) { return; }
+        if (flow is null || !IsInoOwned(flow)) { return; }
         _failure = new Failure(done.FlowId, flow.Type, done.Detail ?? flow.Detail, Context.Time.GetUtcNow());
         await Recompute();
     }
@@ -198,7 +237,19 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
 
     private bool IsCurrent(string agentId) => _agent is not null && agentId == _agent;
 
-    private bool IsInoOwned(string owner) => owner == AssistantOwner || owner == _agent;
+    private static bool IsInoOwned(FlowView flow) => flow.App == AssistantApp;
+
+    // The agent's conversation id is its key, or its key under the brain.
+    private bool IsCurrentConversation(FlowView flow) => _agent is not null && (flow.Conversation == _agent || flow.Conversation == $"{Id.Brain.Value}/{_agent}");
+
+    // Reads every entry of a context of this brain (keys "{brain}/{key}").
+    private async Task ReadContextEntries(string contextId)
+    {
+        var prefix = Id.Brain.Value + "/";
+        if (!contextId.StartsWith(prefix, StringComparison.Ordinal)) { return; }
+        var snapshot = await Get<IAgentContext>(new NeuronId(Id.Brain, "agent-context", contextId[prefix.Length..])).Read();
+        foreach (var entry in snapshot.Entries) { Keep(contextId, entry.Name, entry); }
+    }
 
     // Reads one entry of a context of this brain and keeps it when it is a trusted interrupt or the ui.focus.
     private async Task ReadContext(string contextId, string name)
@@ -206,7 +257,11 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
         var prefix = Id.Brain.Value + "/";
         if (!contextId.StartsWith(prefix, StringComparison.Ordinal)) { return; }
         var snapshot = await Get<IAgentContext>(new NeuronId(Id.Brain, "agent-context", contextId[prefix.Length..])).Read();
-        var entry = snapshot.Entries.FirstOrDefault(item => item.Name == name);
+        Keep(contextId, name, snapshot.Entries.FirstOrDefault(item => item.Name == name));
+    }
+
+    private void Keep(string contextId, string name, ContextEntry? entry)
+    {
         var at = (contextId, name);
         if (entry is not null && entry.EffectiveTags.Contains(ContextTags.Interrupt) && entry.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform)
         {
@@ -222,15 +277,18 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
     {
         var pending = await Get<IApprovals>(IApprovals.Key(Id.Brain.Value)).Pending();
         _inboxOpen = pending.Count > 0;
-        Wait? wait = null;
+        Wait? wait = null, current = null;
         foreach (var approval in pending)
         {
-            if (approval.Kind == ApprovalKind.SynapseStaged) { wait = new Wait(null, null, null, approval.Title); break; }
+            if (approval.Kind == ApprovalKind.SynapseStaged) { wait ??= new Wait(null, null, null, approval.Title); continue; }
             if (approval.Kind != ApprovalKind.FlowStep) { continue; }
             var flow = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Read(approval.Subject);
-            if (flow is not null && IsInoOwned(flow.Owner)) { wait = new Wait(flow.FlowId, flow.WaitingStep ?? flow.Current, flow.Type, approval.Title); break; }
+            if (flow is null || !IsInoOwned(flow)) { continue; }
+            var flowWait = new Wait(flow.FlowId, flow.WaitingStep ?? flow.Current, flow.Type, approval.Title);
+            if (IsCurrentConversation(flow)) { current = flowWait; break; }
+            wait ??= flowWait;
         }
-        _wait = wait;
+        _wait = current ?? wait;
     }
 
     private async Task Recompute()
@@ -251,10 +309,21 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
             (flowId, flowType, reason) = (failure.FlowId, failure.FlowType, failure.Detail);
         }
         else { state = PresenceState.Idle; }
+        Arm(state, now);
         var next = new Presence(state, flowId, step, flowType, kind, trace, focus, reason, State.Revision);
         if (next == State) { return; }
         var revision = State.Revision + 1;
         await Save(next with { Revision = revision }, new PresenceChanged(revision));
+    }
+
+    // Schedules a recompute for when the listening window, or a recent failure's attention window, closes.
+    private void Arm(PresenceState state, DateTimeOffset now)
+    {
+        DateTimeOffset? closes = state == PresenceState.Listening && _run is { } run ? run.Started + ListeningWindow
+            : _failure is { } failure && now - failure.At < AttentionWindow ? failure.At + AttentionWindow
+            : null;
+        if (closes is { } at) { Context.Timers.Start(WindowTimer, at - now > TimeSpan.Zero ? at - now : TimeSpan.FromMilliseconds(1), null); }
+        else { Context.Timers.Stop(WindowTimer); }
     }
 
     // A search or read tool, by its name or, for a contract call, by the method it calls.

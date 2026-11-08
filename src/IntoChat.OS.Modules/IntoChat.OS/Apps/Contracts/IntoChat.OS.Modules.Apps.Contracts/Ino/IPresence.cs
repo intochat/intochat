@@ -5,8 +5,8 @@ namespace IntoChat.OS.Modules.Apps;
 // What Ino's sphere shows. Disconnected is the shell's own (its watch dropped); the presence neuron never sets it.
 public enum PresenceState { Idle, Listening, Working, Searching, Waiting, Attention, Paused, Disconnected }
 
-// Critical is the platform's: a focus a model writes with it is dropped.
-public enum FocusTone { Info, Warning, Success, Critical }
+// Critical is the platform's: a model may not point with it, and a focus a model writes with it is dropped.
+public enum FocusTone { Info, Success, Warning, Critical }
 
 // What the shell offers beside a focus, e.g. Kind "open" with Argument an app id.
 public sealed record FocusAction(string Kind, string Argument);

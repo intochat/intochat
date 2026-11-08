@@ -343,6 +343,25 @@ public sealed class FlowsNeuronFacts
     }
 
     [Fact]
+    public async Task StartRecordsCallerAppAndConversation()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+
+        string id;
+        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person-1", "account-1", runtime.Brain.Value, CallerKind.Agent, conversationId: "ino/conversations/main")))
+        {
+            id = await flows.Start(TestFlow.Alias, "By Ino", null, Inner(new TestInner { Wait = true }), Ct);
+        }
+
+        var view = await Eventually(flows, id, view => view.App is not null);
+        Assert.Equal("person-1", view.Owner);
+        Assert.Equal("assistant", view.App);
+        Assert.Equal("ino/conversations/main", view.Conversation);
+    }
+
+    [Fact]
     public async Task CallerBecomesOwner()
     {
         await using var fixture = new FlowsFixture();

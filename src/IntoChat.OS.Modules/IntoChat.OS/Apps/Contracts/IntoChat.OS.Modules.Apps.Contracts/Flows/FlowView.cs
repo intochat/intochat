@@ -25,7 +25,10 @@ public sealed record FlowView(
     string? ParentFlowId,
     DateTimeOffset Started,
     DateTimeOffset? Ended,
-    string? Detail);
+    string? Detail,
+    // The app and conversation of the caller that started the flow (App "assistant" for an agent's tool call); null before they were recorded.
+    string? App = null,
+    string? Conversation = null);
 
 // Null fields do not filter; AnyStatus keeps views whose status is one of them. Newest started first, at most Limit.
 public sealed record FlowQuery(string? Owner = null, FlowStatus? Status = null, string? Type = null, string? ParentFlowId = null, int Limit = 200,

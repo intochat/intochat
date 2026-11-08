@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Modules.AI.Agents.Context;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -13,6 +14,10 @@ public sealed class InoFocusNeuron : DigitalBrain.Neuron, IInoFocus
         ArgumentException.ThrowIfNullOrWhiteSpace(target);
         ArgumentNullException.ThrowIfNull(reason);
         if (action is not null) { ArgumentException.ThrowIfNullOrWhiteSpace(action.Kind); }
+        if (tone == FocusTone.Critical && ContextTrust.Of(RuntimeCallerContext.Current) == ContextTrust.Model)
+        {
+            return new InoToolResult("Critical is reserved for the platform", Ok: false);
+        }
         var text = JsonSerializer.Serialize(new FocusJson(target.Trim(), tone.ToString(), reason,
             action is null ? null : new FocusActionJson(action.Kind, action.Argument ?? "")), PresenceText.Json);
         try { await Focus.Set(new ContextEntry(IInoFocus.EntryName, text, [], [ContextTags.UiFocus])); }

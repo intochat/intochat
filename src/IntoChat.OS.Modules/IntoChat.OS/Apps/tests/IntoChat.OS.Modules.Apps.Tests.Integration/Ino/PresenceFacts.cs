@@ -85,8 +85,12 @@ public sealed class PresenceFacts
 
     private static IInoFocus FocusTool(INeuronRuntime runtime) => runtime.Get<IInoFocus>(new NeuronId(runtime.Brain, "ino.focus", IInoFocus.DefaultKey));
 
-    private static IDisposable As(INeuronRuntime runtime, CallerKind kind, string principal = "person")
-        => RuntimeCallerContext.Stamp(CapabilityCallers.Of(principal, "person", runtime.Brain.Value, kind, kind == CallerKind.App ? "test-app" : null));
+    private static IDisposable As(INeuronRuntime runtime, CallerKind kind)
+        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, kind, kind == CallerKind.App ? "test-app" : null));
+
+    // An agent's tool call as ContractActions.Marked stamps it: the person's principal, AppId "assistant" and the conversation.
+    private static IDisposable AsInoTool(INeuronRuntime runtime)
+        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, CallerKind.Agent, conversationId: Agent));
 
     // Makes Agent the current conversation and activates the presence, so its synapses hold before the facts publish.
     private static async Task<INeuronRuntime> Started(PresenceFixture fixture)
@@ -125,7 +129,7 @@ public sealed class PresenceFacts
         await Eventually(runtime, presence => presence.State == PresenceState.Working);
 
         string flowId;
-        using (As(runtime, CallerKind.User, Agent))
+        using (AsInoTool(runtime))
         {
             flowId = await runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value)).Start(TestFlow.Alias, "Report", null, Inner(new TestInner { WaitApproval = true }), Ct);
         }
@@ -174,8 +178,8 @@ public sealed class PresenceFacts
         await using var runtime = await Started(fixture);
         var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
         string flowId;
-        using (As(runtime, CallerKind.User, Agent)) { flowId = await flows.Start(TestFlow.Alias, "Report", null, Inner(new TestInner { Wait = true }), Ct); }
-        for (var i = 0; i < 200 && (await flows.Read(flowId, Ct))?.Owner != Agent; i++) { await Task.Delay(50, Ct); }
+        using (AsInoTool(runtime)) { flowId = await flows.Start(TestFlow.Alias, "Report", null, Inner(new TestInner { Wait = true }), Ct); }
+        for (var i = 0; i < 200 && (await flows.Read(flowId, Ct))?.App != "assistant"; i++) { await Task.Delay(50, Ct); }
 
         await runtime.Get<IFlowSignalPump>(new NeuronId(runtime.Brain, FlowSignalPump.Alias, "pump")).Failed(flowId, "The source went away.");
 
@@ -252,6 +256,20 @@ public sealed class PresenceFacts
 
         await Eventually(runtime, presence => presence.Focus is null);
         Assert.Single((await ContextOf(runtime, "ui.focus").Read()).Entries);
+    }
+
+    [Fact]
+    public async Task ModelCannotPointCritical()
+    {
+        await using var fixture = new PresenceFixture();
+        await using var runtime = await Started(fixture);
+
+        InoToolResult result;
+        using (As(runtime, CallerKind.Agent)) { result = await FocusTool(runtime).Point("window:files", FocusTone.Critical, "Look."); }
+
+        Assert.False(result.Ok);
+        Assert.Equal("Critical is reserved for the platform", result.Text);
+        Assert.Empty((await ContextOf(runtime, "ui.focus").Read()).Entries);
     }
 
     [Fact]
