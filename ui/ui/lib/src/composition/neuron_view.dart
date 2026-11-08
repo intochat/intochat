@@ -1,4 +1,5 @@
 import '../components/button/ui_neuron_select.dart';
+import '../focus_registry.dart';
 import '../components/graph/ui_graph.dart';
 import '../components/workspace/ui_workspace_components.dart';
 import '../components/button/ui_neuron_button.dart';
@@ -176,9 +177,13 @@ class _NeuronViewState extends State<NeuronView> {
   bool _loading = false, _reloadAgain = false;
   int _generation = 0;
   late final NeuronEventQueue _events = widget.events ?? NeuronEventQueue();
+  final GlobalKey _focusKey = GlobalKey();
+  late final String _focusTarget = '${widget.kind}:${widget.name}';
+
   @override
   void initState() {
     super.initState();
+    FocusRegistry.instance.register(_focusTarget, _focusKey);
     _events.addListener(_changed);
     ChatRunLinks.follows.addListener(_followsChanged);
     _reload();
@@ -505,7 +510,10 @@ class _NeuronViewState extends State<NeuronView> {
     ),
   );
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      KeyedSubtree(key: _focusKey, child: _content(context));
+
+  Widget _content(BuildContext context) {
     final identity = '${widget.kind}:${widget.name}';
     if (widget.ancestors.contains(identity) || widget.ancestors.length >= 16) {
       return const Center(child: Text('This component cannot be displayed.'));
@@ -1191,6 +1199,7 @@ class _NeuronViewState extends State<NeuronView> {
 
   @override
   void dispose() {
+    FocusRegistry.instance.unregister(_focusTarget, _focusKey);
     ChatRunLinks.follows.removeListener(_followsChanged);
     if (_stopId != null) {
       final name = widget.name;

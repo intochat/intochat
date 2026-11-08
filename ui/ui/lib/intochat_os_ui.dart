@@ -32,6 +32,7 @@ export 'src/theme/ui_colors.dart';
 export 'src/theme/ui_theme.dart';
 
 export 'src/composition/neuron_view.dart';
+export 'src/focus_registry.dart';
 export 'src/composition/renderer_registry.dart';
 export 'src/flame/behavior/default_idle_tree.dart';
 export 'src/flame/behavior/tree_runtime.dart';
