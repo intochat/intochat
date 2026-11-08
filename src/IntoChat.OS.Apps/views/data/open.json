@@ -208,131 +208,122 @@
                 {
                   "kind": "button",
                   "label": "Bar",
-                  "action": {
-                    "neuron": "apps/data",
-                    "operation": "switch-chart",
-                    "arguments": [
-                      "bar"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "bar-chart-2",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/data",
+                    "signal": "switch-chart",
+                    "args": "bar"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Line",
-                  "action": {
-                    "neuron": "apps/data",
-                    "operation": "switch-chart",
-                    "arguments": [
-                      "line"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "trending-up",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/data",
+                    "signal": "switch-chart",
+                    "args": "line"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Pie",
-                  "action": {
-                    "neuron": "apps/data",
-                    "operation": "switch-chart",
-                    "arguments": [
-                      "pie"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "pie-chart",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/data",
+                    "signal": "switch-chart",
+                    "args": "pie"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Group by Opportunity",
-                  "action": {
-                    "neuron": "apps/data",
-                    "operation": "group-by",
-                    "arguments": [
-                      "Opportunity",
-                      "SUM"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "layers",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/data",
+                    "signal": "group-by",
+                    "args": [
+                      "Opportunity",
+                      "SUM"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Group by Account",
-                  "action": {
-                    "neuron": "apps/data",
-                    "operation": "group-by",
-                    "arguments": [
-                      "Account",
-                      "SUM"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "layers",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/data",
+                    "signal": "group-by",
+                    "args": [
+                      "Account",
+                      "SUM"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Group by Stage",
-                  "action": {
-                    "neuron": "apps/data",
-                    "operation": "group-by",
-                    "arguments": [
-                      "Stage",
-                      "SUM"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "layers",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/data",
+                    "signal": "group-by",
+                    "args": [
+                      "Stage",
+                      "SUM"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Export CSV",
-                  "action": {
-                    "neuron": "apps/data",
-                    "operation": "export-csv",
-                    "arguments": []
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "download",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/data",
+                    "signal": "export-csv"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Diagram in Markdraw",
-                  "action": {
-                    "neuron": "apps/data",
-                    "operation": "to-markdraw",
-                    "arguments": [
-                      "/work/data-lineage.markdraw"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "pen-tool",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/data",
+                    "signal": "to-markdraw",
+                    "args": "/work/data-lineage.markdraw"
+                  }
                 }
               ],
               "gap": 8,

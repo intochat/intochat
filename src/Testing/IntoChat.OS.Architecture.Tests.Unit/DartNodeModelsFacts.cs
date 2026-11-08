@@ -40,6 +40,31 @@ public sealed partial class DartNodeModelsFacts
         }
     }
 
+    // The app view fixtures (views/{app}/*.json) feed the client's app-view goldens: every node they hold must be a kind
+    // the generated models know, or the golden shows "This component cannot be displayed.".
+    [Fact]
+    public void EveryViewFixtureNodeIsAGeneratedKind()
+    {
+        var known = DerivedKinds().Select(entry => entry.Kind).ToHashSet(StringComparer.Ordinal);
+        var slots = DerivedKinds().SelectMany(entry => Properties(entry.Type))
+            .Where(property => (Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType) == typeof(Node) || Element(property.PropertyType) == typeof(Node))
+            .Select(JsonName).Append("root").ToHashSet(StringComparer.Ordinal);
+        var views = Path.Combine(Repository.Projects["IntoChat.OS.Apps"].Directory, "views");
+        var fixtures = Directory.EnumerateFiles(views, "*.json", SearchOption.AllDirectories).ToArray();
+        Assert.NotEmpty(fixtures);
+        var offenders = new List<string>();
+        void Visit(JsonElement element, bool slot, string file)
+        {
+            if (element.ValueKind == JsonValueKind.Array) { foreach (var item in element.EnumerateArray()) { Visit(item, slot, file); } return; }
+            if (element.ValueKind != JsonValueKind.Object) { return; }
+            if (slot && (!element.TryGetProperty("kind", out var kind) || kind.ValueKind != JsonValueKind.String || !known.Contains(kind.GetString()!)))
+            { offenders.Add($"{Path.GetFileName(file)}: {(element.TryGetProperty("kind", out var k) ? k.ToString() : "(no kind)")}"); }
+            foreach (var property in element.EnumerateObject()) { Visit(property.Value, slots.Contains(property.Name), file); }
+        }
+        foreach (var file in fixtures) { Visit(JsonDocument.Parse(File.ReadAllText(file)).RootElement, false, file); }
+        Assert.True(offenders.Count == 0, "View fixtures hold node kinds the generated models do not know:\n" + string.Join('\n', offenders.Distinct()));
+    }
+
     internal static (Type Type, string Kind)[] DerivedKinds() => [.. typeof(Node).GetCustomAttributes<JsonDerivedTypeAttribute>()
         .Select(attribute => (attribute.DerivedType, (string)attribute.TypeDiscriminator!))];
 

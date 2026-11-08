@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
-import 'package:uuid/uuid.dart';
 
 import '../workspace/spatial_app_canvas.dart';
 import 'desktop_overlays.dart';
@@ -68,6 +67,8 @@ class LiveDesktopShell extends StatefulWidget {
     this.localPreferences,
     this.profileMenu,
     this.read,
+    this.requestApp,
+    this.knowsApp,
   });
 
   final String brain;
@@ -87,6 +88,14 @@ class LiveDesktopShell extends StatefulWidget {
   final EntriesClient Function(String brainId)? entries;
   final LocalPreferences? localPreferences;
   final Widget? profileMenu;
+
+  /// Sends an operation to an app (POST …/apps/{app}/request): the shell's own desktop gestures that no
+  /// view node carries (open a widget, close an app) and a sandbox's controls.
+  final Future<void> Function(String app, String operation, String input)?
+  requestApp;
+
+  /// The apps an OpenWindow intent from a window's view may open.
+  final bool Function(String app)? knowsApp;
 
   /// A read-only contract call (contract, key, method) answering its decoded result; smart mode stays off
   /// without it.
@@ -317,9 +326,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   }
 
   List<_ParsedDesktopWindow> _currentMruWindows() {
-    final root = _data?['root'];
-    if (root is! Map) return const [];
-    final windows = _parseWindows(root);
+    final view = _desktopView;
+    if (view == null) return const [];
+    final windows = _parseWindows(view.root);
     final byId = {for (final w in windows) w.windowId: w};
     final ordered = _zOrder
         .map((id) => byId[id])
@@ -456,29 +465,74 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
   }
 
-  static String _operationId() => const Uuid().v4();
-
   int get _generation => (_data?['generation'] as num?)?.toInt() ?? 0;
+
+  // The keys of the desktop view as last read; only these activate on the view.
+  Set<String> _viewKeys = const {};
 
   void _dispatchViewNode(Map<String, dynamic>? node) {
     if (node == null || node['enabled'] == false) return;
     final key = node['key'] as String?;
-    final action = node['action'] as String?;
-    if (key == null || action == null) return;
-    unawaited(
-      widget
-          .onAction({
-            'kind': 'view',
-            'name': widget.name,
-            'revision': _generation,
-            'field': key,
-            'action': action,
-            'operationId': _operationId(),
-          })
-          .then((_) => _reload())
-          .catchError((Object _) {}),
-    );
+    final Future<Object?> sent;
+    if (key != null && _viewKeys.contains(key)) {
+      sent = widget.onAction({
+        'kind': 'view',
+        'name': widget.name,
+        'generation': _generation,
+        'key': key,
+      });
+    } else if (node['action'] case final String action
+        when widget.requestApp != null) {
+      final colon = action.indexOf(':');
+      sent = widget.requestApp!(
+        node['app'] as String? ?? 'desktop',
+        colon < 0 ? action : action.substring(0, colon),
+        colon < 0 ? '' : action.substring(colon + 1),
+      );
+    } else {
+      return;
+    }
+    unawaited(sent.then((_) => _reload()).catchError((Object _) {}));
   }
+
+  // A desktop button as the window chrome reads it: its key, label, argument and state.
+  static Map<String, dynamic> _button(ButtonNode node) => {
+    'key': node.key,
+    'text': node.label,
+    'enabled': node.enabled,
+    'argument': switch (node.emit?.args) {
+      final String text => text,
+      _ => null,
+    },
+  };
+
+  static Iterable<Node> _children(Node node) => switch (node) {
+    ColumnNode(:final children) ||
+    RowNode(:final children) ||
+    GridNode(:final children) ||
+    CardNode(:final children) ||
+    SurfaceNode(:final children) => children,
+    _ => const <Node>[],
+  };
+
+  static Iterable<Node> _walk(Node node) sync* {
+    yield node;
+    for (final child in _children(node)) {
+      yield* _walk(child);
+    }
+  }
+
+  // The desktop's published view: {generation, view}.
+  AppView? get _desktopView => switch (_data?['view']) {
+    final Map view => AppView.fromJson(Map<String, dynamic>.from(view)),
+    _ => null,
+  };
+
+  // The host's window shell has a dock of `dock-{app}` buttons.
+  static bool _isDesktopTree(AppView? view) =>
+      view != null &&
+      _walk(view.root)
+          .any((node) => node is ButtonNode && node.key.startsWith('dock-'));
 
   static String _titleForAppId(String appId) {
     for (final s in defaultSmartAppSpecs) {
@@ -503,12 +557,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   }
 
   static String _inferAppId(String title, Map<String, dynamic>? pinNode) {
-    if (pinNode != null && pinNode['action'] is String) {
-      final act = pinNode['action'] as String;
-      final colon = act.indexOf(':');
-      if (colon > 0 && colon + 1 < act.length) {
-        return act.substring(colon + 1);
-      }
+    if (pinNode?['argument'] case final String app when app.isNotEmpty) {
+      return app;
     }
     final lower = title.toLowerCase();
     if (lower.contains('ino')) return 'ino';
@@ -527,42 +577,32 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 
-  List<_ParsedDesktopWindow> _parseWindows(Map root) {
-    final topChildren = (root['children'] as List? ?? const [])
-        .whereType<Map>()
-        .toList();
-
-    final frameNodes = <Map>[];
-    if (topChildren.isNotEmpty && topChildren.first['key'] == 'windows') {
-      final windowsNode = topChildren.first;
-      void collectFrames(Map node) {
-        final key = node['key'] as String? ?? '';
-        if (key.startsWith('frame-')) {
-          frameNodes.add(node);
-          return;
-        }
-        for (final child
-            in (node['children'] as List? ?? const []).whereType<Map>()) {
-          collectFrames(child);
-        }
-      }
-
-      collectFrames(windowsNode);
-    }
+  List<_ParsedDesktopWindow> _parseWindows(Node root) {
+    NeuronRefNode? viewportOf(Node node) => _children(node)
+        .whereType<NeuronRefNode>()
+        .where(
+          (ref) =>
+              ref.refKind == 'viewport' &&
+              ref.neuronUri.contains('/apps/desktop/window/'),
+        )
+        .firstOrNull;
+    final frameNodes = [
+      for (final node in _walk(root))
+        if (node is ColumnNode && viewportOf(node) != null) node,
+    ];
 
     final serverWindowKeys = <String>{};
     final serverAppIds = <String>{};
     final result = <_ParsedDesktopWindow>[];
     for (var i = 0; i < frameNodes.length; i++) {
       final frame = frameNodes[i];
-      final frameKey = frame['key'] as String;
-      final winId = frameKey.substring('frame-'.length);
+      final reference = viewportOf(frame)!;
+      final winId = reference.neuronUri.substring(
+        reference.neuronUri.lastIndexOf('/') + 1,
+      );
 
       final numericId =
           int.tryParse(winId.replaceAll(RegExp(r'[^0-9]'), '')) ?? (i + 1);
-      final children = (frame['children'] as List? ?? const [])
-          .whereType<Map>()
-          .toList();
 
       Map<String, dynamic>? focusNode;
       Map<String, dynamic>? newTabNode;
@@ -571,43 +611,40 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       Map<String, dynamic>? closeNode;
       var title = winId;
 
-      if (children.isNotEmpty) {
-        final chromeChildren = (children[0]['children'] as List? ?? const [])
-            .whereType<Map>();
-        for (final btn in chromeChildren) {
-          final k = btn['key'] as String? ?? '';
-          final map = Map<String, dynamic>.from(btn);
-          if (k.startsWith('focus-')) {
-            focusNode = map;
-            title = (btn['text'] as String?) ?? title;
-          } else if (k.startsWith('newtab-')) {
-            newTabNode = map;
-          } else if (k.startsWith('star-')) {
-            starNode = map;
-          } else if (k.startsWith('pin-') || k.startsWith('unpin-')) {
-            pinNode = map;
-          } else if (k.startsWith('close-')) {
-            closeNode = map;
-          }
+      final chrome = frame.children.whereType<RowNode>().firstOrNull;
+      for (final btn
+          in chrome?.children.whereType<ButtonNode>() ?? const <ButtonNode>[]) {
+        final k = btn.key;
+        final map = _button(btn);
+        if (k.startsWith('focus-')) {
+          focusNode = map;
+          title = btn.label;
+        } else if (k.startsWith('newtab-')) {
+          newTabNode = map;
+        } else if (k.startsWith('star-')) {
+          starNode = map;
+        } else if (k.startsWith('pin-') || k.startsWith('unpin-')) {
+          pinNode = map;
+        } else if (k.startsWith('close-')) {
+          closeNode = map;
         }
       }
 
-      final tabs = <Map<String, dynamic>>[];
-      if (children.length > 1) {
-        for (final t
-            in (children[1]['children'] as List? ?? const [])
-                .whereType<Map>()) {
-          tabs.add(Map<String, dynamic>.from(t));
-        }
-      }
+      final tabsNode = frame.children.whereType<TabsNode>().firstOrNull;
+      final tabs = <Map<String, dynamic>>[
+        for (final item in tabsNode?.items ?? const <TabItem>[])
+          {
+            'key': item.key,
+            'text': item.label,
+            'selected': item.id == tabsNode!.selectedId,
+            'enabled': true,
+          },
+      ];
 
-      Map<String, dynamic>? viewportRef;
-      for (final c in children) {
-        if (c['kind'] == 5 && c['reference'] is Map) {
-          viewportRef = Map<String, dynamic>.from(c['reference'] as Map);
-        }
-      }
-      if (viewportRef == null) continue;
+      Map<String, dynamic>? viewportRef = {
+        'kind': reference.refKind,
+        'name': reference.neuronUri,
+      };
 
       final appId = _inferAppId(title, pinNode);
       final winKey = '$winId:$appId';
@@ -680,24 +717,20 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     return result;
   }
 
-  List<String> _parseOpenWidgets(Map root) {
+  List<String> _parseOpenWidgets(Node root) {
     String? rawText;
-    void walk(Map node) {
-      if (rawText != null) return;
-      if (node['key'] == 'open-widgets') {
-        rawText = node['text'] as String? ?? '';
-        return;
+    TextNode? previous;
+    for (final node in _walk(root)) {
+      if (node is! TextNode) continue;
+      if (previous?.value == 'Usage') {
+        rawText = node.value;
+        break;
       }
-      for (final child
-          in (node['children'] as List? ?? const []).whereType<Map>()) {
-        walk(child);
-      }
+      previous = node;
     }
-
-    walk(root);
     final serverWidgets = <String>{
-      if (rawText != null && rawText!.trim().isNotEmpty)
-        for (final part in rawText!.split(','))
+      if (rawText != null && rawText.trim().isNotEmpty)
+        for (final part in rawText.split(','))
           if (part.trim().isNotEmpty) part.trim().toLowerCase(),
     };
     _clientOpenedWidgets.removeWhere(serverWidgets.contains);
@@ -711,29 +744,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     ];
   }
 
-  Map<String, Map<String, dynamic>> _parseDockButtons(Map root) {
-    final buttons = <String, Map<String, dynamic>>{};
-    void walk(Map node) {
-      final key = node['key'] as String? ?? '';
-      if (node['kind'] == 3 && key.isNotEmpty) {
-        buttons[key] = Map<String, dynamic>.from(node);
-      } else if (node['kind'] == 1 && key.isNotEmpty) {
-        buttons[key] = Map<String, dynamic>.from(node);
-      }
-      for (final child
-          in (node['children'] as List? ?? const []).whereType<Map>()) {
-        walk(child);
-      }
-    }
-
-    final topChildren = (root['children'] as List? ?? const [])
-        .whereType<Map>()
-        .toList();
-    for (final child in topChildren) {
-      if (child['key'] == 'dock' || child['key'] == 'bar') walk(child);
-    }
-    return buttons;
-  }
+  Map<String, Map<String, dynamic>> _parseDockButtons(Node root) => {
+    for (final node in _walk(root))
+      if (node is ButtonNode && node.key.startsWith('dock-'))
+        node.key: _button(node),
+  };
 
   Rect _initialWindowBounds(int index, Size desk) {
     final w = (desk.width * 0.64).clamp(680.0, 980.0);
@@ -869,16 +884,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   void _navigateSettingsSection(String? settingsSection) {
     if (settingsSection == null || settingsSection.isEmpty) return;
     unawaited(
-      widget
-          .onAction({
-            'kind': 'view',
-            'name': '${widget.brain}/apps/settings/view',
-            'revision': _generation,
-            'field': 'settings-nav-$settingsSection',
-            'action': 'navigate:$settingsSection',
-            'operationId': _operationId(),
-          })
-          .catchError((Object _) => null),
+      (widget.requestApp?.call('settings', 'navigate', settingsSection) ??
+              Future<void>.value())
+          .catchError((Object _) {}),
     );
   }
 
@@ -1034,16 +1042,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    final root = data?['root'];
-    final isDesktopTree =
-        root is Map &&
-        root['key'] == 'desktop' &&
-        root['kind'] == 2 &&
-        (root['children'] as List? ?? const []).any(
-          (c) => c is Map && c['key'] == 'windows',
-        );
+    final view = _desktopView;
+    final isDesktopTree = _isDesktopTree(view);
 
-    if (data == null || (!isDesktopTree && root != null)) {
+    if (data == null || !isDesktopTree) {
       if (_error != null && data == null) {
         return Center(child: Text('$_error'));
       }
@@ -1054,11 +1056,19 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         load: widget.load,
         watch: widget.watch,
         onAction: widget.onAction,
+        knowsApp: widget.knowsApp,
         onActivate: widget.onActivate,
       );
     }
 
-    final effectiveRoot = root is Map ? root : const <String, dynamic>{};
+    final effectiveRoot = view!.root;
+    _viewKeys = {
+      for (final node in _walk(effectiveRoot))
+        if (node is ButtonNode) node.key,
+      for (final node in _walk(effectiveRoot))
+        if (node is TabsNode)
+          for (final item in node.items) item.key,
+    };
     final c = IcTheme.of(context);
     final windows = _parseWindows(effectiveRoot);
     final dockButtons = _parseDockButtons(effectiveRoot);
@@ -1224,30 +1234,24 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                         },
                         onHardRestartSandbox: () {
                           unawaited(
-                            widget
-                                .onAction({
-                                  'kind': 'view',
-                                  'name': '${spec.viewportRef['name']}',
-                                  'revision': _generation,
-                                  'field': 'sandbox-${spec.windowId}',
-                                  'action': 'sandbox-restart:${spec.appId}',
-                                  'operationId': _operationId(),
-                                })
+                            (widget.requestApp?.call(
+                                      spec.appId,
+                                      'sandbox-restart',
+                                      '',
+                                    ) ??
+                                    Future<void>.value())
                                 .then((_) => _reload())
                                 .catchError((Object _) {}),
                           );
                         },
                         onSwitchExecutionMode: (mode) {
                           unawaited(
-                            widget
-                                .onAction({
-                                  'kind': 'view',
-                                  'name': '${spec.viewportRef['name']}',
-                                  'revision': _generation,
-                                  'field': 'mode-${spec.windowId}',
-                                  'action': 'switch-mode:$mode',
-                                  'operationId': _operationId(),
-                                })
+                            (widget.requestApp?.call(
+                                      spec.appId,
+                                      'switch-mode',
+                                      mode,
+                                    ) ??
+                                    Future<void>.value())
                                 .then((_) => _reload())
                                 .catchError((Object _) {}),
                           );
@@ -1300,18 +1304,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                   final target = byId[id];
                                   if (target != null) {
                                     unawaited(
-                                      widget
-                                          .onAction({
-                                            'kind': 'view',
-                                            'name':
-                                                '${target.viewportRef['name']}',
-                                            'revision': _generation,
-                                            'field':
-                                                'sandbox-${target.windowId}',
-                                            'action':
-                                                'sandbox-restart:${target.appId}',
-                                            'operationId': _operationId(),
-                                          })
+                                      (widget.requestApp?.call(
+                                                target.appId,
+                                                'sandbox-restart',
+                                                '',
+                                              ) ??
+                                              Future<void>.value())
                                           .then((_) => _reload())
                                           .catchError((Object _) {}),
                                     );
@@ -1321,16 +1319,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                   final target = byId[id];
                                   if (target != null) {
                                     unawaited(
-                                      widget
-                                          .onAction({
-                                            'kind': 'view',
-                                            'name':
-                                                '${target.viewportRef['name']}',
-                                            'revision': _generation,
-                                            'field': 'mode-${target.windowId}',
-                                            'action': 'switch-mode:$mode',
-                                            'operationId': _operationId(),
-                                          })
+                                      (widget.requestApp?.call(
+                                                target.appId,
+                                                'switch-mode',
+                                                mode,
+                                              ) ??
+                                              Future<void>.value())
                                           .then((_) => _reload())
                                           .catchError((Object _) {}),
                                     );
@@ -1388,6 +1382,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         load: widget.load,
                                         watch: widget.watch,
                                         onAction: widget.onAction,
+                                        knowsApp: widget.knowsApp,
                                         onActivate: (activation) =>
                                             _handleChildActivation(
                                               activation,
@@ -1406,6 +1401,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 load: widget.load,
                                 watch: widget.watch,
                                 onAction: widget.onAction,
+                                knowsApp: widget.knowsApp,
                                 onActivate: (activation) =>
                                     _handleChildActivation(
                                       activation,

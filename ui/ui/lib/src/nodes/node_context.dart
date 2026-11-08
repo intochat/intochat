@@ -55,6 +55,7 @@ class NodeContext {
     this.watch,
     this.onActivate,
     this.knowsApp,
+    this.reference,
     this.events,
     this.confirmation = false,
     this.enabled = true,
@@ -79,6 +80,9 @@ class NodeContext {
   /// The app keys the shell knows; an `OpenWindow` intent for any other is refused.
   final bool Function(String app)? knowsApp;
 
+  /// Hosts a referenced neuron surface (`neuronRef`) in place; null for a kind the host cannot show.
+  final Widget? Function(String kind, String name)? reference;
+
   final NeuronEventQueue? events;
 
   /// True on the OS confirmation surface, the only place an approval card resolves.
@@ -96,6 +100,7 @@ class NodeContext {
     watch: watch,
     onActivate: onActivate,
     knowsApp: knowsApp,
+    reference: reference,
     events: events,
     confirmation: confirmation,
     enabled: enabled,

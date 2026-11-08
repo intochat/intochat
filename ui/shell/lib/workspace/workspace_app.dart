@@ -13,6 +13,7 @@ import '../desktop/live_desktop_shell.dart';
 import '../desktop/smart_desktop.dart';
 import 'apps/app_activations.dart';
 import 'width_hint.dart';
+import 'known_apps.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
 import 'compute_usage_panel.dart';
@@ -61,6 +62,26 @@ class WorkspaceAppState extends State<WorkspaceApp>
             preferences.writePreferences(widget.persistenceKey, value),
       );
   late final _localPreferences = WorkspaceLocalPreferences(store);
+
+  // The apps an OpenWindow intent may open: the launcher's and the brain's installed apps.
+  Set<String> _knownApps = knownAppsFor(const []);
+
+  Future<void> _readKnownApps(String brain) async {
+    try {
+      final installed = await widget.programmingClient!.listInstalledApps(
+        brain,
+      );
+      if (mounted && _brain == brain) {
+        setState(
+          () =>
+              _knownApps = knownAppsFor([for (final app in installed) app.id]),
+        );
+      }
+    } catch (_) {
+      // The launcher's apps stay known; an installed app opens again after the next read.
+    }
+  }
+
   final _navigator = GlobalKey<NavigatorState>();
   String? _rootName;
   String? _activationApp;
@@ -200,6 +221,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
     bool reconnect = false,
   }) async {
     if (_brain == brain && !reconnect) return;
+    unawaited(_readKnownApps(brain));
     if (_root.isNotEmpty) {
       setState(() {
         _brain = brain;
@@ -676,6 +698,10 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .map((_) {}),
                                 onAction: (event) => widget.programmingClient!
                                     .appRequest(_brain!, 'event', body: event),
+                                knowsApp: (app) => _knownApps.contains(app),
+                                requestApp: (app, operation, input) => widget
+                                    .programmingClient!
+                                    .requestApp(_brain!, app, operation, input),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
                                 stylePreset: preset,
@@ -727,6 +753,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .appRequest(_brain!, 'event', body: event),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
+                                knowsApp: (app) => _knownApps.contains(app),
                               ),
                       ),
                     )

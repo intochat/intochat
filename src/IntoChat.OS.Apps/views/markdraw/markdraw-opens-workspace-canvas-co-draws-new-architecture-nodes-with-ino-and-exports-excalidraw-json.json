@@ -164,66 +164,58 @@
                 {
                   "kind": "button",
                   "label": "Save to Files",
-                  "action": {
-                    "neuron": "apps/markdraw",
-                    "operation": "save",
-                    "arguments": [
-                      "/work/architecture.markdraw"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "save",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/markdraw",
+                    "signal": "save",
+                    "args": "/work/architecture.markdraw"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Export .excalidraw",
-                  "action": {
-                    "neuron": "apps/markdraw",
-                    "operation": "export",
-                    "arguments": [
-                      "excalidraw"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "file-json",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/markdraw",
+                    "signal": "export",
+                    "args": "excalidraw"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Export .svg",
-                  "action": {
-                    "neuron": "apps/markdraw",
-                    "operation": "export",
-                    "arguments": [
-                      "svg"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "image",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/markdraw",
+                    "signal": "export",
+                    "args": "svg"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Diagram CRM Data",
-                  "action": {
-                    "neuron": "apps/markdraw",
-                    "operation": "from-data",
-                    "arguments": [
-                      "Pipeline Opportunities by Amount"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "bar-chart-2",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/markdraw",
+                    "signal": "from-data",
+                    "args": "Pipeline Opportunities by Amount"
+                  }
                 }
               ],
               "gap": 8,

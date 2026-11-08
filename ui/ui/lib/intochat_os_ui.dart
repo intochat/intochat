@@ -42,7 +42,7 @@ export 'src/flame/placeholder_node.dart';
 export 'src/flame/prefabs/activity_ring.dart';
 export 'src/flame/prefabs/glass_sphere.dart';
 export 'src/flame/prefabs/sphere.dart';
-export 'src/flame/primitive_nodes.dart';
+export 'src/flame/primitive_nodes.dart' hide TextNode;
 export 'src/flame/scene_game.dart';
 export 'src/flame/scene_view.dart';
 export 'src/focus_registry.dart';

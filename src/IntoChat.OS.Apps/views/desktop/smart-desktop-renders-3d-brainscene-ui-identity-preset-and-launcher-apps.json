@@ -260,67 +260,66 @@
                 {
                   "kind": "button",
                   "label": "Auto-Arrange",
-                  "action": {
-                    "neuron": "desktop",
-                    "operation": "auto-arrange",
-                    "arguments": []
-                  },
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "layout-grid",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/desktop",
+                    "signal": "auto-arrange"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Pin Markdraw",
-                  "action": {
-                    "neuron": "desktop",
-                    "operation": "pin",
-                    "arguments": [
-                      "markdraw",
-                      "true"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "pin",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/desktop",
+                    "signal": "pin",
+                    "args": [
+                      "markdraw",
+                      "true"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Pin PhotoCraft",
-                  "action": {
-                    "neuron": "desktop",
-                    "operation": "pin",
-                    "arguments": [
-                      "photocraft",
-                      "true"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "pin",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/desktop",
+                    "signal": "pin",
+                    "args": [
+                      "photocraft",
+                      "true"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Pin FilmCraft",
-                  "action": {
-                    "neuron": "desktop",
-                    "operation": "pin",
-                    "arguments": [
-                      "filmcraft",
-                      "true"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "pin",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/desktop",
+                    "signal": "pin",
+                    "args": [
+                      "filmcraft",
+                      "true"
+                    ]
+                  }
                 }
               ],
               "gap": 8,

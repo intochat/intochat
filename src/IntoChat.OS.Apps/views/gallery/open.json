@@ -42,14 +42,15 @@
           "padding": 18
         },
         {
-          "kind": "textField",
-          "name": "gallery-search",
-          "value": "",
+          "kind": "field",
+          "key": "gallery-search",
+          "name": "apps/gallery/gallery-search",
+          "fieldKind": "Search",
           "placeholder": "Search 5 categories & LFP cards…",
           "onSubmit": {
-            "neuron": "gallery",
-            "operation": "filter",
-            "arguments": [
+            "owner": "apps/gallery",
+            "signal": "filter",
+            "args": [
               "all",
               ""
             ]
@@ -429,18 +430,16 @@
                 {
                   "kind": "button",
                   "label": "Back to Gallery",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "select",
-                    "arguments": [
-                      "home"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "arrow-left",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "select",
+                    "args": "home"
+                  }
                 },
                 {
                   "kind": "tagPill",
@@ -583,62 +582,54 @@
                   {
                     "kind": "button",
                     "label": "Primary",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:style:primary"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:style:primary"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Secondary",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:style:secondary"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:style:secondary"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Ghost",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:style:ghost"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:style:ghost"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Danger",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:style:danger"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:style:danger"
+                    }
                   }
                 ],
                 "gap": 6,
@@ -658,77 +649,67 @@
                   {
                     "kind": "button",
                     "label": "Neutral",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:tone:neutral"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:tone:neutral"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Accent",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:tone:accent"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:tone:accent"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Done",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:tone:done"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:tone:done"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Working",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:tone:working"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:tone:working"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Error",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:tone:error"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:tone:error"
+                    }
                   }
                 ],
                 "gap": 6,
@@ -748,32 +729,28 @@
                   {
                     "kind": "button",
                     "label": "Standard (36px)",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:size:standard"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:size:standard"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Small (30px)",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:size:small"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:size:small"
+                    }
                   }
                 ],
                 "gap": 6,
@@ -793,62 +770,54 @@
                   {
                     "kind": "button",
                     "label": "Interactive",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:state:interactive"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:state:interactive"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Loading",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:state:loading"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:state:loading"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Disabled",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:state:disabled"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:state:disabled"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Empty",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:state:empty"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:state:empty"
+                    }
                   }
                 ],
                 "gap": 6,
@@ -868,47 +837,41 @@
                   {
                     "kind": "button",
                     "label": "Acrylic",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:surface:acrylic"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:surface:acrylic"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Elevated",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:surface:elevated"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:surface:elevated"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Recessed",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:surface:recessed"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:surface:recessed"
+                    }
                   }
                 ],
                 "gap": 6,
@@ -928,32 +891,28 @@
                   {
                     "kind": "button",
                     "label": "Bar",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:chart:bar"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:chart:bar"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Line",
-                    "action": {
-                      "neuron": "gallery",
-                      "operation": "select",
-                      "arguments": [
-                        "knob:chart:line"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/gallery",
+                      "signal": "select",
+                      "args": "knob:chart:line"
+                    }
                   }
                 ],
                 "gap": 6,
@@ -977,121 +936,121 @@
                 {
                   "kind": "button",
                   "label": "Fluent Acrylic",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "switch-identity",
-                    "arguments": [
-                      "fluent-acrylic",
-                      "floating-glass"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "palette",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "switch-identity",
+                    "args": [
+                      "fluent-acrylic",
+                      "floating-glass"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Spatial Glass",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "switch-identity",
-                    "arguments": [
-                      "spatial-glass",
-                      "compact-pill"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "sparkles",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "switch-identity",
+                    "args": [
+                      "spatial-glass",
+                      "compact-pill"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Cyber Synaptic",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "switch-identity",
-                    "arguments": [
-                      "cyber-synaptic",
-                      "split-top-dock"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "zap",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "switch-identity",
+                    "args": [
+                      "cyber-synaptic",
+                      "split-top-dock"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Warm Paper",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "switch-identity",
-                    "arguments": [
-                      "warm-paper",
-                      "classic-bottom"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "sun",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "switch-identity",
+                    "args": [
+                      "warm-paper",
+                      "classic-bottom"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Warm Mica",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "switch-identity",
-                    "arguments": [
-                      "fluent-warm-mica",
-                      "floating-glass"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "sun",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "switch-identity",
+                    "args": [
+                      "fluent-warm-mica",
+                      "floating-glass"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Linear Carbon",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "switch-identity",
-                    "arguments": [
-                      "linear-carbon",
-                      "classic-bottom"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "terminal",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "switch-identity",
+                    "args": [
+                      "linear-carbon",
+                      "classic-bottom"
+                    ]
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Nordic Tactical",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "switch-identity",
-                    "arguments": [
-                      "nordic-tactical",
-                      "split-top-dock"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "shield",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "switch-identity",
+                    "args": [
+                      "nordic-tactical",
+                      "split-top-dock"
+                    ]
+                  }
                 }
               ],
               "gap": 8,
@@ -1103,82 +1062,72 @@
                 {
                   "kind": "button",
                   "label": "C# DigitalBrain.UI",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "select",
-                    "arguments": [
-                      "tab:csharp"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "code",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "select",
+                    "args": "tab:csharp"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Flutter Ic*",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "select",
-                    "arguments": [
-                      "tab:flutter"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "layers",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "select",
+                    "args": "tab:flutter"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Contract & [Signal]",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "select",
-                    "arguments": [
-                      "tab:contract"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "radio",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "select",
+                    "args": "tab:contract"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Fire Test [Signal]",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "select",
-                    "arguments": [
-                      "pulse"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "zap",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "select",
+                    "args": "pulse"
+                  }
                 },
                 {
                   "kind": "button",
                   "label": "Copy Snippet",
-                  "action": {
-                    "neuron": "gallery",
-                    "operation": "copy",
-                    "arguments": [
-                      "// IntoChat.UI.ApprovalCard@1 · [ino.approve-card]\n// Knobs: Style=primary · Tone=accent · Size=Standard(36px) · Surface=acrylic\nawait Send(new InoSend(\"Draft confirmation card\"));\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));"
-                    ]
-                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "copy",
-                  "small": true
+                  "small": true,
+                  "emit": {
+                    "owner": "apps/gallery",
+                    "signal": "copy",
+                    "args": "// IntoChat.UI.ApprovalCard@1 · [ino.approve-card]\n// Knobs: Style=primary · Tone=accent · Size=Standard(36px) · Surface=acrylic\nawait Send(new InoSend(\"Draft confirmation card\"));\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));"
+                  }
                 }
               ],
               "gap": 8,

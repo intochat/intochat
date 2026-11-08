@@ -244,6 +244,12 @@ class _ViewHostState extends State<ViewHost> {
           watch: widget.watch,
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
+          reference: (kind, name) => NodeContracts.tryResolve(kind) == null
+              ? null
+              : SizedBox(
+                  height: 480,
+                  child: _child({'kind': kind, 'name': name}),
+                ),
           confirmation: widget.kind == 'confirmation',
           enabled: enabled,
         );

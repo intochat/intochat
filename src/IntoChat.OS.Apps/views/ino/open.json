@@ -38,16 +38,15 @@
             {
               "kind": "button",
               "label": "+ New Session",
-              "action": {
-                "neuron": "apps/ino",
-                "operation": "new",
-                "arguments": []
-              },
               "enabled": true,
               "tone": "accent",
               "style": "secondary",
               "icon": "plus",
-              "small": true
+              "small": true,
+              "emit": {
+                "owner": "apps/ino",
+                "signal": "new"
+              }
             }
           ],
           "surfaceKind": "acrylic",

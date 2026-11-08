@@ -53,68 +53,85 @@ Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
   final name = request.url.queryParameters['name'] ?? '';
   return switch (request.url.queryParameters['kind']) {
     'field' => {'owner': root, 'name': name, 'value': '', 'version': 1},
+    'viewport' => {
+      'revision': 1,
+      'root': {'kind': 'view', 'name': '${segments[1]}/apps/ino/surface'},
+    },
     'view' =>
       name.endsWith('/apps/desktop/view')
-          ? {
-              'generation': 1,
-              'root': {
-                'kind': 2,
-                'key': 'desktop',
+          ? desktopPublishedView(segments[1])
+          : assistantPublishedView(root),
+    _ => null,
+  };
+}
+
+/// The desktop view the host publishes: one Ino window above the dock.
+Map<String, dynamic> desktopPublishedView(String brain) {
+  Map<String, dynamic> button(
+    String key,
+    String label,
+    String signal,
+    String arg,
+  ) => {
+    'kind': 'button',
+    'key': key,
+    'label': label,
+    'emit': {'owner': 'desktop', 'signal': signal, 'args': arg},
+    'enabled': true,
+  };
+  return {
+    'generation': 1,
+    'view': {
+      'title': 'Desktop',
+      'root': {
+        'kind': 'column',
+        'children': [
+          {
+            'kind': 'column',
+            'children': [
+              {
+                'kind': 'row',
                 'children': [
                   {
-                    'kind': 2,
-                    'key': 'windows',
+                    'kind': 'column',
                     'children': [
                       {
-                        'kind': 2,
-                        'key': 'frame-w1',
+                        'kind': 'row',
                         'children': [
+                          button('focus-w1', 'Ino', 'focus', 'w1'),
+                          button('close-w1', 'Close tab', 'close', 'w1/0'),
+                        ],
+                      },
+                      {
+                        'kind': 'tabs',
+                        'selectedId': 'w1/0',
+                        'items': [
                           {
-                            'kind': 2,
-                            'key': 'chrome-w1',
-                            'children': [
-                              {
-                                'kind': 1,
-                                'key': 'focus-w1',
-                                'text': 'Ino',
-                                'action': 'focus:w1',
-                                'enabled': true,
-                              },
-                              {
-                                'kind': 1,
-                                'key': 'pin-w1',
-                                'text': 'Pin',
-                                'action': 'pin:ino',
-                                'enabled': true,
-                              },
-                              {
-                                'kind': 1,
-                                'key': 'close-w1',
-                                'text': '×',
-                                'action': 'close:w1',
-                                'enabled': true,
-                              },
-                            ],
-                          },
-                          {'kind': 2, 'key': 'tabs-w1', 'children': <Object>[]},
-                          {
-                            'kind': 5,
-                            'key': 'body-w1',
-                            'reference': {
-                              'kind': 'view',
-                              'name': '${segments[1]}/apps/ino/surface',
-                            },
+                            'key': 'tab-w1-0',
+                            'id': 'w1/0',
+                            'label': 'Ino',
+                            'emit': {'owner': 'desktop', 'signal': 'tab'},
                           },
                         ],
                       },
+                      {
+                        'kind': 'neuronRef',
+                        'refKind': 'viewport',
+                        'neuronUri': '$brain/apps/desktop/window/w1',
+                      },
                     ],
                   },
-                  {'kind': 2, 'key': 'dock', 'children': <Object>[]},
                 ],
               },
-            }
-          : assistantPublishedView(root),
-    _ => null,
+            ],
+          },
+          {
+            'kind': 'row',
+            'children': [button('dock-ino', 'Ino', 'open', 'ino')],
+          },
+        ],
+      },
+    },
   };
 }
 
