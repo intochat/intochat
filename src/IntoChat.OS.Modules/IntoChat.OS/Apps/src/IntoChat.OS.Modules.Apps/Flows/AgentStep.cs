@@ -18,7 +18,15 @@ public abstract class AgentInner
     public string? AgentError { get; set; }
 }
 
-// A flow whose steps may ask the model. Ask starts a run on the flow's own agent ({brain}/agent/flow-agent/{flowKey}) and returns an
+// The neuron type an agent step's agent has: the AI module's "agent" unless a host (a test) registers another.
+public sealed class AgentStepOptions
+{
+    public const string DefaultAgentType = "agent";
+
+    public string AgentType { get; init; } = DefaultAgentType;
+}
+
+// A flow whose steps may ask the model. Ask starts a run on the flow's own agent ({brain}/{AgentStepOptions.AgentType}/flow-agent/{flowKey}) and returns an
 // External wait; the run's TurnCompleted (by run id) stores the reply and resumes the step, TurnFailed records the error and resumes it,
 // and the next step fails the flow with that error. The reply is written to the inner state the resume saves.
 public abstract class AgentFlow<T> : Flow<T> where T : AgentInner, new()
@@ -47,7 +55,8 @@ public abstract class AgentFlow<T> : Flow<T> where T : AgentInner, new()
     // The run id is the flow's key and the step, so a step run again asks the same run.
     protected async Task<StepResult<T>> Ask(string step, T inner, string prompt)
     {
-        var agent = Context.Get<IAgent>(new NeuronId(Id.Brain, "agent", "flow-agent/" + Id.Key));
+        var type = (Context.Services.GetService(typeof(AgentStepOptions)) as AgentStepOptions)?.AgentType ?? AgentStepOptions.DefaultAgentType;
+        var agent = Context.Get<IAgent>(new NeuronId(Id.Brain, type, "flow-agent/" + Id.Key));
         if ((await agent.Read()).Revision == 0)
         {
             try { await agent.Configure(FlowAgent, 0); }

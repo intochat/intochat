@@ -16,9 +16,12 @@ using Xunit;
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Flows;
 
 // The flow agent of the facts: Start answers at once with the reply Replies holds for the prompt, as TurnCompleted, and records the prompt.
-[DigitalBrain.Neuron("agent")]
+[DigitalBrain.Neuron(Alias)]
 public sealed class ScriptedAgent : DigitalBrain.Neuron<PumpState>, IAgent
 {
+    // Not "agent": the AI module's AgentNeuron owns that type, and fixtures load both.
+    public const string Alias = "test.scripted-agent";
+
     internal static readonly ConcurrentDictionary<string, string> Prompts = new(StringComparer.Ordinal);
 
     // The reply to a prompt that starts with the key; facts of different flow types run in parallel, each with its own prefix.
@@ -127,6 +130,7 @@ public sealed class FlowTypesFixture : BothRuntimesFixture
         services.AddJournalPayloads(typeof(TurnCompleted).Assembly);
         services.AddJournalPayloads(typeof(PullRequestChanged).Assembly);
         services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton(new AgentStepOptions { AgentType = ScriptedAgent.Alias });
     }
 }
 
