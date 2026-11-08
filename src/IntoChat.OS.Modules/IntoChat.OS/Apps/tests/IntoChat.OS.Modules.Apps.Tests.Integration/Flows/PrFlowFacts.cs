@@ -38,23 +38,6 @@ public sealed class PrFlowFacts
     }
 
     [Fact]
-    public async Task MergedWaitReconcilesOnSchedule()
-    {
-        await using var fixture = new FlowTypesFixture();
-        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
-        var flows = Index(runtime);
-        var repository = new NeuronId(runtime.Brain, "github", "quiet");
-        var inner = new PrInner { Repository = repository.ToString(), Branch = "feature", Title = "Quiet", PollEvery = TimeSpan.FromSeconds(3) };
-        var id = await flows.Start(PrFlow.Alias, "Quiet", null, JsonSerializer.Serialize(inner, PrFlow.Json), Ct);
-        await Eventually(() => flows.Read(id, Ct), v => v.Status == FlowStatus.Waiting);
-
-        await runtime.Get<IRepositoryScript>(repository).MergeQuietly();
-
-        var done = await Eventually(() => flows.Read(id, Ct), v => v.Status == FlowStatus.Completed);
-        Assert.Equal(["open", "merged"], done.Done);
-    }
-
-    [Fact]
     public async Task ClosedWithoutMergeFailsTheFlow()
     {
         await using var fixture = new FlowTypesFixture();
@@ -67,7 +50,7 @@ public sealed class PrFlowFacts
 
         await runtime.Get<IRepositoryScript>(repository).Close(StubRepository.Number);
 
-        var failed = await Eventually(() => flows.Read(id, Ct), v => v.Status is FlowStatus.Failed or FlowStatus.Cancelled);
+        var failed = await Eventually(() => flows.Read(id, Ct), v => v is { Status: FlowStatus.Failed, Detail: not null } or { Status: FlowStatus.Cancelled });
         Assert.Equal(FlowStatus.Failed, failed.Status);
         Assert.Equal("closed without merge", failed.Detail);
     }

@@ -161,7 +161,8 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     public Task OnFlowDone(FlowDone done)
     {
         ArgumentNullException.ThrowIfNull(done);
-        return Fold(done.FlowId, entry => entry.Finished ? entry : entry with
+        // An entry already finished from the flow's head (read while folding an earlier signal) still takes the outcome's detail.
+        return Fold(done.FlowId, entry => entry.Finished ? (entry.Detail is null && done.Detail is not null ? entry with { Detail = done.Detail } : entry) : entry with
         {
             Status = done.Outcome switch { FlowOutcome.Completed => FlowStatus.Completed, FlowOutcome.Failed => FlowStatus.Failed, _ => FlowStatus.Cancelled },
             Current = null,

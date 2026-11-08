@@ -34,7 +34,8 @@ public sealed class PlanFlowFacts
 
         await flows.Resume(id, "approve", WaitOutcome.Approved, Ct);
 
-        var done = await Eventually(() => flows.Read(id, Ct), v => v.Status == FlowStatus.Completed);
+        // The index can show Completed from the flow's head before it folds the FlowRelated signals saved before it.
+        var done = await Eventually(() => flows.Read(id, Ct), v => v.Status == FlowStatus.Completed && v.Relations.Length == 2);
         Assert.Equal(["draft", "approve", "start-subtasks"], done.Done);
         var inner = JsonSerializer.Deserialize<PlanInner>((await runtime.Get<IFlowStarter>(Id(id)).Head()).InnerJson, PlanFlow.Json)!;
         Assert.Equal(2, inner.Started.Length);
@@ -60,7 +61,7 @@ public sealed class PlanFlowFacts
 
         var id = await flows.Start(PlanFlow.Alias, "Malformed", null, JsonSerializer.Serialize(new PlanInner { Goal = goal }, PlanFlow.Json), Ct);
 
-        var view = await Eventually(() => flows.Read(id, Ct), v => v.Status is FlowStatus.Failed or FlowStatus.Completed || v.WaitingStep == "approve");
+        var view = await Eventually(() => flows.Read(id, Ct), v => v is { Status: FlowStatus.Failed, Detail: not null } or { Status: FlowStatus.Completed } || v.WaitingStep == "approve");
         Assert.Equal(FlowStatus.Failed, view.Status);
         Assert.StartsWith("plan:", view.Detail, StringComparison.Ordinal);
         Assert.Contains(await runtime.Signals<FlowDone>(Id(id), Ct), done => done is { Outcome: FlowOutcome.Failed } && done.Detail!.StartsWith("plan:", StringComparison.Ordinal));

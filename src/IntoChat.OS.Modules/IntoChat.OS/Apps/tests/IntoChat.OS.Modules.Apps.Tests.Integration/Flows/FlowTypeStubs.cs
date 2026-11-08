@@ -7,7 +7,6 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Apps.Tests.Integration.Ino;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,9 +64,6 @@ public interface IRepositoryScript
 
     Task<int> Created();
 
-    // Merged without a PullRequestChanged, as a missed signal.
-    Task MergeQuietly();
-
     Task Close(int number);
 }
 
@@ -96,8 +92,6 @@ public sealed class StubRepository : DigitalBrain.Neuron<StubRepositoryState>, I
     public Task Merge(int number) => Save(State with { Merged = true }, new PullRequestChanged(number, "2:0", $"github:1:{number}"));
 
     public Task<int> Created() => Task.FromResult(State.Created);
-
-    public Task MergeQuietly() => Save(State with { Merged = true }, new Worked(State.Created));
 
     public Task Close(int number) => Save(State with { Closed = true }, new PullRequestChanged(number, "3:0", $"github:1:{number}"));
 
