@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Testing.Synapses;
 using IntoChat.OS.Modules.AI.Inference;
+using DigitalBrain.Runtime.Synapses;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -57,8 +58,14 @@ public sealed class UnitAuthoringFacts
         }
     }
 
-    private static Creator Creator(ICreatorModel model)
-        => new(new ServiceCollection().BuildServiceProvider(), Options.Create(new AppsOptions()), new AppAuthoringPolicy(), NullLogger<Creator>.Instance, model: model);
+    // Stands for the host's compiler, which a silo registers over its unit reference set.
+    private static readonly SynapseCompiler HostCompiler = new(ReferenceSet.FromDefaultContext());
+
+    private static readonly UnitNeeds XNeeds = new([new SlotNeed("x", "http", ["api.x.com"])], "every 6m", true);
+
+    private static Creator Creator(ICreatorModel model, SynapseCompiler? compiler = null)
+        => new(new ServiceCollection().BuildServiceProvider(), Options.Create(new AppsOptions()), new AppAuthoringPolicy(), NullLogger<Creator>.Instance,
+            model: model, compiler: compiler ?? HostCompiler);
 
     private static AiMessage CheckUnit(string source)
         => new("assistant", [new AiToolCall("c1", BuilderTools.CheckUnit, JsonSerializer.Serialize(new { files = new Dictionary<string, string> { ["XWatch.cs"] = source } }))]);
@@ -218,13 +225,60 @@ public sealed class UnitAuthoringFacts
                 }
             }
             """;
-        var compiler = new DigitalBrain.Runtime.Synapses.SynapseCompiler(DigitalBrain.Runtime.Synapses.ReferenceSet.FromDefaultContext());
-
-        var check = await BuilderTools.Check(compiler, "x.direct", new Dictionary<string, string> { ["Poller.cs"] = direct, [UnitFiles.Spec] = "# not C#" }, [], Ct);
+        var check = await BuilderTools.Check(HostCompiler, "x.direct", new Dictionary<string, string> { ["Poller.cs"] = direct, [UnitFiles.Spec] = "# not C#" },
+            new UnitNeeds([], "every 6m", false), [], Ct);
 
         Assert.False(check.Passed);
         Assert.Contains(check.Diagnostics, d => d.Id == "DB0045");
         Assert.Contains(check.Diagnostics, d => d.Message.Contains("HttpClient", StringComparison.Ordinal));
         Assert.Empty(check.Failures);
+    }
+
+    [Fact]
+    public async Task CheckUnitFailsOnAScheduleMismatch()
+    {
+        var files = new Dictionary<string, string> { ["XWatch.cs"] = AgentPrompts.XWatchExample };
+
+        var agreed = await BuilderTools.Check(HostCompiler, "x.watch", files, XNeeds, [], Ct);
+        var other = await BuilderTools.Check(HostCompiler, "x.watch", files, XNeeds with { Schedule = "every 1h" }, [], Ct);
+        var none = await BuilderTools.Check(HostCompiler, "x.watch", files, XNeeds with { Schedule = null }, [], Ct);
+        var unscheduled = AgentPrompts.XWatchExample.Replace("[Synapse(typeof(Tick), \"x.watch\", Every = \"every 6m\")]", "[Synapse(typeof(Polled), \"x.watch\")]", StringComparison.Ordinal);
+        Assert.NotEqual(AgentPrompts.XWatchExample, unscheduled);
+
+        Assert.True(agreed.Passed, string.Join("; ", agreed.Failures));
+        Assert.Equal("needs.schedule is 'every 1h' but the code says 'every 6m'", Assert.Single(other.Failures));
+        Assert.Equal("needs.schedule is none but the code says 'every 6m'", Assert.Single(none.Failures));
+        Assert.Equal("needs.schedule is 'every 6m' but the code says no schedule",
+            BuilderTools.ScheduleMismatch("every 6m", new Dictionary<string, string> { ["XWatch.cs"] = unscheduled }));
+    }
+
+    [Fact]
+    public async Task AnAuthorWithNoScenariosIsRetried()
+    {
+        var model = new ScriptedModel();
+        var bare = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(Authored)!;
+        bare["scenarios"] = JsonElement.Parse("[]");
+        model.Reply(JsonSerializer.Serialize(bare), Authored);
+
+        var unit = await Creator(model).Author("b", "watch elonmusk on X", Ct);
+
+        Assert.Equal(2, unit.Scenarios.Count);
+        Assert.Equal(2, model.Prompts.Count);
+        Assert.Contains("no scenarios", model.Prompts[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CheckUnitIsUnavailableWithoutTheHostCompiler()
+    {
+        var unit = await AuthorXWatch();
+        var model = new ScriptedModel(_ => CheckUnit(AgentPrompts.XWatchExample), _ => Final(AgentPrompts.XWatchExample));
+        var creator = new Creator(new ServiceCollection().BuildServiceProvider(), Options.Create(new AppsOptions()), new AppAuthoringPolicy(),
+            NullLogger<Creator>.Instance, model: model);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => creator.Draft("b", unit, null, Ct));
+
+        Assert.Equal(SynapseStudioNeuron.Unavailable, error.Message);
+        // The tool call already told the model; the final check is the build's end.
+        Assert.Contains(SynapseStudioNeuron.Unavailable, ToolResult(model.Requests[1]), StringComparison.Ordinal);
     }
 }

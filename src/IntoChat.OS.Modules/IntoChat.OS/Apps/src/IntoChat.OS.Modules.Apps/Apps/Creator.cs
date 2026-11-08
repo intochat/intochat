@@ -29,9 +29,9 @@ internal sealed class Creator(
     AppAuthoringPolicy policy,
     ILogger<Creator> logger,
     IScriptSandbox? csharp = null,
-    ICreatorModel? model = null) : IDrafter
+    ICreatorModel? model = null,
+    SynapseCompiler? compiler = null) : IDrafter
 {
-    private static readonly Lazy<SynapseCompiler> FallbackCompiler = new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
     private readonly ICreatorModel models = model ?? new SiloCreatorModel(plain);
     private const int MaxAuthorRetries = 2;
     private const int MaxBuilderRounds = 12;
@@ -139,7 +139,7 @@ internal sealed class Creator(
         AppendFiles(task, existing);
         // An app build lands each Builder round on the app's activity feed.
         var progress = request.AppKey is { } appKey ? SiloNeurons.Get<IApp>(plain, appKey) : null;
-        var files = await BuilderConversation(request.Brain, progress, Alias(request.Goal), task.ToString(), [], ct);
+        var files = await BuilderConversation(request.Brain, progress, Alias(request.Goal), task.ToString(), null, [], ct);
         return new BuildDraft(files, request.Snapshot is { Manifest.Headless: false } app ? app.Manifest : null);
     }
 
@@ -172,7 +172,7 @@ internal sealed class Creator(
         Validate(unit);
         var task = new StringBuilder().AppendLine("Write this unit.").AppendLine().AppendLine(JsonSerializer.Serialize(unit, Indented));
         AppendFiles(task, existing ?? new Dictionary<string, string>());
-        var files = await BuilderConversation(brainId, null, unit.Alias, task.ToString(), unit.Scenarios, ct);
+        var files = await BuilderConversation(brainId, null, unit.Alias, task.ToString(), unit.Needs, unit.Scenarios, ct);
         files[UnitFiles.Spec] = unit.Spec;
         files[UnitFiles.Scenarios] = JsonSerializer.Serialize(unit.Scenarios, Indented);
         return new BuildDraft(files, null);
@@ -229,7 +229,7 @@ internal sealed class Creator(
     // The Builder works with two tools: read_contracts and check_unit. Its final files are checked again exactly as returned; a
     // reply that is not green goes back to it with the check. Each round of an app build lands on the app's activity feed.
     private async Task<Dictionary<string, string>> BuilderConversation(string brainId, IApp? progress, string alias, string task,
-        IReadOnlyList<Scenario> scenarios, CancellationToken cancellationToken)
+        UnitNeeds? needs, IReadOnlyList<Scenario> scenarios, CancellationToken cancellationToken)
     {
         var messages = new List<AiMessage>
         {
@@ -250,7 +250,7 @@ internal sealed class Creator(
                 try
                 {
                     files = new Dictionary<string, string>(Parse<BuiltUnit>(reply).Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
-                    var check = await BuilderTools.Check(Compiler, alias, files, scenarios, cancellationToken);
+                    var check = await BuilderTools.Check(Compiler, alias, files, needs, scenarios, cancellationToken);
                     problem = check.Passed ? null : "check_unit on your final files is not green. Fix these and return the corrected files JSON:\n" + JsonSerializer.Serialize(check, Json);
                 }
                 catch (Exception error) when (error is JsonException or InvalidDataException)
@@ -268,16 +268,16 @@ internal sealed class Creator(
                     $"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
             }
             var results = new List<AiContent>();
-            foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, alias, scenarios, cancellationToken))); }
+            foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, alias, needs, scenarios, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
         throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a unit that passes check_unit.");
     }
 
-    // The silo's compiler (the host's reference set) when there is one; else one over this process's references.
-    private SynapseCompiler Compiler => plain.GetService<SynapseCompiler>() ?? FallbackCompiler.Value;
+    // The host's compiler (its unit reference set); a host without one cannot check a unit.
+    private SynapseCompiler Compiler => compiler ?? plain.GetService<SynapseCompiler>() ?? throw new InvalidOperationException(SynapseStudioNeuron.Unavailable);
 
-    private async Task<string> ExecuteBuilderTool(AiToolCall call, string alias, IReadOnlyList<Scenario> scenarios, CancellationToken cancellationToken)
+    private async Task<string> ExecuteBuilderTool(AiToolCall call, string alias, UnitNeeds? needs, IReadOnlyList<Scenario> scenarios, CancellationToken cancellationToken)
     {
         try
         {
@@ -285,7 +285,7 @@ internal sealed class Creator(
             {
                 BuilderTools.ReadContracts => BuilderTools.Contracts,
                 BuilderTools.CheckUnit => JsonSerializer.Serialize(await BuilderTools.Check(Compiler, alias,
-                    Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), scenarios, cancellationToken), Json),
+                    Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), needs, scenarios, cancellationToken), Json),
                 _ => throw new ArgumentException($"Unknown tool '{call.Name}'."),
             };
         }
@@ -314,6 +314,7 @@ internal sealed class Creator(
         if (string.IsNullOrWhiteSpace(unit.Spec)) { throw new InvalidDataException("The unit has no spec."); }
         if (unit.State is null || unit.Needs is null || unit.Signals is null || unit.Scenarios is null)
         { throw new InvalidDataException("The unit needs state, signals, needs and scenarios."); }
+        if (unit.Scenarios.Count == 0) { throw new InvalidDataException("The unit has no scenarios; write at least one."); }
         foreach (var signal in unit.Signals) { ValidateAlias(signal.Alias); }
         foreach (var slot in unit.Needs.Slots ?? [])
         {

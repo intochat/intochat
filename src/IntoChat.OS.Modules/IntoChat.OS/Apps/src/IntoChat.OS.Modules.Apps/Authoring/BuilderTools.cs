@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Testing.Synapses;
@@ -7,7 +8,7 @@ namespace IntoChat.OS.Modules.Apps;
 
 // The Builder's two tools: read_contracts (what a slot can be and what a view is made of) and check_unit (compile as a deploy
 // will, then run the authored scenarios on fake slots). Nothing here reflects; the contract text is the framework's surface.
-internal static class BuilderTools
+internal static partial class BuilderTools
 {
     public const string ReadContracts = "read_contracts";
     public const string CheckUnit = "check_unit";
@@ -47,7 +48,7 @@ internal static class BuilderTools
         public sealed record Text(string Value) : Node;
         public sealed record Badge(string Label, string Tone = "neutral", string? Icon = null) : Node;   // tone: neutral, accent, success, warning, danger
         public sealed record StatCardNode(string Key, string Label, string Value, string? Delta = null) : Node;
-        public sealed record Button(string Key, string Label, Emit? Emit = null, ...) : Node;              // Key is stable within the view
+        public sealed record Button(string Key, string Label, Emit? Emit = null, Intent? Intent = null, bool Enabled = true, string Tone = "neutral") : Node;   // Key is stable within the view; give Emit
         public sealed record Emit(string Owner, string Signal, JsonElement? Args = null);                    // Owner = the unit's own alias
 
         namespace DigitalBrain;
@@ -57,8 +58,9 @@ internal static class BuilderTools
         """;
 
     // The check a deploy makes, plus the scenarios: a build that does not compile runs no scenario.
+    // needs is the authored needs, or null when there are none to hold the code to (a build flow draft).
     public static async Task<UnitCheck> Check(SynapseCompiler compiler, string alias, IReadOnlyDictionary<string, string> files,
-        IReadOnlyList<Scenario> scenarios, CancellationToken ct)
+        UnitNeeds? needs, IReadOnlyList<Scenario> scenarios, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(compiler);
         ArgumentNullException.ThrowIfNull(files);
@@ -70,6 +72,7 @@ internal static class BuilderTools
         var diagnostics = build.Diagnostics.Select(d => new ScriptCompilationDiagnostic(d.File, d.Id, d.Line, d.Message)).ToArray();
         if (!build.Success) { return new UnitCheck(false, diagnostics, []); }
         var failures = new List<string>();
+        if (needs is not null && ScheduleMismatch(needs.Schedule, code) is { } mismatch) { failures.Add(mismatch); }
         foreach (var scenario in scenarios)
         {
             ScenarioSteps.Parsed parsed;
@@ -80,6 +83,28 @@ internal static class BuilderTools
         }
         return new UnitCheck(failures.Count == 0, diagnostics, failures);
     }
+
+    // A syntax pass over the compiled code: the Every of each [Synapse(typeof(Tick), ...)] must be the authored schedule, and a
+    // schedule needs a Tick synapse.
+    internal static string? ScheduleMismatch(string? schedule, IReadOnlyDictionary<string, string> code)
+    {
+        var found = code.Values.SelectMany(source => TickSynapse().Matches(source))
+            .Select(match => EveryValue().Match(match.Value) is { Success: true } every ? every.Groups[1].Value : null).ToArray();
+        var wanted = string.IsNullOrWhiteSpace(schedule) ? null : schedule.Trim();
+        var says = found.Length == 0 ? "no schedule" : string.Join(", ", found.Select(every => every is null ? "a Tick synapse with no Every" : $"'{every}'"));
+        return (wanted, found) switch
+        {
+            (null, { Length: 0 }) => null,
+            ({ } w, { Length: > 0 }) when found.All(every => every == w) => null,
+            _ => $"needs.schedule is {(wanted is null ? "none" : $"'{wanted}'")} but the code says {says}",
+        };
+    }
+
+    [GeneratedRegex(@"\[\s*Synapse\s*\(\s*typeof\s*\(\s*(?:DigitalBrain\.Time\.)?Tick\s*\)[^\]]*\]")]
+    private static partial Regex TickSynapse();
+
+    [GeneratedRegex(@"Every\s*=\s*""([^""]*)""")]
+    private static partial Regex EveryValue();
 }
 
 // A unit's source files: its C#, plus spec.md and scenarios.json that travel with it but do not compile.

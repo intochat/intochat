@@ -14,9 +14,9 @@ namespace IntoChat.OS.Modules.Apps;
 // when (one stimulus per line, in order):
 //   tick <n><s|m|h|d>                                              the clock moves on by that much (ticks are cumulative)
 //   publish <signal.alias> [<json>]                                journals the signal with the payload ({} when none)
-// then (one expectation per line, checked after every when):
-//   state <alias> <path> = <json>                                  the state at the dotted path equals the JSON value
-//   signal <signal.alias>                                          the signal was journaled by the last stimulus
+// then (one expectation per line, all checked once, after the LAST when; a state reached in between is its own scenario):
+//   state <alias> <path> = <json>                                  the state at the dotted path (nested: A.B) equals the JSON value
+//   signal <signal.alias>                                          the signal was journaled by the last when line
 internal static class ScenarioSteps
 {
     // UnitScenario's TestOS clock starts here; a tick is an offset from it.

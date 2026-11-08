@@ -111,11 +111,13 @@ internal static class AgentPrompts
         State and signal fields map a field name (PascalCase) to a C# type: int, long, double, bool, string,
         or an array of those (string[]). No status or state-machine strings: keep counts, times and values.
 
-        Write at least one scenario per reaction. A scenario's "given" fakes the slots:
+        Every unit has at least one scenario, and every reaction is covered by one. A scenario's "given" fakes the slots:
           {"http": {"<slot>": {"<url part>": <json body>, "*": <json body>}}, "tools": {"<slot>": {"<tool>": <json result>}}}
         "when" lines are stimuli, in order: "tick 6m" (the clock moves on; ticks add up),
           "publish <signal.alias> {json}".
-        "then" lines are expectations: "state <alias> <Field> = <json>", "signal <signal.alias>".
+        "then" lines are expectations, all checked once after the LAST "when" line: "state <alias> <Field> = <json>"
+          (a dotted path reaches nested fields, "Last.Count"; a string value is quoted: state x.watch Latest = "hi"),
+          "signal <signal.alias>" (said by the last "when" line). To check a state in between, write a separate scenario.
 
         Reply with JSON only, no prose and no code fences, for example:
         {"alias": "x.watch", "title": "X watch",
@@ -151,7 +153,8 @@ internal static class AgentPrompts
           The state comes in as a parameter and the new state goes out as the return value: return the state, or
           `Reaction<TState>.Of(state, signal, ...)` to also say signals; `async Task<...>` when it awaits.
         - A slot is a parameter `[Slot] IHttpRead <name>` or `[Slot] ITool <name>`, named exactly as needs.slots[].name.
-          Take a `CancellationToken ct` last and pass it to every slot call.
+          Take a `CancellationToken ct` last and pass it to every slot call. The time is `tick.At`, never DateTime.Now.
+        - The `Every` in code must be exactly needs.schedule; check_unit fails when they differ or only one exists.
         - When needs.view is true, one `[Synapse("<alias>")]` method takes the state and returns a `View`
           (`new View(title, root)` of Column, Row, Text, Badge, StatCardNode, Button). A Button has a stable key and emits
           to the unit's own alias: `new Button("seen", "Mark seen", new Emit("<alias>", "<signal.alias>"))`.
