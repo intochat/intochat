@@ -172,6 +172,7 @@ internal sealed class CompiledAppsHost(
         "creator" => "Creator",
         "gallery" => "Gallery",
         "tasks" => "Tasks",
+        "trace" => "Trace",
         "post" => "Post",
         "brain" => "Brain",
         "settings" => "Settings",
