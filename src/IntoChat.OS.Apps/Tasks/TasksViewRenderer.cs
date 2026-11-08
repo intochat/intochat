@@ -75,14 +75,18 @@ public static class TasksViewRenderer
         children.Add(new Row(actions));
         children.Add(new Select("Relation", state.RelateKind,
             [.. Enum.GetNames<RelationKind>().Select(kind => new SelectOption(kind, kind, new ButtonAction(App, "relate-kind", [kind])))]));
-        children.Add(new TextField("lag", state.Draft.Lag, "Lag in days (Follows)"));
+        children.Add(new TextField(FieldKey("lag"), state.Draft.Lag, "Lag in days (Follows)"));
         children.Add(new Select("Relate to", "",
             [.. flows.Where(f => f.FlowId != flow.FlowId).Select(f => new SelectOption(f.FlowId, f.Title, new ButtonAction(App, "relate", [flow.FlowId, state.RelateKind, f.FlowId, state.Draft.Lag])))]));
         if (source is not null) { children.Add(new Card("Source", source, [])); }
         return new View(flow.Title, new Column(children));
     }
 
-    public static ButtonAction OpenTrace(string traceId) => new("desktop", "open", ["trace", $"trace/{traceId}"]);
+    // Opens the Trace app's window at the view trace/{traceId}.
+    public static ButtonAction OpenTrace(string traceId) => new("apps/trace", "open", [$"trace/{traceId}"]);
+
+    // A field is the textfield neuron apps/tasks/{field}; the app watches it.
+    public static string FieldKey(string field) => $"apps/{App}/{field}";
 
     public static ButtonAction Resolve(string planId, bool approve)
         => new(IConfirmations.ConfirmationsNeuronKey, IConfirmations.ResolveOperation, [planId, approve ? "true" : "false"]);
@@ -144,8 +148,8 @@ public static class TasksViewRenderer
         var start = new ButtonAction(App, "new", [draft.Title, draft.Description]);
         return new Card("New task", "A plan flow drafts the subtasks from the description.",
         [
-            new TextField("title", draft.Title, "Title"),
-            new TextField("description", draft.Description, "Description") { OnSubmit = start },
+            new TextField(FieldKey("title"), draft.Title, "Title"),
+            new TextField(FieldKey("description"), draft.Description, "Description") { OnSubmit = start },
             new Button("Start", start, Tone: ButtonTone.Accent) { Small = true, Icon = "plus" },
         ]);
     }

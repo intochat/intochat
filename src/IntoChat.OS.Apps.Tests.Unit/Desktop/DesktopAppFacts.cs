@@ -38,4 +38,19 @@ public sealed class DesktopAppFacts
 
         Assert.Equal(("apps/trace", "open", "trace/t-1"), Assert.Single(RecordingApp.Requests));
     }
+
+    [Fact]
+    public async Task LegacyOpenByNameStillOpensTheWindow()
+    {
+        RecordingApp.Requests.Clear();
+        await using var os = TestOS.Local();
+        var desktop = await os.Install<DesktopApp>();
+
+        // "open:tasks" binds the name alone; no app neuron is registered, so a forward would throw.
+        await desktop.Request("open", new DesktopOpen("tasks"));
+        await desktop.Request("open", new DesktopOpen("trace", "trace/t-1"));
+
+        Assert.Empty(RecordingApp.Requests);
+        Assert.Null(desktop.App.RecordedError);
+    }
 }

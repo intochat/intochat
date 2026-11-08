@@ -87,10 +87,12 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     public async Task Open(DesktopOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        // An app named opens at the view given: its open operation receives the view as input.
-        if (!string.IsNullOrWhiteSpace(request.App))
+        // Only a typed open with a view forwards it to the app (its open operation receives the view as input); a legacy open by
+        // name ("open:{app}") binds App alone and is the window open it always was. A failed forward still opens the desktop.
+        if (!string.IsNullOrWhiteSpace(request.App) && request.View is { } view)
         {
-            await Get<IntoChat.OS.Modules.Apps.IApp>($"apps/{request.App.Trim().ToLowerInvariant()}").Request("open", request.View?.Trim() ?? "");
+            try { await Get<IntoChat.OS.Modules.Apps.IApp>($"apps/{request.App.Trim().ToLowerInvariant()}").Request("open", view.Trim()); }
+            catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The app did not take the view; the desktop opens without it."); }
         }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }

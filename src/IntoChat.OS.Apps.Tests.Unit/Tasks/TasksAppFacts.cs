@@ -9,8 +9,6 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter.TextField;
 using IntoChat.OS.Modules.Flutter.TextField.Signals;
-using IntoChat.OS.Apps.Tests.Unit.Desktop;
-using IntoChat.OS.Apps.Desktop;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Tasks;
 
@@ -106,22 +104,23 @@ public sealed class TasksAppFacts
         Assert.Equal(started.Id, tasks.App.State.Selected);
     }
 
+    // The presentation turns this action into os://window/open?app=trace&input=trace%2Ftrace-c (AppPresentationForeignActionFacts).
     [Fact]
-    public async Task OpenTraceNavigatesToTraceApp()
+    public void OpenTraceNavigatesToTraceApp()
     {
         var flow = Flow("c", FlowStatus.Running);
         var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
+
         var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Open trace").Action;
-        Assert.Equal("desktop", open.Neuron);
-        Assert.Equal("open", open.Operation);
 
-        RecordingApp.Requests.Clear();
-        await using var os = TestOS.Local();
-        os.Register<RecordingApp>();
-        var desktop = await os.Install<DesktopApp>();
-        await desktop.Request(open.Operation, new DesktopOpen(open.Arguments[0], open.Arguments[1]));
+        Assert.Equal(new ButtonAction("apps/trace", "open", ["trace/trace-c"]), open);
+    }
 
-        Assert.Equal(("apps/trace", "open", "trace/trace-c"), Assert.Single(RecordingApp.Requests));
+    [Fact]
+    public void FormFieldsAreTheAppsTextfieldNeurons()
+    {
+        var names = Nodes(TasksViewRenderer.Render(new TasksState(), [], [], T0)).OfType<TextField>().Select(f => f.Name).ToArray();
+        Assert.Equal(["apps/tasks/title", "apps/tasks/description"], names);
     }
 
     [Fact]

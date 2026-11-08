@@ -898,11 +898,15 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       final queryApp = uri?.queryParameters['app'];
       final querySection = uri?.queryParameters['section'];
       if (queryApp != null && queryApp.isNotEmpty) {
+        final queryInput = uri?.queryParameters['input'];
         _launchOrFocusApp(
           queryApp,
           windows,
           dockButtons,
           settingsSection: querySection,
+          openInput: queryInput != null && queryInput.isNotEmpty
+              ? queryInput
+              : null,
         );
         return;
       }
