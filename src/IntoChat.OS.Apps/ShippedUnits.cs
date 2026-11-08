@@ -26,8 +26,11 @@ public static class ShippedUnits
     }
 
     // Deploys alias's shipped files and leaves the install as the host answers it, Pending until the person approves. The first
-    // deploy records the unit as a headless app and ends its build by the install (its activity names what it waits on); a later
-    // deploy (a retried birth, a connect) only deploys again: the same files deploy once, so it answers Unchanged or Pending.
+    // deploy records the unit as a headless app and begins its build. While the record is Building (waiting for approval, or a
+    // crash between Create and the end of the build), every deploy ends the build by the install the studio reports: Pending keeps
+    // it waiting, installed (Unchanged once the person approved) makes it Live. So the connect after an approval finishes the build,
+    // and a connect after a crash deploys again (the studio deploys anew when the installs neuron knows nothing of the alias).
+    // A Live (or otherwise settled) record only deploys again: the same files deploy once.
     public static async Task<UnitDeployResult> Deploy(ISynapseStudio studio, IApp app, string alias, string title)
     {
         ArgumentNullException.ThrowIfNull(studio);
@@ -35,9 +38,15 @@ public static class ShippedUnits
         var files = Files(alias);
         if (files.Count == 0) { throw new ArgumentException($"The OS ships no unit {alias}.", nameof(alias)); }
         var none = new Dictionary<string, string>(StringComparer.Ordinal);
-        if ((await app.Read()).Manifest.Title.Length > 0) { return await studio.DeployFiles(alias, files, none); }
-        await app.Create(new AppManifest(title, files.TryGetValue("spec.md", out var spec) ? FirstLine(spec) : title, [], [], [], Headless: true), spec ?? "");
-        await app.BeginBuild("shipped unit " + alias);
+        var record = await app.Read();
+        if (record.Manifest.Title.Length == 0)
+        {
+            await app.Create(new AppManifest(title, files.TryGetValue("spec.md", out var spec) ? FirstLine(spec) : title, [], [], [], Headless: true), spec ?? "");
+            await app.BeginBuild("shipped unit " + alias);
+        }
+        // Drafted: a crash between Create and BeginBuild; its build begins now.
+        else if (record.Status == AppStatus.Drafted) { await app.BeginBuild("shipped unit " + alias); }
+        else if (record.Status != AppStatus.Building) { return await studio.DeployFiles(alias, files, none); }
         var attempt = await app.CurrentBuildAttempt();
         var result = await studio.DeployFiles(alias, files, none);
         if (!result.Ok) { await app.CompleteBuild(attempt, null, result.Text); return result; }

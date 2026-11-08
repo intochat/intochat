@@ -80,6 +80,34 @@ public sealed class CircleRoomInstallFacts
         // fact shows: CircleRoomUnitFacts.AJoinThenAMessageShowsBothInTheView).
         Assert.Null(await runtime.Get<IViewReader>(new NeuronId(runtime.Brain, Alias, "default")).Read(Alias));
         Assert.Empty(await brain.Installs.Pending(Ct));
+        // The next connect finds the unit installed and finishes the app's build.
+        await brain.Born();
+        Assert.Equal(AppStatus.Live, (await brain.App.Read()).Status);
+    }
+
+    [Fact]
+    public async Task AConnectAfterACrashFinishesTheRoomBuild()
+    {
+        await using var fixture = new SynapseStudioFacts.StudioFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var creator = AsCreator(runtime);
+        var brain = new Brain(runtime);
+        // A birth that crashed after the record was created and its build begun, before anything deployed.
+        await brain.App.Create(new AppManifest("Circle room", "Circle room", [], [], [], Headless: true), "");
+        await brain.App.BeginBuild("shipped unit " + Alias);
+
+        var result = await brain.Born();
+
+        Assert.True(result.Ok, result.Text);
+        var ask = Assert.Single(await brain.Installs.Pending(Ct), pending => pending.Alias == Alias);
+        var app = await brain.App.Read();
+        Assert.Equal(AppStatus.Building, app.Status);
+        Assert.StartsWith("waiting for approval: ", app.Activity[^1], StringComparison.Ordinal);
+
+        await brain.Inbox.Resolve(ask.PlanId, true);
+        for (var i = 0; i < 100 && await brain.Installs.Describe(Alias, Ct) is null; i++) { await Task.Delay(50, Ct); }
+        await brain.Born();
+        Assert.Equal(AppStatus.Live, (await brain.App.Read()).Status);
     }
 
     [Fact]
@@ -100,5 +128,6 @@ public sealed class CircleRoomInstallFacts
         Assert.Equal(ask.PlanId, Assert.Single(await brain.Installs.Pending(Ct), pending => pending.Alias == Alias).PlanId);
         Assert.Null(await brain.Installs.Describe(Alias, Ct));
         Assert.Empty(await runtime.Signals<ConfirmationResolved>(brain.Confirmations, Ct));
+        Assert.Equal(AppStatus.Building, (await brain.App.Read()).Status);
     }
 }
