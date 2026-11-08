@@ -257,8 +257,6 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                 ],
                 SystemName: "Ino",
                 Status: "pending",
-                OnApprove: new ButtonAction("apps/ino", "approve-card", ["card-1", "true"]),
-                OnReject: new ButtonAction("apps/ino", "approve-card", ["card-1", "false"]),
                 SourceNeuronUri: "neuron://local/os.confirmations/inbox"),
         ])
         { Gap = 14 });

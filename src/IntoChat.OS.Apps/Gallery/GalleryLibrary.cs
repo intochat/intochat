@@ -295,7 +295,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "ApprovalCard (LFP)",
             "Inline human-in-the-loop confirmation card rendered inside Ino chat turns and Smart Desktop.",
             "IntoChat.UI.ApprovalCard@1",
-            ["ino.approve-card"],
+            ["confirmations.Resolve"],
             "neuron://local/os.confirmations/inbox#approval-card",
             "await Send(new InoSend(\"Draft confirmation card\"));\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));")
         { Icon = "check-check" },

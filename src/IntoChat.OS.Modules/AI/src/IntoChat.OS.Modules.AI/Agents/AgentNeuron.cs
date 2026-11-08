@@ -111,7 +111,7 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         return [.. masked];
     }
 
-    private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>();
+    private ILogger Logger => ServiceProvider.GetService<ILogger<AgentNeuron>>() ?? (ILogger)global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
     private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
 
     protected override async Task OnActivate(CancellationToken cancellationToken)

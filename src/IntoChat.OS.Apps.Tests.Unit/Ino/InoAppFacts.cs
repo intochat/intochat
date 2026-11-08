@@ -63,7 +63,8 @@ public sealed class InoAppFacts
             fakes: os =>
             {
                 os.Register(typeof(AppsModule).Assembly);
-                os.Register<IntoChat.OS.Modules.AI.Memory.MemoryNeuron>();
+                // The smart toggle writes a setting, which the profile writer copies into the agent's context.
+                os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
             },
             cancellationToken: ct);
         Assert.True(inoReport.Passed);
@@ -173,8 +174,135 @@ public sealed class InoAppFacts
         Assert.Equal("ino/conversations/main", ino.App.State.AgentKey);
         var started = Assert.Single(os.Journal(Brain).Signals(AgentOf("main")).Select(entry => entry.Signal).OfType<TurnStarted>());
         Assert.Equal("hello there", started.UserText);
-        Assert.Null(ino.App.State.ActiveRunId);
+        Assert.Equal(started.RunId, ino.App.State.ActiveRunId);
     }
+
+    [Fact]
+    public async Task SendStartsExactlyOnceAndReturnsBeforeCompletion()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+
+        await ino.Request("send", new InoSend("hello"));
+
+        Assert.Equal(1, BackgroundAgent.Starts);
+        Assert.Equal(0, BackgroundAgent.Runs);
+        Assert.Equal("run-1", ino.App.State.ActiveRunId);
+        Assert.Equal("Thinking", ino.App.State.Status);
+        Assert.Equal(["ino/conversations/main"], await os.Get<IInoConversations>(new NeuronId(Brain, "ino.conversations", IInoConversations.DefaultKey)).Current());
+    }
+
+    [Fact]
+    public async Task ToolCallProgressSetsStatusUsingTool()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("hello"));
+
+        await Deliver(ino, new TurnProgressed("ino/conversations/main", "run-1", "tool-call", null, "neuron_call", "{}", 1));
+
+        Assert.Equal("Using neuron_call", ino.App.State.Status);
+    }
+
+    [Fact]
+    public async Task CardProgressAppendsOneCard()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("hello"));
+        var card = new InoCard("settings-models", "settings", "Settings · models", "Open settings", "neuron://local/apps/settings", "ready");
+        var web = System.Text.Json.JsonSerializerOptions.Web;
+
+        // The agent reports a card twice, as the tool result and as its card step: Ino shows it once.
+        await Deliver(ino, new TurnProgressed("ino/conversations/main", "run-1", "tool-result", null, "neuron_call", System.Text.Json.JsonSerializer.Serialize(new InoToolResult("Opened settings.", card), web), 2));
+        await Deliver(ino, new TurnProgressed("ino/conversations/main", "run-1", "card", null, "neuron_call", System.Text.Json.JsonSerializer.Serialize(card, web), 3));
+
+        Assert.Equal(card, Assert.Single(ino.App.State.ActiveCards));
+    }
+
+    [Fact]
+    public async Task DuplicateProgressIsIgnored()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("hello"));
+        var card = new InoCard("c", "settings", "Settings", "Open", "neuron://local/apps/settings", "ready");
+        var payload = System.Text.Json.JsonSerializer.Serialize(new InoToolResult("ok", card), System.Text.Json.JsonSerializerOptions.Web);
+        var step = new TurnProgressed("ino/conversations/main", "run-1", "tool-result", null, "neuron_call", payload, 2);
+
+        await Deliver(ino, step);
+        await Deliver(ino, step);
+
+        Assert.Single(ino.App.State.ActiveCards);
+        Assert.Equal(["run-1:2"], ino.App.State.SeenProgress ?? []);
+    }
+
+    [Fact]
+    public async Task TurnCompletedReloadsTranscript()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("hello"));
+        BackgroundAgent.Reply = "Hi from the background";
+
+        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "Hi from the background"));
+
+        Assert.Equal("Ready", ino.App.State.Status);
+        Assert.Null(ino.App.State.ActiveRunId);
+        Assert.Contains("Hi from the background", Strings(ino.App.Render()));
+    }
+
+    [Fact]
+    public async Task AgentBlockedPauses()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("hello"));
+
+        await Deliver(ino, new AgentBlocked("ino/conversations/main", true));
+
+        Assert.True(ino.App.State.Blocked);
+        Assert.Equal("Paused", ino.App.State.Status);
+    }
+
+    [Fact]
+    public async Task StopCancelsActiveRun()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("hello"));
+        Assert.Contains("Stop", Strings(ino.App.Render()));
+
+        await ino.Request("stop", new InoStop());
+
+        Assert.Equal(1, BackgroundAgent.Cancels);
+    }
+
+    [Fact]
+    public async Task SmartToggleWritesVariable()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+
+        await ino.Request("smart", new InoSmart(true));
+
+        var settings = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
+        Assert.Contains(settings.Variables, v => v.Key == "ino.smart" && v.Value == "on");
+        Assert.Contains("Smart mode: on", Strings(ino.App.Render()));
+    }
+
+    private static TestOS BackgroundOs()
+    {
+        BackgroundAgent.Reset();
+        var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<BackgroundAgent>();
+        return os;
+    }
+
+    // TestOS does not serve an app's declared watches: hand the signal to the set watch that takes it, as the host does.
+    private static Task Deliver<TSignal>(InstalledApp<InoApp> ino, TSignal signal) where TSignal : Signal
+        => Assert.Single(ino.App.DeclaredWatches(), watch => watch.SignalType == typeof(TSignal) && watch.IsSet).Handle(signal);
 
     [Fact]
     public void AToolResultWithACardRendersACard()
@@ -265,30 +393,14 @@ public sealed class InoAppFacts
     [Fact]
     public async Task ACancelledRunClearsTheActiveRun()
     {
-        await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
-        os.Register<CancellingAgent>();
+        await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
-
         await ino.Request("send", new InoSend("hello"));
+
+        await Deliver(ino, new TurnFailed("ino/conversations/main", "run-1", "cancelled", Cancelled: true));
 
         Assert.Null(ino.App.State.ActiveRunId);
         Assert.Equal("Cancelled", ino.App.State.Status);
-    }
-
-    [Fact]
-    public async Task ApprovingAPendingApprovalCardFlipsItsStatus()
-    {
-        await using var os = TestOS.Local();
-        os.Register(typeof(AppsModule).Assembly);
-        var ino = await os.Install<InoApp>();
-        await ino.Request("send", new InoSend("/scenario q4-renewal"));
-        var pending = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "approval");
-        Assert.Equal("pending", pending.Status);
-
-        await ino.Request("approve-card", new InoApproveCard(pending.Id, true));
-
-        Assert.Equal("approved", Assert.Single(ino.App.State.ActiveCards, c => c.Id == pending.Id).Status);
     }
 
     [Fact]
@@ -394,24 +506,32 @@ public sealed class InoAppFacts
         }
     }
 
-    // An agent whose run starts and is then cancelled, as a run cancelled through its token is.
+    // An agent whose Start hands the run off and returns at once; the test delivers the run's signals.
     [Neuron(AgentSignals.NeuronType)]
-    private sealed class CancellingAgent : Neuron, IAgent
+    private sealed class BackgroundAgent : Neuron, IAgent
     {
+        public static int Starts { get; set; }
+        public static int Runs { get; set; }
+        public static int Cancels { get; set; }
+        public static string? Reply { get; set; }
+
+        public static void Reset() { Starts = 0; Runs = 0; Cancels = 0; Reply = null; }
+
         public Task Configure(AgentDefinition definition, long expectedRevision) => Task.CompletedTask;
 
-        public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        public IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default)
         {
-            yield return new AgentTurnEvent.Started("run-1");
-            await Task.Yield();
-            throw new OperationCanceledException("The run was cancelled.");
+            Runs++;
+            throw new NotSupportedException("Ino starts runs in the background.");
         }
 
-        public Task<string> Start(AgentTurn turn, string? flowId = null) => throw new NotSupportedException();
-        public Task Cancel() => Task.CompletedTask;
+        public Task<string> Start(AgentTurn turn, string? flowId = null) { Starts++; return Task.FromResult("run-1"); }
+        public Task Cancel() { Cancels++; return Task.CompletedTask; }
         public Task CancelRun(string runId) => Task.CompletedTask;
         public Task<AgentState> Read() => Task.FromResult(new AgentState(1, new AgentDefinition(), null, null, []));
-        public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript() => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>([]);
+        public Task<IntoChat.OS.Modules.AI.Inference.AiMessage[]> Transcript()
+            => Task.FromResult<IntoChat.OS.Modules.AI.Inference.AiMessage[]>(
+                Reply is null ? [] : [new("assistant", [new IntoChat.OS.Modules.AI.Inference.AiText(Reply)])]);
         public Task Clear() => Task.CompletedTask;
         public Task Post(string text, string id) => Task.CompletedTask;
     }
