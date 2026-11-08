@@ -2,7 +2,7 @@
 # Trace
 Role: Default
 Shipped: true
-Operations: open, play, pause, back, forward, live
+Operations: open, play, pause, back, forward, live, refresh
 
 Follows one operation across neurons: the trace's journaled signals folded into a causation tree, a graph of the publishers with
 the selected hop's link lit, and a replay bar. Stepping is manual: Play follows live, Pause stops following, Back and Forward step.
@@ -29,6 +29,9 @@ public sealed record TraceBack : DigitalBrain.Signal;
 [DigitalBrain.Signal("trace.forward")]
 public sealed record TraceForward : DigitalBrain.Signal;
 
+[DigitalBrain.Signal("trace.refresh")]
+public sealed record TraceRefresh : DigitalBrain.Signal;
+
 [DigitalBrain.Signal("trace.live")]
 public sealed record TraceLive : DigitalBrain.Signal;
 
@@ -42,7 +45,6 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
     // Why there is nothing to show, or null when the hops render.
     private string? _notice = TraceViewRenderer.OpenHint;
     private bool _loaded;
-    private int _loading;
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(TraceApp));
 
@@ -60,6 +62,7 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
                 new("back", "Step to the previous hop."),
                 new("forward", "Step to the next hop."),
                 new("live", "Follow the latest hop."),
+                new("refresh", "Re-read the trace."),
             ],
             Settings: [],
             Slots: [],
@@ -77,8 +80,14 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
         ArgumentNullException.ThrowIfNull(request);
         var input = request.Input?.Trim() ?? "";
         var traceId = input.StartsWith("trace/", StringComparison.Ordinal) ? input["trace/".Length..].Trim() : null;
-        Volatile.Write(ref _loading, 1);
         Set(State with { TraceId = string.IsNullOrEmpty(traceId) ? null : traceId, Since = 0, Live = true, SelectedSequence = null });
+        return RefreshAsync();
+    }
+
+    [DigitalBrain.On]
+    public Task Refresh(TraceRefresh request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
         return RefreshAsync();
     }
 
@@ -98,16 +107,18 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
     }
 
     [DigitalBrain.On]
-    public void Back(TraceBack request)
+    public async Task Back(TraceBack request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await EnsureLoadedAsync();
         Set(State with { Live = false, SelectedSequence = TraceViewRenderer.Step(State, _hops, -1) });
     }
 
     [DigitalBrain.On]
-    public void Forward(TraceForward request)
+    public async Task Forward(TraceForward request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await EnsureLoadedAsync();
         Set(State with { Live = false, SelectedSequence = TraceViewRenderer.Step(State, _hops, +1) });
     }
 
@@ -115,21 +126,17 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
     public Task Live(TraceLive request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Volatile.Write(ref _loading, 1);
         Set(State with { Live = true });
         return RefreshAsync();
     }
 
-    // A rehydrated app holds its TraceId but not the hops: the first render starts the read, and its Set re-renders.
-    public View Render()
-    {
-        if (!_loaded && State.TraceId is not null && Interlocked.Exchange(ref _loading, 1) == 0)
-        {
-            _ = RefreshAsync();
-            return new View("Trace", new Column([new InfoBar("Loading", $"reading trace {State.TraceId}", "neutral")]));
-        }
-        return TraceViewRenderer.Render(State, _hops, _notice);
-    }
+    // Pure: a rehydrated app holds its TraceId but not the hops until a turn (refresh, back, forward, play, live) reads them.
+    public View Render() => !_loaded && State.TraceId is { } traceId
+        ? TraceViewRenderer.Unloaded(traceId)
+        : TraceViewRenderer.Render(State, _hops, _notice);
+
+    // Reads inside the current turn only.
+    private Task EnsureLoadedAsync() => !_loaded && State.TraceId is not null ? RefreshAsync() : Task.CompletedTask;
 
     private async Task RefreshAsync()
     {
@@ -162,7 +169,6 @@ public sealed class TraceApp : DigitalBrain.App<TraceState>
             : null;
         _hops = TraceViewRenderer.Fold(held);
         _loaded = true;
-        Volatile.Write(ref _loading, 0);
         Set(State);
     }
 }

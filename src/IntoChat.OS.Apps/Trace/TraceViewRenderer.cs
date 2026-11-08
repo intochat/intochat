@@ -13,6 +13,15 @@ public static class TraceViewRenderer
     public const string Origin = "origin";
     public const int MaxIndent = 12;
 
+    public static string PressRefresh(string traceId) => $"trace {traceId}: press Refresh";
+
+    // The hop-less view of a trace not read in this activation yet.
+    public static View Unloaded(string traceId) => new("Trace", new Column(
+    [
+        new InfoBar("Not loaded", PressRefresh(traceId), "neutral",
+            new Button("Refresh", new ButtonAction($"apps/{App}", "refresh", [])) { Small = true, Icon = "refresh-cw" }),
+    ]));
+
     public static string NoEntries(string traceId) => $"no journal entries carry trace {traceId}";
 
     public static string ReaderFailed(string message) => $"trace reader unavailable: {message}";
@@ -87,7 +96,7 @@ public static class TraceViewRenderer
             ])]);
         var floor = hops.Min(h => h.Sequence);
         var last = hops.Max(h => h.Sequence);
-        var center = new SplitPane(table, Graph(hops, selected), 420);
+        var center = new SplitPane(table, Graph(hops, selected, state.TraceId), 420);
         return new View("Trace", new Column(
         [
             new SplitPane(center, Side(hops.FirstOrDefault(h => h.Sequence == selected)), 820),
@@ -96,7 +105,7 @@ public static class TraceViewRenderer
     }
 
     // One node per distinct publisher, one synapse per causation link in sequence order; the link into the selected hop is lit.
-    public static BrainSceneNode Graph(TraceHop[] hops, long? selected)
+    public static BrainSceneNode Graph(TraceHop[] hops, long? selected, string? traceId = null)
     {
         ArgumentNullException.ThrowIfNull(hops);
         var publishers = hops.OrderBy(h => h.Sequence).Select(h => h.Publisher).Distinct(StringComparer.Ordinal).ToArray();
@@ -114,7 +123,7 @@ public static class TraceViewRenderer
         // A selected root hop has no in-page cause: an origin node feeds it so the replay still lights an edge.
         if (lit is not null && (lit.Cause is not { } cause || !byAddress.ContainsKey(cause)))
         {
-            nodes = [.. nodes, new BrainGraphNode(Origin, lit.Cause ?? Origin, "", "origin", 0, 0, 10)];
+            nodes = [.. nodes, new BrainGraphNode(Origin, lit.Cause ?? Origin, $"origin://{traceId}", "origin", 0, 0, 10)];
             synapses.Add(new BrainGraphSynapse(Origin, lit.Publisher, lit.Alias, Active: true));
         }
         return new BrainSceneNode(nodes, synapses, lit?.Publisher);

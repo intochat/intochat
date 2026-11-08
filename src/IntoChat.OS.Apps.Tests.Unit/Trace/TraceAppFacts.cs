@@ -163,8 +163,12 @@ public sealed class TraceAppFacts
         typeof(TraceApp).GetField("_loaded", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(trace.App, false);
 
         Assert.Equal("t1", trace.App.State.TraceId);
-        Assert.Empty(Nodes(trace.App.Render()).OfType<DataTable>());
-        for (var i = 0; i < 100 && !Nodes(trace.App.Render()).OfType<DataTable>().Any(); i++) { await Task.Delay(20, TestContext.Current.CancellationToken); }
+        var unloaded = trace.App.Render();
+        Assert.Contains(TraceViewRenderer.PressRefresh("t1"), Strings(unloaded));
+        Assert.Equal(new ButtonAction("apps/trace", "refresh", []), Assert.Single(Nodes(unloaded).OfType<Button>(), b => b.Label == "Refresh").Action);
+
+        await trace.Request("refresh", new TraceRefresh());
+
         Assert.Equal(5, Assert.Single(Nodes(trace.App.Render()).OfType<DataTable>()).Rows.Count);
     }
 
