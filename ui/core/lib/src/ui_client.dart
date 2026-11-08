@@ -11,8 +11,10 @@ import 'session_http_client_io.dart'
     if (dart.library.html) 'session_http_client_web.dart'
     as transport;
 import 'host_environment.dart';
+import 'journal_tail_client.dart';
 import 'models/app_manifest.dart';
 import 'models/installed_app.dart';
+import 'models/journal_models.dart';
 import 'models/cluster.dart';
 import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
@@ -708,6 +710,45 @@ final class IntoChatOSUiClient {
       },
     );
     return controller.stream;
+  }
+
+  /// The brain's journal as batches of signals after [since] (a sequence number), each new one as it is journaled; the
+  /// stream reopens from the last sequence seen when the connection drops and fails with [JournalTailRefused] when refused.
+  Stream<List<JournalTailSignal>> watchJournal(
+    String brainId, {
+    int since = 0,
+  }) => JournalTailClient(
+    baseUri: baseUri,
+    httpClient: _http,
+  ).watch(brainId, since: since);
+
+  /// A unit's current state record as JSON, or null when [alias] has none saved (or is not a loaded unit).
+  Future<Map<String, dynamic>?> readUnitState(
+    String brainId,
+    String alias,
+  ) async => _unitRead(brainId, 'state', alias);
+
+  /// A unit's published view, or null before its first view (or when [alias] is not a loaded unit).
+  Future<UnitView?> readUnitView(String brainId, String alias) async {
+    final json = await _unitRead(brainId, 'view', alias);
+    return json == null ? null : UnitView.fromJson(json);
+  }
+
+  Future<Map<String, dynamic>?> _unitRead(
+    String brainId,
+    String what,
+    String alias,
+  ) async {
+    try {
+      final response = await _request(
+        'GET',
+        '/brains/${Uri.encodeComponent(brainId)}/$what?alias=${Uri.encodeQueryComponent(alias)}',
+      );
+      return (jsonDecode(response.body) as Map).cast<String, dynamic>();
+    } on UiRequestException catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
   }
 
   /// Spend and balance for one brain, grouped by [by]; rows are most expensive first.

@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
@@ -14,6 +15,8 @@ internal sealed class BrainEdge(INeuronProxies proxies, IBrainObserver kernel, I
     public IBrainObserver Kernel => kernel;
 
     public T Get<T>(string osFullKey) where T : class => proxies.Get<T>(osFullKey);
+
+    public T Get<T>(NeuronId id) where T : class => proxies.Get<T>(id);
 
     public IBrain Self(string brainId) => proxies.Get<IBrain>(IBrain.Key(brainId));
 

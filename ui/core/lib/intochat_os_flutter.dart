@@ -15,6 +15,7 @@ export 'src/models/scene_models.dart';
 export 'src/models/table_models.dart';
 export 'src/models/tree_models.dart';
 export 'src/models/workspace_models.dart';
+export 'src/journal_tail_client.dart';
 export 'src/scene_client.dart';
 export 'src/ui_client.dart';
 export 'src/neuron_channel.dart';
