@@ -403,6 +403,7 @@ class ApplicationFixture {
 
   Future<void> dispose() async {
     await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 60));
     await server.events.close();
     client.close();
     store.dispose();

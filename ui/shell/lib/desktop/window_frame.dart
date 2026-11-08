@@ -17,9 +17,11 @@ class DesktopWindowState extends ChangeNotifier {
     this.zoomed = false,
     this.minimized = false,
     this.isPinned = false,
-    this.executionMode = 'wasm-ui',
+    String? executionMode,
     this.accentHex,
-  });
+  }) : executionMode =
+           executionMode ??
+           (IcAppIcon.isArtCraftApp(appId) ? 'wasm-ui' : 'orleans-grain');
 
   final int id;
   final String appId;
@@ -34,11 +36,15 @@ class DesktopWindowState extends ChangeNotifier {
   String? sandboxStatusBadge;
   final String? accentHex;
 
+  bool get isArtCraftBridge => IcAppIcon.isArtCraftApp(appId);
+
   static String formatExecutionMode(String mode) {
     return switch (mode.toLowerCase()) {
       'wasm-ui' => 'WASM Web UI',
       'mcp' => 'MCP Server',
       'native-linux' => 'Native Linux CLI',
+      'orleans-grain' => 'Orleans Grain',
+      'csharp-sandbox' => 'C# Sandbox',
       _ => mode,
     };
   }

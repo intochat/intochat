@@ -38,13 +38,19 @@ enum CanvasSector {
   final Color color;
 
   static CanvasSector sectorForApp(String appId) {
-    return switch (appId.toLowerCase()) {
+    final normalized = appId.toLowerCase();
+    if (IcAppIcon.isArtCraftApp(normalized)) {
+      return switch (normalized) {
+        'pdfcraft' ||
+        'wordcraft' ||
+        'deckcraft' ||
+        'gridcraft' => CanvasSector.workspace,
+        _ => CanvasSector.studio,
+      };
+    }
+    return switch (normalized) {
       'ino' || 'memory' || 'ai' || 'assistant' => CanvasSector.intelligence,
-      'creator' ||
-      'photocraft' ||
-      'filmcraft' ||
-      'gallery' ||
-      'brain' => CanvasSector.studio,
+      'creator' || 'gallery' || 'brain' => CanvasSector.studio,
       'files' ||
       'calculator' ||
       'settings' ||

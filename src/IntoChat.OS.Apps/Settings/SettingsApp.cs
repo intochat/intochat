@@ -180,7 +180,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     {
         "appearance" or "profile" => "general",
         "compute" => "billing",
-        "circles" => "team",
+        "circles" or "friends" => "team",
         "modules" => "apps",
         "archived" => "files",
         var s when SearchIndex.Any(entry => entry.SectionId == s) => s,

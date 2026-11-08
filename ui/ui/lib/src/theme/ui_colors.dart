@@ -219,101 +219,11 @@ final class UiColors extends ThemeExtension<UiColors> {
   static UiColors of(BuildContext context) =>
       Theme.of(context).extension<UiColors>() ?? intochatLight;
 
-  /// Warm Paper Light (Figma `:root`).
-  static const intochatLight = UiColors(
-    preset: IcStylePreset.warmPaper,
-    page: Color(0xFFFBFAF7),
-    elevated: Color(0xFFF5F3EE),
-    surface: Color(0xFFFFFFFF),
-    recessed: Color(0xFFF2EFE9),
-    ink: Color(0xFF17140F),
-    strong: Color(0xFF17140F),
-    body: Color(0xFF2A251E),
-    muted: Color(0xFF7C7264),
-    subtle: Color(0xFF9C9182),
-    onInk: Color(0xFFFBFAF7),
-    accent: Color(0xFF1F5EFF),
-    accentHover: Color(0xFF1541C7),
-    accentTint: Color(0xFFE7EEFF),
-    accentBorder: Color(0x591F5EFF),
-    onAccent: Color(0xFFFFFFFF),
-    accentCopy: Color(0xFF1F5EFF),
-    accentCopyHover: Color(0xFF1541C7),
-    focus: Color(0x591F5EFF),
-    done: Color(0xFF12A150),
-    doneBg: Color(0xFFE1F6EA),
-    working: Color(0xFFE8A317),
-    workingBg: Color(0xFFFCF1DA),
-    error: Color(0xFFE0402F),
-    errorBg: Color(0xFFFCE7E3),
-    hairline: Color(0xFFE4DFD5),
-    borderStrong: Color(0xFF17140F),
-    inputBorder: Color(0xFFC2B9AB),
-    userBubble: Color(0xFF17140F),
-    userText: Color(0xFFFBFAF7),
-    assistant: Color(0xFFFFFFFF),
-    assistantText: Color(0xFF2A251E),
-    assistantBorder: Color(0xFFE4DFD5),
-    menuHover: Color(0xFFF2EFE9),
-    blurSigma: 0.0,
-    windowOpacity: 1.0,
-    specularBorder: Color(0xFFE4DFD5),
-    chrome: Color(0xE6FFFFFF),
-    chromeBorder: Color(0xFFE4DFD5),
-    titleBarFocused: Color(0xFFF2EFE9),
-    titleBarBlurred: Color(0xFFFBFAF7),
-    ambientGlow: Color(0xFF1F5EFF),
-    secondaryGlow: Color(0xFF12A150),
-    chartContext: Color(0xFF9C9182),
-  );
+  /// Warm Paper Light (derived from `IcColors.warmPaperLight`).
+  static final intochatLight = UiColors.fromIc(IcColors.warmPaperLight);
 
-  /// Warm Paper Dark (`[data-theme="dark"]`).
-  static const intochatDark = UiColors(
-    preset: IcStylePreset.warmPaper,
-    page: Color(0xFF17140F),
-    elevated: Color(0xFF1F1B15),
-    surface: Color(0xFF2A251E),
-    recessed: Color(0xFF110F0B),
-    ink: Color(0xFF110F0B),
-    strong: Color(0xFFFBFAF7),
-    body: Color(0xFFF0ECE4),
-    muted: Color(0xFF9C9182),
-    subtle: Color(0xFF7C7264),
-    onInk: Color(0xFF17140F),
-    accent: Color(0xFF4B7DFF),
-    accentHover: Color(0xFF1F5EFF),
-    accentTint: Color(0x294B7DFF),
-    accentBorder: Color(0x734B7DFF),
-    onAccent: Color(0xFF17140F),
-    accentCopy: Color(0xFFFBFAF7),
-    accentCopyHover: Color(0xFFF0ECE4),
-    focus: Color(0x734B7DFF),
-    done: Color(0xFF8FE0AF),
-    doneBg: Color(0x298FE0AF),
-    working: Color(0xFFF6D28A),
-    workingBg: Color(0x29F6D28A),
-    error: Color(0xFFF3A99F),
-    errorBg: Color(0x29F3A99F),
-    hairline: Color(0xFF423B31),
-    borderStrong: Color(0xFFF0ECE4),
-    inputBorder: Color(0xFF5E554A),
-    userBubble: Color(0xFFFBFAF7),
-    userText: Color(0xFF17140F),
-    assistant: Color(0xFF2A251E),
-    assistantText: Color(0xFFF0ECE4),
-    assistantBorder: Color(0xFF423B31),
-    menuHover: Color(0x99423B31),
-    blurSigma: 0.0,
-    windowOpacity: 1.0,
-    specularBorder: Color(0xFF423B31),
-    chrome: Color(0xE62A251E),
-    chromeBorder: Color(0xFF423B31),
-    titleBarFocused: Color(0xFF332D25),
-    titleBarBlurred: Color(0xFF2A251E),
-    ambientGlow: Color(0xFF4B7DFF),
-    secondaryGlow: Color(0xFF8FE0AF),
-    chartContext: Color(0xFF9C9182),
-  );
+  /// Warm Paper Dark (derived from `IcColors.warmPaperDark`).
+  static final intochatDark = UiColors.fromIc(IcColors.warmPaperDark);
 
   // --- All 7 UI Identities derived directly from IcColors in tokens.dart ---
   static final fluentAcrylicDark = UiColors.fromIc(IcColors.fluentDark);
@@ -322,8 +232,8 @@ final class UiColors extends ThemeExtension<UiColors> {
   static final spatialGlassLight = UiColors.fromIc(IcColors.spatialLight);
   static final cyberSynapticDark = UiColors.fromIc(IcColors.cyberDark);
   static final cyberSynapticLight = UiColors.fromIc(IcColors.cyberLight);
-  static const warmPaperLight = intochatLight;
-  static const warmPaperDark = intochatDark;
+  static final warmPaperLight = intochatLight;
+  static final warmPaperDark = intochatDark;
   static final fluentWarmMicaDark = UiColors.fromIc(
     IcColors.fluentWarmMicaDark,
   );

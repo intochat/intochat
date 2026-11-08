@@ -423,15 +423,22 @@ class AppTestingMenuPopover extends StatelessWidget {
   final VoidCallback? onOpenAppSettings;
   final VoidCallback? onRunTests;
 
-  static const _modes = [
+  static const _artCraftModes = [
     ('wasm-ui', 'WASM Web UI', LucideIcons.globe),
     ('mcp', 'MCP Server', LucideIcons.server),
     ('native-linux', 'Native Linux CLI', LucideIcons.terminal),
   ];
 
+  static const _nativeOsModes = [
+    ('orleans-grain', 'Orleans Grain (In-Process)', LucideIcons.cpu),
+    ('csharp-sandbox', 'C# Sandbox (Isolated)', LucideIcons.shieldCheck),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
+    final isArtCraft = window.isArtCraftBridge;
+    final modes = isArtCraft ? _artCraftModes : _nativeOsModes;
 
     return IcAcrylicBox(
       key: ValueKey('window-settings-popover-${window.id}'),
@@ -482,7 +489,7 @@ class AppTestingMenuPopover extends StatelessWidget {
 
           // Execution Mode Switcher
           Text(
-            'EXECUTION MODE',
+            isArtCraft ? 'ARTCRAFT BRIDGE MODE' : 'NATIVE OS RUNTIME',
             style: IcType.text(
               10.5,
               weight: FontWeight.w700,
@@ -490,7 +497,7 @@ class AppTestingMenuPopover extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          for (final (id, label, icon) in _modes)
+          for (final (id, label, icon) in modes)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: GestureDetector(

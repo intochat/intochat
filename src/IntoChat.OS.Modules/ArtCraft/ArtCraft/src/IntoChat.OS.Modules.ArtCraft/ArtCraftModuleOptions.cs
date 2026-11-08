@@ -11,41 +11,79 @@ public sealed class ArtCraftModuleOptions : IModuleOptions
     public const int PhotoCraftWebPort = 18082;
     public const int FilmCraftWebPort = 18083;
 
-    public static string[] HostedOrigins => [$"http://localhost:{PhotoCraftWebPort}", $"http://localhost:{FilmCraftWebPort}"];
+    public static string[] HostedOrigins =>
+        [.. ArtCraftCatalog.All.Select(static app => $"http://localhost:{app.DefaultWebPort}")];
 
     public bool Host { get; set; }
-    public string? PhotoCraftMcp { get; set; }
-    public string? FilmCraftMcp { get; set; }
-    public string? PhotoCraftWeb { get; set; }
-    public string? FilmCraftWeb { get; set; }
+
+    public Dictionary<string, string?> McpEndpoints { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string?> WebEndpoints { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public string? PhotoCraftMcp
+    {
+        get => GetMcp("photocraft");
+        set => SetMcp("photocraft", value);
+    }
+
+    public string? FilmCraftMcp
+    {
+        get => GetMcp("filmcraft");
+        set => SetMcp("filmcraft", value);
+    }
+
+    public string? PhotoCraftWeb
+    {
+        get => GetWeb("photocraft");
+        set => SetWeb("photocraft", value);
+    }
+
+    public string? FilmCraftWeb
+    {
+        get => GetWeb("filmcraft");
+        set => SetWeb("filmcraft", value);
+    }
 
     // When set (e.g. ghcr.io/intochat), the apps run the prebuilt os-artcraft-<app>-<mcp|web> images tagged with the
     // first 12 characters of the pinned ref; null builds the Dockerfiles locally.
     public string? ImageRegistry { get; set; }
 
+    public string? GetMcp(string appId)
+        => McpEndpoints.TryGetValue(ArtCraftCatalog.NormalizeAppId(appId), out var url) ? url : null;
+
+    public void SetMcp(string appId, string? url)
+        => McpEndpoints[ArtCraftCatalog.NormalizeAppId(appId)] = url;
+
+    public string? GetWeb(string appId)
+        => WebEndpoints.TryGetValue(ArtCraftCatalog.NormalizeAppId(appId), out var url) ? url : null;
+
+    public void SetWeb(string appId, string? url)
+        => WebEndpoints[ArtCraftCatalog.NormalizeAppId(appId)] = url;
+
     public ArtCraftModuleOptions WithHostedApps()
     {
         Host = true;
-        PhotoCraftMcp = $"http://localhost:{PhotoCraftMcpPort}/mcp";
-        FilmCraftMcp = $"http://localhost:{FilmCraftMcpPort}/mcp";
-        PhotoCraftWeb = $"http://localhost:{PhotoCraftWebPort}/";
-        FilmCraftWeb = $"http://localhost:{FilmCraftWebPort}/";
+        foreach (var descriptor in ArtCraftCatalog.All)
+        {
+            McpEndpoints[descriptor.Id] = descriptor.DefaultMcpUrl;
+            WebEndpoints[descriptor.Id] = descriptor.DefaultWebUrl;
+        }
         return this;
     }
 
     public void Validate()
     {
-        foreach (var url in new[] { PhotoCraftMcp, FilmCraftMcp, PhotoCraftWeb, FilmCraftWeb })
+        foreach (var url in McpEndpoints.Values.Concat(WebEndpoints.Values))
         {
             if (url is not null && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
-            { throw new ArgumentException($"ArtCraft endpoint '{url}' must be an absolute http(s) URL."); }
+            {
+                throw new ArgumentException($"ArtCraft endpoint '{url}' must be an absolute http(s) URL.");
+            }
         }
     }
 
-    internal (string Title, string? Mcp, string? Web) For(string app) => app switch
+    internal (string Title, string? Mcp, string? Web) For(string app)
     {
-        "photocraft" => ("PhotoCraft", PhotoCraftMcp, PhotoCraftWeb),
-        "filmcraft" => ("FilmCraft", FilmCraftMcp, FilmCraftWeb),
-        _ => throw new ArgumentException($"'{app}' is not an ArtCraft app; use photocraft or filmcraft.", nameof(app)),
-    };
+        var descriptor = ArtCraftCatalog.Get(app);
+        return (descriptor.Title, GetMcp(descriptor.Id), GetWeb(descriptor.Id));
+    }
 }

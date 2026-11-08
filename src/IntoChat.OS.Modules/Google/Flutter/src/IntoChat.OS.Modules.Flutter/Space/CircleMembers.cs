@@ -1,4 +1,5 @@
 using DigitalBrain.Brains;
+using DigitalBrain.Log;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Flutter.Card;
@@ -9,40 +10,68 @@ using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
 internal sealed class CircleMembers(ICapabilityBroker broker, IServiceProvider plain)
 {
-    internal sealed record Friend(string Account, string Brain, string[] Circles);
+    internal sealed record Friend(string Account, string Brain, string[] Scopes);
 
     public async Task<Friend[]> FriendsOf(string brain)
     {
-        // Creation/default installation can rebuild a space while the brain's Create turn is active.
-        // Resolve ownership in the local identity directory; reading IBrain here would wait on that same turn.
-        var directory = await broker.Identity();
-        var account = await directory.OwnerOfBrain(brain);
-        if (account is null) { return []; }
-        Dictionary<string, (string Account, List<string> Circles)> friends = new(StringComparer.Ordinal);
-        foreach (var entry in (await directory.BrainsOf(account.OwnerPrincipalId)).Where(b => b.Kind == BrainKind.Circle))
+        Dictionary<string, (string Account, List<string> Scopes)> friends = new(StringComparer.Ordinal);
+
+        // 1. Direct Friends stored in the personal brain's ProfileNeuron (IProfile).
+        try
         {
-            if ((await directory.Membership(entry.Id, account.OwnerPrincipalId))?.AccountId != account.AccountId) { continue; }
-            string[] members;
-            try { members = await SiloNeurons.Get<ICircleStateReader>(plain, ICircle.Key(entry.Id)).Members(); }
-            catch (KeyNotFoundException) { continue; }
-            if (!members.Contains(account.AccountId, StringComparer.Ordinal)) { continue; }
-            foreach (var member in members.Where(m => m != account.AccountId))
+            var profile = await SiloNeurons.Get<IProfile>(plain, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "os.profile", "profile")).Read();
+            foreach (var direct in profile.Friends ?? [])
             {
-                if (await directory.ReadAccount(member) is not { } memberAccount
-                    || (await directory.Membership(entry.Id, memberAccount.OwnerPrincipalId))?.AccountId != member) { continue; }
-                foreach (var personal in await PersonalBrains(member))
+                if (string.IsNullOrWhiteSpace(direct.BrainId) || direct.BrainId == brain) { continue; }
+                if (!friends.TryGetValue(direct.BrainId, out var entry))
                 {
-                    if (!friends.TryGetValue(personal, out var friend)) { friend = (member, []); friends.Add(personal, friend); }
-                    friend.Circles.Add(entry.Id);
+                    entry = (direct.Handle, []);
+                    friends.Add(direct.BrainId, entry);
+                }
+                var scope = string.IsNullOrWhiteSpace(direct.Scope) ? "friends" : direct.Scope;
+                if (!entry.Scopes.Contains(scope, StringComparer.Ordinal))
+                {
+                    entry.Scopes.Add(scope);
                 }
             }
         }
-        return friends.Select(pair => new Friend(pair.Value.Account, pair.Key, pair.Value.Circles.ToArray())).ToArray();
+        catch (Exception error)
+        {
+            NullLogger.Instance.LogSwallowed(error, "Host without AppsModule or uninitialized profile falls back to identity directory.");
+        }
+
+        // 2. Fallback: shared personal/circle memberships in the identity directory.
+        var directory = await broker.Identity();
+        var account = await directory.OwnerOfBrain(brain);
+        if (account is not null)
+        {
+            foreach (var entry in (await directory.BrainsOf(account.OwnerPrincipalId)).Where(b => b.Kind == BrainKind.Circle))
+            {
+                if ((await directory.Membership(entry.Id, account.OwnerPrincipalId))?.AccountId != account.AccountId) { continue; }
+                string[] members;
+                try { members = await SiloNeurons.Get<ICircleStateReader>(plain, ICircle.Key(entry.Id)).Members(); }
+                catch (KeyNotFoundException error) { NullLogger.Instance.LogSwallowed(error, "Circle state not yet initialized."); continue; }
+                if (!members.Contains(account.AccountId, StringComparer.Ordinal)) { continue; }
+                foreach (var member in members.Where(m => m != account.AccountId))
+                {
+                    if (await directory.ReadAccount(member) is not { } memberAccount
+                        || (await directory.Membership(entry.Id, memberAccount.OwnerPrincipalId))?.AccountId != member) { continue; }
+                    foreach (var personal in await PersonalBrains(member))
+                    {
+                        if (!friends.TryGetValue(personal, out var friend)) { friend = (member, []); friends.Add(personal, friend); }
+                        if (!friend.Scopes.Contains(entry.Id, StringComparer.Ordinal)) { friend.Scopes.Add(entry.Id); }
+                    }
+                }
+            }
+        }
+
+        return friends.Select(pair => new Friend(pair.Value.Account, pair.Key, pair.Value.Scopes.ToArray())).ToArray();
     }
 
     public async Task<string[]> PersonalBrains(string accountId)
@@ -61,16 +90,25 @@ internal sealed class CircleMembers(ICapabilityBroker broker, IServiceProvider p
     public async Task<string[]> Posts(Friend friend)
     {
         List<string> posts = [];
-        foreach (var circle in friend.Circles)
+
+        // Read published App-Posts directly from the friend's ProfileNeuron (IProfile).
+        try
         {
-            foreach (var line in (await SiloNeurons.Get<ICirclePostReader>(plain, ICircleChat.Key(circle)).PostReferences()).Reverse())
+            var profile = await SiloNeurons.Get<IProfile>(plain, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(friend.Brain), "os.profile", "profile")).Read();
+            foreach (var post in profile.Posts ?? [])
             {
-                if (line.Speaker != friend.Account || !line.Text.StartsWith("post ", StringComparison.Ordinal)) { continue; }
-                var key = line.Text[5..];
-                if (PostBrain(key) != friend.Brain) { continue; }
-                if (!posts.Contains(key, StringComparer.Ordinal)) { posts.Add(key); }
+                var key = $"{friend.Brain}/posts/{post.Id}";
+                if (!posts.Contains(key, StringComparer.Ordinal))
+                {
+                    posts.Add(key);
+                }
             }
         }
+        catch (Exception error)
+        {
+            NullLogger.Instance.LogSwallowed(error, "Friend profile not registered or initialized.");
+        }
+
         return posts.ToArray();
     }
 

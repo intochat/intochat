@@ -1,4 +1,5 @@
 using DigitalBrain.Brains;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Circles.Signals;
@@ -18,7 +19,7 @@ namespace IntoChat.OS.Modules.Flutter.Space;
 
 // Rebuilds spaces when what they show changes. Signals of plain publishers (Card, Person; 06-04) arrive through IBrainListeners,
 // per brain: a brain is followed when its Space activates on this silo, together with its friends, whose posts and profiles it
-// shows. Workspaces, apps and circles (06-08) are heard on IClusterListeners for every brain this silo hosts; the local hub is
+// shows. Workspaces, apps, profiles and circles (06-08) are heard on IClusterListeners for every brain this silo hosts; the local hub is
 // gone (SpaceWatcherLegacyHubSignals.json is empty).
 internal sealed class SpaceWatcher(ILogger<SpaceWatcher> logger, CircleMembers friends,
     IBrainListeners listeners, DigitalBrain.Spi.IClusterListeners cluster, IServiceProvider plain) : BackgroundService
@@ -33,14 +34,10 @@ internal sealed class SpaceWatcher(ILogger<SpaceWatcher> logger, CircleMembers f
         // A host without the Apps module registers no app signals and has no apps to follow.
         await using var apps = await Optional(() => cluster.Listen<AppChanged>(nameof(SpaceWatcher), (publisher, change, _) => Guarded(change, _ => RefreshApp($"{publisher.Brain.Value}/{publisher.Key}"))));
         await using var presentations = await Optional(() => cluster.Listen<PresentationChanged>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => RefreshApp(change.App))));
+        await using var profiles = await Optional(() => cluster.Listen<ProfileChanged>(nameof(SpaceWatcher), (publisher, change, _) => Guarded(change, _ => RebuildAuthorAndFriends(publisher.Brain.Value))));
         // A host without the Circles module registers no circle signals and has no circles to follow.
         await using var revoked = await Optional(() => cluster.Listen<CircleMembershipRevoked>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => RebuildMembers(change.PreviousMembers))));
         await using var circles = await Optional(() => cluster.Listen<CircleChanged>(nameof(SpaceWatcher), (_, change, _) => Guarded(change, change => RebuildMembers(change.Members.Concat(change.PreviousMembers ?? [])))));
-        await using var posts = await Optional(() => cluster.Listen<CircleSpoke>(nameof(SpaceWatcher), (publisher, change, _) => Guarded(change, async _ =>
-        {
-            var circle = await AsPlatform(publisher.Brain.Value, () => SiloNeurons.Get<ICircleStateReader>(plain, ICircle.Key(publisher.Brain.Value)).Members());
-            await RebuildMembers(circle);
-        })));
         try { await Task.Delay(Timeout.Infinite, stoppingToken); }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
     }

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
+import '../../../../intochat_os_ui.dart' show IcAppIcon;
 import '../../models/ui_part.dart';
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
@@ -48,24 +50,21 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
         : widget.part.uri;
     if (kIsWeb) {
       final base = Uri.base;
-      final lower = '${widget.part.name} ${widget.part.title} $url'
-          .toLowerCase();
-      final isFilm =
-          lower.contains('filmcraft') ||
-          lower.contains('videocraft') ||
-          lower.contains('18083') ||
-          lower.contains('18111');
-      final isPhoto =
-          lower.contains('photocraft') ||
-          lower.contains('18082') ||
-          lower.contains('18110');
-      if ((isFilm || isPhoto) &&
+      final craftSpec = IcAppIcon.findArtCraftByUrlOrName(
+        '${widget.part.name} ${widget.part.title} $url',
+      );
+      if (craftSpec != null &&
           (url.isEmpty ||
+              url.startsWith('/artcraft/') ||
               url.contains('localhost') ||
               url.contains('127.0.0.1')) &&
           (base.scheme == 'http' || base.scheme == 'https')) {
-        url =
-            '${base.origin}${isFilm ? '/artcraft/filmcraft/index.html' : '/artcraft/photocraft/index.html'}';
+        final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
+        final parsedUiBase = uiBase.isNotEmpty ? Uri.tryParse(uiBase) : null;
+        final origin = (parsedUiBase != null && parsedUiBase.hasAuthority)
+            ? parsedUiBase.origin
+            : base.origin;
+        url = '$origin/artcraft/${craftSpec.appId}/index.html';
       }
     }
     final placeholder = kIsWeb

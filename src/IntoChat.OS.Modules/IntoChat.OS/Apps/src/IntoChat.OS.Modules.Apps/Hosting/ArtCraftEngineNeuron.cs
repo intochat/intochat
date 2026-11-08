@@ -13,6 +13,24 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron("apps.artcraft-engine")]
 internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : DigitalBrain.Neuron, IArtCraftEngine
 {
+    public async Task<ArtCraftEngineResult> Execute(
+        string app,
+        string? instructionOrCommand,
+        string? explicitParamsJson,
+        string? currentDocument,
+        string executionMode)
+    {
+        await RequireAdmitted();
+        return await ArtCraftEngineRunner.ExecuteAsync(
+            app,
+            instructionOrCommand,
+            explicitParamsJson,
+            currentDocument,
+            executionMode,
+            TryGetArtCraftStudio(),
+            TryGetMcpServer);
+    }
+
     public async Task<ArtCraftEngineResult> ExecutePhotoCraft(
         string? instructionOrCommand,
         string? explicitParamsJson,
@@ -44,7 +62,6 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
             TryGetArtCraftStudio(),
             TryGetMcpServer);
     }
-
 
     private IArtCraftStudio? TryGetArtCraftStudio()
     {
@@ -100,15 +117,11 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
     private async Task<bool> IsAppGrantedAsync(string brain, CapabilityCaller caller)
     {
         var appId = caller.AppId ?? "";
-        var defaultPhotoCraftKey = IApp.Key(brain, "photocraft");
-        var defaultFilmCraftKey = IApp.Key(brain, "filmcraft");
-        var defaultInoKey = IApp.Key(brain, "ino");
-        var isShippedStudio = string.Equals(appId, "photocraft", StringComparison.Ordinal)
-            || string.Equals(appId, defaultPhotoCraftKey, StringComparison.Ordinal)
-            || string.Equals(appId, "filmcraft", StringComparison.Ordinal)
-            || string.Equals(appId, defaultFilmCraftKey, StringComparison.Ordinal)
-            || string.Equals(appId, "ino", StringComparison.Ordinal)
-            || string.Equals(appId, defaultInoKey, StringComparison.Ordinal);
+        var shortAppId = appId.StartsWith(brain + "/apps/", StringComparison.Ordinal)
+            ? appId[(brain.Length + "/apps/".Length)..]
+            : appId;
+        var isShippedStudio = string.Equals(shortAppId, "ino", StringComparison.Ordinal)
+            || ArtCraftCatalog.IsArtCraftApp(shortAppId);
         if (identity is null)
         {
             return isShippedStudio;
@@ -127,11 +140,8 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
             caller.PrincipalId,
             $"app:{appId}",
             $"app:{brain}/apps/{appId}",
+            $"app:{shortAppId}",
         };
-        if (appId.StartsWith(brain + "/apps/", StringComparison.Ordinal))
-        {
-            appGrantees.Add("app:" + appId[(brain.Length + "/apps/".Length)..]);
-        }
 
         foreach (var raw in grants)
         {

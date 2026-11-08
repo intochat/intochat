@@ -5,7 +5,10 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:webview_windows/webview_windows.dart';
+
+import '../../design/app_tile.dart';
 
 // One native environment per process; each window has its own marked CDP page.
 
@@ -55,35 +58,35 @@ Future<String> _resolveDirectUrl(String rawUri) async {
   final trimmed = rawUri.trim();
   if (trimmed.isEmpty) return trimmed;
   final lower = trimmed.toLowerCase();
-  final isLocal = lower.contains('localhost') || lower.contains('127.0.0.1');
+  final isLocal =
+      lower.startsWith('/artcraft/') ||
+      lower.contains('localhost') ||
+      lower.contains('127.0.0.1');
   if (!isLocal) return trimmed;
 
-  final isFilmCraft =
-      lower.contains('18083') ||
-      lower.contains('18111') ||
-      lower.contains('filmcraft') ||
-      lower.contains('videocraft');
-  final isPhotoCraft =
-      lower.contains('18082') ||
-      lower.contains('18110') ||
-      lower.contains('photocraft');
-
-  if (isFilmCraft) {
-    for (final port in const [18111, 18083]) {
+  final craftSpec = IcAppIcon.findArtCraftByUrlOrName(lower);
+  if (craftSpec != null) {
+    final candidatePorts = <int>[
+      if (craftSpec.appId == 'filmcraft') 18111,
+      if (craftSpec.appId == 'photocraft') 18110,
+      if (craftSpec.defaultWebPort != null) craftSpec.defaultWebPort!,
+    ];
+    for (final port in candidatePorts) {
       if (await _isLoopbackPortOpen(port)) {
         return 'http://localhost:$port/';
       }
     }
-    return 'https://os.test.intochat.io/artcraft/filmcraft/index.html';
-  }
-
-  if (isPhotoCraft) {
-    for (final port in const [18110, 18082]) {
-      if (await _isLoopbackPortOpen(port)) {
-        return 'http://localhost:$port/';
+    final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
+    if (uiBase.isNotEmpty) {
+      final parsed = Uri.tryParse(uiBase);
+      if (parsed != null && parsed.hasAuthority) {
+        return '${parsed.origin}/artcraft/${craftSpec.appId}/index.html';
       }
     }
-    return 'https://os.test.intochat.io/artcraft/photocraft/index.html';
+    if (await _isLoopbackPortOpen(5080)) {
+      return 'http://localhost:5080/artcraft/${craftSpec.appId}/index.html';
+    }
+    return 'https://os.test.intochat.io/artcraft/${craftSpec.appId}/index.html';
   }
 
   return trimmed;

@@ -217,18 +217,23 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.byType(SmartDesktop), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('desktop-static-wallpaper')),
+        findsOneWidget,
+      );
+      expect(find.byType(BrainScene3D), findsNothing);
       expect(find.byType(WindowFrame), findsNWidgets(2));
       expect(find.byType(OsBar), findsOneWidget);
       expect(find.text('Viewport: brain-1/apps/ino/view'), findsOneWidget);
       expect(find.text('Viewport: brain-1/apps/files/view'), findsOneWidget);
 
-      // Clicking 3D Brain button in OsBar minimizes all windows to show 3D neural desktop
-      await tester.tap(find.text('3D Brain'));
+      // Clicking Workspace button in OsBar minimizes all windows to show Spatial Workspace Home Screen
+      await tester.tap(find.byKey(const ValueKey('os-bar-show-desktop')));
       await tester.pump();
       expect(find.byType(WindowFrame), findsNothing);
 
-      // Clicking 3D Brain again restores windows
-      await tester.tap(find.text('3D Brain'));
+      // Clicking Workspace again restores windows
+      await tester.tap(find.byKey(const ValueKey('os-bar-show-desktop')));
       await tester.pump();
       expect(find.byType(WindowFrame), findsNWidgets(2));
     },
@@ -542,24 +547,31 @@ void main() {
       expect(find.text('Sandbox Restarted'), findsOneWidget);
       await tester.pump(kitToastLifetime);
 
-      // 3. Settings Popover toggles and switches Execution Mode (wasm-ui, mcp, native-linux)
+      // 3. Settings Popover for native OS app (Files) shows Native OS Runtime (Orleans Grain / C# Sandbox)
       await tester.tap(find.byKey(const ValueKey('window-settings-btn-2')));
       await tester.pump();
       expect(
         find.byKey(const ValueKey('window-settings-popover-2')),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('exec-mode-wasm-ui')), findsOneWidget);
-      expect(find.byKey(const ValueKey('exec-mode-mcp')), findsOneWidget);
+      expect(find.text('NATIVE OS RUNTIME'), findsOneWidget);
       expect(
-        find.byKey(const ValueKey('exec-mode-native-linux')),
+        find.byKey(const ValueKey('exec-mode-orleans-grain')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('exec-mode-csharp-sandbox')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('exec-mode-wasm-ui')), findsNothing);
 
-      await tester.tap(find.byKey(const ValueKey('exec-mode-mcp')));
+      await tester.tap(find.byKey(const ValueKey('exec-mode-csharp-sandbox')));
       await tester.pump();
-      expect(actions.any((a) => a['action'] == 'switch-mode:mcp'), isTrue);
-      expect(find.text('Mode: MCP Server'), findsOneWidget);
+      expect(
+        actions.any((a) => a['action'] == 'switch-mode:csharp-sandbox'),
+        isTrue,
+      );
+      expect(find.text('Mode: C# Sandbox'), findsOneWidget);
       await tester.pump(kitToastLifetime);
 
       // 4. Pinning window 2 keeps it always-on-top even when window 1 is clicked/focused
@@ -751,6 +763,28 @@ void main() {
         find.text('Viewport: brain-1/apps/photocraft/view'),
         findsOneWidget,
       );
+
+      // PhotoCraft window is an ArtCraft bridge app and exposes WASM Web UI, MCP Server, and Native Linux CLI
+      final photoFrame = tester
+          .widgetList<WindowFrame>(find.byType(WindowFrame))
+          .firstWhere((f) => f.window.appId == 'photocraft');
+      expect(photoFrame.window.isArtCraftBridge, isTrue);
+      expect(photoFrame.window.executionMode, equals('wasm-ui'));
+      await tester.tap(
+        find.byKey(ValueKey('window-settings-btn-${photoFrame.window.id}')),
+      );
+      await tester.pump();
+      expect(find.text('ARTCRAFT BRIDGE MODE'), findsOneWidget);
+      expect(find.byKey(const ValueKey('exec-mode-wasm-ui')), findsOneWidget);
+      expect(find.byKey(const ValueKey('exec-mode-mcp')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('exec-mode-native-linux')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('exec-mode-mcp')));
+      await tester.pump();
+      expect(actions.any((a) => a['action'] == 'switch-mode:mcp'), isTrue);
+      await tester.pump(kitToastLifetime);
     },
   );
 
@@ -844,6 +878,148 @@ void main() {
       expect(find.byKey(const ValueKey('sticky-card-launcher')), findsNothing);
       expect(
         actions.any((a) => a['action'] == 'widget-close:launcher'),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets(
+    'All Apps Launcher displays all 32 apps (including all 17 ArtCraft apps, .NET Aspire, and Brain) and launches selected apps',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final actions = <Map<String, dynamic>>[];
+      final activations = <Map<String, dynamic>>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.dark('fluent-acrylic'),
+          builder: (context, child) => IcTheme(
+            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: LiveDesktopShell(
+              brain: 'brain-1',
+              name: 'brain-1/apps/desktop/view',
+              load: (kind, name) async {
+                if (name == 'brain-1/apps/desktop/view') {
+                  return buildSampleDesktopTree();
+                }
+                return {
+                  'generation': 1,
+                  'root': {
+                    'kind': 2,
+                    'key': 'app-body',
+                    'children': [
+                      {'kind': 0, 'key': 'txt', 'text': 'Viewport: $name'},
+                    ],
+                  },
+                };
+              },
+              watch: (kind, name) => const Stream.empty(),
+              onAction: (event) async => actions.add(event),
+              onActivate: (action) => activations.add(action),
+              stylePreset: IcStylePreset.fluentAcrylic,
+              barLayout: BarLayout.floatingGlass,
+              paletteOpen: false,
+              onTogglePalette: () {},
+              onSelectPreset: (_) {},
+              onCycleBarLayout: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(allSmartAppSpecs.length, equals(32));
+      expect(
+        find.byKey(const ValueKey('all-apps-launcher-overlay')),
+        findsNothing,
+      );
+
+      // 1. Click 'All Apps' button in OsBar
+      await tester.tap(find.byKey(const ValueKey('os-bar-all-apps')));
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('all-apps-launcher-overlay')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('all-apps-tile-artcraft')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('all-apps-tile-vectorcraft')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('all-apps-tile-cadcraft')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('all-apps-tile-solidcraft')),
+        findsOneWidget,
+      );
+      for (final craftId in const [
+        'artcraft',
+        'photocraft',
+        'filmcraft',
+        'vectorcraft',
+        'lightcraft',
+        'effectcraft',
+        'designcraft',
+        'pdfcraft',
+        'wordcraft',
+        'soundcraft',
+        'deckcraft',
+        'cadcraft',
+        'gridcraft',
+        'figcraft',
+        'texturecraft',
+        'materialcraft',
+      ]) {
+        expect(
+          IcAppIcon.resolveSpec(craftId).pngAsset,
+          equals('assets/brands/artcraft/$craftId.png'),
+        );
+      }
+      expect(
+        find.byKey(const ValueKey('all-apps-tile-aspire')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('all-apps-tile-brain')), findsOneWidget);
+
+      // 2. Filter by category 'ArtCraft Studio' -> shows 17 ArtCraft apps
+      await tester.tap(
+        find.byKey(const ValueKey('all-apps-cat-ArtCraft Studio')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('all-apps-tile-vectorcraft')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('all-apps-tile-aspire')), findsNothing);
+
+      // 3. Click 'VectorCraft' tile in All Apps Launcher -> closes modal and opens VectorCraft window
+      await tester.tap(find.byKey(const ValueKey('all-apps-tile-vectorcraft')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(
+        find.byKey(const ValueKey('all-apps-launcher-overlay')),
+        findsNothing,
+      );
+      expect(
+        find.text('Viewport: brain-1/apps/vectorcraft/view'),
+        findsOneWidget,
+      );
+      expect(
+        actions.any((a) => a['action'] == 'open:vectorcraft'),
         isTrue,
       );
     },

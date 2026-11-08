@@ -1,5 +1,6 @@
 using System.Text.Json;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.ArtCraft;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -12,6 +13,9 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
         ("photocraft", "Edit photos"),
         ("filmcraft", "Edit video"),
         ("data", "Query and chart data"),
+        .. ArtCraftCatalog.All
+            .Where(static a => a.Id is not ("photocraft" or "filmcraft"))
+            .Select(static a => (a.Id, a.Subtitle)),
     ];
 
     // Starts a build flow of kind unit; the card is its approval, keyed by the flow id.

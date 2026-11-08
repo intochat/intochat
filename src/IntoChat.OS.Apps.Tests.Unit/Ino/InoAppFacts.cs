@@ -11,10 +11,10 @@ using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
-using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.Apps;
 
@@ -71,9 +71,9 @@ public sealed class InoAppFacts
         Assert.True(inoReport.Passed);
         Assert.Single(inoReport.Scenarios);
 
-        var postReport = await BddRunner.VerifyAsync<PostApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct);
-        Assert.True(postReport.Passed);
-        Assert.Single(postReport.Scenarios);
+        var friendsReport = await BddRunner.VerifyAsync<FriendsApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct);
+        Assert.True(friendsReport.Passed);
+        Assert.Single(friendsReport.Scenarios);
 
         var creatorReport = await BddRunner.VerifyAsync<CreatorApp>(
             fakes: os =>

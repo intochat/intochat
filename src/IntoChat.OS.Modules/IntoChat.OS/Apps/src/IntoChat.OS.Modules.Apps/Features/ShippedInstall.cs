@@ -12,8 +12,6 @@ public static class ShippedInstall
         ArgumentNullException.ThrowIfNull(read);
         foreach (var (publisher, name) in await catalog.BootSet())
         {
-            // CircleRoom is only for Circle brains (installed via CircleBirth).
-            if (string.Equals(name, "circleroom", StringComparison.OrdinalIgnoreCase)) { continue; }
             try
             {
                 if ((await read(name).WaitAsync(ct)).Manifest.Title.Length > 0) { continue; }

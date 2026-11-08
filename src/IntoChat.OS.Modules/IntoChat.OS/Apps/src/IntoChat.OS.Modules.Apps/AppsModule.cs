@@ -113,6 +113,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         endpoints.MapGet("/session/capabilities", static (IServiceProvider services) =>
             Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
+        ArtCraftWebEndpoints.Map(endpoints);
         PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
         DevAppEndpoints.Map(endpoints);

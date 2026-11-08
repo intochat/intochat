@@ -11,8 +11,7 @@ public sealed class ShippedScriptCatalogFacts
 {
     private static readonly string[] Scripts =
     [
-        "calculator", "circle", "circleroom", "datavisualizer",
-        "friends", "usage",
+        "calculator", "datavisualizer", "usage",
     ];
 
     [Fact]

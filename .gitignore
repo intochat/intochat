@@ -61,3 +61,6 @@ deployment/*.json
 __pycache__/
 /packages/
 Directory.Build.local.props
+
+# Locally downloaded ArtCraft WASM release bundles
+src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/wwwroot/artcraft/

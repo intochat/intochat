@@ -3,6 +3,13 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Contracts.NeuronAlias("apps.artcraft-engine"), DigitalBrain.Contracts.DefaultNeuronType("apps.artcraft-engine")]
 public interface IArtCraftEngine
 {
+    Task<ArtCraftEngineResult> Execute(
+        string app,
+        string? instructionOrCommand,
+        string? explicitParamsJson,
+        string? currentDocument,
+        string executionMode);
+
     Task<ArtCraftEngineResult> ExecutePhotoCraft(
         string? instructionOrCommand,
         string? explicitParamsJson,

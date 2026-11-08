@@ -161,7 +161,8 @@ internal sealed class CompiledAppsHost(
         await EnsureDesktopViewAsync(brain);
     }
 
-    private static string TitleForDesktopApp(string appId) => appId switch
+    private static string TitleForDesktopApp(string appId) =>
+        IntoChat.OS.Modules.ArtCraft.ArtCraftCatalog.TryGet(appId, out var craft) ? craft.Title : appId switch
     {
         "ino" => "Ino",
         "files" => "Files",
@@ -173,10 +174,11 @@ internal sealed class CompiledAppsHost(
         "gallery" => "Gallery",
         "tasks" => "Tasks",
         "trace" => "Trace",
-        "post" => "Post",
+        "friends" => "Friends",
+        "post" => "Friends",
         "brain" => "Brain",
         "settings" => "Settings",
-        "circle" or "circles" => "Circles",
+        "circle" or "circles" => "Friends",
         "workspace" => "Workspace",
         _ => string.IsNullOrEmpty(appId) ? "App" : char.ToUpperInvariant(appId[0]) + appId[1..],
     };
@@ -269,7 +271,7 @@ internal sealed class CompiledAppsHost(
                     Ui.Button("dock-filmcraft", "FilmCraft", "open:filmcraft", style: UiStyle.Ghost),
                     Ui.Button("dock-creator", "Creator", "open:creator", style: UiStyle.Ghost),
                     Ui.Button("dock-gallery", "Gallery", "open:gallery", style: UiStyle.Ghost),
-                    Ui.Button("dock-post", "Post", "open:post", style: UiStyle.Ghost),
+                    Ui.Button("dock-friends", "Friends", "open:friends", style: UiStyle.Ghost),
                     Ui.Button("dock-brain", "Brain", "open:brain", style: UiStyle.Ghost),
                     Ui.Button("dock-settings", "Settings", "open:settings", style: UiStyle.Ghost),
                     Ui.IconButton("newtab", "plus", "New tab", "newtab"),
@@ -278,7 +280,7 @@ internal sealed class CompiledAppsHost(
                 [
                     Ui.Text("usage", "Usage"),
                     Ui.Text("open-widgets", widgetsText),
-                    Ui.Button("avatar", "You", "open:circle"),
+                    Ui.Button("avatar", "You", "open:friends"),
                     Ui.Button("more-settings", "Settings", "settings"),
                 ], gap: 4),
             ], extents: [0, 360]);
@@ -358,15 +360,17 @@ internal sealed class CompiledAppsHost(
 
         var cardApps = Ui.Card("card-apps", "Smart Apps", appsDetail,
         [
-            Ui.Text("apps-header", "Launch into workspace surfaces:"),
+            Ui.Text("apps-header", "Launch into workspace surfaces & 31+ apps:"),
             Ui.Row("apps-row-1",
             [
                 Ui.Button("app-ino", "Ino", "open:ino", icon: "sparkles"),
+                Ui.Button("app-brain", "3D Brain", "open:brain", icon: "brain"),
                 Ui.Button("app-files", "Files", "open:files", icon: "folder"),
                 Ui.Button("app-data", "Data", "open:data", icon: "bar-chart-2"),
             ]),
             Ui.Row("apps-row-2",
             [
+                Ui.Button("app-artcraft", "ArtCraft", "open:artcraft", icon: "brush"),
                 Ui.Button("app-photo", "PhotoCraft", "open:photocraft", icon: "image"),
                 Ui.Button("app-film", "FilmCraft", "open:filmcraft", icon: "film"),
                 Ui.Button("app-gallery", "Gallery", "open:gallery", icon: "palette"),
@@ -1036,7 +1040,8 @@ internal sealed class CompiledAppsHost(
             return;
         }
 
-        string? studioApp = latestTurn.RouteHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
+        string? studioApp = IntoChat.OS.Modules.ArtCraft.ArtCraftCatalog.All.Select(static a => a.Id).FirstOrDefault(latestTurn.StartsWithStudio);
+        studioApp ??= latestTurn.RouteHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
             ? "photocraft"
             : latestTurn.StartsWithStudio("filmcraft")
                 ? "filmcraft"

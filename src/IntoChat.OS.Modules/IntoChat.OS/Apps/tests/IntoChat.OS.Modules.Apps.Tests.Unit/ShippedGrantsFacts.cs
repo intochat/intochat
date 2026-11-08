@@ -1,4 +1,5 @@
 using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Modules.ArtCraft;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -20,6 +21,46 @@ public sealed class ShippedGrantsFacts
             Assert.Equal(GrantRelations.Run, grant.Scope);
             Assert.StartsWith("ada/", grant.Target[(grant.Target.IndexOf('/', StringComparison.Ordinal) + 1)..], StringComparison.Ordinal);
         });
+    }
+
+    [Fact]
+    public void All_17_ArtCraft_apps_receive_engine_studio_mcp_and_files_grants()
+    {
+        foreach (var descriptor in ArtCraftCatalog.All)
+        {
+            var grants = ShippedGrants.For("ada", descriptor.Id);
+            Assert.Contains(grants, g => g.Target == "apps.artcraft-engine/ada/*");
+            Assert.Contains(grants, g => g.Target == "artcraft/ada/*");
+            Assert.Contains(grants, g => g.Target == "mcp.server/ada/*");
+            Assert.Contains(grants, g => g.Target == "files.vfs/ada/*");
+        }
+    }
+
+    [Fact]
+    public void Kernel_ArtCraft_web_endpoint_renders_interactive_studio_html_for_all_17_apps()
+    {
+        foreach (var descriptor in ArtCraftCatalog.All)
+        {
+            var html = ArtCraftWebEndpoints.RenderInteractiveStudioHtml(descriptor);
+            Assert.Contains($"data-artcraft-app=\"{descriptor.Id}\"", html, StringComparison.Ordinal);
+            Assert.Contains(descriptor.Title, html, StringComparison.Ordinal);
+            Assert.Contains(descriptor.CliBinary, html, StringComparison.Ordinal);
+            Assert.Contains("window.artcraftStudio", html, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Fifteen_ArtCraft_studios_declare_official_prebuilt_WASM_release_bundles()
+    {
+        var wasmStudios = ArtCraftCatalog.All.Where(static d => d.WebReleaseZipUrl is not null).ToArray();
+        Assert.Equal(15, wasmStudios.Length);
+        foreach (var d in wasmStudios)
+        {
+            Assert.NotNull(d.WebReleaseVersion);
+            Assert.Equal(
+                $"https://github.com/storytold/{d.Id}/releases/download/v{d.WebReleaseVersion}/{d.Id}-web-{d.WebReleaseVersion}.zip",
+                d.WebReleaseZipUrl);
+        }
     }
 
     [Fact]

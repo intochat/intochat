@@ -630,23 +630,14 @@ class WorkspaceAppState extends State<WorkspaceApp>
       theme: UiTheme.light(effectiveTheme),
       darkTheme: UiTheme.dark(effectiveTheme),
       themeMode: UiTheme.modeFor(effectiveTheme),
-      builder: (context, child) {
-        final brightness = Theme.of(context).brightness;
-        return IcTheme(
-          colors: IcColors.forPreset(
-            preset,
-            dark: brightness == Brightness.dark,
-          ),
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              disableAnimations:
-                  store.settings.reducedMotion ||
-                  MediaQuery.disableAnimationsOf(context),
-            ),
-            child: child!,
-          ),
-        );
-      },
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          disableAnimations:
+              store.settings.reducedMotion ||
+              MediaQuery.disableAnimationsOf(context),
+        ),
+        child: child!,
+      ),
       home: CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
           const SingleActivator(LogicalKeyboardKey.keyK, control: true): () =>

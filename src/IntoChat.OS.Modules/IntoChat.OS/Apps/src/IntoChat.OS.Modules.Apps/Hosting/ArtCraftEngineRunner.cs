@@ -346,6 +346,182 @@ public static class ArtCraftEngineRunner
     }
 
 
+    public static async Task<ArtCraftEngineResult> ExecuteAsync(
+        string app,
+        string? instructionOrCommand,
+        string? explicitParamsJson,
+        string? currentDocument,
+        string executionMode,
+        IArtCraftStudio? studio,
+        Func<string, IMcpServer?>? mcpResolver,
+        Action<Exception, string>? onRecoverableError = null,
+        IFilesVfsService? vfs = null)
+    {
+        var descriptor = ArtCraftCatalog.Get(app);
+        if (descriptor.Id == "photocraft")
+        {
+            return await ExecutePhotoCraftAsync(
+                instructionOrCommand,
+                explicitParamsJson,
+                currentDocument,
+                executionMode,
+                studio,
+                mcpResolver,
+                onRecoverableError,
+                vfs).ConfigureAwait(false);
+        }
+
+        if (descriptor.Id == "filmcraft")
+        {
+            return await ExecuteFilmCraftAsync(
+                instructionOrCommand,
+                explicitParamsJson,
+                currentDocument,
+                executionMode,
+                studio,
+                mcpResolver,
+                onRecoverableError,
+                vfs).ConfigureAwait(false);
+        }
+
+        var mode = NormalizeMode(executionMode);
+        var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
+        var inputDoc = extracted ?? (string.IsNullOrWhiteSpace(currentDocument) ? descriptor.DefaultDocument : currentDocument.Trim());
+        if (!inputDoc.StartsWith('/'))
+        {
+            inputDoc = "/work/" + inputDoc;
+        }
+
+        if (vfs is not null)
+        {
+            try
+            {
+                if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
+                {
+                    inputDoc = vfsEntry.VfsPath;
+                }
+                else if (string.Equals(inputDoc, descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
+                {
+                    var files = await vfs.ListFilesAsync().ConfigureAwait(false);
+                    var candidate = files.FirstOrDefault(f =>
+                        descriptor.SupportedExtensions.Any(ext => f.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
+                    if (candidate is not null)
+                    {
+                        inputDoc = candidate.VfsPath;
+                    }
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(instructionOrCommand))
+        {
+            return new ArtCraftEngineResult(
+                descriptor.Id,
+                mode,
+                "clarification.required",
+                "Clarification Required",
+                "{}",
+                inputDoc,
+                string.Empty,
+                string.Empty,
+                $"Specify a {descriptor.Title} command or instruction.",
+                string.Empty,
+                [],
+                IsValidCommand: false,
+                OutputNeuronUri: null);
+        }
+
+        var raw = instructionOrCommand.Trim();
+        var isDotCommand = raw.Contains('.', StringComparison.Ordinal) && !raw.Contains(' ', StringComparison.Ordinal);
+        var cmdId = isDotCommand ? raw : descriptor.DefaultCommandId;
+        var title = isDotCommand ? $"{descriptor.Title} · {raw}" : descriptor.DefaultCommandTitle;
+        var paramsJson = string.IsNullOrWhiteSpace(explicitParamsJson) ? descriptor.DefaultParametersJson : explicitParamsJson!;
+        var stem = Path.GetFileNameWithoutExtension(inputDoc);
+        if (string.IsNullOrWhiteSpace(stem))
+        {
+            stem = descriptor.Id;
+        }
+        var outExt = Path.GetExtension(descriptor.DefaultOutputDocument);
+        if (string.IsNullOrWhiteSpace(outExt))
+        {
+            outExt = ".out";
+        }
+        var outputDoc = $"/work/{stem}.processed{outExt}";
+        var cliInvocation = $"{descriptor.CliBinary} run {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
+        var modeBadge = mode == "mcp"
+            ? $"MCP Server ({descriptor.Id}-mcp)"
+            : mode == "wasm-ui"
+                ? "WASM Web UI + Engine"
+                : $"Native Linux CLI ({descriptor.CliBinary})";
+
+        var previewUrl = CyanPreviewPngDataUrl;
+        if (mode == "mcp" && studio is not null && mcpResolver is not null)
+        {
+            try
+            {
+                var session = await studio.Open(descriptor.Id);
+                if (mcpResolver(session.McpKey) is { } mcpServer)
+                {
+                    await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP server is optional when running offline or in TestOS.");
+            }
+        }
+        else if (mode == "native-linux")
+        {
+            var nativePng = await TryRunNativeLinuxBinaryAsync(
+                descriptor.CliBinary,
+                isNewCanvas: false,
+                inputDoc,
+                cmdId,
+                paramsJson,
+                outputDoc,
+                onRecoverableError);
+            if (!string.IsNullOrWhiteSpace(nativePng))
+            {
+                previewUrl = nativePng;
+            }
+        }
+
+        string? outputNeuronUri = null;
+        if (vfs is not null && !string.IsNullOrWhiteSpace(outputDoc))
+        {
+            try
+            {
+                var bytes = Encoding.UTF8.GetBytes($"{descriptor.Title} output ({cmdId}): {inputDoc} -> {outputDoc}");
+                var written = await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false);
+                outputNeuronUri = written.NeuronUri;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                onRecoverableError?.Invoke(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
+            }
+        }
+
+        var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · Input: `{inputDoc}` -> Output: `{outputDoc}`";
+        return new ArtCraftEngineResult(
+            descriptor.Id,
+            mode,
+            cmdId,
+            title,
+            paramsJson,
+            inputDoc,
+            outputDoc,
+            cliInvocation,
+            summary,
+            previewUrl,
+            descriptor.DefaultLayersOrTracks,
+            IsValidCommand: true,
+            OutputNeuronUri: outputNeuronUri);
+    }
+
     public static async Task<ArtCraftEngineResult> ExecutePhotoCraftAsync(
         string? instructionOrCommand,
         string? explicitParamsJson,
@@ -768,7 +944,7 @@ public static class ArtCraftEngineRunner
         foreach (var rawToken in text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var token = rawToken.Trim('"', '\'', ',', ';', '(', ')', '[', ']', '`', '@');
-            if (IsImageExtension(token) || IsVideoExtension(token))
+            if (IsImageExtension(token) || IsVideoExtension(token) || ArtCraftCatalog.FindByExtension(token) is not null)
             {
                 if (token.StartsWith("neuron://", StringComparison.OrdinalIgnoreCase))
                 {

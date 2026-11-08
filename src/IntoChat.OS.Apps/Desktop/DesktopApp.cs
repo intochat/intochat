@@ -68,6 +68,43 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         CompiledType = typeof(DesktopApp).AssemblyQualifiedName,
     };
 
+    public static IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> Catalog { get; } =
+    [
+        // DigitalBrain OS Native Grains (15)
+        ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
+        ("brain", "Brain", "neuron://local/apps/brain", "cpu", "Studio", "orleans-grain"),
+        ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
+        ("workspace", "Workspace", "neuron://local/apps/workspace", "compass", "Workspace", "orleans-grain"),
+        ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks", "Workspace", "orleans-grain"),
+        ("notes", "Notes", "neuron://local/apps/notes", "file-text", "Workspace", "orleans-grain"),
+        ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2", "Studio", "orleans-grain"),
+        ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool", "Studio", "orleans-grain"),
+        ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu", "Studio", "orleans-grain"),
+        ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid", "Studio", "orleans-grain"),
+        ("friends", "Friends", "neuron://local/apps/friends", "users", "Social", "orleans-grain"),
+        ("trace", "Trace", "neuron://local/apps/trace", "activity", "System", "orleans-grain"),
+        ("vault", "Secure Vault", "neuron://local/apps/vault", "shield", "System", "orleans-grain"),
+        ("settings", "Settings", "neuron://local/apps/settings", "settings", "System", "orleans-grain"),
+        // ArtCraft Creative Suite (17)
+        ("artcraft", "ArtCraft", "neuron://local/apps/artcraft", "brush", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "image", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("vectorcraft", "VectorCraft", "neuron://local/apps/vectorcraft", "pen-tool", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("lightcraft", "LightCraft", "neuron://local/apps/lightcraft", "sun", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("effectcraft", "EffectCraft", "neuron://local/apps/effectcraft", "wand", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("designcraft", "DesignCraft", "neuron://local/apps/designcraft", "layers", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("pdfcraft", "PDFCraft", "neuron://local/apps/pdfcraft", "file-text", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("wordcraft", "WordCraft", "neuron://local/apps/wordcraft", "file-edit", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("soundcraft", "SoundCraft", "neuron://local/apps/soundcraft", "music", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("deckcraft", "DeckCraft", "neuron://local/apps/deckcraft", "presentation", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("cadcraft", "CADCraft", "neuron://local/apps/cadcraft", "compass", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("gridcraft", "GridCraft", "neuron://local/apps/gridcraft", "table", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("figcraft", "FigCraft", "neuron://local/apps/figcraft", "pen-tool", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("texturecraft", "TextureCraft", "neuron://local/apps/texturecraft", "grid", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("materialcraft", "MaterialCraft", "neuron://local/apps/materialcraft", "droplet", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+        ("solidcraft", "SolidCraft", "neuron://local/apps/solidcraft", "box", "ArtCraft Studio", "wasm-ui+mcp+cli"),
+    ];
+
     [DigitalBrain.On]
     public async Task Start(DesktopStart request)
     {
@@ -150,21 +187,6 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 
     public View RenderSide()
     {
-        var apps = new (string Id, string Title, string Uri, string Icon)[]
-        {
-            ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles"),
-            ("files", "Files", "neuron://local/apps/files", "folder"),
-            ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2"),
-            ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool"),
-            ("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "image"),
-            ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film"),
-            ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid"),
-            ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks"),
-            ("trace", "Trace", "neuron://local/apps/trace", "activity"),
-            ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu"),
-            ("post", "Post", "neuron://local/apps/post", "send"),
-            ("settings", "Settings", "neuron://local/apps/settings", "settings"),
-        };
         var pinned = State.PinnedApps ?? ["ino", "creator"];
 
         return new(
@@ -172,14 +194,14 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             new Column(
             [
                 new Divider("PINNED & SHELL APPS"),
-                .. apps.Select(a => (Node)Ui.NavItem(
+                .. Catalog.Select(a => (Node)Ui.NavItem(
                     $"launch-{a.Id}",
                     a.Title,
                     a.Icon,
                     $"pin:{a.Id}",
                     selected: pinned.Contains(a.Id, StringComparer.OrdinalIgnoreCase),
-                    badge: pinned.Contains(a.Id, StringComparer.OrdinalIgnoreCase) ? "PIN" : null)),
-                new Collection(apps.Select(a => new Entry(a.Id, a.Title, a.Uri)).ToArray()),
+                    badge: pinned.Contains(a.Id, StringComparer.OrdinalIgnoreCase) ? "PIN" : a.Category)),
+                new Collection(Catalog.Select(a => new Entry(a.Id, a.Title, a.Uri)).ToArray()),
             ])
             { Gap = 6 });
     }
@@ -274,9 +296,9 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     public async Task VerifySmartDesktopScenario()
     {
         await Start(new DesktopStart());
-        if (State.ActiveNeurons < 5 || string.IsNullOrWhiteSpace(State.StylePreset))
+        if (State.ActiveNeurons < 5 || string.IsNullOrWhiteSpace(State.StylePreset) || Catalog.Count < 30)
         {
-            throw new InvalidOperationException("Expected Smart Desktop to initialize 3D BrainScene neuron count and UI identity.");
+            throw new InvalidOperationException("Expected Smart Desktop to initialize 3D BrainScene neuron count, UI identity, and app catalog.");
         }
 
         await Pin(new DesktopPinApp("photocraft", Pinned: true));
