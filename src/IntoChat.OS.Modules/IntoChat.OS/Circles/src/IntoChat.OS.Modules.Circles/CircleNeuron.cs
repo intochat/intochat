@@ -74,7 +74,7 @@ internal sealed class CircleNeuron(
         var creator = Caller().AccountId;
         // Inside the brain's Create turn: the compute share (which reads the brain) is stated on the first change.
         var founded = new CircleRecord { Name = name, Owner = creator, Members = [creator], Version = 1 };
-        await Save(founded, Changed(founded));
+        await Save(founded, Changed(founded), new CircleRoomJoined(creator));
     }
 
     public async Task Invite(string accountId)
@@ -127,6 +127,7 @@ internal sealed class CircleNeuron(
         var next = record.Clone();
         next.Invited = [.. next.Invited.Where(invited => invited != caller.AccountId)];
         next.Members = [.. next.Members, caller.AccountId];
+        revoked.Add(new CircleRoomJoined(caller.AccountId));
         return await CommitCore(next);
     }
 
@@ -155,6 +156,7 @@ internal sealed class CircleNeuron(
         {
             await (await broker.Identity()).RemoveMember(CircleBrain, accountId);
             revoked.Add(new CircleMembershipRevoked(accountId, next.Members.ToArray()));
+            revoked.Add(new CircleRoomLeft(accountId));
         }
         next.Members = [.. next.Members.Where(member => member != accountId)];
         next.Invited = [.. next.Invited.Where(invited => invited != accountId)];

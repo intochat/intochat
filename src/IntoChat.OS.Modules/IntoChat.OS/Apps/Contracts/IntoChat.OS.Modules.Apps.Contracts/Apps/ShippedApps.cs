@@ -15,6 +15,9 @@ public static class ShippedApps
     // Apps folded into Settings (08-09). The folder is no longer a boot root.
     public static readonly IReadOnlySet<string> Roots = new HashSet<string>([.. Services, "settings", "ino", "creator"], StringComparer.Ordinal);
 
+    // The units a circle brain is born with: its room, a shipped unit source (IntoChat.OS.Apps.ShippedUnits).
+    public static readonly IReadOnlyList<string> CircleUnits = ["circleroom"];
+
     public static bool Is(AppSnapshot app, string name) => Is(app, name, [Publisher]);
 
     public static bool Is(AppSnapshot app, string name, IEnumerable<string> trustedPublishers)

@@ -26,4 +26,12 @@
   <ItemGroup>
     <EmbeddedResource Include="Ino/ino-instructions.md" LogicalName="IntoChat.OS.Apps.Ino.ino-instructions.md" />
   </ItemGroup>
+  <!-- Shipped unit sources: synapse units the OS deploys through the synapse studio, never compiled into this assembly. -->
+  <ItemGroup>
+    <Compile Remove="Units/**/*.cs" />
+    <None Remove="Units/**" />
+    <EmbeddedResource Include="Units/CircleRoom/CircleRoom.cs" LogicalName="IntoChat.OS.Apps.Units.circleroom/CircleRoom.cs" />
+    <EmbeddedResource Include="Units/CircleRoom/spec.md" LogicalName="IntoChat.OS.Apps.Units.circleroom/spec.md" />
+    <EmbeddedResource Include="Units/CircleRoom/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.circleroom/scenarios.json" />
+  </ItemGroup>
 </Project>

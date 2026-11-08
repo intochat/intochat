@@ -1,0 +1,17 @@
+[
+  {
+    "name": "join then message shows both",
+    "when": ["publish circleroom.join {\"member\":\"ada\"}", "publish circleroom.message {\"member\":\"ada\",\"text\":\"hello\"}"],
+    "then": ["state circleroom Members = [\"ada\"]", "state circleroom Messages = [{\"member\":\"ada\",\"text\":\"hello\"}]"]
+  },
+  {
+    "name": "leave removes the member",
+    "when": ["publish circleroom.join {\"member\":\"ada\"}", "publish circleroom.join {\"member\":\"bo\"}", "publish circleroom.leave {\"member\":\"ada\"}"],
+    "then": ["state circleroom Members = [\"bo\"]"]
+  },
+  {
+    "name": "an empty message is ignored",
+    "when": ["publish circleroom.join {\"member\":\"ada\"}", "publish circleroom.message {\"value\":\"  \"}"],
+    "then": ["state circleroom Messages = []"]
+  }
+]

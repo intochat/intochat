@@ -59,7 +59,7 @@ public static class OsAppsHosting
 
 // A new brain is born with the OS defaults. Create awaits this handler inside the owner's own
 // turn. A present app is the person's, never replaced here. A circle brain gets none (R125): it
-// is born with its own room only. The folder and ShippedApps.Roots load through the feature loader;
+// is born with its own room only, the shipped circleroom unit (ShippedApps.CircleUnits). The folder and ShippedApps.Roots load through the feature loader;
 // a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
     IIntoChatOSBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
@@ -67,7 +67,12 @@ internal sealed class OsDefaults(
 {
     public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
-        if (await (await capabilities.Identity(cancellationToken)).KindOf(brainId, cancellationToken) == BrainKind.Circle) { return; }
+        if (await (await capabilities.Identity(cancellationToken)).KindOf(brainId, cancellationToken) == BrainKind.Circle)
+        {
+            await DeployCircleUnits(brains.Get<ISynapseStudio>($"{brainId}/ino/synapses"),
+                brains.Get<DigitalBrain.Confirmation.IConfirmationInbox>(DigitalBrain.Confirmation.IConfirmationInbox.Key(brainId)), logger, brainId);
+            return;
+        }
         await ShippedInstall.Missing(catalog, loader, brainId,
             async name => await brains.Get<IApp>($"{brainId}/apps/{name}").Read().WaitAsync(cancellationToken),
             (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId),
@@ -86,6 +91,22 @@ internal sealed class OsDefaults(
                 // One default failing must not keep the others from installing.
                 logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, brainId);
             }
+        }
+    }
+
+    // A circle's shipped units ask for no slots, so they install without consent. One that fails is logged and the next connect
+    // tries again (OsWorkspaceRoot).
+    internal static async Task DeployCircleUnits(ISynapseStudio studio, DigitalBrain.Confirmation.IConfirmationInbox inbox, ILogger logger, string brainId)
+    {
+        foreach (var alias in ShippedApps.CircleUnits)
+        {
+            try
+            {
+                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, alias, plan => inbox.Resolve(plan, true));
+                if (!result.Ok || result.Installs.Values.Any(install => install.Status == DigitalBrain.InstallStatus.Pending)) { logger.LogWarning("Circle unit {Unit} did not deploy in {Brain}: {Reason}", alias, brainId, result.Text); }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "Circle unit {Unit} did not deploy in {Brain}.", alias, brainId); }
         }
     }
 

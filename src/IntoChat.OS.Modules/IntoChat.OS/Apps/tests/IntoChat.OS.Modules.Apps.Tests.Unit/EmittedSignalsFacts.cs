@@ -20,7 +20,9 @@ public sealed partial class EmittedSignalsFacts
 
         foreach (var file in Directory.EnumerateFiles(ProjectDirectory(root, "IntoChat.OS.Apps"), "*.cs", SearchOption.AllDirectories)
             .Concat(Directory.EnumerateFiles(ProjectDirectory(root, "IntoChat.OS.Modules.Apps"), "*.cs", SearchOption.AllDirectories))
-            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            // Shipped unit sources (Units/) are synapse units with no app manifest: their view emits to their own state alias.
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}Units{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
         {
             var source = File.ReadAllText(file);
             var app = AppConstant().Match(source) is { Success: true } constant ? constant.Groups[1].Value : null;
