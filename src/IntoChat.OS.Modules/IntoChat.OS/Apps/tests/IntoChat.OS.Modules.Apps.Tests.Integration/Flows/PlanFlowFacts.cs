@@ -1,5 +1,9 @@
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Flows;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using IntoChat.OS.Modules.Apps.Approvals;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Apps.Flows;
 using Xunit;
@@ -32,7 +36,8 @@ public sealed class PlanFlowFacts
         Assert.Contains("Keep notes", ScriptedAgent.Prompts[id], StringComparison.Ordinal);
         Assert.Empty(waiting.Relations);
 
-        await flows.Resume(id, "approve", WaitOutcome.Approved, Ct);
+        // An approval wait is resolved by the person through the confirmations inbox, as ApprovalsFacts does it.
+        await runtime.ApproveAsPerson(await PendingPlan(runtime, id), Ct);
 
         // The index can show Completed from the flow's head before it folds the FlowRelated signals saved before it.
         var done = await Eventually(() => flows.Read(id, Ct), v => v.Status == FlowStatus.Completed && v.Relations.Length == 2);
@@ -45,6 +50,21 @@ public sealed class PlanFlowFacts
         var second = await Eventually(() => flows.Read(inner.Started[1], Ct), v => v.Relations.Length == 1);
         Assert.Equal(new FlowRelation(inner.Started[0], RelationKind.BlockedBy, TimeSpan.FromDays(1)), second.Relations[0]);
     
+    }
+
+    private static async Task<string> PendingPlan(INeuronRuntime runtime, string flowId)
+    {
+        var approvals = runtime.Get<IApprovals>(IApprovals.Key(runtime.Brain.Value));
+        for (var i = 0; i < 200; i++)
+        {
+            using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value)))
+            {
+                if ((await approvals.Pending(Ct)).FirstOrDefault(a => a.Kind == ApprovalKind.FlowStep) is { } pending) { return pending.PlanId; }
+            }
+            await Task.Delay(50, Ct);
+        }
+        Assert.Fail($"Flow {flowId} raised no pending approval.");
+        return "";
     }
 
     [Theory]
