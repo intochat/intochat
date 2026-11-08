@@ -63,9 +63,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
                 ?? throw new InvalidOperationException($"Capability '{capType.Name}' is not registered."),
             sink: sp.GetRequiredService<IPresentationSink>(),
             services: serviceType => sp.GetService(serviceType)));
-        services.TryAddSingleton<IAppHost>(sp => sp.GetRequiredService<InProcessAppHost>());
         services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
-        services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
         services.AddNeuronProxies();
         services.TryAddSingleton<IPolicyModel, CreatorPolicyModel>();
@@ -108,8 +106,6 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapGet("/session/capabilities", static (IServiceProvider services) =>
-            Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
         PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);

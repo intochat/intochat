@@ -7,7 +7,6 @@ namespace IntoChat.OS.Modules.Apps.Tests.Apps;
 public sealed class AppTimeoutFacts
 {
     [Theory]
-    [InlineData(nameof(IApp.WriteBehavior))]
     [InlineData(nameof(IApp.CompleteBuild))]
     [InlineData(nameof(IApp.Configure))]
     [InlineData(nameof(IApp.Import))]

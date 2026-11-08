@@ -26,7 +26,6 @@ namespace IntoChat.OS.Modules.Apps;
 internal sealed class Creator(
     IServiceProvider plain,
     IOptions<AppsOptions> options,
-    AppAuthoringPolicy policy,
     ILogger<Creator> logger,
     ICreatorModel? model = null,
     SynapseCompiler? compiler = null) : IDrafter
@@ -98,7 +97,6 @@ internal sealed class Creator(
     public async Task<AppSnapshot> Implement(INeuronProxies brain, string appKey, string? instruction, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(brain);
-        policy.RequireSandbox();
         var app = brain.Get<IApp>(appKey);
         var snapshot = await app.BeginBuild(instruction).WaitAsync(cancellationToken);
         var attempt = await app.CurrentBuildAttempt().WaitAsync(cancellationToken);

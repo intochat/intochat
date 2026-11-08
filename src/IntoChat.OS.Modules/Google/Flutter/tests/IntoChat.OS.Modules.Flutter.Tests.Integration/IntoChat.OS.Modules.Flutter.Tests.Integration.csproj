@@ -8,7 +8,6 @@
     <ProjectReference Include="../../../../Microsoft/Playwright/src/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Circles/src/IntoChat.OS.Modules.Circles/IntoChat.OS.Modules.Circles.csproj" />
     <ProjectReference Include="../../../../IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
-    <ProjectReference Include="../../../../Microsoft/CSharp/Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
     <PackageReference Include="DigitalBrain.Testing.Silo" />
     <None Include="Contracts/*.golden.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

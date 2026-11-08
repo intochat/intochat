@@ -18,7 +18,6 @@ public sealed class OsAppHostFixture : IAsyncLifetime
 {
     private static readonly string[] DisabledModules =
     [
-        "csharp",
         "artcraft",
         "playwright",
         "postgres",

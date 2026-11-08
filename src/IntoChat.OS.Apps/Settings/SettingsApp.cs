@@ -737,7 +737,6 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                         subPage,
                         [
                             new RecordFieldNode("Neuron URI", $"neuron://local/apps/{subPage}"),
-                            new RecordFieldNode("Runtime Sandbox", "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox"),
                             new RecordFieldNode("Write Gate", "LFP ApprovalCard enforced"),
                         ],
                         Subtitle: $"App Detail · {subPage}"),

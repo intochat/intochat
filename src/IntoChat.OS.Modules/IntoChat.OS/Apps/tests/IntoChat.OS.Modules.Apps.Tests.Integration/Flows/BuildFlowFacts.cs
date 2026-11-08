@@ -72,20 +72,6 @@ public sealed class BuildFlowFacts
         }
     }
 
-    // Lets Implement past the sandbox policy.
-    private sealed class RunnableSandbox : IScriptSandbox
-    {
-        public bool CanRun => true;
-
-        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken) => throw new NotSupportedException();
-    }
-
     // The brain's http@1 connections, each with its allow-list: ICapabilityConnections and IConnectionHosts over the same list.
     private sealed class HttpConnections(params (string Id, string[] Hosts)[] connections) : ICapabilityConnections, IConnectionHosts
     {
@@ -128,7 +114,6 @@ public sealed class BuildFlowFacts
             services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
             services.AddSingleton<IDrafter>(drafter);
-            services.AddSingleton<IScriptSandbox>(new RunnableSandbox());
             services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);
         }
     }

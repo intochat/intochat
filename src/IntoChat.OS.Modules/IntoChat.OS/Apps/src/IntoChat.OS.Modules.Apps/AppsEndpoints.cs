@@ -22,7 +22,6 @@ internal static class AppsEndpoints
     public sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
     public sealed record RollbackRequest(string Version);
     public sealed record RequestBody(string? Operation, string? Input);
-    public sealed record SynapseBody(string? Sentence, string[]? Focus, Guid? OperationId);
     public sealed record UpdateBody(string? Consent);
 
     public static void Map(IEndpointRouteBuilder endpoints)
@@ -91,15 +90,6 @@ internal static class AppsEndpoints
         {
             var id = await App(brain, name).Request(request?.Operation ?? "ask", request?.Input ?? "{}").WaitAsync(ct);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", new { requestId = id });
-        }));
-
-        // The fast path: one sentence becomes one synapse of the app. The request is recorded and the app answers
-        // at once; the synapse, or why it was rejected, lands in the app's synapses.
-        apps.MapPost("/{name}/synapse", (string name, SynapseBody? body, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(body?.Sentence);
-            var snapshot = await App(brain, name).WriteSynapse(body.Sentence, body.Focus ?? [], body.OperationId ?? Guid.NewGuid()).WaitAsync(ct);
-            return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
         }));
 
         apps.MapPut("/{name}/settings", (string name, SettingsRequest request, INeuronProxies brain) => Respond(async ()

@@ -177,9 +177,6 @@ internal sealed partial class AppNeuron
     private static bool HasProgram(AppState state)
         => state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var ct) && !string.IsNullOrWhiteSpace(ct);
 
-    private static Dictionary<string, string> Sources(AppState state)
-        => state.Files.Where(file => AppFiles.IsProgram(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-
     // The whole program, every time: the runtime decides what changed. No program means nothing runs.
     private async Task Deploy()
     {
@@ -206,7 +203,7 @@ internal sealed partial class AppNeuron
     {
         if (ServiceProvider.GetService<IKernel>() is not { } kernel || State.Manifest is null || BrainId().Length == 0) { return; }
         var feature = new Feature(Name(), State.Version, State.Origin?.Publisher ?? BrainId());
-        await kernel.LoadFeature(BrainId(), feature, FeatureTypes.Of(Sources(State), feature.Provider));
+        await kernel.LoadFeature(BrainId(), feature, []);
     }
 
     // The program reads brain.Setting("App") to find this neuron, brain.Setting(name) for each
@@ -287,107 +284,6 @@ internal sealed partial class AppNeuron
         await directory.RemovePrincipalMember(brain, principal);
     }
 
-    public Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId)
-    {
-        throw new NotSupportedException("ReactionWriter has been replaced by PolicyWriter.");
-    }
-
-
-    public async Task<StagedProgram> Stage(Guid operationId, string path, string source)
-    {
-        await Check("Stage",
-            new AppExists(Name(), State.Manifest is not null),
-            new ProgramIsNotPaused(State.MigrationPaused));
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        var index = Array.FindIndex(State.Synapses, synapse => synapse.OperationId == operationId);
-        await Check("Stage",
-            new ProgramPathIsWritable(path ?? ""),
-            new SynapseRequestIsPending(index >= 0 && State.Synapses[index].Status == SynapseStatus.Requested));
-        var sources = Sources(State);
-        sources[path!] = source;
-        var entry = State.Synapses[index];
-        if (entry.Path != path || entry.Source != source)
-        {
-            var next = State.Clone();
-            next.Synapses[index] = entry with { Path = path, Source = source };
-            AdvanceProgram(next);
-            await Persist(next);
-        }
-        return new(sources, Configuration(State), State.Principal);
-    }
-
-    // A deleted app has no files, so a writer that outlived it deploys an empty program, which retires the runtime.
-    public async Task<StagedProgram> Program()
-    {
-        if (!Exists || State.MigrationPaused) { return new([], Configuration(State), State.Principal); }
-        var next = State.Clone();
-        AdvanceProgram(next);
-        await Persist(next);
-        return new(Sources(State), Configuration(State), State.Principal);
-    }
-
-    // A deleted app holds no requests, so a late Unsettle answers its empty snapshot and writes nothing.
-    public async Task<AppSnapshot> Unsettle(Guid operationId, string reason, long elapsedMs, int attempts, string? baseSynapse)
-    {
-        var index = Array.FindIndex(State.Synapses, synapse => synapse.OperationId == operationId);
-        if (index < 0 || State.Synapses[index].Status != SynapseStatus.Requested) { return Describe(State); }
-        var entry = State.Synapses[index];
-        var next = State.Clone();
-        next.Synapses[index] = entry with { Status = SynapseStatus.Unsettled, Errors = [reason], ElapsedMs = elapsedMs, Attempts = attempts, Base = baseSynapse };
-        await Save(next, new AppChanged(Name(), next.Version, next.Status), new SynapseRejected(entry.Sentence, [reason]));
-        return Describe(State);
-    }
-
-    public async Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null)
-    {
-        if (State.MigrationPaused) { return Describe(State); }
-        var index = Array.FindIndex(State.Synapses, synapse => synapse.OperationId == operationId);
-        if (index < 0 || State.Synapses[index].Status != SynapseStatus.Requested) { return Describe(State); }
-        var entry = State.Synapses[index];
-        string[] refused = [.. errors ?? []];
-        // A synapse WriteBehavior deployed (nothing staged) is Written, even when its caller gave up waiting on it.
-        if (entry.Source is null && entry.Path is { } deployed && State.Files.ContainsKey(deployed)) { refused = []; }
-        if (refused.Length == 0 && entry.Path is null) { refused = ["The writer reported a synapse it never wrote."]; }
-        var next = State.Clone();
-        // A staged synapse the runtime now runs joins the app's files.
-        if (refused.Length == 0 && entry.Source is { } staged)
-        {
-            next.Edited = true;
-            next.PutFile(entry.Path!, staged);
-            next.Version = Bump(next.Version, minor: false);
-            Record(next);
-        }
-        next.Synapses[index] = entry with
-        {
-            Status = refused.Length == 0 ? SynapseStatus.Written : SynapseStatus.Rejected,
-            Errors = refused,
-            ElapsedMs = elapsedMs,
-            Attempts = attempts,
-            Base = baseSynapse,
-            Hash = hash ?? entry.Hash,
-            Source = null,
-        };
-        DigitalBrain.Signal outcome = refused.Length == 0
-            ? new SynapseWritten(entry.Path!, hash ?? entry.Hash ?? "", elapsedMs, attempts)
-            : new SynapseRejected(entry.Sentence, refused);
-        var replacedProgram = next.ProgramRevision != State.ProgramRevision;
-        await Save(next, new AppChanged(Name(), next.Version, next.Status), outcome);
-        if (replacedProgram) { await Publish(new PresentationChanged(Key, next.ProgramRevision, 0)); }
-        return Describe(State);
-    }
-
-    // The bundle's rules judge the would-be request before it is published; the first rejection wins.
-    // The sandbox picks the rules out of the program's shared classes; no program means no rules. Rules
-    // fail closed: a program that declares one is rejected when no sandbox can run it.
-    private async Task<Verdict?> Rejection(AppRequested requested)
-    {
-        var program = Sources(State);
-        if (program.Count == 0) { return null; }
-        if (ServiceProvider.GetService<IScriptSandbox>() is not { } sandbox)
-        { return AppRules.Declared(program) ? Verdict.Reject("no sandbox") with { Rule = "rules" } : null; }
-        var verdicts = await sandbox.Judge(BrainId(), program, requested, CancellationToken.None);
-        return verdicts.FirstOrDefault(verdict => !verdict.Allowed);
-    }
 
     public Task<RetainedRequest[]> RetainedRequests() => Task.FromResult(State.RequestRetention);
 }

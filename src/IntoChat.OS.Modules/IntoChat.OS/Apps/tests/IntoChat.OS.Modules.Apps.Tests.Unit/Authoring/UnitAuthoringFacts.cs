@@ -64,7 +64,7 @@ public sealed class UnitAuthoringFacts
     private static readonly UnitNeeds XNeeds = new([new SlotNeed("x", "http", ["api.x.com"])], "every 6m", true);
 
     private static Creator Creator(ICreatorModel model, SynapseCompiler? compiler = null)
-        => new(new ServiceCollection().BuildServiceProvider(), Options.Create(new AppsOptions()), new AppAuthoringPolicy(), NullLogger<Creator>.Instance,
+        => new(new ServiceCollection().BuildServiceProvider(), Options.Create(new AppsOptions()), NullLogger<Creator>.Instance,
             model: model, compiler: compiler ?? HostCompiler);
 
     private static AiMessage CheckUnit(string source)
@@ -272,7 +272,7 @@ public sealed class UnitAuthoringFacts
     {
         var unit = await AuthorXWatch();
         var model = new ScriptedModel(_ => CheckUnit(AgentPrompts.XWatchExample), _ => Final(AgentPrompts.XWatchExample));
-        var creator = new Creator(new ServiceCollection().BuildServiceProvider(), Options.Create(new AppsOptions()), new AppAuthoringPolicy(),
+        var creator = new Creator(new ServiceCollection().BuildServiceProvider(), Options.Create(new AppsOptions()),
             NullLogger<Creator>.Instance, model: model);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => creator.Draft("b", unit, null, Ct));

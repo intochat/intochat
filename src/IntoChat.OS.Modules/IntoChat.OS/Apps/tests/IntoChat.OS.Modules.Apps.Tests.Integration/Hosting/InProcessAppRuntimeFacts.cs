@@ -56,12 +56,12 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
                 services.AddSingleton(sp =>
                 {
                     var git = new GitSideload((_, _) => Task.FromResult(0), GitSideload.MaxBytes);
-                    var catalog = new FeatureCatalog(directory: null, sandbox: null, dev: null, sideload: new SideloadDirectory(_sideloadRoot), git: git);
+                    var catalog = new FeatureCatalog(directory: null, dev: null, sideload: new SideloadDirectory(_sideloadRoot), git: git);
                     return new SideloadInstaller(catalog, git, (req, _) => Task.FromResult(InstallOutcome.Installed(req.Ref.App)));
                 });
             });
 
-        // Boot the silo WITHOUT IntoChat.OS.Modules.Microsoft.CSharp registered.
+        // Boot the silo; compiled apps need no other module.
         _host = await factory.Start(
             new InProcessHostOptions
             {

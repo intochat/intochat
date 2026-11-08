@@ -20,7 +20,7 @@ public sealed class SideloadConsentChallengerFacts : IDisposable
     private SideloadInstaller CreateInstaller()
     {
         var git = new GitSideload((_, _) => Task.FromResult(0), GitSideload.MaxBytes);
-        var catalog = new FeatureCatalog(directory: null, new PassGate(), dev: null, sideload: new SideloadDirectory(_root), git: git);
+        var catalog = new FeatureCatalog(directory: null, dev: null, sideload: new SideloadDirectory(_root), git: git);
         return new SideloadInstaller(catalog, git, (request, _) =>
         {
             _installedCalls.Add(request.Ref.Publisher + "/" + request.Ref.App);
@@ -210,13 +210,4 @@ public sealed class SideloadConsentChallengerFacts : IDisposable
         Assert.Single(_installedCalls, "sideload/camera-app");
     }
 
-    private sealed class PassGate : IScriptSandbox
-    {
-        public bool CanRun => true;
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken) => Task.FromResult<Verdict[]>([]);
-        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
-            => Task.FromResult(new ScriptCompilationCheck(true, []));
-    }
 }

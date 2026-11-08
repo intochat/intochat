@@ -19,7 +19,6 @@ public sealed class FeatureCatalog
     internal static readonly ActivitySource Telemetry = new("IntoChat.OS.Modules.Apps.Features");
 
     private readonly FeatureDirectory? _directory;
-    private readonly IScriptSandbox? _sandbox;
     private readonly Assembly[] _modules;
     private readonly FeatureDirectory? _dev;
     private readonly SideloadDirectory? _sideload;
@@ -27,16 +26,15 @@ public sealed class FeatureCatalog
     private readonly Lock _gate = new();
     private Task<Loaded>? _loaded;
 
-    public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
-        : this(directory, sandbox, Array.Empty<Assembly>(), dev, sideload, git) { }
+    public FeatureCatalog(FeatureDirectory? directory, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
+        : this(directory, Array.Empty<Assembly>(), dev, sideload, git) { }
 
-    internal FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, Assembly? modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
-        : this(directory, sandbox, modules is null ? [] : [modules], dev, sideload, git) { }
+    internal FeatureCatalog(FeatureDirectory? directory, Assembly? modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
+        : this(directory, modules is null ? [] : [modules], dev, sideload, git) { }
 
-    public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox, IEnumerable<Assembly> modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
+    public FeatureCatalog(FeatureDirectory? directory, IEnumerable<Assembly> modules, FeatureDirectory? dev = null, SideloadDirectory? sideload = null, GitSideload? git = null)
     {
         _directory = directory;
-        _sandbox = sandbox;
         _modules = [.. (modules ?? []).Where(a => a is not null).Distinct()];
         _dev = dev;
         _sideload = sideload;
@@ -56,7 +54,7 @@ public sealed class FeatureCatalog
         {
             registered.Insert(0, typeof(AppsModule).Assembly);
         }
-        return new(directory, services.GetService<IScriptSandbox>(), registered, DevDirectory(services), SideloadRoot(services), services.GetService<GitSideload>());
+        return new(directory, registered, DevDirectory(services), SideloadRoot(services), services.GetService<GitSideload>());
     }
 
     // IntoChatOS:Apps:SideloadDirectory, or <Home>/apps. Missing until a folder or a git URL is dropped.
@@ -164,7 +162,6 @@ public sealed class FeatureCatalog
             { throw new InvalidOperationException($"{owner}/{name} ships twice: {string.Join(", ", developed.Select(copy => copy.Folder))}."); }
             if (developed.Length == 1)
             {
-                await RequireCompiles(owner, developed[0].Bundle, _sandbox);
                 lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), owner, developed[0].Bundle); }
                 return developed[0].Bundle;
             }
@@ -176,7 +173,6 @@ public sealed class FeatureCatalog
             { throw new InvalidOperationException($"{owner}/{name} ships twice: {string.Join(", ", developed.Select(copy => copy.Folder))}."); }
             if (developed.Length == 1)
             {
-                await RequireCompiles(owner, developed[0].Bundle, _sandbox);
                 lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), owner, developed[0].Bundle); }
                 return developed[0].Bundle;
             }
@@ -187,7 +183,6 @@ public sealed class FeatureCatalog
         if (copies.Length > 1)
         { throw new InvalidOperationException($"{owner}/{name} ships twice: {string.Join(", ", copies.Select(copy => copy.Folder))}."); }
         var bundle = copies[0].Bundle;
-        await RequireCompiles(owner, bundle, _sandbox);
         lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), owner, bundle); }
         return bundle;
     }
@@ -198,26 +193,22 @@ public sealed class FeatureCatalog
     // Publisher of <Home>/apps. Never os, whatever the folder or the spec says. Role is ignored.
     public const string SideloadOwner = "sideload";
 
-    // Compiles through the sandbox, then keeps the bundle. A failure throws and leaves the previous snapshot.
+    // Keeps the bundle. A failure throws and leaves the previous snapshot.
     public async Task<AppBundle> AcceptLocal(AppBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         if (_dev is not { Writable: true }) { throw new InvalidOperationException("This host has no dev apps folder."); }
-        if (_sandbox is null) { throw new InvalidOperationException("The script sandbox is not available."); }
-        await RequireCompiles(DevOwner, bundle, _sandbox);
         _dev.Write(DevOwner, bundle);
         lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), DevOwner, bundle); }
         return bundle;
     }
 
-    // Compiles through the sandbox, then keeps the bundle under sideload. A failure throws and writes nothing.
+    // Keeps the bundle under sideload. A failure throws and writes nothing.
     public async Task<AppBundle> AcceptSideload(AppBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         if (_sideload is null) { throw new InvalidOperationException("This host has no apps directory."); }
-        if (_sandbox is null) { throw new InvalidOperationException("The script sandbox is not available."); }
         if (SideloadDirectoryBlocked(bundle.Files) is { } blocked) { throw new InvalidOperationException(blocked); }
-        await RequireCompiles(SideloadOwner, bundle, _sandbox);
         _sideload.Write(bundle);
         lock (_gate) { _loaded = Replace(_loaded ?? LoadCombined(), SideloadOwner, bundle); }
         return bundle;
@@ -227,7 +218,7 @@ public sealed class FeatureCatalog
     {
         if (_sideload is null) { return; }
         if (_git is not null) { await Materialize(_sideload); }
-        var added = await LoadSideload(_sideload.Scan(), _sandbox);
+        var added = await LoadSideload(_sideload.Scan());
         var merged = Merge(await Snapshot(), added, SideloadOwner);
         lock (_gate) { _loaded = Task.FromResult(merged); }
     }
@@ -287,14 +278,14 @@ public sealed class FeatureCatalog
         if (_directory is null) { scripts = Nothing; }
         else
         {
-            try { scripts = await Load(_directory, _sandbox); }
+            try { scripts = await Load(_directory); }
             catch (DirectoryNotFoundException error)
             { scripts = new(Nothing.Bundles, [new("", "", "", error.Message)], Nothing.Origins); }
         }
         if (_dev is { } dev && System.IO.Directory.Exists(dev.Path))
         {
             Loaded developed;
-            try { developed = await Load(dev, _sandbox); }
+            try { developed = await Load(dev); }
             catch (DirectoryNotFoundException) { developed = Nothing; }
             var devBundles = scripts.Bundles.ToDictionary();
             var devOrigins = scripts.Origins.ToDictionary();
@@ -318,7 +309,7 @@ public sealed class FeatureCatalog
         {
             if (_git is not null) { await Materialize(side); }
             Loaded added;
-            try { added = await LoadSideload(side.Scan(), _sandbox); }
+            try { added = await LoadSideload(side.Scan()); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             { added = new(Nothing.Bundles, [new(SideloadOwner, "", "", error.Message)], Nothing.Origins); }
             scripts = Merge(scripts, added, SideloadOwner);
@@ -354,7 +345,7 @@ public sealed class FeatureCatalog
         FeatureFailure[] Failures,
         IReadOnlyDictionary<(string Owner, string Name), FeatureOrigin> Origins);
 
-    private static async Task<Loaded> Load(FeatureDirectory directory, IScriptSandbox? sandbox)
+    private static Task<Loaded> Load(FeatureDirectory directory)
     {
         using var load = Telemetry.StartActivity("features.load");
         load?.SetTag("features.path", directory.Path);
@@ -378,21 +369,13 @@ public sealed class FeatureCatalog
             var key = (feature.Owner, feature.Bundle.Name);
             bundles[key] = feature.Bundle;
             origins[key] = new FeatureOrigin.Folder(feature.Folder);
-            try { await RequireCompiles(feature.Owner, feature.Bundle, sandbox); }
-            catch (InvalidOperationException error)
-            {
-                bundles.Remove(key);
-                origins.Remove(key);
-                failures.Add(new(feature.Owner, feature.Bundle.Name, feature.Bundle.Version, error.Message));
-                each?.SetStatus(ActivityStatusCode.Error, error.Message);
-            }
         }
         load?.SetTag("features.count", bundles.Count);
         load?.SetTag("features.failed", failures.Count);
-        return new(bundles, [.. failures], origins);
+        return Task.FromResult(new Loaded(bundles, [.. failures], origins));
     }
 
-    private static async Task<Loaded> LoadSideload(SideloadScan scan, IScriptSandbox? sandbox)
+    private static Task<Loaded> LoadSideload(SideloadScan scan)
     {
         var bundles = new Dictionary<(string Owner, string Name), AppBundle>();
         var origins = new Dictionary<(string Owner, string Name), FeatureOrigin>();
@@ -408,15 +391,8 @@ public sealed class FeatureCatalog
             var key = (feature.Owner, feature.Bundle.Name);
             bundles[key] = feature.Bundle;
             origins[key] = new FeatureOrigin.Folder(feature.Folder);
-            try { await RequireCompiles(feature.Owner, feature.Bundle, sandbox); }
-            catch (InvalidOperationException error)
-            {
-                bundles.Remove(key);
-                origins.Remove(key);
-                failures.Add(new(feature.Owner, feature.Bundle.Name, feature.Bundle.Version, error.Message));
-            }
         }
-        return new(bundles, [.. failures], origins);
+        return Task.FromResult(new Loaded(bundles, [.. failures], origins));
     }
 
     private static Loaded Merge(Loaded scripts, Loaded added, string owner)
@@ -445,21 +421,6 @@ public sealed class FeatureCatalog
         return new(bundles, [.. failures], origins);
     }
 
-    // The same compile gate AppNeuron applies: compile when a sandbox can check.
-    private static async Task RequireCompiles(string owner, AppBundle bundle, IScriptSandbox? sandbox)
-    {
-        var scripts = bundle.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
-            .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-        // Compiled as an installed app deploys it (its program files): app.cs is manifest and spec state, not code.
-        scripts.Remove(AppFiles.DeclarationPath);
-        if (scripts.Count == 0 || sandbox is null) { return; }
-        ScriptCompilationCheck check;
-        try { check = await sandbox.Compile(scripts, CancellationToken.None); }
-        catch (InvalidOperationException) { return; }
-        if (check.Success) { return; }
-        throw new InvalidOperationException($"{owner}/{bundle.Name} {bundle.Version} does not compile: "
-            + string.Join("; ", check.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}")));
-    }
 }
 
 public sealed record FeatureFailure(string Owner, string Name, string Version, string Reason);

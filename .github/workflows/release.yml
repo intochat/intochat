@@ -106,32 +106,17 @@ jobs:
           cache-from: type=gha,scope=os
           cache-to: type=gha,mode=max,scope=os
 
-      - name: Build and push OS-Sandbox container image
-        id: build-os-sandbox
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/Dockerfile
-          push: true
-          tags: |
-            acrintochattest.azurecr.io/os-sandbox:${{ steps.version.outputs.version }}
-            acrintochattest.azurecr.io/os-sandbox:latest
-          cache-from: type=gha,scope=os-sandbox
-          cache-to: type=gha,mode=max,scope=os-sandbox
-
       - name: Write release manifest
         id: manifest
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           COMMIT="${{ github.sha }}"
           OS_DIGEST="acrintochattest.azurecr.io/os@${{ steps.build-os.outputs.digest }}"
-          SANDBOX_DIGEST="acrintochattest.azurecr.io/os-sandbox@${{ steps.build-os-sandbox.outputs.digest }}"
           cat <<EOF > release-manifest.json
           {
             "version": "${VERSION}",
             "commit": "${COMMIT}",
-            "osImage": "${OS_DIGEST}",
-            "sandboxImage": "${SANDBOX_DIGEST}"
+            "osImage": "${OS_DIGEST}"
           }
           EOF
           cat release-manifest.json

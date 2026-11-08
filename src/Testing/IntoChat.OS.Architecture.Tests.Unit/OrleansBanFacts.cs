@@ -14,7 +14,6 @@ public sealed class OrleansBanFacts
         "IntoChat.OS.Kernel.Composition",
         "IntoChat.OS.Modules.AI",
         "IntoChat.OS.Modules.Flutter",
-        "IntoChat.OS.Modules.Microsoft.CSharp",
         "IntoChat.Cloud.Circle.Server",
     ];
 
@@ -36,7 +35,7 @@ public sealed class OrleansBanFacts
     [Fact]
     public void TheModuleAllowListIsExactlyTheLedgerFive()
         => Assert.Equal(
-            ["IntoChat.Cloud.Circle.Server", "IntoChat.OS.Kernel.Composition", "IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Flutter", "IntoChat.OS.Modules.Microsoft.CSharp"],
+            ["IntoChat.Cloud.Circle.Server", "IntoChat.OS.Kernel.Composition", "IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Flutter"],
             Allow.Order(StringComparer.Ordinal).ToArray());
 
     [Fact]

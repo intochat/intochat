@@ -14,7 +14,6 @@ internal sealed partial class AppNeuron
     public async Task<AppBundle> Export()
     {
         await RequireCreated("Export");
-        await RequireCompiles();
         var manifest = State.Manifest!;
         return new AppBundle(Name(), State.Version, manifest, State.Spec,
             new(State.Files, StringComparer.Ordinal));
@@ -25,7 +24,6 @@ internal sealed partial class AppNeuron
         await Check("Publish",
             new ProgramIsNotPaused(State.MigrationPaused),
             new AppExists(Name(), State.Manifest is not null));
-        await RequireCompiles();
         RuntimeCallerContext.TryGet(out var caller);
         await Check("Publish", new PublisherIsSignedIn(caller?.PersonId));
         if (BrainScope.Create(caller!.AccountId, caller.BrainId).Id != BrainId())

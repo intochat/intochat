@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Modules.Microsoft.CSharp;
+namespace IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 
 internal static class RepositoryRoot
 {

@@ -8,6 +8,4 @@ public static class AppFiles
     public const string Runtime = "csharp";
     public const string DeclarationPath = "app.cs";
 
-    public static bool IsProgram(string path)
-        => path.EndsWith(".cs", StringComparison.Ordinal) && path != DeclarationPath;
 }

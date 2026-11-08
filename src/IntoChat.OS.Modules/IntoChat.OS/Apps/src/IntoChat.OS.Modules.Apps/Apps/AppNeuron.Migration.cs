@@ -141,8 +141,6 @@ internal sealed partial class AppNeuron
         {
             string[] operations = [.. (State.Manifest?.Operations ?? []).Select(candidate => candidate.Name)];
             await Check("Accept", new OperationIsDeclared(operation, operations, Name()));
-            if (await Rejection(request) is { } rejected)
-            { throw new RuleViolationException(new Rejected(operation, [rejected.Rule], [rejected.Reason])); }
         }
         var next = State.Clone();
         next.RequestSequence++;

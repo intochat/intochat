@@ -63,7 +63,6 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
                     var git = new GitSideload((_, _) => Task.FromResult(0), GitSideload.MaxBytes);
                     var catalog = new FeatureCatalog(
                         directory: null,
-                        sandbox: null,
                         modules: sp.GetServices<CompiledAppsRegistration>().Select(r => r.Assembly),
                         dev: null,
                         sideload: new SideloadDirectory(_sideloadRoot),

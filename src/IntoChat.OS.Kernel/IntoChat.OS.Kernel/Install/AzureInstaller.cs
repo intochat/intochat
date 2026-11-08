@@ -50,8 +50,7 @@ public static class AzureInstaller
                 if (string.IsNullOrWhiteSpace(manifest.Version)
                     || string.IsNullOrWhiteSpace(manifest.Commit)
                     || string.IsNullOrWhiteSpace(manifest.OsImage)
-                    || !manifest.OsImage.Contains("@sha256:", StringComparison.Ordinal)
-                    || (!string.IsNullOrWhiteSpace(manifest.SandboxImage) && !manifest.SandboxImage.Contains("@sha256:", StringComparison.Ordinal)))
+                    || !manifest.OsImage.Contains("@sha256:", StringComparison.Ordinal))
                 {
                     throw new InvalidOperationException("Release manifest must specify version, commit, and @sha256: image digests.");
                 }
@@ -138,10 +137,6 @@ public static class AzureInstaller
                 var targetGroup = config.GroupName;
                 var targetRegistry = config.RegistryName;
                 await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.OsImage, ct);
-                if (!string.IsNullOrWhiteSpace(manifest.SandboxImage))
-                {
-                    await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.SandboxImage, ct);
-                }
             }
 
             var target = new DeploymentTarget(config.Subscription, config.Location, config.Prefix, config.Env);

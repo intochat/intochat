@@ -1,14 +1,10 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Signals;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
-using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.Microsoft.CSharp.Runtime;
-using IntoChat.OS.Modules.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -38,71 +34,32 @@ internal static class BrainEventsEndpoints
         }
     }
 
-    internal static readonly TimeSpan StaleAfter = TimeSpan.FromSeconds(30);
-    internal static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(10);
-
-    // The runtime as last read. A read that fails keeps the previous answer, so a transient error never
-    // turns the graph's edges off; it is logged once when it starts and once when it ends. A runtime that
-    // keeps failing past `staleAfter` is no longer believed: the answer becomes none (nodes only, Idle).
-    private sealed class RuntimeView(IBrainRuntime runtime, ILogger log, TimeSpan staleAfter)
-    {
-        private BrainRuntimeSnapshot? _known;
-        private long? _failingSince;
-
-        public TimeSpan? StaleIn => _failingSince is { } since ? staleAfter - Stopwatch.GetElapsedTime(since) : null;
-
-        public async Task<BrainRuntimeSnapshot?> Read(CancellationToken ct)
-        {
-            try
-            {
-                _known = await runtime.Inspect(ct);
-                if (_failingSince is not null) { log.LogInformation("The brain runtime answers again."); _failingSince = null; }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                if (_failingSince is null)
-                {
-                    log.LogWarning(error, "The brain runtime could not be read; the graph keeps its last synapses for {Seconds}s.", staleAfter.TotalSeconds);
-                    _failingSince = Stopwatch.GetTimestamp();
-                }
-                else if (StaleIn <= TimeSpan.Zero) { _known = null; }
-            }
-            return _known;
-        }
-    }
-
     private static readonly TimeSpan Burst = TimeSpan.FromMilliseconds(100);
 
-    // The first snapshot is written at once. Watches on the kernel's instance announcements and on the
-    // brain runtime follow; once every watch is registered the brain is read again, so nothing that
-    // happened in between is missed, and a snapshot identical to the last one is not sent. A burst of
-    // changes becomes one snapshot. A faulted kernel watch ends the stream with its error, so the
-    // client sees a failure, never a clean end. The runtime is optional: a brain without one has no synapses.
-    internal static async IAsyncEnumerable<string> Snapshots(BrainEdge brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct, TimeSpan? staleAfter = null, TimeSpan? retryEvery = null)
+    // The first snapshot is written at once. Watches on the kernel's instance announcements follow; once both are
+    // registered the brain is read again, so nothing that happened in between is missed, and a snapshot identical to
+    // the last one is not sent. A burst of changes becomes one snapshot. A faulted watch ends the stream with its
+    // error, so the client sees a failure, never a clean end.
+    internal static async IAsyncEnumerable<string> Snapshots(BrainEdge brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct)
     {
+        _ = log;
         // A change flag: one pending change says everything a hundred would.
         var changes = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest });
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(brainId));
-        var view = new RuntimeView(runtime, log, staleAfter ?? StaleAfter);
-        var waiting = 3;
-        var retrying = 0;
+        var waiting = 2;
         void Subscribed() { if (Interlocked.Decrement(ref waiting) == 0) { changes.Writer.TryWrite(true); } }
-        _ = Watch(brain.On<InstanceCreated>(brain.Self(brainId), () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
-        _ = Watch(brain.On<InstanceRetired>(brain.Self(brainId), () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
-        _ = Watch(brain.On<BrainRuntimeChanged>(runtime, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: false);
+        _ = Watch(brain.On<InstanceCreated>(brain.Self(brainId), () => { Subscribed(); return Task.CompletedTask; }, stop.Token));
+        _ = Watch(brain.On<InstanceRetired>(brain.Self(brainId), () => { Subscribed(); return Task.CompletedTask; }, stop.Token));
         try
         {
-            var (json, key) = await Snapshot(brain, view, brainId, ct);
-            Recheck();
+            var (json, key) = await Snapshot(brain, brainId, ct);
             var last = key;
             yield return json;
             await foreach (var _tick in changes.Reader.ReadAllAsync(ct))
             {
                 await Task.Delay(Burst, ct);
                 while (changes.Reader.TryRead(out var more)) { _ = more; }
-                (json, key) = await Snapshot(brain, view, brainId, ct);
-                Recheck();
+                (json, key) = await Snapshot(brain, brainId, ct);
                 if (key == last) { continue; }
                 last = key;
                 yield return json;
@@ -110,69 +67,24 @@ internal static class BrainEventsEndpoints
         }
         finally { await stop.CancelAsync(); }
 
-        // While the runtime fails it is read again at a fixed interval, even if nothing else changes, until a read
-        // succeeds: one pending retry at most, so a quiet recovery reaches the graph and retries never stack.
-        void Recheck()
-        {
-            if (view.StaleIn is null || Interlocked.CompareExchange(ref retrying, 1, 0) != 0) { return; }
-            _ = Task.Delay(retryEvery ?? RetryEvery, stop.Token).ContinueWith(
-                _ => { Volatile.Write(ref retrying, 0); changes.Writer.TryWrite(true); }, TaskContinuationOptions.OnlyOnRanToCompletion);
-        }
-
-        async Task Watch<T>(IAsyncEnumerable<T> signals, bool required)
+        async Task Watch<T>(IAsyncEnumerable<T> signals)
         {
             try { await foreach (var _ in signals) { changes.Writer.TryWrite(true); } }
             catch (OperationCanceledException) { }
-            catch (Exception error) when (!required)
-            {
-                _ = error;
-                Subscribed();
-            }
             catch (Exception error) { changes.Writer.TryComplete(error); }
         }
     }
 
-    private static async Task<(string Json, string Key)> Snapshot(BrainEdge brain, RuntimeView view, string brainId, CancellationToken ct)
+    // Every neuron the kernel knows, Idle: runtime-authored code is a synapse unit, which this graph does not draw yet.
+    private static async Task<(string Json, string Key)> Snapshot(BrainEdge brain, string brainId, CancellationToken ct)
     {
-        var running = await view.Read(ct);
-        var behaviors = running?.Behaviors ?? [];
-        var connected = running?.Session == SessionStatus.Connected;
-
-        List<string> keys = [];
-        List<(string Key, string Type)> instances = [];
-        await foreach (var instance in brain.Kernel.Instances(null, ct)) { instances.Add((instance.Key, instance.Type)); }
-        keys.AddRange(instances.Select(instance => instance.Key));
-
-        string? AppOf(string behavior) => keys
-            .Where(key => IApp.NameOf(brainId, key) is not null && (behavior == key || behavior.StartsWith(key + "/", StringComparison.Ordinal)))
-            .OrderByDescending(key => key.Length).FirstOrDefault();
-
         List<object> nodes = [];
-        foreach (var (key, type) in instances)
+        await foreach (var instance in brain.Kernel.Instances(null, ct))
         {
-            var name = key[(key.LastIndexOf('/') + 1)..];
-            var active = connected && behaviors.Any(behavior => AppOf(behavior.Id) == key);
-            nodes.Add(new { id = key, type, name, label = name, module = "", role = "observed", status = active ? "Running" : "Idle", handledSignals = Array.Empty<string>() });
+            var name = instance.Key[(instance.Key.LastIndexOf('/') + 1)..];
+            nodes.Add(new { id = instance.Key, type = instance.Type, name, label = name, module = "", role = "observed", status = "Idle", handledSignals = Array.Empty<string>() });
         }
-
-        List<object> synapses = [];
-        foreach (var behavior in behaviors)
-        {
-            if (AppOf(behavior.Id) is not { } app) { continue; }
-            foreach (var subscription in behavior.Subscriptions)
-            {
-                var source = GrainId.TryParse(subscription.Neuron, out var grain) ? grain.Key.ToString()! : subscription.Neuron;
-                synapses.Add(new
-                {
-                    id = $"{behavior.Id}|{source}|{subscription.Signal}",
-                    sourceId = source,
-                    targetId = app,
-                    signalType = subscription.Signal,
-                    kind = "subscription",
-                    fireCount = subscription.Delivered,
-                });
-            }
-        }
+        var synapses = Array.Empty<object>();
         var identity = JsonSerializer.Serialize(new { nodes, synapses }, Json);
         var json = JsonSerializer.Serialize(new
         {

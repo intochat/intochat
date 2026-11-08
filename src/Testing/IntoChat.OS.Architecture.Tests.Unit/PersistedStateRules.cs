@@ -103,9 +103,6 @@ internal static class PersistedStateRules
         "IntoChat.OS.Modules.Flutter.Form.FormState.Fields",
         "IntoChat.OS.Modules.Flutter.Table.TableState.Columns",
         "IntoChat.OS.Modules.Flutter.Table.TableState.Rows",
-        "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState.LegacyAssignmentRevisions",
-        "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeState.LegacyInitialized",
-        "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.ProgramAssignment.LegacySettings",
     };
 
     internal static IEnumerable<string> ConcreteCollectionMembers(Type type) => Members(type)

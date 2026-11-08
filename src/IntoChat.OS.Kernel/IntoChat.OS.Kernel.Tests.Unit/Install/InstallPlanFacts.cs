@@ -31,13 +31,11 @@ public sealed class InstallPlanFacts
         var manifest = new ReleaseManifest(
             Version: "0.16.1",
             Commit: "abc1234",
-            OsImage: "acrintochattest.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-            SandboxImage: "acrintochattest.azurecr.io/os-sandbox@sha256:3333333333333333333333333333333333333333333333333333333333333333");
+            OsImage: "acrintochattest.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111");
 
         var updated = prodConfig.WithManifest(manifest);
 
         Assert.Equal("acrintochatprod.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111", updated.OsImage);
-        Assert.Equal("acrintochatprod.azurecr.io/os-sandbox@sha256:3333333333333333333333333333333333333333333333333333333333333333", updated.Modules["csharp"]["sandboxImage"]);
     }
 
     [Fact]

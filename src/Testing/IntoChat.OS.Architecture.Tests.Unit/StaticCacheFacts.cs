@@ -9,7 +9,6 @@ public sealed partial class StaticCacheFacts
 {
     private static readonly Dictionary<string, string> Owners = new(StringComparer.Ordinal)
     {
-        ["AppRunner.CacheGates"] = "string",
         ["LoadedContracts.Found"] = "string",
         // The mail templates, keyed by the closed set of supported languages (en, ru).
         ["MailTemplateRenderer.Localisations"] = "string",

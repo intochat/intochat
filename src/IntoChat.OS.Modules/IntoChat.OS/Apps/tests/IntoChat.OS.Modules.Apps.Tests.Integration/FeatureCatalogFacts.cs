@@ -25,7 +25,7 @@ public sealed class FeatureCatalogFacts : IDisposable
         Write($"{owner}/{folder}/greet.cs", "// greet\n");
     }
 
-    private FeatureCatalog Catalog(IScriptSandbox? sandbox = null) => new(new FeatureDirectory(_root), sandbox);
+    private FeatureCatalog Catalog() => new(new FeatureDirectory(_root));
 
     // One reaction, so it passes the shape and reaches the compiler, which refuses it.
     private const string Uncompilable = "await foreach (var request in brain.On(app, \"ask\", brain.Stopping)) { this is not C#; }\n";
@@ -35,7 +35,7 @@ public sealed class FeatureCatalogFacts : IDisposable
     {
         WriteEcho();
         WriteGreeter("os");
-        var catalog = Catalog(new Sandbox(success: _ => true));
+        var catalog = Catalog();
 
         var listings = await catalog.Listings();
 
@@ -77,53 +77,11 @@ public sealed class FeatureCatalogFacts : IDisposable
     }
 
     [Fact]
-    public async Task ABundleThatDoesNotCompileIsSkippedAndReportedWhileTheOthersLoad()
-    {
-        WriteEcho(Uncompilable);
-        WriteGreeter("os");
-        WriteGreeter("intochat", "Hello");
-        var catalog = Catalog(new Sandbox(success: files => !files.Values.Any(source => source.Contains("not C#", StringComparison.Ordinal))));
-
-        Assert.Equal([("intochat", "greeter"), ("os", "greeter")],
-            (await catalog.Listings()).Select(listing => (listing.Publisher, listing.Name)));
-        Assert.Null(await catalog.Find("intochat", "echo"));
-        var failure = Assert.Single(await catalog.Failures());
-        Assert.Equal(("intochat", "echo", "2.0.0"), (failure.Owner, failure.Name, failure.Version));
-        Assert.Contains("intochat/echo 2.0.0 does not compile", failure.Reason, StringComparison.Ordinal);
-    }
-
-    // An installed app deploys its program files only; app.cs stays manifest and spec state. A synapse that
-    // names `App` compiles beside app.cs and fails at deploy, so boot compiles exactly what deploys.
-    [Fact]
-    public async Task TheBootGateCompilesOnlyWhatAnInstalledAppDeploys()
-    {
-        WriteEcho();
-        var catalog = Catalog(new Sandbox(success: files => !files.ContainsKey(AppFiles.DeclarationPath)));
-
-        Assert.Empty(await catalog.Failures());
-        Assert.NotNull(await catalog.Find("intochat", "echo"));
-    }
-
-    [Fact]
-    public async Task AFeatureThatDoesNotCompileIsSkippedAndReported()
-    {
-        WriteEcho(Uncompilable);
-        WriteGreeter("os");
-        var catalog = Catalog(new Sandbox(success: files => !files.Values.Any(source => source.Contains("not C#", StringComparison.Ordinal))));
-
-        Assert.Equal([("os", "greeter")], (await catalog.Listings()).Select(listing => (listing.Publisher, listing.Name)));
-        var failure = Assert.Single(await catalog.Failures());
-        Assert.Equal(("intochat", "echo"), (failure.Owner, failure.Name));
-        Assert.Contains("intochat/echo 2.0.0 does not compile", failure.Reason, StringComparison.Ordinal);
-        Assert.Contains("echo.cs:1", failure.Reason, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task AnEditOnDiskReachesTheCatalogWhenThatFeatureReloads()
     {
         WriteEcho();
         WriteGreeter("os");
-        var catalog = Catalog(new Sandbox(success: _ => true));
+        var catalog = Catalog();
         Assert.Equal("// echo\n", (await catalog.Find("intochat", "echo"))!.Files["echo.cs"]);
 
         WriteEcho("// echo louder\n");
@@ -137,36 +95,7 @@ public sealed class FeatureCatalogFacts : IDisposable
     }
 
     [Fact]
-    public async Task AReloadThatDoesNotCompileThrowsAndKeepsThePreviousBundle()
-    {
-        WriteEcho();
-        var catalog = Catalog(new Sandbox(success: files => !files.Values.Any(source => source.Contains("not C#", StringComparison.Ordinal))));
-        Assert.NotNull(await catalog.Find("intochat", "echo"));
-
-        WriteEcho(Uncompilable);
-        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.Reload("intochat", "echo"));
-
-        Assert.Contains("intochat/echo 2.0.0 does not compile", refused.Message, StringComparison.Ordinal);
-        Assert.Equal("// echo\n", (await catalog.Find("intochat", "echo"))!.Files["echo.cs"]);
-    }
-
-    [Fact]
     public async Task AHostWithNoFeaturesFolderHasNoFeatures()
         => Assert.Empty(await new FeatureCatalog(null).Listings());
 
-    private sealed class Sandbox(Func<IReadOnlyDictionary<string, string>, bool> success) : IScriptSandbox
-    {
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken)
-            => Task.FromResult<Verdict[]>([]);
-        public bool CanRun => true;
-        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken)
-            => ReadContracts([moduleId], cancellationToken);
-
-        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
-            => Task.FromResult(success(files)
-                ? new ScriptCompilationCheck(true, [])
-                : new ScriptCompilationCheck(false, [.. files.Keys.Select(file => new ScriptCompilationDiagnostic(file, "CS1002", 1, "; expected"))]));
-    }
 }

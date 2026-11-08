@@ -12,7 +12,6 @@ using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 using IntoChat.OS.Modules.ClickHouse;
 using IntoChat.OS.Modules.Microsoft.Aspire;
-using IntoChat.OS.Modules.Microsoft.CSharp;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.Orleans;
 using IntoChat.OS.Modules.Microsoft.Playwright;
@@ -109,7 +108,6 @@ public sealed record DeploymentProfile
         os = os.WithHosting<AIModuleHosting, AIOptions>(Ai);
         if (IsEnabled("github")) { os = os.WithModule<GitHubModule>(); }
         os = os.WithHosting<AspireModuleHosting>();
-        if (IsEnabled("csharp")) { os = os.WithHosting<CSharpModuleHosting>(); }
         if (IsEnabled("artcraft")) { os = os.WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps()); }
         // The shell's PhotoCraft and FilmCraft apps still open their studios; a cloud deployment serves them from the kernel image.
         else if (!Cloud) { ArtCraftModuleHosting.AddStudios(os); }

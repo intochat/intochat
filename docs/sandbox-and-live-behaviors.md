@@ -25,21 +25,7 @@ Creative studio apps use `UI.WebBrowser` (`WebBrowserNode` in `DigitalBrain.UI`)
 - **`PhotoCraftApp` (`photocraft`)**: Renders the PhotoCraft WASM Studio at `http://localhost:18082` (`UI.WebBrowser(State.WebUrl ?? "http://localhost:18082", "PhotoCraft WASM Studio", "photocraft-wasm", executionMode: State.ExecutionMode)`), alongside layer management, filter pipelines, and AI image generation tools.
 - **`FilmCraftApp` (`filmcraft`)**: Renders the FilmCraft WASM Studio at `http://localhost:18083` (`UI.WebBrowser(State.WebUrl ?? "http://localhost:18083", "FilmCraft WASM Studio", "filmcraft-wasm", executionMode: State.ExecutionMode)`), supporting multi-track timeline editing, clip transitions, and render export.
 
-## 3. Isolated C# Sandbox (`csharp-sandbox` & `RuntimeEdge`)
-
-User-authored and runtime C# apps can execute out-of-process inside `IntoChat.OS.Sandbox.CSharp` (`AppRunner`), communicating with the OS kernel over HTTP + Server-Sent Events (`RuntimeEdge`):
-
-- **SSE Event Loop (`/edge/{appKey}/events`)**: Streams incoming signals and UI interactions to the sandboxed `App<TState>` instance.
-- **View & State Reporting (`/edge/{appKey}/report`)**: Publishes updated `DigitalBrain.UI.View` trees and serialized state snapshots back to the kernel.
-- **Zero-Token Capability Proxy (`/edge/{appKey}/invoke`)**: Every outbound neuron or capability call from the sandbox carries the caller's `AppPrincipal` (`app:{appKey}`) and passes through `PlainNeuronCallFilter` and `GrantCallFilterStage`. Sandboxed code never receives raw OAuth tokens or vault secrets.
-
-```powershell
-dotnet run --project src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Sandbox.CSharp -- `
-  --assembly MyCustomApp.dll `
-  --edge http://localhost:5080/edge/my-app
-```
-
-## 4. Live Behaviors (`[On("sourceKey")]`)
+## 3. Live Behaviors (`[On("sourceKey")]`)
 
 Apps and neurons can subscribe declaratively to signals emitted by any other neuron in the brain using `[On("sourceKey")]`:
 

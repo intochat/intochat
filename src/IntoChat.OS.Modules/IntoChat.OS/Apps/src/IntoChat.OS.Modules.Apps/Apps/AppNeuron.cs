@@ -116,38 +116,8 @@ internal sealed partial class AppNeuron(
         foreach (var setting in manifest.Settings)
         { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
         next.Version = Bump(next.Version, minor: false);
-        await RequireCompiles(next);
         Record(next);
         Receipt(next, operationId);
-        await Persist(next);
-        return Describe(State);
-    }
-
-    public async Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId)
-    {
-        await Check("WriteBehavior",
-            new AppExists(Name(), State.Manifest is not null),
-            new ProgramIsNotPaused(State.MigrationPaused));
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        await Check("WriteBehavior", new ProgramPathIsWritable(path ?? ""));
-        if (Replayed(operationId)) { return Describe(State); }
-        var next = State.Clone();
-        next.Edited = true;
-        next.PutFile(path!, source);
-        next.Version = Bump(next.Version, minor: false);
-        Record(next);
-        Receipt(next, operationId);
-        AdvanceProgram(next);
-        // The whole program goes to the runtime before anything is persisted: a write the
-        // compiler refuses leaves the app's files exactly as they were.
-        IReadOnlyDictionary<string, string>? hashes = null;
-        if (HasProgram(next))
-        {
-            hashes = await Runtime.Deploy(Key, Configuration(next), CancellationToken.None);
-        }
-        // A fast-path write names its deployed synapse on the request; CompleteSynapse lands the outcome.
-        var requested = Array.FindIndex(next.Synapses, synapse => synapse.OperationId == operationId && synapse.Status == SynapseStatus.Requested);
-        if (requested >= 0) { next.Synapses[requested] = next.Synapses[requested] with { Path = path!, Hash = hashes?.GetValueOrDefault(path!) }; }
         await Persist(next);
         return Describe(State);
     }
@@ -399,12 +369,6 @@ internal sealed partial class AppNeuron(
             return id;
         }
         var requested = new AppRequested(operation, input, id);
-        if (await Rejection(requested) is { } rejected)
-        {
-            await Publish(new AppRejected(operation, rejected));
-            await Progress("attention", $"{rejected.Rule} refused {operation}: {rejected.Reason}");
-            throw new RuleViolationException(new Rejected(operation, [rejected.Rule], [rejected.Reason]));
-        }
         // A request is a fact for the app's synapses; it is published for whoever is watching and kept
         // for whoever subscribes later, so a synapse that starts after the request still gets it.
         var next = State.Clone();
@@ -434,28 +398,6 @@ internal sealed partial class AppNeuron(
 
     private Task RequireCreated(string operation)
         => Check(operation, new AppExists(Name(), State.Manifest is not null));
-
-    // The publish gate: every script in the bundle compiles against the installed contracts. A host
-    // without a script compiler cannot run apps either, so it has nothing to refuse.
-    private Task RequireCompiles() => RequireCompiles(State);
-
-    private async Task RequireCompiles(AppState state)
-    {
-        var scripts = state.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
-            .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-        if (scripts.Count == 0) { return; }
-        // The declaration compiles with the program it describes.
-        scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(Name(), state.Version, state.Manifest!, state.Spec));
-        var sandbox = ServiceProvider.GetService<IScriptSandbox>();
-        if (sandbox is null) { return; }
-        ScriptCompilationCheck check;
-        try { check = await sandbox.Compile(scripts, CancellationToken.None); }
-        catch (InvalidOperationException) { return; }
-        if (check.Success) { return; }
-        // build outcome, caught by Build
-        throw new InvalidOperationException($"Version {State.Version} does not compile: "
-            + string.Join("; ", check.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}")));
-    }
 
     private string Name()
     {

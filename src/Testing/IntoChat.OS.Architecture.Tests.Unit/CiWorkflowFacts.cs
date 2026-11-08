@@ -92,7 +92,7 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("type=gha", package, StringComparison.Ordinal);
         Assert.Contains("acrintochattest.azurecr.io/os:", package, StringComparison.Ordinal);
         Assert.DoesNotContain("acrintochattest.azurecr.io/os-ui:", package, StringComparison.Ordinal);
-        Assert.Contains("acrintochattest.azurecr.io/os-sandbox:", package, StringComparison.Ordinal);
+        Assert.DoesNotContain("acrintochattest.azurecr.io/os-sandbox:", package, StringComparison.Ordinal);
         Assert.Contains("release-manifest.json", package, StringComparison.Ordinal);
 
         // deploy-test uses pre-built Kernel binary install

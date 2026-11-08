@@ -202,7 +202,7 @@ public sealed class SideloadFacts : IDisposable
     }
 
     private FeatureCatalog Catalog(GitSideload? git = null)
-        => new(directory: null, new Gate(), dev: null, sideload: new SideloadDirectory(_root), git: git);
+        => new(directory: null, dev: null, sideload: new SideloadDirectory(_root), git: git);
 
     private void WriteApp(string name, string source)
     {
@@ -239,15 +239,4 @@ public sealed class SideloadFacts : IDisposable
         return Task.FromResult(0);
     }
 
-    private sealed class Gate : IScriptSandbox
-    {
-        public bool CanRun => true;
-        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, object signal, CancellationToken cancellationToken) => Task.FromResult<Verdict[]>([]);
-        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ScriptContractCatalog> ReadContractDetail(string moduleId, string contractName, string? methodName, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
-            => Task.FromResult(files.Values.All(value => !value.Contains("nope", StringComparison.Ordinal))
-                ? new ScriptCompilationCheck(true, [])
-                : new ScriptCompilationCheck(false, [new ScriptCompilationDiagnostic("note.cs", "CS1002", 1, "; expected")]));
-    }
 }

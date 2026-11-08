@@ -12,7 +12,6 @@ using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Post;
 using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Microsoft.CSharp.Programs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
@@ -94,27 +93,6 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     public void AppDefinitionRejectsInvalidShapes(Type invalidType)
     {
         Assert.Throws<InvalidOperationException>(() => new AppDefinition(invalidType));
-    }
-
-    [Theory]
-    [InlineData("alpha/app/todo", "alpha/app/todo")]
-    [InlineData("alpha/apps/todo", "alpha/app/todo")]
-    [InlineData("alpha/todo", "alpha/app/todo")]
-    [InlineData("workspace_1/app/app_2", "workspace_1/app/app_2")]
-    public void AppProgramKeysNormalizesAppKeysDeterministically(string inputKey, string expectedKey)
-    {
-        Assert.Equal(expectedKey, AppProgramKeys.For(inputKey));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(" ")]
-    [InlineData("no-slash")]
-    [InlineData("/starts-with-slash")]
-    [InlineData("too/many/nested/slashes/here")]
-    public void AppProgramKeysRejectsMalformedAppKeys(string malformedKey)
-    {
-        Assert.Throws<ArgumentException>(() => AppProgramKeys.For(malformedKey));
     }
 
     [Fact]

@@ -17,8 +17,6 @@ public interface IApp
     Task<AppSnapshot> Create(AppManifest manifest, string spec);
     Task<AppSnapshot> SaveSpec(string spec, Guid operationId);                 // minor bump
     Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId);    // patch bump
-    // Operations that deploy behaviors hand a whole program to the runtime, which can outlast the default call timeout.
-    [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId);
     Task<AppSnapshot> WriteFile(string path, string source, Guid operationId); // patch bump
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections);
     [DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Rollback(string version);
@@ -64,13 +62,6 @@ public interface IApp
     // An app view's own Emit, resolved by its view neuron and checked against this app by the edge: exactly Request(signal,
     // args JSON), so the signal must be a declared operation and every request rule applies.
     Task<Guid> Emit(string signal, string args);
-    // The fast path: one sentence becomes one synapse of this app, written against the contracts of the focus
-    // neurons (keys of what the person is looking at). Records the request in Synapses and returns at once;
-    // the outcome lands there too, with SynapseWritten or SynapseRejected. A replayed operation id does nothing.
-    Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId);
-    // The fast-path writer's outcome for a requested synapse, success and rejection alike: no errors means
-    // written, and its staged source joins the app's files. Module code only; no edge caller writes an outcome.
-    [Internal] Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null);
 
     static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
 
