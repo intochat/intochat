@@ -152,6 +152,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             ("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "image"),
             ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film"),
             ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid"),
+            ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks"),
             ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu"),
             ("post", "Post", "neuron://local/apps/post", "send"),
             ("settings", "Settings", "neuron://local/apps/settings", "settings"),

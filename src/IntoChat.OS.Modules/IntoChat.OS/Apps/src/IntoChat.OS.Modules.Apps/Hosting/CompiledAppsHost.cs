@@ -171,6 +171,7 @@ internal sealed class CompiledAppsHost(
         "filmcraft" => "FilmCraft",
         "creator" => "Creator",
         "gallery" => "Gallery",
+        "tasks" => "Tasks",
         "post" => "Post",
         "brain" => "Brain",
         "settings" => "Settings",
