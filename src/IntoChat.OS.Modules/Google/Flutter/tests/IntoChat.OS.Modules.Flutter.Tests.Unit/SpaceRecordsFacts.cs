@@ -28,6 +28,19 @@ public sealed class SpaceRecordsFacts
         Assert.False(posts.Definition.FileMode);
     }
 
+    // The records still write the property names the widget states wrote.
+    [Fact]
+    public void TheRecordsWriteTheOldPropertyNames()
+    {
+        Assert.Equal(["AvatarUrl", "DisplayName", "Name", "Version"], Names(new PersonState()));
+        Assert.Equal(["Body", "Children", "Name", "Title", "Version"], Names(new CardState()));
+        Assert.Equal(["Definition", "Name", "Revision"], Names(new CollectionState()));
+        Assert.Equal(["Kind", "Name"], Names(new ViewRef("view", "b/apps/x/view")));
+    }
+
+    private static string[] Names<T>(T value)
+        => [.. JsonDocument.Parse(JsonSerializer.Serialize(value)).RootElement.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal)];
+
     [Fact]
     public void SpaceRecordsRoundTrip()
     {

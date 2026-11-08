@@ -88,7 +88,7 @@ public sealed partial class DartVocabularyFacts
                     pending.Add(relative);
                     continue;
                 }
-                foreach (Match call in LiteralUiChildRef().Matches(File.ReadAllText(file)))
+                foreach (Match call in LiteralViewRef().Matches(File.ReadAllText(file)))
                 {
                     var kind = call.Groups["kind"].Value;
                     if (!emitters.TryGetValue(kind, out var files)) { emitters[kind] = files = []; }
@@ -108,7 +108,7 @@ public sealed partial class DartVocabularyFacts
     }
 
     [GeneratedRegex(@"ViewRef\(\s*""(?<kind>\w+)""")]
-    private static partial Regex LiteralUiChildRef();
+    private static partial Regex LiteralViewRef();
 
     [GeneratedRegex(@"'(?<kind>\w+)':\s*NodeContract\(\s*'(?<contract>[\w.]+)',\s*'(?<changed>\w+)',?\s*\)")]
     private static partial Regex NodeContract();
