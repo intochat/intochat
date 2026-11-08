@@ -347,7 +347,7 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
     {
         try
         {
-            var page = await Context.History.ReadTrace(traceId, 0, SignalPage.MaxLimit);
+            var page = await Context.History.ReadTrace(traceId, 0, SignalPage.MaxLimit, CancellationToken.None);
             return page.Signals.LastOrDefault(item => item.Publisher != Id && !IsAgentSignal(item.Signal))?.Publisher.Type;
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)

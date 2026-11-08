@@ -82,7 +82,7 @@ public sealed class VerifyFlow : AgentFlow<VerifyInner>, IFlowStarter
         var since = 0L;
         while (true)
         {
-            var page = await Context.History.ReadTrace(inner.UnitTraceId, since, SignalPage.MaxLimit);
+            var page = await Context.History.ReadTrace(inner.UnitTraceId, since, SignalPage.MaxLimit, CancellationToken.None);
             failures.AddRange(page.Signals.Select(entry => entry.Signal switch
             {
                 FlowDone { Outcome: FlowOutcome.Failed } done => $"flow {done.FlowId} failed: {done.Detail}",

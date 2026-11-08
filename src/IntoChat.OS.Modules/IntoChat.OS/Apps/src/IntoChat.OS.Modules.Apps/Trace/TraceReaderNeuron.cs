@@ -12,7 +12,7 @@ public sealed class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReader
 
     public async Task<TracePage> ReadTrace(string traceId, long since, int limit)
     {
-        var page = await Context.History.ReadTrace(traceId, since, limit);
+        var page = await Context.History.ReadTrace(traceId, since, limit, CancellationToken.None);
         return new TracePage([.. page.Signals.Select(Entry)]);
     }
 
