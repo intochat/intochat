@@ -263,12 +263,16 @@ public static class ServerHostingExtensions
         }
 
         var baseWebRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-        if (Directory.Exists(baseWebRoot))
+        try
         {
+            Directory.CreateDirectory(baseWebRoot);
             return Path.GetFullPath(baseWebRoot);
         }
-
-        return null;
+        catch (Exception error)
+        {
+            _ = error.Message;
+            return null;
+        }
     }
 
     public static TimeSpan ShutdownTimeout(TimeSpan? drainDelay, TimeSpan deactivationTimeout)

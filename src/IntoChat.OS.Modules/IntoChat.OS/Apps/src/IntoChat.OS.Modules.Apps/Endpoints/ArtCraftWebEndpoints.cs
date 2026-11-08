@@ -121,6 +121,9 @@ public static class ArtCraftWebEndpoints
             return Results.NotFound(new { error = $"Unknown ArtCraft studio '{appId}'." });
         }
 
+        var docQuery = context.Request.Query["doc"].FirstOrDefault();
+        var activeDoc = !string.IsNullOrWhiteSpace(docQuery) ? docQuery! : descriptor.DefaultDocument;
+
         var bundleDir = await ResolveOrFetchWasmBundleDirectoryAsync(descriptor, env, ct);
         if (bundleDir is not null)
         {
@@ -134,12 +137,16 @@ public static class ArtCraftWebEndpoints
                     rawHtml = rawHtml.Replace("<head>", $"<head>\n  <base href=\"{baseHref}\">", StringComparison.OrdinalIgnoreCase);
                 }
 
+                if (!rawHtml.Contains("data-artcraft-vfs-bridge", StringComparison.OrdinalIgnoreCase))
+                {
+                    var bridgeScript = RenderVfsBridgeScript(descriptor, activeDoc);
+                    rawHtml = rawHtml.Replace("</head>", $"{bridgeScript}\n</head>", StringComparison.OrdinalIgnoreCase);
+                }
+
                 return Results.Content(rawHtml, "text/html; charset=utf-8", Encoding.UTF8);
             }
         }
 
-        var docQuery = context.Request.Query["doc"].FirstOrDefault();
-        var activeDoc = !string.IsNullOrWhiteSpace(docQuery) ? docQuery! : descriptor.DefaultDocument;
         var html = RenderInteractiveStudioHtml(descriptor, activeDoc);
         return Results.Content(html, "text/html; charset=utf-8", Encoding.UTF8);
     }
@@ -350,6 +357,56 @@ public static class ArtCraftWebEndpoints
 
         var baseWwwRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
         return Directory.Exists(baseWwwRoot) ? baseWwwRoot : null;
+    }
+
+    public static string RenderVfsBridgeScript(ArtCraftAppDescriptor d, string? activeDocument = null)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        var doc = JsonSerializer.Serialize(string.IsNullOrWhiteSpace(activeDocument) ? d.DefaultDocument : activeDocument);
+        var appId = JsonSerializer.Serialize(d.Id);
+        var title = JsonSerializer.Serialize(d.Title);
+        var extsJson = JsonSerializer.Serialize(d.SupportedExtensions);
+
+        return $$"""
+  <script data-artcraft-vfs-bridge="1">
+    (function() {
+      const appId = {{appId}};
+      const title = {{title}};
+      const supportedExtensions = {{extsJson}};
+      const params = new URLSearchParams(window.location.search);
+      let activeDocument = params.get('doc') || {{doc}};
+      const bridge = {
+        appId,
+        title,
+        supportedExtensions,
+        getActiveDocument: () => activeDocument,
+        setActiveDocument: (nextDoc) => {
+          if (typeof nextDoc === 'string' && nextDoc.trim().length > 0) {
+            activeDocument = nextDoc.trim();
+            window.dispatchEvent(new CustomEvent('artcraft:document-changed', { detail: { appId, activeDocument } }));
+          }
+          return activeDocument;
+        },
+        getState: () => ({ appId, title, activeDocument, wasmReady: Boolean(window.wasmBindings) }),
+        runCommand: (cmd, cmdParams) => {
+          window.dispatchEvent(new CustomEvent('artcraft:command', { detail: { appId, cmd, params: cmdParams, activeDocument } }));
+          return { ok: true, appId, cmd, activeDocument };
+        }
+      };
+      window[appId] = bridge;
+      window.artcraftStudio = bridge;
+      window.addEventListener('message', (event) => {
+        const data = event && event.data;
+        if (!data || typeof data !== 'object') return;
+        if (data.type === 'artcraft:open' && typeof data.document === 'string') {
+          bridge.setActiveDocument(data.document);
+        } else if (data.type === 'artcraft:command') {
+          bridge.runCommand(data.command, data.params);
+        }
+      });
+    })();
+  </script>
+""";
     }
 
     public static string RenderInteractiveStudioHtml(ArtCraftAppDescriptor d, string? activeDocument = null)

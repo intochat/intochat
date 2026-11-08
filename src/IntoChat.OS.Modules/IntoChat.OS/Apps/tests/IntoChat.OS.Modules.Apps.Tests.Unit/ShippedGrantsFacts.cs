@@ -60,6 +60,13 @@ public sealed class ShippedGrantsFacts
             Assert.Equal(
                 $"https://github.com/storytold/{d.Id}/releases/download/v{d.WebReleaseVersion}/{d.Id}-web-{d.WebReleaseVersion}.zip",
                 d.WebReleaseZipUrl);
+
+            var bridge = ArtCraftWebEndpoints.RenderVfsBridgeScript(d, "/work/custom-doc.png");
+            Assert.Contains("data-artcraft-vfs-bridge=\"1\"", bridge, StringComparison.Ordinal);
+            Assert.Contains("window.artcraftStudio", bridge, StringComparison.Ordinal);
+            Assert.Contains($"const appId = \"{d.Id}\";", bridge, StringComparison.Ordinal);
+            Assert.Contains("window[appId] = bridge;", bridge, StringComparison.Ordinal);
+            Assert.Contains("/work/custom-doc.png", bridge, StringComparison.Ordinal);
         }
     }
 

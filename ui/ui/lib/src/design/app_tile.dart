@@ -480,6 +480,46 @@ class IcAppIcon extends StatelessWidget {
     return null;
   }
 
+  /// Resolves a studio WebBrowser URL to the same-origin Kernel `/artcraft/<id>/index.html`
+  /// endpoint when running on Web (`isWeb == true`) and the raw URL points to localhost or
+  /// a relative `/artcraft/` path.
+  static String resolveArtCraftWebUrl(
+    String rawUrl, {
+    String? hint,
+    required bool isWeb,
+    Uri? baseUri,
+    String? uiBaseOrigin,
+  }) {
+    final trimmed = rawUrl.trim();
+    if (!isWeb) return trimmed;
+    final base = baseUri ?? Uri.base;
+    if (base.scheme != 'http' && base.scheme != 'https') return trimmed;
+
+    final craftSpec = findArtCraftByUrlOrName('${hint ?? ''} $trimmed');
+    if (craftSpec == null) return trimmed;
+
+    final isLocalOrEmpty =
+        trimmed.isEmpty ||
+        trimmed.startsWith('/artcraft/') ||
+        trimmed.contains('localhost') ||
+        trimmed.contains('127.0.0.1');
+    if (!isLocalOrEmpty) return trimmed;
+
+    String origin = base.origin;
+    if (uiBaseOrigin != null && uiBaseOrigin.isNotEmpty) {
+      final parsed = Uri.tryParse(uiBaseOrigin);
+      if (parsed != null && parsed.hasAuthority) {
+        origin = parsed.origin;
+      }
+    }
+    final parsedRaw = Uri.tryParse(trimmed);
+    final docQuery = parsedRaw?.queryParameters['doc'];
+    if (docQuery != null && docQuery.isNotEmpty) {
+      return '$origin/artcraft/${craftSpec.appId}/index.html?doc=${Uri.encodeQueryComponent(docQuery)}';
+    }
+    return '$origin/artcraft/${craftSpec.appId}/index.html';
+  }
+
   static String normalizeAppId(String raw) {
     final lower = raw.trim().toLowerCase();
     if (lower.contains('ino') || lower == 'assistant') return 'ino';

@@ -87,69 +87,39 @@ public sealed record ArtCraftStudioAppState(
     }
 }
 
-public abstract class ArtCraftStudioAppBase : DigitalBrain.App<ArtCraftStudioAppState>
+public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain.App<TState>
+    where TState : class, new()
 {
-    protected ArtCraftStudioAppBase(string appId)
-    {
-        Descriptor = ArtCraftCatalog.Get(appId);
-        Set(ArtCraftStudioAppState.For(Descriptor.Id));
-    }
-
-    public ArtCraftAppDescriptor Descriptor { get; }
+    public ArtCraftAppDescriptor Descriptor { get; } = ArtCraftCatalog.Get(appId);
 
     public IFilesVfsService? FilesVfs { get; set; }
 
-    protected static AppBundle CreateBundle(string appId, Type appType)
-    {
-        var d = ArtCraftCatalog.Get(appId);
-        return new AppBundle(
-            d.Id,
-            "1.1.0",
-            new AppManifest(
-                Title: d.Title,
-                Description: d.Description,
-                Operations:
-                [
-                    new("open", $"Connect {d.Title} studio and open or inspect a document."),
-                    new("edit", $"Edit a {d.Title} document from natural language or command instructions."),
-                    new("run-command", $"Execute a {d.Title} command ID directly via Native Linux CLI or MCP."),
-                    new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui."),
-                ],
-                Settings: [],
-                Slots: [],
-                Icon: "icon.svg",
-                Toolbar:
-                [
-                    new("open", Icon: "link", Label: "Connect studio"),
-                    new("run-command", Icon: d.Icon, Label: d.DefaultCommandTitle),
-                ]),
-            "",
-            new Dictionary<string, string>(StringComparer.Ordinal))
-        {
-            CompiledType = appType.AssemblyQualifiedName,
-        };
-    }
+    protected virtual string ActiveDocumentLabel => "Active";
 
-    [DigitalBrain.On]
-    public async Task Open(ArtCraftStudioAppOpen request)
+    protected async Task<(string Mode, string Document, string? WebUrl, string McpUri, string Status)> ResolveOpenSessionCoreAsync(
+        string? requestedDocument,
+        string? requestedMode,
+        string currentMode,
+        string currentDocument,
+        string? currentWebUrl,
+        string currentMcpUri)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var doc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : request.Document.Trim();
-        var webUrl = State.WebUrl ?? Descriptor.DefaultWebUrl;
-        var mcpUri = State.McpEndpointUri;
+        var mode = string.IsNullOrWhiteSpace(requestedMode)
+            ? currentMode
+            : ArtCraftEngineRunner.NormalizeMode(requestedMode);
+        var doc = string.IsNullOrWhiteSpace(requestedDocument)
+            ? currentDocument
+            : requestedDocument.Trim();
+        var webUrl = currentWebUrl ?? Descriptor.DefaultWebUrl;
+        var mcpUri = currentMcpUri;
 
         if (FilesVfs is not null)
         {
             try
             {
-                if (!string.IsNullOrWhiteSpace(request.Document))
+                if (!string.IsNullOrWhiteSpace(requestedDocument))
                 {
-                    if (await FilesVfs.ResolveFileAsync(request.Document.Trim()) is { } resolvedExplicit)
+                    if (await FilesVfs.ResolveFileAsync(requestedDocument.Trim()) is { } resolvedExplicit)
                     {
                         doc = resolvedExplicit.VfsPath;
                     }
@@ -187,6 +157,144 @@ public abstract class ArtCraftStudioAppBase : DigitalBrain.App<ArtCraftStudioApp
             }
         }
 
+        return (mode, doc, webUrl, mcpUri, $"{Descriptor.Title} tools connected ({FormatModeLabel(mode)}) · {ActiveDocumentLabel}: {doc}");
+    }
+
+    protected async Task<ArtCraftEngineResult> ExecuteStudioCommandAsync(
+        string instructionOrCommand,
+        string? explicitParamsJson,
+        string targetDoc,
+        string mode)
+    {
+        ArtCraftEngineResult? result = null;
+        if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
+        {
+            try
+            {
+                result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode);
+            }
+            catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
+            {
+                Swallow(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
+            }
+        }
+
+        return result ?? await ArtCraftEngineRunner.ExecuteAsync(
+            Descriptor.Id,
+            instructionOrCommand,
+            explicitParamsJson,
+            targetDoc,
+            mode,
+            TryGetArtCraftStudio(),
+            TryGetMcpServer,
+            (err, reason) => Swallow(err, reason),
+            FilesVfs);
+    }
+
+    protected View RenderStudioView(string status, string activeDoc, string outputDoc, string? webUrl, string executionMode) => new(
+        Descriptor.Title,
+        new Column(
+        [
+            new Text($"{status} · {activeDoc} -> {outputDoc}") { Tone = "muted", Tabular = true },
+            UI.WebBrowser(
+                webUrl ?? Descriptor.DefaultWebUrl,
+                $"{Descriptor.Title} WASM Studio",
+                $"{Descriptor.Id}-wasm",
+                0,
+                executionMode),
+        ])
+        {
+            Gap = 4,
+            Extents = [24, 0],
+        });
+
+    protected string FormatModeLabel(string mode) => mode switch
+    {
+        "mcp" => $"MCP Server ({Descriptor.Id}-mcp)",
+        "wasm-ui" => "WASM Web UI",
+        _ => $"Native Linux CLI ({Descriptor.CliBinary})",
+    };
+
+    private IArtCraftEngine? TryGetArtCraftEngine()
+    {
+        try { return Get<IArtCraftEngine>("apps/artcraft-engine"); }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
+            return null;
+        }
+    }
+
+    private IArtCraftStudio? TryGetArtCraftStudio()
+    {
+        try { return Get<IArtCraftStudio>("artcraft"); }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests.");
+            return null;
+        }
+    }
+
+    private IMcpServer? TryGetMcpServer(string mcpKey)
+    {
+        try { return Get<IMcpServer>(mcpKey); }
+        catch (InvalidOperationException error)
+        {
+            Swallow(error, $"McpServerNeuron is optional when running {Descriptor.Title} in unit tests.");
+            return null;
+        }
+    }
+}
+
+public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStudioAppState>
+{
+    protected ArtCraftStudioAppBase(string appId) : base(appId)
+    {
+        Set(ArtCraftStudioAppState.For(Descriptor.Id));
+    }
+
+    protected static AppBundle CreateBundle(string appId, Type appType)
+    {
+        var d = ArtCraftCatalog.Get(appId);
+        return new AppBundle(
+            d.Id,
+            "1.1.0",
+            new AppManifest(
+                Title: d.Title,
+                Description: d.Description,
+                Operations:
+                [
+                    new("open", $"Connect {d.Title} studio and open or inspect a document."),
+                    new("edit", $"Edit a {d.Title} document from natural language or command instructions."),
+                    new("run-command", $"Execute a {d.Title} command ID directly via Native Linux CLI or MCP."),
+                    new("switch-mode", "Switch execution backend between native-linux, mcp, and wasm-ui."),
+                ],
+                Settings: [],
+                Slots: [],
+                Icon: "icon.svg",
+                Toolbar:
+                [
+                    new("open", Icon: "link", Label: "Connect studio"),
+                    new("run-command", Icon: d.Icon, Label: d.DefaultCommandTitle),
+                ]),
+            "",
+            new Dictionary<string, string>(StringComparer.Ordinal))
+        {
+            CompiledType = appType.AssemblyQualifiedName,
+        };
+    }
+
+    [DigitalBrain.On]
+    public async Task Open(ArtCraftStudioAppOpen request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var (mode, doc, webUrl, mcpUri, status) = await ResolveOpenSessionCoreAsync(
+            request.Document,
+            request.Mode,
+            State.ExecutionMode,
+            State.ActiveDocument,
+            State.WebUrl,
+            State.McpEndpointUri);
         Set(State with
         {
             AppId = Descriptor.Id,
@@ -194,7 +302,7 @@ public abstract class ArtCraftStudioAppBase : DigitalBrain.App<ArtCraftStudioApp
             ActiveDocument = doc,
             WebUrl = webUrl,
             McpEndpointUri = mcpUri,
-            Status = $"{Descriptor.Title} tools connected ({FormatModeLabel(mode)}) · Active: {doc}",
+            Status = status,
         });
     }
 
@@ -246,53 +354,15 @@ public abstract class ArtCraftStudioAppBase : DigitalBrain.App<ArtCraftStudioApp
 
     public View? RenderSide() => null;
 
-    public View Render() => new(
-        Descriptor.Title,
-        new Column(
-        [
-            new Text($"{State.Status} · {State.ActiveDocument} -> {State.OutputDocument}") { Tone = "muted", Tabular = true },
-            UI.WebBrowser(
-                State.WebUrl ?? Descriptor.DefaultWebUrl,
-                $"{Descriptor.Title} WASM Studio",
-                $"{Descriptor.Id}-wasm",
-                0,
-                State.ExecutionMode),
-        ])
-        {
-            Gap = 4,
-            Extents = [24, 0],
-        });
+    public View Render() => RenderStudioView(State.Status, State.ActiveDocument, State.OutputDocument, State.WebUrl, State.ExecutionMode);
 
-    private async Task ApplyExecutionAsync(
+    protected async Task ApplyExecutionAsync(
         string instructionOrCommand,
         string? explicitParamsJson,
         string targetDoc,
         string mode)
     {
-        ArtCraftEngineResult? result = null;
-        if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
-        {
-            try
-            {
-                result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode);
-            }
-            catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
-            {
-                Swallow(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
-            }
-        }
-
-        result ??= await ArtCraftEngineRunner.ExecuteAsync(
-            Descriptor.Id,
-            instructionOrCommand,
-            explicitParamsJson,
-            targetDoc,
-            mode,
-            TryGetArtCraftStudio(),
-            TryGetMcpServer,
-            (err, reason) => Swallow(err, reason),
-            FilesVfs);
-
+        var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, targetDoc, mode);
         if (!result.IsValidCommand)
         {
             Set(State with
@@ -317,43 +387,6 @@ public abstract class ArtCraftStudioAppBase : DigitalBrain.App<ArtCraftStudioApp
             Status = result.Summary,
             LayersOrTracks = result.LayersOrTracks,
         });
-    }
-
-    private string FormatModeLabel(string mode) => mode switch
-    {
-        "mcp" => $"MCP Server ({Descriptor.Id}-mcp)",
-        "wasm-ui" => "WASM Web UI",
-        _ => $"Native Linux CLI ({Descriptor.CliBinary})",
-    };
-
-    private IArtCraftEngine? TryGetArtCraftEngine()
-    {
-        try { return Get<IArtCraftEngine>("apps/artcraft-engine"); }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
-            return null;
-        }
-    }
-
-    private IArtCraftStudio? TryGetArtCraftStudio()
-    {
-        try { return Get<IArtCraftStudio>("artcraft"); }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests.");
-            return null;
-        }
-    }
-
-    private IMcpServer? TryGetMcpServer(string mcpKey)
-    {
-        try { return Get<IMcpServer>(mcpKey); }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, $"McpServerNeuron is optional when running {Descriptor.Title} in unit tests.");
-            return null;
-        }
     }
 }
 

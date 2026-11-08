@@ -15,9 +15,6 @@
 #
 # Ports: 8080 silo HTTP (static web shell + broker + health).
 
-FROM ghcr.io/intochat/os-artcraft-photocraft-web:d7d5c6069c8f AS photocraft_web
-FROM ghcr.io/intochat/os-artcraft-filmcraft-web:7b6c13447228 AS filmcraft_web
-
 FROM debian:bookworm-slim AS ui-build
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl git unzip xz-utils \
@@ -39,6 +36,8 @@ WORKDIR /workspace/shell
 RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub \
     && rm -rf /workspace/.dart_tool /workspace/shell/.dart_tool \
     && for spec in \
+        "photocraft:0.21.0" \
+        "filmcraft:0.18.0" \
         "vectorcraft:0.22.0" \
         "lightcraft:0.19.0" \
         "effectcraft:0.22.0" \
@@ -83,8 +82,6 @@ WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
 COPY --from=ui-build /workspace/shell/build/web /app/wwwroot
-COPY --from=photocraft_web /usr/share/nginx/html /app/wwwroot/artcraft/photocraft
-COPY --from=filmcraft_web /usr/share/nginx/html /app/wwwroot/artcraft/filmcraft
 COPY features /app/features
 
 # The image enables the OS catalog; configuration may disable modules

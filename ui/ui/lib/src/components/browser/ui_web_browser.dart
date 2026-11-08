@@ -49,23 +49,12 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
         ? widget.actualUrl
         : widget.part.uri;
     if (kIsWeb) {
-      final base = Uri.base;
-      final craftSpec = IcAppIcon.findArtCraftByUrlOrName(
-        '${widget.part.name} ${widget.part.title} $url',
+      url = IcAppIcon.resolveArtCraftWebUrl(
+        url,
+        hint: '${widget.part.name} ${widget.part.title}',
+        isWeb: kIsWeb,
+        uiBaseOrigin: IntoChatOSHostEnv.resolveUiBaseRaw(),
       );
-      if (craftSpec != null &&
-          (url.isEmpty ||
-              url.startsWith('/artcraft/') ||
-              url.contains('localhost') ||
-              url.contains('127.0.0.1')) &&
-          (base.scheme == 'http' || base.scheme == 'https')) {
-        final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
-        final parsedUiBase = uiBase.isNotEmpty ? Uri.tryParse(uiBase) : null;
-        final origin = (parsedUiBase != null && parsedUiBase.hasAuthority)
-            ? parsedUiBase.origin
-            : base.origin;
-        url = '$origin/artcraft/${craftSpec.appId}/index.html';
-      }
     }
     final placeholder = kIsWeb
         ? null

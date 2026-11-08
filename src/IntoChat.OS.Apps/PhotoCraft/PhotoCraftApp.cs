@@ -10,10 +10,8 @@ Open-source Photoshop-compatible layered image editor (PSD, layers, alpha masks,
 3. Interactive WASM Web UI mode for full-card canvas editing.
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.ArtCraft;
-using IntoChat.OS.Modules.Mcp;
-using UI = DigitalBrain.UI.Ui;
 
 namespace IntoChat.OS.Apps.PhotoCraft;
 
@@ -85,10 +83,8 @@ public sealed record PhotoCraftAppState(
 }
 
 [DigitalBrain.App("photocraft", Accent = "#06B6D4", Category = "Studio")]
-public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
+public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>("photocraft")
 {
-    public IFilesVfsService? FilesVfs { get; set; }
-
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(PhotoCraftApp));
 
     public static AppBundle Bundle { get; } = new(
@@ -123,66 +119,20 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
     public async Task Open(PhotoCraftStudioOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var doc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : request.Document.Trim();
-        var webUrl = State.WebUrl;
-        var mcpUri = State.McpEndpointUri;
-
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(request.Document))
-                {
-                    if (await FilesVfs.ResolveFileAsync(request.Document.Trim()) is { } resolvedExplicit)
-                    {
-                        doc = resolvedExplicit.VfsPath;
-                    }
-                }
-                else if (await FilesVfs.ResolveFileAsync(doc) is { } resolvedCurrent)
-                {
-                    doc = resolvedCurrent.VfsPath;
-                }
-                else if (string.Equals(doc, "/work/portrait.png", StringComparison.OrdinalIgnoreCase))
-                {
-                    var files = await FilesVfs.ListFilesAsync();
-                    if (files.FirstOrDefault(f => ArtCraftEngineRunner.IsImageExtension(f.Name)) is { } firstImage)
-                    {
-                        doc = firstImage.VfsPath;
-                    }
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "Files VFS resolution is optional when opening PhotoCraft.");
-            }
-        }
-
-        if (TryGetArtCraftStudio() is { } studio)
-        {
-            try
-            {
-                var session = await studio.Open("photocraft");
-                mcpUri = session.McpKey;
-                webUrl = session.WebUrl ?? webUrl;
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "ArtCraftStudioNeuron MCP endpoint is optional when opening PhotoCraft in local/headless mode.");
-            }
-        }
-
+        var (mode, doc, webUrl, mcpUri, status) = await ResolveOpenSessionCoreAsync(
+            request.Document,
+            request.Mode,
+            State.ExecutionMode,
+            State.ActiveDocument,
+            State.WebUrl,
+            State.McpEndpointUri);
         Set(State with
         {
             ExecutionMode = mode,
             ActiveDocument = doc,
             WebUrl = webUrl,
             McpEndpointUri = mcpUri,
-            Status = $"PhotoCraft tools connected ({FormatModeLabel(mode)}) · Active: {doc}",
+            Status = status,
         });
     }
 
@@ -248,17 +198,7 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
 
     public View? RenderSide() => null;
 
-    public View Render() => new(
-        "PhotoCraft",
-        new Column(
-        [
-            new Text($"{State.Status} · {State.ActiveDocument} -> {State.OutputDocument}") { Tone = "muted", Tabular = true },
-            UI.WebBrowser(State.WebUrl ?? "http://localhost:18082", "PhotoCraft WASM Studio", "photocraft-wasm", 0, State.ExecutionMode),
-        ])
-        {
-            Gap = 4,
-            Extents = [24, 0],
-        });
+    public View Render() => RenderStudioView(State.Status, State.ActiveDocument, State.OutputDocument, State.WebUrl ?? "http://localhost:18082", State.ExecutionMode);
 
     [DigitalBrain.Scenario("PhotoCraft executes background removal in Native Linux CLI mode and switches to MCP mode")]
     public async Task VerifyPhotoCraftDualModeAndBackgroundRemovalScenario()
@@ -286,29 +226,7 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
         string targetDoc,
         string mode)
     {
-        ArtCraftEngineResult? result = null;
-        if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
-        {
-            try
-            {
-                result = await engine.ExecutePhotoCraft(instructionOrCommand, explicitParamsJson, targetDoc, mode);
-            }
-            catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
-            {
-                Swallow(error, "ArtCraftEngineNeuron is optional when running PhotoCraftApp standalone.");
-            }
-        }
-
-        result ??= await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
-            instructionOrCommand,
-            explicitParamsJson,
-            targetDoc,
-            mode,
-            TryGetArtCraftStudio(),
-            TryGetMcpServer,
-            (err, reason) => Swallow(err, reason),
-            FilesVfs);
-
+        var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, targetDoc, mode);
         if (!result.IsValidCommand)
         {
             Set(State with
@@ -343,51 +261,5 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
             Layers = result.LayersOrTracks,
             History = [.. State.History.TakeLast(9), entry],
         });
-    }
-
-    private static string FormatModeLabel(string mode) => mode switch
-    {
-        "mcp" => "MCP Server (photocraft-mcp)",
-        "wasm-ui" => "WASM Web UI",
-        _ => "Native Linux CLI (photocraft-cli)",
-    };
-
-    private IArtCraftEngine? TryGetArtCraftEngine()
-    {
-        try
-        {
-            return Get<IArtCraftEngine>("apps/artcraft-engine");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "ArtCraftEngineNeuron is optional when running PhotoCraftApp standalone.");
-            return null;
-        }
-    }
-
-    private IArtCraftStudio? TryGetArtCraftStudio()
-    {
-        try
-        {
-            return Get<IArtCraftStudio>("artcraft");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "ArtCraftStudioNeuron is optional when running PhotoCraftApp in unit tests.");
-            return null;
-        }
-    }
-
-    private IMcpServer? TryGetMcpServer(string mcpKey)
-    {
-        try
-        {
-            return Get<IMcpServer>(mcpKey);
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "McpServerNeuron is optional when running PhotoCraftApp in unit tests.");
-            return null;
-        }
     }
 }

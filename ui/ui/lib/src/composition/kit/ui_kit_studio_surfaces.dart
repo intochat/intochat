@@ -457,28 +457,12 @@ class _InteractiveWasmBrowserFrameState
     return spec?.appId ?? 'photocraft';
   }
 
-  String get _resolvedUrl {
-    final raw = widget.url.trim();
-    if (kIsWeb) {
-      final base = Uri.base;
-      final isLocalOrEmpty =
-          raw.isEmpty ||
-          raw.startsWith('/artcraft/') ||
-          raw.contains('localhost') ||
-          raw.contains('127.0.0.1');
-      if (isLocalOrEmpty && (base.scheme == 'http' || base.scheme == 'https')) {
-        final uiBase = IntoChatOSHostEnv.resolveUiBaseRaw();
-        if (uiBase.isNotEmpty) {
-          final parsed = Uri.tryParse(uiBase);
-          if (parsed != null && parsed.hasAuthority) {
-            return '${parsed.origin}/artcraft/$_appId/index.html';
-          }
-        }
-        return '${base.origin}/artcraft/$_appId/index.html';
-      }
-    }
-    return raw;
-  }
+  String get _resolvedUrl => IcAppIcon.resolveArtCraftWebUrl(
+    widget.url,
+    hint: widget.title,
+    isWeb: kIsWeb,
+    uiBaseOrigin: kIsWeb ? IntoChatOSHostEnv.resolveUiBaseRaw() : null,
+  );
 
   String get _formattedMode {
     final m = widget.executionMode.toLowerCase();
