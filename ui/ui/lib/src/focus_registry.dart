@@ -16,6 +16,9 @@ class FocusRegistry {
     if (key == null || identical(_keys[target], key)) _keys.remove(target);
   }
 
+  /// The registered targets, e.g. to find every `window:*` rect.
+  Iterable<String> get targets => _keys.keys;
+
   Rect? resolve(String target) {
     final box = _keys[target]?.currentContext?.findRenderObject();
     if (box is! RenderBox || !box.attached || !box.hasSize) return null;

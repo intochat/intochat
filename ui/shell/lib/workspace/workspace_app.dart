@@ -710,6 +710,10 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 ),
                                 localPreferences: _localPreferences,
                                 profileMenu: _menu(),
+                                read: (contract, key, method) => widget
+                                    .programmingClient!
+                                    .channel
+                                    .call(_brain!, contract, key, method, []),
                               )
                             : NeuronView(
                                 key: ValueKey(_rootName),

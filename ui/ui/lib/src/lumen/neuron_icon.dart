@@ -59,25 +59,28 @@ final class NeuronIcon extends StatelessWidget {
       );
     }
     return Icon(
-      switch (kind) {
-        NeuronIconKind.assistant => Icons.auto_awesome_rounded,
-        NeuronIconKind.conversation => Icons.chat_bubble_outline_rounded,
-        NeuronIconKind.execution => Icons.bolt_rounded,
-        NeuronIconKind.document => Icons.description_outlined,
-        NeuronIconKind.search => Icons.search_rounded,
-        NeuronIconKind.repository => Icons.code_rounded,
-        NeuronIconKind.review => Icons.fact_check_outlined,
-        NeuronIconKind.architecture => Icons.account_tree_outlined,
-        NeuronIconKind.quality => Icons.rule_folder_outlined,
-        NeuronIconKind.memory => Icons.inventory_2_outlined,
-        NeuronIconKind.clock => Icons.schedule_rounded,
-        _ => Icons.hub_outlined,
-      },
+      glyphOf(kind),
       size: size,
       color: color ?? UiColors.paper.accent,
       semanticLabel: semanticLabel,
     );
   }
+
+  /// The material glyph of a kind; brand kinds, drawn from SVG, answer the generic hub.
+  static IconData glyphOf(NeuronIconKind kind) => switch (kind) {
+    NeuronIconKind.assistant => Icons.auto_awesome_rounded,
+    NeuronIconKind.conversation => Icons.chat_bubble_outline_rounded,
+    NeuronIconKind.execution => Icons.bolt_rounded,
+    NeuronIconKind.document => Icons.description_outlined,
+    NeuronIconKind.search => Icons.search_rounded,
+    NeuronIconKind.repository => Icons.code_rounded,
+    NeuronIconKind.review => Icons.fact_check_outlined,
+    NeuronIconKind.architecture => Icons.account_tree_outlined,
+    NeuronIconKind.quality => Icons.rule_folder_outlined,
+    NeuronIconKind.memory => Icons.inventory_2_outlined,
+    NeuronIconKind.clock => Icons.schedule_rounded,
+    _ => Icons.hub_outlined,
+  };
 
   static const _brandAssets = <NeuronIconKind, String>{
     NeuronIconKind.gmail: 'assets/brands/gmail.svg',

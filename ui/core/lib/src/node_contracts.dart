@@ -10,6 +10,14 @@ abstract final class NodeContracts {
       'IntoChat.OS.Confirmation.IConfirmationInbox',
       'ConfirmationRequested',
     ),
+    'ino.presence': NodeContract(
+      'IntoChat.OS.Modules.Apps.IPresence',
+      'PresenceChanged',
+    ),
+    'os.settings': NodeContract(
+      'IntoChat.OS.Modules.Apps.IUserSettings',
+      'UserSettingsChanged',
+    ),
     'view': NodeContract(
       'IntoChat.OS.Modules.Flutter.Views.IView',
       'ViewChanged',
