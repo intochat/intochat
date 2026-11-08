@@ -15,7 +15,7 @@ public sealed partial class NoLegacyWorkMechanismsFacts
     private static readonly string[] Deleted =
     [
         "ITaskEngine", "TaskNeuron", "TaskExecutorNeuron", "TaskDirectoryNeuron", "IRunNeuron", "RunNeuron",
-        "RunGraphSource", "TaskGraphSource", "AppWorkQueue", "IProgress", "ProgressNeuron",
+        "RunGraphSource", "TaskGraphSource", "AppWorkQueue", "IProgress", "ProgressNeuron", "ProgressType",
     ];
 
     // The BCL System.IProgress<T> is generic and stays; only the non-generic module IProgress is deleted.

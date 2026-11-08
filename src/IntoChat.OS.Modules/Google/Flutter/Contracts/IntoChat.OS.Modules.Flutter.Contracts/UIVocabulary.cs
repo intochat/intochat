@@ -16,7 +16,6 @@ public static class UIVocabulary
     public const string TextType = "text";
     public const string TextFieldType = "textfield";
     public const string SliderType = "slider";
-    public const string ProgressType = "progress";
     public const string InfoBarType = "infobar";
     public const string CardType = "card";
     public const string ImageType = "image";
