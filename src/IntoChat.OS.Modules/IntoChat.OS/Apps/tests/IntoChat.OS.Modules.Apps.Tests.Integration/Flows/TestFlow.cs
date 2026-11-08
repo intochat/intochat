@@ -21,6 +21,9 @@ public sealed class TestInner
 {
     public bool Wait { get; set; }
 
+    // Makes "second" wait on an approval instead: the flow base raises the confirmation plan.
+    public bool WaitApproval { get; set; }
+
     public string? Gate { get; set; }
 
     public bool StartOperation { get; set; }
@@ -130,6 +133,8 @@ public sealed class TestFlow : Flow<TestInner>, IFlowStarter
                     inner.OperationId = operation.Id.Value;
                 }
                 return new StepResult<TestInner>(inner, new Waiting(step, WaitReason.External, null, null));
+            case "second" when inner.WaitApproval:
+                return new StepResult<TestInner>(inner, new Waiting(step, WaitReason.Approval, null, null));
             case "third" when inner.Gate is { } gate:
                 await Gate(gate).Task.WaitAsync(ct);
                 return new StepResult<TestInner>(inner);

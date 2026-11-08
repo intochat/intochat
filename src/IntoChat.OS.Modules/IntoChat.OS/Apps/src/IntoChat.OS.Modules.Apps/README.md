@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Apps.Contracts` (`IAppRuntime`, `IAppStorageHook`, `IAppStore`, `IAppStudio`, `IApp`, `IArtCraftEngine`, `IFeatureReconciler`, `IFilesNeuron`, `IFilesWorkspace`, `IFlowStarter`, `IFlows`, `IInoData`, `IInoFiles`, `IInoSettings`, `IInoStudio`, `IInstalledModules`, `IMarketplace`, `IProfileContextWriter`, `IProfile`, `IScriptSandbox`, `ISideload`, `ISynapseStudio`, `IUserSettings`, `IVfsNeuron`).
+Contracts: assembly `IntoChat.OS.Modules.Apps.Contracts` (`IAppRuntime`, `IAppStorageHook`, `IAppStore`, `IAppStudio`, `IApp`, `IApprovals`, `IArtCraftEngine`, `IFeatureReconciler`, `IFilesNeuron`, `IFilesWorkspace`, `IFlowStarter`, `IFlows`, `IInoData`, `IInoFiles`, `IInoSettings`, `IInoStudio`, `IInstalledModules`, `IMarketplace`, `IProfileContextWriter`, `IProfile`, `IScriptSandbox`, `ISideload`, `ISynapseStudio`, `IUserSettings`, `IVfsNeuron`).
 Hosting: runs in process.
 <!-- END GENERATED -->
