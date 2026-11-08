@@ -49,7 +49,7 @@ public sealed class SynapseStudioFacts
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private sealed class EmptyCapabilityConnections : ICapabilityConnections
+    internal sealed class EmptyCapabilityConnections : ICapabilityConnections
     {
         public Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<BrainConnection>>([]);
@@ -79,7 +79,7 @@ public sealed class SynapseStudioFacts
         public Task<IReadOnlyList<DeployedSource>> List(BrainId brain, CancellationToken ct) => Task.FromResult<IReadOnlyList<DeployedSource>>([]);
     }
 
-    private sealed class StudioFixture : BothRuntimesFixture
+    internal sealed class StudioFixture : BothRuntimesFixture
     {
         protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule)];
 

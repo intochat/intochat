@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Apps;
 // Wraps the silo's synapse host for Ino. A deploy whose step key ({alias}:{source and bindings hash}) already landed does not reach the host
 // again, so a re-advanced task step is not rerun. Failures come back as readable text.
 [DigitalBrain.Neuron("ino.synapses")]
-public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState>, ISynapseStudio
+public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState>, ISynapseStudio
 {
     internal const string Unavailable = "Synapse hosting is not available in this brain.";
 
@@ -120,21 +120,33 @@ public sealed class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState
     }
 
     // The host lists only loaded units, and loads a stored one lazily on its alias's first miss. A scheduled unit may see no miss
-    // after a restart, so List first restores every stored unit the host has not loaded.
+    // after a restart, so List first restores every stored unit the host has not loaded. A unit stored before bindings were kept
+    // (Bindings null) that declares a [Slot] cannot be bound again: it is reported Refused, never restored, and must be rebuilt.
     public async Task<DeployedSource[]> List()
     {
         if (Host is not { } host) { return []; }
         var live = await host.List(Id.Brain, CancellationToken.None);
-        if (Context.Services.GetService<ISourceStore>() is { } store && Context.Services.GetService<DigitalBrain.Spi.ISynapseRestorer>() is { } restorer)
+        if (Context.Services.GetService<ISourceStore>() is not { } store) { return [.. live]; }
+        var records = await store.List(Id.Brain, CancellationToken.None);
+        var stale = records.Where(RebuildRequired).ToArray();
+        if (Context.Services.GetService<DigitalBrain.Spi.ISynapseRestorer>() is { } restorer)
         {
-            var missing = (await store.List(Id.Brain, CancellationToken.None))
-                .Where(record => record.Aliases.Count > 0 && live.All(source => source.SourceKey != record.SourceKey)).ToArray();
+            var missing = records
+                .Where(record => record.Aliases.Count > 0 && !stale.Contains(record) && live.All(source => source.SourceKey != record.SourceKey)).ToArray();
             foreach (var record in missing) { await restorer.TryRestore(Id.Brain, record.Aliases[0], CancellationToken.None); }
             if (missing.Length > 0) { live = await host.List(Id.Brain, CancellationToken.None); }
         }
 
-        return [.. live];
+        return [.. live.Where(source => stale.All(record => record.SourceKey != source.SourceKey)),
+            .. stale.Select(record => new DeployedSource(record.SourceKey, record.Hash, record.Aliases, DeployStatus.Refused, null, record.DeployedAt))];
     }
+
+    // The stored record predates kept bindings and its source declares a slot: nothing says what the slot was bound to.
+    internal static bool RebuildRequired(SourceRecord record)
+        => record.Bindings is null && record.Files.Values.Any(text => SlotDeclaration().IsMatch(text));
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\[\s*(?:DigitalBrain\.)?Slot(?:Attribute)?\s*(?:\]|\()")]
+    private static partial System.Text.RegularExpressions.Regex SlotDeclaration();
 
     public Task<Dictionary<string, string>> Sidecars(string alias)
         => Task.FromResult(State.Sidecars?.TryGetValue(alias, out var files) == true

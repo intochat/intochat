@@ -35,8 +35,34 @@ internal sealed partial class AppNeuron(
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await Interrupt();
-        if (State.Manifest is not null && HasProgram(State))
-        { Defer(() => Get<IAppRestore>(Id).Restore()); }
+        if (State.Manifest is null) { return; }
+        if (await RefuseLegacy()) { return; }
+        if (HasProgram(State)) { Defer(() => Get<IAppRestore>(Id).Restore()); }
+    }
+
+    // A record stored before 0.18 is read from its raw JSON (the typed state has already dropped the retired fields) and refused:
+    // Failed, one activity line, nothing deployed. Whatever goes wrong here is logged, never thrown at the first caller.
+    private async Task<bool> RefuseLegacy()
+    {
+        try
+        {
+            var stored = await Context.State.Load<System.Text.Json.JsonElement>();
+            var markers = LegacyAppRecord.Markers(stored);
+            if (markers.Length == 0) { return false; }
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(
+                "App {App} is a pre-0.18 record ({Markers}); it is refused and must be rebuilt.", Key, string.Join(", ", markers));
+            if (State.Status == AppStatus.Failed && State.Activity.LastOrDefault() == LegacyAppRecord.Refusal) { return true; }
+            var next = State.Clone();
+            next.Status = AppStatus.Failed;
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), LegacyAppRecord.Refusal];
+            await Persist(next);
+            return true;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(error, "Could not check app {App} for a pre-0.18 record.", Key);
+            return false;
+        }
     }
 
     private Task Save(AppState next, DigitalBrain.Signal first, DigitalBrain.Signal second, DigitalBrain.Signal third) => base.Save(next, [first, second, third]);
