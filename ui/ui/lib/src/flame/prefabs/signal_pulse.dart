@@ -47,24 +47,30 @@ ui.Color pulseColor(String traceId) {
 }
 
 /// The journal tail turned into pulses: each signal travels every edge whose alias it carries into a drawn node. Bounded:
-/// at most [cap] pulses fly at once, and a signal whose trace already crosses the same edge joins it instead of spawning.
+/// at most [cap] pulses fly at once, a signal whose trace already crosses the same edge joins it instead of spawning, and a
+/// pulse older than twice [travel] is dropped by [advance] even if its arrival was never reported.
 final class SignalPulses {
   SignalPulses({this.cap = 64});
 
   static const travel = Duration(milliseconds: 600);
+  static final double _expiry =
+      2 * travel.inMicroseconds / Duration.microsecondsPerSecond;
   final int cap;
-  final _edges = <PulseEdge>[];
+  final _byAlias = <String, List<PulseEdge>>{};
   final _positions = <String, Vector2>{};
   final pulses = <SignalPulse>[];
 
-  /// Replaces the drawn edges and node positions (the scene changed).
+  /// Replaces the drawn edges and node positions (the scene changed); pulses in flight are dropped.
   void layout(Iterable<PulseEdge> edges, Map<String, Vector2> positions) {
-    _edges
-      ..clear()
-      ..addAll(edges);
+    pulses.clear();
+    _byAlias.clear();
     _positions
       ..clear()
       ..addAll(positions);
+    for (final edge in edges) {
+      if (!_positions.containsKey(edge.toId)) continue;
+      (_byAlias[edge.alias] ??= []).add(edge);
+    }
   }
 
   /// Spawns the pulses of [signals]; returns those it added.
@@ -72,10 +78,7 @@ final class SignalPulses {
     final added = <SignalPulse>[];
     for (final signal in signals) {
       final trace = signal.traceId ?? 'seq:${signal.seq}';
-      for (final edge in _edges) {
-        if (edge.alias != signal.alias || !_positions.containsKey(edge.toId)) {
-          continue;
-        }
+      for (final edge in _byAlias[signal.alias] ?? const <PulseEdge>[]) {
         if (pulses.length >= cap) return added;
         if (pulses.any((p) => p.edge.key == edge.key && p.traceId == trace)) {
           continue;
@@ -96,8 +99,27 @@ final class SignalPulses {
     return added;
   }
 
+  /// Ages every pulse by [dt] seconds and drops those past the expiry.
+  void advance(double dt) {
+    for (final pulse in pulses) {
+      pulse.elapsed += dt;
+    }
+    pulses.removeWhere((pulse) => pulse.elapsed >= _expiry);
+  }
+
   /// Forgets a pulse that arrived.
   void arrived(SignalPulse pulse) => pulses.remove(pulse);
+
+  void clear() => pulses.clear();
+}
+
+/// Ages a [SignalPulses] with the game clock.
+final class SignalPulseClock extends Component {
+  SignalPulseClock(this.pulses);
+  final SignalPulses pulses;
+
+  @override
+  void update(double dt) => pulses.advance(dt);
 }
 
 /// A pulse on screen: a dot in its trace's colour moving along its edge over [SignalPulses.travel]; a tap reports its key.

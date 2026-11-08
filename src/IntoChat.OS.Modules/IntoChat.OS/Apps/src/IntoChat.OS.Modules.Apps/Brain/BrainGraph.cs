@@ -30,6 +30,19 @@ public static class BrainGraph
 
     public static string EdgeKey(string from, string to, string alias) => $"edge:{from}→{to}:{alias}";
 
+    // A gate's label carries `#gate` after the alias, so a reaction and a gate on one alias stay two edges (and two keys); the
+    // renderer matches pulses on the part before `#`.
+    public const string GateSuffix = "#gate";
+
+    public static string EdgeLabel(string alias, string kind) => kind == "gate" ? alias + GateSuffix : alias;
+
+    // An installed unit's state neuron is `{brain}/{alias}/default`; its alias is the middle segment.
+    internal static string? AliasOf(string id)
+    {
+        var parts = id.Split('/');
+        return parts.Length == 3 && parts[2] == "default" ? parts[1] : null;
+    }
+
     public static string PulseKey(string traceId) => $"pulse:{traceId}";
 
     public static string DraftId(string alias) => $"draft:{alias}";
@@ -44,7 +57,7 @@ public static class BrainGraph
         {
             if (!seen.Add(node.Id)) { continue; }
             var kind = node.Role switch { Unit => Unit, App => App, _ => Kernel };
-            if (kind == Unit) { units.Add(node.Label); }
+            if (kind == Unit && AliasOf(node.Id) is { } installed) { units.Add(installed); }
             members.Add((node.Id, node.Label, kind, null));
         }
         foreach (var flow in topology.Flows)
@@ -67,7 +80,7 @@ public static class BrainGraph
         }
         var synapses = topology.Edges
             .Where(edge => seen.Contains(edge.TargetId))
-            .Select(edge => new BrainGraphSynapse(edge.SourceId, edge.TargetId, edge.SignalType))
+            .Select(edge => new BrainGraphSynapse(edge.SourceId, edge.TargetId, EdgeLabel(edge.SignalType, edge.Kind)))
             .Distinct()
             .ToArray();
         return new BrainSceneNode(nodes, synapses, selection is not null && seen.Contains(selection) ? selection : null);

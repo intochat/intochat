@@ -1,4 +1,5 @@
-import 'package:flame/components.dart';
+import 'package:flame/game.dart';
+import 'package:flame_test/flame_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
@@ -85,4 +86,80 @@ void main() {
     expect(pulses.feed([signal('nobody.listens')]), isEmpty);
     expect(pulses.pulses, isEmpty);
   });
+
+  test('one alias on two edges spawns two pulses; a fixed source starts at its node', () {
+    final pulses = SignalPulses()
+      ..layout(
+        [
+          PulseEdge(
+            key: 'a',
+            fromId: 'p',
+            toId: 'u',
+            alias: 's',
+            start: Vector2(5, 5),
+            end: Vector2(0, 0),
+          ),
+          PulseEdge(
+            key: 'b',
+            fromId: '*',
+            toId: 'v',
+            alias: 's',
+            start: Vector2(100, -90),
+            end: Vector2(100, 0),
+          ),
+        ],
+        {'u': Vector2(0, 0), 'v': Vector2(100, 0), 'p': Vector2(5, 5)},
+      );
+    final added = pulses.feed([signal('s', publisher: 'q')]);
+    expect(added.map((p) => p.edge.key), ['a', 'b']);
+    expect(added.first.start, Vector2(5, 5));
+  });
+
+  test('a signal without a trace keys its pulse by seq', () {
+    final pulses = field();
+    final pulse = pulses.feed([
+      JournalTailSignal(
+        seq: 7,
+        publisher: 'p',
+        alias: 'note.added',
+        at: DateTime.utc(2026),
+      ),
+    ]).single;
+    expect(pulse.key, 'pulse:seq:7');
+  });
+
+  test('a pulse expires by its age and frees the cap', () {
+    final pulses = field(cap: 1);
+    pulses.feed([signal('note.added')]);
+    expect(pulses.feed([signal('note.added', trace: 't2')]), isEmpty);
+    pulses.advance(.6);
+    expect(pulses.pulses, hasLength(1), reason: 'not yet twice the travel');
+    pulses.advance(.7);
+    expect(pulses.pulses, isEmpty);
+    expect(pulses.feed([signal('note.added', trace: 't2')]), hasLength(1));
+  });
+
+  test('a new layout drops the pulses in flight', () {
+    final pulses = field()..feed([signal('note.added')]);
+    pulses.layout(const [], const {});
+    expect(pulses.pulses, isEmpty);
+  });
+
+  final flame = FlameTester(FlameGame.new);
+  flame.testGameWidget(
+    'a pulse component travels its edge and reports its arrival',
+    setUp: (game, _) async {
+      final pulses = field();
+      final pulse = pulses.feed([signal('note.added')]).single;
+      final component = SignalPulseComponent(pulse, onArrived: pulses.arrived);
+      await game.world.add(component);
+      await game.ready();
+      game.update(.3);
+      expect(component.position.distanceTo(pulse.end), greaterThan(0));
+      game.update(.4);
+      await game.ready();
+      expect(pulses.pulses, isEmpty);
+      expect(component.isMounted, isFalse);
+    },
+  );
 }

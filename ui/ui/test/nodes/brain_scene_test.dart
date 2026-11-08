@@ -12,7 +12,9 @@ Map<String, dynamic> button(String key) => {
   'emit': {'owner': 'brain', 'signal': 'focus'},
 };
 
-final sample = BrainSceneNode.fromJson({
+final sample = BrainSceneNode.fromJson(_json);
+
+final _json = <String, dynamic>{
   'kind': 'brainScene',
   'nodes': [
     {
@@ -41,14 +43,15 @@ final sample = BrainSceneNode.fromJson({
     {'fromId': '*', 'toId': 'ada/notes/default', 'signalLabel': 'note.added'},
     {'fromId': '*', 'toId': 'gone', 'signalLabel': 'x'},
   ],
-});
+};
 
 void main() {
   test('nodes become spheres and edges lines', () {
     final scene = brainSceneState(sample).definition.nodes;
     final spheres = scene.where((n) => n.type == 'sphere').toList();
     expect(spheres.map((n) => n.id), ['ada/notes/default', 'draft:weather']);
-    expect(spheres.last.parameters['state'], 'unready');
+    expect(spheres.last.parameters.containsKey('state'), isFalse);
+    expect(spheres.last.style, '#CE93D8');
     expect(spheres.last.transform.opacity, .5);
     final lines = scene.where((n) => n.type == 'path').toList();
     expect(lines.single.id, 'edge:*→ada/notes/default:note.added');
@@ -105,4 +108,52 @@ void main() {
     await tail.close();
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+    'equal snapshots lay out once and a torn-down scene keeps no pulses',
+    (tester) async {
+      final tail = StreamController<List<JournalTailSignal>>.broadcast();
+      Widget host(BrainSceneNode node) => MaterialApp(
+        home: SizedBox(
+          height: 400,
+          child: BrainSceneView(
+            node: node,
+            ctx: const NodeContext(view: 'v'),
+            signals: tail.stream,
+          ),
+        ),
+      );
+      await tester.pumpWidget(host(sample));
+      final state = tester.state<BrainSceneViewState>(
+        find.byType(BrainSceneView),
+      );
+      await tester.pumpWidget(host(BrainSceneNode.fromJson(_json)));
+      expect(state.layouts, 1);
+      tail.add([
+        JournalTailSignal(
+          seq: 1,
+          publisher: 'p',
+          alias: 'note.added',
+          at: DateTime.utc(2026),
+          traceId: 't',
+        ),
+      ]);
+      await tester.pump();
+      expect(state.pulses.pulses, hasLength(1));
+      await tester.pumpWidget(const SizedBox());
+      expect(state.pulses.pulses, isEmpty);
+      tail.add([
+        JournalTailSignal(
+          seq: 2,
+          publisher: 'p',
+          alias: 'note.added',
+          at: DateTime.utc(2026),
+          traceId: 'u',
+        ),
+      ]);
+      await tester.pump();
+      expect(state.pulses.pulses, isEmpty);
+      await tail.close();
+    },
+  );
 }

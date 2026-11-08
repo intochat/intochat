@@ -28,7 +28,7 @@ const _tints = {
   'unit': '#4FC3F7',
   'app': '#81C784',
   'kernel': '#9E9E9E',
-  'draft': '#80CE93D8',
+  'draft': '#CE93D8',
 };
 
 /// A `*` edge (any publisher) is drawn as a stub this far above its target.
@@ -49,7 +49,7 @@ List<PulseEdge> brainEdges(BrainSceneNode node) {
             key: brainEdgeKey(edge),
             fromId: edge.fromId,
             toId: edge.toId,
-            alias: edge.signalLabel ?? '',
+            alias: (edge.signalLabel ?? '').split('#').first,
             start: edge.fromId == '*'
                 ? to + Vector2(0, -_stub)
                 : at[edge.fromId]!.clone(),
@@ -97,7 +97,6 @@ SceneState brainSceneState(BrainSceneNode node, {int revision = 1}) {
           'title': n.label,
           'description': n.subtitle ?? n.kind,
           'kind': n.kind,
-          if (n.kind == 'draft') 'state': 'unready',
         },
         inputs: const ['tap'],
       ),
@@ -140,8 +139,15 @@ class BrainSceneView extends StatefulWidget {
 class BrainSceneViewState extends State<BrainSceneView> {
   final game = SceneGame();
   final pulses = SignalPulses();
+  late final _clock = SignalPulseClock(pulses);
   late SceneState _state;
   int _revision = 1;
+  String _structure = '';
+  var _nodes = <String, BrainGraphNode>{};
+
+  /// How many times the scene was laid out.
+  @visibleForTesting
+  int layouts = 0;
   StreamSubscription<List<JournalTailSignal>>? _tail;
   Stream<List<JournalTailSignal>>? _source;
 
@@ -160,14 +166,26 @@ class BrainSceneViewState extends State<BrainSceneView> {
   @override
   void didUpdateWidget(BrainSceneView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.node, widget.node)) {
+    if (_structureOf(widget.node) != _structure) {
       _revision++;
       _layout();
     }
     _listen(widget.signals ?? BrainSignals.of(context));
   }
 
+  static String _structureOf(BrainSceneNode node) => [
+    for (final n in node.nodes)
+      '${n.id}|${n.kind}|${n.label}|${n.subtitle}|${n.x}|${n.y}|${n.select?.key}',
+    for (final e in node.synapses) '${e.fromId}|${e.toId}|${e.signalLabel}',
+  ].join(';');
+
   void _layout() {
+    layouts++;
+    _structure = _structureOf(widget.node);
+    _nodes = {for (final n in widget.node.nodes) n.id: n};
+    game.world.children.whereType<SignalPulseComponent>().toList().forEach(
+      (c) => c.removeFromParent(),
+    );
     _state = brainSceneState(widget.node, revision: _revision);
     pulses.layout(brainEdges(widget.node), {
       for (final n in widget.node.nodes) n.id: Vector2(n.x, n.y),
@@ -182,8 +200,10 @@ class BrainSceneViewState extends State<BrainSceneView> {
   }
 
   void _feed(List<JournalTailSignal> batch) {
+    if (!mounted) return;
     final added = pulses.feed(batch);
-    if (added.isEmpty || !mounted) return;
+    if (added.isEmpty) return;
+    if (_clock.parent == null) game.world.add(_clock);
     for (final pulse in added) {
       game.world.add(
         SignalPulseComponent(
@@ -202,14 +222,14 @@ class BrainSceneViewState extends State<BrainSceneView> {
       unawaited(widget.ctx.activate(id));
       return;
     }
-    for (final n in widget.node.nodes) {
-      if (n.id == id) pressOf(n.select, widget.ctx)?.call();
-    }
+    pressOf(_nodes[id]?.select, widget.ctx)?.call();
   }
 
   @override
   void dispose() {
     unawaited(_tail?.cancel());
+    _tail = null;
+    pulses.clear();
     super.dispose();
   }
 

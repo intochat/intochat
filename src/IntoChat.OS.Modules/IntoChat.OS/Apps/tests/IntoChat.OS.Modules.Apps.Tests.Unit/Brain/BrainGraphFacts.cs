@@ -21,7 +21,7 @@ public sealed class BrainGraphFacts
         Assert.Equal(["unit", "app", "kernel"], scene.Nodes.Select(node => node.Kind));
         Assert.Equal(2, scene.Synapses.Count);
         Assert.All(scene.Synapses, edge => Assert.Equal(("*", "ada/notes/default"), (edge.FromId, edge.ToId)));
-        Assert.Equal(["note.added", "note.removed"], scene.Synapses.Select(edge => edge.SignalLabel));
+        Assert.Equal(["note.added", "note.removed#gate"], scene.Synapses.Select(edge => edge.SignalLabel));
         Assert.Equal("ada/notes/default", scene.SelectedId);
         Assert.Null(BrainGraph.Build(Topology, "nobody").SelectedId);
     }
@@ -33,6 +33,22 @@ public sealed class BrainGraphFacts
 
         var draft = Assert.Single(scene.Nodes, node => node.Kind == BrainGraph.Draft);
         Assert.Equal(("draft:weather", "weather", "building"), (draft.Id, draft.Label, draft.Status));
+    }
+
+    [Fact]
+    public void AReactionAndAGateOnOneAliasStayTwoEdges()
+    {
+        var scene = BrainGraph.Build(Topology with { Edges = [new("*", "ada/notes/default", "note.added", "reaction"), new("*", "ada/notes/default", "note.added", "gate")] }, null);
+
+        Assert.Equal(["note.added", "note.added#gate"], scene.Synapses.Select(edge => edge.SignalLabel));
+    }
+
+    [Fact]
+    public void AGhostIsSuppressedByTheUnitIdNotItsLabel()
+    {
+        var topology = new BrainTopology([new("ada/weather/default", "Weather station", "unit")], []) { Flows = [Build("weather", ["author"])] };
+
+        Assert.DoesNotContain(BrainGraph.Build(topology, null).Nodes, node => node.Kind == BrainGraph.Draft);
     }
 
     [Fact]
