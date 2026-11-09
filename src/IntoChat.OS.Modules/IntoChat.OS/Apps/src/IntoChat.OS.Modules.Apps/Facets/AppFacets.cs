@@ -1,32 +1,39 @@
+using System.Text.Json;
+using DigitalBrain.Invocation;
 using DigitalBrain.UI;
 
 namespace IntoChat.OS.Modules.Apps.Facets;
 
 internal sealed class AppViewFacet(AppNeuron app, Func<AppState> stateAccessor) : IViewFacet
 {
-    public Task<Node> RenderMainAsync()
+    public Task<string> RenderMainJsonAsync()
     {
         var state = stateAccessor();
         var title = state.Manifest?.Title ?? "App View";
-        return Task.FromResult<Node>(new Card(title, state.Spec, []));
+        Node node = new Card(title, state.Spec, []);
+        return Task.FromResult(JsonSerializer.Serialize(node, RuntimeProtocol.Json));
     }
 
-    public Task<Node?> RenderSideAsync() => Task.FromResult<Node?>(null);
+    public Task<string?> RenderSideJsonAsync() => Task.FromResult<string?>(null);
 
-    public Task<AppSnapshot> PresentAsync(long expectedProgramRevision, Presentation presentation) =>
-        app.Present(expectedProgramRevision, presentation);
+    public async Task<string> PresentJsonAsync(long expectedProgramRevision, string presentationJson)
+    {
+        var presentation = JsonSerializer.Deserialize<Presentation>(presentationJson, RuntimeProtocol.Json)!;
+        var snapshot = await app.Present(expectedProgramRevision, presentation);
+        return JsonSerializer.Serialize(snapshot, RuntimeProtocol.Json);
+    }
 }
 
 internal sealed class AppVfsFacet(Func<AppState> stateAccessor) : IVfsFacet
 {
-    public Task<IReadOnlyList<string>> ListFilesAsync(string path)
+    public Task<string[]> ListFilesAsync(string path)
     {
         var files = stateAccessor().Files;
         var normalized = string.IsNullOrWhiteSpace(path) ? "" : path.TrimStart('/');
         var result = files.Keys
             .Where(k => string.IsNullOrEmpty(normalized) || k.StartsWith(normalized, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        return Task.FromResult<IReadOnlyList<string>>(result);
+            .ToArray();
+        return Task.FromResult(result);
     }
 
     public Task<string?> ReadTextAsync(string path)

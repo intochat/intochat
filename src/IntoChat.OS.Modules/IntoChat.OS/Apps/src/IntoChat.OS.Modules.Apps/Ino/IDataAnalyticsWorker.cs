@@ -4,6 +4,22 @@ using Orleans.Concurrency;
 
 namespace IntoChat.OS.Modules.Apps;
 
+[GenerateSerializer, Alias("ino.chart-point.surrogate")]
+internal record struct InoChartPointSurrogate(
+    [property: Id(0)] string Id,
+    [property: Id(1)] string Label,
+    [property: Id(2)] double Value);
+
+[RegisterConverter]
+internal sealed class InoChartPointConverter : IConverter<InoChartPoint, InoChartPointSurrogate>
+{
+    public InoChartPoint ConvertFromSurrogate(in InoChartPointSurrogate surrogate)
+        => new(surrogate.Id, surrogate.Label, surrogate.Value);
+
+    public InoChartPointSurrogate ConvertToSurrogate(in InoChartPoint value)
+        => new(value.Id, value.Label, value.Value);
+}
+
 [GenerateSerializer, Alias("ino.data-query-result")]
 public sealed record DataQueryResult(
     [property: Id(0)] string ChartTitle,

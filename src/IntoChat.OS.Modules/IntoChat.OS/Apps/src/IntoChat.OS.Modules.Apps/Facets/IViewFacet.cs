@@ -1,3 +1,4 @@
+using DigitalBrain.Invocation;
 using DigitalBrain.UI;
 using Orleans;
 using Orleans.CodeGeneration;
@@ -8,7 +9,7 @@ namespace IntoChat.OS.Modules.Apps.Facets;
 [Version(1)]
 public interface IViewFacet : IGrainExtension
 {
-    Task<Node> RenderMainAsync();
-    Task<Node?> RenderSideAsync();
-    Task<AppSnapshot> PresentAsync(long expectedProgramRevision, Presentation presentation);
+    Task<string> RenderMainJsonAsync();
+    Task<string?> RenderSideJsonAsync();
+    Task<string> PresentJsonAsync(long expectedProgramRevision, string presentationJson);
 }

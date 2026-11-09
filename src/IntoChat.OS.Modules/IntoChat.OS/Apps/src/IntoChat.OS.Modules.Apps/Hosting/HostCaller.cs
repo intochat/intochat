@@ -50,16 +50,8 @@ internal static class HostCaller
         return caller.Kind is CallerKind.User or CallerKind.App ? caller with { AppId = appKey } : caller;
     }
 
-    /// <summary>
-    /// Enters a clean caller scope for the specified brain, restoring any prior ambient context upon disposal.
-    /// </summary>
-    public static async Task<IDisposable> EnterScopeAsync(IServiceProvider services, string brain)
-    {
-        var caller = await ForBrain(services, brain);
-        return caller is not null
-            ? RuntimeCallerContext.StampScope(caller)
-            : NullDisposable.Instance;
-    }
+    public static IDisposable StampScope(CapabilityCaller? caller)
+        => caller is not null ? RuntimeCallerContext.StampScope(caller) : NullDisposable.Instance;
 
     private sealed class NullDisposable : IDisposable
     {

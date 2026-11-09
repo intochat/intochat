@@ -400,7 +400,7 @@ internal sealed class CompiledAppsHost(
     {
         var argument = TextOf(signal.Input);
         var desktopAction = argument.Length == 0 ? signal.Operation : signal.Operation + ":" + argument;
-        using var scope = await HostCaller.EnterScopeAsync(services, brain);
+        using var scope = HostCaller.StampScope(await HostCaller.ForBrain(services, brain));
         try
         {
             var desktopKey = IApp.Key(brain, "desktop");
@@ -531,7 +531,7 @@ internal sealed class CompiledAppsHost(
 
     private async Task EnsureAppAsync(string brain, string appName, CancellationToken cancellationToken = default)
     {
-        using var scope = await HostCaller.EnterScopeAsync(services, brain);
+        using var scope = HostCaller.StampScope(await HostCaller.ForBrain(services, brain));
         try
         {
             var appKey = IApp.Key(brain, appName);
@@ -630,7 +630,7 @@ internal sealed class CompiledAppsHost(
 
     private async Task HandleAppRequestedAsync(string brain, string appName, AppRequested request, CancellationToken ct)
     {
-        using var scope = await HostCaller.EnterScopeAsync(services, brain);
+        using var scope = HostCaller.StampScope(await HostCaller.ForBrain(services, brain));
         try
         {
             var appKey = IApp.Key(brain, appName);

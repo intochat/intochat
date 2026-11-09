@@ -1,3 +1,5 @@
+using System.Text.Json;
+using DigitalBrain.Invocation;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps.Facets;
 
@@ -6,26 +8,31 @@ namespace IntoChat.OS.Modules.Apps;
 internal sealed partial class AppNeuron : IViewFacet, IVfsFacet, IConsentFacet
 {
     // IViewFacet
-    Task<Node> IViewFacet.RenderMainAsync()
+    Task<string> IViewFacet.RenderMainJsonAsync()
     {
         var title = State.Manifest?.Title ?? Name();
-        return Task.FromResult<Node>(new Card(title, State.Spec, []));
+        Node node = new Card(title, State.Spec, []);
+        return Task.FromResult(JsonSerializer.Serialize(node, RuntimeProtocol.Json));
     }
 
-    Task<Node?> IViewFacet.RenderSideAsync() => Task.FromResult<Node?>(null);
+    Task<string?> IViewFacet.RenderSideJsonAsync() => Task.FromResult<string?>(null);
 
-    Task<AppSnapshot> IViewFacet.PresentAsync(long expectedProgramRevision, Presentation presentation) =>
-        Present(expectedProgramRevision, presentation);
+    async Task<string> IViewFacet.PresentJsonAsync(long expectedProgramRevision, string presentationJson)
+    {
+        var presentation = JsonSerializer.Deserialize<Presentation>(presentationJson, RuntimeProtocol.Json)!;
+        var snapshot = await Present(expectedProgramRevision, presentation);
+        return JsonSerializer.Serialize(snapshot, RuntimeProtocol.Json);
+    }
 
     // IVfsFacet
-    Task<IReadOnlyList<string>> IVfsFacet.ListFilesAsync(string path)
+    Task<string[]> IVfsFacet.ListFilesAsync(string path)
     {
         var files = State.Files;
         var normalized = string.IsNullOrWhiteSpace(path) ? "" : path.TrimStart('/');
         var result = files.Keys
             .Where(k => string.IsNullOrEmpty(normalized) || k.StartsWith(normalized, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        return Task.FromResult<IReadOnlyList<string>>(result);
+            .ToArray();
+        return Task.FromResult(result);
     }
 
     Task<string?> IVfsFacet.ReadTextAsync(string path)

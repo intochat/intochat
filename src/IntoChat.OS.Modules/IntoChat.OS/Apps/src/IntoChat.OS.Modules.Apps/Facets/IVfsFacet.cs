@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Apps.Facets;
 [Version(1)]
 public interface IVfsFacet : IGrainExtension
 {
-    Task<IReadOnlyList<string>> ListFilesAsync(string path);
+    Task<string[]> ListFilesAsync(string path);
     Task<string?> ReadTextAsync(string path);
     Task WriteTextAsync(string path, string content);
     Task<bool> ExistsAsync(string path);
