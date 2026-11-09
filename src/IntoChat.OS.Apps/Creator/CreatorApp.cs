@@ -228,6 +228,11 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if ((Blank(request.Goal) ?? Blank(State.Draft)) is not { } goal) { Set(State with { Status = "Describe what to make." }); return; }
+        if (await IsCreatorBudgetExceededAsync())
+        {
+            Set(State with { Status = "Monthly compute cap exceeded. Increase cap in Settings -> Billing (os://window/settings?section=billing)." });
+            return;
+        }
         try
         {
             var result = await Get<IInoStudio>("ino/studio").Make(goal);
@@ -483,6 +488,19 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Compute metering is optional when the compute neuron is not registered.");
+        }
+    }
+
+    private async Task<bool> IsCreatorBudgetExceededAsync()
+    {
+        try
+        {
+            return (await Get<ICompute>("compute").Read()).BudgetExceeded;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Compute metering is optional when the compute neuron is not registered.");
+            return false;
         }
     }
 

@@ -119,7 +119,8 @@ internal sealed class CompiledAppsHost(
 
     internal async Task EnsureDesktopViewAsync(string brain, CancellationToken cancellationToken = default)
     {
-        using var scope = await HostCaller.EnterScopeAsync(services, brain);
+        var baseCaller = await HostCaller.ForBrain(services, brain);
+        using var scope = baseCaller is not null ? RuntimeCallerContext.Stamp(baseCaller) : null;
         try
         {
             var workspace = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(services, IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(brain));
@@ -214,14 +215,14 @@ internal sealed class CompiledAppsHost(
         if (string.IsNullOrWhiteSpace(appName) || appName is "desktop" or "workspace") { return; }
         try
         {
-            using var scope = await HostCaller.EnterScopeAsync(services, brain);
-            var baseCaller = RuntimeCallerContext.Current;
+            var baseCaller = await HostCaller.ForBrain(services, brain);
+            using var scope = baseCaller is not null ? RuntimeCallerContext.Stamp(baseCaller) : null;
             if (appName == IntoChat.Files.FilesApp.AppName)
             {
                 var filesView = await SiloNeurons.Get<IView>(services, $"{brain}/apps/files/view").Read();
                 if (filesView is null)
                 {
-                    using var filesScope = baseCaller is not null ? RuntimeCallerContext.StampScope(HostCaller.AsApp(baseCaller, IApp.Key(brain, IntoChat.Files.FilesApp.AppName))) : null;
+                    using var filesScope = baseCaller is not null ? RuntimeCallerContext.Stamp(HostCaller.AsApp(baseCaller, IApp.Key(brain, IntoChat.Files.FilesApp.AppName))) : null;
                     await SiloNeurons.Get<IFilesWorkspace>(services, $"{brain}/apps/files/workspace").Open(ct);
                 }
                 return;
@@ -235,7 +236,6 @@ internal sealed class CompiledAppsHost(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            Console.WriteLine($"[DEBUG EnsureOpenAppViewAsync] {error.GetType().Name}: {error.Message}\n{error.StackTrace}");
             logger.LogDebug(error, "Could not warm view for open app {App} in {Brain}.", appName, brain);
         }
     }

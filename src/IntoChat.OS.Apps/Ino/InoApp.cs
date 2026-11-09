@@ -211,6 +211,16 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             return;
         }
 
+        if (await IsComputeBudgetExceededAsync())
+        {
+            Set(State with
+            {
+                Status = "Monthly compute cap exceeded. Increase cap in Settings -> Billing (os://window/settings?section=billing).",
+                ActiveRunId = null,
+            });
+            return;
+        }
+
         var agentKey = AgentKeyOf(State.ConversationId);
         Set(State with
         {
@@ -249,6 +259,19 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
 
     // The agent's own record settles what a missed signal would have: a run Ino holds that has ended (a fast reply, a signal published
     // before the watch moved, or one lost while the host was down) is closed, and a run the agent has that Ino lost is adopted.
+    private async Task<bool> IsComputeBudgetExceededAsync()
+    {
+        try
+        {
+            return (await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Read()).BudgetExceeded;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Compute metering is optional when Ino runs without the Flutter compute neuron.");
+            return false;
+        }
+    }
+
     private async Task ReconcileAsync(IAgent agent, string? runId)
     {
         var read = await agent.Read();

@@ -94,10 +94,37 @@ public sealed class CalculatorAndUsageAppFacts
             Assert.Equal(12_500_000L, usage.App.State.SpentMicros);
             Assert.True(usage.App.State.BudgetExceeded);
 
-            await settings.Request("set-budget", new IntoChat.OS.Apps.Settings.SettingsSetBudget(200_000_000L));
-            await usage.Request("refresh", new UsageRefresh());
-            Assert.Equal(200_000_000L, usage.App.State.MonthlyBudgetMicros);
-            Assert.False(usage.App.State.BudgetExceeded);
+        await settings.Request("set-budget", new IntoChat.OS.Apps.Settings.SettingsSetBudget(200_000_000L));
+        await usage.Request("refresh", new UsageRefresh());
+        Assert.Equal(200_000_000L, usage.App.State.MonthlyBudgetMicros);
+        Assert.False(usage.App.State.BudgetExceeded);
+        }
+        finally
+        {
+            FakeComputeNeuron.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task InoAndCreatorPauseExecutionWhenMonthlyComputeBudgetIsExceeded()
+    {
+        FakeComputeNeuron.Reset();
+        try
+        {
+            await using var os = TestOS.Local()
+                .Register(typeof(AppsModule).Assembly)
+                .Register<FakeComputeNeuron>();
+            var ino = await os.Install<IntoChat.OS.Apps.Ino.InoApp>();
+            var creator = await os.Install<IntoChat.OS.Apps.Creator.CreatorApp>();
+
+            FakeComputeNeuron.Budget = 5_000_000L;
+            FakeComputeNeuron.Spent = 6_000_000L;
+
+            await ino.Request("send", new IntoChat.OS.Apps.Ino.InoSend("Summarize revenue"));
+            Assert.Contains("Monthly compute cap exceeded", ino.App.State.Status, StringComparison.Ordinal);
+
+            await creator.Request("make", new IntoChat.OS.Apps.Creator.CreatorMake("Build a web watch unit"));
+            Assert.Contains("Monthly compute cap exceeded", creator.App.State.Status, StringComparison.Ordinal);
         }
         finally
         {

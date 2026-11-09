@@ -337,7 +337,6 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
 
     private void RequireAccess()
     {
-        Console.WriteLine($"[DEBUG RequireAccess] principal={Orleans.Runtime.RequestContext.Get(RuntimeCallerContext.RequestContextKey)}, account={Orleans.Runtime.RequestContext.Get("db.cap.account")}, brain={Orleans.Runtime.RequestContext.Get("db.cap.brain")}, app={Orleans.Runtime.RequestContext.Get("db.cap.app")}");
         _ = RuntimeCallerContext.Require();
         CallerAdmission.RequireSameBrain(Id.Brain.Value, AppKey, "this Files workspace");
     }
