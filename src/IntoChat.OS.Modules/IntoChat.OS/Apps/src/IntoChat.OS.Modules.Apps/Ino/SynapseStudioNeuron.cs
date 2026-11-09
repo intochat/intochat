@@ -87,9 +87,10 @@ public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStu
         DigitalBrain.InstallOutcome install;
         try
         {
-            if (await installs.Describe(alias, CancellationToken.None) is not null) { install = new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Unchanged, "", null); }
-            else if ((await installs.Pending(CancellationToken.None)).FirstOrDefault(pending => pending.Alias == alias) is { } pending)
+            // A pending ask comes first: a record left by an earlier install does not answer a redeploy with wider needs.
+            if ((await installs.Pending(CancellationToken.None)).FirstOrDefault(pending => pending.Alias == alias) is { } pending)
             { install = new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Pending, pending.Sentence, pending.PlanId); }
+            else if (await installs.Describe(alias, CancellationToken.None) is not null) { install = new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Unchanged, "", null); }
             else { return null; }
         }
         catch (Exception error) when (error is not OperationCanceledException)

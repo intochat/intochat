@@ -58,6 +58,9 @@ public sealed class BuildInner
     public string? PlanId { get; set; }
 
     public string? Sentence { get; set; }
+
+    // The needs hash the pending ask puts to the person: the install record must carry it before the wait ends.
+    public string? NeedsHash { get; set; }
 }
 
 // One sentence becomes one unit: author (the Creator's Author), draft (the Builder), verify (the unit's scenarios on fakes), deploy
@@ -100,6 +103,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         await Context.Synapses.EnsureBrainWide(typeof(Installed), typeof(InstallDenied), typeof(ConnectionsChanged));
         await base.OnActivate(cancellationToken);
         if (WaitingOnConnection()) { await CheckConnections(); }
+        else if (WaitingOnInstall()) { await CheckInstall(); }
     }
 
     // An app build reports each finished step on the app's activity. A failure is not recorded here: the app fails its attempt on
@@ -301,6 +305,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         switch (inner.Install)
         {
             case DigitalBrain.InstallStatus.Pending:
+                inner.NeedsHash ??= (await Installs().Pending(CancellationToken.None)).FirstOrDefault(pending => pending.PlanId == inner.PlanId)?.NeedsHash;
                 await Report(inner, DigitalBrain.InstallStatus.Pending);
                 await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
                 return new StepResult<BuildInner>(inner, new Waiting("install", WaitReason.External, null, inner.PlanId),
@@ -320,6 +325,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     {
         ArgumentNullException.ThrowIfNull(installed);
         if (!WaitingOnInstall() || installed.Alias != State.Inner.Alias) { return; }
+        if (State.Inner.NeedsHash is { } needs && installed.NeedsHash != needs) { return; }
         await CheckInstall();
     }
 
@@ -342,12 +348,16 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
 
     private bool WaitingOnConnection() => State is { Status: FlowStatus.Waiting, Waiting: { Reason: WaitReason.External, Step: "deploy" } };
 
-    // Installed (a record exists) ends the wait and the app goes live; a pending ask that is gone without a record was denied.
+    private IInstalls Installs() => Context.Get<IInstalls>(new NeuronId(Id.Brain, "synapse.installs", "default"));
+
+    // The flow's own ask still pending waits on. Once it is gone, a record carrying the needs it asked ends the wait and the app goes
+    // live; no record, or one left by an earlier install of the alias (other needs), means the ask was denied or superseded.
     private async Task CheckInstall()
     {
         var alias = State.Inner.Alias ?? "";
-        var installs = Context.Get<IInstalls>(new NeuronId(Id.Brain, "synapse.installs", "default"));
-        if (await installs.Describe(alias, CancellationToken.None) is not null)
+        var installs = Installs();
+        if ((await installs.Pending(CancellationToken.None)).Any(pending => pending.PlanId == State.Inner.PlanId)) { return; }
+        if (await installs.Describe(alias, CancellationToken.None) is { } record && (State.Inner.NeedsHash is not { } needs || record.NeedsHash == needs))
         {
             State.Inner.Install = DigitalBrain.InstallStatus.Installed;
             await Report(State.Inner, DigitalBrain.InstallStatus.Installed);
@@ -355,7 +365,6 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
             await Resume("install", WaitOutcome.Arrived, null);
             return;
         }
-        if ((await installs.Pending(CancellationToken.None)).Any(pending => pending.PlanId == State.Inner.PlanId)) { return; }
         State.Inner.Install = DigitalBrain.InstallStatus.Denied;
         await StopRecheck();
         await Resume("install", WaitOutcome.Denied, null);

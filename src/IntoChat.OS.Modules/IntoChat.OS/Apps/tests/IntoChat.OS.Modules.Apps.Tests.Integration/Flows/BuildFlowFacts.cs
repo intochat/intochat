@@ -46,7 +46,8 @@ public sealed class BuildFlowFacts
     // A Builder whose answer breaks the first scenario: it counts one post too many.
     private static readonly string Red = AgentPrompts.XWatchExample.Replace("watch.Unseen + fresh", "watch.Unseen + fresh + 1", StringComparison.Ordinal);
 
-    // The Author answers the X watch; the Builder answers Sources in turn (the last one again), or throws with none.
+    // The Author answers the X watch (every five minutes when the request says so); the Builder answers Sources in turn (the last
+    // one again), or throws with none.
     private sealed class ScriptedDrafter(params string[] sources) : IDrafter
     {
         private int _drafts;
@@ -57,7 +58,8 @@ public sealed class BuildFlowFacts
         public List<IReadOnlyDictionary<string, string>?> Existing { get; } = [];
 
         public Task<AuthoredUnit> Author(string brainId, string request, CancellationToken ct)
-            => sources.Length == 0 ? throw new InvalidOperationException("the drafter failed") : Task.FromResult(Creator.Parse<AuthoredUnit>(Authored));
+            => sources.Length == 0 ? throw new InvalidOperationException("the drafter failed") : Task.FromResult(Creator.Parse<AuthoredUnit>(request.Contains("every five minutes", StringComparison.Ordinal)
+                ? Authored.Replace("\"schedule\": \"every 6m\"", "\"schedule\": \"every 5m\"", StringComparison.Ordinal) : Authored));
 
         public Task<BuildDraft> Draft(string brainId, AuthoredUnit unit, IReadOnlyDictionary<string, string>? existing, CancellationToken ct)
         {
@@ -376,6 +378,41 @@ public sealed class BuildFlowFacts
         var after = Assert.Single(await runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value)).List());
         Assert.NotEqual(before.Hash, after.Hash);
         Assert.Equal(DeployStatus.Deployed, after.Status);
+    }
+
+    // A record left by the first install does not answer a redeploy whose needs are wider: the flow waits on its own new ask, across
+    // an activation re-check, until the person approves that ask.
+    [Fact]
+    public async Task RedeployWithWiderNeedsWaitsOnItsOwnAskDespiteTheOldRecord()
+    {
+        var wider = AgentPrompts.XWatchExample.Replace("Every = \"every 6m\"", "Every = \"every 5m\"", StringComparison.Ordinal);
+        Assert.NotEqual(AgentPrompts.XWatchExample, wider);
+        await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample, wider);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var first = await Start(runtime);
+        await Eventually(() => Flows(runtime).Read(first, Ct), v => v.WaitingStep == "install");
+        await runtime.ApproveAsPerson((await Inner(runtime, first)).PlanId!, Ct);
+        await Eventually(() => Flows(runtime).Read(first, Ct), v => v.Status == FlowStatus.Completed);
+
+        var second = await Start(runtime, "watch elonmusk on X every five minutes");
+        var waiting = await Settled(runtime, second);
+        Assert.Equal((FlowStatus.Waiting, "install", WaitReason.External), (waiting.Status, waiting.WaitingStep, waiting.WaitingFor));
+        var plan = (await Inner(runtime, second)).PlanId!;
+        Assert.NotEqual((await Inner(runtime, first)).PlanId, plan);
+        Assert.NotNull(await Installs(runtime).Describe("x.watch", Ct));
+
+        await runtime.Restart(Ct);
+        Assert.Equal(plan, (await Inner(runtime, second)).PlanId);
+        await runtime.Idle();
+        await Task.Delay(500, Ct);
+        Assert.Equal(FlowStatus.Waiting, (await runtime.Get<IFlowStarter>(Id(second)).Head()).Status);
+        var still = await Flows(runtime).Read(second, Ct);
+        Assert.Equal((FlowStatus.Waiting, "install"), (still!.Status, still.WaitingStep));
+        Assert.Equal(plan, Assert.Single(await Installs(runtime).Pending(Ct)).PlanId);
+
+        await runtime.ApproveAsPerson(plan, Ct);
+        var done = await Eventually(() => Flows(runtime).Read(second, Ct), v => v.Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled);
+        Assert.Equal(FlowStatus.Completed, done.Status);
     }
 
     // The host compiles only C#: the studio keeps spec.md and scenarios.json beside the source, and a change run drafts over them.
