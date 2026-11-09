@@ -30,6 +30,7 @@ public sealed class OrleansBanFacts
     [
         "IntoChat.OS.Modules.Identity",
         "IntoChat.OS.Modules.Apps",
+        "IntoChat.OS.Apps",
     ];
 
     [Fact]

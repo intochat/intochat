@@ -2,8 +2,9 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
-using IntoChat.OS.Modules.Apps.Hosting.InProcess;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps.Signals;
@@ -57,70 +58,70 @@ internal sealed class CompiledAppsHost(
     private readonly ConcurrentDictionary<string, byte> _ensuredBrains = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
 
-    private void TriggerEnsureAll(string brain)
+    private void TriggerEnsureAll(string brain, CancellationToken cancellationToken = default)
     {
         if (!string.IsNullOrWhiteSpace(brain) && _ensuredBrains.TryAdd(brain, 0))
         {
-            _ = Task.Run(() => EnsureAllAsync(brain), CancellationToken.None);
+            _ = Task.Run(() => EnsureAllAsync(brain, cancellationToken), cancellationToken);
         }
     }
 
     public async Task Execute(CancellationToken cancellationToken)
     {
-        _ = await listeners.Listen<Activated>(nameof(CompiledAppsHost), (publisher, _, _) =>
+        _ = await listeners.Listen<Activated>(nameof(CompiledAppsHost), (publisher, ignoredSignal, token) =>
         {
             var brain = publisher.Brain.Value;
             _ensuredBrains.TryAdd(brain, 0);
-            _ = Task.Run(() => EnsureAllAsync(brain), CancellationToken.None);
+            _ = Task.Run(() => EnsureAllAsync(brain, token), token);
             return Task.CompletedTask;
         });
 
-        _ = await listeners.Listen<IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged>(nameof(CompiledAppsHost), (publisher, _, _) =>
+        _ = await listeners.Listen<IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged>(nameof(CompiledAppsHost), (publisher, ignoredSignal, token) =>
         {
             var brain = publisher.Brain.Value;
-            TriggerEnsureAll(brain);
-            _ = Task.Run(() => EnsureDesktopViewAsync(brain), CancellationToken.None);
+            TriggerEnsureAll(brain, token);
+            _ = Task.Run(() => EnsureDesktopViewAsync(brain, token), token);
             return Task.CompletedTask;
         });
 
         _ = await listeners.Listen<AppRequested>(nameof(CompiledAppsHost), (publisher, signal, token) =>
         {
-            TriggerEnsureAll(publisher.Brain.Value);
-            if (!publisher.Key.StartsWith("apps/", StringComparison.Ordinal)) { return Task.CompletedTask; }
-            var appName = publisher.Key["apps/".Length..];
+            TriggerEnsureAll(publisher.Brain.Value, token);
+            var appName = IApp.NameOf(publisher.Brain.Value, publisher.ToString())
+                ?? (publisher.Key.StartsWith("apps/", StringComparison.Ordinal) ? publisher.Key["apps/".Length..] : null);
+            if (appName is null) { return Task.CompletedTask; }
             if (appName == "desktop" && DesktopWindowVerbs.Contains(signal.Operation))
             {
-                _ = Task.Run(() => HandleDesktopActionAsync(publisher.Brain.Value, signal, token), CancellationToken.None);
+                _ = Task.Run(() => HandleDesktopActionAsync(publisher.Brain.Value, signal, token), token);
                 return Task.CompletedTask;
             }
             if (appName == "desktop")
             {
-                _ = Task.Run(() => EnsureDesktopViewAsync(publisher.Brain.Value), CancellationToken.None);
+                _ = Task.Run(() => EnsureDesktopViewAsync(publisher.Brain.Value, token), token);
             }
-            _ = Task.Run(() => HandleAppRequestedAsync(publisher.Brain.Value, appName, signal, token), CancellationToken.None);
+            _ = Task.Run(() => HandleAppRequestedAsync(publisher.Brain.Value, appName, signal, token), token);
             return Task.CompletedTask;
         });
 
-        TriggerEnsureAll("owner");
+        TriggerEnsureAll("owner", cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
     }
 
-    private async Task EnsureAllAsync(string brain)
+    private async Task EnsureAllAsync(string brain, CancellationToken cancellationToken = default)
     {
-        foreach (var name in HostedByName.Keys) { await EnsureAppAsync(brain, name); }
-        await EnsureDesktopViewAsync(brain);
+        foreach (var name in HostedByName.Keys) { await EnsureAppAsync(brain, name, cancellationToken); }
+        await EnsureDesktopViewAsync(brain, cancellationToken);
     }
 
     // The open widgets the desktop app keeps in its records, comma separated as the window shell shows them.
     private async Task<string> DesktopWidgetsAsync(string brain)
         => string.Join(",", (await SiloNeurons.Get<IDesktopRecords>(services, $"{brain}/{IDesktopRecords.Key}").Read()).Widgets);
 
-    internal async Task EnsureDesktopViewAsync(string brain)
+    internal async Task EnsureDesktopViewAsync(string brain, CancellationToken cancellationToken = default)
     {
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        using var scope = await HostCaller.EnterScopeAsync(services, brain);
         try
         {
-            if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
             var workspace = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(services, IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(brain));
             var state = await workspace.Read();
             var widgetsText = await DesktopWidgetsAsync(brain);
@@ -138,7 +139,7 @@ internal sealed class CompiledAppsHost(
                 var currentVp = await viewport.Read();
                 var targetRef = new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef(activeTab.Id, $"{brain}/apps/{appId}", string.IsNullOrWhiteSpace(activeTab.Variant) ? "full" : activeTab.Variant, string.Empty);
                 if (currentVp.Target != targetRef) { await viewport.Set(targetRef, currentVp.Revision); }
-                _ = EnsureOpenAppViewAsync(brain, appId, CancellationToken.None);
+                _ = EnsureOpenAppViewAsync(brain, appId, cancellationToken);
             }
 
             DigitalBrain.UI.Node BuildWindowFrame(IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow window)
@@ -213,14 +214,14 @@ internal sealed class CompiledAppsHost(
         if (string.IsNullOrWhiteSpace(appName) || appName is "desktop" or "workspace") { return; }
         try
         {
-            var baseCaller = await HostCaller.ForBrain(services, brain);
-            if (baseCaller is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
+            using var scope = await HostCaller.EnterScopeAsync(services, brain);
+            var baseCaller = RuntimeCallerContext.Current;
             if (appName == IntoChat.Files.FilesApp.AppName)
             {
                 var filesView = await SiloNeurons.Get<IView>(services, $"{brain}/apps/files/view").Read();
                 if (filesView is null)
                 {
-                    using var filesScope = baseCaller is not null ? CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, IApp.Key(brain, IntoChat.Files.FilesApp.AppName))) : null;
+                    using var filesScope = baseCaller is not null ? RuntimeCallerContext.StampScope(HostCaller.AsApp(baseCaller, IApp.Key(brain, IntoChat.Files.FilesApp.AppName))) : null;
                     await SiloNeurons.Get<IFilesWorkspace>(services, $"{brain}/apps/files/workspace").Open(ct);
                 }
                 return;
@@ -234,6 +235,7 @@ internal sealed class CompiledAppsHost(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            Console.WriteLine($"[DEBUG EnsureOpenAppViewAsync] {error.GetType().Name}: {error.Message}\n{error.StackTrace}");
             logger.LogDebug(error, "Could not warm view for open app {App} in {Brain}.", appName, brain);
         }
     }
@@ -466,10 +468,9 @@ internal sealed class CompiledAppsHost(
     {
         var argument = TextOf(signal.Input);
         var desktopAction = argument.Length == 0 ? signal.Operation : signal.Operation + ":" + argument;
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        using var scope = await HostCaller.EnterScopeAsync(services, brain);
         try
         {
-            if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
             var desktopKey = IApp.Key(brain, "desktop");
             var gate = _gates.GetOrAdd(desktopKey, static _ => new SemaphoreSlim(1, 1));
             var forwardAction = false;
@@ -599,7 +600,7 @@ internal sealed class CompiledAppsHost(
                     forwardAction = true;
                 }
 
-                await EnsureDesktopViewAsync(brain);
+                await EnsureDesktopViewAsync(brain, ct);
             }
             finally
             {
@@ -621,16 +622,15 @@ internal sealed class CompiledAppsHost(
         }
     }
 
-    private async Task EnsureAppAsync(string brain, string appName)
+    private async Task EnsureAppAsync(string brain, string appName, CancellationToken cancellationToken = default)
     {
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        using var scope = await HostCaller.EnterScopeAsync(services, brain);
         try
         {
-            if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
             var appKey = IApp.Key(brain, appName);
             var gate = _gates.GetOrAdd(appKey, static _ => new SemaphoreSlim(1, 1));
-            await gate.WaitAsync();
-            try { await EnsureAssignedAsync(brain, appName, appKey, CancellationToken.None); }
+            await gate.WaitAsync(cancellationToken);
+            try { await EnsureAssignedAsync(brain, appName, appKey, cancellationToken); }
             finally { gate.Release(); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -738,11 +738,9 @@ internal sealed class CompiledAppsHost(
 
     private async Task HandleAppRequestedAsync(string brain, string appName, AppRequested request, CancellationToken ct)
     {
-        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        using var scope = await HostCaller.EnterScopeAsync(services, brain);
         try
         {
-            var baseCaller = await HostCaller.ForBrain(services, brain);
-            if (baseCaller is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
             var appKey = IApp.Key(brain, appName);
             var gate = _gates.GetOrAdd(appKey, static _ => new SemaphoreSlim(1, 1));
             string? openedDesktopApp = null;
@@ -751,7 +749,7 @@ internal sealed class CompiledAppsHost(
             {
                 if (appName == "desktop")
                 {
-                    await EnsureDesktopViewAsync(brain);
+                    await EnsureDesktopViewAsync(brain, ct);
                 }
                 var turns = await EnsureAssignedAsync(brain, appName, appKey, ct);
                 if (turns is null) { return; }
@@ -766,7 +764,7 @@ internal sealed class CompiledAppsHost(
                         openedDesktopApp = TextOf(request.Input).ToLowerInvariant();
                         await ApplyDesktopWorkspaceChangeAsync(brain, request.RequestId, s => OpenDesktopAppInState(brain, s, openedDesktopApp));
                     }
-                    await EnsureDesktopViewAsync(brain);
+                    await EnsureDesktopViewAsync(brain, ct);
                 }
 
                 var title = HostedByName.TryGetValue(appName, out var spec) ? spec.Bundle.Manifest.Title : appName;

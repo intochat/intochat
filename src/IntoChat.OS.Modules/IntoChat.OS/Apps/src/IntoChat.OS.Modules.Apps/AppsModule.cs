@@ -92,9 +92,11 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         var alias = contractType.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
             ?? contractType.GetCustomAttribute<DigitalBrain.NeuronAttribute>(inherit: false)?.Type
             ?? throw new InvalidOperationException($"Contract {contractType.Name} has neither DefaultNeuronType nor NeuronAlias.");
-        var sep = fullKey.IndexOf('/', StringComparison.Ordinal);
-        var id = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(fullKey[..sep]), alias, fullKey[(sep + 1)..]);
-        return SiloNeurons.Get(services, contractType, id);
+        var keyWithoutBrain = fullKey.StartsWith(brain + "/", StringComparison.Ordinal)
+            ? fullKey[(brain.Length + 1)..]
+            : fullKey;
+        var compound = DigitalBrain.Identity.CompoundGrainKey.Create(brain, alias, keyWithoutBrain);
+        return SiloNeurons.Get(services, contractType, compound.ToNeuronId());
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

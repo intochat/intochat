@@ -55,17 +55,18 @@ public sealed record MarkdrawExport(
     string? Format = null,
     string? TargetPath = null) : DigitalBrain.Signal;
 
+[GenerateSerializer, Alias("markdraw.element-summary")]
 public sealed record MarkdrawElementSummary(
-    string Id,
-    string Kind,
-    string Label,
-    int X,
-    int Y,
-    int Width,
-    int Height,
-    string? FromId = null,
-    string? ToId = null,
-    string? Color = null);
+    [property: Id(0)] string Id,
+    [property: Id(1)] string Kind,
+    [property: Id(2)] string Label,
+    [property: Id(3)] int X,
+    [property: Id(4)] int Y,
+    [property: Id(5)] int Width,
+    [property: Id(6)] int Height,
+    [property: Id(7)] string? FromId = null,
+    [property: Id(8)] string? ToId = null,
+    [property: Id(9)] string? Color = null);
 
 public sealed record MarkdrawAppState(
     string ActiveDocument,

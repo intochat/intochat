@@ -36,7 +36,47 @@ internal sealed partial class AppNeuron(
     {
         await Interrupt();
         if (State.Manifest is null || State.Refused is not null) { return; }
+        if (await RefuseLegacy()) { return; }
         if (HasProgram(State)) { Defer(() => Get<IAppRestore>(Id).Restore()); }
+    }
+
+    // A record stored before 0.18 is read from its raw JSON (the typed state has already dropped the retired fields) and refused:
+    // Failed, one activity line, nothing deployed. Whatever goes wrong here is logged, never thrown at the first caller.
+    private async Task<bool> RefuseLegacy()
+    {
+        try
+        {
+            var stored = await Context.State.Load<System.Text.Json.JsonElement>();
+            var markers = LegacyAppRecord.Markers(stored);
+            if (markers.Length == 0) { return false; }
+            var next = State.Clone();
+            next.Files = State.Files.Where(file => !LegacyAppRecord.IsProgramFile(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+            next.Settings = State.Settings.Where(setting => !LegacyAppRecord.IsPrebuilt(setting.Key) && setting.Key != InProcessAppRuntime.CompiledTypeKey)
+                .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
+            // A shipped app the host loads (ino, desktop, creator...) is not rebuilt by the Creator: its program is the host's compiled
+            // type, so the pre-0.18 leftovers are stripped and the record stays usable.
+            if (ServiceProvider.GetService<IHostedAppTypes>() is { } hosted && hosted.IsHostLoaded(Name()))
+            {
+                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogInformation(
+                    "App {App} carried pre-0.18 leftovers ({Markers}); stripped, the host-loaded program stands.", Key, string.Join(", ", markers));
+                await Persist(next);
+                return false;
+            }
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(
+                "App {App} is a pre-0.18 record ({Markers}); it is refused and must be rebuilt.", Key, string.Join(", ", markers));
+            // The refusal is durable: the program files and settings are stripped (nothing deploys or retries) and Refused names why, so
+            // the activity line below is written once, not once per activation. A rebuild (Import or CompleteBuild) clears Refused.
+            next.Refused = string.Join(", ", markers);
+            next.Status = AppStatus.Failed;
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), LegacyAppRecord.Refusal];
+            await Persist(next);
+            return true;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(error, "Could not check app {App} for a pre-0.18 record.", Key);
+            return false;
+        }
     }
 
     private Task Save(AppState next, DigitalBrain.Signal first, DigitalBrain.Signal second, DigitalBrain.Signal third) => base.Save(next, [first, second, third]);

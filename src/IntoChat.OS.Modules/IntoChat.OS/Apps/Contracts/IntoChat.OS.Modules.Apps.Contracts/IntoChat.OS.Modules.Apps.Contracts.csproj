@@ -11,4 +11,7 @@
     <ProjectReference Include="../../../Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
     <ProjectReference Include="../../../../Google/Flutter/Contracts/IntoChat.OS.Modules.Flutter.Contracts/IntoChat.OS.Modules.Flutter.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain.UI" />
+  </ItemGroup>
 </Project>

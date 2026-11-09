@@ -6,9 +6,11 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Flutter.Compute;
 
-public sealed record ComputeLedgerState(ComputeRow[] Rows)
+public sealed record ComputeLedgerState(
+    ComputeRow[] Rows,
+    long MonthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros)
 {
-    public ComputeLedgerState() : this([]) { }
+    public ComputeLedgerState() : this([], ComputeState.DefaultMonthlyBudgetMicros) { }
 }
 
 [Neuron("ui.compute")]
@@ -17,7 +19,7 @@ internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, I
     public Task<ComputeState> Read()
     {
         EnsureAuthorized();
-        return Task.FromResult(CurrentState(State.Rows));
+        return Task.FromResult(CurrentState(State.Rows, State.MonthlyBudgetMicros));
     }
 
     public async Task<ComputeState> Record(string key, long micros)
@@ -39,18 +41,34 @@ internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, I
         }
 
         var ordered = rows.OrderByDescending(row => row.Micros).ThenBy(row => row.Key, StringComparer.Ordinal).Take(500).ToArray();
-        var next = new ComputeLedgerState(ordered);
-        var state = CurrentState(ordered);
+        var budget = EffectiveBudget(State.MonthlyBudgetMicros);
+        var next = new ComputeLedgerState(ordered, budget);
+        var state = CurrentState(ordered, budget);
         await Save(next, new ComputeChanged(state.SpentMicros));
         return state;
     }
 
-    private ComputeState CurrentState(ComputeRow[] rows)
+    public async Task<ComputeState> SetBudget(long monthlyBudgetMicros)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(monthlyBudgetMicros);
+        EnsureAuthorized();
+
+        var rows = State.Rows ?? [];
+        var next = new ComputeLedgerState(rows, monthlyBudgetMicros);
+        var state = CurrentState(rows, monthlyBudgetMicros);
+        await Save(next, new ComputeChanged(state.SpentMicros));
+        return state;
+    }
+
+    private ComputeState CurrentState(ComputeRow[] rows, long monthlyBudgetMicros)
     {
         var active = rows ?? [];
         var spent = active.Sum(static row => row.Micros);
-        return new ComputeState(spent, Context.Time.GetUtcNow().AddDays(-30), active);
+        return new ComputeState(spent, Context.Time.GetUtcNow().AddDays(-30), active, EffectiveBudget(monthlyBudgetMicros));
     }
+
+    private static long EffectiveBudget(long monthlyBudgetMicros)
+        => monthlyBudgetMicros > 0 ? monthlyBudgetMicros : ComputeState.DefaultMonthlyBudgetMicros;
 
     private void EnsureAuthorized()
     {

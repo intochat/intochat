@@ -5,22 +5,59 @@ using System.Text.RegularExpressions;
 
 namespace IntoChat.OS.Modules.Apps;
 
-public sealed record DataQueryResult(
-    string ChartTitle,
-    string[] Columns,
-    string[][] Rows,
-    string ChartKind,
-    InoChartPoint[] ChartPoints,
-    string Summary,
-    string SourceUri,
-    double TotalValue,
-    double AverageValue,
-    double MinValue,
-    double MaxValue);
-
 public static partial class DataAnalyticsEngine
 {
     private sealed record DatasetRecord(string[] Columns, List<string[]> Rows, string Title, string CurrencyPrefix, string EntityLabel);
+
+    public static DataQueryResult ExecuteInMemory(
+        string queryOrPrompt,
+        string database,
+        string? fileDatasetText = null,
+        string? fileDatasetPath = null)
+    {
+        var chartKind = InferChartKind(queryOrPrompt);
+
+        if (!string.IsNullOrWhiteSpace(fileDatasetText))
+        {
+            var vfsPath = fileDatasetPath ?? "/work/dataset.csv";
+            var parsedDataset = ParseFileDataset(vfsPath, fileDatasetText);
+            if (parsedDataset.Rows.Count > 0)
+            {
+                return RunRelationalPipeline(
+                    parsedDataset,
+                    queryOrPrompt,
+                    chartKind,
+                    sourceLabel: vfsPath,
+                    sourceUri: $"neuron://local/files{vfsPath}#dataset",
+                    preserveExactBuiltInSummary: false);
+            }
+        }
+
+        if (!queryOrPrompt.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
+            && TryParseInlinePromptDataset(queryOrPrompt) is { } inlineDataset)
+        {
+            return RunRelationalPipeline(
+                inlineDataset,
+                queryOrPrompt,
+                chartKind,
+                sourceLabel: "inline prompt data",
+                sourceUri: "neuron://local/apps/ino/chart#inline",
+                preserveExactBuiltInSummary: false);
+        }
+
+        return new DataQueryResult(
+            ChartTitle: $"No Data ({database})",
+            Columns: [],
+            Rows: [],
+            ChartKind: chartKind,
+            ChartPoints: [],
+            Summary: $"No dataset found matching query or file reference in database '{database}'.",
+            SourceUri: $"neuron://local/data/{database}/empty",
+            TotalValue: 0.0,
+            AverageValue: 0.0,
+            MinValue: 0.0,
+            MaxValue: 0.0);
+    }
 
     public static async Task<DataQueryResult> ExecuteAsync(
         string queryOrPrompt,

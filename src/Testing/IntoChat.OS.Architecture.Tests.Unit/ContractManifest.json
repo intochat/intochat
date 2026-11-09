@@ -1,5 +1,6 @@
 {
   "Grains": {
+    "IntoChat.OS.Apps.Markdraw.MarkdrawSceneWorker": "markdrawsceneworker",
     "IntoChat.OS.Authority.Entries.BrainEntriesNeuron": "brain.entries",
     "IntoChat.OS.Authority.Identity.Directory.IdentityDirectoryNeuron": "identity-directory",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain": "identity.external-ticket-replay",
@@ -8,15 +9,18 @@
     "IntoChat.OS.Kernel.Composition.CompiledTypeTableGrain": "kernel.compiledtypes",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain": "kernel.instances",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain": "kernel.types",
-    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable"
+    "IntoChat.OS.Kernel.Composition.TypeTableGrain": "kernel.typetable",
+    "IntoChat.OS.Modules.Apps.DataAnalyticsWorker": "dataanalyticsworker"
   },
   "GrainInterfaces": {
+    "IntoChat.OS.Apps.Markdraw.IMarkdrawSceneWorker": "markdraw.scene-worker",
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain",
     "IntoChat.OS.Authority.Identity.IPrincipalCredential": "identity.principal-credential-grain",
     "IntoChat.OS.Connections.Platform.Entries.IBrainEntries": "brain.entries",
     "IntoChat.OS.Connections.Platform.Integrations.IIntegration": "integration.registration",
     "IntoChat.OS.Framework.ITypeTable": "kernel.type-table",
-    "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory"
+    "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory",
+    "IntoChat.OS.Modules.Apps.IDataAnalyticsWorker": "ino.data-analytics-worker"
   },
   "Contracts": {
     "IntoChat.OS.Apps.Gallery.GalleryLibraryState": "os.gallery.library; Category=0, Search=1, SelectedId=2, Count=3",

@@ -92,7 +92,7 @@ public sealed class HostStampFacts : IAsyncLifetime
         NoCaller();
         var compiled = ActivatorUtilities.CreateInstance<CompiledAppsHost>(Services);
 
-        await compiled.EnsureDesktopViewAsync(brain);
+        await compiled.EnsureDesktopViewAsync(brain, Ct);
 
         Assert.True(await Published($"{brain}/apps/desktop/view"));
     }

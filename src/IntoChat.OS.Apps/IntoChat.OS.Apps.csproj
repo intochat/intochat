@@ -12,6 +12,7 @@
     
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Graph" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
     <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />

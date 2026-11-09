@@ -7,6 +7,7 @@ public interface ICompute
 {
     [DigitalBrain.ReadOnlyCall] Task<ComputeState> Read();
     Task<ComputeState> Record(string key, long micros);
+    Task<ComputeState> SetBudget(long monthlyBudgetMicros);
 }
 
 public sealed record ComputeState(

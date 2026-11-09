@@ -44,6 +44,6 @@ public sealed partial class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReade
             journaled.At, journaled.TraceId, journaled.CausationId, payload);
     }
 
-    [GeneratedRegex(@"(?:Bearer\s+[A-Za-z0-9._\-]{8,}|sk-(?:proj-|ant-)?[A-Za-z0-9_\-]{8,}|gh[pousr]_[A-Za-z0-9]{8,})", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?:Bearer\s+[A-Za-z0-9._\-]{8,}|sk-(?:proj-|ant-)?[A-Za-z0-9_\-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|AIza[0-9A-Za-z_\-]{20,}|xox[baprs]-[0-9A-Za-z\-]{10,}|vault://[A-Za-z0-9._\-/]+)", RegexOptions.CultureInvariant)]
     private static partial Regex SecretTokenPattern();
 }

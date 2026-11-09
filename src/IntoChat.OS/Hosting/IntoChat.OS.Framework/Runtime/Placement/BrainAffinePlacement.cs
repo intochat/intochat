@@ -15,23 +15,49 @@ public sealed class BrainAffinePlacement : PlacementStrategy;
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
 public sealed class BrainAffinePlacementAttribute() : PlacementAttribute(new BrainAffinePlacement());
 
-// Every silo computes the same answer: a stable hash of the brain id over the sorted compatible silos.
+// Every silo computes the same answer: 64-bit FNV-1a Highest Random Weight (HRW) Rendezvous Hashing of the brain id and silo address.
 internal sealed class BrainAffinePlacementDirector : IPlacementDirector
 {
     public Task<SiloAddress> OnAddActivation(PlacementStrategy strategy, PlacementTarget target, IPlacementContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var silos = context.GetCompatibleSilos(target);
         if (silos.Length == 0) { throw new OrleansException($"No silo can host {target.GrainIdentity}."); }
-        var sorted = silos.Order().ToArray();
+        if (silos.Length == 1) { return Task.FromResult(silos[0]); }
+
         var brain = BrainKey.BrainOf(target.GrainIdentity.Key.ToString()!);
-        return Task.FromResult(sorted[(int)(Fnv1a(brain) % (uint)sorted.Length)]);
+        SiloAddress bestSilo = silos[0];
+        ulong highestWeight = 0;
+
+        foreach (var silo in silos)
+        {
+            var weight = ComputeWeight(brain, silo.ToParsableString());
+            if (weight > highestWeight)
+            {
+                highestWeight = weight;
+                bestSilo = silo;
+            }
+        }
+
+        return Task.FromResult(bestSilo);
     }
 
-    // FNV-1a over UTF-16 code units: process-independent, unlike string.GetHashCode.
-    private static uint Fnv1a(string value)
+    // 64-bit FNV-1a with SplitMix64 avalanche mixer for Highest Random Weight (HRW) Rendezvous Hashing
+    internal static ulong ComputeWeight(string brainId, string siloAddress)
     {
-        var hash = 2166136261u;
-        foreach (var c in value) { hash = (hash ^ c) * 16777619u; }
+        ulong hash = 14695981039346656037UL;
+        const ulong prime = 1099511628211UL;
+
+        foreach (var c in brainId) { hash = (hash ^ c) * prime; }
+        hash = (hash ^ ':') * prime;
+        foreach (var c in siloAddress) { hash = (hash ^ c) * prime; }
+
+        hash ^= hash >> 33;
+        hash *= 0xff51afd7ed558ccdUL;
+        hash ^= hash >> 33;
+        hash *= 0xc4ceb9fe1a85ec53UL;
+        hash ^= hash >> 33;
+
         return hash;
     }
 }

@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget
 
 Declarative macOS System Settings-style application for IntoChat OS.
 Owns the 13 settings sections, master-detail subpages (AppPage, MemoryPage, ConnectionPage, PersonPage, LocalServerPage),
@@ -61,6 +61,9 @@ public sealed record SettingsImportBrain(string? ArchiveJson = null) : DigitalBr
 
 [DigitalBrain.Signal("settings.set-variable")]
 public sealed record SettingsSetVariable(string? Key = null, string? Value = null) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("settings.set-budget")]
+public sealed record SettingsSetBudget(long MonthlyBudgetMicros = IntoChat.OS.Modules.Flutter.Compute.ComputeState.DefaultMonthlyBudgetMicros) : DigitalBrain.Signal;
 
 public sealed record SettingsSearchEntry(
     string SectionId,
@@ -178,6 +181,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new("export-brain", "Export a portable JSON archive of this brain's settings, profile, and deployed Synapse units."),
                 new("import-brain", "Restore a portable JSON archive into this brain's settings, profile, and deployed Synapse units."),
                 new("set-variable", "Save or update a brain configuration variable in UserSettingsNeuron."),
+                new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
             ],
             Settings: [],
             Slots: [],
@@ -500,6 +504,33 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             Section = "variables",
             Status = $"Saved variable {request.Key.Trim()}.",
             Variables = updated.Variables ?? [],
+            OverrideBody = null,
+        });
+    }
+
+    [DigitalBrain.On]
+    public async Task SetBudget(SettingsSetBudget request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var cap = request.MonthlyBudgetMicros > 0
+            ? request.MonthlyBudgetMicros
+            : IntoChat.OS.Modules.Flutter.Compute.ComputeState.DefaultMonthlyBudgetMicros;
+        try
+        {
+            await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").SetBudget(cap);
+            await TryRefreshComputeSummaryAsync();
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
+            var budgetUsd = cap / 1_000_000.0;
+            _computeBudgetUsd = budgetUsd.ToString("$0.00", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        Update(State with
+        {
+            Section = "billing",
+            Status = $"Updated monthly compute cap to {_computeBudgetUsd}.",
             OverrideBody = null,
         });
     }
@@ -1048,6 +1079,12 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                     Ui.StatCard("bill-limit", "Monthly Cap", _computeBudgetUsd, _computeBudgetExceeded ? "Cap Exceeded" : "Within Cap", _computeBudgetExceeded ? BadgeTone.Error : BadgeTone.Neutral, "gauge"),
                 ],
                 Gap: 12),
+            new Row(
+            [
+                new Button("billing-cap-10", "Set $10 Cap", Emit: AppSignals.Emit("settings", "set-budget", "10000000")) { Small = true, Icon = "gauge" },
+                new Button("billing-cap-50", "Set $50 Cap", Emit: AppSignals.Emit("settings", "set-budget", "50000000")) { Small = true, Icon = "gauge" },
+                new Button("billing-cap-200", "Set $200 Cap", Emit: AppSignals.Emit("settings", "set-budget", "200000000")) { Small = true, Icon = "gauge" },
+            ]) { Gap = 8 },
         ],
         Kind: SurfaceKind.Elevated,
         Title: "Billing");

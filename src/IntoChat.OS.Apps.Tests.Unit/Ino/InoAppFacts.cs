@@ -649,6 +649,7 @@ public sealed class InoAppFacts
         public static List<(string Key, long Micros)> Records { get; } = [];
         public static void Reset() => Records.Clear();
         public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> Read() => Task.FromResult(new IntoChat.OS.Modules.Flutter.Compute.ComputeState(0, DateTimeOffset.UtcNow, []));
+        public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> SetBudget(long monthlyBudgetMicros) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Compute.ComputeState(0, DateTimeOffset.UtcNow, [], monthlyBudgetMicros));
         public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> Record(string key, long micros)
         {
             Records.Add((key, micros));

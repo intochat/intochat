@@ -90,7 +90,7 @@ internal static class LiveSignalEndpoints
             }
             catch (OperationCanceledException) { }
             catch (Exception error) { keys.Writer.TryComplete(error); }
-        }, CancellationToken.None);
+        }, ct);
         HashSet<string> seen = [];
         await foreach (var key in keys.Reader.ReadAllAsync(ct))
         {
@@ -178,7 +178,7 @@ internal static class LiveSignalEndpoints
                 if (Interlocked.Increment(ref failed) == feeds.Length)
                 { outbox.Fail(new InvalidOperationException("Every live feed failed; see the server log.")); }
             }
-            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, services, outbox, log, Failed, stop.Token), CancellationToken.None)).ToArray();
+            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, services, outbox, log, Failed, stop.Token), stop.Token)).ToArray();
             _ = Task.Run(async () =>
             {
                 try
@@ -187,7 +187,7 @@ internal static class LiveSignalEndpoints
                     await outbox.Write(Ready, stop.Token);
                 }
                 catch (Exception closed) when (closed is OperationCanceledException or ChannelClosedException) { log.LogSwallowed(closed, "live stream closed before ready"); }
-            }, CancellationToken.None);
+            }, stop.Token);
             while (await outbox.Reader.WaitToReadAsync(ct))
             {
                 if (outbox.Overflowed) { break; }
@@ -232,13 +232,13 @@ internal static class LiveSignalEndpoints
                 {
                     var replay = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                     if (listing) { lock (initial) { initial.Add(replay.Task); } }
-                    _ = Task.Run(() => Pump(services, feed, alias, source, writer, log, replay, ct), CancellationToken.None);
+                    _ = Task.Run(() => Pump(services, feed, alias, source, writer, log, replay, ct), ct);
                 }
             }
             catch (OperationCanceledException) { }
             catch (Exception error) { log.LogWarning(error, "Live {Type} feed dropped: its sources failed.", type); failed(); }
             finally { if (listing) { listing = false; Listed(); } }
-        }, CancellationToken.None);
+        }, ct);
         return replayed.Task;
     }
 
