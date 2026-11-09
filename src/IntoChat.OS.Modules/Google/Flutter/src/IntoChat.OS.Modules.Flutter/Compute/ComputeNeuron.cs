@@ -14,13 +14,6 @@ public sealed record ComputeLedgerState(ComputeRow[] Rows)
 [Neuron("ui.compute")]
 internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, ICompute
 {
-    private static readonly ComputeRow[] DefaultRows =
-    [
-        new("ino", 1_250_000, 42),
-        new("creator", 680_000, 14),
-        new("settings", 40_000, 8),
-    ];
-
     public Task<ComputeState> Read()
     {
         EnsureAuthorized();
@@ -33,7 +26,7 @@ internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, I
         ArgumentOutOfRangeException.ThrowIfNegative(micros);
         EnsureAuthorized();
 
-        var rows = (State.Rows.Length == 0 ? DefaultRows : State.Rows).ToList();
+        var rows = (State.Rows ?? []).ToList();
         var index = rows.FindIndex(row => string.Equals(row.Key, key, StringComparison.Ordinal));
         if (index >= 0)
         {
@@ -54,7 +47,7 @@ internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, I
 
     private ComputeState CurrentState(ComputeRow[] rows)
     {
-        var active = rows.Length == 0 ? DefaultRows : rows;
+        var active = rows ?? [];
         var spent = active.Sum(static row => row.Micros);
         return new ComputeState(spent, Context.Time.GetUtcNow().AddDays(-30), active);
     }

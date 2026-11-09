@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain
 
 Declarative macOS System Settings-style application for IntoChat OS.
 Owns the 13 settings sections, master-detail subpages (AppPage, MemoryPage, ConnectionPage, PersonPage, LocalServerPage),
@@ -53,6 +53,12 @@ public sealed record SettingsNavigate(
 [DigitalBrain.Signal("settings.go-back")]
 public sealed record SettingsGoBack : DigitalBrain.Signal;
 
+[DigitalBrain.Signal("settings.export-brain")]
+public sealed record SettingsExportBrain : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("settings.import-brain")]
+public sealed record SettingsImportBrain(string? ArchiveJson = null) : DigitalBrain.Signal;
+
 public sealed record SettingsSearchEntry(
     string SectionId,
     string Title,
@@ -81,7 +87,8 @@ public sealed record SettingsAppState(
     string TimeZone = "UTC",
     string DateFormat = "17 Oct 2026",
     IReadOnlyList<string>? ConnectionKeys = null,
-    IReadOnlyList<string>? FriendGrants = null)
+    IReadOnlyList<string>? FriendGrants = null,
+    string? ExportedArchiveJson = null)
 {
     public static IReadOnlyList<string> DefaultConnectionKeys { get; } = [];
 
@@ -107,7 +114,8 @@ public sealed record SettingsAppState(
         "UTC",
         "17 Oct 2026",
         [],
-        [])
+        [],
+        null)
     {
     }
 }
@@ -116,6 +124,8 @@ public sealed record SettingsAppState(
 public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
 {
     private string _computeSpendUsd = "$0.00";
+    private string _computeBudgetUsd = "$50.00";
+    private bool _computeBudgetExceeded;
     private string _computeRowsSummary = "0 model(s) metered";
 
     public static IReadOnlyList<SettingsSearchEntry> SearchIndex { get; } =
@@ -155,6 +165,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),
                 new("navigate", "Open the settings section (and sub-page) named by Input."),
                 new("go-back", "Return to the previous settings page."),
+                new("export-brain", "Export a portable JSON archive of this brain's settings, profile, and deployed Synapse units."),
+                new("import-brain", "Restore a portable JSON archive into this brain's settings, profile, and deployed Synapse units."),
             ],
             Settings: [],
             Slots: [],
@@ -216,7 +228,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             TimeZone: user.TimeZone,
             DateFormat: user.DateFormat,
             ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
+            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
+            ExportedArchiveJson: State.ExportedArchiveJson));
     }
 
     [DigitalBrain.On]
@@ -245,7 +258,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             TimeZone: user.TimeZone,
             DateFormat: user.DateFormat,
             ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
+            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
+            ExportedArchiveJson: State.ExportedArchiveJson));
     }
 
     [DigitalBrain.On]
@@ -420,7 +434,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             updated.TimeZone,
             updated.DateFormat,
             State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
+            State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
+            State.ExportedArchiveJson));
     }
 
     [DigitalBrain.On]
@@ -448,7 +463,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             user.TimeZone,
             user.DateFormat,
             State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            State.FriendGrants ?? SettingsAppState.DefaultFriendGrants));
+            State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
+            State.ExportedArchiveJson));
     }
 
     [DigitalBrain.On]
@@ -456,6 +472,71 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         Update(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
+    }
+
+    [DigitalBrain.On]
+    public async Task ExportBrain(SettingsExportBrain request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var snapshot = await PortableBrainArchive.ExportAsync(
+            "local",
+            Get<IUserSettings>("settings"),
+            Get<IProfile>("profile"),
+            Get<ISynapseStudio>("ino/synapses"));
+        var json = PortableBrainArchive.ToJson(snapshot);
+        Update(State with
+        {
+            Section = "danger",
+            Sheet = "export-archive",
+            Status = $"Exported portable brain archive ({snapshot.Units.Count} unit(s)).",
+            ExportedArchiveJson = json,
+            OverrideBody = null,
+        });
+    }
+
+    [DigitalBrain.On]
+    public async Task ImportBrain(SettingsImportBrain request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var archiveJson = string.IsNullOrWhiteSpace(request.ArchiveJson)
+            ? State.ExportedArchiveJson
+            : request.ArchiveJson;
+        if (string.IsNullOrWhiteSpace(archiveJson))
+        {
+            Update(State with
+            {
+                Section = "danger",
+                Status = "No portable brain archive JSON provided to import.",
+                OverrideBody = null,
+            });
+            return;
+        }
+
+        var snapshot = PortableBrainArchive.FromJson(archiveJson);
+        var settings = Get<IUserSettings>("settings");
+        await PortableBrainArchive.ImportAsync(
+            snapshot,
+            settings,
+            Get<IProfile>("profile"),
+            Get<ISynapseStudio>("ino/synapses"));
+        var user = await settings.Read();
+        Update(State with
+        {
+            DisplayName = user.DisplayName,
+            Theme = user.Theme,
+            DefaultModel = user.DefaultModel,
+            StylePreset = user.StylePreset,
+            BarLayout = user.BarLayout,
+            ThemeMode = user.ThemeMode,
+            DesktopTone = user.DesktopTone,
+            Language = user.Language,
+            TimeZone = user.TimeZone,
+            DateFormat = user.DateFormat,
+            Section = "danger",
+            Status = $"Restored portable brain archive from {snapshot.BrainId} ({snapshot.Units.Count} unit(s)).",
+            ExportedArchiveJson = archiveJson,
+            OverrideBody = null,
+        });
     }
 
     public View RenderSide()
@@ -553,6 +634,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 "add-connection" or "google-drive" => "Authorize an OAuth 2.0 or token-based integration through the zero-leakage Capability Broker.",
                 "ollama-config" => "Configure local Ollama / LM Studio server endpoint (http://localhost:11434) and reasoning effort.",
                 "invite" => "Invite a teammate to this brain and assign Owner, Member, or Guest circle permissions.",
+                "export-archive" => State.ExportedArchiveJson ?? "Export a portable JSON archive of this brain's settings, profile, and deployed Synapse units.",
                 "confirm-delete" => "Two-step confirmation required: deleting or resetting this brain permanently revokes all sessions.",
                 _ => $"Active modal sheet: {sheet}",
             }),
@@ -861,9 +943,9 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             new Grid(
                 3,
                 [
-                    Ui.StatCard("bill-credits", "Metered Spend", _computeSpendUsd, _computeRowsSummary, BadgeTone.Done, "wallet"),
+                    Ui.StatCard("bill-credits", "Metered Spend", _computeSpendUsd, _computeRowsSummary, _computeBudgetExceeded ? BadgeTone.Error : BadgeTone.Done, "wallet"),
                     Ui.StatCard("bill-tokens", "Default Model", State.DefaultModel, "Active routing", BadgeTone.Accent, "cpu"),
-                    Ui.StatCard("bill-limit", "Compute Ledger", "ICompute", "Live Usage", BadgeTone.Neutral, "gauge"),
+                    Ui.StatCard("bill-limit", "Monthly Cap", _computeBudgetUsd, _computeBudgetExceeded ? "Cap Exceeded" : "Within Cap", _computeBudgetExceeded ? BadgeTone.Error : BadgeTone.Neutral, "gauge"),
                 ],
                 Gap: 12),
         ],
@@ -876,7 +958,10 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         {
             var compute = await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Read();
             var usd = compute.SpentMicros / 1_000_000.0;
+            var budgetUsd = compute.MonthlyBudgetMicros / 1_000_000.0;
             _computeSpendUsd = usd.ToString("$0.00", System.Globalization.CultureInfo.InvariantCulture);
+            _computeBudgetUsd = budgetUsd.ToString("$0.00", System.Globalization.CultureInfo.InvariantCulture);
+            _computeBudgetExceeded = compute.BudgetExceeded;
             _computeRowsSummary = $"{compute.Rows.Length} model(s) metered";
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -956,10 +1041,11 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
 
     private Node RenderDangerSection() => new Surface(
         [
-            new Heading("Danger Zone", Level: 3, Subtitle: "Irreversible actions affecting this brain and account."),
+            new Heading("Danger Zone", Level: 3, Subtitle: "Portable brain archive export/restore and irreversible account actions."),
             new Row(
             [
-                new Button("export-brain-archive-zip", "Export Brain Archive (ZIP)", Emit: AppSignals.Emit("settings", "navigate", "danger", "", "export-archive"), Tone: ButtonTone.Neutral) { Small = true, Icon = "download" },
+                new Button("export-brain-archive-zip", "Export Brain Archive", Emit: AppSignals.Emit("settings", "export-brain"), Tone: ButtonTone.Accent) { Small = true, Icon = "download" },
+                new Button("import-brain-archive", "Restore Brain Archive", Emit: AppSignals.Emit("settings", "import-brain"), Tone: ButtonTone.Neutral) { Small = true, Icon = "upload" },
                 new Button("delete-account-reset-brain", "Delete Account / Reset Brain", Emit: AppSignals.Emit("settings", "navigate", "danger", "", "confirm-delete"), Tone: "danger") { Small = true, Icon = "trash-2", Style = "danger" },
             ]) { Gap = 8 },
         ],

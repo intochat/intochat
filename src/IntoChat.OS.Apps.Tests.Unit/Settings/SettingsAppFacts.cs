@@ -147,4 +147,26 @@ public sealed class SettingsAppFacts
         Assert.Equal("models", filtered[0].SectionId);
     }
 
+    [Fact]
+    public async Task SettingsExportAndImportBrainArchiveRestoresSettingsAndUnits()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await os.Install<SettingsApp>();
+
+        await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Ada", Theme: "light", DefaultModel: "gpt-5"));
+        await settings.Request("export-brain", new SettingsExportBrain());
+
+        Assert.Equal("danger", settings.App.State.Section);
+        Assert.Equal("export-archive", settings.App.State.Sheet);
+        var archiveJson = settings.App.State.ExportedArchiveJson;
+        Assert.False(string.IsNullOrWhiteSpace(archiveJson));
+
+        await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Mutated", Theme: "dark", DefaultModel: "qwen3.5:4b"));
+        Assert.Equal("Mutated", settings.App.State.DisplayName);
+
+        await settings.Request("import-brain", new SettingsImportBrain(archiveJson));
+        Assert.Equal("Ada", settings.App.State.DisplayName);
+        Assert.Equal("light", settings.App.State.Theme);
+        Assert.Equal("gpt-5", settings.App.State.DefaultModel);
+    }
 }

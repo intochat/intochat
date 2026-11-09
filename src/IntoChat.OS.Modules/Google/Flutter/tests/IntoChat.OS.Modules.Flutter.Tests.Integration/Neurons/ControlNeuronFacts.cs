@@ -61,11 +61,11 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
         var compute = runtime.Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>(id);
 
         var initial = await compute.Read();
-        Assert.Equal(1_970_000L, initial.SpentMicros);
-        Assert.Equal(3, initial.Rows.Length);
+        Assert.Equal(0L, initial.SpentMicros);
+        Assert.Empty(initial.Rows);
 
         var updated = await compute.Record("creator", 500_000L);
-        Assert.Equal(2_470_000L, updated.SpentMicros);
-        Assert.Contains(updated.Rows, r => r.Key == "creator" && r.Micros == 1_180_000L && r.Count == 15L);
+        Assert.Equal(500_000L, updated.SpentMicros);
+        Assert.Contains(updated.Rows, r => r.Key == "creator" && r.Micros == 500_000L && r.Count == 1L);
     }
 }

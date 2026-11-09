@@ -24,13 +24,17 @@ public sealed record UsageAppState(
     long SpentMicros,
     string FormattedUsd,
     string Status,
-    ComputeRow[] Rows)
+    ComputeRow[] Rows,
+    long MonthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros,
+    bool BudgetExceeded = false)
 {
     public UsageAppState() : this(
         SpentMicros: 0,
         FormattedUsd: "$0.00",
         Status: "No compute recorded.",
-        Rows: [])
+        Rows: [],
+        MonthlyBudgetMicros: ComputeState.DefaultMonthlyBudgetMicros,
+        BudgetExceeded: false)
     {
     }
 }
@@ -81,11 +85,14 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
             var compute = await Get<ICompute>("compute").Read();
             var rows = compute.Rows ?? [];
             var usd = FormatUsd(compute.SpentMicros);
+            var budgetUsd = FormatUsd(compute.MonthlyBudgetMicros);
             Set(new UsageAppState(
                 SpentMicros: compute.SpentMicros,
                 FormattedUsd: usd,
-                Status: $"{statusPrefix} Total: {usd} across {rows.Length} surface(s).",
-                Rows: rows));
+                Status: $"{statusPrefix} Total: {usd} / {budgetUsd} across {rows.Length} surface(s).",
+                Rows: rows,
+                MonthlyBudgetMicros: compute.MonthlyBudgetMicros,
+                BudgetExceeded: compute.BudgetExceeded));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -109,6 +116,8 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
     {
         var rows = State.Rows ?? [];
         var totalCalls = rows.Sum(static r => r.Count);
+        var budgetUsd = FormatUsd(State.MonthlyBudgetMicros);
+        var spendTone = State.BudgetExceeded ? BadgeTone.Error : BadgeTone.Accent;
 
         return new(
             "Usage",
@@ -117,7 +126,7 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
                 new Grid(
                     3,
                     [
-                        Ui.StatCard("kpi-usage-usd", "30-Day Spend", State.FormattedUsd, $"{State.SpentMicros:N0} µ-credits", BadgeTone.Accent, "dollar-sign"),
+                        Ui.StatCard("kpi-usage-usd", "30-Day Spend", State.FormattedUsd, $"{State.SpentMicros:N0} µ-credits (Cap {budgetUsd})", spendTone, "dollar-sign"),
                         Ui.StatCard("kpi-usage-surfaces", "Active Surfaces", $"{rows.Length}", "Metered Neurons", BadgeTone.Done, "cpu"),
                         Ui.StatCard("kpi-usage-calls", "Recorded Calls", $"{totalCalls}", "Last 30 Days", BadgeTone.Neutral, "activity"),
                     ],
@@ -136,7 +145,7 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
                     ],
                     Kind: SurfaceKind.Elevated,
                     Title: "Usage",
-                    Subtitle: "Amounts in USD · 1,000,000 micro-credits = $1."),
+                    Subtitle: $"Amounts in USD · 1,000,000 micro-credits = $1 · Monthly Cap: {budgetUsd}."),
                 new DataTable(
                     Title: "Metered Compute by Surface",
                     Columns: ["Surface", "Calls", "Micro-Credits", "USD"],
