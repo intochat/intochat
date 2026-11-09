@@ -87,6 +87,8 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(PhotoCraftApp));
 
+    public const string AppName = ShippedApps.PhotoCraft;
+
     public static AppBundle Bundle { get; } = new(
         "photocraft",
         "1.1.0",
@@ -103,7 +105,8 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
             ],
             Settings: [],
             Slots: [],
-            Icon: "icon.svg",
+            Icon: "image",
+            Dock: 5, Studio: true,
             Toolbar:
             [
                 new("open", Icon: "link", Label: "Connect editor"),

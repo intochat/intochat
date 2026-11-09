@@ -21,8 +21,8 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron(IntoChat.OS.Connections.AppGrainType.Name, State = "app2")]
 internal sealed partial class AppNeuron(
     TimeProvider clock, IOptions<AppsOptions> options,
-    IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
-    : DigitalBrain.Neuron<AppState>, IApp, IAppDeploy, IAppMigration
+    IEnumerable<IAppStorageHook> storageHooks)
+    : DigitalBrain.Neuron<AppState>, IApp, IAppRestore
 {
     private static readonly AppState Cleared = new();
     // Whether the app has a record: created apps always carry a manifest.
@@ -35,8 +35,48 @@ internal sealed partial class AppNeuron(
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await Interrupt();
-        if (!State.MigrationPaused && State.Manifest is not null && HasProgram(State))
-        { Defer(() => Get<IAppDeploy>(Id).Restore()); }
+        if (State.Manifest is null || State.Refused is not null) { return; }
+        if (await RefuseLegacy()) { return; }
+        if (HasProgram(State)) { Defer(() => Get<IAppRestore>(Id).Restore()); }
+    }
+
+    // A record stored before 0.18 is read from its raw JSON (the typed state has already dropped the retired fields) and refused:
+    // Failed, one activity line, nothing deployed. Whatever goes wrong here is logged, never thrown at the first caller.
+    private async Task<bool> RefuseLegacy()
+    {
+        try
+        {
+            var stored = await Context.State.Load<System.Text.Json.JsonElement>();
+            var markers = LegacyAppRecord.Markers(stored);
+            if (markers.Length == 0) { return false; }
+            var next = State.Clone();
+            next.Files = State.Files.Where(file => !LegacyAppRecord.IsProgramFile(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+            next.Settings = State.Settings.Where(setting => !LegacyAppRecord.IsPrebuilt(setting.Key) && setting.Key != InProcessAppRuntime.CompiledTypeKey)
+                .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
+            // A shipped app the host loads (ino, desktop, creator...) is not rebuilt by the Creator: its program is the host's compiled
+            // type, so the pre-0.18 leftovers are stripped and the record stays usable.
+            if (ServiceProvider.GetService<IHostedAppTypes>() is { } hosted && hosted.IsHostLoaded(Name()))
+            {
+                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogInformation(
+                    "App {App} carried pre-0.18 leftovers ({Markers}); stripped, the host-loaded program stands.", Key, string.Join(", ", markers));
+                await Persist(next);
+                return false;
+            }
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(
+                "App {App} is a pre-0.18 record ({Markers}); it is refused and must be rebuilt.", Key, string.Join(", ", markers));
+            // The refusal is durable: the program files and settings are stripped (nothing deploys or retries) and Refused names why, so
+            // the activity line below is written once, not once per activation. A rebuild (Import or CompleteBuild) clears Refused.
+            next.Refused = string.Join(", ", markers);
+            next.Status = AppStatus.Failed;
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), LegacyAppRecord.Refusal];
+            await Persist(next);
+            return true;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(error, "Could not check app {App} for a pre-0.18 record.", Key);
+            return false;
+        }
     }
 
     private Task Save(AppState next, DigitalBrain.Signal first, DigitalBrain.Signal second, DigitalBrain.Signal third) => base.Save(next, [first, second, third]);
@@ -49,9 +89,6 @@ internal sealed partial class AppNeuron(
         await Publish(changed);
     }
 
-    // Another app of this brain, by its os key.
-    private DigitalBrain.NeuronId AppId(string key) => new(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Id.Brain.Value.Length + 1)..]);
-
     // The platform-wide Marketplace is still a grain outside every brain.
     private IMarketplace Marketplace => SiloNeurons.Get<IMarketplace>(Context.Services, IMarketplace.Key);
     private const int MaxHistory = 3;
@@ -59,6 +96,8 @@ internal sealed partial class AppNeuron(
     private const int MaxPayloadLength = 64 * 1024;
     private const int MaxReceipts = 64;
     private const int RetainedCapacity = 64;
+    internal const int MaxFocus = 16;
+    internal const int MaxFocusKeyLength = 512;
 
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(State));
 
@@ -83,9 +122,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> SaveSpec(string spec, Guid operationId)
     {
-        await Check("SaveSpec",
-            new ProgramIsNotPaused(State.MigrationPaused),
-            new AppExists(Name(), State.Manifest is not null));
+        await RequireCreated("SaveSpec");
         ArgumentException.ThrowIfNullOrWhiteSpace(spec);
         if (Replayed(operationId)) { return Describe(State); }
         var next = State.Clone();
@@ -100,9 +137,7 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId)
     {
-        await Check("SaveManifest",
-            new ProgramIsNotPaused(State.MigrationPaused),
-            new AppExists(Name(), State.Manifest is not null));
+        await RequireCreated("SaveManifest");
         ArgumentNullException.ThrowIfNull(manifest);
         if (Replayed(operationId)) { return Describe(State); }
         var next = State.Clone();
@@ -111,56 +146,6 @@ internal sealed partial class AppNeuron(
         // Newly declared settings get their defaults; chosen values survive.
         foreach (var setting in manifest.Settings)
         { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
-        next.Version = Bump(next.Version, minor: false);
-        await RequireCompiles(next);
-        Record(next);
-        Receipt(next, operationId);
-        await Persist(next);
-        return Describe(State);
-    }
-
-    public async Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId)
-    {
-        await Check("WriteBehavior",
-            new AppExists(Name(), State.Manifest is not null),
-            new ProgramIsNotPaused(State.MigrationPaused));
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        await Check("WriteBehavior", new ProgramPathIsWritable(path ?? ""));
-        if (Replayed(operationId)) { return Describe(State); }
-        var next = State.Clone();
-        next.Edited = true;
-        next.PutFile(path!, source);
-        next.Version = Bump(next.Version, minor: false);
-        Record(next);
-        Receipt(next, operationId);
-        AdvanceProgram(next);
-        // The whole program goes to the runtime before anything is persisted: a write the
-        // compiler refuses leaves the app's files exactly as they were.
-        IReadOnlyDictionary<string, string>? hashes = null;
-        if (Runtime is { } runtime)
-        {
-            var sources = Sources(next);
-            hashes = await runtime.Deploy(Key, sources, Configuration(next), CancellationToken.None);
-        }
-        // A fast-path write names its deployed synapse on the request; CompleteSynapse lands the outcome.
-        var requested = Array.FindIndex(next.Synapses, synapse => synapse.OperationId == operationId && synapse.Status == SynapseStatus.Requested);
-        if (requested >= 0) { next.Synapses[requested] = next.Synapses[requested] with { Path = path!, Hash = hashes?.GetValueOrDefault(path!) }; }
-        await Persist(next);
-        return Describe(State);
-    }
-
-    public async Task<AppSnapshot> WriteFile(string path, string source, Guid operationId)
-    {
-        await Check("WriteFile",
-            new ProgramIsNotPaused(State.MigrationPaused),
-            new AppExists(Name(), State.Manifest is not null));
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        await Check("WriteFile", new FilePathIsNotAProgram(path));
-        if (Replayed(operationId)) { return Describe(State); }
-        var next = State.Clone();
-        next.Edited = true;
-        next.PutFile(path, source);
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         Receipt(next, operationId);
@@ -171,8 +156,8 @@ internal sealed partial class AppNeuron(
     public async Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)
     {
         await Check("Configure",
-            new ProgramIsNotPaused(State.MigrationPaused),
             new AppExists(Name(), State.Manifest is not null),
+            new AppRecordIsUsable(Name(), State.Refused),
             new SettingsAreNotReserved(settings?.Keys ?? (IReadOnlyCollection<string>)[]));
         // A storage hook vetoes a binding change its data depends on, before anything changes.
         foreach (var (slot, id) in connections ?? [])
@@ -196,8 +181,8 @@ internal sealed partial class AppNeuron(
     {
         string[] known = [.. State.History.Select(item => item.Version)];
         await Check("Rollback",
-            new ProgramIsNotPaused(State.MigrationPaused),
             new AppExists(Name(), State.Manifest is not null),
+            new AppRecordIsUsable(Name(), State.Refused),
             new VersionExists(version, known));
         var record = State.History.First(item => item.Version == version);
         var next = State.Clone();
@@ -219,7 +204,6 @@ internal sealed partial class AppNeuron(
         var building = State.Status == AppStatus.Building
             && clock.GetUtcNow() - State.BuildStartedAt < TimeSpan.FromSeconds(options.Value.BuildFreshForSeconds);
         await Check("BeginBuild",
-            new ProgramIsNotPaused(State.MigrationPaused),
             new AppExists(Name(), State.Manifest is not null),
             new BuilderIsIdle(building));
         var next = State.Clone();
@@ -262,17 +246,11 @@ internal sealed partial class AppNeuron(
 
     public Task<string?> BuildFlow() => Task.FromResult(State.BuildFlowId);
 
-    public Task Progress(string state, string detail) => Progress(state, detail, []);
-
-    public async Task Progress(string state, string detail, Dictionary<string, string> blackboard)
+    public async Task Progress(string state, string detail)
     {
         // A background writer may report after deletion; activity must not recreate its app record.
         if (State.Manifest is null) { return; }
-        var declared = State.Presentation?.Root?.Sphere?.BlackboardKeys;
-        var keyRules = declared is not null && blackboard is { Count: > 0 }
-            ? blackboard.Keys.Select(key => (Rule)new BlackboardKeyIsDeclared(key, declared)).ToArray()
-            : [];
-        await Check("Progress", [new ActivityStateIsKnown(state ?? ""), .. keyRules]);
+        await Check("Progress", new ActivityStateIsKnown(state ?? ""));
         detail = (detail ?? "").Trim();
         // In-memory update without State.Clone() or Save() disk flushes
         var building = State.Status == AppStatus.Building && detail.Length > 0
@@ -281,25 +259,36 @@ internal sealed partial class AppNeuron(
         var activity = new AppActivity(Name(), state!, detail);
         State.ActivitySequence++;
         State.LastActivity = activity;
-        var presentation = PresentationCollaborator.ApplyActivity(State, Key, state!, blackboard);
+        var presentation = PresentationCollaborator.ApplyActivity(State, Key, state!);
         await PublishEphemeral(activity);
         if (presentation is not null)
         { await PublishEphemeral(presentation); }
     }
 
-    public async Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash)
+    public async Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.InstallStatus status, string sentence)
     {
-        if (State.MigrationPaused || State.Status != AppStatus.Building || attempt != State.BuildAttempt) { return Describe(State); }
+        if (State.Status != AppStatus.Building || attempt != State.BuildAttempt) { return Describe(State); }
         var next = State.Clone();
-        next.Status = AppStatus.Live;
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build finished: synapse unit {hash}"];
+        if (status is DigitalBrain.InstallStatus.Installed or DigitalBrain.InstallStatus.Updated or DigitalBrain.InstallStatus.Unchanged)
+        {
+            next.Status = AppStatus.Live;
+            // The unit build is how the Creator rebuilds a refused record: it lifts the refusal.
+            next.Refused = null;
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build finished: synapse unit {hash}"];
+        }
+        else
+        {
+            // Pending: the unit is deployed but its needs wait for the person; the app stays Building until they are installed.
+            var line = $"waiting for approval: {sentence}";
+            if (next.Activity.LastOrDefault() == line) { return Describe(State); }
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), line];
+        }
         await Persist(next);
         return Describe(State);
     }
 
     public async Task<AppSnapshot> CompleteBuild(Guid attempt,Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
     {
-        if (State.MigrationPaused) { return Describe(State); }
         if (State.Status != AppStatus.Building || attempt != State.BuildAttempt) { return Describe(State); }
         var next = State.Clone();
         if (error is not null || files is not { Count: > 0 })
@@ -325,6 +314,7 @@ internal sealed partial class AppNeuron(
         }
         foreach (var (path, source) in files) { next.PutFile(path, source); }
         next.Edited = true;
+        next.Refused = null;
         next.Version = Bump(next.Version, minor: firstBuild);
         next.Status = AppStatus.Live;
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
@@ -345,7 +335,6 @@ internal sealed partial class AppNeuron(
 
     public async Task Delete()
     {
-        await Check("Delete", new ProgramIsNotPaused(State.MigrationPaused));
         if (State.Manifest is null) { return; }
         var key = Key;
         // Only this app's own listing comes down with it.
@@ -354,7 +343,7 @@ internal sealed partial class AppNeuron(
             && listed.Source.Scope() == BrainId())
         { await Marketplace.Remove(publisher, Name()); }
         // Everything the app owns goes with it: its program, then its storage.
-        if (Runtime is { } runtime) { await runtime.Retire(key, CancellationToken.None); }
+        await Runtime.Retire(key, CancellationToken.None);
         if (ServiceProvider.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(State.BrainScopeId ?? "", key, CancellationToken.None); }
         await RemoveAppPrincipal();
@@ -367,6 +356,9 @@ internal sealed partial class AppNeuron(
         foreach (var hook in storageHooks) { await hook.OnCreated(BrainId(), Key, CancellationToken.None); }
     }
 
+    // A view's emit is a request by another name: the same rules, judge, retention and AppRequested.
+    public Task<Guid> Emit(string signal, string args) => Request(signal, args);
+
     public async Task<Guid> Request(string operation, string input)
     {
         await RequireCreated("Request");
@@ -377,27 +369,13 @@ internal sealed partial class AppNeuron(
             new OperationIsDeclared(operation, operations, Name()),
             new RequestPayloadFits(input.Length));
         var id = Guid.NewGuid();
-        if (State.MigrationTarget is { } target)
-        {
-            await Get<IAppMigration>(AppId(target)).Accept(operation, input, id);
-            return id;
-        }
         var requested = new AppRequested(operation, input, id);
-        if (await Rejection(requested) is { } rejected)
-        {
-            await Publish(new AppRejected(operation, rejected));
-            await Progress("attention", $"{rejected.Rule} refused {operation}: {rejected.Reason}");
-            throw new RuleViolationException(new Rejected(operation, [rejected.Rule], [rejected.Reason]));
-        }
         // A request is a fact for the app's synapses; it is published for whoever is watching and kept
         // for whoever subscribes later, so a synapse that starts after the request still gets it.
         var next = State.Clone();
         var retained = new RetainedRequest(next.RequestSequence + 1, requested);
         next.RequestSequence = retained.Sequence;
-        // During cutover two independent retained windows are combined. Do not immediately
-        // truncate half of that adopted window when the first new command arrives.
-        var capacity = next.Migration is null ? RetainedCapacity : 2 * RetainedCapacity;
-        next.RequestRetention = [.. next.RequestRetention.TakeLast(capacity - 1), retained];
+        next.RequestRetention = [.. next.RequestRetention.TakeLast(RetainedCapacity - 1), retained];
         await Save(next, new AppRequested(operation, input, id));
         return id;
     }
@@ -418,29 +396,6 @@ internal sealed partial class AppNeuron(
 
     private Task RequireCreated(string operation)
         => Check(operation, new AppExists(Name(), State.Manifest is not null));
-
-    // The publish gate: every script in the bundle compiles against the installed contracts. A host
-    // without a script compiler cannot run apps either, so it has nothing to refuse.
-
-    private Task RequireCompiles() => RequireCompiles(State);
-
-    private async Task RequireCompiles(AppState state)
-    {
-        var scripts = state.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
-            .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-        if (scripts.Count == 0) { return; }
-        // The declaration compiles with the program it describes.
-        scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(Name(), state.Version, state.Manifest!, state.Spec));
-        var sandbox = ServiceProvider.GetService<IScriptSandbox>();
-        if (sandbox is null) { return; }
-        ScriptCompilationCheck check;
-        try { check = await sandbox.Compile(scripts, CancellationToken.None); }
-        catch (InvalidOperationException) { return; }
-        if (check.Success) { return; }
-        // build outcome, caught by Build
-        throw new InvalidOperationException($"Version {State.Version} does not compile: "
-            + string.Join("; ", check.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}")));
-    }
 
     private string Name()
     {
@@ -470,22 +425,6 @@ internal sealed partial class AppNeuron(
         next.Presentation = null;
     }
 
-    public async Task<AppSnapshot> SaveRuntimeState(string stateJson, long expectedRevision)
-    {
-        ArgumentNullException.ThrowIfNull(stateJson);
-        if (expectedRevision < State.RuntimeStateRevision)
-        {
-            // The runner sees the revision it gets back and logs that its state was not kept.
-            ServiceProvider.GetRequiredService<ILogger<AppNeuron>>().LogWarning("App {App} ignored a state save at revision {Expected}; it holds revision {Current}", Key, expectedRevision, State.RuntimeStateRevision);
-            return Describe(State);
-        }
-        var next = State.Clone();
-        next.RuntimeStateJson = stateJson;
-        next.RuntimeStateRevision = expectedRevision + 1;
-        await Save(next, new AppChanged(Name(), next.Version, next.Status));
-        return Describe(next);
-    }
-
     private Task Persist(AppState next)
     {
         return next.ProgramRevision == State.ProgramRevision
@@ -508,11 +447,7 @@ internal sealed partial class AppNeuron(
         state.PublishedVersion,
         state.Origin,
         state.Edited,
-        [.. state.Synapses],
         state.Installation,
         state.Presentation,
-        state.ProgramRevision,
-        state.MigrationTarget,
-        state.RuntimeStateJson,
-        state.RuntimeStateRevision);
+        state.ProgramRevision);
 }

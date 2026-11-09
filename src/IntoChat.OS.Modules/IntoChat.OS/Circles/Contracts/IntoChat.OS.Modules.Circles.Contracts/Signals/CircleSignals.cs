@@ -20,3 +20,10 @@ public sealed record CircleSpoke(
 public sealed record CircleMembershipRevoked(
     string AccountId,
     string[] PreviousMembers) : DigitalBrain.Signal;
+
+// The circle's room (the shipped circleroom unit) hears these: a member joined the circle, or left or was removed.
+[DigitalBrain.Signal("circleroom.join")]
+public sealed record CircleRoomJoined(string Member) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("circleroom.leave")]
+public sealed record CircleRoomLeft(string Member) : DigitalBrain.Signal;

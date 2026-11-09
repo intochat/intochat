@@ -106,17 +106,17 @@ void main() {
     addTearDown(client.close);
     final subscriptions = [
       for (final node in [
-        ('surface', 'owner/apps/a/surface'),
-        ('surface', 'owner/apps/b/surface'),
-        ('text', 'owner/apps/a/title'),
+        ('view', 'owner/apps/a/view'),
+        ('view', 'owner/apps/b/view'),
+        ('field', 'owner/apps/a/title'),
       ])
         client.watchNode('owner', node.$1, node.$2).listen((_) {}),
     ];
     await Future<void>.delayed(const Duration(milliseconds: 300));
     expect(service.watches, hasLength(1));
     expect(service.watches.single.sources.map((s) => s.key), [
-      'owner/apps/a/surface',
-      'owner/apps/b/surface',
+      'owner/apps/a/view',
+      'owner/apps/b/view',
       'owner/apps/a/title',
     ]);
     for (final subscription in subscriptions) {

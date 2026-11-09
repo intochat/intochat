@@ -47,7 +47,6 @@ public sealed partial class InternalsVisibleToFacts
         // The kernel tests still construct identity internals. The grants go away with that reach in 0.8.0.
         if (grantor == "IntoChat.OS.Modules.Identity" && grantee is "IntoChat.OS.Kernel.Tests.Unit" or "IntoChat.OS.Kernel.Tests.Integration" or "IntoChat.OS.Kernel.Tests.E2E" or "IntoChat.OS.Kernel.Composition.Tests.Integration") { return true; }
         if (grantor == "IntoChat.OS.Kernel.Composition" && grantee is "IntoChat.OS.Kernel.Tests.E2E" or "IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit") { return true; }
-        if (grantor == "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox" && grantee is "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit" or "IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration") { return true; }
         const string hosting = ".Aspire.Hosting";
         return grantor.EndsWith(hosting, StringComparison.Ordinal) && grantee == grantor[..^hosting.Length] + ".Tests.Hosting";
     }

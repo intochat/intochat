@@ -24,7 +24,7 @@ public static class InoAgentDefinition
             Contracts =
             [
                 typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,
-                typeof(IShellControl).FullName!, typeof(IMemory).FullName!, typeof(IRouter).FullName!,
+                typeof(IMemory).FullName!, typeof(IRouter).FullName!,
             ],
             Contexts =
             [

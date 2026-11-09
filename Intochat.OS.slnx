@@ -131,6 +131,7 @@
   </Folder>
   <Folder Name="/Modules/Google/Flutter/">
     <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Integration/IntoChat.OS.Modules.Flutter.Tests.Integration.csproj" />
+    <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Support/IntoChat.OS.Modules.Flutter.Tests.Support.csproj" />
     <Project Path="src/IntoChat.OS.Modules/Google/Flutter/tests/IntoChat.OS.Modules.Flutter.Tests.Unit/IntoChat.OS.Modules.Flutter.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Modules/Google/Flutter/Contracts/">
@@ -230,18 +231,6 @@
   </Folder>
   <Folder Name="/Modules/Microsoft/Azure/src/">
     <Project Path="src/IntoChat.OS.Modules/Microsoft/Azure/src/IntoChat.OS.Modules.Microsoft.Azure/IntoChat.OS.Modules.Microsoft.Azure.csproj" />
-  </Folder>
-  <Folder Name="/Modules/Microsoft/CSharp/">
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.E2E/IntoChat.OS.Modules.Microsoft.CSharp.Tests.E2E.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Integration.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/tests/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit/IntoChat.OS.Modules.Microsoft.CSharp.Tests.Unit.csproj" />
-  </Folder>
-  <Folder Name="/Modules/Microsoft/CSharp/Contracts/">
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
-  </Folder>
-  <Folder Name="/Modules/Microsoft/CSharp/src/">
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox.csproj" />
-    <Project Path="src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp/IntoChat.OS.Modules.Microsoft.CSharp.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/GitHub/">
     <Project Path="src/IntoChat.OS.Modules/Microsoft/GitHub/tests/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit/IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit.csproj" />

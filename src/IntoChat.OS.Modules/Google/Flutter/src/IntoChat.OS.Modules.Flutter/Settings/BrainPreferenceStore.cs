@@ -4,7 +4,7 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Spi;
 using IntoChat.OS.Runtime;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.TextField;
+using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -44,7 +44,7 @@ internal static class BrainPreferenceStore
     public static async Task<bool> ReadNotification(INeuronProxies brain, string scope, string key, CancellationToken ct)
     {
         var fallback = NotificationKeys.First(known => known.Key == key).Default;
-        var state = await brain.Get<ITextField>(NotificationField(scope, key)).Read().WaitAsync(ct);
+        var state = await brain.Get<IField>(NotificationField(scope, key)).Read().WaitAsync(ct);
         return state.Value switch { "on" => true, "off" => false, _ => fallback };
     }
 
@@ -58,7 +58,7 @@ internal static class BrainPreferenceStore
     public static Task WriteNotification(INeuronProxies brain, string scope, string key, bool on, CancellationToken ct)
     {
         if (!IsNotificationKey(key)) { throw new ArgumentException("Unknown notification preference.", nameof(key)); }
-        return brain.Get<ITextField>(NotificationField(scope, key)).SetValue(on ? "on" : "off").WaitAsync(ct);
+        return brain.Get<IField>(NotificationField(scope, key)).Set(on ? "on" : "off").WaitAsync(ct);
     }
 
     // The apps a new tab may open: every titled, live app of the caller's brain except the hidden ones, Ino first.
@@ -69,14 +69,14 @@ internal static class BrainPreferenceStore
         {
             if (IApp.NameOf(scope, instance.Key) is not { } name || Hidden.Contains(name)) { continue; }
             var app = await brain.Get<IApp>(instance.Key).Read().WaitAsync(ct);
-            if (!string.IsNullOrWhiteSpace(app.Manifest.Title) && app.MigrationTarget is null) { found.Add(new(name, app.Manifest.Title)); }
+            if (!string.IsNullOrWhiteSpace(app.Manifest.Title)) { found.Add(new(name, app.Manifest.Title)); }
         }
         return [.. found.OrderBy(choice => choice.Name == NewTabDefault ? 0 : 1).ThenBy(choice => choice.Title, StringComparer.OrdinalIgnoreCase)];
     }
 
     public static async Task<string> ReadNewTab(INeuronProxies brain, string scope, Choice[] choices, CancellationToken ct)
     {
-        var stored = (await brain.Get<ITextField>(NewTabField(scope)).Read().WaitAsync(ct)).Value;
+        var stored = (await brain.Get<IField>(NewTabField(scope)).Read().WaitAsync(ct)).Value;
         return choices.Any(choice => choice.Name == stored) ? stored! : NewTabDefault;
     }
 
@@ -85,7 +85,7 @@ internal static class BrainPreferenceStore
     {
         var choices = await NewTabChoices(brain, kernel, scope, ct);
         if (name is null || !choices.Any(choice => choice.Name == name)) { return false; }
-        await brain.Get<ITextField>(NewTabField(scope)).SetValue(name).WaitAsync(ct);
+        await brain.Get<IField>(NewTabField(scope)).Set(name).WaitAsync(ct);
         return true;
     }
 }

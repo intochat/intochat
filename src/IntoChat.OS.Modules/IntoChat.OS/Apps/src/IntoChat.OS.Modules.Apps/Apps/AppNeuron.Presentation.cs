@@ -29,7 +29,7 @@ internal sealed partial class AppNeuron
                 ? 17
                 : Math.Max(1, views.Length);
         var declaredKeys = presentation.Sphere?.BlackboardKeys ?? [];
-        var slotRules = new[] { presentation.Side, presentation.Main }.OfType<UiChildRef>().Concat(views.Where(v => v?.Root is not null).Select(view => view.Root))
+        var slotRules = new[] { presentation.Side, presentation.Main }.OfType<ViewRef>().Concat(views.Where(v => v?.Root is not null).Select(view => view.Root))
             .Select(slot => (Rule)new SlotNamesABrainNeuron(string.IsNullOrWhiteSpace(slot.Kind) ? "" : slot.Name, State.BrainScopeId ?? ""));
         await Check("Present",
             [new PresentationHasViews(viewCount), .. slotRules, new BlackboardKeysAreDeclarable(declaredKeys)]);
@@ -40,55 +40,6 @@ internal sealed partial class AppNeuron
         }
         return Describe(State);
     }
-
-    public async Task<AppSnapshot> FailPresentation(long expectedProgramRevision, string error)
-    {
-        await RequireExecutingAssignment("FailPresentation", expectedProgramRevision);
-        ArgumentException.ThrowIfNullOrWhiteSpace(error);
-        if (new PresentationCollaborator(State).Fail(error) is { } next)
-        {
-            await Save(next, new PresentationChanged(Key, next.ProgramRevision, next.Presentation!.Revision));
-        }
-        return Describe(State);
-    }
-
-    public async Task<AppSnapshot> WriteBlackboard(long expectedProgramRevision, Dictionary<string, string> values)
-    {
-        await RequireExecutingAssignment("WriteBlackboard", expectedProgramRevision);
-        ArgumentNullException.ThrowIfNull(values);
-        await Check("WriteBlackboard", new PresentationIsPublished(State.Presentation is not null));
-        var declared = State.Presentation!.Root?.Sphere?.BlackboardKeys ?? [];
-        await Check("WriteBlackboard", [.. values.Keys.Select(key => (Rule)new BlackboardKeyIsDeclared(key, declared))]);
-        if (new PresentationCollaborator(State).WithBlackboard(values) is { } next)
-        {
-            await Save(next, new PresentationChanged(Key, next.ProgramRevision, next.Presentation!.Revision));
-        }
-        return Describe(State);
-    }
-
-    public async Task Stamp(string key, string value)
-    {
-        if (RuntimeCallerContext.TryGet(out var caller) && caller.Kind != CallerKind.Platform)
-        { throw new UnauthorizedAccessException("Only the module may stamp reserved blackboard keys."); }
-        await RequireCreated("Stamp");
-        await Check("Stamp", new BlackboardKeysAreDeclarable(FlameSchema.ReservedBlackboardKeys.Contains(key, StringComparer.Ordinal) ? ["ok"] : [""]));
-        if (new PresentationCollaborator(State).WithBlackboard(new Dictionary<string, string>(StringComparer.Ordinal) { [key] = value }) is { } next)
-        {
-            await Save(next, new PresentationChanged(Key, next.ProgramRevision, next.Presentation!.Revision));
-        }
-    }
-
-    internal static UiNode MapView(View view, string? brainId = null)
-        => PresentationCollaborator.MapView(view, brainId);
-
-    internal static UiNode MapNode(string key, Node node, string? brainId = null)
-        => PresentationCollaborator.MapNode(key, node, brainId);
-
-    internal static UiNode MapView(View view, string? brainId, bool osTrusted)
-        => PresentationCollaborator.MapView(view, brainId, osTrusted);
-
-    internal static UiNode MapNode(string key, Node node, string? brainId, bool osTrusted)
-        => PresentationCollaborator.MapNode(key, node, brainId, osTrusted);
 
     private Task RequireExecutingAssignment(string operation, long expectedProgramRevision)
     {

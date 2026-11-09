@@ -132,7 +132,7 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
                         new Text(State.Status),
                         new Row(
                         [
-                            new Button("Refresh usage", new ButtonAction("usage", "refresh", []), Tone: ButtonTone.Accent)
+                            new Button("refresh-usage", "Refresh usage", Emit: AppSignals.Emit("usage", "refresh"), Tone: ButtonTone.Accent)
                             {
                                 Icon = "refresh-cw",
                                 Small = true,

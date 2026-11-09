@@ -82,7 +82,6 @@ WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
 COPY --from=ui-build /workspace/shell/build/web /app/wwwroot
-COPY features /app/features
 
 # The image enables the OS catalog; configuration may disable modules
 # (IntoChatOS__Modules__{id}__Enabled=false).
@@ -91,8 +90,7 @@ COPY features /app/features
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     IntoChatOS__Topology=cloud \
-    DOTNET_EnableDiagnostics=0 \
-    IntoChatOS__Modules__apps__Options__Features=/app/features
+    DOTNET_EnableDiagnostics=0
 
 EXPOSE 8080
 

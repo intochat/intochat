@@ -14,10 +14,7 @@ public sealed partial class NoSignalLoopFacts
         "IntoChat.OS/Runtime/Watch/Sources.cs",
         "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs",
         "IntoChat.OS.Modules.Apps/Authoring/AgentPrompts.cs",
-        "IntoChat.OS.Modules.Microsoft.CSharp/Authoring/CSharpScriptSandbox.cs",
-        "IntoChat.OS.Modules.Microsoft.CSharp/Catalog/CSharpContractDiscovery.cs",
-        "IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/AppRunner.cs",
-        // Host infrastructure that drives app turns from declared watches, as AppRunner does; not module logic.
+        // Host infrastructure that drives app turns from declared watches; not module logic.
         "IntoChat.OS.Modules.Apps/Hosting/HostedAppWatches.cs",
     ];
 

@@ -146,12 +146,11 @@ internal sealed class WebBrowserNeuron
     }
 
     private async Task Review() =>
-        await Dispatch(UiEvent.Of(new BrowserObservationChanged(FullKey)));
+        await Publish(new BrowserObservationChanged(FullKey));
 
     private async Task Announce(DigitalBrain.Signal signal)
     {
         await Publish(signal);
-        await Dispatch(UiEvent.Of(signal));
     }
 
     protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
@@ -190,7 +189,6 @@ internal sealed class WebBrowserNeuron
         var navigated = new BrowserNavigated(FullKey, next.Uri);
         await Save(next, navigated);
         if (_session is not null) { await Show(next.Uri); }
-        await Dispatch(UiEvent.Of(navigated));
     }
 
     [DigitalBrain.ReadOnlyCall]

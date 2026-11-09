@@ -13,6 +13,7 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
@@ -23,11 +24,15 @@ namespace IntoChat.OS.Apps.Ino;
 public sealed record InoOpen(string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("ino.send")]
-public sealed record InoSend(string? Message = null, string? Text = null) : DigitalBrain.Signal
+public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : DigitalBrain.Signal
 {
+    // Value is the composer field's text, which a view submit adds to the emit.
     [System.Text.Json.Serialization.JsonIgnore]
-    public string? EffectiveMessage => !string.IsNullOrWhiteSpace(Message) ? Message : Text;
+    public string? EffectiveMessage => !string.IsNullOrWhiteSpace(Message) ? Message : !string.IsNullOrWhiteSpace(Text) ? Text : Value;
 }
+
+[DigitalBrain.Signal("ino.link")]
+public sealed record InoPasteLink(Guid Request = default, string? App = null, string? Input = null, string? Text = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("ino.new")]
 public sealed record InoNew : DigitalBrain.Signal;
@@ -76,6 +81,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(InoApp));
 
+    public const string AppName = "ino";
+
     public static AppBundle Bundle { get; } = new(
         "ino",
         "3.5.0",
@@ -94,10 +101,12 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 new("new-conversation", "Alias for new."),
                 new("voice", "Begin voice input."),
                 new("make", "Apply a sentence to the focused app, or Scratch."),
+                new("link", "Post a pasted workspace link: its app, opaque input and text."),
             ],
             Settings: [],
             Slots: [],
             Icon: "icon.svg",
+            Dock: 1,
             Toolbar:
             [
                 new("send", Kind: "text", Label: "Message your brain"),
@@ -171,6 +180,23 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         {
             Swallow(error, "The grants neuron is optional when Ino runs without the identity module.");
         }
+    }
+
+    // A pasted link is remembered in Ino's records neuron (the chat reads its card from there) and posted to the agent under its plain id.
+    [DigitalBrain.On]
+    public async Task Link(InoPasteLink request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        // An empty or malformed link posts nothing.
+        if (request.Request == Guid.Empty || !ChatAppCard.IsAppName(request.App)) { return; }
+        var input = request.Input ?? "";
+        if (input.Length > ChatAppCard.MaxInput) { throw new ArgumentException("The link input is too long."); }
+        var id = request.Request.ToString("N");
+        var records = Get<IInoRecords>(IInoRecords.Key);
+        var kept = await records.Read();
+        if (!kept.Links.Any(link => link.Request == id))
+        { await records.Write(kept with { Links = [.. kept.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] }); }
+        await Get<IAgent>(AgentKeyOf(State.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
     }
 
     [DigitalBrain.On]

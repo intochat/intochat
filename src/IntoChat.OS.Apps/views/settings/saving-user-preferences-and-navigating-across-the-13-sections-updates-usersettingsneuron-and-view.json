@@ -29,14 +29,15 @@
           "padding": 18
         },
         {
-          "kind": "textField",
-          "name": "settings-search",
-          "value": "",
+          "kind": "field",
+          "key": "settings-search",
+          "name": "apps/settings/settings-search",
+          "fieldKind": "Search",
           "placeholder": "Search settings...",
           "onSubmit": {
-            "neuron": "settings",
-            "operation": "navigate",
-            "arguments": [
+            "owner": "apps/settings",
+            "signal": "navigate",
+            "args": [
               "general",
               "",
               ""
@@ -333,10 +334,15 @@
                     {
                       "kind": "button",
                       "label": "Light",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "accent",
+                      "style": "secondary",
+                      "icon": "sun",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "light",
                           "gpt-5",
@@ -344,20 +350,20 @@
                           "floating-glass",
                           "light"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "accent",
-                      "style": "secondary",
-                      "icon": "sun",
-                      "small": true
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Dark",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "moon",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "dark",
                           "gpt-5",
@@ -365,20 +371,20 @@
                           "floating-glass",
                           "dark"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "moon",
-                      "small": true
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Auto",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "sparkles",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "light",
                           "gpt-5",
@@ -386,12 +392,7 @@
                           "floating-glass",
                           "auto"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "sparkles",
-                      "small": true
+                      }
                     }
                   ],
                   "gap": 8,
@@ -409,116 +410,116 @@
                     {
                       "kind": "button",
                       "label": "Fluent Acrylic",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "light",
                           "gpt-5",
                           "fluent-acrylic",
                           "floating-glass"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Spatial Glass",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "accent",
+                      "style": "secondary",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "light",
                           "gpt-5",
                           "spatial-glass",
                           "floating-glass"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "accent",
-                      "style": "secondary",
-                      "small": true
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Cyber Synaptic",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "light",
                           "gpt-5",
                           "cyber-synaptic",
                           "floating-glass"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Warm Paper",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "light",
                           "gpt-5",
                           "warm-paper",
                           "floating-glass"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Midnight",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "light",
                           "gpt-5",
                           "midnight",
                           "floating-glass"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Nordic",
-                      "action": {
-                        "neuron": "settings",
-                        "operation": "save-preferences",
-                        "arguments": [
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/settings",
+                        "signal": "save-preferences",
+                        "args": [
                           "Alice",
                           "light",
                           "gpt-5",
                           "nordic",
                           "floating-glass"
                         ]
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
+                      }
                     }
                   ],
                   "gap": 8,
@@ -575,72 +576,67 @@
                     {
                       "kind": "button",
                       "label": "Open Profile & 2FA",
-                      "action": {
-                        "neuron": "os://window/profile",
-                        "operation": "os://window/profile",
-                        "arguments": []
-                      },
                       "enabled": true,
                       "tone": "accent",
                       "style": "secondary",
                       "icon": "user",
-                      "small": true
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/os://window/profile",
+                        "signal": "os://window/profile"
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Open Secure Vault",
-                      "action": {
-                        "neuron": "os://window/secure",
-                        "operation": "os://window/secure",
-                        "arguments": []
-                      },
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
                       "icon": "key-round",
-                      "small": true
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/os://window/secure",
+                        "signal": "os://window/secure"
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Install App by Link",
-                      "action": {
-                        "neuron": "os://sheet/install",
-                        "operation": "os://sheet/install",
-                        "arguments": []
-                      },
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
                       "icon": "package-plus",
-                      "small": true
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/os://sheet/install",
+                        "signal": "os://sheet/install"
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Review Update Consent",
-                      "action": {
-                        "neuron": "os://sheet/reconsent",
-                        "operation": "os://sheet/reconsent",
-                        "arguments": []
-                      },
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
                       "icon": "shield-check",
-                      "small": true
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/os://sheet/reconsent",
+                        "signal": "os://sheet/reconsent"
+                      }
                     },
                     {
                       "kind": "button",
                       "label": "Resolve File Conflict",
-                      "action": {
-                        "neuron": "os://sheet/conflict",
-                        "operation": "os://sheet/conflict",
-                        "arguments": []
-                      },
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
                       "icon": "git-compare",
-                      "small": true
+                      "small": true,
+                      "emit": {
+                        "owner": "apps/os://sheet/conflict",
+                        "signal": "os://sheet/conflict"
+                      }
                     }
                   ],
                   "gap": 8,

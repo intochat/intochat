@@ -103,6 +103,7 @@ final class FlowView {
     this.detail,
     this.app,
     this.conversation,
+    this.subject,
   });
   final String flowId;
   final String type;
@@ -125,6 +126,7 @@ final class FlowView {
   final String? detail;
   final String? app;
   final String? conversation;
+  final String? subject;
 
   factory FlowView.fromJson(Map<String, dynamic> json) => FlowView(
     flowId: json['flowId'] as String,
@@ -156,6 +158,7 @@ final class FlowView {
     detail: json['detail'] as String?,
     app: json['app'] as String?,
     conversation: json['conversation'] as String?,
+    subject: json['subject'] as String?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -180,5 +183,6 @@ final class FlowView {
     'detail': detail,
     'app': app,
     'conversation': conversation,
+    'subject': subject,
   };
 }

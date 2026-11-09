@@ -117,6 +117,8 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DataStudioApp));
 
+    public const string AppName = "data";
+
     public static AppBundle Bundle { get; } = new(
         "data",
         "1.0.0",
@@ -135,6 +137,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
             Settings: [],
             Slots: [],
             Icon: "icon.svg",
+            Dock: 3, Studio: true,
             Toolbar:
             [
                 new("open", Icon: "database", Label: "Open Dataset"),
@@ -353,32 +356,32 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
                         new Text(State.ActiveQuery) { Mono = true, Tone = "muted" },
                         new Row(
                         [
-                            new Button("Bar", new ButtonAction("apps/data", "switch-chart", ["bar"]), Tone: State.ChartKind == "bar" ? ButtonTone.Accent : ButtonTone.Neutral)
+                            new Button("bar", "Bar", Emit: AppSignals.Emit("data", "switch-chart", "bar"), Tone: State.ChartKind == "bar" ? ButtonTone.Accent : ButtonTone.Neutral)
                             {
                                 Icon = "bar-chart-2",
                                 Small = true,
                             },
-                            new Button("Line", new ButtonAction("apps/data", "switch-chart", ["line"]), Tone: State.ChartKind == "line" ? ButtonTone.Accent : ButtonTone.Neutral)
+                            new Button("line", "Line", Emit: AppSignals.Emit("data", "switch-chart", "line"), Tone: State.ChartKind == "line" ? ButtonTone.Accent : ButtonTone.Neutral)
                             {
                                 Icon = "trending-up",
                                 Small = true,
                             },
-                            new Button("Pie", new ButtonAction("apps/data", "switch-chart", ["pie"]), Tone: State.ChartKind == "pie" ? ButtonTone.Accent : ButtonTone.Neutral)
+                            new Button("pie", "Pie", Emit: AppSignals.Emit("data", "switch-chart", "pie"), Tone: State.ChartKind == "pie" ? ButtonTone.Accent : ButtonTone.Neutral)
                             {
                                 Icon = "pie-chart",
                                 Small = true,
                             },
-                            .. groupableCols.Select(col => (Node)new Button($"Group by {col}", new ButtonAction("apps/data", "group-by", [col, "SUM"]))
+                            .. groupableCols.Select(col => (Node)new Button($"group-by-{col}", $"Group by {col}", Emit: AppSignals.Emit("data", "group-by", col, "SUM"))
                             {
                                 Icon = "layers",
                                 Small = true,
                             }),
-                            new Button("Export CSV", new ButtonAction("apps/data", "export-csv", []))
+                            new Button("export-csv", "Export CSV", Emit: AppSignals.Emit("data", "export-csv"))
                             {
                                 Icon = "download",
                                 Small = true,
                             },
-                            new Button("Diagram in Markdraw", new ButtonAction("apps/data", "to-markdraw", ["/work/data-lineage.markdraw"]))
+                            new Button("diagram-in-markdraw", "Diagram in Markdraw", Emit: AppSignals.Emit("data", "to-markdraw", "/work/data-lineage.markdraw"))
                             {
                                 Icon = "pen-tool",
                                 Small = true,

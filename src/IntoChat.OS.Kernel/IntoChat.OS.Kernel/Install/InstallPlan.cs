@@ -218,7 +218,6 @@ public static class InstallPlan
             ["IntoChatOS__ForwardedHeaders__KnownNetworks__2"] = "172.16.0.0/12",
             ["IntoChatOS__ForwardedHeaders__KnownNetworks__3"] = "192.168.0.0/16",
             ["IntoChatOS__ForwardedHeaders__KnownNetworks__4"] = "127.0.0.0/8",
-            ["IntoChatOS__Modules__apps__Options__Features"] = "features",
             ["IntoChatOS__Modules__artcraft__Enabled"] = "false",
             ["IntoChatOS__Modules__clickhouse__Enabled"] = "false",
             ["IntoChatOS__Modules__qdrant__Enabled"] = "false",

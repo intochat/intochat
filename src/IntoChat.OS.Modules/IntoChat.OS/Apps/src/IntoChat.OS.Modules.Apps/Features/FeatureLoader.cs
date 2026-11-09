@@ -2,7 +2,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The one load path for a feature bundle into a brain, whatever the source: the features folder,
+// The one load path for a feature bundle into a brain, whatever the source: the shipped catalog,
 // a person's Marketplace listing, or an app the Creator published. A new app is imported, an
 // existing one has its program replaced (settings, connections and data stay); either way the
 // copy remembers where it came from. Whether a load is allowed is the caller's policy.

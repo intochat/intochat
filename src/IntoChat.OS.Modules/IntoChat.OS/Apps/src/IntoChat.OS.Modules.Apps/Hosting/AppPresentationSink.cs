@@ -5,13 +5,9 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Chart;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Modules.Flutter.Table;
-using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
 using Orleans.Runtime;
-using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -40,15 +36,11 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         var app = SiloNeurons.Get<IApp>(services, appKey);
         var snapshot = await app.Read().WaitAsync(ct);
         var generation = Math.Max(1L, snapshot.ProgramRevision);
-        var trusted = AppTrust.IsOsTrusted(snapshot);
 
+        // The views are published as the app returned them; only the side-by-side composition of side and main is the host's.
         if (side is not null)
         {
-            var sideNeuron = SiloNeurons.Get<IView>(services, appKey + "/side");
-            var currentSide = await sideNeuron.Read();
-            var sideGen = currentSide is { Generation: > 0 } ? Math.Max(generation, currentSide.Generation) : generation;
-            var nextSideVersion = (currentSide?.Generation == sideGen ? currentSide.Version : 0L) + 1L;
-            await sideNeuron.Publish(new UiView(sideGen, nextSideVersion, AppNeuron.MapView(side, brain, trusted)));
+            using (HostCaller.AsPlatform(brain)) { await SiloNeurons.Get<IView>(services, appKey + "/side").Publish(generation, side); }
         }
 
         if (main is not null)
@@ -56,54 +48,30 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             var host = services.GetService(typeof(InProcessAppHost)) as InProcessAppHost;
             var instance = host?.TryGetTurns(owner)?.App;
 
-            UiNode mainTree;
+            View mainView;
             if (instance is DigitalBrain.App<InoAppState> ino)
             {
-                await SyncInoChatAndComposerAsync(brain, appKey, ino.State);
-                mainTree = side is not null
-                    ? Ui.Row(
-                        "ino-workspace",
-                        [
-                            AppNeuron.MapNode("ino-side", side.Root, brain, trusted),
-                            AppNeuron.MapNode("ino-main", main.Root, brain, trusted),
-                        ],
-                        gap: 0,
-                        extents: [256, 0])
-                    : AppNeuron.MapNode("ino-main", main.Root, brain, trusted);
-            }
-            else if (side is not null)
-            {
-                var sideWidth = appName == "creator" ? 340d : appName == "gallery" ? 268d : 236d;
-                mainTree = Ui.Row(
-                    "view",
-                    [
-                        AppNeuron.MapNode("side", side.Root, brain, trusted),
-                        AppNeuron.MapNode("root", main.Root, brain, trusted),
-                    ],
-                    gap: 14,
-                    extents: [sideWidth, 0]);
+                using (HostCaller.AsPlatform(brain)) { await SyncInoTranscriptAsync(appKey, ino.State); }
+                mainView = side is not null ? main with { Root = new Row([side.Root, main.Root]) { Gap = 0, Extents = [256, 0] } } : main;
             }
             else
             {
-                mainTree = AppNeuron.MapView(main, brain, trusted);
+                mainView = side is not null ? main with { Root = new Row([side.Root, main.Root]) { Gap = 14, Extents = [ShippedManifests.SideWidth(snapshot.Manifest), 0] } } : main;
             }
 
-            var mainNeuron = SiloNeurons.Get<IView>(services, appKey + "/view");
-            var currentMain = await mainNeuron.Read();
-            if (appName != "desktop" || currentMain?.Root is not { Key: "desktop" })
+            // The desktop's view is the host's window shell (CompiledAppsHost.EnsureDesktopViewAsync): the desktop app never replaces it.
+            if (appName != "desktop")
             {
-                var mainGen = currentMain is { Generation: > 0 } ? Math.Max(generation, currentMain.Generation) : generation;
-                var nextMainVersion = (currentMain?.Generation == mainGen ? currentMain.Version : 0L) + 1L;
-                await mainNeuron.Publish(new UiView(mainGen, nextMainVersion, mainTree));
+                using (HostCaller.AsPlatform(brain)) { await SiloNeurons.Get<IView>(services, appKey + "/view").Publish(generation, mainView); }
             }
         }
 
         var icon = string.IsNullOrWhiteSpace(snapshot.Manifest.Icon) ? "icon.svg" : snapshot.Manifest.Icon;
         var presentation = new Presentation(
             new Sphere(icon, []),
-            Side: side is not null ? new UiChildRef(UIVocabulary.ViewType, appKey + "/side") : null,
-            Main: new UiChildRef(UIVocabulary.ViewType, appKey + "/view"),
-            Views: [new PresentationView("full", new UiChildRef(UIVocabulary.ViewType, appKey + "/view"))]);
+            Side: side is not null ? new ViewRef(UIVocabulary.ViewType, appKey + "/side") : null,
+            Main: new ViewRef(UIVocabulary.ViewType, appKey + "/view"),
+            Views: [new PresentationView("full", new ViewRef(UIVocabulary.ViewType, appKey + "/view"))]);
 
         var previousCaller = RuntimeCallerContext.TryGet(out var existingCaller) ? existingCaller : null;
         var baseCaller = previousCaller ?? await HostCaller.ForBrain(services, brain);
@@ -136,34 +104,8 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         }
     }
 
-    private async Task SyncInoChatAndComposerAsync(string brain, string appKey, InoAppState state)
+    private async Task SyncInoTranscriptAsync(string appKey, InoAppState state)
     {
-        var composer = SiloNeurons.Get<IComposer>(services, appKey + "/composer");
-        var currentComposer = await composer.Read();
-        if (currentComposer.Generation < 1 || !string.Equals(currentComposer.Context, appKey, StringComparison.Ordinal))
-        {
-            await composer.Configure(appKey, 1L, "Message Ino (local model, SQL, PhotoCraft, or apps)...");
-        }
-
-        var dvKey = IApp.Key(brain, "datavisualizer");
-        if (state.ActiveCards.LastOrDefault(c => c.Kind == "table" && c.Columns is { Length: > 0 } && c.Rows is { Length: > 0 }) is { } tableCard)
-        {
-            var tableCols = tableCard.Columns!.Select((col, idx) => new TableColumn($"col_{idx + 1}", col)).ToArray();
-            var tableRows = tableCard.Rows!.Select(row => (IReadOnlyList<string>)row).ToArray();
-            await SiloNeurons.Get<ITable>(services, appKey + "/table").Replace(tableCard.Title, tableCols, tableRows);
-            await SiloNeurons.Get<ITable>(services, dvKey + "/views/main/table").Replace(tableCard.Title, tableCols, tableRows);
-            await SiloNeurons.Get<IText>(services, dvKey + "/last-view").Set("main");
-        }
-
-        if (state.ActiveCards.LastOrDefault(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 }) is { } chartCard)
-        {
-            var chartKind = string.IsNullOrWhiteSpace(chartCard.ChartKind) ? "bar" : chartCard.ChartKind;
-            var points = chartCard.ChartPoints!.Select(p => new ChartPoint(p.Id, p.Label, p.Value)).ToArray();
-            await SiloNeurons.Get<IChart>(services, appKey + "/chart").Render(chartCard.Title, chartKind, points);
-            await SiloNeurons.Get<IChart>(services, dvKey + "/views/main/chart").Render(chartCard.Title, chartKind, points);
-            await SiloNeurons.Get<IText>(services, dvKey + "/last-view").Set("main");
-        }
-
         var chat = SiloNeurons.Get<IChat>(services, appKey + "/transcript");
         var currentChat = await chat.Read();
         var chatGen = currentChat.Projection?.Generation is > 0 and var g ? g : 1L;
@@ -181,18 +123,19 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         }
         else
         {
+            var manifests = await ShippedManifests.Of(services);
             for (var i = 0; i < state.Turns.Length; i++)
             {
                 var turn = state.Turns[i];
                 entries.Add(new ChatEntry($"turn-{i + 1}-user", ChatRole.User, turn.UserMessage));
-                entries.Add(BuildAssistantChatEntry(i + 1, turn, state));
+                entries.Add(BuildAssistantChatEntry(i + 1, turn, state, manifests));
             }
         }
 
         await chat.Project(new ChatProjection(appKey, chatGen, nextVersion, [.. entries]));
     }
 
-    internal static ChatEntry BuildAssistantChatEntry(int turnNumber, InoTurn turn, InoAppState state)
+    internal static ChatEntry BuildAssistantChatEntry(int turnNumber, InoTurn turn, InoAppState state, ShippedManifests manifests)
     {
         var text = turn.Reply;
         var activities = new List<ChatActivity>();
@@ -259,23 +202,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             var targetApp = dot > 0 ? routedTarget[..dot] : routedTarget;
             if (ChatAppCard.IsAppName(targetApp))
             {
-                var displayTitle = targetApp switch
-                {
-                    "photocraft" => "PhotoCraft",
-                    "filmcraft" => "FilmCraft",
-                    "settings" => "Settings",
-                    "files" => "Files",
-                    _ => targetApp,
-                };
-                var displayIcon = targetApp switch
-                {
-                    "photocraft" => "image",
-                    "filmcraft" => "film",
-                    "settings" => "settings",
-                    "files" => "folder",
-                    _ => "grid",
-                };
-                appCard = new ChatAppCard(targetApp, displayTitle, displayIcon, true);
+                appCard = new ChatAppCard(targetApp, manifests.Title(targetApp), manifests.Icon(targetApp), true);
             }
         }
 

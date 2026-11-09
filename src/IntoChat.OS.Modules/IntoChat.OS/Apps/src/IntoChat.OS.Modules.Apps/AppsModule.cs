@@ -46,14 +46,12 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IIncomingGrainCallFilter, MarketplaceWriteGuard>();
-        services.TryAddSingleton<GitSideload>();
         services.AddSingleton(new CompiledAppsRegistration(typeof(AppsModule).Assembly));
         services.TryAddSingleton(FeatureCatalog.From);
         services.TryAddSingleton<FeatureLoader>();
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
-        services.TryAddSingleton<SideloadInstaller>();
         services.TryAddSingleton<IntoChat.OS.Framework.IHostedAppTypes, HostedAppTypes>();
         services.TryAddSingleton<AppPresentationSink>();
         services.TryAddSingleton<IPresentationSink>(sp => sp.GetRequiredService<AppPresentationSink>());
@@ -63,23 +61,15 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
                 ?? throw new InvalidOperationException($"Capability '{capType.Name}' is not registered."),
             sink: sp.GetRequiredService<IPresentationSink>(),
             services: serviceType => sp.GetService(serviceType)));
-        services.TryAddSingleton<IAppHost>(sp => sp.GetRequiredService<InProcessAppHost>());
         services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
-        services.TryAddSingleton<AppAuthoringPolicy>();
         services.TryAddSingleton<Creator>();
         services.AddNeuronProxies();
         services.TryAddSingleton<IPolicyModel, CreatorPolicyModel>();
         services.TryAddSingleton<PolicyWriter>();
         // FeatureBoot runs once the silo is active, as an Orleans startup task did.
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FeatureBootLifecycle>();
-        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, BrainSceneLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
-        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, Flows.MigrateTasksLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, CompiledAppsLifecycle>();
-        services.AddSingleton<DevAppGate>();
-        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, DevTokenLifecycle>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, InProcessAppRuntime>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, AppGraphSource>();
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Flows.FlowGraphSource>();
     }
@@ -110,12 +100,9 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapGet("/session/capabilities", static (IServiceProvider services) =>
-            Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
         ArtCraftWebEndpoints.Map(endpoints);
         PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
-        DevAppEndpoints.Map(endpoints);
     }
 }

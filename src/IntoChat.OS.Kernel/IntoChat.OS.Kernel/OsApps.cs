@@ -1,3 +1,5 @@
+using DigitalBrain.Spi;
+using IntoChat.OS.Runtime;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Signals;
 using DigitalBrain.Capabilities.Identity;
@@ -11,7 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Kernel;
 
-// The operating system's default apps: every script in the folder, plus ShippedApps.Roots.
+// The operating system's default apps: every compiled app the catalog ships, plus ShippedApps.Roots.
 // A distribution adds its own through OsAppsOptions. Apps.
 public sealed record OsApp(string Publisher, string Name);
 
@@ -28,8 +30,7 @@ public static class OsAppsHosting
 {
     private sealed class OsAppsRegistered;
 
-    // The operating system installs the folder plus ShippedApps.Roots; a distribution's configure only adds.
-    // The apps themselves are features the host loads from its script folder (AppsOptions.Features).
+    // The operating system installs its shipped compiled apps plus ShippedApps.Roots; a distribution's configure only adds.
     // Idempotent: the composition wires this itself, and a host calling it again is a no-op
     // apart from its own configure delegate.
     public static IServiceCollection AddOperatingSystemApps(this IServiceCollection services, Action<OsAppsOptions>? configure = null)
@@ -51,7 +52,7 @@ public static class OsAppsHosting
         ArgumentNullException.ThrowIfNull(services);
         if (configure is not null) { services.Configure(configure); }
         services.AddOptions<OsAppsOptions>();
-        services.AddSingleton(new CompiledAppsRegistration(typeof(SettingsApp).Assembly));
+        services.AddSingleton(new CompiledAppsRegistration(typeof(SettingsApp).Assembly, [typeof(IntoChat.OS.Apps.Ino.InoApp), typeof(SettingsApp)]));
         services.TryAddSingleton<OsDefaults>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICreationHandler, OsDefaults>(provider => provider.GetRequiredService<OsDefaults>()));
         return services;
@@ -60,15 +61,19 @@ public static class OsAppsHosting
 
 // A new brain is born with the OS defaults. Create awaits this handler inside the owner's own
 // turn. A present app is the person's, never replaced here. A circle brain gets none (R125): it
-// is born with its own room only. The folder and ShippedApps.Roots load through the feature loader;
+// is born with its own room only, the shipped circleroom unit (ShippedApps.CircleUnits). The shipped catalog and ShippedApps.Roots load through the feature loader;
 // a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
-    IIntoChatOSBrains brains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
+    IIntoChatOSBrains brains, INeuronProxies proxies, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
     ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader) : ICreationHandler
 {
     public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
-        if (await (await capabilities.Identity(cancellationToken)).KindOf(brainId, cancellationToken) == BrainKind.Circle) { return; }
+        if (await (await capabilities.Identity(cancellationToken)).KindOf(brainId, cancellationToken) == BrainKind.Circle)
+        {
+            await DeployCircleUnits(proxies, logger, brainId);
+            return;
+        }
         await ShippedInstall.Missing(catalog, loader, brainId,
             async name => await brains.Get<IApp>($"{brainId}/apps/{name}").Read().WaitAsync(cancellationToken),
             (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId),
@@ -87,6 +92,26 @@ internal sealed class OsDefaults(
                 // One default failing must not keep the others from installing.
                 logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, brainId);
             }
+        }
+    }
+
+    // A circle's shipped units (its room) deploy at birth and wait, Pending, for the creator's consent in the approvals: the OS never
+    // approves them. One that fails is logged and the next connect deploys again (OsWorkspaceRoot); a deploy never approves.
+    internal static async Task DeployCircleUnits(INeuronProxies proxies, ILogger logger, string brainId)
+    {
+        // Host code deploying the shipped units into the circle's brain: the connecting person's stamp names another brain, so the
+        // call runs as the platform of the target brain (the call filter refuses a person's call across brains).
+        using var platform = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.StampScope(DigitalBrain.Capabilities.CapabilityCallers.Platform(brainId, brainId, brainId));
+        var studio = proxies.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
+        foreach (var alias in ShippedApps.CircleUnits)
+        {
+            try
+            {
+                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, proxies.Get<IApp>(IApp.Key(brainId, alias)), alias, IntoChat.OS.Apps.ShippedUnits.Title(alias));
+                if (!result.Ok) { logger.LogWarning("Circle unit {Unit} did not deploy in {Brain}: {Reason}", alias, brainId, result.Text); }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "Circle unit {Unit} did not deploy in {Brain}.", alias, brainId); }
         }
     }
 

@@ -3,12 +3,11 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
-using IntoChat.OS.Modules.Flutter.TextField;
-using IntoChat.OS.Modules.Flutter.TextField.Signals;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Tasks;
 
@@ -68,9 +67,7 @@ public sealed class TasksAppFacts
         Assert.Contains("✓ draft", strings);
         Assert.Contains("● approve", strings);
         Assert.Contains("○ start", strings);
-        var buttons = Nodes(side).OfType<Button>().Select(b => b.Label).ToArray();
-        Assert.Contains("Approve", buttons);
-        Assert.Contains("Deny", buttons);
+        Assert.Equal("plan-1", Assert.Single(Nodes(side).OfType<ApprovalCardNode>()).Resolve?.PlanId);
     }
 
     [Fact]
@@ -81,12 +78,8 @@ public sealed class TasksAppFacts
 
         var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [approval], null);
 
-        var approve = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Approve").Action;
-        Assert.Equal(IConfirmations.ConfirmationsNeuronKey, approve.Neuron);
-        Assert.Equal(IConfirmations.ResolveOperation, approve.Operation);
-        Assert.Equal(["plan-1", "true"], approve.Arguments);
-        var deny = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Deny").Action;
-        Assert.Equal(["plan-1", "false"], deny.Arguments);
+        var card = Assert.Single(Nodes(side).OfType<ApprovalCardNode>());
+        Assert.Equal("plan-1", card.Resolve?.PlanId);
     }
 
     [Fact]
@@ -104,22 +97,22 @@ public sealed class TasksAppFacts
         Assert.Equal(started.Id, tasks.App.State.Selected);
     }
 
-    // The presentation turns this action into os://window/open?app=trace&input=trace%2Ftrace-c (AppPresentationForeignActionFacts).
+    // The presentation turns this action into os://window/open?app=creator&input=trace%2Ftrace-c (AppPresentationForeignActionFacts).
     [Fact]
-    public void OpenTraceNavigatesToTraceApp()
+    public void OpenTraceNavigatesToTheCreator()
     {
         var flow = Flow("c", FlowStatus.Running);
         var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
 
-        var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Open trace").Action;
+        var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Label == "Open trace").Intent;
 
-        Assert.Equal(new ButtonAction("apps/trace", "open", ["trace/trace-c"]), open);
+        Assert.Equal(new Intent(IntentKind.OpenWindow, "os://window/open?app=creator&input=trace%2Ftrace-c"), open);
     }
 
     [Fact]
     public void FormFieldsAreTheAppsTextfieldNeurons()
     {
-        var names = Nodes(TasksViewRenderer.Render(new TasksState(), [], [], T0)).OfType<TextField>().Select(f => f.Name).ToArray();
+        var names = Nodes(TasksViewRenderer.Render(new TasksState(), [], [], T0)).OfType<Field>().Select(f => f.Name).ToArray();
         Assert.Equal(["apps/tasks/title", "apps/tasks/description"], names);
     }
 
@@ -131,8 +124,9 @@ public sealed class TasksAppFacts
 
         await Field(tasks, "title", "Ship docs");
         await Field(tasks, "description", "Write and publish the docs");
-        var start = Assert.Single(Nodes(tasks.App.Render()).OfType<Button>(), b => b.Label == "Start").Action;
-        await tasks.Request(start.Operation, new TasksNew(start.Arguments[0], start.Arguments[1]));
+        var start = Assert.Single(Nodes(tasks.App.Render()).OfType<Button>(), b => b.Label == "Start").Emit!;
+        var startArgs = EmitArgs.Of(start);
+        await tasks.Request(start.Signal, new TasksNew(startArgs[0], startArgs[1]));
 
         var started = Assert.Single(FakeFlows.Started);
         Assert.Equal("Ship docs", started.Title);
@@ -148,8 +142,8 @@ public sealed class TasksAppFacts
         await tasks.Request("open", new TasksOpen());
         await tasks.Request("select", new TasksSelect(FakeFlows.Views[0].FlowId));
 
-        var cancel = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Button>(), b => b.Label == "Cancel").Action;
-        await tasks.Request(cancel.Operation, new TasksCancel(cancel.Arguments[0]));
+        var cancel = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Button>(), b => b.Label == "Cancel").Emit!;
+        await tasks.Request(cancel.Signal, new TasksCancel(EmitArgs.Of(cancel)[0]));
 
         Assert.Equal(FakeFlows.Views[0].FlowId, Assert.Single(FakeFlows.Cancels));
     }
@@ -163,11 +157,12 @@ public sealed class TasksAppFacts
         await tasks.Request("open", new TasksOpen());
         await tasks.Request("select", new TasksSelect(FakeFlows.Views[0].FlowId));
 
-        var kind = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relation").Options.Single(o => o.Id == "Follows").Action!;
-        await tasks.Request(kind.Operation, new TasksRelateKind(kind.Arguments[0]));
+        var kind = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relation").Options.Single(o => o.Id == "Follows").Emit!;
+        await tasks.Request(kind.Signal, new TasksRelateKind(EmitArgs.Of(kind)[0]));
         await Field(tasks, "lag", "1");
-        var target = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relate to").Options.Single().Action!;
-        await tasks.Request(target.Operation, new TasksRelate(target.Arguments[0], target.Arguments[1], target.Arguments[2], target.Arguments[3]));
+        var target = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Select>(), s => s.Label == "Relate to").Options.Single().Emit!;
+        var targetArgs = EmitArgs.Of(target);
+        await tasks.Request(target.Signal, new TasksRelate(targetArgs[0], targetArgs[1], targetArgs[2], targetArgs[3]));
 
         var (flowId, relation) = Assert.Single(FakeFlows.Relations);
         Assert.Equal(FakeFlows.Views[0].FlowId, flowId);
@@ -202,6 +197,101 @@ public sealed class TasksAppFacts
         Assert.Contains("weather", source.Body, StringComparison.Ordinal);
     }
 
+    private static FlowView Unit(FlowStatus status, string? current, string[] done, WaitReason? waiting = null, string? waitingStep = null, string? plan = null, string? detail = null)
+        => Flow("u", status, type: "flow.build") with
+        {
+            Steps = ["author", "draft", "verify", "deploy", "install"], Done = done, Current = current,
+            WaitingFor = waiting, WaitingStep = waitingStep, ConfirmationPlanId = plan, Detail = detail,
+        };
+
+    [Fact]
+    public void AnInstallWaitShowsTheNeedsSentenceAndNoApproveButton()
+    {
+        var flow = Unit(FlowStatus.Waiting, "install", ["author", "draft", "verify", "deploy"], WaitReason.External, "install", "plan-i");
+        var consent = new Approval("plan-i", ApprovalKind.SynapseStaged, "xwatch", "Install xwatch?", "Reads posts. Reads api.x.com.", T0, T0.AddDays(2), flow.TraceId);
+
+        var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [consent], null);
+
+        Assert.Contains("Reads posts. Reads api.x.com.", Strings(side));
+        Assert.Contains("✓ deploy", Strings(side));
+        Assert.Contains("● install", Strings(side));
+        Assert.All(Nodes(side).OfType<ApprovalCardNode>(), card => Assert.Null(card.Resolve));
+        Assert.DoesNotContain(Nodes(side).OfType<Button>(), b => b.Label.Contains("pprove", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AMissingConnectionShowsTheConnectTextWithAnOpenSettingsIntent()
+    {
+        var flow = Unit(FlowStatus.Waiting, "deploy", ["author", "draft", "verify"], WaitReason.External, "deploy", detail: "connect http@1 for api.x.com");
+
+        var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
+
+        Assert.Contains("connect http@1 for api.x.com", Strings(side));
+        var open = Assert.Single(Nodes(side).OfType<Button>(), b => b.Key == "open-connections").Intent;
+        Assert.Equal(new Intent(IntentKind.OpenSettings, "connections"), open);
+    }
+
+    [Fact]
+    public void AFailedVerifyShowsTheFirstThreeLinesAndTheCount()
+    {
+        var flow = Unit(FlowStatus.Failed, "verify", ["author", "draft"],
+            detail: "The unit did not pass verify.\nX.cs(3) SYN001: no\nscenario one failed\nscenario two failed\nscenario three failed");
+
+        var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [], null);
+
+        var bar = Assert.Single(Nodes(side).OfType<InfoBar>(), b => b.Title == "Verify failed");
+        Assert.Equal("The unit did not pass verify.\nX.cs(3) SYN001: no\nscenario one failed\n(+2 more)", bar.Message);
+    }
+
+    [Fact]
+    public async Task ShowSourceRendersTheSpecFirstThenTheCodeThenTheScenarios()
+    {
+        await using var os = FakeOs();
+        FakeFlows.Views = [Flow("unit1", FlowStatus.Completed, type: "flow.build")];
+        FakeSynapses.Sources = [new DeployedSource("unit1", "h1", ["weather"], DeployStatus.Deployed, null, T0)];
+        FakeSynapses.Files = new() { ["B.cs"] = "class B;", ["A.cs"] = "class A;" };
+        FakeSynapses.SidecarFiles = new() { ["scenarios.json"] = "[]", ["spec.md"] = "# Weather" };
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+
+        await tasks.Request("show-source", new TasksShowSource(FakeFlows.Views[0].FlowId));
+
+        var body = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Card>(), c => c.Title == "Source").Body;
+        var order = new[] { "--- spec.md ---", "--- A.cs ---", "--- B.cs ---", "--- scenarios.json ---" }.Select(marker => body.IndexOf(marker, StringComparison.Ordinal)).ToArray();
+        Assert.All(order, index => Assert.True(index >= 0, body));
+        Assert.Equal(order.Order(), order);
+    }
+
+    [Fact]
+    public void AMissingConnectionApprovalIsOneReadOnlyCard()
+    {
+        var flow = Unit(FlowStatus.Waiting, "deploy", ["author", "draft", "verify"], WaitReason.External, "deploy");
+        var other = new Approval("plan-o", ApprovalKind.Other, flow.FlowId, "Connect", "connect http@1 for api.x.com", T0, T0.AddDays(2), flow.TraceId);
+
+        var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [other], null);
+
+        Assert.All(Nodes(side).OfType<ApprovalCardNode>(), card => Assert.Null(card.Resolve));
+        Assert.Single(Nodes(side).OfType<InfoBar>(), b => b.Title == "Needs a connection");
+        Assert.Contains("connect http@1 for api.x.com", Strings(side));
+    }
+
+    [Fact]
+    public async Task ShowSourceOfACompletedBuildFollowsItsSubject()
+    {
+        await using var os = FakeOs();
+        FakeFlows.Views = [Flow("done", FlowStatus.Completed, type: "flow.build") with { Subject = "x.watch" }];
+        FakeSynapses.Sources = [new DeployedSource("x.watch", "h2", ["x.watch"], DeployStatus.Deployed, null, T0)];
+        FakeSynapses.Files = new() { ["XWatch.cs"] = "class XWatch;" };
+        FakeSynapses.SidecarFiles = new() { ["spec.md"] = "# Watches mentions" };
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+
+        await tasks.Request("show-source", new TasksShowSource(FakeFlows.Views[0].FlowId));
+
+        var body = Assert.Single(Nodes(tasks.App.RenderSide()).OfType<Card>(), c => c.Title == "Source").Body;
+        Assert.True(body.IndexOf("--- spec.md ---", StringComparison.Ordinal) is >= 0 and var spec && spec < body.IndexOf("--- XWatch.cs ---", StringComparison.Ordinal), body);
+    }
+
     [Fact]
     public async Task FlowsChangedRefreshesTheBoard()
     {
@@ -217,8 +307,11 @@ public sealed class TasksAppFacts
 
     // TestOS does not serve declared watches: hand the field's change to the watch on apps/tasks/{field}, as the host does.
     private static Task Field(InstalledApp<TasksApp> tasks, string field, string value)
-        => Assert.Single(tasks.App.DeclaredWatches(), w => w.SignalType == typeof(TextFieldChanged) && w.Key(new AppAddress("local", "tasks")) == $"apps/tasks/{field}")
-            .Handle(new TextFieldChanged($"local/apps/tasks/{field}", value));
+    {
+        FakeField.Values[$"apps/tasks/{field}"] = value;
+        return Assert.Single(tasks.App.DeclaredWatches(), w => w.SignalType == typeof(FieldChanged) && w.Key(new AppAddress("local", "tasks")) == $"apps/tasks/{field}")
+            .Handle(new FieldChanged("local/apps/tasks", field, 1));
+    }
 
     [Fact]
     public async Task AskInoToChangeWritesUiFocus()
@@ -242,11 +335,14 @@ public sealed class TasksAppFacts
         FakeFlows.Reset();
         FakeFocus.Points.Clear();
         FakeSynapses.Sources = [];
+        FakeSynapses.SidecarFiles = [];
+        FakeSynapses.Files = [];
         var os = TestOS.Local();
         os.Register<FakeFlows>();
         os.Register<FakeApprovals>();
         os.Register<FakeFocus>();
         os.Register<FakeSynapses>();
+        os.Register<FakeField>();
         return os;
     }
 
@@ -292,6 +388,18 @@ public sealed class TasksAppFacts
         public Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default) { Relations.Add((flowId, relation)); return Task.CompletedTask; }
     }
 
+    [Neuron("ui.field")]
+    private sealed class FakeField : Neuron, IField
+    {
+        public static Dictionary<string, string?> Values { get; } = [];
+
+        public Task Configure(FieldKind kind) => Task.CompletedTask;
+        public Task Set(string? value) { Values[Id.Key] = value; return Task.CompletedTask; }
+        public Task Input(string value) => Set(value);
+        public Task<string?> TakeSecret() => Task.FromResult<string?>(null);
+        public Task<FieldState> Read() => Task.FromResult(new FieldState { Value = Values.GetValueOrDefault(Id.Key) });
+    }
+
     [Neuron("approvals")]
     private sealed class FakeApprovals : Neuron, IApprovals
     {
@@ -319,7 +427,12 @@ public sealed class TasksAppFacts
 
         public Task<InoToolResult> Check(string source) => Task.FromResult(new InoToolResult(""));
         public Task<InoToolResult> Deploy(string alias, string source) => Task.FromResult(new InoToolResult(""));
-        public Task<InoToolResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files) => Task.FromResult(new InoToolResult(""));
+        public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings) => Task.FromResult(new UnitDeployResult(true, "", DigitalBrain.DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.InstallOutcome>()));
+        public static Dictionary<string, string> SidecarFiles { get; set; } = [];
+        public static Dictionary<string, string> Files { get; set; } = [];
+
+        public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(SidecarFiles);
+        public Task<Dictionary<string, string>> SourceFiles(string alias) => Task.FromResult(Files);
         public Task<InoToolResult> Retire(string alias) => Task.FromResult(new InoToolResult(""));
         public Task<DeployedSource[]> List() => Task.FromResult(Sources);
     }

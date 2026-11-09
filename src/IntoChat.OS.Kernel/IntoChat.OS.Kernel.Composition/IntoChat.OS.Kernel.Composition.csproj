@@ -18,6 +18,7 @@
     <PackageReference Include="DigitalBrain.Runtime.Http" />
     <PackageReference Include="DigitalBrain.Capabilities.Compute" />
     <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Capabilities.Http" />
     <PackageReference Include="DigitalBrain.Identity.Local" />
     <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
     <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />

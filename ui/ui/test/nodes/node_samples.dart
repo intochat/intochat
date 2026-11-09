@@ -1,0 +1,262 @@
+/// One sample per generated node kind, as `DigitalBrain.UI` serialises it.
+const _emit = {'owner': 'apps/sample', 'signal': 'picked'};
+const _button = {'key': 'go', 'label': 'Go', 'emit': _emit};
+
+const nodeSamples = <String, Map<String, dynamic>>{
+  'column': {
+    'kind': 'column',
+    'gap': 8,
+    'padding': 0,
+    'children': [
+      {'kind': 'text', 'value': 'A'},
+      {'kind': 'text', 'value': 'B'},
+    ],
+  },
+  'row': {
+    'kind': 'row',
+    'gap': 8,
+    'extents': [120, 1],
+    'children': [
+      {'kind': 'text', 'value': 'Left'},
+      {'kind': 'text', 'value': 'Right'},
+    ],
+  },
+  'grid': {
+    'kind': 'grid',
+    'columns': 2,
+    'gap': 8,
+    'children': [
+      {'kind': 'text', 'value': '1'},
+      {'kind': 'text', 'value': '2'},
+      {'kind': 'text', 'value': '3'},
+    ],
+  },
+  'splitPane': {
+    'kind': 'splitPane',
+    'leading': {'kind': 'text', 'value': 'Lead'},
+    'trailing': {'kind': 'text', 'value': 'Trail'},
+    'leadingExtent': 120,
+    'gap': 8,
+  },
+  'surface': {
+    'kind': 'surface',
+    'surfaceKind': 'elevated',
+    'title': 'Surface',
+    'subtitle': 'Sub',
+    'padding': 12,
+    'children': [
+      {'kind': 'text', 'value': 'Inside'},
+    ],
+  },
+  'tabs': {
+    'kind': 'tabs',
+    'selectedId': 'b',
+    'items': [
+      {'key': 'tab-a', 'id': 'a', 'label': 'A', 'emit': _emit},
+      {'key': 'tab-b', 'id': 'b', 'label': 'B', 'emit': _emit},
+    ],
+  },
+  'divider': {'kind': 'divider', 'label': 'or'},
+  'spacer': {'kind': 'spacer', 'size': 12},
+  'collection': {
+    'kind': 'collection',
+    'entries': [
+      {'id': 'e1', 'title': 'First', 'subtitle': 'one', 'trailing': '3 KB'},
+      {'id': 'e2', 'title': 'Second', 'subtitle': null},
+    ],
+  },
+  'heading': {'kind': 'heading', 'value': 'Title', 'level': 1, 'subtitle': 'S'},
+  'text': {
+    'kind': 'text',
+    'value': 'Plain',
+    'tone': 'muted',
+    'tabular': true,
+    'mono': false,
+  },
+  'badge': {'kind': 'badge', 'label': 'Done', 'tone': 'done'},
+  'tagPill': {'kind': 'tagPill', 'label': 'Tag', 'tone': 'working'},
+  'field': {
+    'kind': 'field',
+    'key': 'title',
+    'name': 'apps/sample/title',
+    'fieldKind': 'Text',
+    'placeholder': 'Title',
+  },
+  'intent': {'kind': 'intent', 'intentKind': 'Copy', 'arg': 'x'},
+  'switch': {
+    'kind': 'switch',
+    'key': 'on',
+    'label': 'Enabled',
+    'isOn': true,
+    'emit': _emit,
+    'locked': false,
+  },
+  'select': {
+    'kind': 'select',
+    'label': 'Pick',
+    'selected': 'a',
+    'options': [
+      {'key': 'opt-a', 'id': 'a', 'label': 'A', 'emit': _emit},
+      {'key': 'opt-b', 'id': 'b', 'label': 'B', 'emit': _emit},
+    ],
+  },
+  'progress': {
+    'kind': 'progress',
+    'label': 'Upload',
+    'value': 0.4,
+    'detail': '4 of 10',
+  },
+  'infoBar': {
+    'kind': 'infoBar',
+    'title': 'Heads up',
+    'message': 'Something happened',
+    'tone': 'error',
+    'action': _button,
+  },
+  'toast': {'kind': 'toast', 'message': 'Saved'},
+  'card': {
+    'kind': 'card',
+    'title': 'Card',
+    'body': 'Body',
+    'children': [
+      {'kind': 'button', ..._button},
+    ],
+  },
+  'button': {'kind': 'button', ..._button, 'tone': 'accent'},
+  'dataTable': {
+    'kind': 'dataTable',
+    'title': 'Deals',
+    'columns': ['Name', 'Amount'],
+    'rows': [
+      ['Acme', '10'],
+      ['Globex', '20'],
+    ],
+    'from': 'Salesforce',
+  },
+  'chart': {
+    'kind': 'chart',
+    'chartKind': 'columns',
+    'title': 'Revenue',
+    'points': [
+      {'label': 'Q1', 'value': 1},
+      {'label': 'Q2', 'value': 2},
+    ],
+    'from': 'DigitalBrain',
+  },
+  'approvalCard': {
+    'kind': 'approvalCard',
+    'key': 'confirm',
+    'id': 'plan-1',
+    'title': 'Approve change',
+    'summary': 'One field changes',
+    'rows': [
+      {'label': 'Stage', 'oldValue': 'Open', 'newValue': 'Won'},
+    ],
+    'status': 'pending',
+    'resolve': {'planId': 'plan-1'},
+  },
+  'choiceCard': {
+    'kind': 'choiceCard',
+    'id': 'c1',
+    'question': 'Which one?',
+    'options': [
+      {'title': 'First', 'pick': _button},
+      {'title': 'Second', 'detail': 'Two'},
+    ],
+  },
+  'draftCard': {
+    'kind': 'draftCard',
+    'id': 'd1',
+    'channel': 'email',
+    'to': 'a@example.test',
+    'body': 'Hello',
+    'from': 'me@example.test',
+    'subject': 'Hi',
+    'send': _button,
+  },
+  'recordCard': {
+    'kind': 'recordCard',
+    'objectLabel': 'Account',
+    'name': 'Acme',
+    'fields': [
+      {'label': 'Owner', 'value': 'Jeff'},
+    ],
+    'open': _button,
+  },
+  'secretCard': {
+    'kind': 'secretCard',
+    'name': 'OPENAI_KEY',
+    'why': 'To call the model',
+    'enter': _button,
+  },
+  'jobCard': {
+    'kind': 'jobCard',
+    'title': 'Import',
+    'steps': [
+      {'label': 'Read', 'status': 'done'},
+      {'label': 'Write', 'status': 'running'},
+    ],
+    'progress': 0.5,
+    'status': 'running',
+    'cancel': _button,
+  },
+  'brainScene': {
+    'kind': 'brainScene',
+    'nodes': [
+      {
+        'id': 'n1',
+        'label': 'Ino',
+        'uri': 'neuron://ino',
+        'kind': 'agent',
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'select': _button,
+      },
+    ],
+    'synapses': [
+      {'fromId': 'n1', 'toId': 'n1'},
+    ],
+  },
+  'neuronRef': {
+    'kind': 'neuronRef',
+    'refKind': 'viewport',
+    'neuronUri': 'neuron://brain/viewport',
+  },
+  'appShell': {
+    'kind': 'appShell',
+    'key': 'shell',
+    'sidebar': {
+      'kind': 'navItem',
+      'key': 'nav-home',
+      'label': 'Home',
+      'icon': 'house',
+      'action': 'home',
+      'selected': true,
+    },
+    'body': {'kind': 'text', 'value': 'Body'},
+    'toolbar': {'kind': 'heading', 'value': 'Toolbar'},
+  },
+  'navItem': {
+    'kind': 'navItem',
+    'key': 'nav-files',
+    'label': 'Files',
+    'icon': 'folder',
+    'action': 'files',
+    'badge': '3',
+  },
+  'statCard': {
+    'kind': 'statCard',
+    'key': 'stat',
+    'label': 'Nodes',
+    'value': '9',
+    'delta': 'Live',
+    'tone': 1,
+  },
+  'webBrowser': {
+    'kind': 'webBrowser',
+    'key': 'browser',
+    'url': 'https://example.test',
+    'title': 'Example',
+  },
+};

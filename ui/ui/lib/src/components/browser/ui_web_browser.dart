@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
 import '../../../../intochat_os_ui.dart' show IcAppIcon;
-import '../../models/ui_part.dart';
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
 import 'embedded_browser_stub.dart'
@@ -153,4 +152,36 @@ class _UiWebBrowserState extends State<UiWebBrowser> {
       ),
     );
   }
+}
+
+final class UiWebBrowserPart {
+  const UiWebBrowserPart({
+    required this.name,
+    required this.uri,
+    required this.title,
+  });
+
+  static const kindName = 'webbrowser';
+
+  final String name;
+  final String uri;
+  final String title;
+
+  String get kind => kindName;
+
+  String get copyText => uri;
+
+  factory UiWebBrowserPart.fromMetadata(Map<String, dynamic> metadata) =>
+      UiWebBrowserPart(
+        name: metadata['name'] as String? ?? '',
+        uri: metadata['uri'] as String? ?? '',
+        title: metadata['title'] as String? ?? '',
+      );
+
+  Map<String, Object?> toMetadata() => {
+    'kind': kindName,
+    'name': name,
+    'uri': uri,
+    'title': title,
+  };
 }

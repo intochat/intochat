@@ -7,7 +7,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: NeuronView(
+          body: ViewHost(
+            knowsApp: (_) => false,
             kind: 'view',
             name: 'test',
             watch: (_, _) => const Stream<void>.empty(),
@@ -25,7 +26,8 @@ void main() {
   testWidgets('neuronViewReRegistersWhenNameChanges', (tester) async {
     Widget view(String name) => MaterialApp(
       home: Scaffold(
-        body: NeuronView(
+        body: ViewHost(
+          knowsApp: (_) => false,
           kind: 'view',
           name: name,
           watch: (_, _) => const Stream<void>.empty(),

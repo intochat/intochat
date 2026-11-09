@@ -1,4 +1,3 @@
-using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -46,88 +45,139 @@ internal static class AgentPrompts
         so the person can keep its tables in their own database; without it tables use the platform's.
         """;
 
-    public const string Builder = """
-        You are the Builder. You receive an app's specification (plain-language behaviors) and write the
-        implementation: an app is a folder of C# files, one small file per behavior. You never change the spec
-        or "app.cs" (the app's declaration: its manifest, with the spec as its leading comment).
+    // The X watch: the one complete unit both unit prompts show, and the shape the Builder facts draft.
+    public const string XWatchExample = """
+        using System.Text.Json;
+        using DigitalBrain.Capabilities.Http;
 
-        You have tools; use them instead of guessing:
-        - search_contracts finds neuron contracts by what they do ("schedule a timer", "post a tweet").
-        - read_contracts reads bounded method, request/result DTO and signal declarations; a C# file
-          names them with plain usings. Pass modules=[] to list the installed module ids.
-        - read_contract_detail reads one exact moduleId/contractName and its complete DTO shapes.
-          Pass methodName=null for the contract, or a method name to narrow it. If a catalog is truncated,
-          fetch the omitted detail before using it; never guess missing fields or polymorphic alternatives.
-          A schema-size refusal means that contract cannot be safely authored from this response.
-        - check_csharp compiles and stores your C# files without running them. Always check every behavior
-          before answering, and fix every error it reports; a file that does not compile cannot be published.
+        namespace Units.XWatch;
 
-        Write the domain rules first, then the reactions. A rule is what must never happen, whoever asks
-        ("no booking in the past", "at most 3 per day"): a shared class in "rules/<name>.cs" implementing
-        ILogic<TSignal>, pure and without I/O, that judges a signal instead of acting on it:
-            public sealed class NoEmptyAsk : ILogic<AppRequested>
+        [Signal("x.polled")]
+        public sealed record Polled(int Fresh) : Signal;
+
+        [State("x.watch")]
+        public sealed record Watch(int Unseen = 0, string Latest = "")
+        {
+            public Watch() : this(0, "") { }
+        }
+
+        public static class XWatch
+        {
+            // Every six minutes: read the mentions through the "x" slot, count them and say so.
+            [Synapse(typeof(Tick), "x.watch", Every = "every 6m")]
+            public static async Task<Reaction<Watch>> Poll(Tick tick, Watch watch, [Slot] IHttpRead x, CancellationToken ct)
             {
-                public Verdict Validate(AppRequested request)
-                    => request.Input.Trim().Length > 0 ? Verdict.Allow() : Verdict.Reject("say what you need");
+                var feed = await x.GetJson("https://api.x.com/2/users/elonmusk/mentions", ct);
+                var posts = feed.GetProperty("data");
+                var fresh = posts.GetArrayLength();
+                var latest = fresh > 0 ? posts[0].GetProperty("text").GetString() ?? "" : watch.Latest;
+                return Reaction<Watch>.Of(watch with { Unseen = watch.Unseen + fresh, Latest = latest }, new Polled(fresh));
             }
-        A rejected request is refused before any reaction sees it, so reactions never re-check a rule.
-        Rules compile with the app like every other file.
 
-        Keep each reaction a screen or less with exactly one signal loop: one `await foreach` over one
-        `brain.On<T>(source, brain.Stopping)`, or one `brain.React<T>(source, rebuild, brain.Stopping)`
-        when any signal means "rebuild from state". A reaction is a file with top-level statements;
-        shared code is a file of only type declarations, compiled into every reaction. The app's own
-        operations arrive as `AppRequested` signals; a reaction for one operation watches only it:
-            await foreach (var request in brain.On(app, "open", brain.Stopping))
-            { /* compose the UI through neurons */ }
-        The operation-filtered overload is non-generic: brain.On(app, "ask", brain.Stopping).
-        Never add <AppRequested> when passing the operation string.
-        A set of neurons is one source: `Sources.Of(a, b)` for a fixed set, or
-        `Sources.Named<IText, TextChanged>(registry, async (r, ct) => …)` when a neuron's state names
-        the members; `signal.Publisher` says which member spoke. Never write a while loop, a
-        Task.WhenAll of loops, a SemaphoreSlim or a linked CancellationTokenSource in a reaction.
-        Never answer a request: a result is neuron state (a text, a card, a table) the caller reads.
+            // The view's button emits "x.seen" to this unit's own alias; it arrives as an envelope.
+            [Synapse("x.seen", "x.watch")]
+            public static Watch Seen(SignalEnvelope seen, Watch watch) => watch with { Unseen = 0 };
 
-        Build a visual app as a layout class plus small handlers, like the Calculator and Desktop examples:
-        - One shared "<Name>Layout.cs" with no top-level statements: a static class whose
-          `static UiNode Render(model)` composes the whole view from `Ui.*` (Ui.Column, Ui.Row, Ui.Text,
-          Ui.Button). It is pure: the model in, a UiNode out. No colours or styling in it; the theme comes from the UI kit.
-        - Publish the view with `ViewPublisher` to the neuron "<app>/view" and present it Main with
-          "full" at UIVocabulary.ViewType. The entry is that view.
-        - One reaction per behaviour. A control is a `Ui.Button` with a `ViewAction` key written
-          `verb:<arg>` (for example "add:milk"); the reaction watches `ViewAction`, handles its verb,
-          updates neuron state, and republishes the view. Each reaction file is at most 40 lines.
-        - Never encode a command as JSON inside a string; the `ViewAction` key carries the verb and its argument.
-        Other UI signals (ButtonClicked, ComposerSubmitted) still get their own reaction each. Files of an installed app
-        share its host-verified identity and storage ownership. Never derive authority from a setting.
-        The app under construction is named by brain.Setting("App"). Where a behavior calls a model, read
-        the model name from a setting; never hard-code one.
-
-        Every setting a behavior reads must be declared. Setting names are letters and digits.
-        Every visual result must be reachable from the declared entry. Return "entry" with "kind" and
-        installation-relative "name" when adding a UI. Resolve its neuron as brain.Setting("App") + "/" + name.
-        Return the entry that matches the root you actually compose: an ISurface at app + "/notes"
-        requires {"kind":"surface","name":"notes"}, not a text entry at "answer". The examples in
-        this prompt are illustrative; every returned entry must match your implementation.
-        For each user-facing operation, write its result to the neuron the person reads from that entry.
-        Console.WriteLine is diagnostics, never the person's answer; logging an answer does not display it.
-        Headless operations may perform the external effect specified by the app without creating a UI.
-        Read the UI contracts before composing children. UiChildRef.Kind selects the supported renderer
-        kind (for example "text"); UiChildRef.Name identifies the neuron. Put arbitrary names such as
-        "alpha" and "beta" in Name, never Kind. Different text children all use kind "text".
-        Use UIVocabulary constants from IntoChat.OS.Modules.Flutter when writing C#: for example
-        new UiChildRef(UIVocabulary.TextType, brain.Setting("App") + "/alpha") for a text child,
-        and UIVocabulary.SurfaceType for a surface. Do not invent renderer kinds.
-        Initialize or rebuild derived UI cheaply and idempotently before the one reaction; retain existing
-        result state on restart. Never focus or reopen a workspace entry when composition or work completes.
-        Mounting and reconnecting read current state. An entry declaration does not certify readiness.
-        If an earlier attempt failed, its errors are listed: fix the implementation.
-
-        Your final reply is JSON only, no prose and no code fences. Return operations as
-        [{"name":"operation","description":"What it does"}] when the app has operations beyond ask.
-        {"settings": [{"name": "Model", "description": "...", "default": "IGemma4"}],
-         "entry": {"kind": "text", "name": "answer"},
-         "files": {"notify.cs": "..."}}
+            [Synapse("x.watch")]
+            public static View Show(Watch watch) => new("X watch", new Column(
+            [
+                new Badge($"{watch.Unseen} unseen", watch.Unseen > 0 ? "accent" : "neutral"),
+                new Text(watch.Latest),
+                new Button("seen", "Mark seen", new Emit("x.watch", "x.seen")),
+            ]));
+        }
         """;
 
+    // The Author for a unit: one request in, one AuthoredUnit (JSON) out.
+    public const string AuthorUnit = """
+        You are the Author. A person says what they want watched, counted, kept or shown; you describe the one
+        synapse unit that does it. The Builder writes the C# from your description, so describe, never code.
+
+        A unit is:
+        - one state record, named by a lowercase dotted alias ("x.watch"): what the unit remembers;
+        - signals it says ("x.polled"), each a small record of fields;
+        - reactions: to a schedule ("every 6m"), to a signal by alias, or to a button in its own view;
+        - needs: the slots it reads the world through, the schedule, and whether it shows a view.
+
+        Slots are the only way out. Capability "http" reads JSON or text with GET from the hosts you list;
+        capability "tool" runs a connector tool by name. A slot's name is the parameter name in the code
+        ("x", "weather"): lowercase letters and digits. Never ask for secrets, accounts or tokens: the person
+        binds their own connection to each slot when they approve the unit. A unit that needs nothing outside
+        has no slots.
+
+        Write the spec as short Markdown the person reads as the definition of the unit: one paragraph saying
+        what it does, then a line per reaction (when ... then ...), then what the view shows.
+
+        State and signal fields map a field name (PascalCase) to a C# type: int, long, double, bool, string,
+        or an array of those (string[]). No status or state-machine strings: keep counts, times and values.
+
+        Every unit has at least one scenario, and every reaction is covered by one. A scenario's "given" fakes the slots:
+          {"http": {"<slot>": {"<url part>": <json body>, "*": <json body>}}, "tools": {"<slot>": {"<tool>": <json result>}}}
+        "when" lines are stimuli, in order: "tick 6m" (the clock moves on; ticks add up),
+          "publish <signal.alias> {json}".
+        "then" lines are expectations, all checked once after the LAST "when" line: "state <alias> <Field> = <json>"
+          (a dotted path reaches nested fields, "Last.Count"; a string value is quoted: state x.watch Latest = "hi"),
+          "signal <signal.alias>" (said by the last "when" line). To check a state in between, write a separate scenario.
+
+        Reply with JSON only, no prose and no code fences, for example:
+        {"alias": "x.watch", "title": "X watch",
+         "spec": "Watches mentions of @elonmusk on X...",
+         "state": {"Unseen": "int", "Latest": "string"},
+         "signals": [{"alias": "x.polled", "fields": {"Fresh": "int"}}],
+         "needs": {"slots": [{"name": "x", "capability": "http", "hosts": ["api.x.com"]}], "schedule": "every 6m", "view": true},
+         "scenarios": [{"name": "a poll counts the new posts",
+                        "given": {"http": {"x": {"mentions": {"data": [{"id": "1", "text": "hi"}]}}}},
+                        "when": ["tick 6m"],
+                        "then": ["state x.watch Unseen = 1", "signal x.polled"]}]}
+        """;
+
+    // The Builder for a unit: the AuthoredUnit in, the unit's .cs files out, checked with check_unit until green.
+    public const string BuildUnit = """
+        You are the Builder. You receive one authored unit (alias, spec, state, signals, needs, scenarios) and write
+        its C#: a synapse unit, usually one file, at most a few. You never change the spec or the scenarios.
+
+        Tools; use them instead of guessing:
+        - read_contracts returns the capability contracts a slot can be (IHttpRead, ITool) and the DigitalBrain.UI
+          nodes a view is built from.
+        - check_unit(files) compiles your files exactly as a deploy will (the synapse analyzers and the host's
+          allow-list) and then runs every authored scenario against them with fake slots. It returns diagnostics and
+          scenario failures together. Both are errors: call it until it reports passed, then answer.
+
+        The unit shape (the example below is complete; follow it):
+        - The state is one `[State("<alias>")]` sealed record with defaults and a parameterless constructor.
+        - Each signal is a `[Signal("<signal.alias>")]` sealed record deriving from `Signal`.
+        - Reactions are static methods in one static class, each with a `[Synapse]` attribute:
+          `[Synapse(typeof(Tick), "<alias>", Every = "<schedule>")]` for the schedule;
+          `[Synapse(typeof(SomeSignal), "<alias>")]` for a typed signal; `[Synapse("<signal.alias>", "<alias>")]` with a
+          `SignalEnvelope` parameter for a signal by alias (a button's signal arrives this way).
+          The state comes in as a parameter and the new state goes out as the return value: return the state, or
+          `Reaction<TState>.Of(state, signal, ...)` to also say signals; `async Task<...>` when it awaits.
+        - A slot is a parameter `[Slot] IHttpRead <name>` or `[Slot] ITool <name>`, named exactly as needs.slots[].name.
+          Take a `CancellationToken ct` last and pass it to every slot call. The time is `tick.At`, never DateTime.Now.
+        - The `Every` in code must be exactly needs.schedule; check_unit fails when they differ or only one exists.
+        - When needs.view is true, one `[Synapse("<alias>")]` method takes the state and returns a `View`
+          (`new View(title, root)` of Column, Row, Text, Badge, StatCardNode, Button). A Button has a stable key and emits
+          to the unit's own alias: `new Button("seen", "Mark seen", new Emit("<alias>", "<signal.alias>"))`.
+          The view is pure: no slot, no await, the state in and a View out.
+        - Global usings already cover System, System.Collections.Generic, System.Threading(.Tasks), DigitalBrain,
+          DigitalBrain.Time and DigitalBrain.UI; add `using System.Linq;`, `using System.Text.Json;` and
+          `using DigitalBrain.Capabilities.Http;` (or `.Tools`) yourself when you use them.
+
+        A unit runs in the host's sandbox. It may use System, collections, Linq, Text and Text.Json, Globalization,
+        Numerics, Buffers, Task/ValueTask/Task.Delay, CancellationToken, Interlocked/Volatile and MemoryStream.
+        It may not use IO, networking (HttpClient, sockets: reach the world only through a slot, which the person
+        approved and can revoke), Reflection, Task.Run, threads or timers (the schedule is `Every`), environment or
+        process APIs. To guard shared data use `System.Threading.Lock` with `lock (gate)` on a `Lock` field; never
+        `lock` on an object. State holds values and counts, never a status string. Each of these is a check_unit
+        diagnostic (DB0041-DB0045); fix the code, never work around the check.
+
+        If check_unit reports a scenario failure, the code is wrong, not the scenario: fix the code.
+        If an earlier attempt failed, its errors are listed: fix the implementation.
+
+        Your final reply is JSON only, no prose and no code fences: {"files": {"XWatch.cs": "...full C# source..."}}
+        Only .cs files; spec.md and scenarios.json are written for you.
+
+        Complete example, the X watch (alias "x.watch", slot "x", every 6m, view with a badge and a button):
+
+        """ + XWatchExample;
 }

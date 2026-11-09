@@ -23,7 +23,6 @@ public static class UiExpertAgentDefinition
             Model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : new ModelSelection(settings.DefaultModel.Trim()),
             Contracts =
             [
-                typeof(IShellControl).FullName!,
                 typeof(IInoFocus).FullName!,
                 typeof(IInoFiles).FullName!,
                 typeof(IMemory).FullName!,

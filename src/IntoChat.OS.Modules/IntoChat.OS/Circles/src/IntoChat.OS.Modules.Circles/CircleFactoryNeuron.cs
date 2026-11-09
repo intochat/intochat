@@ -48,19 +48,6 @@ internal sealed class CircleFactoryNeuron(
         Snapshot = next;
     }
 
-    public Task BindPublicationButton()
-    {
-        Own();
-        return SiloNeurons.Get<IntoChat.OS.Modules.Flutter.IUiBinding>(plain, IApp.Key(Brain, "circle") + "/fork-button")
-            .Bind(IntoChat.OS.Modules.Flutter.UiHandlers.IdOf(Id));
-    }
-
-    public Task HandleUiEvent(IntoChat.OS.Modules.Flutter.UiEvent uiEvent)
-    {
-        Own();
-        return PublicationButton.Handle(plain, Brain, "circle", "fork-button", uiEvent, Fork);
-    }
-
     public async Task<string> Create(string name, string? requestId = null)
     {
         await Check("Create", new CircleNameIsValid(name));

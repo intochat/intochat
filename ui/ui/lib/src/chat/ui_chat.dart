@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 
-import '../models/ui_part.dart';
 import '../theme/ui_theme.dart';
 import 'ui_copyable_message.dart';
 
@@ -117,12 +116,7 @@ Builders _withCopy(Builders? host) {
             if (child is UiCopyableMessage) {
               return child;
             }
-            final part = UiPart.tryParse(
-              message.metadata == null
-                  ? null
-                  : Map<String, dynamic>.from(message.metadata!),
-            );
-            final copy = part?.copyText ?? '';
+            final copy = _copyText(message.metadata);
             if (copy.trim().isEmpty) {
               return child;
             }
@@ -131,4 +125,21 @@ Builders _withCopy(Builders? host) {
     );
   }
   return builders;
+}
+
+// Plain text for the chat copy control of a custom message; empty means no copy affordance.
+String _copyText(Map<String, dynamic>? metadata) {
+  for (final key in const [
+    'copyText',
+    'text',
+    'title',
+    'label',
+    'url',
+    'uri',
+  ]) {
+    if (metadata?[key] case final String value when value.trim().isNotEmpty) {
+      return value;
+    }
+  }
+  return '';
 }

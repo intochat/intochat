@@ -4,22 +4,130 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
-export 'app_catalog_launcher.dart';
-import 'app_catalog_launcher.dart';
+class SmartAppTileSpec {
+  const SmartAppTileSpec({
+    required this.id,
+    required this.name,
+    required this.icon,
+    required this.color,
+    required this.neuronUri,
+    this.accentHex,
+    this.category = 'App',
+  });
 
-/// Interactive Spatial Workspace Home Screen over a static wallpaper (`IcDesktopWallpaper`)
-/// with draggable, resizable sticky-note Smart Cards, Pinning, and Auto-Arrange.
-/// (The 3D neural graph now lives exclusively inside the dedicated `Brain` app.)
+  final String id;
+  final String name;
+  final IconData icon;
+  final Color color;
+  final String neuronUri;
+  final String? accentHex;
+  final String category;
+}
+
+const defaultSmartAppSpecs = <SmartAppTileSpec>[
+  SmartAppTileSpec(
+    id: 'ino',
+    name: 'Ino',
+    icon: LucideIcons.sparkles,
+    color: Color(0xFF3D7EFF),
+    accentHex: '#3D7EFF',
+    category: 'Intelligence',
+    neuronUri: 'neuron://local/apps/ino',
+  ),
+  SmartAppTileSpec(
+    id: 'files',
+    name: 'Files',
+    icon: LucideIcons.folder,
+    color: Color(0xFFF6B73C),
+    accentHex: '#F6B73C',
+    category: 'Workspace',
+    neuronUri: 'neuron://local/apps/files',
+  ),
+  SmartAppTileSpec(
+    id: 'photocraft',
+    name: 'PhotoCraft',
+    icon: LucideIcons.image,
+    color: Color(0xFF06B6D4),
+    accentHex: '#06B6D4',
+    category: 'Studio',
+    neuronUri: 'neuron://local/apps/photocraft',
+  ),
+  SmartAppTileSpec(
+    id: 'filmcraft',
+    name: 'FilmCraft',
+    icon: LucideIcons.film,
+    color: Color(0xFF8B5CF6),
+    accentHex: '#8B5CF6',
+    category: 'Studio',
+    neuronUri: 'neuron://local/apps/filmcraft',
+  ),
+  SmartAppTileSpec(
+    id: 'creator',
+    name: 'Creator',
+    icon: LucideIcons.wandSparkles,
+    color: Color(0xFFFF5D8F),
+    accentHex: '#FF5D8F',
+    category: 'Studio',
+    neuronUri: 'neuron://local/apps/creator',
+  ),
+  SmartAppTileSpec(
+    id: 'gallery',
+    name: 'UI Gallery',
+    icon: LucideIcons.palette,
+    color: Color(0xFF22C55E),
+    accentHex: '#22C55E',
+    category: 'Studio',
+    neuronUri: 'neuron://local/apps/gallery',
+  ),
+  SmartAppTileSpec(
+    id: 'post',
+    name: 'Post',
+    icon: LucideIcons.megaphone,
+    color: Color(0xFFFB7185),
+    accentHex: '#FB7185',
+    category: 'Reach',
+    neuronUri: 'neuron://local/apps/post',
+  ),
+  SmartAppTileSpec(
+    id: 'circles',
+    name: 'Circles',
+    icon: LucideIcons.circleDot,
+    color: Color(0xFFA855F7),
+    accentHex: '#A855F7',
+    category: 'Social',
+    neuronUri: 'neuron://local/apps/circles',
+  ),
+  SmartAppTileSpec(
+    id: 'workspace',
+    name: 'Workspace',
+    icon: LucideIcons.compass,
+    color: Color(0xFF14B8A6),
+    accentHex: '#14B8A6',
+    category: 'Workspace',
+    neuronUri: 'neuron://local/apps/workspace',
+  ),
+  SmartAppTileSpec(
+    id: 'settings',
+    name: 'Settings',
+    icon: LucideIcons.slidersHorizontal,
+    color: Color(0xFF64748B),
+    accentHex: '#64748B',
+    category: 'System',
+    neuronUri: 'neuron://local/apps/settings',
+  ),
+];
+
+/// Interactive Whiteboard Home Desk with 3D `BrainScene3D` orbital neural graph
+/// and draggable, resizable sticky-note Smart Cards with Pinning and Auto-Arrange.
 class SmartDesktop extends StatefulWidget {
-  SmartDesktop({
+  const SmartDesktop({
     super.key,
     this.hasOpenWindows = false,
     this.stylePreset = IcStylePreset.fluentAcrylic,
     this.barLayout = BarLayout.floatingGlass,
     this.tokensToday = 14800,
-    List<SmartAppTileSpec>? apps,
+    this.apps = defaultSmartAppSpecs,
     this.onLaunchApp,
-    this.onOpenAllApps,
     this.onOpenPalette,
     this.onApproveSignal,
     this.onSelectPreset,
@@ -30,11 +138,7 @@ class SmartDesktop extends StatefulWidget {
     this.openCardIds,
     this.onOpenCard,
     this.onCloseCard,
-    this.widgetsMenuOpen,
-    this.onWidgetsMenuChanged,
-    this.dynamicCards,
-    this.cardContentBuilder,
-  }) : apps = apps ?? defaultSmartAppSpecs;
+  });
 
   final bool hasOpenWindows;
   final IcStylePreset stylePreset;
@@ -42,7 +146,6 @@ class SmartDesktop extends StatefulWidget {
   final int tokensToday;
   final List<SmartAppTileSpec> apps;
   final ValueChanged<String>? onLaunchApp;
-  final VoidCallback? onOpenAllApps;
   final VoidCallback? onOpenPalette;
   final VoidCallback? onApproveSignal;
   final ValueChanged<IcStylePreset>? onSelectPreset;
@@ -53,94 +156,35 @@ class SmartDesktop extends StatefulWidget {
   final List<String>? openCardIds;
   final ValueChanged<String>? onOpenCard;
   final ValueChanged<String>? onCloseCard;
-  final bool? widgetsMenuOpen;
-  final ValueChanged<bool>? onWidgetsMenuChanged;
-  final List<WhiteboardCardData>? dynamicCards;
-  final Widget Function(Map<String, dynamic> content)? cardContentBuilder;
 
   @override
   State<SmartDesktop> createState() => SmartDesktopState();
 }
 
 class SmartDesktopState extends State<SmartDesktop> {
-  static const List<String> defaultCardOrder = [
+  static const List<String> cardOrder = [
     'launcher',
     'signal',
     'identity',
     'apps',
   ];
 
-  static const Map<String, String> defaultCardLabels = {
+  static const Map<String, String> cardLabels = {
     'launcher': 'Ino Launcher',
     'signal': 'Live Signal',
     'identity': 'Theme & Identity',
     'apps': 'Smart Apps',
   };
 
-  List<String> get cardOrder =>
-      widget.dynamicCards != null && widget.dynamicCards!.isNotEmpty
-          ? widget.dynamicCards!.map((c) => c.id).toList()
-          : defaultCardOrder;
-
-  Map<String, String> get cardLabels {
-    if (widget.dynamicCards != null && widget.dynamicCards!.isNotEmpty) {
-      return {for (final c in widget.dynamicCards!) c.id: c.title};
-    }
-    return defaultCardLabels;
-  }
-
+  String _selectedNeuronId = 'ino';
   bool _briefApproved = false;
   bool _initializedBounds = false;
   bool _widgetsMenuOpen = false;
-  Offset _workspacePanOffset = Offset.zero;
-  double _workspaceZoom = 1.0;
-
-  bool get isWidgetsMenuOpen => widget.widgetsMenuOpen ?? _widgetsMenuOpen;
-  Offset get workspacePanOffset => _workspacePanOffset;
-  double get workspaceZoom => _workspaceZoom;
-
-  void resetWorkspaceCamera() {
-    setState(() {
-      _workspacePanOffset = Offset.zero;
-      _workspaceZoom = 1.0;
-    });
-  }
 
   final Map<String, Rect> _cardBounds = {};
   final Set<String> _pinnedCardIds = {};
   final Set<String> _localClosedCardIds = {};
   final Set<String> _localOpenedCardIds = {};
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.dynamicCards != null) {
-      for (final card in widget.dynamicCards!) {
-        if (card.isPinned) {
-          _pinnedCardIds.add(card.id);
-        }
-        if (card.initialBounds != null) {
-          _cardBounds[card.id] = card.initialBounds!;
-        }
-      }
-    }
-  }
-
-  @override
-  void didUpdateWidget(SmartDesktop oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.dynamicCards != null &&
-        widget.dynamicCards != oldWidget.dynamicCards) {
-      for (final card in widget.dynamicCards!) {
-        if (card.isPinned && !_pinnedCardIds.contains(card.id)) {
-          _pinnedCardIds.add(card.id);
-        }
-        if (card.initialBounds != null && !_cardBounds.containsKey(card.id)) {
-          _cardBounds[card.id] = card.initialBounds!;
-        }
-      }
-    }
-  }
 
   Map<String, Rect> get cardBounds => Map.unmodifiable(_cardBounds);
   Set<String> get pinnedCardIds => Set.unmodifiable(_pinnedCardIds);
@@ -199,24 +243,9 @@ class SmartDesktopState extends State<SmartDesktop> {
   }
 
   void _ensureInitialCardBounds(Size canvas) {
-    if (_initializedBounds && _cardBounds.length >= cardOrder.length) return;
+    if (_initializedBounds && _cardBounds.length == cardOrder.length) return;
     _initializedBounds = true;
     final rightX = math.max(404.0, canvas.width - 364.0);
-
-    if (widget.dynamicCards != null) {
-      for (var i = 0; i < widget.dynamicCards!.length; i++) {
-        final card = widget.dynamicCards![i];
-        if (card.initialBounds != null) {
-          _cardBounds.putIfAbsent(card.id, () => card.initialBounds!);
-        } else {
-          final isLeft = i % 2 == 0;
-          final x = isLeft ? 24.0 : rightX;
-          final y = 58.0 + (i ~/ 2) * 240.0;
-          _cardBounds.putIfAbsent(card.id, () => Rect.fromLTWH(x, y, 360, 224));
-        }
-      }
-    }
-
     _cardBounds.putIfAbsent(
       'launcher',
       () => const Rect.fromLTWH(24, 58, 360, 224),
@@ -341,73 +370,26 @@ class SmartDesktopState extends State<SmartDesktop> {
         return Stack(
           clipBehavior: Clip.none,
           children: [
-            // 1. Static Desktop Wallpaper + Spatial Workspace Surface (no 3D BrainScene on home screen)
+            // 1. Live Interactive 3D DigitalBrain Layer on the Desktop
             Positioned.fill(
-              child: GestureDetector(
-                key: const ValueKey('desktop-workspace-surface'),
-                behavior: HitTestBehavior.translucent,
-                onPanUpdate: (d) {
-                  setState(() {
-                    _workspacePanOffset += d.delta;
-                  });
+              child: BrainScene3D(
+                selectedId: _selectedNeuronId,
+                ambientOpacity: hasOpenWindows ? 0.72 : 0.96,
+                showHud: !hasOpenWindows,
+                onSelectNode: (node) {
+                  setState(() => _selectedNeuronId = node.id);
+                  if (node.appId != null) {
+                    _launch(node.appId == 'chat' ? 'ino' : node.appId!);
+                  } else {
+                    _toast(
+                      'Neuron ${node.neuronUri} (${node.signalsPerMin} sig/min)',
+                    );
+                  }
                 },
-                child: IcDesktopWallpaper(
-                  key: const ValueKey('desktop-static-wallpaper'),
-                  stylePreset: widget.stylePreset,
-                  panOffset: _workspacePanOffset,
-                  zoom: _workspaceZoom,
-                  dimmed: hasOpenWindows,
-                ),
               ),
             ),
 
-            // 1b. Workspace Canvas Sector Bar (Top-Left)
-            Positioned(
-              top: 12,
-              left: 24,
-              child: IcAcrylicBox(
-                key: const ValueKey('workspace-home-status-pill'),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                borderRadius: BorderRadius.circular(IcRadius.pill),
-                shadows: IcShadow.md(c),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.compass, size: 14, color: c.accent),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Spatial Workspace',
-                      style: IcType.text(
-                        11.5,
-                        weight: FontWeight.w700,
-                        color: c.textStrong,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    TagPill(
-                      label: '${allSmartAppSpecs.length} apps',
-                      tone: TagTone.accent,
-                      icon: LucideIcons.layoutGrid,
-                    ),
-                    if (_workspacePanOffset != Offset.zero) ...[
-                      const SizedBox(width: 6),
-                      Btn(
-                        key: const ValueKey('workspace-home-reset-pan'),
-                        label: 'Center',
-                        small: true,
-                        icon: LucideIcons.locateFixed,
-                        onTap: resetWorkspaceCamera,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-
-            // 2. Whiteboard Desk Toolbar (All Apps + Widgets + Auto-Arrange + Pin Status)
+            // 2. Whiteboard Desk Toolbar (Widgets + Auto-Arrange + Pin Status)
             Positioned(
               top: 12,
               right: 24,
@@ -425,17 +407,6 @@ class SmartDesktopState extends State<SmartDesktop> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (widget.onOpenAllApps != null) ...[
-                          Btn(
-                            key: const ValueKey('whiteboard-all-apps-btn'),
-                            label: 'All Apps (${allSmartAppSpecs.length})',
-                            small: true,
-                            primary: true,
-                            icon: LucideIcons.layoutGrid,
-                            onTap: widget.onOpenAllApps,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
                         TagPill(
                           key: const ValueKey('whiteboard-pinned-pill'),
                           label: '${_pinnedCardIds.length} pinned',
@@ -452,11 +423,9 @@ class SmartDesktopState extends State<SmartDesktop> {
                           label: 'Widgets (${visibleCardIds.length})',
                           small: true,
                           icon: LucideIcons.stickyNote,
-                          onTap: () {
-                            final next = !isWidgetsMenuOpen;
-                            setState(() => _widgetsMenuOpen = next);
-                            widget.onWidgetsMenuChanged?.call(next);
-                          },
+                          onTap: () => setState(
+                            () => _widgetsMenuOpen = !_widgetsMenuOpen,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Btn(
@@ -469,7 +438,7 @@ class SmartDesktopState extends State<SmartDesktop> {
                       ],
                     ),
                   ),
-                  if (isWidgetsMenuOpen) ...[
+                  if (_widgetsMenuOpen) ...[
                     const SizedBox(height: 8),
                     IcAcrylicBox(
                       key: const ValueKey('whiteboard-widgets-menu'),
@@ -517,23 +486,13 @@ class SmartDesktopState extends State<SmartDesktop> {
                     onClose: () => closeCard(id),
                     onMove: (delta) => _moveCard(id, delta, canvas),
                     onResize: (delta) => _resizeCard(id, delta, canvas),
-                    child: () {
-                      final dynamicCard = widget.dynamicCards
-                          ?.where((c) => c.id == id)
-                          .firstOrNull;
-                      if (dynamicCard?.content != null &&
-                          widget.cardContentBuilder != null) {
-                        return widget.cardContentBuilder!(
-                            dynamicCard!.content!);
-                      }
-                      return switch (id) {
-                        'launcher' => _buildLauncherCardContent(c),
-                        'signal' => _buildSignalApprovalCardContent(c),
-                        'identity' => _buildIdentitySwitcherCardContent(c),
-                        'apps' => _buildSmartAppGridCardContent(c),
-                        _ => const SizedBox.shrink(),
-                      };
-                    }(),
+                    child: switch (id) {
+                      'launcher' => _buildLauncherCardContent(c),
+                      'signal' => _buildSignalApprovalCardContent(c),
+                      'identity' => _buildIdentitySwitcherCardContent(c),
+                      'apps' => _buildSmartAppGridCardContent(c),
+                      _ => const SizedBox.shrink(),
+                    },
                   ),
                 ),
               ),
@@ -620,16 +579,9 @@ class SmartDesktopState extends State<SmartDesktop> {
               onTap: () => _launch('gallery'),
             ),
             Btn(
-              key: const ValueKey('launcher-open-brain-btn'),
-              label: '3D Brain Graph',
-              small: true,
-              icon: LucideIcons.brainCircuit,
-              onTap: () => _launch('brain'),
-            ),
-            Btn(
               label: '3D Creator',
               small: true,
-              icon: LucideIcons.wandSparkles,
+              icon: LucideIcons.brainCircuit,
               onTap: () => _launch('creator'),
             ),
             Btn(
@@ -681,12 +633,12 @@ class SmartDesktopState extends State<SmartDesktop> {
         ),
         const SizedBox(height: 10),
         Text(
-          'Signal approval · Schedule update',
+          'Nordlys Q4 Renewal · Close date shift',
           style: IcType.text(14, weight: FontWeight.w600, color: c.textStrong),
         ),
         const SizedBox(height: 4),
         Text(
-          'Pending confirmation detected from connected workspace channel.',
+          'Salesforce sync detected an email from Kari Holm confirming 15 Nov 2026 (480,000 NOK).',
           style: IcType.text(12.5, color: c.textBody, height: 1.4),
         ),
         const SizedBox(height: 12),
@@ -839,17 +791,6 @@ class SmartDesktopState extends State<SmartDesktop> {
               ),
           ],
         ),
-        if (widget.onOpenAllApps != null) ...[
-          const SizedBox(height: 12),
-          Btn(
-            key: const ValueKey('smart-apps-open-all-btn'),
-            label: 'Browse All ${allSmartAppSpecs.length} Apps',
-            small: true,
-            primary: true,
-            icon: LucideIcons.layoutGrid,
-            onTap: widget.onOpenAllApps,
-          ),
-        ],
       ],
     );
   }
@@ -1154,195 +1095,3 @@ class _SmartAppTileState extends State<_SmartAppTile> {
     );
   }
 }
-
-/// Static, architectural desktop wallpaper replacing the 3D neural graph on the
-/// Home Screen (`SmartDesktop`). Supports subtle workspace panning and spatial
-/// sector markers.
-class IcDesktopWallpaper extends StatelessWidget {
-  const IcDesktopWallpaper({
-    super.key,
-    this.stylePreset = IcStylePreset.fluentAcrylic,
-    this.panOffset = Offset.zero,
-    this.zoom = 1.0,
-    this.dimmed = false,
-  });
-
-  final IcStylePreset stylePreset;
-  final Offset panOffset;
-  final double zoom;
-  final bool dimmed;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = IcTheme.of(context);
-    return RepaintBoundary(
-      child: AnimatedOpacity(
-        duration: IcMotion.base,
-        opacity: dimmed ? 0.84 : 1.0,
-        child: CustomPaint(
-          painter: _IcDesktopWallpaperPainter(
-            colors: c,
-            stylePreset: stylePreset,
-            panOffset: panOffset,
-            zoom: zoom,
-          ),
-          size: Size.infinite,
-        ),
-      ),
-    );
-  }
-}
-
-class _IcDesktopWallpaperPainter extends CustomPainter {
-  _IcDesktopWallpaperPainter({
-    required this.colors,
-    required this.stylePreset,
-    required this.panOffset,
-    required this.zoom,
-  });
-
-  final IcColors colors;
-  final IcStylePreset stylePreset;
-  final Offset panOffset;
-  final double zoom;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-
-    // 1. Deep atmospheric base gradient
-    final bgColors = colors.isDark
-        ? <Color>[
-            const Color(0xFF0A0E17),
-            const Color(0xFF0F1626),
-            const Color(0xFF0B101B),
-          ]
-        : <Color>[
-            const Color(0xFFF4F6FA),
-            const Color(0xFFEAF0F8),
-            const Color(0xFFF7F8FC),
-          ];
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: bgColors,
-        ).createShader(rect),
-    );
-
-    // 2. Soft aurora / radial atmospheric pools
-    final glow1Center = Offset(
-      size.width * 0.25 + (panOffset.dx * 0.15),
-      size.height * 0.28 + (panOffset.dy * 0.15),
-    );
-    final glow2Center = Offset(
-      size.width * 0.76 + (panOffset.dx * 0.15),
-      size.height * 0.68 + (panOffset.dy * 0.15),
-    );
-    final glow3Center = Offset(
-      size.width * 0.52 + (panOffset.dx * 0.1),
-      size.height * 0.45 + (panOffset.dy * 0.1),
-    );
-
-    canvas.drawCircle(
-      glow1Center,
-      size.shortestSide * 0.58,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            colors.accent.withValues(alpha: colors.isDark ? 0.16 : 0.10),
-            const Color(0x00000000),
-          ],
-        ).createShader(
-          Rect.fromCircle(center: glow1Center, radius: size.shortestSide * 0.58),
-        ),
-    );
-
-    canvas.drawCircle(
-      glow2Center,
-      size.shortestSide * 0.54,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            colors.secondaryGlow.withValues(alpha: colors.isDark ? 0.14 : 0.08),
-            const Color(0x00000000),
-          ],
-        ).createShader(
-          Rect.fromCircle(center: glow2Center, radius: size.shortestSide * 0.54),
-        ),
-    );
-
-    canvas.drawCircle(
-      glow3Center,
-      size.shortestSide * 0.42,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            const Color(0xFF14B8A6).withValues(alpha: colors.isDark ? 0.08 : 0.05),
-            const Color(0x00000000),
-          ],
-        ).createShader(
-          Rect.fromCircle(center: glow3Center, radius: size.shortestSide * 0.42),
-        ),
-    );
-
-    // 3. Spatial Workspace Blueprint Grid (shifts with panOffset)
-    final step = (44.0 * zoom).clamp(24.0, 96.0);
-    final minorPaint = Paint()
-      ..color = (colors.isDark ? Colors.white : Colors.black)
-          .withValues(alpha: colors.isDark ? 0.032 : 0.035)
-      ..strokeWidth = 1.0;
-    final majorPaint = Paint()
-      ..color = colors.accent.withValues(alpha: colors.isDark ? 0.075 : 0.065)
-      ..strokeWidth = 1.0;
-
-    final startX = (panOffset.dx % step) - step;
-    final startY = (panOffset.dy % step) - step;
-
-    var colIdx = 0;
-    for (double x = startX; x < size.width + step; x += step) {
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
-        colIdx % 4 == 0 ? majorPaint : minorPaint,
-      );
-      colIdx++;
-    }
-
-    var rowIdx = 0;
-    for (double y = startY; y < size.height + step; y += step) {
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
-        rowIdx % 4 == 0 ? majorPaint : minorPaint,
-      );
-      rowIdx++;
-    }
-
-    // 4. Subtle geometric horizon rings in center of workspace
-    final center = Offset(
-      size.width * 0.5 + panOffset.dx * 0.35,
-      size.height * 0.5 + panOffset.dy * 0.35,
-    );
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..color = colors.accent.withValues(alpha: colors.isDark ? 0.09 : 0.07);
-    canvas.drawCircle(center, 150 * zoom, ringPaint);
-    canvas.drawCircle(
-      center,
-      290 * zoom,
-      ringPaint..color = colors.accent.withValues(alpha: colors.isDark ? 0.05 : 0.04),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _IcDesktopWallpaperPainter oldDelegate) =>
-      oldDelegate.colors != colors ||
-      oldDelegate.stylePreset != stylePreset ||
-      oldDelegate.panOffset != panOffset ||
-      oldDelegate.zoom != zoom;
-}
-

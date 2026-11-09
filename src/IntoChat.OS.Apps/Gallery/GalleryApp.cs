@@ -74,6 +74,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(GalleryApp));
 
+    public const string AppName = "gallery";
+
     public static AppBundle Bundle { get; } = new(
         "gallery",
         "1.0.0",
@@ -90,6 +92,8 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
             Settings: [],
             Slots: [],
             Icon: "widgets",
+            Dock: 8,
+            SideWidth: 268d,
             Toolbar:
             [
                 new("open", Icon: "widgets", Label: "Catalog"),

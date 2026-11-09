@@ -56,6 +56,8 @@ public sealed record FlowEntry(
 
     public string? Conversation { get; init; }
 
+    public string? Subject { get; init; }
+
     public bool Finished => Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled;
 
     // The entry with what the flow reports merged in; a status the index already folded wins unless the flow reports an end.

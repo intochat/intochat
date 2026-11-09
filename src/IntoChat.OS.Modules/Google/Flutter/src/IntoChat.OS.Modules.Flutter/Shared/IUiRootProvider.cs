@@ -4,5 +4,5 @@ namespace IntoChat.OS.Modules.Flutter;
 public interface IUiRootProvider
 {
     string? ActivationApp => null;
-    Task<UiChildRef> Connect(CancellationToken cancellationToken);
+    Task<ViewRef> Connect(CancellationToken cancellationToken);
 }

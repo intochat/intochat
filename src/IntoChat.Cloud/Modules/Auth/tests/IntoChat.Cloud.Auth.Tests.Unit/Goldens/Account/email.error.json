@@ -28,19 +28,23 @@
             "mono": false
           },
           {
-            "kind": "textField",
+            "kind": "field",
+            "key": "email",
             "name": "email",
-            "value": "ada@example.com",
-            "placeholder": "Email"
+            "fieldKind": "Text",
+            "placeholder": "Email",
+            "onSubmit": null
           },
           {
             "kind": "button",
+            "key": "send",
             "label": "Send code",
-            "action": {
-              "neuron": "account",
-              "operation": "send",
-              "arguments": []
+            "emit": {
+              "owner": "account",
+              "signal": "send",
+              "args": null
             },
+            "intent": null,
             "enabled": true,
             "tone": "accent",
             "style": "secondary",

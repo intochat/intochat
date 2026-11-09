@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
-import 'package:uuid/uuid.dart';
 
 import '../workspace/spatial_app_canvas.dart';
 import 'desktop_overlays.dart';
@@ -15,7 +13,6 @@ import 'presence_layer.dart';
 import 'smart_desktop.dart';
 import 'window_frame.dart';
 
-part 'desktop_view_parser.dart';
 class _ParsedDesktopWindow {
   const _ParsedDesktopWindow({
     required this.windowId,
@@ -66,16 +63,19 @@ class LiveDesktopShell extends StatefulWidget {
     this.onOpenCompute,
     this.scenes,
     this.entries,
+    this.journal,
     this.localPreferences,
     this.profileMenu,
     this.read,
+    this.requestApp,
+    required this.knowsApp,
   });
 
   final String brain;
   final String name;
   final NeuronLoader load;
   final Stream<void> Function(String kind, String name)? watch;
-  final Future<void> Function(Map<String, dynamic>) onAction;
+  final NeuronAction onAction;
   final ValueChanged<Map<String, dynamic>> onActivate;
   final IcStylePreset stylePreset;
   final BarLayout barLayout;
@@ -86,8 +86,20 @@ class LiveDesktopShell extends StatefulWidget {
   final VoidCallback? onOpenCompute;
   final SceneClient? scenes;
   final EntriesClient Function(String brainId)? entries;
+
+  /// The brain's journal tail after a sequence; the Creator's window draws it as pulses on its brain graph.
+  final Stream<List<JournalTailSignal>> Function(String brainId, int since)?
+  journal;
   final LocalPreferences? localPreferences;
   final Widget? profileMenu;
+
+  /// Sends an operation to an app (POST …/apps/{app}/request): the shell's own desktop gestures that no
+  /// view node carries (open a widget, close an app) and a sandbox's controls.
+  final Future<void> Function(String app, String operation, String input)?
+  requestApp;
+
+  /// The apps the shell knows: an OpenWindow intent from a window's view may open only these.
+  final bool Function(String app) knowsApp;
 
   /// A read-only contract call (contract, key, method) answering its decoded result; smart mode stays off
   /// without it.
@@ -137,17 +149,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     'filmcraft',
     'creator',
     'gallery',
-    'friends',
+    'post',
     'workspace',
-    'brain',
     'settings',
   };
   bool _switcherOpen = false;
   int _switcherIndex = 0;
   DesktopSystemSheetKind _systemSheet = DesktopSystemSheetKind.none;
-  StreamSubscription<void>? _shellControlSub;
-  bool _widgetsMenuOpen = false;
-  bool _allAppsOpen = false;
 
   @override
   void initState() {
@@ -156,59 +164,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _reload();
     _subscribe();
     _watchSettings();
-    _watchShellControl();
   }
 
   static const _settingsContract = 'IntoChat.OS.Modules.Apps.IUserSettings';
   static const _presenceContract = 'IntoChat.OS.Modules.Apps.IPresence';
   static const _approvalsContract =
       'IntoChat.OS.Modules.Apps.Approvals.IApprovals';
-  static const _shellControlContract =
-      'IntoChat.OS.Modules.Apps.IShellControl';
-
-  void _watchShellControl() {
-    _shellControlSub?.cancel();
-    final watch = widget.watch;
-    if (watch == null) return;
-    try {
-      _shellControlSub = watch('shell.control', 'shell/control').listen(
-        (_) => unawaited(_readShellControl()),
-        onError: (_) {},
-      );
-    } catch (_) {}
-    unawaited(_readShellControl());
-  }
-
-  Future<void> _readShellControl() async {
-    try {
-      final json = await widget.read?.call(
-        _shellControlContract,
-        'shell/control',
-        'GetState',
-      );
-      if (json == null || !mounted) return;
-      final val = json['value'] ?? json;
-      if (val is Map) {
-        final menuOpen = val['widgetsMenuOpen'] ?? val['WidgetsMenuOpen'];
-        if (menuOpen is bool && menuOpen != _widgetsMenuOpen) {
-          setState(() => _widgetsMenuOpen = menuOpen);
-        }
-        final openCards = val['openCardIds'] ?? val['OpenCardIds'];
-        if (openCards is List) {
-          setState(() {
-            for (final card in openCards) {
-              if (card is String) {
-                _clientClosedWidgets.remove(card);
-                _clientOpenedWidgets.add(card);
-              }
-            }
-          });
-        }
-      }
-    } catch (_) {
-      // The next change signal reads again.
-    }
-  }
 
   void _watchSettings() {
     unawaited(_readSmart());
@@ -340,7 +301,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _settingsSub?.cancel();
     _presenceSub?.cancel();
     _presenceReopen?.cancel();
-    _shellControlSub?.cancel();
     unawaited(_presence.close());
     for (final w in _windowStates.values) {
       w.dispose();
@@ -369,9 +329,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   }
 
   List<_ParsedDesktopWindow> _currentMruWindows() {
-    final root = _data?['root'];
-    if (root is! Map) return const [];
-    final windows = _parseWindows(root);
+    final view = _desktopView;
+    if (view == null) return const [];
+    final windows = _parseWindows(view.root);
     final byId = {for (final w in windows) w.windowId: w};
     final ordered = _zOrder
         .map((id) => byId[id])
@@ -425,10 +385,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
 
     if (e.logicalKey == LogicalKeyboardKey.escape && e is KeyDownEvent) {
-      if (_allAppsOpen) {
-        setState(() => _allAppsOpen = false);
-        return true;
-      }
       if (_switcherOpen) {
         setState(() => _switcherOpen = false);
         return true;
@@ -512,30 +468,299 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
   }
 
-  static String _operationId() => const Uuid().v4();
-
   int get _generation => (_data?['generation'] as num?)?.toInt() ?? 0;
 
+  // The keys of the desktop view as last read; only these activate on the view.
+  Set<String> _viewKeys = const {};
+
   void _dispatchViewNode(Map<String, dynamic>? node) {
-    if (node == null || node['enabled'] == false) return;
-    final key = node['key'] as String?;
-    final action = node['action'] as String?;
-    if (key == null || action == null) return;
+    final event = desktopViewEvent(node, _viewKeys, widget.name, _generation);
+    if (event == null) return;
     unawaited(
-      widget
-          .onAction({
-            'kind': 'view',
-            'name': widget.name,
-            'revision': _generation,
-            'field': key,
-            'action': action,
-            'operationId': _operationId(),
-          })
-          .then((_) => _reload())
-          .catchError((Object _) {}),
+      widget.onAction(event).then((_) => _reload()).catchError(_refused),
     );
   }
 
+  // A refused activation (a stale generation, a changed view): read the view again and say so.
+  void _refused(Object error) {
+    unawaited(_reload());
+    if (mounted) {
+      showKitToast(
+        context,
+        'The desktop changed. Try again.',
+        tone: UiTone.error,
+      );
+    }
+  }
+
+  void _shellGesture(String app, String operation, String input) {
+    final request = widget.requestApp;
+    final scope = app == 'desktop' || app == 'settings' ? app : 'window';
+    if (request == null || !desktopShellOperationAllowed(scope, operation)) {
+      return;
+    }
+    if (scope == 'window' && !widget.knowsApp(app)) return;
+    unawaited(
+      request(
+        app,
+        operation,
+        input,
+      ).then((_) => _reload()).catchError(_refused),
+    );
+  }
+
+  // A desktop button as the window chrome reads it: its key, label, argument and state.
+  static Map<String, dynamic> _button(ButtonNode node) => {
+    'key': node.key,
+    'text': node.label,
+    'enabled': node.enabled,
+    'argument': switch (node.emit?.args) {
+      final String text => text,
+      _ => null,
+    },
+  };
+
+  static Iterable<Node> _children(Node node) => switch (node) {
+    ColumnNode(:final children) ||
+    RowNode(:final children) ||
+    GridNode(:final children) ||
+    CardNode(:final children) ||
+    SurfaceNode(:final children) => children,
+    _ => const <Node>[],
+  };
+
+  static Iterable<Node> _walk(Node node) sync* {
+    yield node;
+    for (final child in _children(node)) {
+      yield* _walk(child);
+    }
+  }
+
+  // The desktop's published view: {generation, view}.
+  AppView? get _desktopView => switch (_data?['view']) {
+    final Map view => AppView.fromJson(Map<String, dynamic>.from(view)),
+    _ => null,
+  };
+
+  // The host's window shell has a dock of `dock-{app}` buttons.
+  static bool _isDesktopTree(AppView? view) =>
+      view != null &&
+      _walk(view.root)
+          .any((node) => node is ButtonNode && node.key.startsWith('dock-'));
+
+  static String _titleForAppId(String appId) {
+    for (final s in defaultSmartAppSpecs) {
+      if (s.id == appId) return s.name;
+    }
+    return switch (appId) {
+      'ino' => 'Ino',
+      'files' => 'Files',
+      'photocraft' => 'PhotoCraft',
+      'filmcraft' => 'FilmCraft',
+      'creator' => 'Creator',
+      'gallery' => 'UI Gallery',
+      'post' => 'Post',
+      'workspace' => 'Workspace',
+      'settings' => 'Settings',
+      _ =>
+        appId.isEmpty
+            ? 'App'
+            : '${appId[0].toUpperCase()}${appId.substring(1)}',
+    };
+  }
+
+  static String _inferAppId(String title, Map<String, dynamic>? pinNode) {
+    if (pinNode?['argument'] case final String app when app.isNotEmpty) {
+      return app;
+    }
+    final lower = title.toLowerCase();
+    if (lower.contains('ino')) return 'ino';
+    if (lower.contains('photocraft')) return 'photocraft';
+    if (lower.contains('filmcraft') || lower.contains('videocraft')) {
+      return 'filmcraft';
+    }
+    if (lower.contains('gallery')) return 'gallery';
+    if (lower.contains('creator')) return 'creator';
+    if (lower.contains('file')) return 'files';
+    if (lower.contains('post')) return 'post';
+    if (lower.contains('workspace')) return 'workspace';
+    if (lower.contains('setting')) return 'settings';
+    if (lower.contains('circle')) return 'circleroom';
+    return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
+  }
+
+  List<_ParsedDesktopWindow> _parseWindows(Node root) {
+    NeuronRefNode? viewportOf(Node node) => _children(node)
+        .whereType<NeuronRefNode>()
+        .where(
+          (ref) =>
+              ref.refKind == 'viewport' &&
+              ref.neuronUri.contains('/apps/desktop/window/'),
+        )
+        .firstOrNull;
+    final frameNodes = [
+      for (final node in _walk(root))
+        if (node is ColumnNode && viewportOf(node) != null) node,
+    ];
+
+    final serverWindowKeys = <String>{};
+    final serverAppIds = <String>{};
+    final result = <_ParsedDesktopWindow>[];
+    for (var i = 0; i < frameNodes.length; i++) {
+      final frame = frameNodes[i];
+      final reference = viewportOf(frame)!;
+      final winId = reference.neuronUri.substring(
+        reference.neuronUri.lastIndexOf('/') + 1,
+      );
+
+      final numericId =
+          int.tryParse(winId.replaceAll(RegExp(r'[^0-9]'), '')) ?? (i + 1);
+
+      Map<String, dynamic>? focusNode;
+      Map<String, dynamic>? newTabNode;
+      Map<String, dynamic>? starNode;
+      Map<String, dynamic>? pinNode;
+      Map<String, dynamic>? closeNode;
+      var title = winId;
+
+      final chrome = frame.children.whereType<RowNode>().firstOrNull;
+      for (final btn
+          in chrome?.children.whereType<ButtonNode>() ?? const <ButtonNode>[]) {
+        final k = btn.key;
+        final map = _button(btn);
+        if (k.startsWith('focus-')) {
+          focusNode = map;
+          title = btn.label;
+        } else if (k.startsWith('newtab-')) {
+          newTabNode = map;
+        } else if (k.startsWith('star-')) {
+          starNode = map;
+        } else if (k.startsWith('pin-') || k.startsWith('unpin-')) {
+          pinNode = map;
+        } else if (k.startsWith('close-')) {
+          closeNode = map;
+        }
+      }
+
+      final tabsNode = frame.children.whereType<TabsNode>().firstOrNull;
+      final tabs = <Map<String, dynamic>>[
+        for (final item in tabsNode?.items ?? const <TabItem>[])
+          {
+            'key': item.key,
+            'text': item.label,
+            'selected': item.id == tabsNode!.selectedId,
+            'enabled': true,
+          },
+      ];
+
+      Map<String, dynamic>? viewportRef = {
+        'kind': reference.refKind,
+        'name': reference.neuronUri,
+      };
+
+      final appId = _inferAppId(title, pinNode);
+      final winKey = '$winId:$appId';
+      serverWindowKeys.add(winKey);
+      serverAppIds.add(appId);
+      if (_clientClosedWindowIds.contains(winKey) ||
+          _clientClosedWindowIds.contains(winId)) {
+        continue;
+      }
+
+      if (appId == 'photocraft' || appId == 'filmcraft') {
+        viewportRef = <String, dynamic>{
+          'kind': 'view',
+          'name': '${widget.brain}/apps/$appId/view',
+        };
+      } else if (appId == 'files' &&
+          (viewportRef['name'] as String? ?? '').endsWith('/apps/files/main')) {
+        viewportRef = <String, dynamic>{
+          'kind': 'view',
+          'name': '${widget.brain}/apps/files/view',
+        };
+      }
+      result.add(
+        _ParsedDesktopWindow(
+          windowId: winId,
+          numericId: numericId,
+          appId: appId,
+          title: title,
+          neuronUri: 'neuron://${widget.brain}/apps/$appId',
+          viewportRef: viewportRef,
+          tabs: tabs,
+          focusNode: focusNode,
+          newTabNode: newTabNode,
+          starNode: starNode,
+          pinNode: pinNode,
+          closeNode: closeNode,
+        ),
+      );
+    }
+
+    _clientClosedWindowIds.removeWhere(
+      (k) => !k.startsWith('local-') && !serverWindowKeys.contains(k),
+    );
+    _clientOpenedApps.removeWhere(serverAppIds.contains);
+
+    for (var i = 0; i < _clientOpenedApps.length; i++) {
+      final appId = _clientOpenedApps[i];
+      if (result.any((w) => w.appId == appId)) continue;
+      final localWinId = 'local-$appId';
+      if (_clientClosedWindowIds.contains('$localWinId:$appId') ||
+          _clientClosedWindowIds.contains(localWinId)) {
+        continue;
+      }
+      result.add(
+        _ParsedDesktopWindow(
+          windowId: localWinId,
+          numericId: 100 + i,
+          appId: appId,
+          title: _titleForAppId(appId),
+          neuronUri: 'neuron://${widget.brain}/apps/$appId',
+          viewportRef: <String, dynamic>{
+            'kind': 'view',
+            'name': '${widget.brain}/apps/$appId/view',
+          },
+          tabs: const [],
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  List<String> _parseOpenWidgets(Node root) {
+    String? rawText;
+    TextNode? previous;
+    for (final node in _walk(root)) {
+      if (node is! TextNode) continue;
+      if (previous?.value == 'Usage') {
+        rawText = node.value;
+        break;
+      }
+      previous = node;
+    }
+    final serverWidgets = <String>{
+      if (rawText != null && rawText.trim().isNotEmpty)
+        for (final part in rawText.split(','))
+          if (part.trim().isNotEmpty) part.trim().toLowerCase(),
+    };
+    _clientOpenedWidgets.removeWhere(serverWidgets.contains);
+    _clientClosedWidgets.removeWhere((id) => !serverWidgets.contains(id));
+
+    return [
+      for (final id in SmartDesktopState.cardOrder)
+        if ((serverWidgets.contains(id) || _clientOpenedWidgets.contains(id)) &&
+            !_clientClosedWidgets.contains(id))
+          id,
+    ];
+  }
+
+  Map<String, Map<String, dynamic>> _parseDockButtons(Node root) => {
+    for (final node in _walk(root))
+      if (node is ButtonNode && node.key.startsWith('dock-'))
+        node.key: _button(node),
+  };
 
   Rect _initialWindowBounds(int index, Size desk) {
     final w = (desk.width * 0.64).clamp(680.0, 980.0);
@@ -621,14 +846,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _clientOpenedApps.remove(spec.appId);
       _clientClosedWindowIds.add('${spec.windowId}:${spec.appId}');
     });
-    _dispatchViewNode(
-      spec.closeNode ??
-          <String, dynamic>{
-            'key': 'close-${spec.windowId}',
-            'action': 'close-app:${spec.appId}',
-            'enabled': true,
-          },
-    );
+    if (spec.closeNode case final close?) {
+      _dispatchViewNode(close);
+    } else {
+      _shellGesture('desktop', 'close-app', spec.appId);
+    }
   }
 
   /// Auto-arranges all unpinned windows into a clean grid while strictly
@@ -670,18 +892,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
 
   void _navigateSettingsSection(String? settingsSection) {
     if (settingsSection == null || settingsSection.isEmpty) return;
-    unawaited(
-      widget
-          .onAction({
-            'kind': 'view',
-            'name': '${widget.brain}/apps/settings/view',
-            'revision': _generation,
-            'field': 'settings-nav-$settingsSection',
-            'action': 'navigate:$settingsSection',
-            'operationId': _operationId(),
-          })
-          .catchError((Object _) {}),
-    );
+    _shellGesture('settings', 'navigate', settingsSection);
   }
 
   void _handleChildActivation(
@@ -739,12 +950,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     List<_ParsedDesktopWindow> windows,
     Map<String, Map<String, dynamic>> dockButtons,
   ) {
-    final focusKey = '${widget.brain}/apps/$appId';
+    // The Creator opens with the app's node selected in its brain graph.
     _launchOrFocusApp(
-      'brain',
+      'creator',
       windows,
       dockButtons,
-      openInput: jsonEncode({'focus': focusKey}),
+      openInput: 'node:${widget.brain}/apps/$appId',
     );
   }
 
@@ -808,14 +1019,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _zOrder.add(localWinId);
       _normalizeZOrder();
     });
-    final dockBtn =
-        dockButtons['dock-$appId'] ??
-        <String, dynamic>{
-          'key': 'dock-$appId',
-          'action': 'open:$appId',
-          'enabled': true,
-        };
-    _dispatchViewNode(dockBtn);
+    if (dockButtons['dock-$appId'] case final dockBtn?) {
+      _dispatchViewNode(dockBtn);
+    } else {
+      _shellGesture('desktop', 'open', appId);
+    }
     if (appId == 'settings') {
       widget.onActivate({
         'kind': 'settings',
@@ -833,37 +1041,66 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     });
   }
 
+  static const _debuggerContract =
+      'IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads';
+
+  // Only the Creator's view gets the journal tail: its brain graph is the one place pulses are drawn. The tail starts at the
+  // journal's head, read from the Creator's reads neuron, so nothing journaled before the window opened is replayed.
+  Stream<List<JournalTailSignal>> Function()? _journalFor(String view) {
+    final journal = widget.journal;
+    final read = widget.read;
+    if (journal == null ||
+        read == null ||
+        !view.startsWith('${widget.brain}/apps/creator/')) {
+      return null;
+    }
+    return () async* {
+      Object? head;
+      try {
+        head = (await read(
+          _debuggerContract,
+          'creator/reads',
+          'Head',
+        ))?['value'];
+      } catch (_) {
+        // No head, no pulses: the graph stays still rather than replaying the journal.
+        return;
+      }
+      if (head is! num) return;
+      yield* journal(widget.brain, head.toInt());
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    final root = data?['root'];
-    final isDesktopTree =
-        root is Map &&
-        root['key'] == 'desktop' &&
-        root['kind'] == 2 &&
-        (root['children'] as List? ?? const []).any(
-          (c) => c is Map && c['key'] == 'windows',
-        );
+    final view = _desktopView;
+    final isDesktopTree = _isDesktopTree(view);
 
-    if (data == null || (!isDesktopTree && root != null)) {
+    if (data == null || !isDesktopTree) {
       if (_error != null && data == null) {
         return Center(child: Text('$_error'));
       }
-      return NeuronView(
+      return ViewHost(
         key: ValueKey('fallback:${widget.name}'),
         kind: 'view',
         name: widget.name,
         load: widget.load,
         watch: widget.watch,
         onAction: widget.onAction,
+        knowsApp: widget.knowsApp,
         onActivate: widget.onActivate,
-        scenes: widget.scenes,
-        entries: widget.entries,
-        localPreferences: widget.localPreferences,
       );
     }
 
-    final effectiveRoot = root is Map ? root : const <String, dynamic>{};
+    final effectiveRoot = view!.root;
+    _viewKeys = {
+      for (final node in _walk(effectiveRoot))
+        if (node is ButtonNode) node.key,
+      for (final node in _walk(effectiveRoot))
+        if (node is TabsNode)
+          for (final item in node.items) item.key,
+    };
     final c = IcTheme.of(context);
     final windows = _parseWindows(effectiveRoot);
     final dockButtons = _parseDockButtons(effectiveRoot);
@@ -931,7 +1168,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   ),
                 ),
 
-              // 2. SmartDesktop (Static Wallpaper + Spatial Workspace Home Screen + Whiteboard Sticky Cards)
+              // 2. SmartDesktop (Interactive 3D Orbital Neural Graph + Whiteboard Sticky Cards)
               Positioned(
                 left: 0,
                 top: 0,
@@ -942,54 +1179,22 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   stylePreset: widget.stylePreset,
                   barLayout: widget.barLayout,
                   openCardIds: openWidgets,
-                  apps: _parseAppSpecs(dockButtons),
-                  widgetsMenuOpen: _widgetsMenuOpen,
-                  onWidgetsMenuChanged: (open) =>
-                      setState(() => _widgetsMenuOpen = open),
-                  dynamicCards: () {
-                    final cards = _parseWhiteboardCards(effectiveRoot);
-                    return cards.isNotEmpty ? cards : null;
-                  }(),
-                  cardContentBuilder: (content) => ImmutableView(
-                    name: '${widget.name}/whiteboard',
-                    generation: _generation,
-                    root: content,
-                    enabled: true,
-                    dispatch: (event) async => _dispatchViewNode(event),
-                    markdown: (t) => SelectableText(t),
-                    reference: (node, key) => const SizedBox.shrink(),
-                    layout: (meta, children, _) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: children,
-                    ),
-                    onActivate: widget.onActivate,
-                  ),
                   onOpenCard: (cardId) {
                     setState(() {
                       _clientClosedWidgets.remove(cardId);
                       _clientOpenedWidgets.add(cardId);
                     });
-                    _dispatchViewNode(<String, dynamic>{
-                      'key': 'widget-open-$cardId',
-                      'action': 'widget-open:$cardId',
-                      'enabled': true,
-                    });
+                    _shellGesture('desktop', 'widget-open', cardId);
                   },
                   onCloseCard: (cardId) {
                     setState(() {
                       _clientOpenedWidgets.remove(cardId);
                       _clientClosedWidgets.add(cardId);
                     });
-                    _dispatchViewNode(<String, dynamic>{
-                      'key': 'widget-close-$cardId',
-                      'action': 'widget-close:$cardId',
-                      'enabled': true,
-                    });
+                    _shellGesture('desktop', 'widget-close', cardId);
                   },
                   onLaunchApp: (appId) =>
                       _launchOrFocusApp(appId, windows, dockButtons),
-                  onOpenAllApps: () =>
-                      setState(() => _allAppsOpen = !_allAppsOpen),
                   onOpenPalette: widget.onTogglePalette,
                   onSelectPreset: widget.onSelectPreset,
                   onCycleBarLayout: widget.onCycleBarLayout,
@@ -1052,34 +1257,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                           unawaited(_reload());
                         },
                         onHardRestartSandbox: () {
-                          unawaited(
-                            widget
-                                .onAction({
-                                  'kind': 'view',
-                                  'name': '${spec.viewportRef['name']}',
-                                  'revision': _generation,
-                                  'field': 'sandbox-${spec.windowId}',
-                                  'action': 'sandbox-restart:${spec.appId}',
-                                  'operationId': _operationId(),
-                                })
-                                .then((_) => _reload())
-                                .catchError((Object _) {}),
-                          );
+                          _shellGesture(spec.appId, 'sandbox-restart', '');
                         },
                         onSwitchExecutionMode: (mode) {
-                          unawaited(
-                            widget
-                                .onAction({
-                                  'kind': 'view',
-                                  'name': '${spec.viewportRef['name']}',
-                                  'revision': _generation,
-                                  'field': 'mode-${spec.windowId}',
-                                  'action': 'switch-mode:$mode',
-                                  'operationId': _operationId(),
-                                })
-                                .then((_) => _reload())
-                                .catchError((Object _) {}),
-                          );
+                          _shellGesture(spec.appId, 'switch-mode', mode);
                         },
                         onInspectSandbox: () {
                           _launchOrFocusApp('creator', windows, dockButtons);
@@ -1128,40 +1309,20 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 onHardRestartWindow: (id) {
                                   final target = byId[id];
                                   if (target != null) {
-                                    unawaited(
-                                      widget
-                                          .onAction({
-                                            'kind': 'view',
-                                            'name':
-                                                '${target.viewportRef['name']}',
-                                            'revision': _generation,
-                                            'field':
-                                                'sandbox-${target.windowId}',
-                                            'action':
-                                                'sandbox-restart:${target.appId}',
-                                            'operationId': _operationId(),
-                                          })
-                                          .then((_) => _reload())
-                                          .catchError((Object _) {}),
+                                    _shellGesture(
+                                      target.appId,
+                                      'sandbox-restart',
+                                      '',
                                     );
                                   }
                                 },
                                 onSwitchExecutionMode: (id, mode) {
                                   final target = byId[id];
                                   if (target != null) {
-                                    unawaited(
-                                      widget
-                                          .onAction({
-                                            'kind': 'view',
-                                            'name':
-                                                '${target.viewportRef['name']}',
-                                            'revision': _generation,
-                                            'field': 'mode-${target.windowId}',
-                                            'action': 'switch-mode:$mode',
-                                            'operationId': _operationId(),
-                                          })
-                                          .then((_) => _reload())
-                                          .catchError((Object _) {}),
+                                    _shellGesture(
+                                      target.appId,
+                                      'switch-mode',
+                                      mode,
                                     );
                                   }
                                 },
@@ -1208,7 +1369,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 windowBuilders: {
                                   for (final w in visibleWindows)
                                     if (w.windowId != spec.windowId)
-                                      w.windowId: (context) => NeuronView(
+                                      w.windowId: (context) => ViewHost(
                                         key: ValueKey(
                                           'canvas-viewport:${w.viewportRef['name']}:${_windowStates[w.windowId]?.reloadEpoch ?? 0}',
                                         ),
@@ -1217,20 +1378,20 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         load: widget.load,
                                         watch: widget.watch,
                                         onAction: widget.onAction,
+                                        knowsApp: widget.knowsApp,
+                                        signals: _journalFor(
+                                          w.viewportRef['name'] as String,
+                                        ),
                                         onActivate: (activation) =>
                                             _handleChildActivation(
                                               activation,
                                               windows,
                                               dockButtons,
                                             ),
-                                        scenes: widget.scenes,
-                                        entries: widget.entries,
-                                        localPreferences:
-                                            widget.localPreferences,
                                       ),
                                 },
                               )
-                            : NeuronView(
+                            : ViewHost(
                                 key: ValueKey(
                                   'viewport:${spec.viewportRef['name']}:${_windowStates[spec.windowId]?.reloadEpoch ?? 0}',
                                 ),
@@ -1239,15 +1400,16 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 load: widget.load,
                                 watch: widget.watch,
                                 onAction: widget.onAction,
+                                knowsApp: widget.knowsApp,
+                                signals: _journalFor(
+                                  spec.viewportRef['name'] as String,
+                                ),
                                 onActivate: (activation) =>
                                     _handleChildActivation(
                                       activation,
                                       windows,
                                       dockButtons,
                                     ),
-                                scenes: widget.scenes,
-                                entries: widget.entries,
-                                localPreferences: widget.localPreferences,
                               ),
                       ),
                   ],
@@ -1290,28 +1452,17 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   openAppIds: openAppIds,
                   focusedAppId: topWindow?.appId,
                   paletteOpen: widget.paletteOpen,
-                  allAppsOpen: _allAppsOpen,
                   showingDesktop: _showDesktopOnly || visibleWindows.isEmpty,
                   notifications: _notificationsCount,
                   presence: _smart ? _presenceState : null,
                   profileMenu: widget.profileMenu,
                   onTogglePalette: () {
-                    setState(() {
-                      _popover = DesktopPopoverKind.none;
-                      _allAppsOpen = false;
-                    });
+                    setState(() => _popover = DesktopPopoverKind.none);
                     widget.onTogglePalette();
-                  },
-                  onToggleAllApps: () {
-                    setState(() {
-                      _popover = DesktopPopoverKind.none;
-                      _allAppsOpen = !_allAppsOpen;
-                    });
                   },
                   onToggleShowDesktop: () {
                     setState(() {
                       _popover = DesktopPopoverKind.none;
-                      _allAppsOpen = false;
                       _showDesktopOnly = !_showDesktopOnly;
                     });
                   },
@@ -1322,10 +1473,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     widget.onSelectPreset(IcStylePreset.values[nextIdx]);
                   },
                   onLaunchApp: (appId) {
-                    setState(() {
-                      _popover = DesktopPopoverKind.none;
-                      _allAppsOpen = false;
-                    });
+                    setState(() => _popover = DesktopPopoverKind.none);
                     _launchOrFocusApp(appId, windows, dockButtons);
                   },
                   onSecondaryTapApp: (appId, globalPos) => _togglePopover(
@@ -1503,19 +1651,6 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     onOpenSheet: (next) => setState(() => _systemSheet = next),
                   ),
                 ),
-
-              // 9. Categorized "All Apps" Launcher Modal (All 32 DigitalBrain OS + ArtCraft Studio Apps)
-              if (_allAppsOpen)
-                Positioned.fill(
-                  child: AllAppsLauncherOverlay(
-                    apps: _parseCatalogSpecs(effectiveRoot),
-                    onClose: () => setState(() => _allAppsOpen = false),
-                    onLaunchApp: (appId) {
-                      setState(() => _allAppsOpen = false);
-                      _launchOrFocusApp(appId, windows, dockButtons);
-                    },
-                  ),
-                ),
             ],
           ),
         );
@@ -1523,3 +1658,33 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     );
   }
 }
+
+/// The view event a desktop node sends: only a node the published view holds activates, only by its key; any
+/// other data on the node (an old `action`) is never sent anywhere.
+Map<String, dynamic>? desktopViewEvent(
+  Map<String, dynamic>? node,
+  Set<String> viewKeys,
+  String name,
+  int generation,
+) {
+  if (node == null || node['enabled'] == false) return null;
+  final key = node['key'] as String?;
+  if (key == null || !viewKeys.contains(key)) return null;
+  return {'kind': 'view', 'name': name, 'generation': generation, 'key': key};
+}
+
+// The shell's own desktop gestures that no view node carries. Task 22 debt: each becomes a node of the desktop
+// view. Only these (app, operation) pairs are sent, with arguments the shell itself holds; anything else is refused.
+// `window` stands for the app of a window the shell shows (sandbox controls).
+const _desktopShellOperations = <(String, String)>{
+  ('desktop', 'open'),
+  ('desktop', 'close-app'),
+  ('desktop', 'widget-open'),
+  ('desktop', 'widget-close'),
+  ('settings', 'navigate'),
+  ('window', 'sandbox-restart'),
+  ('window', 'switch-mode'),
+};
+
+bool desktopShellOperationAllowed(String app, String operation) =>
+    _desktopShellOperations.contains((app, operation));

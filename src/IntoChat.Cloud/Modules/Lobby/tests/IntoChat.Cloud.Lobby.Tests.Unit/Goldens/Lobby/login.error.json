@@ -19,12 +19,14 @@
       },
       {
         "kind": "button",
+        "key": "google",
         "label": "Continue with Google",
-        "action": {
-          "neuron": "lobby",
-          "operation": "google",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "google",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "neutral",
         "style": "secondary",
@@ -38,25 +40,31 @@
         "mono": false
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "email",
         "name": "email",
-        "value": null,
-        "placeholder": "Email"
+        "fieldKind": "Text",
+        "placeholder": "Email",
+        "onSubmit": null
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "password",
         "name": "password",
-        "value": null,
-        "placeholder": "Password"
+        "fieldKind": "Password",
+        "placeholder": "Password",
+        "onSubmit": null
       },
       {
         "kind": "button",
+        "key": "forgot",
         "label": "Forgot password?",
-        "action": {
-          "neuron": "lobby",
-          "operation": "forgot",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "forgot",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "neutral",
         "style": "secondary",
@@ -64,12 +72,14 @@
       },
       {
         "kind": "button",
+        "key": "submit",
         "label": "Log in",
-        "action": {
-          "neuron": "lobby",
-          "operation": "submit",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "submit",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "accent",
         "style": "secondary",
@@ -77,12 +87,14 @@
       },
       {
         "kind": "button",
+        "key": "signup",
         "label": "Create an account",
-        "action": {
-          "neuron": "lobby",
-          "operation": "signup",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "signup",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "neutral",
         "style": "secondary",

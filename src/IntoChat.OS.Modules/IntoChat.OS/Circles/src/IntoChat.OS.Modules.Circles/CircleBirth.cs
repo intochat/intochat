@@ -10,19 +10,20 @@ using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Modules.Circles;
 
-// Legacy circle brain creation handler: founds the circle record if a BrainKind.Circle is created.
-// Personal brains now connect directly via FriendsApp and ProfileNeuron without requiring separate CircleRoom apps.
-internal sealed class CircleBirth(ICapabilityBroker broker, IServiceProvider plain, FeatureCatalog? catalog = null, FeatureLoader? loader = null) : ICreationHandler
+// R125/T26-13: a circle brain is born with no OS default app. Its core is founded with the name it was created under
+// and the machine it is born on, the creator's (R76), contributed first. Create awaits this handler as the creator
+// (BrainBirths stamps the owner), so the brain is complete before anyone sees it. Any other brain is left alone.
+// The circle room was a script app and went with the script lane; a compiled room is not shipped yet.
+internal sealed class CircleBirth(ICapabilityBroker broker, IServiceProvider plain) : ICreationHandler
 {
-    public const string RoomOwner = "os";
-    public const string RoomName = "friends";
-
     public Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         return Born(brainId, cancellationToken);
     }
 
+    // Idempotent: the core is founded once, so a birth that failed part-way is completed by running it again
+    // (the factory does, on a retried Create).
     public async Task Born(string brainId, CancellationToken cancellationToken)
     {
         var directory = await broker.Identity(cancellationToken);
@@ -31,9 +32,5 @@ internal sealed class CircleBirth(ICapabilityBroker broker, IServiceProvider pla
         var name = (await directory.Membership(brainId, creator.PersonId, cancellationToken))?.DisplayName
             ?? throw new InvalidOperationException($"Circle {brainId} has no creator on record.");
         await SiloNeurons.Get<ICircle>(plain, ICircle.Key(brainId)).Found(name);
-        if (catalog is not null && loader is not null && await catalog.Find(RoomOwner, RoomName) is { } room)
-        {
-            await loader.Load(brainId, RoomName, room, new AppOrigin(RoomOwner, new AppSource.Shipped(), RoomName, room.Version), cancellationToken);
-        }
     }
 }

@@ -105,7 +105,7 @@ internal sealed class AppMenuHost(DigitalBrain.Spi.IClusterListeners listeners, 
             logger.LogWarning(error, "The app menu could not read {App}.", name);
             return null;
         }
-        if (snapshot.MigrationTarget is not null || snapshot.Manifest is null) { return []; }
+        if (snapshot.Manifest is null) { return []; }
         return snapshot.Manifest.Operations
             .Select(operation => new MenuOperation(name, operation.Name, string.IsNullOrWhiteSpace(operation.Description) ? null : operation.Description))
             .ToArray();

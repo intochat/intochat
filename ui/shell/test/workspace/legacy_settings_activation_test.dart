@@ -1,4 +1,5 @@
-import 'dart:convert' show jsonDecode, jsonEncode;
+import 'dart:async' show unawaited;
+import 'dart:convert' show jsonDecode;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -15,7 +16,13 @@ void main() {
   ) async {
     final server = _LegacySettingsServer();
     final fixture = await ApplicationFixture.start(tester, server: server);
-    await tester.tap(find.text('Settings'));
+    unawaited(
+      fixture.appState.activateAction({
+        'kind': 'settings',
+        'brainId': 'brain-1',
+        'tab': 'keys',
+      }),
+    );
     await tester.pumpAndSettle();
     final requests = server.requestsTo(
       '/brains/brain-1/apps/workspace/request',
@@ -52,19 +59,8 @@ class _LegacySettingsServer extends ApplicationServer {
     if (request.url.path.endsWith('/apps/connect')) {
       requests.add(RecordedAppRequest(request.url.path, body(request)));
       return json({
-        'root': {'kind': 'button', 'name': 'brain-1/apps/desktop/settings'},
+        'root': {'kind': 'view', 'name': 'brain-1/apps/assistant/surface'},
         'activationApp': 'workspace',
-      });
-    }
-    if (request.url.path.endsWith('/apps/node')) {
-      return json({
-        'label': 'Settings',
-        'enabled': true,
-        'activation': jsonEncode({
-          'kind': 'settings',
-          'brainId': 'brain-1',
-          'tab': 'keys',
-        }),
       });
     }
     return super.send(request);

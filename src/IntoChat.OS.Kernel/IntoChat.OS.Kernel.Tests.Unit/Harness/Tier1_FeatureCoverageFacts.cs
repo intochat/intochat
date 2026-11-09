@@ -465,16 +465,6 @@ public sealed class Tier1_FeatureCoverageFacts
     [Fact]
     [Trait("Category", "Tier1_FeatureCoverage")]
     [Trait("Feature", "F7")]
-    public void F7_01_SideloadInstallResult_InitializesSuccessAndConsentState()
-    {
-        var result = SideloadInstallResult.Done("Installed successfully");
-        Assert.True(result.Ok);
-        Assert.Equal("Installed successfully", result.Message);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F7")]
     public void F7_02_AppConsent_Of_ComputesHexDigest()
     {
         var req = new AppRequirements(SemanticTypes: ["text.summary"], Connectors: ["openai"], Secrets: ["api-key"], Capabilities: ["net.out"]);
@@ -491,16 +481,6 @@ public sealed class Tier1_FeatureCoverageFacts
         Assert.True(AppConsent.IsEmpty(null));
         Assert.True(AppConsent.IsEmpty(new AppRequirements(SemanticTypes: [], Connectors: [], Secrets: [], Capabilities: [])));
         Assert.False(AppConsent.IsEmpty(new AppRequirements(SemanticTypes: ["cap"], Connectors: [], Secrets: [], Capabilities: [])));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F7")]
-    public void F7_04_SideloadInstallResult_FailedState_ReportsErrorMessage()
-    {
-        var result = SideloadInstallResult.Fail("User consent required.");
-        Assert.False(result.Ok);
-        Assert.Contains("User consent required", result.Message);
     }
 
     [Fact]

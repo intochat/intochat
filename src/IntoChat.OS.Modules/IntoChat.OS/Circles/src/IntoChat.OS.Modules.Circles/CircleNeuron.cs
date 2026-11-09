@@ -67,19 +67,6 @@ internal sealed class CircleNeuron(
     // ICircle.State names the circle's view; the persisted record is the base neuron's State.
     public new Task<CircleState> State() => Task.FromResult(Describe(Core()));
 
-    public Task BindPublicationButton()
-    {
-        MemberChange();
-        return SiloNeurons.Get<IntoChat.OS.Modules.Flutter.IUiBinding>(plain, IApp.Key(CircleBrain, "circleroom") + "/bring-button")
-            .Bind(IntoChat.OS.Modules.Flutter.UiHandlers.IdOf(Id));
-    }
-
-    public Task HandleUiEvent(IntoChat.OS.Modules.Flutter.UiEvent uiEvent)
-    {
-        MemberChange();
-        return PublicationButton.Handle(plain, CircleBrain, "circleroom", "bring-button", uiEvent, BringPublication);
-    }
-
     public async Task Found(string name)
     {
         await Check("Found", new CircleNameIsValid(name));
@@ -87,7 +74,7 @@ internal sealed class CircleNeuron(
         var creator = Caller().AccountId;
         // Inside the brain's Create turn: the compute share (which reads the brain) is stated on the first change.
         var founded = new CircleRecord { Name = name, Owner = creator, Members = [creator], Version = 1 };
-        await Save(founded, Changed(founded));
+        await Save(founded, Changed(founded), new CircleRoomJoined(creator));
     }
 
     public async Task Invite(string accountId)
@@ -140,6 +127,7 @@ internal sealed class CircleNeuron(
         var next = record.Clone();
         next.Invited = [.. next.Invited.Where(invited => invited != caller.AccountId)];
         next.Members = [.. next.Members, caller.AccountId];
+        revoked.Add(new CircleRoomJoined(caller.AccountId));
         return await CommitCore(next);
     }
 
@@ -168,6 +156,7 @@ internal sealed class CircleNeuron(
         {
             await (await broker.Identity()).RemoveMember(CircleBrain, accountId);
             revoked.Add(new CircleMembershipRevoked(accountId, next.Members.ToArray()));
+            revoked.Add(new CircleRoomLeft(accountId));
         }
         next.Members = [.. next.Members.Where(member => member != accountId)];
         next.Invited = [.. next.Invited.Where(invited => invited != accountId)];

@@ -18,19 +18,23 @@
         "mono": false
       },
       {
-        "kind": "textField",
+        "kind": "field",
+        "key": "email",
         "name": "email",
-        "value": null,
-        "placeholder": "Work email"
+        "fieldKind": "Text",
+        "placeholder": "Work email",
+        "onSubmit": null
       },
       {
         "kind": "button",
+        "key": "send",
         "label": "Log in",
-        "action": {
-          "neuron": "lobby",
-          "operation": "send",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "send",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "accent",
         "style": "secondary",

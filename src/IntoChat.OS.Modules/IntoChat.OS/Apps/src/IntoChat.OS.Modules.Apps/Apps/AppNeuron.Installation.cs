@@ -20,6 +20,7 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        RequireOriginWriter(origin);
         await RequireBundleFor("Import", bundle);
         if (installation is not null)
         {
@@ -45,10 +46,6 @@ internal sealed partial class AppNeuron
         {
             next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
         }
-        if (bundle.PrebuiltBehaviors is { Count: > 0 })
-        {
-            next.PutSetting(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, InProcessAppRuntime.SerializePrebuiltBehaviors(bundle.PrebuiltBehaviors));
-        }
         next.Connections = new Dictionary<string, string>();
         next.Version = bundle.Version;
         next.Installation = installation;
@@ -60,6 +57,7 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        RequireOriginWriter(origin);
         await Check("Replace",
             new AppExists(Name(), State.Manifest is not null),
             new BundleNameIsValid(bundle.Name, Name()),
@@ -90,14 +88,17 @@ internal sealed partial class AppNeuron
         {
             next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
         }
-        if (bundle.PrebuiltBehaviors is { Count: > 0 })
-        {
-            next.PutSetting(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, InProcessAppRuntime.SerializePrebuiltBehaviors(bundle.PrebuiltBehaviors));
-        }
         next.Version = bundle.Version;
         Adopt(next, origin);
         // Settings, connections and the app's stored data stay; only the program is the bundle's.
         return await Land(next);
+    }
+
+    // An origin marks the copy unedited and from its publisher, which every ShippedApps.Is guard trusts: an app behind the proxy
+    // (itself included) never writes one; the kernel's host, the installer and a person do.
+    private static void RequireOriginWriter(AppOrigin? origin)
+    {
+        if (origin is not null) { CallerAdmission.RequireNotAppCaller("Only the kernel or a person records where an app came from."); }
     }
 
     private static void Adopt(AppState next, AppOrigin? origin)
@@ -113,6 +114,7 @@ internal sealed partial class AppNeuron
     {
         next.Principal ??= RuntimeCallerContext.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
         next.Status = AppStatus.Deploying;
+        next.Refused = null;
         AdvanceProgram(next);
         Record(next);
         await Persist(next);
@@ -137,40 +139,43 @@ internal sealed partial class AppNeuron
             new BundleNameIsValid(bundle.Name, Name()),
             new BundleVersionIsSemantic(bundle.Version));
 
-    public async Task RecordOrigin(AppOrigin origin)
+    // Reassigns the program on activation, as its own one-way turn after the activation (see OnActivate): whatever goes wrong here is
+    // logged and written to the activity, never thrown at the first caller.
+    async Task IAppRestore.Restore()
     {
-        ArgumentNullException.ThrowIfNull(origin);
-        // Recording the publisher's origin marks a copy unedited and shipped, which every ShippedApps.Is guard trusts:
-        // an app behind the proxy (itself included) must never write its own.
-        if (RuntimeCallerContext.TryGet(out var caller) && caller.StampedBy == TrustedEdge.AppProxy)
-        { throw new UnauthorizedAccessException("Only the kernel or a person records where an app came from."); }
-        await RequireCreated("RecordOrigin");
-        var next = State.Clone();
-        next.Origin = origin;
-        next.Edited = false;
-        await Persist(next);
-        await RecordFeature();
-    }
-
-    public async Task Restore()
-    {
-        if (State.MigrationPaused || State.Manifest is null || Runtime is not { } runtime) { return; }
-        var sources = Sources(State);
-        if (!HasProgram(State)) { return; }
-        var configuration = Configuration(State);
-        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
-        var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
-        if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
-        else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
-        try
-        {
-            // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
-            await runtime.Deploy(Key, sources, configuration, CancellationToken.None);
-        }
+        try { await RestoreProgram(); }
         catch (Exception error)
         {
-            ServiceProvider.GetRequiredService<ILogger<AppNeuron>>().LogError(error,
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(error,
                 "Could not restore the program of app {App} against the current contracts.", Key);
+            try
+            {
+                if (State.Manifest is not null)
+                {
+                    var next = State.Clone();
+                    next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "restore failed: " + error.Message];
+                    await Persist(next);
+                }
+            }
+            catch (Exception recording)
+            {
+                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(recording, "Could not record the restore failure of app {App}.", Key);
+            }
+        }
+    }
+
+    private async Task RestoreProgram()
+    {
+        if (State.Manifest is null || !HasProgram(State)) { return; }
+        var configuration = Configuration(State);
+        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
+        try
+        {
+            var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
+            if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
+            else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
+            // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
+            await Runtime.Deploy(Key, configuration, CancellationToken.None);
         }
         finally
         {
@@ -179,51 +184,24 @@ internal sealed partial class AppNeuron
         }
     }
 
-    private IAppRuntime? Runtime => SelectRuntime(State);
+    // The in-process host is the only runtime; it holds nothing, so each call takes a fresh one.
+    private InProcessAppRuntime Runtime => new(ServiceProvider);
 
-    private IAppRuntime? SelectRuntime(AppState state)
-    {
-        var bundle = CurrentBundle(state);
-        return runtimes.FirstOrDefault(r => r.Accepts(bundle)) ?? runtimes.FirstOrDefault();
-    }
-
-    private AppBundle CurrentBundle(AppState state)
-    {
-        state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var compiledType);
-        var prebuilt = InProcessAppRuntime.ExtractPrebuiltBehaviors(new(state.Files, StringComparer.Ordinal), new(state.Settings, StringComparer.Ordinal));
-        return new AppBundle(
-            Name(),
-            state.Version,
-            state.Manifest ?? new("", "", [], [], []),
-            state.Spec,
-            new(state.Files, StringComparer.Ordinal),
-            prebuilt.Count > 0 ? prebuilt : null,
-            compiledType);
-    }
-
+    // An app runs only when it names a compiled module type; anything else is data.
     private static bool HasProgram(AppState state)
-        => state.Files.Keys.Any(AppFiles.IsProgram)
-            || state.Files.Keys.Any(static k => k.EndsWith(".dll.base64", StringComparison.Ordinal))
-            || (state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var ct) && !string.IsNullOrWhiteSpace(ct))
-            || (state.Settings.TryGetValue(InProcessAppRuntime.PrebuiltBehaviorsJsonKey, out var pb) && !string.IsNullOrWhiteSpace(pb));
-
-    private static Dictionary<string, string> Sources(AppState state)
-        => state.Files.Where(file => AppFiles.IsProgram(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        => state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var ct) && !string.IsNullOrWhiteSpace(ct);
 
     // The whole program, every time: the runtime decides what changed. No program means nothing runs.
     private async Task Deploy()
     {
-        if (State.MigrationPaused) { return; }
         await RecordFeature();
-        if (Runtime is not { } runtime) { return; }
-        var sources = Sources(State);
-        if (!HasProgram(State)) { await runtime.Retire(Key, CancellationToken.None); return; }
+        if (!HasProgram(State)) { await Runtime.Retire(Key, CancellationToken.None); return; }
         var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
         var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
         if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
         try
         {
-            await runtime.Deploy(Key, sources, Configuration(State), CancellationToken.None);
+            await Runtime.Deploy(Key, Configuration(State), CancellationToken.None);
         }
         finally
         {
@@ -233,12 +211,12 @@ internal sealed partial class AppNeuron
     }
 
     // Every program assignment lands in the kernel as this brain's feature, whatever its source:
-    // the features folder, the Marketplace or the Creator. Owner is where it came from.
+    // the shipped catalog, the Marketplace or the Creator. Owner is where it came from.
     private async Task RecordFeature()
     {
         if (ServiceProvider.GetService<IKernel>() is not { } kernel || State.Manifest is null || BrainId().Length == 0) { return; }
         var feature = new Feature(Name(), State.Version, State.Origin?.Publisher ?? BrainId());
-        await kernel.LoadFeature(BrainId(), feature, FeatureTypes.Of(Sources(State), feature.Provider));
+        await kernel.LoadFeature(BrainId(), feature, []);
     }
 
     // The program reads brain.Setting("App") to find this neuron, brain.Setting(name) for each
@@ -263,7 +241,7 @@ internal sealed partial class AppNeuron
 
     // The settings app on a cloud host mounts auth's account neuron. Other apps and a local host leave the setting unset.
     internal static bool WritesAccountSurface(string appName, string? topology) =>
-        string.Equals(appName, "settings", StringComparison.OrdinalIgnoreCase)
+        string.Equals(appName, ShippedApps.Settings, StringComparison.OrdinalIgnoreCase)
         && string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     private Task ValidateInstallation(string operation, AppBundle bundle, AppOrigin? origin, AppInstallReceipt installation)
@@ -319,63 +297,6 @@ internal sealed partial class AppNeuron
         await directory.RemovePrincipalMember(brain, principal);
     }
 
-    public Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId)
-    {
-        throw new NotSupportedException("ReactionWriter has been replaced by PolicyWriter.");
-    }
-
-
-
-    public async Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null)
-    {
-        if (State.MigrationPaused) { return Describe(State); }
-        var index = Array.FindIndex(State.Synapses, synapse => synapse.OperationId == operationId);
-        if (index < 0 || State.Synapses[index].Status != SynapseStatus.Requested) { return Describe(State); }
-        var entry = State.Synapses[index];
-        string[] refused = [.. errors ?? []];
-        // A synapse WriteBehavior deployed (nothing staged) is Written, even when its caller gave up waiting on it.
-        if (entry.Source is null && entry.Path is { } deployed && State.Files.ContainsKey(deployed)) { refused = []; }
-        if (refused.Length == 0 && entry.Path is null) { refused = ["The writer reported a synapse it never wrote."]; }
-        var next = State.Clone();
-        // A staged synapse the runtime now runs joins the app's files.
-        if (refused.Length == 0 && entry.Source is { } staged)
-        {
-            next.Edited = true;
-            next.PutFile(entry.Path!, staged);
-            next.Version = Bump(next.Version, minor: false);
-            Record(next);
-        }
-        next.Synapses[index] = entry with
-        {
-            Status = refused.Length == 0 ? SynapseStatus.Written : SynapseStatus.Rejected,
-            Errors = refused,
-            ElapsedMs = elapsedMs,
-            Attempts = attempts,
-            Base = baseSynapse,
-            Hash = hash ?? entry.Hash,
-            Source = null,
-        };
-        DigitalBrain.Signal outcome = refused.Length == 0
-            ? new SynapseWritten(entry.Path!, hash ?? entry.Hash ?? "", elapsedMs, attempts)
-            : new SynapseRejected(entry.Sentence, refused);
-        var replacedProgram = next.ProgramRevision != State.ProgramRevision;
-        await Save(next, new AppChanged(Name(), next.Version, next.Status), outcome);
-        if (replacedProgram) { await Publish(new PresentationChanged(Key, next.ProgramRevision, 0)); }
-        return Describe(State);
-    }
-
-    // The bundle's rules judge the would-be request before it is published; the first rejection wins.
-    // The sandbox picks the rules out of the program's shared classes; no program means no rules. Rules
-    // fail closed: a program that declares one is rejected when no sandbox can run it.
-    private async Task<Verdict?> Rejection(AppRequested requested)
-    {
-        var program = Sources(State);
-        if (program.Count == 0) { return null; }
-        if (ServiceProvider.GetService<IScriptSandbox>() is not { } sandbox)
-        { return AppRules.Declared(program) ? Verdict.Reject("no sandbox") with { Rule = "rules" } : null; }
-        var verdicts = await sandbox.Judge(BrainId(), program, requested, CancellationToken.None);
-        return verdicts.FirstOrDefault(verdict => !verdict.Allowed);
-    }
 
     public Task<RetainedRequest[]> RetainedRequests() => Task.FromResult(State.RequestRetention);
 }

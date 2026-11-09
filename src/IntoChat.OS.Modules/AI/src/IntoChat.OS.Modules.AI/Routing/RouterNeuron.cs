@@ -127,7 +127,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter
                 AppSnapshot snapshot;
                 try { snapshot = await App(instance.Key).Read(); }
                 catch (Exception error) when (error is not OperationCanceledException) { return []; }
-                if (snapshot.MigrationTarget is not null || snapshot.Manifest is null) { continue; }
+                if (snapshot.Manifest is null) { continue; }
                 loaded.Add((name, snapshot.Manifest.Operations
                     .Select(operation => new MenuOperation(name, operation.Name, string.IsNullOrWhiteSpace(operation.Description) ? null : operation.Description))
                     .ToArray()));
@@ -150,7 +150,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter
             foreach (var name in catalog.Unknown(Scope, names))
             {
                 var snapshot = await App(IApp.Key(Scope, name)).Read();
-                catalog.Upsert(Scope, name, snapshot.MigrationTarget is not null || snapshot.Manifest is null ? []
+                catalog.Upsert(Scope, name, snapshot.Manifest is null ? []
                     : [.. snapshot.Manifest.Operations.Select(operation => new MenuOperation(name, operation.Name,
                         string.IsNullOrWhiteSpace(operation.Description) ? null : operation.Description))]);
             }

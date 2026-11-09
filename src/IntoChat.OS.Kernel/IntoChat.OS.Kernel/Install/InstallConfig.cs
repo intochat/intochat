@@ -33,7 +33,7 @@ public sealed record InstallConfig
     public string InstallerPrincipalId { get; init; } = "";
     // When set, the OS app also pulls from ghcr.io as this user with the Key Vault secret ghcr-read-token.
     public string GhcrUsername { get; init; } = "";
-    // Settings per module id, read by that module's deployment: { "csharp": { "sandboxImage": "..." } }.
+    // Settings per module id, read by that module's deployment: { "<module>": { "<key>": "..." } }.
     public Dictionary<string, Dictionary<string, string>> Modules { get; init; } = [];
 
     public static InstallConfig Parse(string json)
@@ -74,14 +74,6 @@ public sealed record InstallConfig
     {
         ArgumentNullException.ThrowIfNull(manifest);
         var modules = new Dictionary<string, Dictionary<string, string>>(Modules, StringComparer.OrdinalIgnoreCase);
-        if (!string.IsNullOrWhiteSpace(manifest.SandboxImage))
-        {
-            var csharp = modules.TryGetValue("csharp", out var existing)
-                ? new Dictionary<string, string>(existing, StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            csharp["sandboxImage"] = RewriteRegistry(manifest.SandboxImage, LoginServer);
-            modules["csharp"] = csharp;
-        }
         return this with
         {
             OsImage = !string.IsNullOrWhiteSpace(manifest.OsImage) ? RewriteRegistry(manifest.OsImage, LoginServer) : OsImage,

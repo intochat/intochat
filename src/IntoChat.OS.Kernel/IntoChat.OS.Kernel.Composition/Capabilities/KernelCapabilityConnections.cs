@@ -33,9 +33,11 @@ public sealed record SandboxCapabilityBinding<TCapability>(
 public static class KernelCapabilities
 {
     // storage@1 binds only a neuron that implements IStorage. The 0.6 read-only adapter is gone (07-09).
+    // http@1 is the kernel's own connector (HttpModule, id "web"): many connections, each a HttpReadConnection with its allow-list.
     public static void Configure(CapabilityRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(registry);
+        if (!registry.Known(Capability.Http.V1)) { registry.Register(Capability.Http.V1, typeof(DigitalBrain.Capabilities.Http.IHttpRead), CapabilityConnectionMode.ManyConnections); }
     }
 
     // Call before the silo is configured: ConfigureTopologySilo validates every composed module's Provides with this registry.

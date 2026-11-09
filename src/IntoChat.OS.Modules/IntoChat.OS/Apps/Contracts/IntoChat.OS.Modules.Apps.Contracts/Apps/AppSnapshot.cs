@@ -21,10 +21,6 @@ public sealed record AppSnapshot(
     string? PublishedVersion = null,
     AppOrigin? Origin = null,
     bool Edited = false,
-    AppSynapse[]? Synapses = null,
     AppInstallReceipt? Installation = null,
     AppPresentation? Presentation = null,
-    long ProgramRevision = 0,
-    string? MigrationTarget = null,
-    string? RuntimeStateJson = null,
-    long RuntimeStateRevision = 0);
+    long ProgramRevision = 0);

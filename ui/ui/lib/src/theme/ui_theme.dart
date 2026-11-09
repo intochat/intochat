@@ -3,7 +3,6 @@ import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' as material;
 
-import '../design/tokens.dart' show IcColors;
 import 'ui_colors.dart';
 import 'ui_tokens.dart';
 
@@ -449,7 +448,7 @@ abstract final class UiTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      extensions: [const UiTokens(), c, IcColors.fromUiColors(c)],
+      extensions: [const UiTokens(), c],
       colorScheme: scheme,
       fontFamily: UiType.sans,
       scaffoldBackgroundColor: c.page,

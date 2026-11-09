@@ -18,7 +18,7 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog) : IIncomingG
             var json = DigitalBrain.Invocation.RuntimeProtocol.Json;
             var listed = call.Arguments.Length > 0 ? call.Arguments[0].Deserialize<MarketplaceListing>(json) : null;
             if (listed is not null && await catalog.IsOwner(listed.Publisher))
-            { throw new UnauthorizedAccessException($"{listed.Publisher} owns the features folder's apps; no one publishes under it."); }
+            { throw new UnauthorizedAccessException($"{listed.Publisher} owns the shipped catalog's apps; no one publishes under it."); }
             Require(context, listed is null ? "" : MarketplaceNeuron.OwnerKey(listed) ?? "");
         }
         await context.Invoke();

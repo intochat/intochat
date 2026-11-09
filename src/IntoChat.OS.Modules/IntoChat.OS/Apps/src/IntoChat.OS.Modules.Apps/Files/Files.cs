@@ -73,9 +73,10 @@ public sealed record FilesState
 }
 
 // Files uses storage@1 only. The host persists snapshots and submits plans to the runtime's confirmation/operation gate.
-[App("files", Accent = "#F6B73C", Category = "Workspace")]
+[App(FilesApp.AppName, Accent = "#F6B73C", Category = "Workspace")]
 public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state, IReadOnlyList<IStorage>? storages = null) : App
 {
+    public const string AppName = "files";
     public const int PageSize = 100;
     public static readonly TimeSpan DefaultSearchLimit = TimeSpan.FromSeconds(2);
     public static AppDefinition Definition { get; } = new(typeof(FilesApp));

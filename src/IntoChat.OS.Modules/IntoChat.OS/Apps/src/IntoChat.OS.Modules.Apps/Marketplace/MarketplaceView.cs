@@ -2,7 +2,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The Marketplace as a person browses it: the features folder, then what people published.
+// The Marketplace as a person browses it: the shipped catalog, then what people published.
 // The IMarketplace neuron holds only the people's listings.
 public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog catalog)
 {

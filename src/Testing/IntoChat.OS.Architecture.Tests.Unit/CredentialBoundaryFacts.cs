@@ -29,11 +29,6 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Modules.Apps.AppNeuron",
             "IntoChat.OS.Modules.Apps.HostCaller",
             "IntoChat.OS.Modules.Flutter.Space.SpaceWatcher",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Edge.EdgeSessionValidator",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Programs.AppProgramNeuron",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Programs.ProgramPrincipal",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
         ];
         var offenders = ModuleMethods()
             .Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install")
@@ -53,11 +48,6 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Authority.VaultPort",
             "IntoChat.OS.Modules.Apps.AppNeuron",
             "IntoChat.OS.Modules.Apps.HostCaller",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Edge.EdgeSessionValidator",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Edge.RuntimeEdge",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Programs.AppProgramNeuron",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Programs.ProgramPrincipal",
-            "IntoChat.OS.Modules.Microsoft.CSharp.Runtime.BrainRuntimeNeuron",
         ];
         var sites = ModuleMethods().Where(m => Calls(m).Any(ConstructsACaller))
             .Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order().ToArray();

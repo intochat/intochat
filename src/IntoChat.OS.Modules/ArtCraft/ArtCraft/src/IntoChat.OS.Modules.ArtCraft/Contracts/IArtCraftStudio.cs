@@ -7,6 +7,9 @@ namespace IntoChat.OS.Modules.ArtCraft;
 [NeuronAlias("artcraft.studio"), DefaultNeuronType("artcraft.studio")]
 public interface IArtCraftStudio
 {
+    // The studio neuron's key within a brain.
+    const string StudioKey = "artcraft";
+
     [DigitalBrain.CallTimeout(120000)] Task<ArtCraftSession> Open(string app, CancellationToken ct = default);
 }
 

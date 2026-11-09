@@ -23,13 +23,11 @@ internal static class UiContractFiles
         return Path.GetFullPath(Path.Combine(Root, Path.GetDirectoryName(entry)!));
     }
 
-    // Every project directory the solution lists (found through the solution, never by a path literal), plus the
-    // single-file apps beside it.
+    // Every project directory the solution lists (found through the solution, never by a path literal).
     public static IEnumerable<string> ProductionSourceDirectories()
         => XDocument.Load(Path.Combine(Root, SolutionFile)).Descendants("Project")
             .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
             .Select(path => Path.GetFullPath(Path.Combine(Root, Path.GetDirectoryName(path)!)))
-            .Append(Path.Combine(Root, "features"))
             .Where(Directory.Exists)
             .Distinct();
 

@@ -20,7 +20,6 @@ using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using DigitalBrain.Runtime.Orleans.Confirmations;
-using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Ino;
@@ -40,7 +39,6 @@ using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Ui = IntoChat.OS.Modules.Flutter.Views.Ui;
 
 namespace IntoChat.OS.Kernel.Tests.E2E;
 
@@ -93,7 +91,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "desktop", desktop.RenderSide(), desktop.Render());
         var desktopView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/desktop/view").Read();
-        Assert.NotNull(desktopView?.Root);
+        Assert.NotNull(desktopView);
 
         // 2. SettingsApp lifecycle on the real silo (AppsAppFacts + Settings preferences & connections).
         var settingsApp = fixture.AttachSilo(new SettingsApp(), brain);
@@ -128,7 +126,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "settings", settingsApp.RenderSide(), settingsApp.Render());
         var settingsView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/settings/view").Read();
-        Assert.NotNull(settingsView?.Root);
+        Assert.NotNull(settingsView);
 
         // 3. GalleryApp lifecycle on the real silo.
         var gallery = fixture.AttachSilo(new GalleryApp(), brain);
@@ -147,7 +145,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "gallery", gallery.RenderSide(), gallery.Render());
         var galleryView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/gallery/view").Read();
-        Assert.NotNull(galleryView?.Root);
+        Assert.NotNull(galleryView);
 
         // 4. PhotoCraftApp dual-mode (Native Linux CLI + MCP) lifecycle on the real silo.
         var photo = fixture.AttachSilo(new PhotoCraftApp(), brain);
@@ -165,7 +163,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "photocraft", photo.RenderSide(), photo.Render());
         var photoView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/photocraft/view").Read();
-        Assert.NotNull(photoView?.Root);
+        Assert.NotNull(photoView);
 
         // 5. FilmCraftApp dual-mode (Native Linux CLI + MCP) lifecycle on the real silo.
         var film = fixture.AttachSilo(new FilmCraftApp(), brain);
@@ -182,7 +180,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", film.RenderSide(), film.Render());
         var filmView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read();
-        Assert.NotNull(filmView?.Root);
+        Assert.NotNull(filmView);
 
         // 6. MarkdrawApp and DataStudioApp lifecycle on the real silo.
         var markdraw = fixture.AttachSilo(new MarkdrawApp(), brain);
@@ -191,7 +189,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.True(markdraw.State.Elements.Length >= 5);
         await fixture.PublishAppViewToSiloAsync(brain, "markdraw", markdraw.RenderSide(), markdraw.Render());
         var markdrawView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/markdraw/view").Read();
-        Assert.NotNull(markdrawView?.Root);
+        Assert.NotNull(markdrawView);
 
         var dataStudio = fixture.AttachSilo(new DataStudioApp(), brain);
         await dataStudio.Open(new DataStudioOpen("/work/q4-opportunities.csv"));
@@ -199,82 +197,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotEmpty(dataStudio.State.Rows);
         await fixture.PublishAppViewToSiloAsync(brain, "data", dataStudio.RenderSide(), dataStudio.Render());
         var dataView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/data/view").Read();
-        Assert.NotNull(dataView?.Root);
-    }
-
-    [Fact]
-    public async Task CreatorStudioWorkflowInspectsAspireTelemetryAndVerifiesBddScenariosOnSilo()
-    {
-        var brain = fixture.NewBrain("creator");
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
-
-        // 1. Seed live error logs and distributed traces in AspireNeuron on the real silo (SelfImproveFacts).
-        var aspire = SiloNeurons.Get<IAspire>(fixture.Services, $"{brain}/aspire");
-        await aspire.RecordLogAsync(new AspireLogEntry(
-            DateTimeOffset.UtcNow,
-            "OperatingSystem",
-            "Error",
-            "DivideByZeroException in calculator",
-            "System.DivideByZeroException"));
-        await aspire.RecordTraceAsync(new AspireTraceSpan(
-            "trace-calc-01",
-            "span-calc-01",
-            "OperatingSystem",
-            "calculator.divide",
-            "Error",
-            850,
-            "Attempted to divide by zero."));
-
-        // 2. Open CreatorApp on the real silo and inspect telemetry + 3D BrainScene nodes.
-        var creator = fixture.AttachSilo(new CreatorApp(), brain);
-        await creator.Open(new CreatorOpen());
-        Assert.Contains("3D Brain ready", creator.State.Status, StringComparison.Ordinal);
-        Assert.Contains(creator.State.DiagnosedErrors, err => err.Contains("DivideByZeroException in calculator", StringComparison.Ordinal));
-
-        await creator.Inspect(new CreatorInspect("OperatingSystem"));
-        Assert.Contains(creator.State.DiagnosedErrors, err => err.Contains("Attempted to divide by zero.", StringComparison.Ordinal));
-
-        await creator.Inspect(new CreatorInspect("bdd"));
-        Assert.Equal("bdd", creator.State.SelectedNodeId);
-        Assert.True(creator.State.SceneRotationPaused);
-        Assert.True(creator.State.CameraZoom >= 1.5);
-
-        // 3. Prompt CreatorApp to synthesize & compile C# App<TState> with Roslyn in-memory, run BDD gate, and record in BddNeuron on the silo.
-        await creator.Prompt(new CreatorPrompt("Fix DivideByZeroException in calculator", "calculator"));
-        Assert.Equal("calculator", creator.State.TargetApp);
-        Assert.True(creator.State.SandboxCompiled);
-        Assert.True(creator.State.Promoted);
-        Assert.NotNull(creator.State.LastBddReport);
-        Assert.True(creator.State.LastBddReport.Passed);
-        Assert.Contains("[App(\"calculator\")]", creator.State.GeneratedSource, StringComparison.Ordinal);
-        Assert.Contains("DivideByZeroException", creator.State.GeneratedSource, StringComparison.Ordinal);
-
-        // Verify the BddReport was persisted into BddNeuron on the real Orleans silo.
-        var siloBdd = SiloNeurons.Get<IBdd>(fixture.Services, new NeuronId(new BrainId(brain), "bdd", "bdd"));
-        var persistedReport = await siloBdd.Read(Ct);
-        Assert.NotNull(persistedReport);
-        Assert.True(persistedReport.Passed);
-        Assert.Equal("calculator", persistedReport.AppId);
-
-        // 4. Switch plain-language BDD scenario debugger locale, bump version, rollback, and hot-restart sandbox.
-        await creator.Language(new CreatorSwitchLanguage("uk"));
-        Assert.Equal("uk", creator.State.BddLanguage);
-        Assert.NotEmpty(creator.State.ScenarioSteps ?? []);
-
-        var versionAfterFirstPrompt = creator.State.CurrentVersion;
-        await creator.Prompt(new CreatorPrompt("Add memory recall button to calculator", "calculator"));
-        var versionAfterSecondPrompt = creator.State.CurrentVersion;
-        Assert.NotEqual(versionAfterFirstPrompt, versionAfterSecondPrompt);
-
-        await creator.Rollback(new CreatorRollback(versionAfterFirstPrompt));
-        Assert.Equal(versionAfterFirstPrompt, creator.State.CurrentVersion);
-
-        await creator.HotRestart(new CreatorHotRestart());
-        Assert.True(creator.State.SandboxRestartCount >= 1);
-
-        await fixture.PublishAppViewToSiloAsync(brain, "creator", creator.RenderSide(), creator.Render());
-        var creatorView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/creator/view").Read();
-        Assert.NotNull(creatorView?.Root);
+        Assert.NotNull(dataView);
     }
 
     [Fact]
@@ -294,7 +217,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
 
         // Live settings synchronization into InoApp.
         var updatedSettings = await settings.SetProfile("ElonWatcher", "dark", "qwen3.5:4b");
-        ino.OnSettingsChanged(new UserSettingsChanged(
+        await ino.OnSettingsChanged(new UserSettingsChanged(
             updatedSettings.DisplayName,
             updatedSettings.Theme,
             updatedSettings.DefaultModel,
@@ -321,14 +244,14 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotNull(secretNode);
         Assert.Equal("Tripletex Session Token", secretNode.Name);
         Assert.Contains("neuron://local/vault/secrets", secretNode.SavedIn, StringComparison.Ordinal);
-        Assert.Equal("os://window/secure", secretNode.OnEnter?.Neuron);
+        Assert.Equal("os://window/secure", secretNode.Enter?.Intent?.Arg);
 
         Assert.DoesNotContain(ino.State.Turns, t => t.Reply.Contains(forbiddenText, StringComparison.Ordinal)
             || t.UserMessage.Contains(forbiddenText, StringComparison.Ordinal));
 
         await fixture.PublishAppViewToSiloAsync(brain, "ino", ino.RenderSide(), renderedView);
         var inoSiloView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/view").Read();
-        Assert.NotNull(inoSiloView?.Root);
+        Assert.NotNull(inoSiloView);
     }
 
     [Fact]

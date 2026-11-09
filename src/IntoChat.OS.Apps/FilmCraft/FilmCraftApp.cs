@@ -80,6 +80,8 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(FilmCraftApp));
 
+    public const string AppName = ShippedApps.FilmCraft;
+
     public static AppBundle Bundle { get; } = new(
         "filmcraft",
         "1.1.0",
@@ -96,7 +98,8 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
             ],
             Settings: [],
             Slots: [],
-            Icon: "icon.svg",
+            Icon: "film",
+            Dock: 6, Studio: true,
             Toolbar:
             [
                 new("open", Icon: "link", Label: "Connect editor"),

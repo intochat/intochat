@@ -14,7 +14,6 @@ internal sealed partial class AppNeuron
     public async Task<AppBundle> Export()
     {
         await RequireCreated("Export");
-        await RequireCompiles();
         var manifest = State.Manifest!;
         return new AppBundle(Name(), State.Version, manifest, State.Spec,
             new(State.Files, StringComparer.Ordinal));
@@ -23,9 +22,7 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Publish()
     {
         await Check("Publish",
-            new ProgramIsNotPaused(State.MigrationPaused),
             new AppExists(Name(), State.Manifest is not null));
-        await RequireCompiles();
         RuntimeCallerContext.TryGet(out var caller);
         await Check("Publish", new PublisherIsSignedIn(caller?.PersonId));
         if (BrainScope.Create(caller!.AccountId, caller.BrainId).Id != BrainId())
@@ -57,13 +54,6 @@ internal sealed partial class AppNeuron
         return Describe(State);
     }
 
-    public Task<AppBundle?> ExportVersion(string version)
-    {
-        var record = State.History.LastOrDefault(item => item.Version == version);
-        return Task.FromResult(record is null ? null
-            : new AppBundle(Name(), record.Version, record.Manifest, record.Spec, new(record.Files, StringComparer.Ordinal)));
-    }
-
     public async Task<AppBundle> ExportPublished()
     {
         await Check("ExportPublished", new HasPublishedVersion(State.Published is not null));
@@ -71,32 +61,6 @@ internal sealed partial class AppNeuron
         return new AppBundle(Name(), published.Version, published.Manifest, published.Spec,
             new(published.Files, StringComparer.Ordinal));
     }
-
-    public async Task<AppSnapshot> SaveToSource()
-    {
-        var development = ServiceProvider.GetService<IHostEnvironment>() is { } environment && environment.IsDevelopment();
-        var fromFeature = State.Origin is { Source: AppSource.Shipped };
-        await Check("SaveToSource",
-            new ProgramIsNotPaused(State.MigrationPaused),
-            new AppExists(Name(), State.Manifest is not null),
-            new SaveToSourceIsAvailable(development, fromFeature, Name()));
-        var origin = State.Origin!;
-        var catalog = ServiceProvider.GetRequiredService<FeatureCatalog>();
-        var exported = await Export();
-        var shipped = await catalog.Find(origin.Publisher, origin.Name);
-        var version = Bump(Newest(exported.Version, shipped?.Version ?? exported.Version), minor: false);
-        var saved = await catalog.SaveToSource(origin.Publisher, exported with { Name = origin.Name, Version = version });
-        var next = State.Clone();
-        next.Version = saved.Version;
-        next.Origin = origin with { Version = saved.Version };
-        next.Edited = false;
-        Record(next);
-        await Persist(next);
-        return Describe(State);
-    }
-
-    private static string Newest(string left, string right)
-        => Version.Parse(left) >= Version.Parse(right) ? left : right;
 
     public Task<AppPublication[]> PublishedReleases()
         => Task.FromResult(Releases().Select(release => release.Publication).ToArray());

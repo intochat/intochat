@@ -21,18 +21,11 @@ public sealed class AppsOptions : IModuleOptions
     // How long a Building status blocks a new build before it counts as a stale, dead attempt.
     public int BuildFreshForSeconds { get; set; } = 900;
 
-    // The script folder the host loads at boot and lists in the Marketplace. A relative path
-    // resolves against the host's base directory. Unset: features/os under the repository that
-    // contains Intochat.OS.slnx when the host is in Development, and <base>/features/os when published.
-    public string? Features { get; set; }
-
     public void Validate()
     {
         if (BuildFreshForSeconds < 0) { throw new InvalidOperationException("BuildFreshForSeconds cannot be negative."); }
         if (FastPathReasoning is { Length: > 0 } reasoning && reasoning.ToLowerInvariant() is not ("none" or "low" or "medium" or "high" or "xhigh"))
         { throw new InvalidOperationException("FastPathReasoning must be none, low, medium, high or xhigh."); }
         if (FastPathMaxOutputTokens <= 0) { throw new InvalidOperationException("FastPathMaxOutputTokens must be positive."); }
-        if (!string.IsNullOrWhiteSpace(Features) && File.Exists(Features))
-        { throw new InvalidOperationException($"Features path '{Features}' is a file, not a directory."); }
     }
 }

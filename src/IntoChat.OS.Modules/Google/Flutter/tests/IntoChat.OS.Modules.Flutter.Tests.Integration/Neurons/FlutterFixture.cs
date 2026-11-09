@@ -13,5 +13,5 @@ public sealed class FlutterFixture : BothRuntimesFixture
 
     // The controls' [Signal] records live in the contracts assembly, beside the module's.
     protected override void ConfigureSilo(IServiceCollection services)
-        => services.AddJournalPayloads(typeof(Button.IButton).Assembly);
+        => services.AddJournalPayloads(typeof(Views.IView).Assembly);
 }

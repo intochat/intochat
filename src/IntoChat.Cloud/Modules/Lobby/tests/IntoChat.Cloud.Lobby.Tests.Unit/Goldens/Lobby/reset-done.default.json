@@ -12,12 +12,14 @@
       },
       {
         "kind": "button",
+        "key": "login",
         "label": "Log in",
-        "action": {
-          "neuron": "lobby",
-          "operation": "login",
-          "arguments": []
+        "emit": {
+          "owner": "lobby",
+          "signal": "login",
+          "args": null
         },
+        "intent": null,
         "enabled": true,
         "tone": "accent",
         "style": "secondary",

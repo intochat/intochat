@@ -26,6 +26,12 @@ public sealed record DesktopNarrow(string? Narrow = null) : DigitalBrain.Signal;
 [DigitalBrain.Signal("desktop.auto-arrange")]
 public sealed record DesktopAutoArrange : DigitalBrain.Signal;
 
+[DigitalBrain.Signal("desktop.widget-open")]
+public sealed record DesktopWidgetOpen(string? Widget = null) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("desktop.widget-close")]
+public sealed record DesktopWidgetClose(string? Widget = null) : DigitalBrain.Signal;
+
 [DigitalBrain.Signal("desktop.pin")]
 public sealed record DesktopPinApp(string? AppId = null, bool Pinned = true) : DigitalBrain.Signal;
 
@@ -46,6 +52,8 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DesktopApp));
 
+    public const string AppName = "desktop";
+
     public static AppBundle Bundle { get; } = new(
         "desktop",
         "0.4.0",
@@ -58,6 +66,18 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                 new("layout", "Choose the layout the next connect shows: desktop or classic."),
                 new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
                 new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise."),
+                new("auto-arrange", "Arrange the open windows."),
+                new("focus", "Focus the window named by Input."),
+                new("tab", "Activate the tab {window}/{index} named by Input."),
+                new("newtab", "Open a new tab, in the window named by Input when given."),
+                new("close", "Close the tab {window}/{index} named by Input."),
+                new("close-app", "Close the app named by Input's windows."),
+                new("pin", "Pin the app named by Input to the dock."),
+                new("unpin", "Unpin the app named by Input from the dock."),
+                new("favourite", "Toggle the favourite of the window named by Input's active tab."),
+                new("widget-open", "Open the widget named by Input."),
+                new("widget-close", "Close the widget named by Input."),
+                new("settings", "Open the settings."),
             ],
             Settings: [],
             Slots: [],
@@ -68,6 +88,8 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         CompiledType = typeof(DesktopApp).AssemblyQualifiedName,
     };
 
+    // The desktop's durable records (widgets, greeted, layout); State is this activation's working state.
+    private IDesktopRecords Records => Get<IDesktopRecords>(IDesktopRecords.Key);
     public static IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> Catalog { get; } =
     [
         // DigitalBrain OS Native Grains (15)
@@ -109,8 +131,35 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     public async Task Start(DesktopStart request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await SyncSmartDesktopAsync("smart-desktop", State.IsNarrow);
+        var records = await Records.Read();
+        await SyncSmartDesktopAsync(records.Layout is { Length: > 0 } layout ? layout : "smart-desktop", State.IsNarrow);
+        if (!records.Greeted)
+        {
+            // Ino greets once: the flag is the desktop's record, so another activation or a restart does not greet again.
+            try { await Get<IntoChat.OS.Modules.Apps.IApp>("apps/ino").Request("open", "greet"); }
+            catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Ino was not there to greet; the desktop starts without it."); }
+            await Records.Write(records with { Greeted = true });
+        }
     }
+
+    [DigitalBrain.On]
+    public async Task WidgetOpen(DesktopWidgetOpen request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var records = await Records.Read();
+        if (WidgetId(request.Widget) is { } id && !records.Widgets.Contains(id, StringComparer.Ordinal)) { await Records.Write(records with { Widgets = [.. records.Widgets, id] }); }
+    }
+
+    [DigitalBrain.On]
+    public async Task WidgetClose(DesktopWidgetClose request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var records = await Records.Read();
+        if (WidgetId(request.Widget) is { } id && records.Widgets.Contains(id, StringComparer.Ordinal))
+        { await Records.Write(records with { Widgets = [.. records.Widgets.Where(known => known != id)] }); }
+    }
+
+    private static string? WidgetId(string? widget) => string.IsNullOrWhiteSpace(widget) ? null : widget.Trim().ToLowerInvariant();
 
     [DigitalBrain.On]
     public async Task Layout(DesktopLayoutChoice request)
@@ -118,6 +167,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         ArgumentNullException.ThrowIfNull(request);
         var nextLayout = State.LayoutMode == "smart-desktop" ? "spatial-grid" : "smart-desktop";
         await SyncSmartDesktopAsync(nextLayout, State.IsNarrow);
+        await Records.Write(await Records.Read() with { Layout = nextLayout });
     }
 
     [DigitalBrain.On]
@@ -232,22 +282,22 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     new Text($"Whiteboard Sticky-Note Pins (Locked & Always-on-Top): {string.Join(", ", State.PinnedApps)}") { Tabular = true },
                     new Row(
                     [
-                        new Button("Auto-Arrange", new ButtonAction("desktop", "auto-arrange", []), Tone: ButtonTone.Accent)
+                        new Button("auto-arrange", "Auto-Arrange", Emit: AppSignals.Emit("desktop", "auto-arrange"), Tone: ButtonTone.Accent)
                         {
                             Icon = "layout-grid",
                             Small = true,
                         },
-                        new Button("Pin Markdraw", new ButtonAction("desktop", "pin", ["markdraw", "true"]))
+                        new Button("pin-markdraw", "Pin Markdraw", Emit: AppSignals.Emit("desktop", "pin", "markdraw", "true"))
                         {
                             Icon = "pin",
                             Small = true,
                         },
-                        new Button("Pin PhotoCraft", new ButtonAction("desktop", "pin", ["photocraft", "true"]))
+                        new Button("pin-photocraft", "Pin PhotoCraft", Emit: AppSignals.Emit("desktop", "pin", "photocraft", "true"))
                         {
                             Icon = "pin",
                             Small = true,
                         },
-                        new Button("Pin FilmCraft", new ButtonAction("desktop", "pin", ["filmcraft", "true"]))
+                        new Button("pin-filmcraft", "Pin FilmCraft", Emit: AppSignals.Emit("desktop", "pin", "filmcraft", "true"))
                         {
                             Icon = "pin",
                             Small = true,
@@ -267,7 +317,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     new BrainGraphNode("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "studio", 125, -35, 20, "idle"),
                     new BrainGraphNode("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "studio", -125, -30, -15, "idle"),
                     new BrainGraphNode("gallery", "UI Gallery", "neuron://local/apps/gallery", "ui", 85, -60, 25, "idle"),
-                    new BrainGraphNode("creator", "Creator 3D Loop", "neuron://local/apps/creator", "studio", -90, -55, -25, "working"),
+                    new BrainGraphNode("creator", "Creator", "neuron://local/apps/creator", "studio", -90, -55, -25, "working"),
                 ],
                 [
                     new BrainGraphSynapse("os", "ino", "InoSend", true),
@@ -279,6 +329,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                 ],
                 SelectedId: "os"),
             new ApprovalCardNode(
+                "smart-desktop-signal-1",
                 "smart-desktop-signal-1",
                 "Live Smart App Signal",
                 "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox",

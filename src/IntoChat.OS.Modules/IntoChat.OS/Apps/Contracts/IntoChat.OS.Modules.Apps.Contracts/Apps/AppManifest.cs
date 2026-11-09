@@ -95,7 +95,13 @@ public sealed record AppManifest(
     AppToolbarEntry[]? Toolbar = null,
     AppRequirements? Requires = null,
     // A headless app has no program: its build deploys a synapse unit through ISynapseStudio.
-    bool Headless = false)
+    bool Headless = false,
+    // The width of the side panel when the app presents one beside its main view; the shell's default (236) when null.
+    double? SideWidth = null,
+    // Where the app sits in the desktop's dock (ascending); null keeps it out of the dock.
+    int? Dock = null,
+    // A studio is an app Ino hands a routed prompt to and lists among its studios.
+    bool Studio = false)
 {
     // The dock renders only what the app can answer: every entry names a declared operation with one of the four kinds.
     public AppManifest Validated()

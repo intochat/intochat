@@ -1,15 +1,14 @@
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
-// Phase 08 exit: the 0.7.0 tree has no analyzer-suppression ratchets. Deferred apps stay folder scripts;
-// they are not exempted by a marker file.
+// Phase 08 exit: the 0.7.0 tree has no analyzer-suppression ratchets.
 public sealed class PhaseExitFacts
 {
     [Fact]
-    public void FeaturesAndSrcHaveNoSuppressMarkers()
+    public void SrcHasNoSuppressMarkers()
     {
         var root = Repository();
         var found = new List<string>();
-        foreach (var start in new[] { "features", "s" + "rc" })
+        foreach (var start in new[] { "s" + "rc" })
         {
             foreach (var file in Directory.EnumerateFiles(Path.Combine(root, start), "*", SearchOption.AllDirectories))
             {
@@ -18,20 +17,6 @@ public sealed class PhaseExitFacts
             }
         }
         Assert.Empty(found);
-    }
-
-    [Fact]
-    public void DeferredAppsRemainFolderScripts()
-    {
-        var root = Path.Combine(Repository(), "features", "os");
-        foreach (var name in new[] { "Usage", "DataVisualizer", "Calculator" })
-        {
-            Assert.True(File.Exists(Path.Combine(root, name, "app.cs")), name);
-        }
-        foreach (var compiled in new[] { "Workspace", "Desktop", "Settings", "Apps", "Ino", "Memory", "Router", "Engineer", "SelfImprove", "BrainView", "FilmCraft", "PhotoCraft", "Friends", "Circle", "CircleRoom" })
-        {
-            Assert.False(Directory.Exists(Path.Combine(root, compiled)), compiled);
-        }
     }
 
     private static string Repository()

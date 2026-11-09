@@ -49,17 +49,7 @@ public sealed class SynapseStudioFacts
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private sealed class NoAppRuntime : IAppRuntime
-    {
-        public bool Accepts(AppBundle bundle) => false;
-
-        public Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> files, Dictionary<string, string> configuration, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
-    private sealed class EmptyCapabilityConnections : ICapabilityConnections
+    internal sealed class EmptyCapabilityConnections : ICapabilityConnections
     {
         public Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<BrainConnection>>([]);
@@ -89,7 +79,7 @@ public sealed class SynapseStudioFacts
         public Task<IReadOnlyList<DeployedSource>> List(BrainId brain, CancellationToken ct) => Task.FromResult<IReadOnlyList<DeployedSource>>([]);
     }
 
-    private sealed class StudioFixture : BothRuntimesFixture
+    internal sealed class StudioFixture : BothRuntimesFixture
     {
         protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule)];
 
@@ -105,7 +95,6 @@ public sealed class SynapseStudioFacts
             services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
             services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
-            services.AddSingleton<IAppRuntime>(new NoAppRuntime());
         }
     }
 
@@ -152,7 +141,7 @@ public sealed class SynapseStudioFacts
     }
 
     [Fact]
-    public async Task AHeadlessBuildDeploysAUnitNotAProgram()
+    public async Task AHeadlessBuildDeploysAUnitAndWaitsForItsNeeds()
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
@@ -162,16 +151,17 @@ public sealed class SynapseStudioFacts
         await app.BeginBuild(null);
         var attempt = await app.CurrentBuildAttempt();
 
-        var failure = await HeadlessUnit.Complete(app, attempt, Studio(runtime), Alias, new Dictionary<string, string> { ["poller.cs"] = TickPoller });
+        var failure = await UnitDeploy.Complete(app, attempt, Studio(runtime), Alias, new Dictionary<string, string> { ["poller.cs"] = TickPoller }, new Dictionary<string, string>());
 
         Assert.Null(failure);
         var unit = Assert.Single(await Studio(runtime).List());
         Assert.Equal(Alias, unit.SourceKey);
         Assert.Contains("ino.tick-poller", unit.Aliases);
         var snapshot = await app.Read();
-        Assert.Equal(AppStatus.Live, snapshot.Status);
+        // The unit is deployed, but its schedule is a new need: the app stays Building until the person approves it.
+        Assert.Equal(AppStatus.Building, snapshot.Status);
         Assert.Empty(snapshot.Files);
-        Assert.Contains(snapshot.Activity, line => line.Contains(unit.Hash, StringComparison.Ordinal));
+        Assert.StartsWith("waiting for approval: ", snapshot.Activity[^1], StringComparison.Ordinal);
     }
 
     // Builder output is several files; each keeps its own file-scoped namespace.
@@ -206,7 +196,7 @@ public sealed class SynapseStudioFacts
             }
             """;
 
-        var deployed = await Studio(runtime).DeployFiles("two-file", new Dictionary<string, string> { ["signals.cs"] = signals, ["poller.cs"] = poller });
+        var deployed = await Studio(runtime).DeployFiles("two-file", new Dictionary<string, string> { ["signals.cs"] = signals, ["poller.cs"] = poller }, new Dictionary<string, string>());
 
         Assert.True(deployed.Ok, deployed.Text);
         Assert.Contains("ino.two-file", Assert.Single(await Studio(runtime).List()).Aliases);

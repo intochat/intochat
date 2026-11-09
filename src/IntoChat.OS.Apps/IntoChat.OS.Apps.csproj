@@ -20,12 +20,18 @@
     <ProjectReference Include="../IntoChat.OS.Modules/LocalDisk/src/IntoChat.OS.Modules.LocalDisk/IntoChat.OS.Modules.LocalDisk.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules/ModelContextProtocol/Mcp/Contracts/IntoChat.OS.Modules.Mcp.Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Aspire/Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/CSharp/Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts/IntoChat.OS.Modules.Microsoft.CSharp.Contracts.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Tools/Contracts/IntoChat.OS.Modules.Tools.Contracts/IntoChat.OS.Modules.Tools.Contracts.csproj" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Ino/ino-instructions.md" LogicalName="IntoChat.OS.Apps.Ino.ino-instructions.md" />
     <EmbeddedResource Include="Creator/ui-expert-instructions.md" LogicalName="IntoChat.OS.Apps.Creator.ui-expert-instructions.md" />
+  </ItemGroup>
+  <!-- Shipped unit sources: synapse units the OS deploys through the synapse studio, never compiled into this assembly. -->
+  <ItemGroup>
+    <Compile Remove="Units/**/*.cs" />
+    <None Remove="Units/**" />
+    <EmbeddedResource Include="Units/CircleRoom/CircleRoom.cs" LogicalName="IntoChat.OS.Apps.Units.circleroom/CircleRoom.cs" />
+    <EmbeddedResource Include="Units/CircleRoom/spec.md" LogicalName="IntoChat.OS.Apps.Units.circleroom/spec.md" />
+    <EmbeddedResource Include="Units/CircleRoom/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.circleroom/scenarios.json" />
   </ItemGroup>
 </Project>

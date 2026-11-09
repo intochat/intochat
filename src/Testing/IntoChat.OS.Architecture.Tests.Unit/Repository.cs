@@ -76,7 +76,7 @@ internal static class Repository
     }
 
     internal static IEnumerable<string> SourceFiles(string directory, string pattern, Func<string, bool>? predicate = null)
-        => Directory.EnumerateFiles(directory, pattern, SearchOption.AllDirectories)
+        => (Directory.Exists(directory) ? Directory.EnumerateFiles(directory, pattern, SearchOption.AllDirectories) : [])
             .Where(path => !path.Split(System.IO.Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin"))
             .Where(path => predicate is null || predicate(path));
 

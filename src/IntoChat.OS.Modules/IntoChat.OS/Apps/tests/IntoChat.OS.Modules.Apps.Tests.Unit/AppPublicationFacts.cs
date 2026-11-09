@@ -41,16 +41,4 @@ public sealed class AppPublicationFacts
     [Fact]
     public void ANullBundleIsRefused()
         => Assert.Throws<ArgumentNullException>(() => AppPublicationDigest.Of(null!));
-
-    [Fact]
-    public void RulesAreDeclaredWhenASharedFileNamesILogic()
-    {
-        Assert.True(AppRules.Declared(new Dictionary<string, string> { ["rules.cs"] = "class Rules : ILogic { }" }));
-        Assert.False(AppRules.Declared(new Dictionary<string, string> { ["a.cs"] = "class Plain { }" }));
-        Assert.False(AppRules.Declared(new Dictionary<string, string>()));
-    }
-
-    [Fact]
-    public void AProgramWithTopLevelStatementsDoesNotCountAsDeclaringRules()
-        => Assert.False(AppRules.Declared(new Dictionary<string, string> { ["main.cs"] = "Console.WriteLine(1);\nclass R : ILogic { }" }));
 }

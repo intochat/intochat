@@ -38,7 +38,8 @@ public sealed class InoAppFacts
     public async Task InoAndPostBddScenariosAndSystemNeuronsPass()
     {
         var ct = TestContext.Current.CancellationToken;
-        var desktopReport = await BddRunner.VerifyAsync<DesktopApp>(cancellationToken: ct);
+        using var person = Edge.AsPerson();
+        var desktopReport = await BddRunner.VerifyAsync<DesktopApp>(fakes: os => os.Register<DesktopRecordsNeuron>(), cancellationToken: ct);
         Assert.True(desktopReport.Passed);
         Assert.Single(desktopReport.Scenarios);
 
@@ -74,17 +75,6 @@ public sealed class InoAppFacts
         var friendsReport = await BddRunner.VerifyAsync<FriendsApp>(fakes: os => os.Register(typeof(AppsModule).Assembly), cancellationToken: ct);
         Assert.True(friendsReport.Passed);
         Assert.Single(friendsReport.Scenarios);
-
-        var creatorReport = await BddRunner.VerifyAsync<CreatorApp>(
-            fakes: os =>
-            {
-                os.Register(typeof(CreatorApp).Assembly);
-                os.Register<DigitalBrain.BddNeuron>();
-                os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
-            },
-            cancellationToken: ct);
-        Assert.True(creatorReport.Passed);
-        Assert.Single(creatorReport.Scenarios);
 
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
@@ -129,26 +119,6 @@ public sealed class InoAppFacts
         await desktopInstalled.Request("auto-arrange", new DesktopAutoArrange());
         Assert.Contains("Auto-Arranged", desktopInstalled.App.State.Status, StringComparison.Ordinal);
 
-        os.Register<IntoChat.OS.Modules.Microsoft.Aspire.AspireNeuron>();
-        var creatorInstalled = await os.Install<CreatorApp>();
-        await creatorInstalled.Request("open");
-        await creatorInstalled.Request("prompt", new CreatorPrompt("Track Elon Musk posts", "post", "uk"));
-        Assert.True(creatorInstalled.App.State.SceneRotationPaused);
-        Assert.Equal(1.65, creatorInstalled.App.State.CameraZoom);
-        Assert.Equal("uk", creatorInstalled.App.State.BddLanguage);
-        Assert.Equal("1.1.0", creatorInstalled.App.State.CurrentVersion);
-        Assert.True(creatorInstalled.App.State.SandboxCompiled);
-        Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("3D BrainScene", StringComparison.Ordinal));
-        Assert.Contains(creatorInstalled.Main.Texts, text => text.Contains("SANDBOX / TEST CREDENTIALS", StringComparison.Ordinal));
-
-        await creatorInstalled.Request("language", new CreatorSwitchLanguage("es"));
-        Assert.Equal("es", creatorInstalled.App.State.BddLanguage);
-
-        await creatorInstalled.Request("hot-restart", new CreatorHotRestart());
-        Assert.Equal(1, creatorInstalled.App.State.SandboxRestartCount);
-
-        await creatorInstalled.Request("rollback", new CreatorRollback("1.0.0"));
-        Assert.Equal("1.0.0", creatorInstalled.App.State.CurrentVersion);
     }
 
     private static readonly BrainId Brain = new("local");
@@ -515,6 +485,46 @@ public sealed class InoAppFacts
             Assert.False(string.IsNullOrEmpty(ino.App.State.AgentKey));
         }
         finally { RecordingAgent.FailPosts = 0; }
+    }
+
+    [Fact]
+    public async Task OnlyInoWritesItsLinks()
+    {
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        var id = new NeuronId(Brain, "apps.ino-records", IInoRecords.Key);
+        var journaled = os.Journal(Brain).Signals(id).Count();
+
+        using (RuntimeCallerContext.Stamp(new CapabilityCaller("p1", "a1", "local", AppId: "local/apps/desktop")))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => os.Get<IInoRecords>(id).Write(new InoRecords([new InoLink("x", "notes", "page=1")])));
+        }
+
+        Assert.Empty((await os.Get<IInoRecords>(id).Read()).Links);
+        Assert.Equal(journaled, os.Journal(Brain).Signals(id).Count());
+    }
+
+    [Fact]
+    public async Task APastedLinkIsInosOwnRecordAcrossRestart()
+    {
+        using var person = Edge.AsPerson();
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<RecordingAgent>();
+        RecordingAgent.Posts.Clear();
+        var ino = await os.Install<InoApp>();
+        var request = Guid.NewGuid();
+
+        await ino.Request("link", new InoPasteLink(request, "notes", "page=3", "Notes, page 3"));
+        await ino.Request("link", new InoPasteLink(request, "notes", "page=3", "Notes, page 3"));
+        // The records neuron is deactivated and activated again: the link reads back from its store.
+        await os.Restart();
+
+        var records = await os.Get<IInoRecords>(new NeuronId(Brain, "apps.ino-records", IInoRecords.Key)).Read();
+        Assert.Equal(new InoLink(request.ToString("N"), "notes", "page=3"), Assert.Single(records.Links));
+        var stored = System.Text.Json.JsonSerializer.Serialize(records.Links, System.Text.Json.JsonSerializerOptions.Web);
+        Assert.Equal("page=3", IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.FindLink(stored, request)?.Input);
+        Assert.Contains(RecordingAgent.Posts, post => post == ("Notes, page 3", IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.LinkPostId(request)));
     }
 
     [Fact]

@@ -10,19 +10,12 @@ public sealed class CompiledAppsHostRoutingFacts
     [Fact]
     public void CompiledAppsHostContainsOnlyKernelShellApps()
     {
-        var hostedField = typeof(CompiledAppsHost).GetField("Hosted", BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(hostedField);
-        var hosted = (Array)hostedField!.GetValue(null)!;
-        Assert.NotNull(hosted);
-        Assert.Equal(2, hosted.Length);
-
-        var names = new List<string>();
-        for (var i = 0; i < hosted.Length; i++)
-        {
-            var item = hosted.GetValue(i);
-            var nameField = item!.GetType().GetField("Item1")!;
-            names.Add((string)nameField.GetValue(item)!);
-        }
+        var names = CompiledAppsHost.HostedBy(
+        [
+            new(typeof(AppsModule).Assembly),
+            new(typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly, [typeof(IntoChat.OS.Apps.Ino.InoApp), typeof(IntoChat.OS.Apps.Settings.SettingsApp)]),
+        ]).Keys.ToList();
+        Assert.Equal(2, names.Count);
 
         Assert.Contains("ino", names);
         Assert.Contains("settings", names);

@@ -138,7 +138,11 @@ final class CircleActivity {
       ? CircleActivity.ready(circle)
       : CircleActivity(
           circle: circle,
-          kind: (envelope.type == 'CircleSpoke' || envelope.type == 'ProfileChanged') ? 'spoke' : 'changed',
+          kind:
+              (envelope.type == 'CircleSpoke' ||
+                  envelope.type == 'ProfileChanged')
+              ? 'spoke'
+              : 'changed',
           sequence: envelope.sequence,
           replay: envelope.replay,
         );

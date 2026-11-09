@@ -22,7 +22,7 @@ const assistantView = {
   'name': 'assistant',
   'manifest': {
     'title': 'Assistant',
-    'entry': {'kind': 'surface', 'name': 'surface'},
+    'entry': {'kind': 'view', 'name': 'surface'},
     'description': 'Chat with your brain',
     'icon': null,
     'operations': [
@@ -52,111 +52,128 @@ Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
   if (!request.url.path.endsWith('/apps/node')) return null;
   final name = request.url.queryParameters['name'] ?? '';
   return switch (request.url.queryParameters['kind']) {
-    'surface' => {
-      'definition': {
-        'mode': 'column',
-        'children': [
-          {'kind': 'layout', 'name': '$root/messages'},
-          {'kind': 'layout', 'name': '$root/prompts'},
-          {'kind': 'textfield', 'name': '$root/draft'},
-          {'kind': 'layout', 'name': '$root/footer'},
-        ],
-        'extents': [-1, 50, 70, 48],
-      },
-    },
-    'layout' =>
-      name.endsWith('/messages')
-          ? {'mode': 'list', 'children': <Object>[]}
-          : name.endsWith('/prompts')
-          ? {
-              'mode': 'row',
-              'children': [
-                {'kind': 'button', 'name': '$root/prompt-one'},
-                {'kind': 'button', 'name': '$root/prompt-two'},
-              ],
-            }
-          : {
-              'mode': 'row',
-              'children': [
-                {'kind': 'fileinput', 'name': '$root/file'},
-                {'kind': 'voiceinput', 'name': '$root/voice'},
-                {'kind': 'button', 'name': '$root/send'},
-              ],
-            },
-    'textfield' => {'label': 'Message', 'kind': 'multiline', 'value': ''},
-    'voiceinput' => {'label': 'Dictate'},
-    'fileinput' => {'label': 'Attach'},
-    'button' => {
-      'label': name.endsWith('prompt-one')
-          ? 'Ask the assistant'
-          : name.endsWith('prompt-two')
-          ? 'Work with Salesforce'
-          : 'Send',
-      'enabled': true,
-      'action': 'click',
+    'field' => {'owner': root, 'name': name, 'value': '', 'version': 1},
+    'viewport' => {
+      'revision': 1,
+      'root': {'kind': 'view', 'name': '${segments[1]}/apps/ino/surface'},
     },
     'view' =>
       name.endsWith('/apps/desktop/view')
-          ? {
-              'generation': 1,
-              'root': {
-                'kind': 2,
-                'key': 'desktop',
+          ? desktopPublishedView(segments[1])
+          : assistantPublishedView(root),
+    _ => null,
+  };
+}
+
+/// The desktop view the host publishes: one Ino window above the dock.
+Map<String, dynamic> desktopPublishedView(String brain) {
+  Map<String, dynamic> button(
+    String key,
+    String label,
+    String signal,
+    String arg,
+  ) => {
+    'kind': 'button',
+    'key': key,
+    'label': label,
+    'emit': {'owner': 'desktop', 'signal': signal, 'args': arg},
+    'enabled': true,
+  };
+  return {
+    'generation': 1,
+    'view': {
+      'title': 'Desktop',
+      'root': {
+        'kind': 'column',
+        'children': [
+          {
+            'kind': 'column',
+            'children': [
+              {
+                'kind': 'row',
                 'children': [
                   {
-                    'kind': 2,
-                    'key': 'windows',
+                    'kind': 'column',
                     'children': [
                       {
-                        'kind': 2,
-                        'key': 'frame-w1',
+                        'kind': 'row',
                         'children': [
+                          button('focus-w1', 'Ino', 'focus', 'w1'),
+                          button('close-w1', 'Close tab', 'close', 'w1/0'),
+                        ],
+                      },
+                      {
+                        'kind': 'tabs',
+                        'selectedId': 'w1/0',
+                        'items': [
                           {
-                            'kind': 2,
-                            'key': 'chrome-w1',
-                            'children': [
-                              {
-                                'kind': 1,
-                                'key': 'focus-w1',
-                                'text': 'Ino',
-                                'action': 'focus:w1',
-                                'enabled': true,
-                              },
-                              {
-                                'kind': 1,
-                                'key': 'pin-w1',
-                                'text': 'Pin',
-                                'action': 'pin:ino',
-                                'enabled': true,
-                              },
-                              {
-                                'kind': 1,
-                                'key': 'close-w1',
-                                'text': '×',
-                                'action': 'close:w1',
-                                'enabled': true,
-                              },
-                            ],
-                          },
-                          {'kind': 2, 'key': 'tabs-w1', 'children': <Object>[]},
-                          {
-                            'kind': 5,
-                            'key': 'body-w1',
-                            'reference': {
-                              'kind': 'surface',
-                              'name': '${segments[1]}/apps/ino/surface',
-                            },
+                            'key': 'tab-w1-0',
+                            'id': 'w1/0',
+                            'label': 'Ino',
+                            'emit': {'owner': 'desktop', 'signal': 'tab'},
                           },
                         ],
                       },
+                      {
+                        'kind': 'neuronRef',
+                        'refKind': 'viewport',
+                        'neuronUri': '$brain/apps/desktop/window/w1',
+                      },
                     ],
                   },
-                  {'kind': 2, 'key': 'dock', 'children': <Object>[]},
                 ],
               },
-            }
-          : null,
-    _ => null,
+            ],
+          },
+          {
+            'kind': 'row',
+            'children': [button('dock-ino', 'Ino', 'open', 'ino')],
+          },
+        ],
+      },
+    },
+  };
+}
+
+/// The assistant's published view: prompts, the draft field and Send.
+Map<String, dynamic> assistantPublishedView(String root) {
+  final owner = root.substring(root.indexOf('/') + 1);
+  Map<String, dynamic> button(String key, String label) => {
+    'kind': 'button',
+    'key': key,
+    'label': label,
+    'emit': {'owner': owner, 'signal': key},
+    'enabled': true,
+  };
+  return {
+    'generation': 1,
+    'view': {
+      'title': 'Assistant',
+      'root': {
+        'kind': 'column',
+        'children': [
+          {'kind': 'collection', 'entries': <Object>[]},
+          {
+            'kind': 'row',
+            'children': [
+              button('prompt-one', 'Ask the assistant'),
+              button('prompt-two', 'Work with Salesforce'),
+            ],
+          },
+          {
+            'kind': 'field',
+            'key': 'draft',
+            'name': '$owner/draft',
+            'fieldKind': 'Multiline',
+            'placeholder': 'Message',
+          },
+          {
+            'kind': 'row',
+            'children': [button('send', 'Send')],
+          },
+        ],
+      },
+    },
   };
 }
 
@@ -292,7 +309,7 @@ class ApplicationServer extends http.BaseClient {
               'state': 'ready',
               if (focus == '$brain/apps/$app')
                 'main': jsonEncode({
-                  'kind': 'surface',
+                  'kind': 'view',
                   'name': '$brain/apps/$app/surface',
                 }),
               if (focus == '$brain/apps/$app')
@@ -313,7 +330,10 @@ class ApplicationServer extends http.BaseClient {
         },
       });
     }
-    if (request.url.queryParameters['kind'] == 'surface') {
+    if (request.url.queryParameters['kind'] == 'view' &&
+        !(request.url.queryParameters['name'] ?? '').endsWith(
+          '/desktop/view',
+        )) {
       renderedSurface = request.url.queryParameters['name'];
     }
     if (path.endsWith('/apps/assistant') || path.endsWith('/apps/ino')) {
@@ -403,7 +423,6 @@ class ApplicationFixture {
 
   Future<void> dispose() async {
     await tester.pumpWidget(const SizedBox());
-    await tester.pump(const Duration(milliseconds: 60));
     await server.events.close();
     client.close();
     store.dispose();

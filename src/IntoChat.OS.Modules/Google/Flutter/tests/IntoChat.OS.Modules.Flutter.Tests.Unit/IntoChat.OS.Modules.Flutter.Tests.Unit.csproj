@@ -2,5 +2,6 @@
   <ItemGroup>
     <PackageReference Include="DigitalBrain.Testing" />
     <ProjectReference Include="../../src/IntoChat.OS.Modules.Flutter/IntoChat.OS.Modules.Flutter.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Modules.Flutter.Tests.Support/IntoChat.OS.Modules.Flutter.Tests.Support.csproj" />
   </ItemGroup>
 </Project>

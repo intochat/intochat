@@ -338,14 +338,15 @@
                 "kind": "row",
                 "children": [
                   {
-                    "kind": "textField",
-                    "name": "prompt",
-                    "value": "",
+                    "kind": "field",
+                    "key": "prompt",
+                    "name": "apps/creator/prompt",
+                    "fieldKind": "Text",
                     "placeholder": "Prompt Creator to synthesize or self-improve a C# App<TState>…",
                     "onSubmit": {
-                      "neuron": "creator",
-                      "operation": "prompt",
-                      "arguments": [
+                      "owner": "apps/creator",
+                      "signal": "prompt",
+                      "args": [
                         "Self-improve C# App<TState>",
                         "calculator"
                       ]
@@ -354,47 +355,45 @@
                   {
                     "kind": "button",
                     "label": "Verify BDD & Release",
-                    "action": {
-                      "neuron": "creator",
-                      "operation": "prompt",
-                      "arguments": [
-                        "Verify BDD Scenario and deploy live update",
-                        "calculator"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
                     "icon": "sparkles",
-                    "small": false
+                    "small": false,
+                    "emit": {
+                      "owner": "apps/creator",
+                      "signal": "prompt",
+                      "args": [
+                        "Verify BDD Scenario and deploy live update",
+                        "calculator"
+                      ]
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Hot-Restart Sandbox",
-                    "action": {
-                      "neuron": "creator",
-                      "operation": "hot-restart",
-                      "arguments": []
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
                     "icon": "rotate-ccw",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/creator",
+                      "signal": "hot-restart"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "Rollback Version",
-                    "action": {
-                      "neuron": "creator",
-                      "operation": "rollback",
-                      "arguments": []
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
                     "icon": "history",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/creator",
+                      "signal": "rollback"
+                    }
                   }
                 ],
                 "gap": 8,
@@ -462,18 +461,16 @@
                   {
                     "kind": "button",
                     "label": "Copy URI",
-                    "action": {
-                      "neuron": "clipboard",
-                      "operation": "copy",
-                      "arguments": [
-                        "neuron://local/apps/calculator"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
                     "icon": "copy",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/clipboard",
+                      "signal": "copy",
+                      "args": "neuron://local/apps/calculator"
+                    }
                   }
                 ],
                 "gap": 8,
@@ -521,77 +518,67 @@
                   {
                     "kind": "button",
                     "label": "EN",
-                    "action": {
-                      "neuron": "creator",
-                      "operation": "language",
-                      "arguments": [
-                        "en"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/creator",
+                      "signal": "language",
+                      "args": "en"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "UK",
-                    "action": {
-                      "neuron": "creator",
-                      "operation": "language",
-                      "arguments": [
-                        "uk"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "accent",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/creator",
+                      "signal": "language",
+                      "args": "uk"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "ES",
-                    "action": {
-                      "neuron": "creator",
-                      "operation": "language",
-                      "arguments": [
-                        "es"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/creator",
+                      "signal": "language",
+                      "args": "es"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "DE",
-                    "action": {
-                      "neuron": "creator",
-                      "operation": "language",
-                      "arguments": [
-                        "de"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/creator",
+                      "signal": "language",
+                      "args": "de"
+                    }
                   },
                   {
                     "kind": "button",
                     "label": "FR",
-                    "action": {
-                      "neuron": "creator",
-                      "operation": "language",
-                      "arguments": [
-                        "fr"
-                      ]
-                    },
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true
+                    "small": true,
+                    "emit": {
+                      "owner": "apps/creator",
+                      "signal": "language",
+                      "args": "fr"
+                    }
                   }
                 ],
                 "gap": 6,

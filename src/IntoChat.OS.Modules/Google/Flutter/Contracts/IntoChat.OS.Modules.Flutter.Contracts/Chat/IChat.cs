@@ -4,10 +4,13 @@ using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
-// A recoverable UI projection. The source neuron owns the conversation and runs its turns.
-[NeuronAlias("chat"), DefaultNeuronType(UIVocabulary.ChatType)]
+// A conversation's stored projection (data, not a UI kind): an app renders it as view nodes. The source neuron owns the
+// conversation and runs its turns.
+[NeuronAlias("chat"), DefaultNeuronType(IChat.Type)]
 public interface IChat
 {
+    const string Type = "chat";
+
     Task<ChatSelection> SelectAgent(string agent, long expectedSelectionRevision, Guid operationId);
     Task Project(ChatProjection projection);
     // IDs identify immutable intents within a generation; use a new ID when the action target changes.

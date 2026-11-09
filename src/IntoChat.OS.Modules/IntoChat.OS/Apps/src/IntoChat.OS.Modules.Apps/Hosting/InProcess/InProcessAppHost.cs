@@ -1,13 +1,12 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Apps.Hosting;
 using DigitalBrain.UI;
 
 namespace IntoChat.OS.Modules.Apps.Hosting.InProcess;
 
-public sealed class InProcessAppHost : IAppHost
+public sealed class InProcessAppHost
 {
     private readonly Func<Type, string, object> _neuronResolver;
     private readonly Func<Type, object> _capabilityResolver;
@@ -34,33 +33,6 @@ public sealed class InProcessAppHost : IAppHost
         _services = services;
     }
 
-    public Task Assign(ProgramAssignment assignment, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(assignment);
-        ArgumentException.ThrowIfNullOrWhiteSpace(assignment.Owner);
-        ct.ThrowIfCancellationRequested();
-
-        if (_programs.TryRemove(assignment.Owner, out var previous))
-        {
-            previous.Unload();
-        }
-
-        if (assignment.Behaviors.Count == 0)
-        {
-            return Task.CompletedTask;
-        }
-
-        return LoadAndPresentPrebuiltAsync(assignment, ct);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private Task LoadAndPresentPrebuiltAsync(ProgramAssignment assignment, CancellationToken ct)
-    {
-        var hosted = LoadAndStartPrebuilt(assignment);
-        _programs[assignment.Owner] = hosted;
-        return PresentCurrentAsync(hosted, ct);
-    }
-
     public async Task AssignType(string owner, Type appType, IReadOnlyDictionary<string, string> settings, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
@@ -68,18 +40,13 @@ public sealed class InProcessAppHost : IAppHost
         ArgumentNullException.ThrowIfNull(settings);
         ct.ThrowIfCancellationRequested();
 
-        if (_programs.TryRemove(owner, out var previous))
-        {
-            previous.Unload();
-        }
-
         var definition = new AppDefinition(appType);
         HostedProgram? hosted = null;
         var app = CreateApp(definition, () => hosted!);
         var turns = new AppTurns(app, definition, token => PresentCurrentAsync(hosted!, token));
         var hash = appType.Assembly.GetName().Version?.ToString() ?? "compiled";
-        var behaviors = new[] { new BehaviorView(BehaviorIds.For(owner, ""), hash, "Running", null) };
-        hosted = new HostedProgram(owner, hash, turns, settings, context: null, behaviors);
+        var behaviors = new[] { new BehaviorView(owner, hash, "Running", null) };
+        hosted = new HostedProgram(owner, hash, turns, settings, behaviors);
         _programs[owner] = hosted;
         await PresentCurrentAsync(hosted, ct).ConfigureAwait(false);
     }
@@ -88,17 +55,8 @@ public sealed class InProcessAppHost : IAppHost
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ct.ThrowIfCancellationRequested();
-        UnloadProgram(owner);
+        _programs.TryRemove(owner, out _);
         return Task.CompletedTask;
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void UnloadProgram(string owner)
-    {
-        if (_programs.TryRemove(owner, out var removed))
-        {
-            removed.Unload();
-        }
     }
 
     public Task<BehaviorView[]> Describe(string owner, CancellationToken ct)
@@ -121,50 +79,6 @@ public sealed class InProcessAppHost : IAppHost
 
     public AppTurns? TryGetTurns(string owner)
         => _programs.TryGetValue(owner, out var hosted) ? hosted.Turns : null;
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private HostedProgram LoadAndStartPrebuilt(ProgramAssignment assignment)
-    {
-        var context = new AppLoadContext(assignment.Owner);
-        try
-        {
-            Type? appType = null;
-            var behaviors = new List<BehaviorView>(assignment.Behaviors.Count);
-            foreach (var (path, prebuilt) in assignment.Behaviors)
-            {
-                using var image = new MemoryStream(prebuilt.Assembly);
-                using var symbols = new MemoryStream(prebuilt.Symbols);
-                var assembly = prebuilt.Symbols.Length == 0
-                    ? context.LoadFromStream(image)
-                    : context.LoadFromStream(image, symbols);
-                var found = assembly.GetTypes()
-                    .Where(t => t is { IsClass: true, IsAbstract: false } && t.IsDefined(typeof(AppAttribute), inherit: false))
-                    .ToArray();
-                if (found.Length == 1)
-                {
-                    appType = found[0];
-                }
-                behaviors.Add(new BehaviorView(BehaviorIds.For(assignment.Owner, path), prebuilt.Hash, "Running", null));
-            }
-
-            if (appType is null)
-            {
-                throw new InvalidOperationException($"Program '{assignment.Owner}' does not declare an [App] class.");
-            }
-
-            var definition = new AppDefinition(appType);
-            HostedProgram? hosted = null;
-            var app = CreateApp(definition, () => hosted!);
-            var turns = new AppTurns(app, definition, token => PresentCurrentAsync(hosted!, token));
-            hosted = new HostedProgram(assignment.Owner, assignment.Hash, turns, assignment.Settings, context, [.. behaviors]);
-            return hosted;
-        }
-        catch
-        {
-            context.Unload();
-            throw;
-        }
-    }
 
     private App CreateApp(AppDefinition definition, Func<IPresenter> presenter)
     {

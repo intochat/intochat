@@ -12,7 +12,6 @@ using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Microsoft.CSharp.Programs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
@@ -46,7 +45,6 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     [InlineData(typeof(InoApp), "ino", "#3D7EFF", "Intelligence", "InoApp")]
     [InlineData(typeof(FriendsApp), "friends", "#FB7185", "Social", "FriendsApp")]
     [InlineData(typeof(WorkspaceApp), "workspace", "#A855F7", "Social", "WorkspaceApp")]
-    [InlineData(typeof(BrainScene), "brain", null, null, "BrainScene")]
     [InlineData(typeof(FilesApp), "files", "#F6B73C", "Workspace", "FilesApp")]
     public void ShellAppDefinitionMetadataMatchesContract(
         Type appType,
@@ -111,36 +109,15 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
         Assert.Throws<InvalidOperationException>(() => new AppDefinition(invalidType));
     }
 
-    [Theory]
-    [InlineData("alpha/app/todo", "alpha/app/todo")]
-    [InlineData("alpha/apps/todo", "alpha/app/todo")]
-    [InlineData("alpha/todo", "alpha/app/todo")]
-    [InlineData("workspace_1/app/app_2", "workspace_1/app/app_2")]
-    public void AppProgramKeysNormalizesAppKeysDeterministically(string inputKey, string expectedKey)
-    {
-        Assert.Equal(expectedKey, AppProgramKeys.For(inputKey));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(" ")]
-    [InlineData("no-slash")]
-    [InlineData("/starts-with-slash")]
-    [InlineData("too/many/nested/slashes/here")]
-    public void AppProgramKeysRejectsMalformedAppKeys(string malformedKey)
-    {
-        Assert.Throws<ArgumentException>(() => AppProgramKeys.For(malformedKey));
-    }
-
     [Fact]
-    public async Task CSharpAppRuntimeValidatesInputFailClosed()
+    public async Task InProcessAppRuntimeValidatesInputFailClosed()
     {
         var services = new ServiceCollection().BuildServiceProvider();
-        var runtime = new CSharpAppRuntime(services);
+        var runtime = new InProcessAppRuntime(services);
 
         // Deploy with malformed appKey throws ArgumentException synchronously
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("invalid-key", [], [], CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("/invalid-key", [], [], CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("invalid-key", [], CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("/invalid-key", [], CancellationToken.None));
 
         // Retire with malformed appKey throws ArgumentException synchronously
         await Assert.ThrowsAsync<ArgumentException>(() => runtime.Retire("invalid-key", CancellationToken.None));

@@ -789,4 +789,3 @@ class _PopoverRowState extends State<_PopoverRow> {
     );
   }
 }
-

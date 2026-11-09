@@ -7,7 +7,6 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Options;
 
@@ -22,7 +21,7 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
 
     private T Neuron<T>(string relative) where T : class => brain.Get<T>($"{BrainScope.CurrentId()}/{relative}");
 
-    public async Task<UiChildRef> Connect(CancellationToken cancellationToken)
+    public async Task<ViewRef> Connect(CancellationToken cancellationToken)
     {
         var scope = BrainScope.CurrentId();
         foreach (var migration in migrations)
@@ -31,8 +30,11 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "An app migration is incomplete in {Brain}; its saved state is retained.", scope); }
         }
-        // The same set a new brain is born with: the folder plus ShippedApps.Roots. A circle keeps only its room.
-        if (await (await capabilities.Identity(cancellationToken)).KindOf(scope, cancellationToken) != BrainKind.Circle)
+        // The same set a new brain is born with: the shipped catalog plus ShippedApps.Roots. A circle keeps only its room, deployed again
+        // when missing (a circle born before the room shipped); the same files deploy once.
+        if (await (await capabilities.Identity(cancellationToken)).KindOf(scope, cancellationToken) == BrainKind.Circle)
+        { await OsDefaults.DeployCircleUnits(brain, logger, scope); }
+        else
         {
             await ShippedInstall.Missing(catalog, loader, scope, async name => await Neuron<IApp>($"apps/{name}").Read(),
                 (error, app) => logger.LogWarning(error, "Default app {App} did not install in {Brain}.", app, scope), cancellationToken);
@@ -53,18 +55,14 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
             catch (Exception error) when (error is not OperationCanceledException && name is not ("workspace" or "desktop"))
             { logger.LogWarning(error, "App {App} could not migrate its view; its installed version was retained.", name); }
         }
-        // v2 for everyone unless the person chose the classic layout; classic is v1, unchanged.
-        // The choice is the desktop's own text (layout-switch.cs writes it), read fresh on every connect.
-        // Only the desktop the OS ships is the v2 root: an app that merely bears the name (own, foreign
-        // or edited) would otherwise gain the desktop's workspace authority, so v1 is shown instead.
+        // The desktop's view is the root. Only the desktop the OS ships is: an app that merely bears the name (own, foreign or
+        // edited) would otherwise gain the desktop's workspace authority, so the workspace app's view is shown instead.
         var desktop = Neuron<IApp>("apps/desktop");
-        var shipped = ShippedApps.Is(await desktop.Read(), "desktop", options.Value.TrustedPublishers);
-        if (!shipped)
-        { logger.LogWarning("The app named desktop in {Brain} is not the shipped desktop; the classic layout is shown.", scope); }
-        if (!shipped || (await Neuron<IText>("apps/desktop/layout").Read()).Markdown == "classic")
+        if (!ShippedApps.Is(await desktop.Read(), "desktop", options.Value.TrustedPublishers))
         {
+            logger.LogWarning("The app named desktop in {Brain} is not the shipped desktop; the workspace view is shown.", scope);
             await Neuron<IApp>("apps/workspace").Request("open", "");
-            return new("layout", IApp.Key(scope, "workspace") + "/root");
+            return new(UIVocabulary.ViewType, IApp.Key(scope, "workspace") + "/view");
         }
         await desktop.Request("start", "");
         return new(UIVocabulary.ViewType, IApp.Key(scope, "desktop") + "/view");

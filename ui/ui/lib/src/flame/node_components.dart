@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:intochat_os_flutter/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter/intochat_os_flutter.dart' hide TextNode;
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';

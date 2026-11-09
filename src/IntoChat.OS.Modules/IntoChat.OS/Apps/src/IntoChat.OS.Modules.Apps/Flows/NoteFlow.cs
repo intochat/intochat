@@ -8,27 +8,11 @@ public sealed class NoteInner
     public string Text { get; set; } = "";
 }
 
-// The note's own contract, implemented by NoteFlow alone: a flow that writes notes (MigrateTasksFlow) calls it instead of
-// IFlowStarter, whose implementers include the flows that call the index.
-public interface INoteFlow
-{
-    Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson);
-
-    [DigitalBrain.ReadOnlyCall]
-    Task<FlowHead> Head();
-
-    Task Resume(string step, WaitOutcome outcome, string? by);
-
-    Task Cancel(string reason);
-
-    Task Relate(FlowRelation relation);
-}
-
 // A note: a flow with no steps that holds relations like any flow and ends only when someone ends it. Start saves it waiting on
 // "note" (External, no expiry), since the base resumes only a waiting flow and advances, and so completes, a running one with no
 // steps; Resume("note", Arrived) completes it, Cancel cancels it.
 [DigitalBrain.Neuron(Alias)]
-public sealed class NoteFlow : Flow<NoteInner>, IFlowStarter, INoteFlow
+public sealed class NoteFlow : Flow<NoteInner>, IFlowStarter
 {
     public const string Alias = "flow.note";
 

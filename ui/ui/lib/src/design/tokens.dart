@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart' show Theme, ThemeExtension, Brightness;
 import 'package:flutter/widgets.dart';
+
 import '../theme/ui_colors.dart';
 
 /// 3D shader/render aesthetic for `BrainScene3D`.

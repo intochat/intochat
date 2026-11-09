@@ -109,13 +109,29 @@ public sealed class HostedAppWatchFacts : IAsyncLifetime
         using var _ = Stamp(brain);
         var appKey = IApp.Key(brain, "hosted-watch");
         await Use(brain, "ino/data-a");
-        await Services.GetRequiredService<InProcessAppHost>().AssignType(appKey, typeof(HostedWatchApp), new Dictionary<string, string>(StringComparer.Ordinal), TestContext.Current.CancellationToken);
+        await Services.GetRequiredService<IntoChat.OS.Modules.Apps.Hosting.InProcess.InProcessAppHost>().AssignType(appKey, typeof(HostedWatchApp), new Dictionary<string, string>(StringComparer.Ordinal), TestContext.Current.CancellationToken);
         var compiled = ActivatorUtilities.CreateInstance<CompiledAppsHost>(Services);
 
         var turns = await compiled.EnsureForTestAsync(brain, "hosted-watch", TestContext.Current.CancellationToken);
 
         Assert.NotNull(turns);
         await AssertRotationAsync(brain, () => ((HostedWatchApp)turns.App).State.Heard);
+    }
+
+    // The real forwarding method: a route that is not a studio's (no dot, no edit operation, not a studio) reaches no app; a studio's runs edit.
+    [Fact]
+    public async Task CompiledAppsHostForwardsOnlyStudioRoutesThatDeclareEdit()
+    {
+        const string brain = "forwardbrain";
+        using var _ = Stamp(brain);
+        var compiled = ActivatorUtilities.CreateInstance<CompiledAppsHost>(Services);
+        var ct = TestContext.Current.CancellationToken;
+        foreach (var hint in new[] { "routed:photocraft", "routed:data.query", "routed:markdraw.", "routed:creator.new", "agent:general.chat", "" })
+        {
+            await compiled.ForwardStudioPromptIfRoutedAsync(brain, new InoTurn("edit it", "ok", hint, 0), ct);
+        }
+        var photocraft = SiloNeurons.Get<IApp>(Services, IApp.Key(brain, "photocraft"));
+        Assert.Empty((await photocraft.Read()).Manifest.Title);
     }
 
     private async Task AssertRotationAsync(string brain, Func<string[]> heard)

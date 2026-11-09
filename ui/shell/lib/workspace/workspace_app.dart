@@ -13,10 +13,10 @@ import '../desktop/live_desktop_shell.dart';
 import '../desktop/smart_desktop.dart';
 import 'apps/app_activations.dart';
 import 'width_hint.dart';
+import 'known_apps.dart';
 import 'workspace_store.dart';
 import 'workspace_link.dart';
 import 'compute_usage_panel.dart';
-import 'csharp/csharp_manager.dart';
 import 'workspace_preferences_io.dart'
     if (dart.library.js_interop) 'workspace_preferences_web.dart'
     as preferences;
@@ -61,6 +61,26 @@ class WorkspaceAppState extends State<WorkspaceApp>
             preferences.writePreferences(widget.persistenceKey, value),
       );
   late final _localPreferences = WorkspaceLocalPreferences(store);
+
+  // The apps an OpenWindow intent may open: the launcher's and the brain's installed apps.
+  Set<String> _knownApps = knownAppsFor(const []);
+
+  Future<void> _readKnownApps(String brain) async {
+    try {
+      final installed = await widget.programmingClient!.listInstalledApps(
+        brain,
+      );
+      if (mounted && _brain == brain) {
+        setState(
+          () =>
+              _knownApps = knownAppsFor([for (final app in installed) app.id]),
+        );
+      }
+    } catch (_) {
+      // The launcher's apps stay known; an installed app opens again after the next read.
+    }
+  }
+
   final _navigator = GlobalKey<NavigatorState>();
   String? _rootName;
   String? _activationApp;
@@ -70,7 +90,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
   String? _focusedNeuron;
   WorkspaceSnapshot? _workspaceSnapshot;
   Object? _startupError;
-  bool _developerMode = false;
   bool _ready = false;
   bool _paletteOpen = false;
   BarLayout _barLayout = BarLayout.floatingGlass;
@@ -177,14 +196,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
       if (workspaceLink(location) case final action?) {
         await _openLink(location!, action);
       }
-      unawaited(
-        client
-            .readCapabilities()
-            .then((value) {
-              if (mounted) setState(() => _developerMode = value.developerMode);
-            })
-            .catchError((Object _) {}),
-      );
       if (!_hasExplicitRoot &&
           widget.initialLocation?.path.startsWith('/settings') == true) {
         unawaited(_activate({'kind': 'settings'}));
@@ -200,6 +211,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
     bool reconnect = false,
   }) async {
     if (_brain == brain && !reconnect) return;
+    unawaited(_readKnownApps(brain));
     if (_root.isNotEmpty) {
       setState(() {
         _brain = brain;
@@ -486,24 +498,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
               ),
             ),
           );
-        case 'csharp':
-          if (_developerMode) {
-            navigator.push(
-              MaterialPageRoute<void>(
-                builder: (_) => Scaffold(
-                  appBar: AppBar(title: const Text('C# files')),
-                  body: CSharpManager(
-                    request: (method, path, {body}) =>
-                        client.csharpRequest(_brain!, method, path, body: body),
-                    onAsk: (id, prompt) => unawaited(
-                      client.requestApp(_brain!, 'ino', 'ask', prompt),
-                    ),
-                    onSelected: (_) {},
-                  ),
-                ),
-              ),
-            );
-          }
         case 'new':
           final brain = await client.createWorkspace();
           if (mounted) await _selectBrain(brain);
@@ -605,8 +599,6 @@ class WorkspaceAppState extends State<WorkspaceApp>
         value: 'palette',
         child: Text('Command Palette (⌘K)'),
       ),
-      if (_developerMode)
-        const PopupMenuItem(value: 'csharp', child: Text('C# files')),
       const PopupMenuItem(value: 'new', child: Text('New workspace')),
       if (widget.onSwitchAccount != null)
         const PopupMenuItem(value: 'switch', child: Text('Switch account')),
@@ -630,14 +622,23 @@ class WorkspaceAppState extends State<WorkspaceApp>
       theme: UiTheme.light(effectiveTheme),
       darkTheme: UiTheme.dark(effectiveTheme),
       themeMode: UiTheme.modeFor(effectiveTheme),
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          disableAnimations:
-              store.settings.reducedMotion ||
-              MediaQuery.disableAnimationsOf(context),
-        ),
-        child: child!,
-      ),
+      builder: (context, child) {
+        final brightness = Theme.of(context).brightness;
+        return IcTheme(
+          colors: IcColors.forPreset(
+            preset,
+            dark: brightness == Brightness.dark,
+          ),
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              disableAnimations:
+                  store.settings.reducedMotion ||
+                  MediaQuery.disableAnimationsOf(context),
+            ),
+            child: child!,
+          ),
+        );
+      },
       home: CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
           const SingleActivator(LogicalKeyboardKey.keyK, control: true): () =>
@@ -665,13 +666,12 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
-                                onAction: (event) async {
-                                  await widget.programmingClient!.appRequest(
-                                    _brain!,
-                                    'event',
-                                    body: event,
-                                  );
-                                },
+                                onAction: (event) => widget.programmingClient!
+                                    .appRequest(_brain!, 'event', body: event),
+                                knowsApp: (app) => _knownApps.contains(app),
+                                requestApp: (app, operation, input) => widget
+                                    .programmingClient!
+                                    .requestApp(_brain!, app, operation, input),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
                                 stylePreset: preset,
@@ -695,6 +695,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 scenes: widget.programmingClient!.scenes(
                                   _brain!,
                                 ),
+                                journal: (brain, since) => widget
+                                    .programmingClient!
+                                    .watchJournal(brain, since: since),
                                 entries: (brain) => EntriesClient(
                                   widget.programmingClient!,
                                   brain,
@@ -706,7 +709,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .channel
                                     .call(_brain!, contract, key, method, []),
                               )
-                            : NeuronView(
+                            : ViewHost(
                                 key: ValueKey(_rootName),
                                 kind: _renderKind,
                                 name: _rootName!,
@@ -719,23 +722,11 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
-                                onAction: (event) async {
-                                  await widget.programmingClient!.appRequest(
-                                    _brain!,
-                                    'event',
-                                    body: event,
-                                  );
-                                },
+                                onAction: (event) => widget.programmingClient!
+                                    .appRequest(_brain!, 'event', body: event),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
-                                scenes: widget.programmingClient!.scenes(
-                                  _brain!,
-                                ),
-                                entries: (brain) => EntriesClient(
-                                  widget.programmingClient!,
-                                  brain,
-                                ),
-                                localPreferences: _localPreferences,
+                                knowsApp: (app) => _knownApps.contains(app),
                               ),
                       ),
                     )

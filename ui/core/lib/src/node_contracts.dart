@@ -17,81 +17,9 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Views.IView',
       'ViewChanged',
     ),
-    'scene': NodeContract(
-      'IntoChat.OS.Modules.Flame.Scene.IScene',
-      'SceneChanged',
-    ),
-    'text': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Text.IText',
-      'TextChanged',
-    ),
-    'button': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Button.IButton',
-      'ButtonChanged',
-    ),
-    'textfield': NodeContract(
-      'IntoChat.OS.Modules.Flutter.TextField.ITextField',
-      'TextFieldChanged',
-    ),
-    'select': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Select.ISelect',
-      'SelectChanged',
-    ),
-    'fileinput': NodeContract(
-      'IntoChat.OS.Modules.Flutter.FileInput.IFileInput',
-      'FileInputChanged',
-    ),
-    'person': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Person.IPerson',
-      'PersonChanged',
-    ),
-    'card': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Card.ICard',
-      'CardChanged',
-    ),
-    'tabs': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Tabs.ITabs',
-      'TabsChanged',
-    ),
-    'surface': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Surface.ISurface',
-      'SurfaceChanged',
-    ),
-    'layout': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Layout.ILayout',
-      'LayoutChanged',
-    ),
-    'collection': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Collection.ICollectionView',
-      'CollectionChanged',
-    ),
-    'imagecanvas': NodeContract(
-      'IntoChat.OS.Modules.Flutter.ImageCanvas.IImageCanvas',
-      'ImageCanvasChanged',
-    ),
-    'form': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Form.IForm',
-      'FormChanged',
-    ),
-    'table': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Table.ITable',
-      'TableChanged',
-    ),
-    'chart': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Chart.IChart',
-      'ChartChanged',
-    ),
-    'chat': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Chat.IChat',
-      'ChatChanged',
-    ),
-    'composer': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Chat.IComposer',
-      'ComposerChanged',
-    ),
-    'voiceinput': NodeContract(
-      'IntoChat.OS.Modules.Flutter.VoiceInput.IVoiceInput',
-      'VoiceInputChanged',
+    'field': NodeContract(
+      'IntoChat.OS.Modules.Flutter.Fields.IField',
+      'FieldChanged',
     ),
     'webbrowser': NodeContract(
       'IntoChat.OS.Modules.Flutter.WebBrowser.IWebBrowser',
@@ -101,34 +29,15 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Viewport.IViewport',
       'ViewportChanged',
     ),
-    'toggle': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Toggle.IToggle',
-      'ToggleChanged',
-    ),
-    'entrycontrol': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Entries.IEntryControl',
-      'EntryControlChanged',
-    ),
-    'preference': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Preferences.IPreferenceControl',
-      'PreferenceChanged',
-    ),
-    'infobar': NodeContract(
-      'IntoChat.OS.Modules.Flutter.InfoBar.IInfoBar',
-      'InfoBarChanged',
-    ),
-    'image': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Image.IImage',
-      'ImageChanged',
-    ),
-    'expander': NodeContract(
-      'IntoChat.OS.Modules.Flutter.Expander.IExpander',
-      'ExpanderChanged',
-    ),
   };
 
-  // The shell's own watches (Ino's presence, the user settings, shell control); not UI kinds a view may reference.
+  // The shell's own watches (friends' space, Ino's presence, the user settings); not UI kinds a view may reference.
   static const _shellSources = <String, NodeContract>{
+    // A friend's profile, posts and post cards change with the brain's space scene.
+    'friends.space': NodeContract.source(
+      'IntoChat.OS.Modules.Flame.Scene.IScene',
+      'SceneChanged',
+    ),
     'ino.presence': NodeContract.source(
       'IntoChat.OS.Modules.Apps.IPresence',
       'PresenceChanged',
@@ -136,10 +45,6 @@ abstract final class NodeContracts {
     'os.settings': NodeContract.source(
       'IntoChat.OS.Modules.Apps.IUserSettings',
       'UserSettingsChanged',
-    ),
-    'shell.control': NodeContract.source(
-      'IntoChat.OS.Modules.Apps.Contracts.Ino.IShellControl',
-      'ShellStateChanged',
     ),
   };
 

@@ -518,7 +518,10 @@ class IcAppIcon extends StatelessWidget {
     }
     if (lower.contains('creat')) return 'creator';
     if (lower.contains('galler')) return 'gallery';
-    if (lower.contains('friend') || lower.contains('post') || lower.contains('publish')) return 'friends';
+    if (lower.contains('friend') ||
+        lower.contains('post') ||
+        lower.contains('publish'))
+      return 'friends';
     if (lower.contains('setting')) return 'settings';
     if (lower.contains('circle') ||
         lower.contains('space') ||
@@ -668,10 +671,7 @@ class IcAppIcon extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [spec.gradientTop, spec.gradientBottom],
         ),
-        border: Border.all(
-          color: const Color(0x42FFFFFF),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0x42FFFFFF), width: 1),
         boxShadow: [
           BoxShadow(
             color: const Color(0x38000000),
@@ -768,11 +768,7 @@ class _IcBrandGlyphPainter extends CustomPainter {
         canvas.drawLine(nodes[2], nodes[4], linkPaint);
         canvas.drawCircle(nodes[0], w * 0.17, fill);
         for (var i = 1; i < nodes.length; i++) {
-          canvas.drawCircle(
-            nodes[i],
-            w * 0.095,
-            i == 5 ? badgeAccent : fill,
-          );
+          canvas.drawCircle(nodes[i], w * 0.095, i == 5 ? badgeAccent : fill);
         }
         return;
 

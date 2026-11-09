@@ -6,65 +6,19 @@ namespace IntoChat.OS.Modules.Apps.Tests;
 
 public sealed class CompiledAppsHostAdversarialFacts
 {
-    [Theory]
-    [InlineData("edit:sample.png", "edit", "sample.png")]
-    [InlineData("refresh", "refresh", "")]
-    [InlineData("tag:nested:value", "tag", "nested:value")]
-    [InlineData("  open  :  file.txt  ", "open", "file.txt")]
-    [InlineData("colon::double", "colon", ":double")]
-    public void ViewAction_SignalSplitting_ExtractsOperationAndRawArgumentCorrectly(
-        string action,
-        string expectedOp,
-        string expectedArg)
-    {
-        var parts = action.Split(':', 2, StringSplitOptions.TrimEntries);
-        var operation = parts[0];
-        var rawArg = parts.Length > 1 ? parts[1] : string.Empty;
+    private static async Task<ShippedManifests> ShellManifests()
+        => await ShippedManifests.Of(new FeatureCatalog([typeof(AppsModule).Assembly, typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly]));
 
-        Assert.Equal(expectedOp, operation);
-        Assert.Equal(expectedArg, rawArg);
-    }
-
-    [Theory]
-    [InlineData("apps/gallery/view", true, "gallery")]
-    [InlineData("apps/photocraft/side", true, "photocraft")]
-    [InlineData("apps/creator/view", true, "creator")]
-    [InlineData("apps/standalone", false, null)]
-    [InlineData("neurons/apps/gallery/view", false, null)]
-    public void ViewAction_SignalKey_ParsesAppAndValidatesPrefix(
-        string publisherKey,
-        bool expectedValid,
-        string? expectedAppName)
-    {
-        if (!publisherKey.StartsWith("apps/", StringComparison.Ordinal))
-        {
-            Assert.False(expectedValid);
-            return;
-        }
-
-        var rest = publisherKey["apps/".Length..];
-        var slash = rest.IndexOf('/', StringComparison.Ordinal);
-        if (slash <= 0)
-        {
-            Assert.False(expectedValid);
-            return;
-        }
-
-        var appName = rest[..slash];
-        Assert.True(expectedValid);
-        Assert.Equal(expectedAppName, appName);
-    }
+    private static readonly CompiledAppsRegistration[] ShellRegistrations =
+    [
+        new(typeof(AppsModule).Assembly),
+        new(typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly, [typeof(IntoChat.OS.Apps.Ino.InoApp), typeof(IntoChat.OS.Apps.Settings.SettingsApp)]),
+    ];
 
     [Fact]
     public void HostedByName_ContainsOnlyKernelApps_ExcludesNonKernelApps()
     {
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(hostedByNameField);
-
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         Assert.Equal(2, hostedByName.Count);
         Assert.True(hostedByName.ContainsKey("ino"));
@@ -81,11 +35,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     [Fact]
     public void HostedByName_IndexingNonHostedApp_ThrowsKeyNotFoundException()
     {
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         Assert.Throws<KeyNotFoundException>(() => hostedByName["photocraft"]);
         Assert.Throws<KeyNotFoundException>(() => hostedByName["filmcraft"]);
@@ -99,11 +49,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     {
         // Line 344 in CompiledAppsHost dispatches studioApp ("photocraft" or "filmcraft")
         // Verify that neither is hosted, which necessitates forwarding directly via SiloNeurons.Get<IApp>
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         string[] studioApps = ["photocraft", "filmcraft"];
         foreach (var app in studioApps)
@@ -164,15 +110,15 @@ public sealed class CompiledAppsHostAdversarialFacts
     [InlineData("routed:photocraft.'; DROP TABLE apps; --", "photocraft")]
     [InlineData("routed:filmcraft/<script>alert(1)</script>", null)]
     [InlineData("routed:filmcraft.<script>alert(1)</script>", "filmcraft")]
-    public void InoTurnRouteHints_ComprehensiveBoundaryAndAdversarialInputs_ResolvesExpectedStudioApp(
+    // Studios that declare no edit operation (markdraw, data) are never forwarded, with or without a remainder.
+    [InlineData("routed:markdraw.", null)]
+    [InlineData("routed:markdraw.patch-elements", null)]
+    [InlineData("routed:data.query", null)]
+    public async Task InoTurnRouteHints_ComprehensiveBoundaryAndAdversarialInputs_ResolvesExpectedStudioApp(
         string routeHint,
         string? expectedStudioApp)
     {
-        string? studioApp = routeHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
-            ? "photocraft"
-            : routeHint.StartsWith("routed:filmcraft.", StringComparison.Ordinal)
-                ? "filmcraft"
-                : null;
+        var studioApp = (await ShellManifests()).StudioFor(routeHint);
 
         Assert.Equal(expectedStudioApp, studioApp);
     }
@@ -187,11 +133,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     [InlineData("custom_tool_42")]
     public void StudioAppTurnRouting_UnhostedGuard_PreventsKeyNotFoundException_ForAnyUnhostedApp(string appName)
     {
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         // Directly indexing HostedByName for any unhosted app throws KeyNotFoundException
         Assert.Throws<KeyNotFoundException>(() => hostedByName[appName]);
@@ -206,13 +148,10 @@ public sealed class CompiledAppsHostAdversarialFacts
     }
 
     [Fact]
-    public void EmpiricalStress_KeyNotFoundExceptionIsImpossible_Under500AdversarialRouteHints()
+    public async Task EmpiricalStress_KeyNotFoundExceptionIsImpossible_Under500AdversarialRouteHints()
     {
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var manifests = await ShellManifests();
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         string[] prefixes =
         [
@@ -263,11 +202,7 @@ public sealed class CompiledAppsHostAdversarialFacts
                 testedCombinations++;
 
                 // Simulate the exact CompiledAppsHost turn routing branch
-                string? studioApp = routeHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
-                    ? "photocraft"
-                    : routeHint.StartsWith("routed:filmcraft.", StringComparison.Ordinal)
-                        ? "filmcraft"
-                        : null;
+                var studioApp = manifests.StudioFor(routeHint);
 
                 if (studioApp is not null)
                 {
@@ -329,6 +264,8 @@ public sealed class CompiledAppsHostAdversarialFacts
         public string? LastOperation { get; private set; }
         public string? LastInput { get; private set; }
 
+        public Task<Guid> Emit(string signal, string args) => Request(signal, args);
+
         public Task<Guid> Request(string operation, string input)
         {
             LastOperation = operation;
@@ -337,37 +274,25 @@ public sealed class CompiledAppsHostAdversarialFacts
         }
 
         public Task<AppSnapshot> Read() => throw new NotImplementedException();
-        public Task<AppSnapshot> SaveRuntimeState(string stateJson, long expectedRevision) => throw new NotImplementedException();
         public Task<AppSnapshot> Present(long expectedProgramRevision, Presentation presentation) => throw new NotImplementedException();
-        public Task<AppSnapshot> FailPresentation(long expectedProgramRevision, string error) => throw new NotImplementedException();
-        public Task<AppSnapshot> WriteBlackboard(long expectedProgramRevision, Dictionary<string, string> values) => throw new NotImplementedException();
-        public Task Stamp(string key, string value) => throw new NotImplementedException();
         public Task<AppSnapshot> Create(AppManifest manifest, string spec) => throw new NotImplementedException();
         public Task<AppSnapshot> SaveSpec(string spec, Guid operationId) => throw new NotImplementedException();
         public Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId) => throw new NotImplementedException();
-        public Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId) => throw new NotImplementedException();
-        public Task<AppSnapshot> WriteFile(string path, string source, Guid operationId) => throw new NotImplementedException();
         public Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections) => throw new NotImplementedException();
         public Task<AppSnapshot> Rollback(string version) => throw new NotImplementedException();
         public Task<AppSnapshot> BeginBuild(string? instruction) => throw new NotImplementedException();
         public Task<Guid> CurrentBuildAttempt() => throw new NotImplementedException();
         public Task<string?> BuildFlow() => throw new NotImplementedException();
-        public Task<AppSnapshot> CompleteHeadlessBuild(Guid attempt, string hash) => throw new NotImplementedException();
+        public Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.InstallStatus status, string sentence) => throw new NotImplementedException();
         public Task Progress(string state, string detail) => throw new NotImplementedException();
-        public Task Progress(string state, string detail, Dictionary<string, string> blackboard) => throw new NotImplementedException();
         public Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null) => throw new NotImplementedException();
         public Task<AppBundle> Export() => throw new NotImplementedException();
         public Task<AppSnapshot> Publish() => throw new NotImplementedException();
         public Task<AppBundle> ExportPublished() => throw new NotImplementedException();
         public Task<AppPublication[]> PublishedReleases() => throw new NotImplementedException();
         public Task<AppBundle> ExportRelease(string version, string digest) => throw new NotImplementedException();
-        public Task<AppBundle?> ExportVersion(string version) => throw new NotImplementedException();
         public Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null) => throw new NotImplementedException();
         public Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null) => throw new NotImplementedException();
-        public Task RecordOrigin(AppOrigin origin) => throw new NotImplementedException();
-        public Task<AppSnapshot> SaveToSource() => throw new NotImplementedException();
         public Task Delete() => throw new NotImplementedException();
-        public Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId) => throw new NotImplementedException();
-        public Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null) => throw new NotImplementedException();
     }
 }

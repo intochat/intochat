@@ -149,17 +149,17 @@ public sealed class InoToolNeuronFacts
     }
     private static IInoData Data(TestOS os) => os.Get<IInoData>(new NeuronId(Brain, "ino.data", "ino/data"));
 
-    // Make starts a build flow and hands back its approval card, keyed by the flow id; the build itself is BuildFlowFacts'.
+    // Make starts the unit flow and hands back a card that names it on the Tasks board; the build itself is BuildFlowFacts'.
     [Fact]
-    public async Task MakeReturnsAPendingApprovalCardForItsBuildFlow()
+    public async Task MakeReturnsACardForItsUnitFlow()
     {
         await using var os = NewOs();
 
         var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).Make("Draft the Q4 plan");
 
         Assert.True(result.Card is not null, result.Text);
-        Assert.Equal("approval", result.Card.Kind);
-        Assert.Equal("pending", result.Card.Status);
+        Assert.Equal("flow", result.Card.Kind);
+        Assert.Equal($"neuron://local/apps/tasks#{result.Card.Id}", result.Card.SourceNeuronUri);
         Assert.StartsWith("local/flow.build/", result.Card.Id, StringComparison.Ordinal);
         Assert.Contains(result.Card.Id, result.Text, StringComparison.Ordinal);
     }
@@ -167,9 +167,14 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task ListNamesTheStudios()
     {
-        await using var os = NewOs();
+        using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection().AddOptions<AppsOptions>().Services
+            .AddSingleton(TimeProvider.System)
+            .AddSingleton(new FeatureCatalog([typeof(AppsModule).Assembly, typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly])).BuildServiceProvider();
+        await using var os = NewOs(services);
         var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).List();
-        Assert.Contains("markdraw", result.Text);
+        Assert.Contains("- markdraw: ", result.Text);
+        Assert.Contains("- photocraft: ", result.Text);
+        Assert.DoesNotContain("- creator: ", result.Text);
     }
 
     [Fact]

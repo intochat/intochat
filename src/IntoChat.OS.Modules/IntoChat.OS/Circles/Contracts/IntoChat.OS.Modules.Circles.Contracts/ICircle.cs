@@ -21,7 +21,7 @@ public sealed record CircleState(
 // The alias and neuron type literals must equal IntoChat.OS.Connections.CircleGrainType.Name (a Circles fact asserts it).
 // A plain neuron (06-08).
 [DigitalBrain.Contracts.NeuronAlias("circles.circle"), DigitalBrain.Contracts.DefaultNeuronType("circles.circle")]
-public interface ICircle : IntoChat.OS.Modules.Flutter.IUiEventHandler
+public interface ICircle
 {
     const int MaxComputeSharePercent = 25;
 
@@ -38,7 +38,6 @@ public interface ICircle : IntoChat.OS.Modules.Flutter.IUiEventHandler
     // 0 to MaxComputeSharePercent of the creator's budget; the platform's own 25% fee is fixed and not a setting.
     Task SetComputeShare(int percent);
     Task<CircleState> State();
-    Task BindPublicationButton();
 
     // D-10: the creator makes a member an admin (or not); owners and admins mint invite codes.
     Task SetAdmin(string accountId, bool admin);

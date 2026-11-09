@@ -31,7 +31,7 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             new("creator", "open", "{}", "open.json"),
             new("ino", "open", "{}", "open.json"),
             new("desktop", "open", "{}", "open.json"),
-            new("post", "open", "{}", "open.json"),
+            new("friends", "open", "{}", "open.json"),
             new("photocraft", "open", "{}", "open.json"),
             new("filmcraft", "open", "{}", "open.json"),
         }.ToDictionary(j => j.App, StringComparer.Ordinal);
@@ -44,7 +44,7 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
         "creator",
         "ino",
         "desktop",
-        "post",
+        "friends",
         "photocraft",
         "filmcraft",
     ];

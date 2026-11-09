@@ -36,20 +36,20 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
         string? explicitParamsJson,
         string? currentDocument,
         string executionMode)
-        => Execute("photocraft", instructionOrCommand, explicitParamsJson, currentDocument, executionMode);
+        => Execute(ShippedApps.PhotoCraft, instructionOrCommand, explicitParamsJson, currentDocument, executionMode);
 
     public Task<ArtCraftEngineResult> ExecuteFilmCraft(
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentSequence,
         string executionMode)
-        => Execute("filmcraft", instructionOrCommand, explicitParamsJson, currentSequence, executionMode);
+        => Execute(ShippedApps.FilmCraft, instructionOrCommand, explicitParamsJson, currentSequence, executionMode);
 
     private IArtCraftStudio? TryGetArtCraftStudio()
     {
         try
         {
-            return Get<IArtCraftStudio>(new DigitalBrain.NeuronId(Id.Brain, "artcraft", "artcraft"));
+            return Get<IArtCraftStudio>(new DigitalBrain.NeuronId(Id.Brain, IArtCraftStudio.StudioKey, IArtCraftStudio.StudioKey));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -102,7 +102,7 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
         var shortAppId = appId.StartsWith(brain + "/apps/", StringComparison.Ordinal)
             ? appId[(brain.Length + "/apps/".Length)..]
             : appId;
-        var isShippedStudio = string.Equals(shortAppId, "ino", StringComparison.Ordinal)
+        var isShippedStudio = string.Equals(shortAppId, ShippedApps.Ino, StringComparison.Ordinal)
             || ArtCraftCatalog.IsArtCraftApp(shortAppId);
         if (identity is null)
         {

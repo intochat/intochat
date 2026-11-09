@@ -190,7 +190,7 @@ public static class ArtCraftEngineRunner
         }
 
         var hasImageContext = (extracted is not null && IsImageExtension(extracted))
-            || raw.Contains("photocraft", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains(ShippedApps.PhotoCraft, StringComparison.OrdinalIgnoreCase)
             || raw.Contains("photo", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("image", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("canvas", StringComparison.OrdinalIgnoreCase);
@@ -323,7 +323,7 @@ public static class ArtCraftEngineRunner
             || raw.Contains("clip", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("playhead", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("00:", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("filmcraft", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains(ShippedApps.FilmCraft, StringComparison.OrdinalIgnoreCase)
             || raw.Contains("videocraft", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("timeline.razor", StringComparison.OrdinalIgnoreCase))
         {
@@ -358,7 +358,7 @@ public static class ArtCraftEngineRunner
         IFilesVfsService? vfs = null)
     {
         var descriptor = ArtCraftCatalog.Get(app);
-        if (descriptor.Id == "photocraft")
+        if (descriptor.Id == ShippedApps.PhotoCraft)
         {
             return await ExecutePhotoCraftAsync(
                 instructionOrCommand,
@@ -371,7 +371,7 @@ public static class ArtCraftEngineRunner
                 vfs).ConfigureAwait(false);
         }
 
-        if (descriptor.Id == "filmcraft")
+        if (descriptor.Id == ShippedApps.FilmCraft)
         {
             return await ExecuteFilmCraftAsync(
                 instructionOrCommand,
@@ -447,7 +447,7 @@ public static class ArtCraftEngineRunner
         Action<Exception, string>? onRecoverableError = null,
         IFilesVfsService? vfs = null)
     {
-        var descriptor = ArtCraftCatalog.Get("photocraft");
+        var descriptor = ArtCraftCatalog.Get(ShippedApps.PhotoCraft);
         var mode = NormalizeMode(executionMode);
         var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(
             instructionOrCommand,
@@ -459,7 +459,7 @@ public static class ArtCraftEngineRunner
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
             return CreateClarificationResult(
-                "photocraft",
+                ShippedApps.PhotoCraft,
                 mode,
                 resolved.InputDoc,
                 $"Unrecognized photocraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
@@ -504,7 +504,7 @@ public static class ArtCraftEngineRunner
         Action<Exception, string>? onRecoverableError = null,
         IFilesVfsService? vfs = null)
     {
-        var descriptor = ArtCraftCatalog.Get("filmcraft");
+        var descriptor = ArtCraftCatalog.Get(ShippedApps.FilmCraft);
         var mode = NormalizeMode(executionMode);
         var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(
             instructionOrCommand,
@@ -516,7 +516,7 @@ public static class ArtCraftEngineRunner
         if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
         {
             return CreateClarificationResult(
-                "filmcraft",
+                ShippedApps.FilmCraft,
                 mode,
                 resolved.InputDoc,
                 $"Unrecognized filmcraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
@@ -588,7 +588,7 @@ public static class ArtCraftEngineRunner
         var modeBadge = mode switch
         {
             "mcp" => $"MCP Server ({descriptor.Id}-mcp)",
-            "wasm-ui" => descriptor.Id == "filmcraft" ? "WASM Web UI + Page Bridge" : "WASM Web UI + Engine",
+            "wasm-ui" => descriptor.Id == ShippedApps.FilmCraft ? "WASM Web UI + Page Bridge" : "WASM Web UI + Engine",
             _ => $"Native Linux CLI ({descriptor.CliBinary})",
         };
 
@@ -599,7 +599,7 @@ public static class ArtCraftEngineRunner
                 var session = await studio.Open(descriptor.Id);
                 if (mcpResolver(session.McpKey) is { } mcpServer)
                 {
-                    if (descriptor.Id == "photocraft")
+                    if (descriptor.Id == ShippedApps.PhotoCraft)
                     {
                         if (isNewGradient)
                         {
@@ -629,7 +629,7 @@ public static class ArtCraftEngineRunner
                 onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP server is optional when running offline or in TestOS; falling back to built-in engine preview.");
             }
         }
-        else if (mode == "native-linux" && descriptor.Id != "filmcraft")
+        else if (mode == "native-linux" && descriptor.Id != ShippedApps.FilmCraft)
         {
             var nativePng = await TryRunNativeLinuxBinaryAsync(
                 descriptor.CliBinary,
@@ -650,7 +650,7 @@ public static class ArtCraftEngineRunner
         {
             try
             {
-                var bytes = descriptor.Id == "photocraft"
+                var bytes = descriptor.Id == ShippedApps.PhotoCraft
                     ? DecodeDataUrlBytes(previewUrl, $"PhotoCraft PNG artifact ({cmdId}) -> {outputDoc}")
                     : Encoding.UTF8.GetBytes($"{descriptor.Title} output ({cmdId}): {inputDoc} -> {outputDoc}");
                 var written = await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false);

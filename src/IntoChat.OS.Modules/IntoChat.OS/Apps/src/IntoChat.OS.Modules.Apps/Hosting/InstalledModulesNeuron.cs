@@ -74,17 +74,17 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
     private async Task<bool> IsAppGrantedAsync(string brain, CapabilityCaller caller)
     {
         var appId = caller.AppId ?? "";
-        var defaultSettingsKey = IApp.Key(brain, "settings");
+        var defaultSettingsKey = IApp.Key(brain, ShippedApps.Settings);
         if (identity is null)
         {
-            return string.Equals(appId, "settings", StringComparison.Ordinal)
+            return string.Equals(appId, ShippedApps.Settings, StringComparison.Ordinal)
                 || string.Equals(appId, defaultSettingsKey, StringComparison.Ordinal);
         }
 
         var grants = await identity.ListGrants(brain);
         if (grants.Length == 0)
         {
-            return string.Equals(appId, "settings", StringComparison.Ordinal)
+            return string.Equals(appId, ShippedApps.Settings, StringComparison.Ordinal)
                 || string.Equals(appId, defaultSettingsKey, StringComparison.Ordinal);
         }
 

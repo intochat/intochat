@@ -3,6 +3,7 @@ using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -28,7 +29,7 @@ internal static class InoViewRenderer
                         new TagPill($"{state.Turns.Length} turn(s)", "neutral"),
                     ]) { Gap = 6 },
                     new Text(state.Status) { Tone = "muted", Tabular = true },
-                    new Button("+ New Session", new ButtonAction("apps/ino", "new", []), Tone: ButtonTone.Accent) { Small = true, Icon = "plus" },
+                    new Button("new-session", "+ New Session", Emit: AppSignals.Emit("ino", "new"), Tone: ButtonTone.Accent) { Small = true, Icon = "plus" },
                 ],
                 Kind: SurfaceKind.Acrylic,
                 Title: state.Title),
@@ -74,8 +75,8 @@ internal static class InoViewRenderer
                         new Row(
                         [
                             new Text($"Smart mode: {(smart ? "on" : "off")}") { Tone = "muted" },
-                            new Button(smart ? "Turn smart mode off" : "Turn smart mode on", new ButtonAction("apps/ino", "smart", [smart ? "false" : "true"])) { Small = true, Style = "ghost" },
-                            .. state.ActiveRunId is not null ? new Node[] { new Button("Stop", new ButtonAction("apps/ino", "stop", [])) { Small = true, Icon = "square" } } : [],
+                            new Button("smart", smart ? "Turn smart mode off" : "Turn smart mode on", Emit: AppSignals.Emit("ino", "smart", smart ? "false" : "true")) { Small = true, Style = "ghost" },
+                            .. state.ActiveRunId is not null ? new Node[] { new Button("stop", "Stop", Emit: AppSignals.Emit("ino", "stop")) { Small = true, Icon = "square" } } : [],
                         ]) { Gap = 8 },
                     ],
                     Kind: SurfaceKind.Acrylic,
@@ -98,18 +99,21 @@ internal static class InoViewRenderer
                     Kind: SurfaceKind.Elevated,
                     Title: turn.UserMessage,
                     Subtitle: turn.RouteHint)),
-                .. transcript.Select(RenderMessage).OfType<Node>(),
+                ChatNodes.Transcript([.. transcript.Select(ToEntry).OfType<ChatEntry>()]),
+                ChatNodes.Composer(ComposerKey, ComposerField, AppSignals.Emit("ino", "send"), "Message Ino"),
             ])
             { Gap = 12 });
     }
 
-    private static Node? RenderMessage(AiMessage message)
+    // The composer is the field neuron apps/ino/composer; its submit sends the text to the agent.
+    public const string ComposerKey = "composer";
+    public const string ComposerField = "apps/ino/composer";
+
+    private static ChatEntry? ToEntry(AiMessage message, int index)
     {
         var text = string.Join("\n", message.Content.OfType<AiText>().Select(t => t.Text).Where(t => !string.IsNullOrWhiteSpace(t)));
         if (text.Length == 0 || message.Role is not ("user" or "assistant")) { return null; }
-        return message.Role == "user"
-            ? new Surface([new Heading(text, Level: 3)], Kind: SurfaceKind.Elevated, Title: "You")
-            : new Surface([new Text(text)], Kind: SurfaceKind.Elevated, Title: "Ino");
+        return new ChatEntry($"message-{index}", message.Role == "user" ? ChatRole.User : ChatRole.Assistant, text);
     }
 
     public static InoAppState BuildScenarioSessionState(string scenarioId, UserSettingsState settings) => scenarioId switch
@@ -214,14 +218,14 @@ internal static class InoViewRenderer
 
     // Answers go straight to the framework's confirmations neuron, which stamps the person who clicked; Ino never relays them.
     private static Node RenderApproval(Approval approval) => new ApprovalCardNode(
+        $"approval-{approval.PlanId}",
         approval.PlanId,
         approval.Title,
         approval.Detail,
         [new ApprovalRowNode("Subject", "", approval.Subject)],
         SystemName: "Ino",
         Status: "pending",
-        OnApprove: new ButtonAction(DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, DigitalBrain.Confirmation.IConfirmations.ResolveOperation, [approval.PlanId, "true"]),
-        OnReject: new ButtonAction(DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey, DigitalBrain.Confirmation.IConfirmations.ResolveOperation, [approval.PlanId, "false"]));
+        Resolve: new Resolve(approval.PlanId));
 
     private static Node RenderDockedPromptBanner(InoCard card) => new Surface(
         [
@@ -240,6 +244,7 @@ internal static class InoViewRenderer
         if (card.Kind == "approval")
         {
             yield return new ApprovalCardNode(
+                $"card-{card.Id}",
                 card.Id,
                 card.Title,
                 $"{card.Summary} (scope:{card.EffectiveScopeUri})",
@@ -272,9 +277,7 @@ internal static class InoViewRenderer
                 "Kari Holm <kari@nordlys.no>",
                 card.Summary,
                 Subject: card.Title,
-                Status: card.Status == "approved" ? "sent" : card.Status,
-                OnSend: null,
-                OnDiscard: null);
+                Status: card.Status == "approved" ? "sent" : card.Status);
         }
         else if (card.Kind == "secret")
         {
@@ -283,7 +286,7 @@ internal static class InoViewRenderer
                 card.Summary,
                 SavedIn: "Secure Vault · neuron://local/vault/secrets",
                 Status: card.Status == "approved" ? "saved" : card.Status,
-                OnEnter: new ButtonAction("os://window/secure", "os://window/secure", []));
+                Enter: new Button("enter-secret", "Save to vault", Intent: AppSignals.Open("os://window/secure")));
         }
         else if (card.Kind == "app-install")
         {
@@ -297,7 +300,7 @@ internal static class InoViewRenderer
                 ],
                 Subtitle: card.Summary,
                 LinkLabel: "Review & Install",
-                OnOpen: new ButtonAction("os://sheet/install", "os://sheet/install", []));
+                Open: new Button("review-install", "Review & Install", Intent: AppSignals.Open("os://sheet/install")));
         }
         else if (card.Kind == "table" && card.Columns is { Length: > 0 } cols && card.Rows is { Length: > 0 } rows)
         {
@@ -348,7 +351,7 @@ internal static class InoViewRenderer
                 ],
                 Subtitle: card.Summary,
                 LinkLabel: "Open Markdraw Studio",
-                OnOpen: new ButtonAction("apps/markdraw", "open", [activeDoc]));
+                Open: new Button("open-markdraw", "Open Markdraw Studio", Intent: AppSignals.OpenApp("markdraw", activeDoc)));
 
             yield return MarkdrawSceneEngine.BuildMarkdrawCanvasCard(
                 key: $"{card.Id}-canvas-rev-{rev}",
@@ -375,7 +378,7 @@ internal static class InoViewRenderer
                 ],
                 Subtitle: card.Summary,
                 LinkLabel: $"Open {studioDescriptor.Title} Studio",
-                OnOpen: new ButtonAction($"apps/{studioDescriptor.Id}", "open", []));
+                Open: new Button($"open-{studioDescriptor.Id}", $"Open {studioDescriptor.Title} Studio", Intent: AppSignals.OpenApp(studioDescriptor.Id)));
             var webUrl = studioDescriptor.Id is "photocraft" or "filmcraft"
                 ? studioDescriptor.DefaultWebUrl.TrimEnd('/')
                 : studioDescriptor.StaticWebPath;
@@ -393,7 +396,7 @@ internal static class InoViewRenderer
                 ],
                 Subtitle: card.Summary,
                 LinkLabel: card.Kind == "file" ? "Open in Files" : "Open Neuron",
-                OnOpen: card.Kind == "file" ? new ButtonAction("apps/files", "open", []) : null);
+                Open: card.Kind == "file" ? new Button("open-files", "Open in Files", Intent: AppSignals.OpenApp("files")) : null);
         }
     }
 }

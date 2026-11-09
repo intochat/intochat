@@ -29,7 +29,6 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
-using IntoChat.OS.Modules.Flutter.Text;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
@@ -39,7 +38,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace IntoChat.OS.Kernel.Tests.Integration.Apps;
 
 /// <summary>
-/// Exercises the signal-driven <see cref="CompiledAppsHost"/>, <see cref="IApp"/>, <see cref="IComposer"/>,
+/// Exercises the signal-driven <see cref="CompiledAppsHost"/>, <see cref="IApp"/>,
 /// <see cref="IChat"/>, <see cref="IView"/>, and <see cref="IAppStudio"/> neurons on the real DigitalBrain SiloHost.
 /// </summary>
 public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.KernelAppsSiloFixture fixture)
@@ -63,13 +62,13 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
 
         var inoView = await WaitUntilAsync(
             async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/view").Read(),
-            view => view?.Root is not null);
-        Assert.NotNull(inoView?.Root);
+            view => view is not null);
+        Assert.NotNull(inoView);
 
         var inoSide = await WaitUntilAsync(
             async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/side").Read(),
-            view => view?.Root is not null);
-        Assert.NotNull(inoSide?.Root);
+            view => view is not null);
+        Assert.NotNull(inoSide);
 
         // 2. Send prompts through IApp.Request("send", "...") and verify CompiledAppsHost projects the
         //    conversation to IChat ("apps/ino/transcript") and routes studio work to PhotoCraft and FilmCraft.
@@ -187,7 +186,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                 typeof(IAspire).Assembly,
                 typeof(FlutterModule).Assembly,
                 typeof(IView).Assembly,
-                typeof(ComposerSubmitted).Assembly,
+                typeof(ChatChanged).Assembly,
                 typeof(FlameModule).Assembly,
             }.Distinct().ToArray();
 
@@ -196,7 +195,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                 services =>
                 {
                     AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
-                    foreach (var d in services.Where(d => d.ImplementationType?.Name is "CSharpAppRuntime" or "FeatureBootLifecycle").ToList())
+                    foreach (var d in services.Where(d => d.ImplementationType?.Name is "FeatureBootLifecycle").ToList())
                     {
                         services.Remove(d);
                     }

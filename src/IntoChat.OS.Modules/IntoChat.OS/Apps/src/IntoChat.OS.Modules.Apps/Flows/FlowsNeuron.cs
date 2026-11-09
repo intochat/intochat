@@ -30,7 +30,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.EnsureBrainWide(typeof(FlowStarted), typeof(FlowStep), typeof(FlowWaiting), typeof(FlowResolve), typeof(FlowDone), typeof(FlowRelated),
+        await Context.Synapses.EnsureBrainWide(typeof(FlowStarted), typeof(FlowStep), typeof(FlowWaiting), typeof(FlowResolve), typeof(FlowDone), typeof(FlowRelated), typeof(FlowSubject),
             typeof(ContextUpdated), typeof(ContextRemoved));
         await RebuildInterrupts();
     }
@@ -175,6 +175,13 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
     }
 
     [On]
+    public Task OnFlowSubject(FlowSubject named)
+    {
+        ArgumentNullException.ThrowIfNull(named);
+        return Fold(named.FlowId, entry => entry.Subject == named.Subject ? entry : entry with { Subject = named.Subject });
+    }
+
+    [On]
     public Task OnFlowStarted(FlowStarted started)
     {
         ArgumentNullException.ThrowIfNull(started);
@@ -307,7 +314,7 @@ public sealed class FlowsNeuron : DigitalBrain.Neuron<FlowsState>, IFlows
         }
         return new FlowView(entry.FlowId, entry.Type, entry.Title, entry.Owner, entry.TraceId, StatusOf(entry, flows), entry.Steps, entry.Done,
             entry.Current, entry.Waiting?.Reason, entry.Waiting?.Step, entry.Waiting?.ConfirmationPlanId, Math.Min(1d, fraction), entry.Relations,
-            [.. BlockersOf(entry, flows)], entry.ParentFlowId, entry.Started, entry.Ended, entry.Detail, entry.App, entry.Conversation);
+            [.. BlockersOf(entry, flows)], entry.ParentFlowId, entry.Started, entry.Ended, entry.Detail, entry.App, entry.Conversation, entry.Subject);
     }
 
     private static FlowStatus StatusOf(FlowEntry entry, IReadOnlyDictionary<string, FlowEntry> flows)

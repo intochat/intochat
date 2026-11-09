@@ -37,26 +37,6 @@ public sealed class AppStateJsonFacts
     }
 
     [Fact]
-    public void RuntimeStateSurvivesJsonRoundTrip()
-    {
-        var state = new AppState
-        {
-            RuntimeStateJson = "{\"count\":42,\"text\":\"hello\"}",
-            RuntimeStateRevision = 7
-        };
-
-        var json = JsonSerializer.Serialize(state, DigitalBrain.Invocation.RuntimeProtocol.Json);
-        var read = JsonSerializer.Deserialize<AppState>(json, DigitalBrain.Invocation.RuntimeProtocol.Json)!;
-
-        Assert.Equal("{\"count\":42,\"text\":\"hello\"}", read.RuntimeStateJson);
-        Assert.Equal(7, read.RuntimeStateRevision);
-
-        var cloned = state.Clone();
-        Assert.Equal("{\"count\":42,\"text\":\"hello\"}", cloned.RuntimeStateJson);
-        Assert.Equal(7, cloned.RuntimeStateRevision);
-    }
-
-    [Fact]
     public void SignalCursorAndDeadLettersDefaultToZeroAndEmpty()
     {
         var state = new AppState();
@@ -161,8 +141,7 @@ public sealed class AppStateJsonFacts
             "Version": "1.0.0",
             "Status": 1,
             "FileEntries": [{"Key": "main.cs", "Value": "// test"}],
-            "SettingEntries": [{"Key": "key1", "Value": "val1"}],
-            "RuntimeStateRevision": 5
+            "SettingEntries": [{"Key": "key1", "Value": "val1"}]
         }
         """;
 
@@ -173,7 +152,6 @@ public sealed class AppStateJsonFacts
         Assert.Equal(0L, read.SignalCursor);
         Assert.NotNull(read.DeadLetters);
         Assert.Empty(read.DeadLetters);
-        Assert.Equal(5L, read.RuntimeStateRevision);
     }
 }
 

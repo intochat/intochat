@@ -70,7 +70,7 @@ class _CommandPaletteState extends State<CommandPalette> {
   List<CommandPaletteEntry> _buildEntries() {
     final q = _text.text.trim().toLowerCase();
     final all = <CommandPaletteEntry>[
-      for (final spec in allSmartAppSpecs)
+      for (final spec in defaultSmartAppSpecs)
         CommandPaletteEntry(
           id: 'app:${spec.id}',
           label: 'Open ${spec.name}',

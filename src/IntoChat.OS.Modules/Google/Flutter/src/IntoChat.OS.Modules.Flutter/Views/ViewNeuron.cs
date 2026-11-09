@@ -1,9 +1,10 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Errors;
+using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain;
-using System.Buffers;
+using DigitalBrain.UI;
 using System.Text.Json;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -12,117 +13,186 @@ using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Views;
 
+// Stores an app's View as its wire JSON, verbatim; resolves an activation by key and hands the typed action to the edge.
 [Neuron(UIVocabulary.ViewType)]
 internal sealed class ViewNeuron
     : UiNeuron<ViewState>, IView
 {
-    public Task Publish(UiView view)
+    public async Task Publish(long generation, View view)
     {
         RequireWriter();
-        var next = ViewValidation.Clone(view, FullKey);
-        if (Snapshot.View is { } current)
+        var json = ViewValidation.Serialize(view);
+        if (generation < Snapshot.Source || json == Snapshot.Json) { return; }
+        var next = checked(Snapshot.Generation + 1);
+        await Save(new() { Json = json, Generation = next, Source = generation, Changes = Snapshot.Changes + 1 }, new ViewChanged(FullKey, next));
+        // The view carries no field values; it tells its own app's field neurons their kind, so a secret is never stored. Values
+        // stay with the field: nothing is seeded, the app pre-fills with IField.Set.
+        var app = AppPrefix(Id.Key);
+        foreach (var (name, kind) in ViewValidation.Fields(ViewValidation.Parse(json)))
         {
-            if (next.Generation < current.Generation || next.Generation == current.Generation && next.Version < current.Version) { return Task.CompletedTask; }
-            if (next.Generation == current.Generation && next.Version == current.Version)
-            {
-                if (JsonSerializer.Serialize(next, ViewValidation.Json) != JsonSerializer.Serialize(current, ViewValidation.Json)) { throw new InvalidOperationException("A published version cannot change."); }
-                return Task.CompletedTask;
-            }
+            if (app is not null && name.StartsWith(app, StringComparison.Ordinal) && name.Length > app.Length && !name.Split('/').Any(segment => segment.Length == 0 || segment.StartsWith('.')))
+            { await Get<Fields.IField>(new DigitalBrain.NeuronId(Id.Brain, UIVocabulary.FieldType, name)).Configure(kind); }
         }
-        return Save(new() { View = next, Changes = Snapshot.Changes + 1 }, new ViewChanged(FullKey, next.Generation, next.Version));
     }
 
-    [DigitalBrain.ReadOnlyCall] public Task<UiView?> Read() => Task.FromResult(Snapshot.View is { } view ? ViewValidation.Clone(view, FullKey) : null);
-
-    public Task Activate(long generation, string key, string expectedAction, Guid requestId)
+    // "apps/{app}/" of a view keyed under an app, else null.
+    private static string? AppPrefix(string key)
     {
-        if (requestId == Guid.Empty) { throw new ArgumentException("A request id is required.", nameof(requestId)); }
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        ArgumentException.ThrowIfNullOrWhiteSpace(expectedAction);
-        var view = Snapshot.View;
-        var node = view is null ? null : Find(view.Root, key);
-        if (view?.Generation != generation || node is not { Kind: UiNodeKind.Button, Enabled: true } || !string.Equals(node.Action, expectedAction, StringComparison.Ordinal))
-        { throw new StaleActionException("This action is no longer available. Read the view again."); }
-        return Publish(new ViewAction(FullKey, node.Key, node.Action!, requestId, view.Generation));
+        var parts = key.Split('/');
+        return parts.Length > 2 && parts[0] == "apps" ? $"apps/{parts[1]}/" : null;
     }
 
-    private static UiNode? Find(UiNode root, string key) => root.Key == key ? root : root.Children.Select(child => Find(child, key)).FirstOrDefault(node => node is not null);
+    [DigitalBrain.ReadOnlyCall]
+    public Task<PublishedView?> Read() => Task.FromResult(Snapshot.Json is { } json
+        ? new PublishedView(FullKey, Snapshot.Generation, ViewValidation.Parse(json))
+        : null);
+
+    [DigitalBrain.ReadOnlyCall]
+    public Task<ViewActivation> Activate(long generation, string key, string? fieldValue)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (Snapshot.Json is not { } json || Snapshot.Generation != generation
+            || ViewValidation.Find(ViewValidation.Parse(json), key) is not { } node
+            || node.TryGetProperty("enabled", out var enabled) && enabled.ValueKind == JsonValueKind.False)
+        { throw new StaleActionException("This action is no longer available. Read the view again."); }
+        return Task.FromResult(ViewValidation.ActionOf(node) with { Value = fieldValue });
+    }
 
     private void RequireWriter()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind == CallerKind.Platform) { return; }
-        var name = FullKey;
-        if (!BrainKey.BelongsTo(name, caller.BrainId) || caller.Kind == CallerKind.App &&
-            (string.IsNullOrEmpty(caller.AppId) || !name.StartsWith(caller.AppId + "/", StringComparison.Ordinal)))
-        { throw new UnauthorizedAccessException("Only the owning brain and app may publish this view."); }
+        // A call with no stamped caller is refused, never taken for the platform.
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw new UnauthorizedAccessException("No caller was stamped on this call; a view is published only by a stamped one.");
+        if (!Writes(caller, FullKey)) { throw new UnauthorizedAccessException("Only the owning brain and app may publish this view."); }
     }
+
+    // The brain's person or platform, or the app that owns the key ({app}/…); never another brain.
+    internal static bool Writes(DigitalBrain.Capabilities.CapabilityCaller caller, string name)
+        => BrainKey.BelongsTo(name, caller.BrainId) && (caller.Kind != CallerKind.App ||
+            !string.IsNullOrEmpty(caller.AppId) && name.StartsWith(caller.AppId + "/", StringComparison.Ordinal));
 }
 
-[GenerateSerializer, Alias("ui.view-state")]
+[GenerateSerializer, Alias("ui.view-state.v2")]
 [ExportableState]
 internal sealed class ViewState
 {
-    [Id(0)] public UiView? View { get; set; }
-    // Publications so far: the retained ViewChanged's sequence (a view saved before this counted none).
-    [Id(1)] public long Changes { get; set; }
+    // The View's wire JSON as published.
+    [Id(0)] public string? Json { get; set; }
+    // The neuron's own counter, increased by every stored change; activations name it.
+    [Id(1)] public long Generation { get; set; }
+    // The publisher's program generation of the stored view: an older one is ignored.
+    [Id(2)] public long Source { get; set; }
+    // Publications so far: the retained ViewChanged's sequence.
+    [Id(3)] public long Changes { get; set; }
 }
 
 internal static class ViewValidation
 {
-    internal static readonly JsonSerializerOptions Json = new() { MaxDepth = 128 };
-    // Only leaf controls can be embedded: layouts and views can themselves refer to other nodes.
-    // A viewport is the one window: it shows an app's view chosen by its owner (the desktop's windows).
-    // Line and paragraph separators and bidirectional controls: they hide what a copied link says.
-    private static readonly SearchValues<char> HiddenDirection = SearchValues.Create("\u2028\u2029\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069");
+    private static readonly JsonDocumentOptions Document = new() { MaxDepth = 256 };
 
-    private static readonly HashSet<string> ReferenceKinds = new(StringComparer.Ordinal)
-    { UIVocabulary.ConfirmationType, "viewport", "chat", "composer", "text", "button", "textfield", "select", "fileinput", "imagecanvas", "form", "table", "chart", "voiceinput", "webbrowser", "toggle", "infobar", "image", "entrycontrol", "preference" };
-
-    public static UiView Clone(UiView view, string name)
+    public static string Serialize(View view)
     {
         ArgumentNullException.ThrowIfNull(view);
-        if (view.Generation < 0 || view.Version < 1) { throw new ArgumentException("Generation must be nonnegative and version positive."); }
-        var keys = new HashSet<string>(StringComparer.Ordinal);
-        var path = new HashSet<UiNode>(ReferenceEqualityComparer.Instance);
+        var json = JsonSerializer.Serialize(view, RuntimeProtocol.OptionsFor(typeof(View)));
+        if (System.Text.Encoding.UTF8.GetByteCount(json) > 1_048_576) { throw new ArgumentException("A view is limited to 1 MiB."); }
+        using var document = JsonDocument.Parse(json, Document);
         var count = 0;
-        var copy = view with { Root = Copy(view.Root, 1) };
-        if (JsonSerializer.SerializeToUtf8Bytes(copy, Json).Length > 1_048_576) { throw new ArgumentException("A view is limited to 1 MiB."); }
-        return copy;
+        Walk(document.RootElement, 0);
+        return json;
 
-        static bool IsButtonReference(UiNode? node) => node is { Kind: UiNodeKind.Reference, Reference.Kind: UIVocabulary.ButtonType };
-
-        UiNode Copy(UiNode node, int depth)
+        void Walk(JsonElement element, int depth)
         {
-            if (node is null || depth > 32 || ++count > 512 || !path.Add(node)) { throw new ArgumentException("A view must be an acyclic tree of at most 512 nodes and depth 32."); }
-            if (!Enum.IsDefined(node.Kind) || string.IsNullOrWhiteSpace(node.Key) || node.Key.Length > 256 || !keys.Add(node.Key)) { throw new ArgumentException("View nodes require unique nonempty keys and known kinds."); }
-            if (node.Children is null || !double.IsFinite(node.Gap) || node.Gap < 0) { throw new ArgumentException("Invalid view layout."); }
-            if (node.Extents is { } extents && (extents.Length != node.Children.Length || extents.Any(value => !double.IsFinite(value) || value < 0))) { throw new ArgumentException("Extents must match children and be finite nonnegative values."); }
-            if (node.Kind is UiNodeKind.Text or UiNodeKind.Button or UiNodeKind.Reference or UiNodeKind.Badge or UiNodeKind.Avatar or UiNodeKind.Divider && node.Children.Length != 0) { throw new ArgumentException("Leaf nodes cannot have children."); }
-            if (!Enum.IsDefined(node.Style) || !Enum.IsDefined(node.Tone)) { throw new ArgumentException("View nodes require a known style and tone."); }
-            if (node.Icon is { } icon && (icon.Length is 0 or > 64 || !icon.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-'))) { throw new ArgumentException("Icons are at most 64 characters of [a-z0-9-]."); }
-            if (node.Kind is UiNodeKind.Badge or UiNodeKind.Avatar && string.IsNullOrWhiteSpace(node.Text)) { throw new ArgumentException("Badges and avatars require text."); }
-            // A menu item is a button, or a button neuron referenced so it keeps its own activation.
-            if (node.Kind == UiNodeKind.Menu && (node.Children.Any(child => child?.Kind is not (UiNodeKind.Button or UiNodeKind.Divider or UiNodeKind.Text) && !IsButtonReference(child))
-                || !node.Children.Any(child => child.Kind == UiNodeKind.Button || IsButtonReference(child))))
-            { throw new ArgumentException("Menus hold buttons, button references, dividers and text labels, with at least one button."); }
-            if (node.Kind == UiNodeKind.Tabs && (node.Text is not null || node.Children.Length == 0 || node.Children.Any(child => child?.Kind != UiNodeKind.Button) || node.Children.Count(child => child.Style == UiStyle.Primary) != 1))
-            { throw new ArgumentException("Tabs hold buttons, exactly one of them active."); }
-            if (node.Kind == UiNodeKind.Modal && (string.IsNullOrWhiteSpace(node.Text) || !node.Children.Any(child => child?.Kind == UiNodeKind.Button)))
-            { throw new ArgumentException("Modals require a title and a button that closes or confirms them."); }
-            if (node.Kind == UiNodeKind.Toast && node.Children.Count(child => child?.Kind == UiNodeKind.Button) > 1) { throw new ArgumentException("A toast has at most one button."); }
-            if (node.Kind == UiNodeKind.Button && (string.IsNullOrWhiteSpace(node.Text) || string.IsNullOrWhiteSpace(node.Action))) { throw new ArgumentException("Buttons require text and a canonical action."); }
-            if (node.Action is { } action && action.StartsWith("copy:", StringComparison.Ordinal) && (action.Length is 5 or > 2053 || action.AsSpan(5).ContainsAnyInRange('\u0000', '\u001f') || action.AsSpan(5).ContainsAnyInRange('\u007f', '\u009f') || action.AsSpan(5).IndexOfAny(HiddenDirection) >= 0))
-            { throw new ArgumentException("Copy actions carry 1 to 2048 printable characters."); }
-            if (node.Kind != UiNodeKind.Button && node.Action is not null) { throw new ArgumentException("Only buttons have actions."); }
-            if (node.Kind == UiNodeKind.Reference)
+            if (element.ValueKind == JsonValueKind.Object)
             {
-                if (node.Reference is not { } reference || !ReferenceKinds.Contains(reference.Kind) || string.IsNullOrWhiteSpace(reference.Name) || !BrainKey.BelongsTo(reference.Name, BrainKey.BrainOf(name)))
-                { throw new ArgumentException("References must name a supported leaf control in the same brain."); }
+                if (element.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String)
+                {
+                    if (++depth > 32 || ++count > 512) { throw new ArgumentException("A view is a tree of at most 512 nodes and depth 32."); }
+                }
+                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("emit" or "args"))) { Walk(property.Value, depth); }
             }
-            else if (node.Reference is not null) { throw new ArgumentException("Only reference nodes may embed controls."); }
-            var result = node with { Children = node.Children.Select(child => Copy(child, depth + 1)).ToArray(), Extents = node.Extents?.ToArray(), Reference = node.Reference is { } childRef ? childRef with { } : null };
-            path.Remove(node);
-            return result;
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray()) { Walk(item, depth); }
+            }
         }
     }
+
+    // Every Field node's name (its field neuron's key) and kind, depth first.
+    public static IEnumerable<(string Name, FieldKind Kind)> Fields(JsonElement root)
+    {
+        var pending = new Stack<JsonElement>([root]);
+        while (pending.Count > 0)
+        {
+            var element = pending.Pop();
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                if (Text(element, "name") is { Length: > 0 } name && element.TryGetProperty("fieldKind", out var kind) && KindOf(kind) is { } parsed)
+                { yield return (name, parsed); }
+                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("emit" or "args"))) { pending.Push(property.Value); }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray()) { pending.Push(item); }
+            }
+        }
+    }
+
+    private static FieldKind? KindOf(JsonElement kind)
+        => kind.ValueKind == JsonValueKind.String && Enum.TryParse<FieldKind>(kind.GetString(), ignoreCase: true, out var parsed) ? parsed
+            : kind.ValueKind == JsonValueKind.Number && kind.TryGetInt32(out var number) && Enum.IsDefined((FieldKind)number) ? (FieldKind)number
+            : null;
+
+    public static JsonElement Parse(string json)
+    {
+        using var document = JsonDocument.Parse(json, Document);
+        return document.RootElement.Clone();
+    }
+
+    // The first node, depth first, whose "key" is the key: an object with a "kind" or an action member; emit and args are data.
+    public static JsonElement? Find(JsonElement root, string key)
+    {
+        var pending = new Stack<JsonElement>([root]);
+        while (pending.Count > 0)
+        {
+            var element = pending.Pop();
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
+                    && (Has(element, "kind", JsonValueKind.String) || Has(element, "emit", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object)
+                        || Has(element, "resolve", JsonValueKind.Object) || Has(element, "onSubmit", JsonValueKind.Object)))
+                { return element; }
+                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("emit" or "args"))) { pending.Push(property.Value); }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray().Reverse()) { pending.Push(item); }
+            }
+        }
+        return null;
+    }
+
+    public static ViewActivation ActionOf(JsonElement node)
+    {
+        if (node.TryGetProperty("emit", out var emit) && emit.ValueKind == JsonValueKind.Object
+            || node.TryGetProperty("onSubmit", out emit) && emit.ValueKind == JsonValueKind.Object)
+        {
+            if (Text(emit, "owner") is { } owner && Text(emit, "signal") is { } signal)
+            {
+                JsonElement? args = emit.TryGetProperty("args", out var a) && a.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? a.Clone() : null;
+                return new(ViewActivationKind.Emit, Emit: new Emit(owner, signal, args));
+            }
+            return ViewActivation.None;
+        }
+        var intent = node.TryGetProperty("intent", out var i) && i.ValueKind == JsonValueKind.Object ? i
+            : Text(node, "kind") == "intent" ? node : (JsonElement?)null;
+        if (intent is { } found && Text(found, "intentKind") is { } kind && Enum.TryParse<IntentKind>(kind, ignoreCase: true, out var parsed))
+        { return new(ViewActivationKind.Intent, Intent: new Intent(parsed, Text(found, "arg"))); }
+        if (node.TryGetProperty("resolve", out var resolve) && resolve.ValueKind == JsonValueKind.Object && Text(resolve, "planId") is { Length: > 0 } plan)
+        { return new(ViewActivationKind.Resolve, Resolve: new Resolve(plan)); }
+        return ViewActivation.None;
+    }
+
+    private static string? Text(JsonElement element, string name)
+        => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static bool Has(JsonElement element, string name, JsonValueKind kind) => element.TryGetProperty(name, out var value) && value.ValueKind == kind;
 }

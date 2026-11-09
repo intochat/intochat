@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Installs every script in the features folder (and each ShippedApps root) that this brain does
-// not already have, then brings unedited shipped copies to the folder's version through the
+// Installs every app in the shipped catalog (and each ShippedApps root) that this brain does
+// not already have, then brings unedited shipped copies to the catalog's version through the
 // loader, the same path AppInstaller.Update takes. A copy the person edited, or that came from
 // a person's brain, is untouched. One app failing must not keep the others from catching up.
 // A circle brain (R125) is born with its room only, so the install is skipped; updates still run.
@@ -23,7 +23,7 @@ internal sealed class FeatureReconciler(
     public async Task Reconcile(CancellationToken ct = default)
     {
         var brainId = Id.Brain.Value;
-        // A circle is born with its room only (R125). Every other brain receives the folder's scripts.
+        // A circle is born with its room only (R125). Every other brain receives the catalog's apps.
         if (directory is null || await (await directory.Identity(ct)).KindOf(brainId, ct) != BrainKind.Circle)
         {
             await ShippedInstall.Missing(catalog, loader, brainId, async name =>
@@ -45,7 +45,6 @@ internal sealed class FeatureReconciler(
             try { snapshot = await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/" + name)).Read().WaitAsync(ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Could not read {Brain}/{App} to reconcile it.", brainId, name); continue; }
-            if (snapshot.MigrationTarget is not null) { continue; }
             if (snapshot.Origin is not { Source: AppSource.Shipped } origin) { continue; }
             await GrantShipped(brainId, name, origin);
             var migrating = false;

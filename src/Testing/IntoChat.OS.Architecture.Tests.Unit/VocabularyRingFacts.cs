@@ -34,6 +34,7 @@ public sealed class VocabularyRingFacts
     {
         [typeof(NeuronAliases)] = "A type's effective alias across [NeuronAlias] (DigitalBrain.Contracts) and the Orleans [Alias]; the Orleans half keeps it out of the core package (03-03).",
         [typeof(NeuronKeys)] = "Canonical '{brain}/{key}' neuron key formatting across OS modules (phase 3 Task 6).",
+        [typeof(IConnectionHosts)] = "The http@1 allow-list port the kernel serves and the build flow matches slot hosts by (units Task 15); a host service, not vocabulary.",
 
     };
 

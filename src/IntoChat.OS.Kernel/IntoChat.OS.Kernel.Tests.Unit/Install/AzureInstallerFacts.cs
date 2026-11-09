@@ -19,11 +19,7 @@ public sealed class AzureInstallerFacts
           "registryServer": "intochat.azurecr.io",
           "installerPrincipalId": "principal-12345",
           "ghcrUsername": "intochat",
-          "modules": {
-            "csharp": {
-              "sandboxImage": "intochat.azurecr.io/sandbox:old"
-            }
-          }
+          "modules": {}
         }
         """;
 
@@ -31,8 +27,7 @@ public sealed class AzureInstallerFacts
         {
           "version": "1.2.3",
           "commit": "abcdef1234567890",
-          "osImage": "intochat.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-          "sandboxImage": "intochat.azurecr.io/sandbox@sha256:3333333333333333333333333333333333333333333333333333333333333333"
+          "osImage": "intochat.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111"
         }
         """;
 
@@ -95,7 +90,7 @@ public sealed class AzureInstallerFacts
     }
 
     [Fact]
-    public async Task InstallWithReleaseManifestOverridesOsAndSandboxImageDigestsAndDeploysSingleOsApp()
+    public async Task InstallWithReleaseManifestOverridesTheOsImageDigestAndDeploysSingleOsApp()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -225,7 +220,7 @@ public sealed class AzureInstallerFacts
     }
 
     [Fact]
-    public async Task InstallWithPromoteFromImportsOsAndSandboxDigestsAfterFoundationAndBeforeContainerApps()
+    public async Task InstallWithPromoteFromImportsTheOsDigestAfterFoundationAndBeforeContainerApps()
     {
         var tempDir = Directory.CreateTempSubdirectory();
         try
@@ -253,10 +248,9 @@ public sealed class AzureInstallerFacts
                 TestContext.Current.CancellationToken);
 
             Assert.Equal(0, code);
-            Assert.Equal(2, arm.ImportedImages.Count);
+            Assert.Single(arm.ImportedImages);
             Assert.All(arm.ImportedImages, item => Assert.Equal(sourceRegistryResourceId, item.SourceRegistryId));
             Assert.Contains(arm.ImportedImages, item => item.SourceImage == "intochat.azurecr.io/os@sha256:1111111111111111111111111111111111111111111111111111111111111111");
-            Assert.Contains(arm.ImportedImages, item => item.SourceImage == "intochat.azurecr.io/sandbox@sha256:3333333333333333333333333333333333333333333333333333333333333333");
         }
         finally
         {

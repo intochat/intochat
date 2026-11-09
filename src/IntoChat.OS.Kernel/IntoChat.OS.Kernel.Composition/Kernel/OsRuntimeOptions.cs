@@ -25,7 +25,6 @@ public static class OsRuntimeOptions
         DefaultHomeDirectoryName = ".intochat",
         AuthPostureKey = "IntoChatOS:Auth:Posture",
         OsImage = "ghcr.io/intochat/os",
-        SandboxImage = "ghcr.io/intochat/os-sandbox",
         PubSubStore = "PubSubStore",
         SignalStreams = "signals",
         PlatformGrainStorage = "platform",

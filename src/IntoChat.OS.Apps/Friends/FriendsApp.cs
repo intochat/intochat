@@ -88,7 +88,8 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             ],
             Settings: [],
             Slots: [],
-            Icon: "icon.svg"),
+            Icon: "icon.svg",
+            Dock: 9),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
     {
@@ -124,7 +125,6 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             : request.TemplateAppId.Trim();
 
         var embeddedApps = ParseEmbeddedApps(request.EmbeddedAppIds);
-        var templateSource = BuildPostAppTemplateSource(postId, title, embeddedApps);
 
         var post = new ProfilePostItem(
             Id: postId,
@@ -133,7 +133,7 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             Circle: scope,
             Title: title,
             TemplateAppId: templateAppId,
-            TemplateSource: templateSource,
+            TemplateSource: "",
             EmbeddedApps: embeddedApps);
 
         var profile = await Get<IProfile>("profile").PublishAppPost(post);
@@ -194,38 +194,9 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             : request.NewPostId.Trim();
 
         var profile = await Get<IProfile>("profile").ForkPost(sourceId, newId, request.RemixTitle);
-        var forkedPost = profile.Posts.FirstOrDefault(p => string.Equals(p.Id, newId, StringComparison.Ordinal));
-        var promoted = forkedPost is not null && await TryPromoteForkedTemplateAsync(forkedPost);
         ApplyProfile(
             profile,
-            promoted
-                ? $"Forked App-Post {sourceId} -> {newId} & staged in Creator ({forkedPost!.TemplateAppId})"
-                : $"Forked App-Post {sourceId} -> {newId}");
-    }
-
-    private async Task<bool> TryPromoteForkedTemplateAsync(ProfilePostItem forkedPost)
-    {
-        try
-        {
-            var session = Get<Creator.ICreatorSession>("session");
-            var source = string.IsNullOrWhiteSpace(forkedPost.TemplateSource)
-                ? BuildPostAppTemplateSource(forkedPost.Id, forkedPost.Title, forkedPost.EmbeddedApps ?? [])
-                : forkedPost.TemplateSource;
-            var (compiled, diagnostics) = Creator.CreatorSession.CompileInMemory(source);
-            await session.RecordPrompt(
-                forkedPost.TemplateAppId,
-                $"Remix App-Post template '{forkedPost.Title}' ({forkedPost.Id})",
-                source,
-                compiled,
-                diagnostics,
-                "en");
-            return true;
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "CreatorSession neuron is optional when running FriendsApp standalone.");
-            return false;
-        }
+            $"Forked App-Post {sourceId} -> {newId}");
     }
 
     [DigitalBrain.On]
@@ -277,23 +248,6 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
                 Title: $"{title} App",
                 TargetNeuronUri: $"neuron://local/apps/{clean}");
         }).ToArray();
-    }
-
-    private static string BuildPostAppTemplateSource(string postId, string title, PostEmbeddedApp[] embeddedApps)
-    {
-        var slotsComment = embeddedApps.Length == 0
-            ? "// Standalone App-Post template"
-            : $"// Embedded child apps: {string.Join(", ", embeddedApps.Select(e => $"{e.Slot}->{e.TargetNeuronUri}"))}";
-        return $$"""
-            {{slotsComment}}
-            [DigitalBrain.App("post.{{postId}}")]
-            public sealed class PostTemplateApp : DigitalBrain.App<PostTemplateState>
-            {
-                public View Render() => new("{{title.Replace("\"", "'")}}", new Column([
-                    {{string.Join(",\n        ", embeddedApps.Select(e => $"new NeuronRef(\"viewport\", \"{e.TargetNeuronUri}\")"))}}
-                ]));
-            }
-            """;
     }
 
     public View RenderSide()
@@ -359,12 +313,12 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
                     new Text(State.Status) { Tone = "muted" },
                     new Row(
                     [
-                        new Button("Publish App-Post", new ButtonAction("friends", "publish", ["Interactive revenue & sketch board", "friends"]), Tone: ButtonTone.Accent)
+                        new Button("publish-app-post", "Publish App-Post", Emit: AppSignals.Emit("friends", "publish", "Interactive revenue & sketch board", "friends"), Tone: ButtonTone.Accent)
                         {
                             Icon = "plus",
                             Small = true,
                         },
-                        new Button("Add Friend @ada", new ButtonAction("friends", "add-friend", ["ada", "ada", "Ada Lovelace", "friends"]))
+                        new Button("add-friend-ada", "Add Friend @ada", Emit: AppSignals.Emit("friends", "add-friend", "ada", "ada", "Ada Lovelace", "friends"))
                         {
                             Icon = "user-plus",
                             Small = true,
@@ -426,7 +380,7 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
                     fields,
                     Subtitle: post.Content,
                     LinkLabel: "Fork App-Post",
-                    OnOpen: new ButtonAction("friends", "fork-post", [post.Id])),
+                    Open: new Button($"fork-{post.Id}", "Fork App-Post", Emit: AppSignals.Emit("friends", "fork-post", post.Id))),
             };
 
             foreach (var child in embedded)
@@ -436,12 +390,12 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
 
             postChildren.Add(new Row(
             [
-                new Button("Fork App Template", new ButtonAction("friends", "fork-post", [post.Id]), Tone: ButtonTone.Accent)
+                new Button("fork-app-template", "Fork App Template", Emit: AppSignals.Emit("friends", "fork-post", post.Id), Tone: ButtonTone.Accent)
                 {
                     Icon = "git-branch",
                     Small = true,
                 },
-                new Button("Open in Creator", new ButtonAction("creator", "prompt", [$"Remix App-Post '{post.Title}'", post.TemplateAppId]))
+                new Button("open-in-creator", "Open in Creator", Intent: AppSignals.OpenApp("creator"))
                 {
                     Icon = "wand-sparkles",
                     Small = true,

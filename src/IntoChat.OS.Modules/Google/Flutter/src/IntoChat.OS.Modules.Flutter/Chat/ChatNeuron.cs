@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Flutter.Chat;
 // A selection-bound chat follows its agent through a synapse (06-05b): the agent's change signals start a reconciliation that
 // reads the agent's snapshot again. A state write that changes nothing visible (a repeated selection's receipt) saves with
 // ChatReceiptRecorded, because a plain neuron saves with a signal (D-02).
-[DigitalBrain.Neuron(UIVocabulary.ChatType)]
+[DigitalBrain.Neuron(IChat.Type)]
 internal sealed partial class ChatNeuron : UiNeuron<ChatState>, IChat, IChatReconciliation, IChatMigration
 {
     public Task Project(ChatProjection projection)
@@ -81,7 +81,6 @@ internal sealed partial class ChatNeuron : UiNeuron<ChatState>, IChat, IChatReco
         var activated = new ChatActionActivated(FullKey, source, generation,
             action.Id, action.Payload, Guid.NewGuid());
         await Publish(activated);
-        await Dispatch(UiEvent.Of(activated));
     }
 
     public async Task MarkRead(string source, long generation, long version, string[] messageIds)

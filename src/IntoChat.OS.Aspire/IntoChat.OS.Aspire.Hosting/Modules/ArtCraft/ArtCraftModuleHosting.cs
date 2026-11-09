@@ -65,7 +65,7 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
 
     public static string ResolveDockerContext(string appHostDirectory)
     {
-        if (IntoChat.OS.Modules.Microsoft.CSharp.RepositoryRoot.Find() is { } repoRoot)
+        if (RepositoryRoot.Find() is { } repoRoot)
         {
             var inRepo = Path.Combine(
                 repoRoot,

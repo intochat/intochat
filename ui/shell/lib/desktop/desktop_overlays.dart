@@ -7,8 +7,8 @@ import 'package:intochat_os_ui/intochat_os_ui.dart';
 import 'os_bar.dart';
 import 'smart_desktop.dart';
 
-
 part 'desktop_bar_popovers.dart';
+
 enum DesktopPopoverKind { none, clock, tokens, notifications, dockMenu }
 
 enum DesktopSystemSheetKind {

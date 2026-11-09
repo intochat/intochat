@@ -7,18 +7,8 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron("ino.studio")]
 public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
 {
-    private static readonly (string Id, string Description)[] Studios =
-    [
-        ("markdraw", "Draw and edit diagrams"),
-        ("photocraft", "Edit photos"),
-        ("filmcraft", "Edit video"),
-        ("data", "Query and chart data"),
-        .. ArtCraftCatalog.All
-            .Where(static a => a.Id is not ("photocraft" or "filmcraft"))
-            .Select(static a => (a.Id, a.Subtitle)),
-    ];
-
-    // Starts a build flow of kind unit; the card is its approval, keyed by the flow id.
+    // Starts the five-step unit flow (author, draft, verify, deploy, install); the flow's author step names the alias. The card points at
+    // the flow on the Tasks board, where the verify transcript and the consent to the unit's needs appear.
     public async Task<InoToolResult> Make(string goal)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
@@ -27,7 +17,7 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
         string flowId;
         try
         {
-            var inner = JsonSerializer.Serialize(new BuildInner { Kind = BuildInner.Unit, Goal = text }, BuildFlow.Json);
+            var inner = JsonSerializer.Serialize(new BuildInner { Goal = text }, BuildFlow.Json);
             flowId = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Start(BuildFlow.Alias, title, null, inner);
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -35,15 +25,17 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
             return new InoToolResult($"Could not start '{title}': {error.Message}");
         }
 
+        var tasks = $"neuron://local/apps/tasks#{flowId}";
         var card = new InoCard(
             flowId,
-            "approval",
-            $"Approve: {title}",
-            "The build flow asks for this approval once the unit is deployed.",
-            "neuron://local/os.confirmations/inbox",
-            "pending",
-            $"neuron://local/apps/ino#{flowId}");
-        return new InoToolResult($"Started build {title} ({flowId}); it waits for your approval once deployed.", card);
+            "flow",
+            $"Building: {title}",
+            "The unit is authored, verified against its scenarios and deployed; it then waits for your consent to its needs.",
+            tasks,
+            "running",
+            tasks);
+        return new InoToolResult(
+            $"Started building {title} ({flowId}). The verify transcript and the consent to the unit's needs will appear on the Tasks board ({tasks}).", card);
     }
 
     public async Task<InoToolResult> Launch(string appId)
@@ -62,6 +54,26 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
         return new InoToolResult($"Opened {app}.");
     }
 
-    public Task<InoToolResult> List()
-        => Task.FromResult(new InoToolResult("Studios:\n" + string.Join("\n", Studios.Select(s => $"- {s.Id}: {s.Description}"))));
+    public async Task<InoToolResult> List()
+    {
+        var studios = (await ShippedManifests.Of(Context.Services)).Studios();
+        var text = "Studios:\n" + string.Join("\n", studios.Select(s => $"- {s.App}: {s.Description}"));
+        var studio = Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
+        DigitalBrain.DeployedSource[] units;
+        try { units = await studio.List(); }
+        catch (Exception error) when (error is not OperationCanceledException) { return new InoToolResult(text + $"\nUnits are not available: {error.Message}"); }
+        if (units.Length == 0) { return new InoToolResult(text + "\nUnits: none deployed."); }
+        var lines = new List<string>();
+        foreach (var unit in units)
+        {
+            var alias = unit.Aliases.FirstOrDefault() ?? unit.SourceKey;
+            Dictionary<string, string> sidecars;
+            try { sidecars = await studio.Sidecars(alias); }
+            catch (Exception error) when (error is not OperationCanceledException) { lines.Add($"- {alias} ({unit.Status}): sidecars unavailable"); continue; }
+            lines.Add($"- {alias} ({unit.Status}): spec.md {Kept(sidecars, "spec.md")}, scenarios.json {Kept(sidecars, "scenarios.json")}");
+        }
+        return new InoToolResult(text + "\nUnits:\n" + string.Join("\n", lines));
+    }
+
+    private static string Kept(Dictionary<string, string> sidecars, string file) => sidecars.ContainsKey(file) ? "kept" : "missing";
 }

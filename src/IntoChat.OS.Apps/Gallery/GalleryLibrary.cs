@@ -128,8 +128,8 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "design",
             "Typography (Inter + InterDisplay + tnum)",
             "Inter and InterDisplay scale with strict tabular numerals (tnum) for live telemetry.",
-            "IntoChat.OS.Modules.Flutter.Text.IText@1",
-            ["TextChanged"],
+            "IntoChat.OS.Modules.Flutter.Views.IView@1",
+            ["ViewChanged"],
             "neuron://local/ui.gallery/typography",
             "new Heading(\"InterDisplay 32 · 1,492,048 tok\", Level: 1, Subtitle: \"Tabular numerals keep live telemetry aligned.\");")
         { Icon = "type" },
@@ -160,20 +160,20 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "controls",
             "Btn (Styles, Sizes & Icons)",
             "Primary, Secondary, Ghost, and Danger buttons in Standard (36px) and Small (30px) sizes.",
-            "IntoChat.OS.Modules.Flutter.Button.IButton@1",
-            ["ButtonClickedSignal"],
+            "IntoChat.OS.Modules.Flutter.Views.IView@1",
+            ["ViewChanged"],
             "neuron://local/ui.gallery/buttons",
-            "new Button(\"Execute Action\", new ButtonAction(\"gallery\", \"select\", [\"pulse\"]), Tone: ButtonTone.Accent) { Icon = \"sparkles\", Small = false };")
+            "new Button(\"execute\", \"Execute Action\", Emit: new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")), Tone: ButtonTone.Accent) { Icon = \"sparkles\", Small = false };")
         { Icon = "mouse-pointer-click" },
         new(
             "inputs",
             "controls",
             "Field & TextField",
             "Desktop-first EditableText fields with neuron:// address validation and instant submit.",
-            "IntoChat.OS.Modules.Flutter.TextField.ITextField@1",
-            ["TextFieldChanged"],
+            "IntoChat.OS.Modules.Flutter.Fields.IField@1",
+            ["FieldChanged"],
             "neuron://local/ui.gallery/inputs",
-            "new TextField(\"address\", \"neuron://nordlys/apps.ino/main\", \"Enter neuron:// address…\") { OnSubmit = new ButtonAction(\"gallery\", \"select\", [\"pulse\"]) };")
+            "new Field(\"address\", \"address\", FieldKind.Text, \"Enter neuron:// address…\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")));")
         { Icon = "text-cursor-input" },
         new(
             "switch",
@@ -183,17 +183,17 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.OS.Modules.Flutter.Switch.ISwitch@1",
             ["SwitchToggledSignal"],
             "neuron://local/ui.gallery/switch",
-            "new Switch(\"Live [Signal] stream active\", IsOn: true, Action: new ButtonAction(\"gallery\", \"select\", [\"toggle:switch\"]), Locked: false);")
+            "new Switch(\"stream\", \"Live [Signal] stream active\", IsOn: true, Emit: new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"toggle:switch\")), Locked: false);")
         { Icon = "toggle-right" },
         new(
             "select",
             "controls",
             "Select & Dropdown",
             "Single-choice segmented and dropdown selectors backed by DigitalBrain.UI.Select.",
-            "IntoChat.OS.Modules.Flutter.Select.ISelect@1",
+            "DigitalBrain.UI.Select@1",
             ["SelectionChangedSignal"],
             "neuron://local/ui.gallery/select",
-            "new Select(\"Active Reasoning Model\", \"claude-sonnet-4-5\", [new SelectOption(\"claude-sonnet-4-5\", \"Claude Sonnet 4.5\"), new SelectOption(\"gpt-5-thinking\", \"GPT-5 Thinking\")]);")
+            "new Select(\"Active Reasoning Model\", \"claude-sonnet-4-5\", [new SelectOption(\"claude\", \"claude-sonnet-4-5\", \"Claude Sonnet 4.5\"), new SelectOption(\"gpt\", \"gpt-5-thinking\", \"GPT-5 Thinking\")]);")
         { Icon = "list-filter" },
         new(
             "tag-pill",
@@ -210,8 +210,8 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "controls",
             "Progress & InfoBar",
             "Determinate progress bars and contextual status banners with action buttons.",
-            "IntoChat.OS.Modules.Flutter.InfoBar.IInfoBar@1",
-            ["InfoBarUpdatedSignal"],
+            "IntoChat.OS.Modules.Flutter.Views.IView@1",
+            ["ViewChanged"],
             "neuron://local/ui.gallery/progress-infobar",
             "new InfoBar(\"Orleans grain pool synced\", \"14/14 [Scenario] gates passed without warnings.\", Tone: \"info\");")
         { Icon = "loader" },
@@ -242,17 +242,17 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "layout",
             "Tabs & Segmented Views",
             "Multi-pane tab strips switching live DigitalBrain.UI view subtrees.",
-            "IntoChat.OS.Modules.Flutter.Tabs.ITabs@1",
+            "DigitalBrain.UI.Tabs@1",
             ["ActiveTabChanged"],
             "neuron://local/ui.gallery/tabs",
-            "new Tabs(\"overview\", [new TabItem(\"overview\", \"Overview\", new ButtonAction(\"gallery\", \"select\", [\"shell:overview\"])), new TabItem(\"signals\", \"Signals\", new ButtonAction(\"gallery\", \"select\", [\"shell:signals\"]))]);")
+            "new Tabs(\"overview\", [new TabItem(\"overview\", \"overview\", \"Overview\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"shell:overview\"))), new TabItem(\"signals\", \"signals\", \"Signals\", new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"shell:signals\")))]);")
         { Icon = "folder-kanban" },
         new(
             "surfaces",
             "layout",
             "IcAcrylicBox Surfaces",
             "Acrylic, Elevated, and Recessed containers with adaptive border hairlines.",
-            "IntoChat.OS.Modules.Flutter.Surface.ISurface@1",
+            "DigitalBrain.UI.Surface@1",
             ["SurfaceMutatedSignal"],
             "neuron://local/ui.gallery/surfaces",
             "new Surface([new Text(\"Adaptive glass surface\")], Kind: SurfaceKind.Acrylic, Title: \"Acrylic Surface\", Subtitle: \"1px specular border\");")
@@ -397,7 +397,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.OS.Assistant.ISessionDiagnostics@1",
             ["RecoveryTriggeredSignal"],
             "neuron://local/apps/ino#diagnostics",
-            "new InfoBar(\"Connection to Salesforce timed out\", \"Nothing was changed yet. Click Retry to reconnect with the capability broker.\", Tone: \"danger\", Action: new Button(\"Retry\", new ButtonAction(\"gallery\", \"select\", [\"pulse\"]), Tone: ButtonTone.Accent) { Small = true });")
+            "new InfoBar(\"Connection to Salesforce timed out\", \"Nothing was changed yet. Click Retry to reconnect with the capability broker.\", Tone: \"danger\", Action: new Button(\"retry\", \"Retry\", Emit: new Emit(\"gallery\", \"select\", JsonSerializer.SerializeToElement(\"pulse\")), Tone: ButtonTone.Accent) { Small = true });")
         { Icon = "triangle-alert" },
 
         // 5. 3D Brain & Neurons ("3d-brain")

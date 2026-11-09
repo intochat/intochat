@@ -66,10 +66,10 @@ public static class LobbyScreens
             case "signup":
                 nodes.Add(new Text(T("Lobby.Signup.Heading")));
                 nodes.Add(new Text(T("Lobby.Signup.Subtitle")));
-                nodes.Add(Field("first", T("Lobby.Signup.FirstName")));
-                nodes.Add(Field("last", T("Lobby.Signup.LastName")));
-                nodes.Add(Field("email", T("Lobby.Signup.Email")));
-                nodes.Add(Field("password", T("Lobby.Signup.Password")));
+                nodes.Add(TextInput("first", T("Lobby.Signup.FirstName")));
+                nodes.Add(TextInput("last", T("Lobby.Signup.LastName")));
+                nodes.Add(TextInput("email", T("Lobby.Signup.Email")));
+                nodes.Add(TextInput("password", T("Lobby.Signup.Password")));
                 nodes.Add(new Text(T("Lobby.Signup.PasswordRules")));
                 nodes.Add(new Text(T("Lobby.Signup.Consent")));
                 nodes.Add(ButtonOf("consent", state.Consent ? T("Lobby.Signup.Consent") : T("Lobby.Signup.ConsentRequired"), true, ButtonTone.Neutral));
@@ -80,28 +80,28 @@ public static class LobbyScreens
                 nodes.Add(new Text(T("Lobby.Code.Heading")));
                 nodes.Add(new Text(T("Lobby.Code.Subtitle")));
                 if (state.Email is not null) { nodes.Add(new Text(state.Email)); }
-                nodes.Add(Field("code", T("Lobby.Code.Field")));
+                nodes.Add(TextInput("code", T("Lobby.Code.Field")));
                 nodes.Add(ButtonOf("verify", state.Busy ? T("Lobby.Code.Verifying") : T("Lobby.Code.Verify"), !state.Busy));
                 nodes.Add(ButtonOf("resend", T("Lobby.Code.Resend"), !state.Busy, ButtonTone.Neutral));
                 break;
             case "factor":
                 nodes.Add(new Text(T("Lobby.Factor.Heading")));
                 nodes.Add(new Text(T("Lobby.Factor.Subtitle")));
-                nodes.Add(Field("code", T("Lobby.Code.Field")));
+                nodes.Add(TextInput("code", T("Lobby.Code.Field")));
                 nodes.Add(ButtonOf("verify", state.Busy ? T("Lobby.Code.Verifying") : T("Lobby.Code.Verify"), !state.Busy));
                 nodes.Add(ButtonOf("email", T("Lobby.Login.Forgot"), true, ButtonTone.Neutral));
                 break;
             case "reset-request":
                 nodes.Add(new Text(T("Lobby.Reset.Heading")));
                 nodes.Add(new Text(T("Lobby.Reset.Body")));
-                nodes.Add(Field("email", T("Lobby.Signup.Email")));
+                nodes.Add(TextInput("email", T("Lobby.Signup.Email")));
                 nodes.Add(ButtonOf("send", state.Busy ? T("Lobby.Login.Submitting") : T("Lobby.Login.Submit"), !state.Busy));
                 break;
             case "reset-new":
                 nodes.Add(new Text(T("Lobby.Reset.NewHeading")));
                 nodes.Add(new Text(T("Lobby.Signup.PasswordRules")));
-                nodes.Add(Field("password", T("Lobby.Signup.Password")));
-                nodes.Add(Field("confirm", T("Lobby.Reset.Save")));
+                nodes.Add(TextInput("password", T("Lobby.Signup.Password")));
+                nodes.Add(TextInput("confirm", T("Lobby.Reset.Save")));
                 nodes.Add(ButtonOf("save", T("Lobby.Reset.Save"), !state.Busy));
                 break;
             case "reset-done":
@@ -131,8 +131,8 @@ public static class LobbyScreens
                 nodes.Add(new Text(T("Lobby.Login.Subtitle")));
                 nodes.Add(ButtonOf("google", T("Lobby.Login.Google"), state.Error != "unavailable", ButtonTone.Neutral));
                 nodes.Add(new Text(T("Lobby.Login.Or")));
-                nodes.Add(Field("email", T("Lobby.Login.Email")));
-                nodes.Add(Field("password", T("Lobby.Login.Password")));
+                nodes.Add(TextInput("email", T("Lobby.Login.Email")));
+                nodes.Add(TextInput("password", T("Lobby.Login.Password")));
                 nodes.Add(ButtonOf("forgot", T("Lobby.Login.Forgot"), true, ButtonTone.Neutral));
                 nodes.Add(ButtonOf("submit", state.Busy ? T("Lobby.Login.Submitting") : T("Lobby.Login.Submit"), !state.Busy && state.Error != "rate" && state.Error != "unavailable"));
                 nodes.Add(ButtonOf("signup", T("Lobby.Login.Create"), true, ButtonTone.Neutral));
@@ -151,8 +151,9 @@ public static class LobbyScreens
         return new View(state.Screen, new Column(nodes));
     }
 
-    private static TextField Field(string name, string label) => new(name, null, label);
+    private static Field TextInput(string name, string label)
+        => new(name, name, name is "password" or "confirm" ? FieldKind.Password : FieldKind.Text, label);
 
     private static Button ButtonOf(string operation, string label, bool enabled, string tone = ButtonTone.Accent) =>
-        new(label, new ButtonAction("lobby", operation, []), enabled, tone);
+        new(operation, label, new Emit("lobby", operation), Enabled: enabled, Tone: tone);
 }

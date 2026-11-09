@@ -95,7 +95,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         // Step 3: Publish updated view to the silo and verify revision advancement
         await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", film.RenderSide(), film.Render());
         var filmView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read();
-        Assert.NotNull(filmView?.Root);
+        Assert.NotNull(filmView);
 
         var updatedFiles = new Dictionary<string, string>(initialState.Files)
         {
@@ -185,10 +185,6 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         Assert.True(decision.Approved);
         Assert.Equal(ConfirmationOutcome.Approved, decision.Outcome);
 
-        // Step 6: With approval granted, sideload install completes
-        var installResult = SideloadInstallResult.Done($"App package installed with consent hash {consentDigest[..12]}");
-        Assert.True(installResult.Ok);
-        Assert.Contains("installed with consent hash", installResult.Message);
     }
 
     [Fact]

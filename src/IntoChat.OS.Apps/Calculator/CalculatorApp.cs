@@ -183,8 +183,9 @@ public sealed class CalculatorApp : DigitalBrain.App<CalculatorAppState>
                     Children:
                     [
                         .. Keys.Select((key, index) => (Node)new Button(
+                            $"key-{index}",
                             Labels[index],
-                            new ButtonAction("calculator", "press", [key]),
+                            Emit: AppSignals.Emit("calculator", "press", key),
                             Tone: key is "=" or "+" or "-" or "*" or "/" ? ButtonTone.Accent : ButtonTone.Neutral)),
                     ],
                     Gap: 8),

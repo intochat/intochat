@@ -9,7 +9,7 @@ public sealed record CircleEntry(string BrainId, string Name);
 // inviting happen inside the circle brain, on the member's human route.
 // A plain neuron (06-08).
 [DigitalBrain.Contracts.NeuronAlias("circles.factory"), DigitalBrain.Contracts.DefaultNeuronType("circles.factory")]
-public interface ICircleFactory : IntoChat.OS.Modules.Flutter.IUiEventHandler
+public interface ICircleFactory
 {
     // CreateBrain(Kind = Circle) for the caller's account, then the circle brain's birth; returns the circle brain id.
     // A requestId makes it idempotent: creating twice under one id is one circle.
@@ -17,7 +17,6 @@ public interface ICircleFactory : IntoChat.OS.Modules.Flutter.IUiEventHandler
 
     // The caller's circle brains, from the trust side's BrainsOf.
     Task<CircleEntry[]> Circles();
-    Task BindPublicationButton();
     Task<CirclePublicationFeed> Publications(string? publisher = null);
     [DigitalBrain.CallTimeout(600_000)] Task<IntoChat.OS.Modules.Apps.AppSnapshot> Fork(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
 
