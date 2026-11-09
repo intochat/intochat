@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -26,22 +27,30 @@ public sealed partial class UnitsAllTheWayFacts
     public void NoRuntimeAuthoringOutsideSynapseSources()
     {
         var offenders = new List<string>();
-        foreach (var path in NoProgramLanesFacts.ProductionSources())
+        var sources = NoProgramLanesFacts.ProductionSources().ToArray();
+        Assert.NotEmpty(sources);
+        Assert.Contains(sources, path => Repository.Relative(path).Contains("/" + RoslynModule + "/", StringComparison.Ordinal));
+        var calling = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var path in sources)
         {
             var relative = Repository.Relative(path);
             var text = File.ReadAllText(path);
             if (!relative.Contains("/" + RoslynModule + "/", StringComparison.Ordinal) && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
             { offenders.Add(relative + ": Microsoft.CodeAnalysis"); }
             foreach (Match match in RuntimeCompilation().Matches(text)) { offenders.Add(relative + ": " + match.Value); }
-            if (SynapseCompilerUse().IsMatch(text) && !CompilerCallers.Any(caller => relative.EndsWith("/" + caller, StringComparison.Ordinal)))
-            { offenders.Add(relative + ": SynapseCompiler"); }
+            if (!SynapseCompilerUse().IsMatch(text)) { continue; }
+            if (CompilerCallers.FirstOrDefault(caller => relative.EndsWith("/" + caller, StringComparison.Ordinal)) is { } known) { calling.Add(known); }
+            else { offenders.Add(relative + ": SynapseCompiler"); }
         }
+        // Every allowed caller exists and still holds the compiler; an entry that matches nothing is stale.
+        offenders.AddRange(CompilerCallers.Except(calling).Select(caller => caller + ": allowed but no longer uses SynapseCompiler"));
         Assert.True(offenders.Count == 0, string.Join(Environment.NewLine, offenders));
     }
 
     [Fact]
     public void RoslynPackagesAreReferencedOnlyByTheRoslynModule()
     {
+        Assert.True(Repository.Projects.ContainsKey(RoslynModule), RoslynModule + " is not in the solution; update this fact.");
         var offenders = Repository.Projects.Values
             .Where(project => !project.Name.Contains(".Tests", StringComparison.Ordinal) && project.Name != RoslynModule)
             .Where(project => Repository.PackageReferences(project.Path).Any(package => package.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)))
@@ -57,7 +66,17 @@ public sealed partial class UnitsAllTheWayFacts
 
     // What the host still names today (file: literal). Each entry is a leftover to remove by moving the knowledge into the app's manifest;
     // the fact fails when an entry is gone, so the list only shrinks.
-    private static readonly string[] Pending = [];
+    private static readonly string[] Pending =
+    [
+        // The artcraft engine is the host of the photocraft and filmcraft studios and checks its caller against them.
+        "ArtCraftEngineNeuron.cs: filmcraft", "ArtCraftEngineNeuron.cs: photocraft", "ArtCraftEngineRunner.cs: filmcraft", "ArtCraftEngineRunner.cs: photocraft",
+        // The desktop's dock list, the studio-prompt forwarding from Ino, and "settings" as a desktop verb.
+        "CompiledAppsHost.cs: creator", "CompiledAppsHost.cs: data", "CompiledAppsHost.cs: files", "CompiledAppsHost.cs: filmcraft",
+        "CompiledAppsHost.cs: gallery", "CompiledAppsHost.cs: markdraw", "CompiledAppsHost.cs: photocraft", "CompiledAppsHost.cs: post",
+        "CompiledAppsHost.cs: settings",
+        // The module installer special-cases the settings app's key.
+        "InstalledModulesNeuron.cs: settings",
+    ];
 
     [Fact]
     public void NoAppNameSwitchboard()
@@ -75,9 +94,30 @@ public sealed partial class UnitsAllTheWayFacts
         Assert.Empty(NamedApps("if (mode == \"fast\") { } var x = kind switch { \"a\" => 1, _ => 0 };"));
     }
 
+    // Every shipped app's key: the name of each compiled [App] bundle in the production assemblies.
+    private static HashSet<string> ShippedAppKeys() => ProductionArchitecture.Types
+        .Select(type => type.GetProperty("Bundle", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+        .Where(property => property?.PropertyType == typeof(AppBundle))
+        .Select(property => ((AppBundle)property!.GetValue(null)!).Name)
+        .ToHashSet(StringComparer.Ordinal);
+
     private static IEnumerable<(string File, string Literal)> HostingNamedApps()
-        => NoProgramLanesFacts.ProductionSources().Where(path => Repository.Relative(path).Contains("/Hosting/", StringComparison.Ordinal))
-            .SelectMany(path => NamedApps(File.ReadAllText(path)).Select(literal => (Path.GetFileName(path), literal)));
+    {
+        var hosting = NoProgramLanesFacts.ProductionSources().Where(path => Repository.Relative(path).Contains("/Hosting/", StringComparison.Ordinal)).ToArray();
+        Assert.NotEmpty(hosting);
+        Assert.Contains(hosting, path => Path.GetFileName(path) == "AppPresentationSink.cs");
+        Assert.Contains(hosting, path => Path.GetFileName(path) == "CompiledAppsHost.cs");
+        var keys = ShippedAppKeys();
+        Assert.Contains("creator", keys);
+        Assert.Contains("settings", keys);
+        // A comparison or switch arm on an app identifier, or any quoted literal that is a shipped app's key: the closed world.
+        return hosting.SelectMany(path =>
+        {
+            var text = File.ReadAllText(path);
+            return NamedApps(text).Concat(QuotedLiteral().Matches(text).Select(match => match.Groups[1].Value).Where(keys.Contains))
+                .Select(literal => (Path.GetFileName(path), literal));
+        });
+    }
 
     private static string[] NamedApps(string source)
     {
@@ -103,7 +143,10 @@ public sealed partial class UnitsAllTheWayFacts
         var nodes = Path.Combine(Repository.Root, "ui/ui/lib/src/nodes");
         var dispatch = File.ReadAllText(Path.Combine(nodes, "node_renderer.dart"));
         var missing = new List<string>();
-        foreach (var (type, kind) in DartNodeModelsFacts.DerivedKinds())
+        var kinds = DartNodeModelsFacts.DerivedKinds();
+        Assert.NotEmpty(kinds);
+        Assert.NotEmpty(Directory.EnumerateFiles(nodes, "*.dart"));
+        foreach (var (type, kind) in kinds)
         {
             var dart = DartNodeModelsFacts.DartName(type);
             var render = "render" + dart[..^"Node".Length];

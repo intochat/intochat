@@ -20,53 +20,38 @@ internal sealed class CompiledAppsHost(
     IServiceProvider services,
     InProcessAppHost host,
     DigitalBrain.Spi.IClusterListeners listeners,
+    IEnumerable<CompiledAppsRegistration> registrations,
     ILogger<CompiledAppsHost> logger) : IStartupTask
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };
 
-    private static (string Name, Type AppType, AppBundle Bundle) ResolveHosted(string appName, string typeName, AppBundle fallbackBundle)
+    // The shipped apps by name, found through the compiled-app registrations; the boot set is what the registrations name by type.
+    internal static IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> ShippedBy(IEnumerable<CompiledAppsRegistration> registrations)
+        => registrations
+            .SelectMany(registration => CompiledApps.Of(registration.Assembly))
+            .GroupBy(compiled => compiled.Bundle.Name, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => (group.Key, group.First().AppType, group.First().Bundle), StringComparer.Ordinal);
+
+    internal static IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedBy(IEnumerable<CompiledAppsRegistration> registrations)
     {
-        var type = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetType(typeName, throwOnError: false))
-            .FirstOrDefault(t => t is not null);
-        if (type is not null && type.GetProperty("Bundle", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is AppBundle bundle)
-        {
-            return (appName, type, bundle);
-        }
-        return (appName, type ?? typeof(App), fallbackBundle);
+        var shipped = ShippedBy(registrations);
+        return registrations
+            .SelectMany(registration => registration.Boot ?? [])
+            .Select(type => type.GetCustomAttribute<DigitalBrain.AppAttribute>(false)?.Id)
+            .OfType<string>()
+            .Where(shipped.ContainsKey)
+            .Distinct(StringComparer.Ordinal)
+            .ToDictionary(name => name, name => shipped[name], StringComparer.Ordinal);
     }
 
-    private static readonly (string Name, Type AppType, AppBundle Bundle)[] Hosted =
-    [
-        ResolveHosted("ino", "IntoChat.OS.Apps.Ino.InoApp", new AppBundle("ino", "3.5.0", new AppManifest("Ino", "Talk to your brain, use its capabilities, query databases, and create apps.", [new("open", "Show Ino."), new("send", "Route or answer a message."), new("stop", "Stop the running turn."), new("smart", "Turn smart mode on or off."), new("connect-db", "Connect a PostgreSQL database via connection string."), new("query-db", "Execute a read-only SQL query against the connected database."), new("new", "Start a new conversation."), new("new-conversation", "Alias for new."), new("voice", "Begin voice input."), new("make", "Apply a sentence to the focused app, or Scratch.")], [new("Model", "Model catalog id; empty uses the default.", ""), new("RouteGate", "Confidence required for a direct route.", "0.8"), new("IntendGate", "Seconds to wait for Memory's brief before answering without it.", "8")], [], "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal))),
-        ResolveHosted("settings", "IntoChat.OS.Apps.Settings.SettingsApp", new AppBundle("settings", "2.1.0", new AppManifest(
-            Title: "Settings",
-            Description: "Your preferences, models, keys, connections and archived chats.",
-            Operations:
-            [
-                new("open", "Show Settings on the tab the input names (general when empty or unknown)."),
-                new("read", "Publish the current preferences to {app}/preferences."),
-                new("refresh-connections", "Show the brain's connections and the host's connector offers again."),
-                new("save-preferences", "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."),
-                new("reload-preferences", "Discard editable drafts and load the stored preferences."),
-                new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),
-            ],
-            Settings: [],
-            Slots: []), "", new Dictionary<string, string>(StringComparer.Ordinal))),
-    ];
+    private IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> Shipped => _shipped ??= ShippedBy(registrations);
 
-    private static readonly IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName =
-        Hosted.ToDictionary(item => item.Name, StringComparer.Ordinal);
+    private IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName => _hostedByName ??= HostedBy(registrations);
 
-    // The apps whose program type lives in another assembly, found by name when first needed.
-    private static readonly IReadOnlyDictionary<string, string> ExternalTypes = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["ino"] = "IntoChat.OS.Apps.Ino.InoApp",
-        ["settings"] = "IntoChat.OS.Apps.Settings.SettingsApp",
-    };
+    private IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>? _shipped;
+    private IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>? _hostedByName;
 
-    private static (string Name, Type AppType, AppBundle Bundle) ResolveSpec(string appName)
-        => ExternalTypes.TryGetValue(appName, out var typeName) ? ResolveHosted(appName, typeName, HostedByName[appName].Bundle) : HostedByName[appName];
+    private (string Name, Type AppType, AppBundle Bundle) ResolveSpec(string appName) => HostedByName[appName];
 
     private readonly ConcurrentDictionary<string, IFilesVfsService> _vfsByBrain = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _ensuredBrains = new(StringComparer.Ordinal);
@@ -122,7 +107,7 @@ internal sealed class CompiledAppsHost(
 
     private async Task EnsureAllAsync(string brain)
     {
-        foreach (var (name, _, _) in Hosted) { await EnsureAppAsync(brain, name); }
+        foreach (var name in HostedByName.Keys) { await EnsureAppAsync(brain, name); }
         await EnsureDesktopViewAsync(brain);
     }
 
@@ -235,7 +220,7 @@ internal sealed class CompiledAppsHost(
                 var filesView = await SiloNeurons.Get<IView>(services, $"{brain}/apps/files/view").Read();
                 if (filesView is null)
                 {
-                    using var filesScope = baseCaller is not null ? CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, IApp.Key(brain, "files"))) : null;
+                    using var filesScope = baseCaller is not null ? CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, IApp.Key(brain, IntoChat.Files.FilesApp.AppName))) : null;
                     await SiloNeurons.Get<IFilesWorkspace>(services, $"{brain}/apps/files/workspace").Open(ct);
                 }
                 return;
@@ -260,30 +245,8 @@ internal sealed class CompiledAppsHost(
         var snapshot = await desktopApp.Read();
         if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
         {
-            var bundle = ResolveHosted("desktop", "IntoChat.OS.Apps.Desktop.DesktopApp", new AppBundle("desktop", "0.4.0", new AppManifest(
-                Title: "Desktop",
-                Description: "Your apps in windows, with a dock.",
-                Operations:
-                [
-                    new("start", "Compose the desktop from the open windows and installed apps."),
-                    new("layout", "Choose the layout the next connect shows: desktop or classic."),
-                    new("open", "Open an app's window beside the others, or focus it (input: the app name). Enforces the window cap."),
-                    new("narrow", "The shell's width hint: true below 900 logical pixels, false otherwise."),
-                new("focus", "Focus the window named by Input."),
-                new("tab", "Activate the tab {window}/{index} named by Input."),
-                new("newtab", "Open a new tab, in the window named by Input when given."),
-                new("close", "Close the tab {window}/{index} named by Input."),
-                new("close-app", "Close the app named by Input's windows."),
-                new("pin", "Pin the app named by Input to the dock."),
-                new("unpin", "Unpin the app named by Input from the dock."),
-                new("favourite", "Toggle the favourite of the window named by Input's active tab."),
-                new("widget-open", "Open the widget named by Input."),
-                new("widget-close", "Close the widget named by Input."),
-                new("settings", "Open the settings."),
-                ],
-                Settings: [],
-                Slots: [],
-                Icon: "icon.svg"), "", new Dictionary<string, string>(StringComparer.Ordinal))).Bundle;
+            if (!Shipped.TryGetValue("desktop", out var shipped)) { return; }
+            var bundle = shipped.Bundle;
             await desktopApp.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "desktop", bundle.Version));
         }
     }

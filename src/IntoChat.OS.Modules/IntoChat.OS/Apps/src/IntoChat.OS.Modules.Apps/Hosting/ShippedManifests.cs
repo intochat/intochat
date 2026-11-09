@@ -8,13 +8,19 @@ internal sealed class ShippedManifests(IReadOnlyDictionary<string, AppManifest> 
 {
     internal const double DefaultSideWidth = 236d;
 
+    // A compiled app changes only with the host's build, so the manifests of a catalog are read once.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FeatureCatalog, ShippedManifests> Read = new();
+
     public static async Task<ShippedManifests> Of(IServiceProvider services)
+        => services.GetService<FeatureCatalog>() is { } catalog ? await Of(catalog) : new(new Dictionary<string, AppManifest>());
+
+    public static async Task<ShippedManifests> Of(FeatureCatalog catalog)
     {
-        var catalog = services.GetService<FeatureCatalog>();
-        IReadOnlyDictionary<(string Owner, string Name), AppBundle> bundles = catalog is null
-            ? new Dictionary<(string Owner, string Name), AppBundle>() : await catalog.Bundles();
-        return new(bundles.Where(entry => entry.Key.Owner == ShippedApps.Publisher)
+        if (Read.TryGetValue(catalog, out var known)) { return known; }
+        var bundles = await catalog.Bundles();
+        var manifests = new ShippedManifests(bundles.Where(entry => entry.Key.Owner == ShippedApps.Publisher)
             .ToDictionary(entry => entry.Key.Name, entry => entry.Value.Manifest, StringComparer.Ordinal));
+        return Read.GetValue(catalog, _ => manifests);
     }
 
     public string Title(string app)

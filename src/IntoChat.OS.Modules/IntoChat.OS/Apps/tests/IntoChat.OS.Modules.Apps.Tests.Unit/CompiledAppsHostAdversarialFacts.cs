@@ -6,16 +6,16 @@ namespace IntoChat.OS.Modules.Apps.Tests;
 
 public sealed class CompiledAppsHostAdversarialFacts
 {
+    private static readonly CompiledAppsRegistration[] ShellRegistrations =
+    [
+        new(typeof(AppsModule).Assembly),
+        new(typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly, [typeof(IntoChat.OS.Apps.Ino.InoApp), typeof(IntoChat.OS.Apps.Settings.SettingsApp)]),
+    ];
+
     [Fact]
     public void HostedByName_ContainsOnlyKernelApps_ExcludesNonKernelApps()
     {
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(hostedByNameField);
-
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         Assert.Equal(2, hostedByName.Count);
         Assert.True(hostedByName.ContainsKey("ino"));
@@ -32,11 +32,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     [Fact]
     public void HostedByName_IndexingNonHostedApp_ThrowsKeyNotFoundException()
     {
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         Assert.Throws<KeyNotFoundException>(() => hostedByName["photocraft"]);
         Assert.Throws<KeyNotFoundException>(() => hostedByName["filmcraft"]);
@@ -50,11 +46,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     {
         // Line 344 in CompiledAppsHost dispatches studioApp ("photocraft" or "filmcraft")
         // Verify that neither is hosted, which necessitates forwarding directly via SiloNeurons.Get<IApp>
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         string[] studioApps = ["photocraft", "filmcraft"];
         foreach (var app in studioApps)
@@ -138,11 +130,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     [InlineData("custom_tool_42")]
     public void StudioAppTurnRouting_UnhostedGuard_PreventsKeyNotFoundException_ForAnyUnhostedApp(string appName)
     {
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         // Directly indexing HostedByName for any unhosted app throws KeyNotFoundException
         Assert.Throws<KeyNotFoundException>(() => hostedByName[appName]);
@@ -159,11 +147,7 @@ public sealed class CompiledAppsHostAdversarialFacts
     [Fact]
     public void EmpiricalStress_KeyNotFoundExceptionIsImpossible_Under500AdversarialRouteHints()
     {
-        var hostedByNameField = typeof(CompiledAppsHost).GetField(
-            "HostedByName",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var hostedByName = (IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>)
-            hostedByNameField!.GetValue(null)!;
+        var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         string[] prefixes =
         [
