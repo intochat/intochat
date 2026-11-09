@@ -26,7 +26,7 @@ internal static class CreatorModel
     {
         ArgumentNullException.ThrowIfNull(neurons);
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
-        var marker = LLMModel.FindByMarkerName(model)?.Marker ?? throw new ArgumentException($"Unknown model '{model}'.", nameof(model));
+        var marker = LLMModel.Find(model)?.Marker ?? throw new ArgumentException($"Unknown model '{model}'.", nameof(model));
         return (ILLM)SiloNeurons.Get(neurons, marker, ModelAddress.Key(brainId));
     }
 }

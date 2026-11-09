@@ -27,7 +27,7 @@ using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Apps.PhotoCraft;
-using IntoChat.OS.Apps.Post;
+using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.AI;

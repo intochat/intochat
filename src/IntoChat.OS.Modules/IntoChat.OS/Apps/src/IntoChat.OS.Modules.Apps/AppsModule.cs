@@ -101,6 +101,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         AppsEndpoints.Map(endpoints);
+        ArtCraftWebEndpoints.Map(endpoints);
         PoliciesEndpoints.Map(endpoints);
         MarketplaceEndpoints.Map(endpoints);
     }

@@ -17,7 +17,7 @@ using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
-using IntoChat.OS.Apps.Post;
+using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Framework;
@@ -99,7 +99,7 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
         {
             ("gallery", GalleryApp.Bundle),
             ("creator", CreatorApp.Bundle),
-            ("post", PostApp.Bundle),
+            ("friends", FriendsApp.Bundle),
         })
         {
             var appNeuron = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/{appName}");

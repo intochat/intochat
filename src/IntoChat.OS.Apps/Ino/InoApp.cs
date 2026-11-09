@@ -133,9 +133,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         Set(State with { Status = status, AgentKey = migrate ? State.AgentKey : AgentKeyOf(State.ConversationId) });
         try
         {
-            // Nothing else wakes the profile writer: touching it makes its synapse on the settings and writes user.profile now.
-            try { await Get<IProfileContextWriter>("ino/profile-writer").Ensure(); }
-            catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The profile context is optional; the agent answers without it."); }
+            await EnsureProfileContextAsync();
             var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
             if (migrate)
             {
@@ -143,6 +141,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 await agent.Post(MigrationNote, MigrationId);
                 Set(State with { AgentKey = AgentKeyOf(State.ConversationId) });
             }
+            await EnsureConfiguredAsync(agent, settings);
             await FollowAsync(AgentKeyOf(State.ConversationId));
             var read = await agent.Read();
             _transcript = await agent.Transcript();
@@ -221,11 +220,12 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         });
         try
         {
+            await EnsureProfileContextAsync();
             var agent = Get<IAgent>(agentKey);
             await EnsureConfiguredAsync(agent, settings);
             await FollowAsync(agentKey);
             // The run goes on in the agent; its signals reach the [On] handlers below through the set watch.
-            var runId = await agent.Start(AgentTurn.Text(text));
+            var runId = await agent.Start(AgentTurn.Text(text, model: string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim()));
             Set(State with { ActiveRunId = runId, Blocked = false, BlockedReason = null, Status = "Thinking" });
             await ReconcileAsync(agent, runId);
         }
@@ -238,6 +238,13 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Swallow(error, "The agent could not start; the status line reports why.");
             Set(State with { Status = $"Ino could not answer: {error.Message}", ActiveRunId = null });
         }
+    }
+
+    // Nothing else wakes the profile writer: touching it makes its synapse on the settings and writes user.profile now.
+    private async Task EnsureProfileContextAsync()
+    {
+        try { await Get<IProfileContextWriter>("ino/profile-writer").Ensure(); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The profile context is optional; the agent answers without it."); }
     }
 
     // The agent's own record settles what a missed signal would have: a run Ino holds that has ended (a fast reply, a signal published
@@ -376,15 +383,28 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Approvals are optional when the inbox is not reachable."); }
     }
 
-    // Configure on first use; a revision conflict means another caller configured it first.
+    // Configure on first use and keep the idle agent's definition synchronized with user settings (persona & default model).
     private async Task EnsureConfiguredAsync(IAgent agent, UserSettingsState settings)
     {
-        if ((await agent.Read()).Revision != 0) { return; }
-        try { await agent.Configure(InoAgentDefinition.For(settings), 0); }
-        catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
-        // The tone observer follows this conversation's agent; an app cannot subscribe to it directly.
-        try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Follow(AgentKeyOf(State.ConversationId)); }
-        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The tone is a refinement; the agent answers without it."); }
+        var current = await agent.Read();
+        var definition = InoAgentDefinition.For(settings);
+        if (current.Revision == 0)
+        {
+            try { await agent.Configure(definition, 0); }
+            catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
+            // The tone observer follows this conversation's agent; an app cannot subscribe to it directly.
+            try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Follow(AgentKeyOf(State.ConversationId)); }
+            catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The tone is a refinement; the agent answers without it."); }
+            return;
+        }
+
+        if (current.ActiveRun is null
+            && (!string.Equals(current.Definition.Model?.Model, definition.Model?.Model, StringComparison.Ordinal)
+                || !string.Equals(current.Definition.Instructions, definition.Instructions, StringComparison.Ordinal)))
+        {
+            try { await agent.Configure(definition, current.Revision); }
+            catch (InvalidOperationException error) { Swallow(error, "A concurrent turn or configuration updated the agent first."); }
+        }
     }
 
     private void Pause(string message)
@@ -419,8 +439,11 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
                 Set(State with { Title = nextTitle, Status = $"Renamed to '{nextTitle}'" });
                 return;
             case "model":
-                var nextModel = string.IsNullOrWhiteSpace(arg) ? "claude-sonnet-4-5" : arg;
-                await Get<IUserSettings>("settings").SetProfile(settings.DisplayName, settings.Theme, nextModel);
+                var nextModel = string.IsNullOrWhiteSpace(arg) ? "claude-sonnet-4-5" : arg.Trim();
+                var updated = await Get<IUserSettings>("settings").SetProfile(settings.DisplayName, settings.Theme, nextModel);
+                await EnsureProfileContextAsync();
+                try { await EnsureConfiguredAsync(Get<IAgent>(AgentKeyOf(State.ConversationId)), updated); }
+                catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The agent is optional when Ino runs without the AI module."); }
                 Set(State with { Status = $"Switched model to {nextModel}" });
                 return;
             case "scenario":
@@ -566,7 +589,11 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     public async Task OnSettingsChanged(UserSettingsChanged? changed)
     {
         if (changed is null) { return; }
-        _smart = IsSmart(await Get<IUserSettings>("settings").Read());
+        var settings = await Get<IUserSettings>("settings").Read();
+        _smart = IsSmart(settings);
+        await EnsureProfileContextAsync();
+        try { await EnsureConfiguredAsync(Get<IAgent>(AgentKeyOf(State.ConversationId)), settings); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The agent is optional when Ino runs without the AI module."); }
         Set(State with { Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
     }
 

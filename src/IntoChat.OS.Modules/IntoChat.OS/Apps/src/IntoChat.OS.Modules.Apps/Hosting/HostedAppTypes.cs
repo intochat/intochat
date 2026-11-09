@@ -1,4 +1,4 @@
-using DigitalBrain.Runtime.Apps;
+using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.Apps;

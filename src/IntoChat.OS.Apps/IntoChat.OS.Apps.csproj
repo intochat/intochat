@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Ino/ino-instructions.md" LogicalName="IntoChat.OS.Apps.Ino.ino-instructions.md" />
+    <EmbeddedResource Include="Creator/ui-expert-instructions.md" LogicalName="IntoChat.OS.Apps.Creator.ui-expert-instructions.md" />
   </ItemGroup>
   <!-- Shipped unit sources: synapse units the OS deploys through the synapse studio, never compiled into this assembly. -->
   <ItemGroup>

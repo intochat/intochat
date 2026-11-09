@@ -16,6 +16,7 @@ compiled-apps
 **/TestResults
 **/node_modules
 **/publish
+!src/IntoChat.OS.Modules/Microsoft/CSharp/src/IntoChat.OS.Modules.Microsoft.CSharp.Sandbox/publish/**
 **/out
 
 ui/**/build

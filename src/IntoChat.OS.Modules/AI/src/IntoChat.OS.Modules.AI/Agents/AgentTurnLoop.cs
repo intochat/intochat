@@ -22,7 +22,7 @@ internal sealed record TurnPlan(string ScopeId, string Conversation, string RunI
 // Providers propose calls; this is the single, bounded tool invocation loop. It is pulled, not
 // pushed: the consumer persists each event before asking for the next, so nothing external starts
 // before the agent has written what came before it. A failure becomes the last event; Run never throws.
-internal sealed class AgentTurnLoop(IServiceProvider services)
+internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, CancellationToken, Task<ContextSnapshot>>? readContext = null)
 {
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
@@ -57,13 +57,13 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
             yield break;
         }
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
-        var surface = services.GetRequiredService<NeuronSurface>();
+        var surface = services.GetService<NeuronSurface>();
         // Context may name contracts this host does not deploy; only deployed ones join the turn.
         string[] named = [.. contexts.SelectMany(entry => entry.Contracts).Where(name => !plan.Contracts.Contains(name)).Distinct(StringComparer.Ordinal)];
-        var known = named.Length == 0 ? [] : await surface.Contracts(ct);
-        string[] composed = [.. plan.Contracts, .. named.Where(known.Contains)];
+        var known = named.Length == 0 || surface is null ? [] : await surface.Contracts(ct);
+        string[] composed = surface is null ? [] : [.. plan.Contracts, .. named.Where(known.Contains)];
         // The model's actions are fixed here, once: the neuron surface over the contracts the app composed.
-        var tools = composed.Length == 0 ? new List<AIFunction>() : [.. ContractActions.Create(await surface.Restrict(composed, ct), plan.Conversation)];
+        var tools = composed.Length == 0 || surface is null ? new List<AIFunction>() : [.. ContractActions.Create(await surface.Restrict(composed, ct), plan.Conversation)];
 
         var catalog = services.GetRequiredService<ModelCatalog>();
         var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options, overrides);
@@ -191,10 +191,15 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
     {
         if (keys.Length == 0) { return []; }
         // A context is a plain neuron (06-05), reached by its os key "{brain}/{key}".
-        var plain = services;
         async Task<IEnumerable<ContextEntry>> Read(string key)
         {
-            try { return (await SiloNeurons.Get<IAgentContext>(services, key).Read().WaitAsync(ct)).Entries; }
+            try
+            {
+                var snapshot = readContext is not null
+                    ? await readContext(key, ct)
+                    : await SiloNeurons.Get<IAgentContext>(services, key).Read().WaitAsync(ct);
+                return snapshot.Entries;
+            }
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 services.GetService<ILoggerFactory>()?.CreateLogger<AgentTurnLoop>().LogWarning(error, "Context {Context} could not be read; the turn continues without it.", key);

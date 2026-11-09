@@ -78,6 +78,29 @@ public sealed class InoToolNeuronFacts
     }
 
     [Fact]
+    public async Task SettingsChangedSynchronizesConversationInferenceModelWhileKeepingTemperature()
+    {
+        await using var os = NewOs();
+        var profile = os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
+        await os.Get<IProfileContextWriter>(new NeuronId(Brain, "ino.profile-writer", "ino/profile-writer")).Ensure();
+        var userSettings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
+
+        // 1. Set model & temperature via IInoSettings (writes to context/conversation.inference)
+        await Settings(os).SetModel("qwen3.5:4b");
+        await Settings(os).SetTemperature(0.4f);
+        await os.Idle();
+        Assert.Equal("""{"model":"qwen3.5:4b","temperature":0.4}""", Assert.Single((await Inference(os).Read()).Entries).Text);
+
+        // 2. Switch model via IUserSettings.SetProfile (e.g. from Settings UI or /model command)
+        await userSettings.SetProfile("Ada", "dark", "claude-sonnet-4-5");
+        await os.Idle();
+
+        // Both user.profile and conversation.inference reflect the new model without losing temperature
+        Assert.Equal("""{"model":"claude-sonnet-4-5"}""", Assert.Single((await profile.Read()).Entries, e => e.Name == "inference").Text);
+        Assert.Equal("""{"model":"claude-sonnet-4-5","temperature":0.4}""", Assert.Single((await Inference(os).Read()).Entries).Text);
+    }
+
+    [Fact]
     public async Task SetVariableStoresItInUserSettings()
     {
         await using var os = NewOs();

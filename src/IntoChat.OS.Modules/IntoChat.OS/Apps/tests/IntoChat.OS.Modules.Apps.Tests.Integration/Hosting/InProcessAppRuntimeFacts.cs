@@ -11,7 +11,7 @@ using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
-using IntoChat.OS.Apps.Post;
+using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
@@ -78,18 +78,18 @@ public sealed class InProcessAppRuntimeFacts : IAsyncLifetime
         const string brain = "inprocbrain";
         using var _ = StampCaller(brain);
 
-        var appKey = IApp.Key(brain, "post");
+        var appKey = IApp.Key(brain, "friends");
         var appNeuron = SiloNeurons.Get<IApp>(Services, appKey);
-        var bundle = PostApp.Bundle with
+        var bundle = FriendsApp.Bundle with
         {
             Files = new Dictionary<string, string>(StringComparer.Ordinal),
-            CompiledType = typeof(PostApp).AssemblyQualifiedName,
+            CompiledType = typeof(FriendsApp).AssemblyQualifiedName,
         };
-        await appNeuron.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "post", bundle.Version));
+        await appNeuron.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "friends", bundle.Version));
 
         var host = Services.GetRequiredService<InProcessAppHost>();
-        await host.AssignType(appKey, typeof(PostApp), new Dictionary<string, string>(StringComparer.Ordinal), TestContext.Current.CancellationToken);
-        await host.Request(appKey, "open", new PostOpen(), TestContext.Current.CancellationToken);
+        await host.AssignType(appKey, typeof(FriendsApp), new Dictionary<string, string>(StringComparer.Ordinal), TestContext.Current.CancellationToken);
+        await host.Request(appKey, "open", new FriendsOpen(), TestContext.Current.CancellationToken);
 
         var snapshot = await appNeuron.Read();
         Assert.NotNull(snapshot.Presentation);

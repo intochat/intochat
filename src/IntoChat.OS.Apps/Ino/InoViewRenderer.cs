@@ -116,31 +116,6 @@ internal static class InoViewRenderer
         return new ChatEntry($"message-{index}", message.Role == "user" ? ChatRole.User : ChatRole.Assistant, text);
     }
 
-    public static InoAppState BuildAppInstallLinkState(InoAppState currentState, string text)
-    {
-        var cardId = $"install-{currentState.ActiveCards.Length + 1}";
-        var card = new InoCard(
-            cardId,
-            "app-install",
-            "Tripletex Accounting Sync (v1.4.0)",
-            "Verified Smart App from Nordlys Digital · Requests read access to Files & Postgres.",
-            "neuron://local/apps/tripletex-sync",
-            "pending",
-            $"neuron://local/apps/ino#{cardId}");
-        var turns = currentState.Turns.Append(new InoTurn(
-            text,
-            "Detected a Smart App install link (`nordlys/tripletex-sync`). Review its manifest and capability permissions below before installing.",
-            "store:install-link",
-            0)).ToArray();
-        return currentState with
-        {
-            Title = "Install Tripletex Accounting Sync",
-            Status = "Waiting for Smart App capability review",
-            Turns = turns,
-            Cards = [.. currentState.ActiveCards, card],
-        };
-    }
-
     public static InoAppState BuildScenarioSessionState(string scenarioId, UserSettingsState settings) => scenarioId switch
     {
         "morning-brief" => new InoAppState(
@@ -364,7 +339,7 @@ internal static class InoViewRenderer
             var exportPath = card.Columns is { Length: >= 5 } && !string.IsNullOrWhiteSpace(card.Columns[4])
                 ? card.Columns[4]
                 : null;
-            var elements = MarkdrawApp.ParseSceneElements(content);
+            var elements = MarkdrawSceneEngine.ParseSceneElements(content);
 
             yield return new RecordCardNode(
                 "Markdraw · Diagram & Canvas Studio",
@@ -378,7 +353,7 @@ internal static class InoViewRenderer
                 LinkLabel: "Open Markdraw Studio",
                 Open: new Button("open-markdraw", "Open Markdraw Studio", Intent: AppSignals.OpenApp("markdraw", activeDoc)));
 
-            yield return MarkdrawApp.BuildMarkdrawCanvasCard(
+            yield return MarkdrawSceneEngine.BuildMarkdrawCanvasCard(
                 key: $"{card.Id}-canvas-rev-{rev}",
                 title: card.Title,
                 activeDocument: activeDoc,
@@ -391,12 +366,10 @@ internal static class InoViewRenderer
                 lastExportPath: exportPath,
                 height: 460);
         }
-        else if (card.Kind is "photocraft" or "filmcraft")
+        else if (IntoChat.OS.Modules.ArtCraft.ArtCraftCatalog.TryGet(card.Kind, out var studioDescriptor))
         {
-            var targetApp = card.Kind;
-            var label = targetApp == "photocraft" ? "Open PhotoCraft Studio" : "Open FilmCraft Studio";
             yield return new RecordCardNode(
-                targetApp == "photocraft" ? "PhotoCraft · Image Studio" : "FilmCraft · Video Studio",
+                $"{studioDescriptor.Title} · {studioDescriptor.Subtitle}",
                 card.Title,
                 [
                     new RecordFieldNode("Status", card.Status),
@@ -404,9 +377,12 @@ internal static class InoViewRenderer
                     new RecordFieldNode("Scope", card.EffectiveScopeUri),
                 ],
                 Subtitle: card.Summary,
-                LinkLabel: label,
-                Open: new Button($"open-{targetApp}", label, Intent: AppSignals.OpenApp(targetApp)));
-            yield return Ui.WebBrowser(targetApp == "photocraft" ? "http://localhost:18082" : "http://localhost:18083", card.Title, $"{card.Id}-studio", 420, "wasm-ui");
+                LinkLabel: $"Open {studioDescriptor.Title} Studio",
+                Open: new Button($"open-{studioDescriptor.Id}", $"Open {studioDescriptor.Title} Studio", Intent: AppSignals.OpenApp(studioDescriptor.Id)));
+            var webUrl = studioDescriptor.Id is "photocraft" or "filmcraft"
+                ? studioDescriptor.DefaultWebUrl.TrimEnd('/')
+                : studioDescriptor.StaticWebPath;
+            yield return Ui.WebBrowser(webUrl, card.Title, $"{card.Id}-studio", 420, "wasm-ui");
         }
         else
         {

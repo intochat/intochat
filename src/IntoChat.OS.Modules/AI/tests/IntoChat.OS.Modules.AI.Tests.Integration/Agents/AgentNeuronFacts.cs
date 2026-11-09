@@ -5,6 +5,7 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
@@ -49,6 +50,58 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
 
         Assert.Equal(trace.TraceId, started.TraceId);
         Assert.Equal(trace.TraceId, Assert.Single((await agent.Read()).Runs, run => run.RunId == runId).TraceId);
+    }
+
+    [Fact]
+    public async Task RuntimeModelSwitchAcrossTurnsUpdatesModelSelectedAndAgentRuns()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var runtime = await Start(StubChatClient.Replying("ok"), ct);
+        var id = runtime.Id("agent", "agents/model-switch");
+        var agent = runtime.Get<IAgent>(id);
+        var profileContext = runtime.Get<IAgentContext>(runtime.Id("agent-context", "context/user.profile"));
+
+        // 1. Configure agent with initial model ("qwen3.5:4b") and run first turn
+        await agent.Configure(new AgentDefinition
+        {
+            Model = new ModelSelection("qwen3.5:4b"),
+            Contexts = ["context/user.profile"],
+        }, 0);
+        await profileContext.Set(new ContextEntry("inference", """{"model":"qwen3.5:4b"}""", [], [ContextTags.Inference]));
+
+        var firstEvents = new List<AgentTurnEvent>();
+        await foreach (var ev in agent.Run(AgentTurn.Text("turn 1", model: "qwen3.5:4b"), ct))
+        {
+            firstEvents.Add(ev);
+        }
+        var firstSelected = Assert.Single(firstEvents.OfType<AgentTurnEvent.ModelSelected>());
+        Assert.Equal("qwen3.5:4b", firstSelected.Model.Model);
+
+        // 2. Switch model at runtime to "claude-sonnet-4-5" (reconfigure idle agent + update context + turn)
+        var stateAfterFirst = await agent.Read();
+        await agent.Configure(stateAfterFirst.Definition with { Model = new ModelSelection("claude-sonnet-4-5") }, stateAfterFirst.Revision);
+        await profileContext.Set(new ContextEntry("inference", """{"model":"claude-sonnet-4-5"}""", [], [ContextTags.Inference]));
+
+        var secondEvents = new List<AgentTurnEvent>();
+        await foreach (var ev in agent.Run(AgentTurn.Text("turn 2", model: "claude-sonnet-4-5"), ct))
+        {
+            secondEvents.Add(ev);
+        }
+        var secondSelected = Assert.Single(secondEvents.OfType<AgentTurnEvent.ModelSelected>());
+        Assert.Equal("claude-sonnet-4-5", secondSelected.Model.Model);
+
+        // 3. Switch model again to "gpt-5" and run via background Start
+        var stateAfterSecond = await agent.Read();
+        await agent.Configure(stateAfterSecond.Definition with { Model = new ModelSelection("gpt-5") }, stateAfterSecond.Revision);
+        await profileContext.Set(new ContextEntry("inference", """{"model":"gpt-5"}""", [], [ContextTags.Inference]));
+        var thirdRunId = await agent.Start(AgentTurn.Text("turn 3", model: "gpt-5"));
+        await runtime.WaitForSignals<TurnCompleted>(id, 3, Within, ct);
+
+        var finalState = await agent.Read();
+        Assert.Equal(3, finalState.Runs.Length);
+        Assert.Equal("qwen3.5:4b", finalState.Runs[0].Model?.Model);
+        Assert.Equal("claude-sonnet-4-5", finalState.Runs[1].Model?.Model);
+        Assert.Equal("gpt-5", Assert.Single(finalState.Runs, r => r.RunId == thirdRunId).Model?.Model);
     }
 
     private static AgentTurn Turn(string text) => new(new AiMessage("user", [new AiText(text)]));

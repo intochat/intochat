@@ -185,17 +185,19 @@ public static class ServerHostingExtensions
                 && context.GetEndpoint() is null)
             {
                 var reqPath = context.Request.Path;
-                if (reqPath.StartsWithSegments("/artcraft/photocraft", StringComparison.OrdinalIgnoreCase)
-                    && !fileProvider.GetFileInfo(reqPath.Value!).Exists
-                    && fileProvider.GetFileInfo("/artcraft/photocraft/index.html").Exists)
+                if (reqPath.StartsWithSegments("/artcraft", out var remaining)
+                    && remaining.Value is { Length: > 1 } rem)
                 {
-                    context.Request.Path = "/artcraft/photocraft/index.html";
-                }
-                else if (reqPath.StartsWithSegments("/artcraft/filmcraft", StringComparison.OrdinalIgnoreCase)
-                    && !fileProvider.GetFileInfo(reqPath.Value!).Exists
-                    && fileProvider.GetFileInfo("/artcraft/filmcraft/index.html").Exists)
-                {
-                    context.Request.Path = "/artcraft/filmcraft/index.html";
+                    var segments = rem.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    if (segments.Length >= 1)
+                    {
+                        var indexCandidate = $"/artcraft/{segments[0].ToLowerInvariant()}/index.html";
+                        if (!fileProvider.GetFileInfo(reqPath.Value!).Exists
+                            && fileProvider.GetFileInfo(indexCandidate).Exists)
+                        {
+                            context.Request.Path = indexCandidate;
+                        }
+                    }
                 }
             }
 
@@ -207,9 +209,13 @@ public static class ServerHostingExtensions
             FileProvider = fileProvider,
         });
 
+        var contentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+        contentTypes.Mappings[".wasm"] = "application/wasm";
+
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = fileProvider,
+            ContentTypeProvider = contentTypes,
             ServeUnknownFileTypes = true,
             DefaultContentType = "application/octet-stream",
             OnPrepareResponse = static ctx =>
@@ -257,12 +263,16 @@ public static class ServerHostingExtensions
         }
 
         var baseWebRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-        if (Directory.Exists(baseWebRoot))
+        try
         {
+            Directory.CreateDirectory(baseWebRoot);
             return Path.GetFullPath(baseWebRoot);
         }
-
-        return null;
+        catch (Exception error)
+        {
+            _ = error.Message;
+            return null;
+        }
     }
 
     public static TimeSpan ShutdownTimeout(TimeSpan? drainDelay, TimeSpan deactivationTimeout)

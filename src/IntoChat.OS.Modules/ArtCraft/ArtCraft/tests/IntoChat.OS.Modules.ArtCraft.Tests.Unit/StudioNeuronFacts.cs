@@ -26,4 +26,30 @@ public sealed class StudioNeuronFacts(ArtCraftFixture fixture) : IClassFixture<A
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => studio.Open("photocraft", TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public void CatalogRegistersCompleteGetArtCraftSuiteWithUniqueIdsAndPorts()
+    {
+        Assert.True(ArtCraftCatalog.All.Count >= 16);
+        var ids = ArtCraftCatalog.All.Select(a => a.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(ArtCraftCatalog.All.Count, ids.Count);
+
+        var webPorts = ArtCraftCatalog.All.Select(a => a.DefaultWebPort).ToHashSet();
+        var mcpPorts = ArtCraftCatalog.All.Select(a => a.DefaultMcpPort).ToHashSet();
+        Assert.Equal(ArtCraftCatalog.All.Count, webPorts.Count);
+        Assert.Equal(ArtCraftCatalog.All.Count, mcpPorts.Count);
+
+        foreach (var expected in new[]
+        {
+            "artcraft", "photocraft", "filmcraft", "vectorcraft", "lightcraft", "effectcraft",
+            "designcraft", "pdfcraft", "wordcraft", "soundcraft", "deckcraft", "cadcraft",
+            "gridcraft", "figcraft", "texturecraft", "materialcraft", "solidcraft"
+        })
+        {
+            Assert.True(ArtCraftCatalog.TryGet(expected, out var descriptor), $"Missing {expected} in ArtCraftCatalog.");
+            Assert.NotEmpty(descriptor.Title);
+            Assert.NotEmpty(descriptor.CliBinary);
+            Assert.StartsWith("#", descriptor.AccentHex, StringComparison.Ordinal);
+        }
+    }
 }

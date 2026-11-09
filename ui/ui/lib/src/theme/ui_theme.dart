@@ -3,7 +3,6 @@ import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' as material;
 
-import '../design/tokens.dart' show ensureDesignThemeBridge;
 import 'ui_colors.dart';
 import 'ui_tokens.dart';
 
@@ -393,7 +392,6 @@ abstract final class UiTheme {
 
   /// Builds a complete Material 3 [ThemeData] directly from a [UiColors] palette.
   static ThemeData fromColors(UiColors c) {
-    ensureDesignThemeBridge();
     final brightness = c.brightness;
     final scheme = ColorScheme(
       brightness: brightness,

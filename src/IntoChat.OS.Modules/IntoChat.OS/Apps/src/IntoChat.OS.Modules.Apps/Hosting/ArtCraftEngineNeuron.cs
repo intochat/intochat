@@ -13,60 +13,43 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron("apps.artcraft-engine")]
 internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : DigitalBrain.Neuron, IArtCraftEngine
 {
-    public async Task<ArtCraftEngineResult> ExecutePhotoCraft(
+    public async Task<ArtCraftEngineResult> Execute(
+        string app,
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentDocument,
         string executionMode)
     {
         await RequireAdmitted();
-        var res = await ArtCraftEngineRunner.ExecutePhotoCraftAsync(
+        return await ArtCraftEngineRunner.ExecuteAsync(
+            app,
             instructionOrCommand,
             explicitParamsJson,
             currentDocument,
             executionMode,
             TryGetArtCraftStudio(),
             TryGetMcpServer);
-        return Map(res);
     }
 
-    public async Task<ArtCraftEngineResult> ExecuteFilmCraft(
+    public Task<ArtCraftEngineResult> ExecutePhotoCraft(
+        string? instructionOrCommand,
+        string? explicitParamsJson,
+        string? currentDocument,
+        string executionMode)
+        => Execute(ShippedApps.PhotoCraft, instructionOrCommand, explicitParamsJson, currentDocument, executionMode);
+
+    public Task<ArtCraftEngineResult> ExecuteFilmCraft(
         string? instructionOrCommand,
         string? explicitParamsJson,
         string? currentSequence,
         string executionMode)
-    {
-        await RequireAdmitted();
-        var res = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
-            instructionOrCommand,
-            explicitParamsJson,
-            currentSequence,
-            executionMode,
-            TryGetArtCraftStudio(),
-            TryGetMcpServer);
-        return Map(res);
-    }
-
-    private static ArtCraftEngineResult Map(ArtCraftExecutionResult res) => new(
-        res.App,
-        res.ExecutionMode,
-        res.CommandId,
-        res.CommandTitle,
-        res.ParametersJson,
-        res.InputDocument,
-        res.OutputDocument,
-        res.CliInvocation,
-        res.Summary,
-        res.PreviewDataUrl,
-        res.LayersOrTracks,
-        res.IsValidCommand,
-        res.OutputNeuronUri);
+        => Execute(ShippedApps.FilmCraft, instructionOrCommand, explicitParamsJson, currentSequence, executionMode);
 
     private IArtCraftStudio? TryGetArtCraftStudio()
     {
         try
         {
-            return Get<IArtCraftStudio>(new DigitalBrain.NeuronId(Id.Brain, "artcraft", "artcraft"));
+            return Get<IArtCraftStudio>(new DigitalBrain.NeuronId(Id.Brain, IArtCraftStudio.StudioKey, IArtCraftStudio.StudioKey));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -116,15 +99,11 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
     private async Task<bool> IsAppGrantedAsync(string brain, CapabilityCaller caller)
     {
         var appId = caller.AppId ?? "";
-        var defaultPhotoCraftKey = IApp.Key(brain, ShippedApps.PhotoCraft);
-        var defaultFilmCraftKey = IApp.Key(brain, ShippedApps.FilmCraft);
-        var defaultInoKey = IApp.Key(brain, ShippedApps.Ino);
-        var isShippedStudio = string.Equals(appId, ShippedApps.PhotoCraft, StringComparison.Ordinal)
-            || string.Equals(appId, defaultPhotoCraftKey, StringComparison.Ordinal)
-            || string.Equals(appId, ShippedApps.FilmCraft, StringComparison.Ordinal)
-            || string.Equals(appId, defaultFilmCraftKey, StringComparison.Ordinal)
-            || string.Equals(appId, ShippedApps.Ino, StringComparison.Ordinal)
-            || string.Equals(appId, defaultInoKey, StringComparison.Ordinal);
+        var shortAppId = appId.StartsWith(brain + "/apps/", StringComparison.Ordinal)
+            ? appId[(brain.Length + "/apps/".Length)..]
+            : appId;
+        var isShippedStudio = string.Equals(shortAppId, ShippedApps.Ino, StringComparison.Ordinal)
+            || ArtCraftCatalog.IsArtCraftApp(shortAppId);
         if (identity is null)
         {
             return isShippedStudio;
@@ -143,11 +122,8 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
             caller.PrincipalId,
             $"app:{appId}",
             $"app:{brain}/apps/{appId}",
+            $"app:{shortAppId}",
         };
-        if (appId.StartsWith(brain + "/apps/", StringComparison.Ordinal))
-        {
-            appGrantees.Add("app:" + appId[(brain.Length + "/apps/".Length)..]);
-        }
 
         foreach (var raw in grants)
         {

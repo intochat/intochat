@@ -40,7 +40,7 @@ public sealed class LegacyRestoreFacts
                 + read.Activity.Count(line => line.StartsWith("restore failed:", StringComparison.Ordinal));
     }
 
-    private static readonly string CompiledType = typeof(PostApp).AssemblyQualifiedName!;
+    private static readonly string CompiledType = typeof(IntoChat.OS.Apps.Friends.FriendsApp).AssemblyQualifiedName!;
 
     private static TestOS NewOS(out Spy spy)
     {

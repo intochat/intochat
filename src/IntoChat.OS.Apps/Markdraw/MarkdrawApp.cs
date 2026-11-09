@@ -615,53 +615,6 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
             { Gap = 12 });
     }
 
-    public static Card BuildMarkdrawCanvasCard(
-        string key,
-        string title,
-        string activeDocument,
-        string format,
-        string content,
-        int revision,
-        string status,
-        MarkdrawElementSummary[] elements,
-        string[] workspaceDrawings,
-        string? lastExportPath = null,
-        int height = 560) =>
-        MarkdrawSceneEngine.BuildMarkdrawCanvasCard(
-            key,
-            title,
-            activeDocument,
-            format,
-            content,
-            revision,
-            status,
-            elements,
-            workspaceDrawings,
-            lastExportPath,
-            height);
-
-    public static (string MergedContent, string Summary) ApplyCoDrawingPatch(
-        string currentContent,
-        string? prompt,
-        string? explicitDsl,
-        string? removeIdsCsv) =>
-        MarkdrawSceneEngine.ApplyCoDrawingPatch(currentContent, prompt, explicitDsl, removeIdsCsv);
-
-    public static string BuildDataLineageMarkdraw(
-        string title,
-        IReadOnlyList<string> columns,
-        string rowsSummary,
-        string sourceUri) =>
-        MarkdrawSceneEngine.BuildDataLineageMarkdraw(title, columns, rowsSummary, sourceUri);
-
-    public static MarkdrawElementSummary[] ParseSceneElements(string? content) =>
-        MarkdrawSceneEngine.ParseSceneElements(content);
-
-    public static string RenderExcalidrawJson(IReadOnlyList<MarkdrawElementSummary> elements) =>
-        MarkdrawSceneEngine.RenderExcalidrawJson(elements);
-
-    public static string RenderSvgPreview(IReadOnlyList<MarkdrawElementSummary> elements) =>
-        MarkdrawSceneEngine.RenderSvgPreview(elements);
 
     [DigitalBrain.Scenario("Markdraw opens workspace canvas, co-draws new architecture nodes with Ino, and exports Excalidraw JSON")]
     public async Task VerifyMarkdrawCoDrawingAndPersistenceScenario()

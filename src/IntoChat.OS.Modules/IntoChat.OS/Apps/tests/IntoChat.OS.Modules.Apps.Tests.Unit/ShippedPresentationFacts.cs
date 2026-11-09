@@ -41,7 +41,7 @@ public sealed class ShippedPresentationFacts
     {
         var catalog = new FeatureCatalog([typeof(AppsModule).Assembly, typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly]);
         var manifests = await ShippedManifests.Of(catalog);
-        Assert.Equal(["ino", "files", "data", "markdraw", "photocraft", "filmcraft", "creator", "gallery", "post", "settings"], manifests.DockApps());
+        Assert.Equal(["ino", "files", "data", "markdraw", "photocraft", "filmcraft", "creator", "gallery", "friends", "settings"], manifests.DockApps());
         Assert.Equal(["data", "filmcraft", "markdraw", "photocraft"], manifests.Studios().Select(studio => studio.App));
         // A routed prompt goes to a studio that declares edit, and only with the dot after the app.
         Assert.Equal("photocraft", manifests.StudioFor("routed:photocraft.edit"));

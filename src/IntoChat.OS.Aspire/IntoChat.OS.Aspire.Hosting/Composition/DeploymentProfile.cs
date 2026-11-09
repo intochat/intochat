@@ -101,8 +101,8 @@ public sealed record DeploymentProfile
         if (IsEnabled("github")) { os = os.WithModule<GitHubModule>(); }
         os = os.WithHosting<AspireModuleHosting>();
         if (IsEnabled("artcraft")) { os = os.WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps()); }
-        // The shell's PhotoCraft and FilmCraft apps still open their studios; a cloud deployment serves them from the kernel image.
-        else if (!Cloud) { ArtCraftModuleHosting.AddStudios(os); }
+        // All 17 ArtCraft studios (including PhotoCraft and FilmCraft) are served directly from the Kernel over /artcraft/{id}/*;
+        // no standalone Nginx containers are required when the ArtCraft MCP module is disabled.
         if (IsEnabled("playwright")) { os = os.WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins); }
         return os;
     }

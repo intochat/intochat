@@ -1,4 +1,5 @@
 using IntoChat.OS.Connections.Identity;
+using IntoChat.OS.Modules.ArtCraft;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -17,8 +18,10 @@ internal static class ShippedGrants
             $"integrations.accounts/{brain}/*", $"ai.models/{brain}/*", $"chat-index/{brain}/*", $"textfield/{brain}/settings/*"]),
         "data" => Tuples(brain, app, [$"files.vfs/{brain}/*"]),
         "markdraw" => Tuples(brain, app, [$"files.vfs/{brain}/*"]),
-        ShippedApps.PhotoCraft => Tuples(brain, app, [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*"]),
-        ShippedApps.FilmCraft => Tuples(brain, app, [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*"]),
+        var craft when ArtCraftCatalog.IsArtCraftApp(craft) => Tuples(
+            brain,
+            ArtCraftCatalog.NormalizeAppId(craft),
+            [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*", $"files.vfs/{brain}/*"]),
         _ => [],
     };
 

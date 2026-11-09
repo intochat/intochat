@@ -11,10 +11,8 @@ with dual execution:
 3. Interactive WASM Web UI mode for full-card browser timeline editing.
 */
 using DigitalBrain.UI;
+using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.ArtCraft;
-using IntoChat.OS.Modules.Mcp;
-using UI = DigitalBrain.UI.Ui;
 
 namespace IntoChat.OS.Apps.FilmCraft;
 
@@ -76,9 +74,9 @@ public sealed record FilmCraftAppState(
 }
 
 [DigitalBrain.App("filmcraft", Accent = "#8B5CF6", Category = "Studio")]
-public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
+public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("filmcraft")
 {
-    public IFilesVfsService? FilesVfs { get; set; }
+    protected override string ActiveDocumentLabel => "Sequence";
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(FilmCraftApp));
 
@@ -117,66 +115,20 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
     public async Task Open(FilmCraftStudioOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var seq = string.IsNullOrWhiteSpace(request.Sequence)
-            ? State.ActiveSequence
-            : request.Sequence.Trim();
-        var webUrl = State.WebUrl;
-        var mcpUri = State.McpEndpointUri;
-
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(request.Sequence))
-                {
-                    if (await FilesVfs.ResolveFileAsync(request.Sequence.Trim()) is { } resolvedExplicit)
-                    {
-                        seq = resolvedExplicit.VfsPath;
-                    }
-                }
-                else if (await FilesVfs.ResolveFileAsync(seq) is { } resolvedCurrent)
-                {
-                    seq = resolvedCurrent.VfsPath;
-                }
-                else if (string.Equals(seq, "/work/nordlys-launch.fcproj", StringComparison.OrdinalIgnoreCase))
-                {
-                    var files = await FilesVfs.ListFilesAsync();
-                    if (files.FirstOrDefault(f => ArtCraftEngineRunner.IsVideoExtension(f.Name)) is { } firstVideo)
-                    {
-                        seq = firstVideo.VfsPath;
-                    }
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "Files VFS resolution is optional when opening FilmCraft.");
-            }
-        }
-
-        if (TryGetArtCraftStudio() is { } studio)
-        {
-            try
-            {
-                var session = await studio.Open("filmcraft");
-                mcpUri = session.McpKey;
-                webUrl = session.WebUrl ?? webUrl;
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "ArtCraftStudioNeuron MCP endpoint is optional when opening FilmCraft in local/headless mode.");
-            }
-        }
-
+        var (mode, seq, webUrl, mcpUri, status) = await ResolveOpenSessionCoreAsync(
+            request.Sequence,
+            request.Mode,
+            State.ExecutionMode,
+            State.ActiveSequence,
+            State.WebUrl,
+            State.McpEndpointUri);
         Set(State with
         {
             ExecutionMode = mode,
             ActiveSequence = seq,
             WebUrl = webUrl,
             McpEndpointUri = mcpUri,
-            Status = $"FilmCraft tools connected ({FormatModeLabel(mode)}) · Sequence: {seq}",
+            Status = status,
         });
     }
 
@@ -218,7 +170,6 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
     public async Task Export(FilmCraftExport request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var preset = string.IsNullOrWhiteSpace(request.Preset) ? "h264-1080p60" : request.Preset.Trim();
         var mode = string.IsNullOrWhiteSpace(request.Mode)
             ? State.ExecutionMode
             : ArtCraftEngineRunner.NormalizeMode(request.Mode);
@@ -226,11 +177,7 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
             ? State.ActiveSequence
             : request.Sequence.Trim();
 
-        await ApplyTimelineExecutionAsync(
-            "sequence.exportMp4",
-            explicitParamsJson: null,
-            seq,
-            mode);
+        await ApplyTimelineExecutionAsync("sequence.exportMp4", explicitParamsJson: null, seq, mode);
     }
 
     [DigitalBrain.On]
@@ -247,17 +194,7 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
 
     public View? RenderSide() => null;
 
-    public View Render() => new(
-        "FilmCraft",
-        new Column(
-        [
-            new Text($"{State.Status} · {State.ActiveSequence} -> {State.OutputFile}") { Tone = "muted", Tabular = true },
-            UI.WebBrowser(State.WebUrl ?? "http://localhost:18083", "FilmCraft WASM Studio", "filmcraft-wasm", 0, State.ExecutionMode),
-        ])
-        {
-            Gap = 4,
-            Extents = [24, 0],
-        });
+    public View Render() => RenderStudioView(State.Status, State.ActiveSequence, State.OutputFile, State.WebUrl ?? "http://localhost:18083", State.ExecutionMode);
 
     [DigitalBrain.Scenario("FilmCraft executes timeline razor split in Native Linux CLI mode and exports MP4 in MCP mode")]
     public async Task VerifyFilmCraftDualModeAndTimelineScenario()
@@ -283,54 +220,7 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
         string sequence,
         string mode)
     {
-        ArtCraftExecutionResult result;
-        if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
-        {
-            try
-            {
-                var engineRes = await engine.ExecuteFilmCraft(instructionOrCommand, explicitParamsJson, sequence, mode);
-                result = new ArtCraftExecutionResult(
-                    engineRes.App,
-                    engineRes.ExecutionMode,
-                    engineRes.CommandId,
-                    engineRes.CommandTitle,
-                    engineRes.ParametersJson,
-                    engineRes.InputDocument,
-                    engineRes.OutputDocument,
-                    engineRes.CliInvocation,
-                    engineRes.Summary,
-                    engineRes.PreviewDataUrl,
-                    engineRes.LayersOrTracks,
-                    engineRes.IsValidCommand,
-                    engineRes.OutputNeuronUri);
-            }
-            catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
-            {
-                Swallow(error, "ArtCraftEngineNeuron is optional when running FilmCraftApp standalone.");
-                result = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
-                    instructionOrCommand,
-                    explicitParamsJson,
-                    sequence,
-                    mode,
-                    TryGetArtCraftStudio(),
-                    TryGetMcpServer,
-                    (err, reason) => Swallow(err, reason),
-                    FilesVfs);
-            }
-        }
-        else
-        {
-            result = await ArtCraftEngineRunner.ExecuteFilmCraftAsync(
-                instructionOrCommand,
-                explicitParamsJson,
-                sequence,
-                mode,
-                TryGetArtCraftStudio(),
-                TryGetMcpServer,
-                (err, reason) => Swallow(err, reason),
-                FilesVfs);
-        }
-
+        var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, sequence, mode);
         if (!result.IsValidCommand)
         {
             Set(State with
@@ -355,51 +245,5 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
             Status = result.Summary,
             Tracks = result.LayersOrTracks,
         });
-    }
-
-    private static string FormatModeLabel(string mode) => mode switch
-    {
-        "mcp" => "MCP Server (filmcraft-mcp)",
-        "wasm-ui" => "WASM Web UI",
-        _ => "Native Linux CLI (filmcraft-cli)",
-    };
-
-    private IArtCraftEngine? TryGetArtCraftEngine()
-    {
-        try
-        {
-            return Get<IArtCraftEngine>("apps/artcraft-engine");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "ArtCraftEngineNeuron is optional when running FilmCraftApp standalone.");
-            return null;
-        }
-    }
-
-    private IArtCraftStudio? TryGetArtCraftStudio()
-    {
-        try
-        {
-            return Get<IArtCraftStudio>("artcraft");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "ArtCraftStudioNeuron is optional when running FilmCraftApp in unit tests.");
-            return null;
-        }
-    }
-
-    private IMcpServer? TryGetMcpServer(string mcpKey)
-    {
-        try
-        {
-            return Get<IMcpServer>(mcpKey);
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "McpServerNeuron is optional when running FilmCraftApp in unit tests.");
-            return null;
-        }
     }
 }

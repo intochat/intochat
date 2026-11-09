@@ -6,7 +6,6 @@ environment:
 
 workspace:
   - core
-  - design_ui
   - ui
   - shell
 

@@ -9,7 +9,7 @@ using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
-using IntoChat.OS.Apps.Post;
+using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,11 +24,26 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     [Theory]
     [InlineData(typeof(FilmCraftApp), "filmcraft", "#8B5CF6", "Studio", "FilmCraftApp")]
     [InlineData(typeof(PhotoCraftApp), "photocraft", "#06B6D4", "Studio", "PhotoCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.ArtCraftApp), "artcraft", "#6366F1", "Studio", "ArtCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.VectorCraftApp), "vectorcraft", "#F59E0B", "Studio", "VectorCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.LightCraftApp), "lightcraft", "#38BDF8", "Studio", "LightCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.EffectCraftApp), "effectcraft", "#A855F7", "Studio", "EffectCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.DesignCraftApp), "designcraft", "#EC4899", "Studio", "DesignCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.PdfCraftApp), "pdfcraft", "#EF4444", "Workspace", "PdfCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.WordCraftApp), "wordcraft", "#2563EB", "Workspace", "WordCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.SoundCraftApp), "soundcraft", "#10B981", "Studio", "SoundCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.DeckCraftApp), "deckcraft", "#F97316", "Workspace", "DeckCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.CadCraftApp), "cadcraft", "#0EA5E9", "Studio", "CadCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.GridCraftApp), "gridcraft", "#16A34A", "Workspace", "GridCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.FigCraftApp), "figcraft", "#F43F5E", "Studio", "FigCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.TextureCraftApp), "texturecraft", "#D97706", "Studio", "TextureCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.MaterialCraftApp), "materialcraft", "#EA580C", "Studio", "MaterialCraftApp")]
+    [InlineData(typeof(IntoChat.OS.Apps.ArtCraft.SolidCraftApp), "solidcraft", "#14B8A6", "Studio", "SolidCraftApp")]
     [InlineData(typeof(CreatorApp), "creator", "#FF5D8F", "Studio", "CreatorApp")]
     [InlineData(typeof(DesktopApp), "desktop", null, null, "DesktopApp")]
     [InlineData(typeof(GalleryApp), "gallery", "#22C55E", "Studio", "GalleryApp")]
     [InlineData(typeof(InoApp), "ino", "#3D7EFF", "Intelligence", "InoApp")]
-    [InlineData(typeof(PostApp), "post", "#FB7185", "Reach", "PostApp")]
+    [InlineData(typeof(FriendsApp), "friends", "#FB7185", "Social", "FriendsApp")]
     [InlineData(typeof(WorkspaceApp), "workspace", "#A855F7", "Social", "WorkspaceApp")]
     [InlineData(typeof(FilesApp), "files", "#F6B73C", "Workspace", "FilesApp")]
     public void ShellAppDefinitionMetadataMatchesContract(

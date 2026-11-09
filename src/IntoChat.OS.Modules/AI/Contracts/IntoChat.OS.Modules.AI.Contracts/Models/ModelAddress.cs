@@ -1,6 +1,6 @@
 namespace IntoChat.OS.Modules.AI.Models;
 
-// Turns an LLM marker name used in configuration, such as "IGpt56Luna", into its neuron inside a brain.
+// Turns an LLM marker name or model ID used in configuration, such as "IGpt56Luna" or "qwen3.5:4b", into its neuron inside a brain.
 // ILLM serves every caller as its own brain, but its key still belongs to one brain like every neuron key:
 // the inference signals it publishes journal into that brain, and a machine refuses a key outside every brain.
 public static class ModelAddress
@@ -13,5 +13,5 @@ public static class ModelAddress
         return $"{brainId}/models";
     }
 
-    public static bool IsKnown(string model) => LLMModel.FindByMarkerName(model) is not null;
+    public static bool IsKnown(string model) => LLMModel.Find(model) is not null;
 }

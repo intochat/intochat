@@ -3,10 +3,9 @@ import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
-import 'package:intochat_design_ui/intochat_design_ui.dart'
-    show IcBrainShaderMode;
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
+import '../../design/tokens.dart' show IcBrainShaderMode;
 import '../../lumen/neuron_icon.dart';
 import '../ino_presence.dart';
 

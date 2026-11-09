@@ -15,9 +15,6 @@
 #
 # Ports: 8080 silo HTTP (static web shell + broker + health).
 
-FROM ghcr.io/intochat/os-artcraft-photocraft-web:d7d5c6069c8f AS photocraft_web
-FROM ghcr.io/intochat/os-artcraft-filmcraft-web:7b6c13447228 AS filmcraft_web
-
 FROM debian:bookworm-slim AS ui-build
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl git unzip xz-utils \
@@ -31,14 +28,37 @@ RUN flutter --version && flutter precache --web
 WORKDIR /workspace
 COPY ui/pubspec.yaml ui/pubspec.lock ./
 COPY ui/core/pubspec.yaml core/
-COPY ui/design_ui/pubspec.yaml design_ui/
 COPY ui/ui/pubspec.yaml ui/
 COPY ui/shell/pubspec.yaml shell/
 RUN flutter pub get --enforce-lockfile
 COPY ui/ ./
 WORKDIR /workspace/shell
 RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub \
-    && rm -rf /workspace/.dart_tool /workspace/shell/.dart_tool
+    && rm -rf /workspace/.dart_tool /workspace/shell/.dart_tool \
+    && for spec in \
+        "photocraft:0.21.0" \
+        "filmcraft:0.18.0" \
+        "vectorcraft:0.22.0" \
+        "lightcraft:0.19.0" \
+        "effectcraft:0.22.0" \
+        "designcraft:0.18.0" \
+        "pdfcraft:0.19.0" \
+        "wordcraft:0.16.0" \
+        "soundcraft:0.18.0" \
+        "deckcraft:0.16.0" \
+        "cadcraft:0.18.0" \
+        "gridcraft:0.17.0" \
+        "figcraft:0.16.0" \
+        "texturecraft:0.4.0" \
+        "materialcraft:0.2.0"; do \
+      app="${spec%%:*}"; ver="${spec##*:}"; \
+      mkdir -p "/workspace/shell/build/web/artcraft/${app}" "/tmp/artcraft-${app}"; \
+      curl -fsSL "https://github.com/storytold/${app}/releases/download/v${ver}/${app}-web-${ver}.zip" -o "/tmp/artcraft-${app}.zip" \
+      && unzip -q "/tmp/artcraft-${app}.zip" -d "/tmp/artcraft-${app}" \
+      && cp -r "/tmp/artcraft-${app}/${app}-web-${ver}/." "/workspace/shell/build/web/artcraft/${app}/" \
+      && sed -i "s|<head>|<head><base href=\"/artcraft/${app}/\">|" "/workspace/shell/build/web/artcraft/${app}/index.html" \
+      && rm -rf "/tmp/artcraft-${app}" "/tmp/artcraft-${app}.zip"; \
+    done
 
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
 WORKDIR /src
@@ -62,8 +82,6 @@ WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
 COPY --from=ui-build /workspace/shell/build/web /app/wwwroot
-COPY --from=photocraft_web /usr/share/nginx/html /app/wwwroot/artcraft/photocraft
-COPY --from=filmcraft_web /usr/share/nginx/html /app/wwwroot/artcraft/filmcraft
 
 # The image enables the OS catalog; configuration may disable modules
 # (IntoChatOS__Modules__{id}__Enabled=false).

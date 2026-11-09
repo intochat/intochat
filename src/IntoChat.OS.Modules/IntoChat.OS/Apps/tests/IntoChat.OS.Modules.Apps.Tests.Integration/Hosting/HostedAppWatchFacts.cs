@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Apps.Hosting;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
-using DigitalBrain.Runtime.Apps;
+using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
