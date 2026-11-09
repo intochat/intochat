@@ -78,10 +78,11 @@ public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStu
         return new UnitDeployResult(true, $"{alias} is {outcome.Status.ToString().ToLowerInvariant()} (hash {outcome.Hash}).", outcome.Status, outcome.Hash, outcome.Installs);
     }
 
-    // A circle unit's membership signals ({unit}.join, {unit}.leave) are the circle's own: its room trusts them as the circle's, so no
-    // other unit may name one in its code (a view emit, a declared signal). Any other signal of the unit (circleroom.message) is open:
-    // its author is the "by" the host stamps at activation. The unit name a unit's code reserves, or null.
-    internal static readonly string[] CircleOnlySignals = ["join", "leave"];
+    // A circle unit's signals ({unit}.join, {unit}.leave, {unit}.message) are its own: the room trusts join/leave as the circle's and
+    // message's "by" as the host's stamp, which only a view activation carries today (a unit-to-unit publish could forge it until the
+    // framework stamps the publisher). So no other unit may name one in its code (a view emit, a declared signal). Other units' signals
+    // (x.polled) are open. The unit name a unit's code reserves, or null.
+    internal static readonly string[] CircleOnlySignals = ["join", "leave", "message"];
 
     internal static string? ReservedSignal(string alias, IReadOnlyDictionary<string, string> code)
         => ShippedApps.CircleUnits.FirstOrDefault(unit => unit != alias
