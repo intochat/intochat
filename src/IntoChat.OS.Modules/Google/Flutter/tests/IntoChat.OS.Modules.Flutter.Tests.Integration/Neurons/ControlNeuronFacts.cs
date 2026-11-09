@@ -20,6 +20,8 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
         var runtime = await fixture.Runtime(kind);
         var id = runtime.Id(UIVocabulary.FieldType, "apps/login/secret");
         var field = runtime.Get<IField>(id);
+        // What the edge stamps on the person's request; a field refuses an unstamped call.
+        using var person = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(new DigitalBrain.Capabilities.CapabilityCaller("person", "person", runtime.Brain.Value));
 
         await field.Configure(DigitalBrain.UI.FieldKind.Secret);
         await field.Set("hunter2-set");

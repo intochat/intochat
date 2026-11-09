@@ -46,7 +46,11 @@ internal sealed class FieldNeuron
     public Task Input(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        RequireInput();
+        // A person's typed text, through the edge, or the platform: never an app (it sets its own fields with Set), another brain,
+        // or a call no edge stamped.
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw Unstamped();
+        if (!BrainKey.BelongsTo(FullKey, caller.BrainId) || caller.Kind is not (CallerKind.User or CallerKind.Platform))
+        { throw new UnauthorizedAccessException("Only the brain's person types into this field."); }
         if (Snapshot.Version == 0) { throw new InvalidOperationException("This field is not configured yet: its view has not been published."); }
         return Assign(value);
     }
@@ -80,15 +84,6 @@ internal sealed class FieldNeuron
         var version = checked(Snapshot.Version + 1);
         var next = new FieldState { Owner = owner, Name = name, Kind = kind, Value = value, Version = version };
         return Save(next, journal ? new FieldChanged(owner, name, version) : new FieldConfigured(owner, name, kind));
-    }
-
-    // A person's typed text, through the edge, or the platform: never an app (it sets its own fields with Set), another brain, or a
-    // call no edge stamped.
-    private void RequireInput()
-    {
-        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw Unstamped();
-        if (!BrainKey.BelongsTo(FullKey, caller.BrainId) || caller.Kind is not (CallerKind.User or CallerKind.Platform))
-        { throw new UnauthorizedAccessException("Only the brain's person types into this field."); }
     }
 
     private static UnauthorizedAccessException Unstamped() => new("No caller was stamped on this call; a field answers only a stamped one.");
