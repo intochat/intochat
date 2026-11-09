@@ -91,6 +91,7 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
             Settings: [],
             Slots: [],
             Icon: "widgets",
+            SideWidth: 268d,
             Toolbar:
             [
                 new("open", Icon: "widgets", Label: "Catalog"),

@@ -56,6 +56,7 @@ internal static class FilesRequests
                 new("upload", "Upload into this folder; include ExpectedRevision."),
             ],
             Settings: [], Slots: [],
+            Icon: "folder",
             Toolbar: [new("up", Icon: "arrow-up", Label: "Up"), new("open", Icon: "folder", Label: "Storages")],
             Requires: new(Capabilities: ["storage@1"])),
         "",

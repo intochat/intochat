@@ -162,7 +162,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new("go-back", "Return to the previous settings page."),
             ],
             Settings: [],
-            Slots: []),
+            Slots: [],
+            Icon: "settings"),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
     {

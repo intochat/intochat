@@ -95,7 +95,9 @@ public sealed record AppManifest(
     AppToolbarEntry[]? Toolbar = null,
     AppRequirements? Requires = null,
     // A headless app has no program: its build deploys a synapse unit through ISynapseStudio.
-    bool Headless = false)
+    bool Headless = false,
+    // The width of the side panel when the app presents one beside its main view; the shell's default when null.
+    double? SideWidth = null)
 {
     // The dock renders only what the app can answer: every entry names a declared operation with one of the four kinds.
     public AppManifest Validated()

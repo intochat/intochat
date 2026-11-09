@@ -54,14 +54,9 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
                 await SyncInoTranscriptAsync(appKey, ino.State);
                 mainView = side is not null ? main with { Root = new Row([side.Root, main.Root]) { Gap = 0, Extents = [256, 0] } } : main;
             }
-            else if (side is not null)
-            {
-                var sideWidth = appName == "creator" ? 340d : appName == "gallery" ? 268d : 236d;
-                mainView = main with { Root = new Row([side.Root, main.Root]) { Gap = 14, Extents = [sideWidth, 0] } };
-            }
             else
             {
-                mainView = main;
+                mainView = side is not null ? main with { Root = new Row([side.Root, main.Root]) { Gap = 14, Extents = [ShippedManifests.SideWidth(snapshot.Manifest), 0] } } : main;
             }
 
             // The desktop's view is the host's window shell (CompiledAppsHost.EnsureDesktopViewAsync): the desktop app never replaces it.
@@ -128,18 +123,19 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         }
         else
         {
+            var manifests = await ShippedManifests.Of(services);
             for (var i = 0; i < state.Turns.Length; i++)
             {
                 var turn = state.Turns[i];
                 entries.Add(new ChatEntry($"turn-{i + 1}-user", ChatRole.User, turn.UserMessage));
-                entries.Add(BuildAssistantChatEntry(i + 1, turn, state));
+                entries.Add(BuildAssistantChatEntry(i + 1, turn, state, manifests));
             }
         }
 
         await chat.Project(new ChatProjection(appKey, chatGen, nextVersion, [.. entries]));
     }
 
-    internal static ChatEntry BuildAssistantChatEntry(int turnNumber, InoTurn turn, InoAppState state)
+    internal static ChatEntry BuildAssistantChatEntry(int turnNumber, InoTurn turn, InoAppState state, ShippedManifests manifests)
     {
         var text = turn.Reply;
         var activities = new List<ChatActivity>();
@@ -206,23 +202,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             var targetApp = dot > 0 ? routedTarget[..dot] : routedTarget;
             if (ChatAppCard.IsAppName(targetApp))
             {
-                var displayTitle = targetApp switch
-                {
-                    "photocraft" => "PhotoCraft",
-                    "filmcraft" => "FilmCraft",
-                    "settings" => "Settings",
-                    "files" => "Files",
-                    _ => targetApp,
-                };
-                var displayIcon = targetApp switch
-                {
-                    "photocraft" => "image",
-                    "filmcraft" => "film",
-                    "settings" => "settings",
-                    "files" => "folder",
-                    _ => "grid",
-                };
-                appCard = new ChatAppCard(targetApp, displayTitle, displayIcon, true);
+                appCard = new ChatAppCard(targetApp, manifests.Title(targetApp), manifests.Icon(targetApp), true);
             }
         }
 

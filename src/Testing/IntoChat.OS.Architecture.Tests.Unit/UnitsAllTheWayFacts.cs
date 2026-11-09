@@ -50,21 +50,14 @@ public sealed partial class UnitsAllTheWayFacts
         Assert.Empty(offenders);
     }
 
-    // The shell's own apps: the desktop and the workspace are the host's surfaces, not apps a person installs, so the host may name them.
+    // The shell's own apps: the desktop and the workspace are the host's surfaces and ino is the shell's agent, not apps a person installs,
+    // so the host may name them.
     // Any other app is reached through its manifest, its signals and the registry, never by name.
-    private static readonly string[] ShellApps = ["desktop", "workspace"];
+    private static readonly string[] ShellApps = ["desktop", "workspace", "ino"];
 
     // What the host still names today (file: literal). Each entry is a leftover to remove by moving the knowledge into the app's manifest;
     // the fact fails when an entry is gone, so the list only shrinks.
-    private static readonly string[] Pending =
-    [
-        "AppPresentationSink.cs: creator", "AppPresentationSink.cs: files", "AppPresentationSink.cs: filmcraft",
-        "AppPresentationSink.cs: gallery", "AppPresentationSink.cs: photocraft", "AppPresentationSink.cs: settings",
-        "CompiledAppsHost.cs: circle", "CompiledAppsHost.cs: circles", "CompiledAppsHost.cs: creator", "CompiledAppsHost.cs: data",
-        "CompiledAppsHost.cs: files", "CompiledAppsHost.cs: filmcraft", "CompiledAppsHost.cs: gallery", "CompiledAppsHost.cs: ino",
-        "CompiledAppsHost.cs: markdraw", "CompiledAppsHost.cs: photocraft", "CompiledAppsHost.cs: post", "CompiledAppsHost.cs: settings",
-        "CompiledAppsHost.cs: tasks",
-    ];
+    private static readonly string[] Pending = [];
 
     [Fact]
     public void NoAppNameSwitchboard()

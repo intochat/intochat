@@ -537,7 +537,6 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
                             };
                             await Store();
                             await Notify(new TurnProgressed(Key, runId, "tool-result", refusal?.Message, tool.Name, result, ++sequence));
-                            if (Card(result) is { } card) { await Notify(new TurnProgressed(Key, runId, "card", null, tool.Name, card, ++sequence)); }
                             break;
                         case AgentTurnEvent.ToolFailed tool:
                             var message = await Mask(tool.Message);
@@ -751,18 +750,6 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
             var message = root.TryGetProperty("message", out value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
             return (string.IsNullOrWhiteSpace(code) ? "tool_error" : code,
                 string.IsNullOrWhiteSpace(message) ? "The tool reported an error." : message);
-        }
-        catch (JsonException) { return null; }
-    }
-
-    // A tool result may carry a UI card on its "_ui" channel; the card is its own progress item.
-    private static string? Card(string result)
-    {
-        try
-        {
-            using var payload = JsonDocument.Parse(result);
-            return payload.RootElement.ValueKind == JsonValueKind.Object && payload.RootElement.TryGetProperty("_ui", out var card)
-                && card.ValueKind == JsonValueKind.Object ? card.GetRawText() : null;
         }
         catch (JsonException) { return null; }
     }

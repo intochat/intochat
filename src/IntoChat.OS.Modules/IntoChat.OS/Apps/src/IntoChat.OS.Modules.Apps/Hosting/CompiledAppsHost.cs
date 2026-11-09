@@ -58,12 +58,15 @@ internal sealed class CompiledAppsHost(
     private static readonly IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName =
         Hosted.ToDictionary(item => item.Name, StringComparer.Ordinal);
 
-    private static (string Name, Type AppType, AppBundle Bundle) ResolveSpec(string appName) => appName switch
+    // The apps whose program type lives in another assembly, found by name when first needed.
+    private static readonly IReadOnlyDictionary<string, string> ExternalTypes = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        "ino" => ResolveHosted("ino", "IntoChat.OS.Apps.Ino.InoApp", HostedByName["ino"].Bundle),
-        "settings" => ResolveHosted("settings", "IntoChat.OS.Apps.Settings.SettingsApp", HostedByName["settings"].Bundle),
-        _ => HostedByName[appName],
+        ["ino"] = "IntoChat.OS.Apps.Ino.InoApp",
+        ["settings"] = "IntoChat.OS.Apps.Settings.SettingsApp",
     };
+
+    private static (string Name, Type AppType, AppBundle Bundle) ResolveSpec(string appName)
+        => ExternalTypes.TryGetValue(appName, out var typeName) ? ResolveHosted(appName, typeName, HostedByName[appName].Bundle) : HostedByName[appName];
 
     private readonly ConcurrentDictionary<string, IFilesVfsService> _vfsByBrain = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _ensuredBrains = new(StringComparer.Ordinal);
@@ -123,24 +126,6 @@ internal sealed class CompiledAppsHost(
         await EnsureDesktopViewAsync(brain);
     }
 
-    private static string TitleForDesktopApp(string appId) => appId switch
-    {
-        "ino" => "Ino",
-        "files" => "Files",
-        "data" => "Data Studio",
-        "markdraw" => "Markdraw",
-        "photocraft" => "PhotoCraft",
-        "filmcraft" => "FilmCraft",
-        "creator" => "Creator",
-        "gallery" => "Gallery",
-        "tasks" => "Tasks",
-        "post" => "Post",
-        "settings" => "Settings",
-        "circle" or "circles" => "Circles",
-        "workspace" => "Workspace",
-        _ => string.IsNullOrEmpty(appId) ? "App" : char.ToUpperInvariant(appId[0]) + appId[1..],
-    };
-
     // The open widgets the desktop app keeps in its records, comma separated as the window shell shows them.
     private async Task<string> DesktopWidgetsAsync(string brain)
         => string.Join(",", (await SiloNeurons.Get<IDesktopRecords>(services, $"{brain}/{IDesktopRecords.Key}").Read()).Widgets);
@@ -154,6 +139,7 @@ internal sealed class CompiledAppsHost(
             var workspace = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(services, IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(brain));
             var state = await workspace.Read();
             var widgetsText = await DesktopWidgetsAsync(brain);
+            var manifests = await ShippedManifests.Of(services);
 
             var activeWindows = state.Windows
                 .Where(w => w.Tabs is { Length: > 0 } && w.Tabs.Any(t => IApp.NameOf(brain, t.App) is not "desktop"))
@@ -176,7 +162,7 @@ internal sealed class CompiledAppsHost(
                 var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
                 var activeTab = window.Tabs[activeIndex];
                 var appId = IApp.NameOf(brain, activeTab.App) ?? activeTab.Id;
-                var title = TitleForDesktopApp(appId);
+                var title = manifests.Title(appId);
                 var isPinned = state.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase)
                     || string.Equals(IApp.NameOf(brain, p.App), appId, StringComparison.OrdinalIgnoreCase));
                 var isFav = state.Favourites.Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
@@ -194,7 +180,7 @@ internal sealed class CompiledAppsHost(
                     DesktopIcon($"close-{winId}", "x", "Close tab", "close", $"{winId}/{activeIndex}"),
                 ];
                 var tabs = window.Tabs.Select((tab, idx) => new DigitalBrain.UI.TabItem(
-                    $"tab-{winId}-{idx}", $"{winId}/{idx}", TitleForDesktopApp(IApp.NameOf(brain, tab.App) ?? tab.Id), DesktopEmit("tab", $"{winId}/{idx}"))).ToArray();
+                    $"tab-{winId}-{idx}", $"{winId}/{idx}", manifests.Title(IApp.NameOf(brain, tab.App) ?? tab.Id), DesktopEmit("tab", $"{winId}/{idx}"))).ToArray();
 
                 return new DigitalBrain.UI.Column(
                 [
@@ -216,7 +202,7 @@ internal sealed class CompiledAppsHost(
             [
                 new DigitalBrain.UI.Row(
                 [
-                    .. dockApps.Select(app => (DigitalBrain.UI.Node)new DigitalBrain.UI.Button($"dock-{app}", TitleForDesktopApp(app), DesktopEmit("open", app), Tone: app == "ino" ? DigitalBrain.UI.ButtonTone.Accent : DigitalBrain.UI.ButtonTone.Neutral) { Icon = app == "ino" ? "ino" : null }),
+                    .. dockApps.Select(app => (DigitalBrain.UI.Node)new DigitalBrain.UI.Button($"dock-{app}", manifests.Title(app), DesktopEmit("open", app), Tone: app == "ino" ? DigitalBrain.UI.ButtonTone.Accent : DigitalBrain.UI.ButtonTone.Neutral) { Icon = app == "ino" ? "ino" : null }),
                     DesktopIcon("newtab", "plus", "New tab", "newtab", null),
                 ]) { Gap = 4 },
                 new DigitalBrain.UI.Row(
@@ -244,7 +230,7 @@ internal sealed class CompiledAppsHost(
         {
             var baseCaller = await HostCaller.ForBrain(services, brain);
             if (baseCaller is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
-            if (appName == "files")
+            if (appName == IntoChat.Files.FilesApp.AppName)
             {
                 var filesView = await SiloNeurons.Get<IView>(services, $"{brain}/apps/files/view").Read();
                 if (filesView is null)

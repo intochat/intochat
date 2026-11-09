@@ -98,7 +98,7 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
             ],
             Settings: [],
             Slots: [],
-            Icon: "icon.svg",
+            Icon: "film",
             Toolbar:
             [
                 new("open", Icon: "link", Label: "Connect editor"),

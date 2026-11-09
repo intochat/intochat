@@ -42,11 +42,11 @@ public sealed partial class OneUiPathFacts
         Assert.Equal(["confirmation", "ui.field", "view", "viewport", "webbrowser"], kinds);
     }
 
-    // Leftovers of the old UI channel that still ship (file: token); the fact fails when one is gone, so the list only shrinks.
+    // The one leftover of the old UI channel that still ships (file: token); the fact fails when it is gone, so the list only shrinks.
+    // Fix-wave item n: a Markdraw/Canvas node in DigitalBrain 0.18.1 replaces the scene card's JSON body and its "_ui" hint.
     private static readonly string[] OldChannelPending =
     [
         "MarkdrawSceneEngine.cs: _ui =",
-        "AgentNeuron.cs: \"_ui\"",
     ];
 
     // No UiNode, no ButtonAction and no "_ui" channel anywhere: the server speaks DigitalBrain.UI.View and the client renders it.

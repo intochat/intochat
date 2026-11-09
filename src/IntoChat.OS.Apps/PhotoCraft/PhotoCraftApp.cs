@@ -107,7 +107,7 @@ public sealed class PhotoCraftApp : DigitalBrain.App<PhotoCraftAppState>
             ],
             Settings: [],
             Slots: [],
-            Icon: "icon.svg",
+            Icon: "image",
             Toolbar:
             [
                 new("open", Icon: "link", Label: "Connect editor"),

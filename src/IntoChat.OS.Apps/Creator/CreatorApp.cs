@@ -89,7 +89,8 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
             ],
             Settings: [],
             Slots: [],
-            Icon: "icon.svg"),
+            Icon: "icon.svg",
+            SideWidth: 340d),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
     {
