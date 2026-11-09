@@ -26,6 +26,9 @@ public sealed class AppUiEventFacts
         public bool IsHostLoaded(string appKey) => loaded.Contains(appKey);
     }
 
+    // The person the HTTP edge stamps for a signed-in caller.
+    private static IDisposable AsPerson() => DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(DigitalBrain.Capabilities.CapabilityCallers.Of("person-ann", "person-ann", Scope));
+
     private static AppUiEndpoints.UiEvent View(string name, string key, string? value = null) => new("view", name, Value: value, Generation: 1, Key: key);
 
     [Fact]
@@ -104,7 +107,7 @@ public sealed class AppUiEventFacts
         var shown = await reader.Read("ctr");
         Assert.NotNull(shown);
 
-        await AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "hi", Generation: shown.Generation, Key: "bump"), brain, Scope, Hosted, Ct);
+        using (AsPerson()) { await AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "hi", Generation: shown.Generation, Key: "bump"), brain, Scope, Hosted, Ct); }
         await os.Idle();
         var copy = await AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: (await reader.Read("ctr"))!.Generation, Key: "copy"), brain, Scope, Hosted, Ct);
 
@@ -134,7 +137,7 @@ public sealed class AppUiEventFacts
         await using var _os = os;
         var before = os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count;
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "foreign"), new TestOSBrain(os), Scope, Hosted, Ct));
+        using (AsPerson()) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "foreign"), new TestOSBrain(os), Scope, Hosted, Ct)); }
         await os.Idle();
 
         Assert.Equal(before, os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count);
@@ -153,20 +156,46 @@ public sealed class AppUiEventFacts
         Assert.Empty(brain.Inbox.Resolved);
     }
 
-    // Only the edge names who acted: a unit view whose emit declares "by" is refused before anything is journaled. (The edge cannot
-    // yet stamp "by" itself: IViewReader.Activate takes only the field value.)
+    // Only the edge names who acted: it stamps "by" with the caller's person id, whatever the field's text says.
     [Fact]
-    public async Task AUnitViewEmitThatDeclaresByIsRefused()
+    public async Task AUnitActivationIsStampedWithThePersonWhoActed()
     {
         var (os, _, shown) = await UnitOnTestOS();
         await using var _os = os;
-        var before = os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count;
 
-        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "forged"), new TestOSBrain(os), Scope, Hosted, Ct));
+        using (AsPerson())
+        { await AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "{\"by\":\"mallory\"}", Generation: shown.Generation, Key: "bump"), new TestOSBrain(os), Scope, Hosted, Ct); }
         await os.Idle();
 
-        Assert.Equal(before, os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count);
+        Assert.Equal("person-ann", (await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr")).GetProperty("by").GetString());
+    }
+
+    // No person, no author: an unstamped activation is refused before anything is journaled.
+    [Fact]
+    public async Task AUnitActivationWithoutAPersonIsRefused()
+    {
+        var (os, _, shown) = await UnitOnTestOS();
+        await using var _os = os;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "bump"), new TestOSBrain(os), Scope, Hosted, Ct));
+        await os.Idle();
+
         Assert.Equal(0, (await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr")).GetProperty("bumps").GetInt32());
+    }
+
+    // A unit view whose emit declares "by" is never published (the framework's ViewDeclaresBy), so the edge has nothing to activate.
+    [Fact]
+    public async Task AUnitViewDeclaringByIsNotPublished()
+    {
+        await using var os = TestOS.Local().Register(typeof(CounterUnit).Assembly);
+        os.Confirmations.ApproveAll();
+        await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.InstallRequest("forger", new Dictionary<string, string>()), Ct);
+        await os.Idle();
+        await os.Get<IKicker>(NeuronId.Parse("owner/kicker/a")).Kick();
+        await os.Idle();
+
+        Assert.Equal(1, (await os.Get<IStateReader>(NeuronId.Parse("owner/forger/default")).Read("forger")).GetProperty("kicks").GetInt32());
+        Assert.Null(await os.Get<IViewReader>(NeuronId.Parse("owner/forger/default")).Read("forger"));
     }
 
     // A field's text joins the emit as "value": args that already declare one are refused (400), on a unit view and an app view.

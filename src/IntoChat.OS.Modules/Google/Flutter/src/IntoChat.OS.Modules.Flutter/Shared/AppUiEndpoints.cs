@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter;
@@ -138,9 +139,13 @@ internal static class AppUiEndpoints
             {
                 case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);
                 case ViewActivationKind.Resolve: throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
-                case ViewActivationKind.Emit: ViewArgs.RequireUnreserved(shownAction.Emit!.Args, input.Value); break;
+                case ViewActivationKind.Emit: ViewArgs.RequireValueUnreserved(shownAction.Emit!.Args, input.Value); break;
             }
-            try { await reader.Activate(alias, generation, key, input.Value).WaitAsync(ct); }
+            // The state neuron writes "by" into the emit, overwriting whatever the payload says: the caller's stable person id, never
+            // a display name. A view that declares "by" never publishes (the framework's ViewDeclaresBy), so the edge need not refuse one.
+            if (!RuntimeCallerContext.TryGet(out var caller) || string.IsNullOrEmpty(caller.PersonId))
+            { throw new UnauthorizedAccessException("Only a signed-in person activates a unit view."); }
+            try { await reader.Activate(alias, generation, key, input.Value, caller.PersonId).WaitAsync(ct); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
             { throw new StaleActionException("This action is no longer available. Read the view again."); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
@@ -224,6 +229,14 @@ internal static class ViewArgs
     // (a view that declares one beside a field would be overwritten silently, so it is refused).
     public const string By = "by";
     public const string Value = "value";
+
+    // A unit view's emit: "by" is the framework's (it refuses a view declaring one and stamps the host's), so only "value" is checked.
+    public static void RequireValueUnreserved(JsonElement? args, string? value)
+    {
+        if (value is null || args is not { ValueKind: JsonValueKind.Object } given) { return; }
+        if (given.EnumerateObject().Any(member => string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase)))
+        { throw new ArgumentException("A view's emit already declares \"value\"; a field's text cannot replace it."); }
+    }
 
     public static void RequireUnreserved(JsonElement? args, string? value)
     {

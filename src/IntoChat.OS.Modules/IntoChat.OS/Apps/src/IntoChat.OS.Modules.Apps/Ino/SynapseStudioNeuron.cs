@@ -78,10 +78,14 @@ public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStu
         return new UnitDeployResult(true, $"{alias} is {outcome.Status.ToString().ToLowerInvariant()} (hash {outcome.Hash}).", outcome.Status, outcome.Hash, outcome.Installs);
     }
 
-    // A circle unit's signals (circleroom.join, …) are the circle's own: its room trusts them as the circle's, so no other unit may
-    // name one in its code (a view emit, a declared signal). The unit name a unit's code reserves, or null.
+    // A circle unit's membership signals ({unit}.join, {unit}.leave) are the circle's own: its room trusts them as the circle's, so no
+    // other unit may name one in its code (a view emit, a declared signal). Any other signal of the unit (circleroom.message) is open:
+    // its author is the "by" the host stamps at activation. The unit name a unit's code reserves, or null.
+    internal static readonly string[] CircleOnlySignals = ["join", "leave"];
+
     internal static string? ReservedSignal(string alias, IReadOnlyDictionary<string, string> code)
-        => ShippedApps.CircleUnits.FirstOrDefault(unit => unit != alias && code.Values.Any(text => text.Contains($"\"{unit}.", StringComparison.Ordinal)));
+        => ShippedApps.CircleUnits.FirstOrDefault(unit => unit != alias
+            && CircleOnlySignals.Any(signal => code.Values.Any(text => text.Contains($"\"{unit}.{signal}\"", StringComparison.Ordinal))));
 
     private static UnitDeployResult Failed(string text, DeployOutcome? outcome = null)
         => new(false, text, outcome?.Status ?? DeployStatus.Failed, outcome?.Hash, outcome?.Installs ?? new Dictionary<string, DigitalBrain.InstallOutcome>());
