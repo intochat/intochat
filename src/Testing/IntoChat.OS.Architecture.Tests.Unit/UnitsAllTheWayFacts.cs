@@ -160,12 +160,15 @@ public sealed partial class UnitsAllTheWayFacts
 
     private static IEnumerable<string> Literals(string text) => QuotedLiteral().Matches(text).Select(match => match.Groups[1].Value);
 
-    // The files that may reference a ShippedApps key constant: the declaration, the apps that alias it as their AppName, and the three hosts
-    // that must name a shipped app (the ArtCraft engine checks its studios' calls; the installed-modules grant names Settings).
+    // The files that may reference a ShippedApps key constant: the declaration, the apps that alias it as their AppName, and the hosts
+    // that must name a shipped app (the ArtCraft engine checks its studios' calls; the installed-modules grant names Settings; the
+    // shipped grants are per app; the files workspace hands a file to Ino; an app's installation mounts the account surface for
+    // Settings).
     private static readonly string[] KeyReferenceFiles =
     [
         "ShippedApps.cs", "SettingsApp.cs", "PhotoCraftApp.cs", "FilmCraftApp.cs", "CreatorApp.cs",
         "ArtCraftEngineNeuron.cs", "ArtCraftEngineRunner.cs", "InstalledModulesNeuron.cs",
+        "ShippedGrants.cs", "FilesWorkspaceNeuron.cs", "AppNeuron.Installation.cs",
     ];
 
     [Fact]
@@ -178,7 +181,7 @@ public sealed partial class UnitsAllTheWayFacts
         Assert.Equal(KeyReferenceFiles.Order(StringComparer.Ordinal), referencing);
     }
 
-    [GeneratedRegex(@"\bShippedApps\s*\.\s*(Settings|PhotoCraft|FilmCraft|Creator)\b|const string (Settings|PhotoCraft|FilmCraft|Creator)\b", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\bShippedApps\s*\.\s*(Settings|PhotoCraft|FilmCraft|Creator|Ino)\b|const string (Settings|PhotoCraft|FilmCraft|Creator|Ino)\b", RegexOptions.CultureInvariant)]
     private static partial Regex ShippedAppKey();
 
     // The desktop's window verbs are blanked before the app-key scan, so they are pinned here: each must be an operation the desktop app

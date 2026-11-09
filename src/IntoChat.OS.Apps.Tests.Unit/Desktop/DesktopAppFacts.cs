@@ -11,11 +11,16 @@ public sealed class DesktopAppFacts
     public static IEnumerable<TheoryDataRow<AppOperationCase>> DesktopOperations => AppBaseline.Cases(typeof(DesktopApp), os => os.Register<DesktopRecordsNeuron>());
 
     [Theory, MemberData(nameof(DesktopOperations))]
-    public Task DesktopBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public async Task DesktopBaseline(AppOperationCase operation)
+    {
+        using var person = Edge.AsPerson();
+        await AppBaseline.RunAsync(operation);
+    }
 
     [Fact]
     public async Task DesktopScenariosPass()
     {
+        using var person = Edge.AsPerson();
         var report = await BddRunner.VerifyAsync<DesktopApp>(fakes: os => os.Register<DesktopRecordsNeuron>(), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(report.Passed);
         Assert.Single(report.Scenarios);

@@ -32,14 +32,22 @@ public sealed class InoRecordsNeuron : DigitalBrain.Neuron<InoRecords>, IInoReco
     }
 }
 
-// The owning app ({brain}/apps/{app}/records), its brain's person, or the platform; as FieldNeuron's writer rule.
+// Only the owning app ({brain}/apps/{app}/…) or its brain's person writes; every other caller kind, another brain and a call with no
+// stamped caller are refused.
 internal static class AppRecordsOwner
 {
     public static void Require(string key)
     {
-        if (!DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller) || caller.Kind == DigitalBrain.Capabilities.CallerKind.Platform) { return; }
-        if (!DigitalBrain.Brains.BrainKey.BelongsTo(key, caller.BrainId) || caller.Kind == DigitalBrain.Capabilities.CallerKind.App &&
-            (string.IsNullOrEmpty(caller.AppId) || !key.StartsWith(caller.AppId + "/", System.StringComparison.Ordinal)))
-        { throw new System.UnauthorizedAccessException("Only the owning brain and app may write these records."); }
+        if (!DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)) { throw Refused(); }
+        if (!DigitalBrain.Brains.BrainKey.BelongsTo(key, caller.BrainId)) { throw Refused(); }
+        var allowed = caller.Kind switch
+        {
+            DigitalBrain.Capabilities.CallerKind.User => true,
+            DigitalBrain.Capabilities.CallerKind.App => !string.IsNullOrEmpty(caller.AppId) && key.StartsWith(caller.AppId + "/", System.StringComparison.Ordinal),
+            _ => false,
+        };
+        if (!allowed) { throw Refused(); }
     }
+
+    private static System.UnauthorizedAccessException Refused() => new("Only the owning brain and app may write these records.");
 }

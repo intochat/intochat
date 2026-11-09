@@ -37,6 +37,7 @@ public sealed class InoAppFacts
     public async Task InoAndPostBddScenariosAndSystemNeuronsPass()
     {
         var ct = TestContext.Current.CancellationToken;
+        using var person = Edge.AsPerson();
         var desktopReport = await BddRunner.VerifyAsync<DesktopApp>(fakes: os => os.Register<DesktopRecordsNeuron>(), cancellationToken: ct);
         Assert.True(desktopReport.Passed);
         Assert.Single(desktopReport.Scenarios);
@@ -453,6 +454,7 @@ public sealed class InoAppFacts
     [Fact]
     public async Task APastedLinkIsInosOwnRecordAcrossRestart()
     {
+        using var person = Edge.AsPerson();
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register<RecordingAgent>();

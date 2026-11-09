@@ -9,6 +9,8 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Runtime.Synapses;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -211,16 +213,41 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     private void RaiseChoices(BuildInner inner)
     {
         if (inner.ChoicePlans is not { Count: > 0 } plans) { return; }
-        var alias = inner.Alias ?? State.Title;
         foreach (var (planId, choice) in plans)
         {
             if (!_asking.Add(planId)) { continue; }
-            var count = plans.Count(plan => plan.Value[0] == choice[0]);
-            var plan = new ConfirmationPlan(planId, ConfirmationAction.Other, Destructive: false, Title: $"Use {choice[1]} for {alias}?",
-                Body: $"Slot {choice[0]} of {alias}: {count} connections fit. Approve to bind {choice[1]}; the others are withdrawn.",
-                ApproveLabel: "Use this connection", DenyLabel: "Not this one", TargetLabel: choice[1]) { RequiresPerson = true };
-            _ = AskChoice(plan);
+            _ = AskChoice(ChoicePlan(planId, choice, plans.Count(plan => plan.Value[0] == choice[0]), inner, State.Title));
         }
+    }
+
+    // The card names the build by the person's own goal where there is one; every model-authored name (alias, slot) and the
+    // connection key is clamped to one short line, so an authored unit cannot write the approval card's text.
+    internal static ConfirmationPlan ChoicePlan(string planId, string[] choice, int count, BuildInner inner, string title)
+    {
+        var what = Clean(string.IsNullOrWhiteSpace(inner.Goal) ? inner.Alias ?? title : inner.Goal);
+        var (slot, key) = (Clean(choice[0]), Clean(choice[1]));
+        return new ConfirmationPlan(planId, ConfirmationAction.Other, Destructive: false, Title: $"Use {key} for {what}?",
+            Body: $"Slot {slot} of {what}: {count} connections fit. Approve to bind {key}; the others are withdrawn.",
+            ApproveLabel: "Use this connection", DenyLabel: "Not this one", TargetLabel: key) { RequiresPerson = true };
+    }
+
+    internal const int MaxCardName = 64;
+
+    // Control characters and line breaks become spaces, runs of white space one space, and the result at most 64 characters.
+    internal static string Clean(string text)
+    {
+        var line = new StringBuilder(Math.Min(text.Length, MaxCardName));
+        var space = false;
+        foreach (var c in text.Trim())
+        {
+            if (char.IsControl(c) || char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.Format
+                or System.Globalization.UnicodeCategory.LineSeparator or System.Globalization.UnicodeCategory.ParagraphSeparator)
+            { space = line.Length > 0; continue; }
+            if (space) { line.Append(' '); space = false; }
+            line.Append(c);
+        }
+        var clean = line.ToString();
+        return clean.Length <= MaxCardName ? clean : string.Concat(clean.AsSpan(0, MaxCardName - 1), "…");
     }
 
     // Raises the plan without awaiting it in the turn; the answer comes back through the flow's own mailbox with a one-use proof.
@@ -228,7 +255,12 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     {
         bool approved;
         try { approved = (await Context.Confirm(plan, CancellationToken.None)).Outcome == ConfirmationOutcome.Approved; }
-        catch (Exception error) when (error is not OutOfMemoryException) { _asking.Remove(plan.Id); return; }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            BuildLog.ChoiceAskFailed(Context.Services.GetService<ILoggerFactory>()?.CreateLogger<BuildFlow>() ?? (ILogger)NullLogger.Instance, error, Id.ToString(), plan.Id);
+            _asking.Remove(plan.Id);
+            return;
+        }
         var proof = Guid.NewGuid().ToString("N");
         _proofs.Add(proof);
         try { await Context.Get<IBuildChoices>(Id).ChoiceAnswered(plan.Id, approved, proof); }
@@ -458,4 +490,11 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     }
 
     private ISynapseStudio Studio() => Context.Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
+}
+
+internal static partial class BuildLog
+{
+    // A choice ask that could not be raised is dropped from this activation; the next re-check raises it again.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Build flow {FlowId} could not ask choice plan {PlanId}; it asks again on the next re-check")]
+    public static partial void ChoiceAskFailed(ILogger logger, Exception exception, string flowId, string planId);
 }

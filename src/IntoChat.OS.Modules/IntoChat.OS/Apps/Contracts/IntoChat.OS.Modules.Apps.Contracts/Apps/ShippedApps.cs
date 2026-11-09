@@ -13,13 +13,14 @@ public static class ShippedApps
     public const string PhotoCraft = "photocraft";
     public const string FilmCraft = "filmcraft";
     public const string Creator = "creator";
+    public const string Ino = "ino";
 
     // The OS's own services: the desktop shows none of them as a window.
     public static readonly IReadOnlySet<string> Services = new HashSet<string>(["desktop", "workspace"], StringComparer.Ordinal);
 
     // What the OS runs on, which Remove refuses: its services, Settings, Apps, Ino and Creator.
     // Apps folded into Settings (08-09). The folder is no longer a boot root.
-    public static readonly IReadOnlySet<string> Roots = new HashSet<string>([.. Services, Settings, "ino", Creator], StringComparer.Ordinal);
+    public static readonly IReadOnlySet<string> Roots = new HashSet<string>([.. Services, Settings, Ino, Creator], StringComparer.Ordinal);
 
     // The units a circle brain is born with: its room, a shipped unit source (IntoChat.OS.Apps.ShippedUnits).
     public static readonly IReadOnlyList<string> CircleUnits = ["circleroom"];

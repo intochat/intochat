@@ -13,12 +13,12 @@ internal static class ShippedGrants
         "workspace" => Tuples(brain, app, [Workspace(brain), Apps(brain), Person(brain), Compute(brain), $"text/{brain}/apps/desktop/layout"]),
         "desktop" => Tuples(brain, app, [Workspace(brain), Apps(brain), Person(brain), Compute(brain),
             $"chat/{brain}/apps/ino/transcript", $"agent/{brain}/*", $"textfield/{brain}/settings/workspace/new-tab-app"]),
-        "settings" => Tuples(brain, app, [Apps(brain), $"apps.store/{brain}/*", $"apps.installed-modules/{brain}/*", $"apps.sideload/{brain}/*",
+        ShippedApps.Settings => Tuples(brain, app, [Apps(brain), $"apps.store/{brain}/*", $"apps.installed-modules/{brain}/*", $"apps.sideload/{brain}/*",
             $"integrations.accounts/{brain}/*", $"ai.models/{brain}/*", $"chat-index/{brain}/*", $"textfield/{brain}/settings/*"]),
         "data" => Tuples(brain, app, [$"files.vfs/{brain}/*"]),
         "markdraw" => Tuples(brain, app, [$"files.vfs/{brain}/*"]),
-        "photocraft" => Tuples(brain, app, [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*"]),
-        "filmcraft" => Tuples(brain, app, [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*"]),
+        ShippedApps.PhotoCraft => Tuples(brain, app, [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*"]),
+        ShippedApps.FilmCraft => Tuples(brain, app, [$"apps.artcraft-engine/{brain}/*", $"artcraft/{brain}/*", $"mcp.server/{brain}/*"]),
         _ => [],
     };
 

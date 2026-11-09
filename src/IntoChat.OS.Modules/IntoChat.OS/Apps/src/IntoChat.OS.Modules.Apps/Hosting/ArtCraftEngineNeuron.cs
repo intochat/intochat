@@ -118,12 +118,12 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
         var appId = caller.AppId ?? "";
         var defaultPhotoCraftKey = IApp.Key(brain, ShippedApps.PhotoCraft);
         var defaultFilmCraftKey = IApp.Key(brain, ShippedApps.FilmCraft);
-        var defaultInoKey = IApp.Key(brain, "ino");
+        var defaultInoKey = IApp.Key(brain, ShippedApps.Ino);
         var isShippedStudio = string.Equals(appId, ShippedApps.PhotoCraft, StringComparison.Ordinal)
             || string.Equals(appId, defaultPhotoCraftKey, StringComparison.Ordinal)
             || string.Equals(appId, ShippedApps.FilmCraft, StringComparison.Ordinal)
             || string.Equals(appId, defaultFilmCraftKey, StringComparison.Ordinal)
-            || string.Equals(appId, "ino", StringComparison.Ordinal)
+            || string.Equals(appId, ShippedApps.Ino, StringComparison.Ordinal)
             || string.Equals(appId, defaultInoKey, StringComparison.Ordinal);
         if (identity is null)
         {

@@ -20,6 +20,7 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        RequireOriginWriter(origin);
         await RequireBundleFor("Import", bundle);
         if (installation is not null)
         {
@@ -56,6 +57,7 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        RequireOriginWriter(origin);
         await Check("Replace",
             new AppExists(Name(), State.Manifest is not null),
             new BundleNameIsValid(bundle.Name, Name()),
@@ -90,6 +92,13 @@ internal sealed partial class AppNeuron
         Adopt(next, origin);
         // Settings, connections and the app's stored data stay; only the program is the bundle's.
         return await Land(next);
+    }
+
+    // An origin marks the copy unedited and from its publisher, which every ShippedApps.Is guard trusts: an app behind the proxy
+    // (itself included) never writes one; the kernel's host, the installer and a person do.
+    private static void RequireOriginWriter(AppOrigin? origin)
+    {
+        if (origin is not null) { CallerAdmission.RequireNotAppCaller("Only the kernel or a person records where an app came from."); }
     }
 
     private static void Adopt(AppState next, AppOrigin? origin)
@@ -232,7 +241,7 @@ internal sealed partial class AppNeuron
 
     // The settings app on a cloud host mounts auth's account neuron. Other apps and a local host leave the setting unset.
     internal static bool WritesAccountSurface(string appName, string? topology) =>
-        string.Equals(appName, "settings", StringComparison.OrdinalIgnoreCase)
+        string.Equals(appName, ShippedApps.Settings, StringComparison.OrdinalIgnoreCase)
         && string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     private Task ValidateInstallation(string operation, AppBundle bundle, AppOrigin? origin, AppInstallReceipt installation)

@@ -161,7 +161,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                         var enrichedPrompt = !string.IsNullOrWhiteSpace(app.Snapshot.Preview) && !string.Equals(app.Snapshot.Preview, FilesCopy.PreviewUnavailable, StringComparison.Ordinal) ? $"{prompt}\n\n[File Preview]\n{(app.Snapshot.Preview.Length <= 1200 ? app.Snapshot.Preview : app.Snapshot.Preview[..1200])}" : prompt;
                         var hadCaller = RuntimeCallerContext.TryGet(out var prevCaller);
                         if (await HostCaller.ForBrain(Context.Services, Id.Brain.Value) is { } hostCaller) { RuntimeCallerContext.Stamp(hostCaller); }
-                        try { await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(Context.Services, IApp.Key(Id.Brain.Value, "ino")).Request("send", enrichedPrompt); }
+                        try { await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(Context.Services, IApp.Key(Id.Brain.Value, ShippedApps.Ino)).Request("send", enrichedPrompt); }
                         finally { if (hadCaller && prevCaller is not null) { RuntimeCallerContext.Stamp(prevCaller); } else { Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.RequestContextKey); } }
 
                     }
