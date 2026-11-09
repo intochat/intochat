@@ -49,6 +49,7 @@ public sealed class GrantsNeuron : DigitalBrain.Neuron<GrantsState>, IGrantsNeur
             Version = nextVersion,
         };
         await Save(nextState, new GrantsChanged(nextVersion));
+        EdgeGrantsCache.Current.Invalidate(Id.Brain.Value);
     }
 
     public async Task Revoke(string grantId)
@@ -68,6 +69,7 @@ public sealed class GrantsNeuron : DigitalBrain.Neuron<GrantsState>, IGrantsNeur
             Version = nextVersion,
         };
         await Save(nextState, new GrantsChanged(nextVersion));
+        EdgeGrantsCache.Current.Invalidate(Id.Brain.Value);
     }
 
     public async Task<Grant[]> List()

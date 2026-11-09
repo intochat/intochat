@@ -289,13 +289,33 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     {
         if (caller is null || string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
         var targetBrain = ExtractBrain(targetOrConnectionKey);
-        if (IsConnectionBoundAsync(targetBrain, caller, targetOrConnectionKey).GetAwaiter().GetResult())
+        if (IsConnectionBoundInMemory(targetBrain, caller, targetOrConnectionKey)) { return true; }
+        return !string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain, StringComparison.OrdinalIgnoreCase)
+            && IsConnectionBoundInMemory(caller.BrainId, caller, targetOrConnectionKey);
+    }
+
+    private bool IsConnectionBoundInMemory(string brain, CapabilityCaller caller, string targetOrConnectionKey)
+    {
+        var callerAppKey = GrantRules.AppOf(caller);
+        if (string.IsNullOrEmpty(callerAppKey)) { return false; }
+        var clean = StripNeuronPrefix(targetOrConnectionKey);
+        var slash = clean.IndexOf('/', StringComparison.Ordinal);
+        var canonicalKey = slash >= 0 && ConnectionKeys.Is(clean[(slash + 1)..]) ? clean[(slash + 1)..] : clean;
+        var ownerBrain = ExtractBrain(canonicalKey);
+        if (string.Equals(ownerBrain, "local", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(brain) && !string.Equals(brain, "local", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            ownerBrain = brain;
         }
-        if (!string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain, StringComparison.OrdinalIgnoreCase))
+        if (!_cache.TryGetValue(ownerBrain, out var cached)) { return false; }
+        var principals = _expansions.TryGetValue(new ExpansionKey(ownerBrain, $"{caller.BrainId}:{caller.AppId}:{caller.PrincipalId}"), out var exp)
+            ? exp.Principals
+            : PrincipalSet.For(caller);
+        var targets = new List<string> { canonicalKey };
+        if (!string.Equals(canonicalKey, targetOrConnectionKey, StringComparison.Ordinal)) { targets.Add(targetOrConnectionKey); }
+        if (!canonicalKey.StartsWith(ownerBrain + "/", StringComparison.Ordinal)) { targets.Add($"{ownerBrain}/{canonicalKey}"); }
+        foreach (var target in targets)
         {
-            return IsConnectionBoundAsync(caller.BrainId, caller, targetOrConnectionKey).GetAwaiter().GetResult();
+            if (GrantRules.IsGranted("use-via:" + callerAppKey, target, cached.Grants, principals, caller)) { return true; }
         }
         return false;
     }

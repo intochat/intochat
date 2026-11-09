@@ -18,6 +18,8 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 internal sealed partial class DockerCandidateHost : ICandidateHost
 {
     public const int FirstPort = 5190;
+    public const string CandidateMemoryLimit = "2g";
+    public const string CandidateCpuLimit = "2";
     private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0";
     private const string PostgresImage = "postgres:18.3";
     private const string ClickHouseImage = "clickhouse/clickhouse-server:25.8";
@@ -172,12 +174,12 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             // Candidates boot from fresh stores; no partially copied live state or custody keys.
             var environment = Environment(sha, given.Model, postgresPassword, clickHousePassword);
             LastRunEnvironment = environment;
-            await Container("run", ct, environment, ["run", "-d", "--name", ContainerOf(sha), "--hostname", ContainerOf(sha), "--network", network,
+            await Container("run", ct, environment, ["run", "-d", "--name", ContainerOf(sha), "--hostname", ContainerOf(sha), "--network", network, "--memory", CandidateMemoryLimit, "--cpus", CandidateCpuLimit,
                 "-p", $"{port}:5080", "--add-host", "host.docker.internal:host-gateway",
                 .. environment.Keys.SelectMany(key => new[] { "-e", key }), ImageOf(sha)]);
             var mcp = McpEnvironment(sha);
             LastMcpEnvironment = mcp;
-            await Container("run", ct, mcp, ["run", "-d", "--name", McpOf(sha), "--network", network,
+            await Container("run", ct, mcp, ["run", "-d", "--name", McpOf(sha), "--network", network, "--memory", CandidateMemoryLimit, "--cpus", CandidateCpuLimit,
                 "-p", $"{port + 1}:5081", "--add-host", "host.docker.internal:host-gateway",
                 .. mcp.Keys.SelectMany(key => new[] { "-e", key }), McpImageOf(sha)]);
             return new(sha, new CandidateEndpoints($"http://localhost:{port + 1}", $"http://localhost:{port}"), ContainerOf(sha));

@@ -72,4 +72,11 @@ public sealed class EdgeGrantsCacheFacts
         var strangerBound = await cache.IsConnectionBoundAsync(brain, strangerCaller, connectionKey, ct);
         Assert.False(strangerBound);
     }
+
+    [Fact]
+    public void EdgeGrantsCacheExposesAsyncOnlyConnectionBindingChecks()
+    {
+        var src = File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../src/IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/Authority/Identity/Grants/EdgeGrantsCache.cs")));
+        Assert.DoesNotContain("GetAwaiter().GetResult()", src, StringComparison.Ordinal);
+    }
 }

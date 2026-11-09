@@ -64,4 +64,11 @@ public sealed class AspireFacts
         var errorTraces = await aspire.GetTracesAsync("OperatingSystem", errorsOnly: true);
         Assert.Single(errorTraces);
     }
+
+    [Fact]
+    public void DockerCandidateHostExposesContainerResourceLimits()
+    {
+        Assert.Equal("2g", DockerCandidateHost.CandidateMemoryLimit);
+        Assert.Equal("2", DockerCandidateHost.CandidateCpuLimit);
+    }
 }

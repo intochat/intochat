@@ -19,6 +19,7 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
+using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Fields;
 
 namespace IntoChat.OS.Apps.Creator;
@@ -231,6 +232,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         {
             var result = await Get<IInoStudio>("ino/studio").Make(goal);
             Set(State with { Status = result.Text, Draft = "" });
+            await RecordCreatorComputeAsync(Math.Max(2_500L, goal.Length * 50L));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -471,6 +473,18 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
     // The alias of a unit node: {brain}/{alias}/default, or a ghost draft:<alias>.
     public static string? UnitAlias(string id)
         => id.StartsWith("draft:", StringComparison.Ordinal) ? id["draft:".Length..] : BrainGraph.AliasOf(id);
+
+    private async Task RecordCreatorComputeAsync(long micros)
+    {
+        try
+        {
+            await Get<ICompute>("compute").Record("creator", micros);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Compute metering is optional when the compute neuron is not registered.");
+        }
+    }
 
     private static string Title(string goal) => goal.Length <= 52 ? goal : goal[..52];
 

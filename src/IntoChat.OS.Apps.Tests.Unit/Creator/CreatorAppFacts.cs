@@ -133,6 +133,7 @@ public sealed class CreatorAppFacts
         await creator.Request(make.Signal, new CreatorMake(EmitArgs.Of(make)[0]));
 
         Assert.Equal(["watch elonmusk on X"], FakeStudio.Goals);
+        Assert.Contains(FakeCompute.Records, r => r.Key == "creator" && r.Micros >= 2_500L);
         Assert.Equal("", creator.App.State.Draft);
     }
 
@@ -298,6 +299,7 @@ public sealed class CreatorAppFacts
         os.Register<FakeStudio>();
         os.Register<FakeReads>();
         os.Register<FakeTraces>();
+        os.Register<FakeCompute>();
     }
 
     private static TestOS FakeOs()
@@ -314,6 +316,7 @@ public sealed class CreatorAppFacts
         FakeReads.Recent = [];
         FakeReads.Asked = null;
         FakeTraces.Entries = [];
+        FakeCompute.Records.Clear();
         var os = TestOS.Local();
         Register(os);
         return os;
@@ -405,6 +408,18 @@ public sealed class CreatorAppFacts
         public static TraceEntry[] Entries { get; set; } = [];
 
         public Task<TracePage> ReadTrace(string traceId, long since, int limit) => Task.FromResult(new TracePage([.. Entries.Where(e => e.TraceId == traceId && e.Sequence > since)]));
+    }
+
+    [Neuron("ui.compute")]
+    private sealed class FakeCompute : Neuron, IntoChat.OS.Modules.Flutter.Compute.ICompute
+    {
+        public static List<(string Key, long Micros)> Records { get; } = [];
+        public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> Read() => Task.FromResult(new IntoChat.OS.Modules.Flutter.Compute.ComputeState(0, DateTimeOffset.UtcNow, []));
+        public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> Record(string key, long micros)
+        {
+            Records.Add((key, micros));
+            return Read();
+        }
     }
 }
 
