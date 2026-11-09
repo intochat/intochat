@@ -204,6 +204,8 @@ public sealed class VettedConnect(VettedConnect.Resolver resolve)
         {
             return !(bytes[0] is 0 or 10 or 127 || bytes[0] >= 224
                 || (bytes[0] == 169 && bytes[1] == 254)
+                || (bytes[0] == 100 && (bytes[1] & 0xC0) == 64)
+                || (bytes[0] == 198 && (bytes[1] & 0xFE) == 18)
                 || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
                 || (bytes[0] == 192 && bytes[1] == 168));
         }

@@ -27,11 +27,17 @@ public sealed class VettedConnectFacts
     [InlineData("ff02::1")]
     [InlineData("::ffff:127.0.0.1")]
     [InlineData("::ffff:10.0.0.1")]
+    [InlineData("100.64.0.1")]
+    [InlineData("100.127.255.254")]
+    [InlineData("198.18.0.1")]
+    [InlineData("198.19.255.1")]
     public void InwardAddressesAreNotPublic(string address) => Assert.False(VettedConnect.IsPublic(IPAddress.Parse(address)));
 
     [Theory]
     [InlineData("93.184.216.34")]
     [InlineData("172.32.0.1")]
+    [InlineData("100.128.0.1")]
+    [InlineData("198.20.0.1")]
     [InlineData("2606:4700::1111")]
     public void PublicAddressesAre(string address) => Assert.True(VettedConnect.IsPublic(IPAddress.Parse(address)));
 
