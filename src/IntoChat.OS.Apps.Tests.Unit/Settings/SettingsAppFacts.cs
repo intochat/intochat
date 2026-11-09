@@ -15,6 +15,45 @@ public sealed class FakeApprovalsNeuron : DigitalBrain.Neuron, IntoChat.OS.Modul
         => Task.FromResult<IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval>>(Items);
 }
 
+[DigitalBrain.Neuron("ino.synapses"), DigitalBrain.StatelessNeuron]
+public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neuron, ISynapseStudio
+{
+    public static Dictionary<string, Dictionary<string, string>> Store { get; } = new(StringComparer.Ordinal);
+
+    public Task<InoToolResult> Check(string source) => Task.FromResult(new InoToolResult(""));
+
+    public Task<InoToolResult> Deploy(string alias, string source)
+    {
+        Store[alias] = new Dictionary<string, string>(StringComparer.Ordinal) { [$"{alias}.cs"] = source };
+        return Task.FromResult(new InoToolResult(""));
+    }
+
+    public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings)
+    {
+        Store[alias] = new Dictionary<string, string>(files, StringComparer.Ordinal);
+        return Task.FromResult(new UnitDeployResult(true, "", DigitalBrain.DeployStatus.Deployed, "hash-1", new Dictionary<string, DigitalBrain.InstallOutcome>()));
+    }
+
+    public Task<InoToolResult> Retire(string alias)
+    {
+        Store.Remove(alias);
+        return Task.FromResult(new InoToolResult(""));
+    }
+
+    public Task<DigitalBrain.DeployedSource[]> List()
+        => Task.FromResult(Store.Keys.Select(alias => new DigitalBrain.DeployedSource(alias, "hash-1", [alias], DigitalBrain.DeployStatus.Deployed, null, DateTimeOffset.UnixEpoch)).ToArray());
+
+    public Task<Dictionary<string, string>> Sidecars(string alias)
+        => Task.FromResult(Store.TryGetValue(alias, out var files)
+            ? files.Where(kv => !kv.Key.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal));
+
+    public Task<Dictionary<string, string>> SourceFiles(string alias)
+        => Task.FromResult(Store.TryGetValue(alias, out var files)
+            ? files.Where(kv => kv.Key.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal));
+}
+
 public sealed class SettingsAppFacts
 {
     public static IEnumerable<TheoryDataRow<AppOperationCase>> Operations
@@ -177,6 +216,56 @@ public sealed class SettingsAppFacts
         Assert.Equal("Ada", settings.App.State.DisplayName);
         Assert.Equal("light", settings.App.State.Theme);
         Assert.Equal("gpt-5", settings.App.State.DefaultModel);
+    }
+
+    [Fact]
+    public async Task ExportAndImportBrainRoundTripsSeededUnitsVariablesAndFriendsAcrossReset()
+    {
+        InMemoryPortableSynapseStudio.Store.Clear();
+        try
+        {
+            await using var os = TestOS.Local()
+                .Register<UserSettingsNeuron>()
+                .Register<ProfileNeuron>()
+                .Register<InMemoryPortableSynapseStudio>();
+
+            var creator = await os.Install<IntoChat.OS.Apps.Creator.CreatorApp>();
+            var settings = await os.Install<SettingsApp>();
+            var friends = await os.Install<IntoChat.OS.Apps.Friends.FriendsApp>();
+
+            await creator.Request("seed", new IntoChat.OS.Apps.Creator.CreatorSeed("watch.web"));
+            Assert.Contains("watch.web", InMemoryPortableSynapseStudio.Store.Keys);
+
+            await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Linus", Theme: "dark", DefaultModel: "claude-opus-4-6"));
+            await settings.Request("set-variable", new SettingsSetVariable("ANTHROPIC_API_KEY", "vault://ANTHROPIC_API_KEY"));
+            await friends.Request("add-friend", new IntoChat.OS.Apps.Friends.FriendsAddFriend("alan-brain", "alan", "Alan Turing", "friends"));
+
+            await settings.Request("export-brain", new SettingsExportBrain());
+            var archiveJson = settings.App.State.ExportedArchiveJson;
+            Assert.False(string.IsNullOrWhiteSpace(archiveJson));
+            Assert.Contains("watch.web", archiveJson, StringComparison.Ordinal);
+            Assert.Contains("vault://ANTHROPIC_API_KEY", archiveJson, StringComparison.Ordinal);
+            Assert.Contains("Alan Turing", archiveJson, StringComparison.Ordinal);
+
+            // Simulate wiping deployed units and mutating settings before restoring the portable .brain archive.
+            InMemoryPortableSynapseStudio.Store.Clear();
+            await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Wiped", Theme: "light", DefaultModel: "qwen3.5:4b"));
+            Assert.Empty(InMemoryPortableSynapseStudio.Store);
+
+            await settings.Request("import-brain", new SettingsImportBrain(archiveJson));
+
+            Assert.Equal("Linus", settings.App.State.DisplayName);
+            Assert.Equal("dark", settings.App.State.Theme);
+            Assert.Equal("claude-opus-4-6", settings.App.State.DefaultModel);
+            Assert.Contains(settings.App.State.Variables!, v => v.Key == "ANTHROPIC_API_KEY" && v.Value == "vault://ANTHROPIC_API_KEY");
+            Assert.Contains(settings.App.State.TeamFriends!, f => f.Handle == "alan" && f.DisplayName == "Alan Turing");
+            Assert.Contains("watch.web", settings.App.State.DeployedUnits!);
+            Assert.Contains("WebWatch.cs", InMemoryPortableSynapseStudio.Store["watch.web"].Keys);
+        }
+        finally
+        {
+            InMemoryPortableSynapseStudio.Store.Clear();
+        }
     }
 
     [Fact]

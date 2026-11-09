@@ -47,15 +47,22 @@ public interface IApp
     // args JSON), so the signal must be a declared operation and every request rule applies.
     Task<Guid> Emit(string signal, string args);
 
-    static string Key(string brainId, string name) => DigitalBrain.Identity.CompoundGrainKey.Create(brainId, "apps", name).ToString();
+    static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
 
     // The app's name when an instance key is one of this brain's apps; brain.Kernel.Instances<IApp>() lists them.
     static string? NameOf(string brainId, string key)
     {
-        return DigitalBrain.Identity.CompoundGrainKey.TryParse(key, out var compound) &&
-               string.Equals(compound.Brain.Value, brainId, StringComparison.Ordinal) &&
-               string.Equals(compound.Type, "apps", StringComparison.Ordinal)
-            ? compound.Key
-            : null;
+        if (!DigitalBrain.Identity.CompoundGrainKey.TryParse(key, out var compound) ||
+            !string.Equals(compound.Brain.Value, brainId, StringComparison.Ordinal) ||
+            !string.Equals(compound.Type, "apps", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return compound.Key.Contains('/', StringComparison.Ordinal) ||
+               compound.Key.Contains('\\', StringComparison.Ordinal) ||
+               compound.Key.Contains("..", StringComparison.Ordinal)
+            ? null
+            : compound.Key;
     }
 }

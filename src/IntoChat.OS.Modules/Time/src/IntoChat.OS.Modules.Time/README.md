@@ -16,6 +16,8 @@ Options:
 | Option | Type | Default | Required |
 | --- | --- | --- | --- |
 | `MinimumReminderPeriod` | `TimeSpan?` | unset | no |
+| `MinimumTimerPeriod` | `TimeSpan?` | unset | no |
+| `PauseTimers` | `Boolean` | `False` | no |
 
 Secrets (names only; values are sealed per brain, never configuration):
 

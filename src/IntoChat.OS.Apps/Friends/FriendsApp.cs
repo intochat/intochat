@@ -42,6 +42,10 @@ public sealed record FriendsAddFriend(
 public sealed record FriendsRemoveFriend(
     string FriendBrainId = "ada") : DigitalBrain.Signal;
 
+[DigitalBrain.Signal("friends.fork_app")]
+public sealed record FriendsForkApp(
+    string PostId = "post-1") : DigitalBrain.Signal;
+
 [DigitalBrain.Signal("friends.fork-post")]
 public sealed record FriendsForkPost(
     string PostId = "post-1",
@@ -84,6 +88,7 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
                 new("add-friend", "Add a direct friend by personal brain ID and handle."),
                 new("remove-friend", "Remove a direct friend from your personal profile."),
                 new("fork-post", "Fork an interactive App-Post template (and its embedded app slots) into a new post."),
+                new("fork_app", "Fork and install an App-Post unit template into Creator and submit to IInstalls consent loop."),
                 new("filter-scope", "Filter the feed by scope (all, public, friends)."),
             ],
             Settings: [],
@@ -218,6 +223,57 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
     }
 
     [DigitalBrain.On]
+    public async Task ForkApp(FriendsForkApp request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var post = State.Posts.FirstOrDefault(p => string.Equals(p.Id, request.PostId, StringComparison.Ordinal));
+        if (post is null || post.UnitFiles is null || post.UnitFiles.Count == 0)
+        {
+            Set(State with { Status = $"Post {request.PostId} contains no installable unit files." });
+            return;
+        }
+
+        try
+        {
+            // 1. Deploy files into recipient's Synapse Studio
+            var studio = Get<ISynapseStudio>("ino/synapses");
+            await studio.DeployFiles(post.TemplateAppId, post.UnitFiles, new Dictionary<string, string>(StringComparer.Ordinal));
+
+            // 2. Submit install request to IInstalls
+            IInstalls installs;
+            try
+            {
+                installs = Get<IInstalls>("default");
+            }
+            catch
+            {
+                installs = Get<IInstalls>("synapse.installs");
+            }
+
+            var defaultBindings = new Dictionary<string, string>(StringComparer.Ordinal);
+            var outcome = await installs.Install(new DigitalBrain.InstallRequest(post.TemplateAppId, defaultBindings), CancellationToken.None);
+
+            if (outcome.Status == DigitalBrain.InstallStatus.Pending)
+            {
+                Set(State with { Status = $"Staged {post.TemplateAppId} for installation ({outcome.Reason}). Awaiting your consent in Inbox." });
+            }
+            else if (outcome.Status is DigitalBrain.InstallStatus.Installed or DigitalBrain.InstallStatus.Unchanged)
+            {
+                Set(State with { Status = $"Installed {post.TemplateAppId} successfully!" });
+            }
+            else
+            {
+                Set(State with { Status = $"Install ended with {outcome.Status}: {outcome.Reason}" });
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Installing a forked app requires the synapse studio and installs neurons.");
+            Set(State with { Status = $"Could not fork app {post.TemplateAppId}: {error.Message}" });
+        }
+    }
+
+    [DigitalBrain.On]
     public void FilterScope(FriendsFilterScope request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -238,7 +294,19 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
         {
             var studio = Get<ISynapseStudio>("ino/synapses");
             var csFiles = await studio.SourceFiles(alias);
-            if (csFiles.Count == 0) { return ("", null); }
+            if (csFiles.Count == 0)
+            {
+                var shipped = ShippedUnits.Files(alias);
+                if (shipped.Count > 0)
+                {
+                    var shippedSource = string.Join("\n\n", shipped
+                        .Where(kv => kv.Key.EndsWith(".cs", StringComparison.Ordinal))
+                        .OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                        .Select(kv => kv.Value));
+                    return (shippedSource, shipped);
+                }
+                return ("", null);
+            }
             var files = new Dictionary<string, string>(csFiles, StringComparer.Ordinal);
             foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
             var source = string.Join("\n\n", csFiles.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value));
@@ -431,7 +499,12 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
 
             postChildren.Add(new Row(
             [
-                new Button($"fork-app-template:{post.Id}", "Fork App Template", Emit: AppSignals.Emit("friends", "fork-post", post.Id), Tone: ButtonTone.Accent)
+                new Button($"fork-and-install:{post.Id}", "Fork & Install", Emit: AppSignals.Emit("friends", "fork_app", post.Id), Tone: ButtonTone.Accent)
+                {
+                    Icon = "download",
+                    Small = true,
+                },
+                new Button($"fork-app-template:{post.Id}", "Fork App Template", Emit: AppSignals.Emit("friends", "fork-post", post.Id), Tone: ButtonTone.Neutral)
                 {
                     Icon = "git-branch",
                     Small = true,

@@ -299,7 +299,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
     public async Task Seed(CreatorSeed request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (Blank(request.Alias) is not { } alias || !ShippedUnits.All.Contains(alias, StringComparer.Ordinal))
+        if (Blank(request.Alias) is not { } alias || !ShippedUnits.IsKnown(alias))
         {
             Set(State with { Status = $"Choose a shipped unit: {string.Join(", ", ShippedUnits.All)}" });
             return;
@@ -308,8 +308,18 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         try
         {
             var files = ShippedUnits.Files(alias);
-            await Get<ISynapseStudio>(SynapsesKey).DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
-            Set(State with { Status = $"Deployed shipped unit {alias} ({ShippedUnits.Title(alias)})" });
+            var studio = Get<ISynapseStudio>(SynapsesKey);
+            await studio.DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
+
+            var inner = JsonSerializer.Serialize(new BuildInner
+            {
+                Goal = $"seed shipped unit {alias}",
+                Alias = alias,
+                Existing = files
+            }, JsonSerializerOptions.Web);
+            await Get<IFlows>(FlowsKey).Start(BuildFlow.Alias, ShippedUnits.Title(alias), null, inner);
+
+            Set(State with { Status = $"Staged shipped unit {alias} ({ShippedUnits.Title(alias)})" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

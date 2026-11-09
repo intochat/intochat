@@ -62,6 +62,17 @@ public sealed class HttpReadConnectionFacts
     }
 
     [Fact]
+    public async Task HostBoundHttpMetersTotalRequestsAndTotalBytesReadAcrossRedirects()
+    {
+        var follows = new HostBoundHttp(new HttpClient(new Scripted(url => url.AbsolutePath == "/a" ? Redirect("https://cdn.x.com/b") : Ok("hello-meter"))));
+        var body = await follows.GetText(new Uri("https://api.x.com/a"), ["api.x.com", "*.x.com"], Ct);
+
+        Assert.Equal("hello-meter", body);
+        Assert.Equal(2, follows.TotalRequests);
+        Assert.Equal(11, follows.TotalBytesRead);
+    }
+
+    [Fact]
     public async Task ABodyOverOneMebibyteIsRefused()
     {
         var http = new HostBoundHttp(new HttpClient(new Scripted(_ => Ok(new string('a', HostBoundHttp.MaxBytes + 1)))));

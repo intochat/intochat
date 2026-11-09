@@ -1,0 +1,36 @@
+[
+  {
+    "name": "polling updates exchange rate and detects alert",
+    "given": {
+      "http": {
+        "rates": {
+          "latest?base=EUR": {
+            "rates": { "USD": 1.03 }
+          }
+        }
+      }
+    },
+    "when": ["tick 5m"],
+    "then": [
+      "state fx.rates.monitor EurUsd = 1.03",
+      "state fx.rates.monitor Alert = true",
+      "signal fx.polled"
+    ]
+  },
+  {
+    "name": "clearing alert resets alert flag",
+    "given": {
+      "http": {
+        "rates": {
+          "latest?base=EUR": {
+            "rates": { "USD": 1.03 }
+          }
+        }
+      }
+    },
+    "when": ["tick 5m", "publish fx.reset {}"],
+    "then": [
+      "state fx.rates.monitor Alert = false"
+    ]
+  }
+]

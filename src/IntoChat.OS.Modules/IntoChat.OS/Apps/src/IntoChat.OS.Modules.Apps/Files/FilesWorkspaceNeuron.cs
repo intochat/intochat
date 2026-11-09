@@ -54,16 +54,17 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
     public async Task Open(CancellationToken ct = default)
     {
         RequireAccess();
-        var hasHealthyState = State.Ready
-            && State.Files.Storages.Any(s => s.Error is null)
-            && State.Files.Items.Length > 0;
-        if (!hasHealthyState)
+        var app = App;
+        if (State.Ready && State.Files.Connection is { } currentConn)
         {
-            var app = App;
-            await app.Open(new(), ct);
-            var nextRevision = Math.Max(1, State.Files.Revision + 1);
-            await Persist(State with { Files = app.Snapshot with { Revision = nextRevision }, Ready = true });
+            await app.Browse(new(currentConn, State.Files.Folder), ct).ConfigureAwait(false);
         }
+        else
+        {
+            await app.Open(new(), ct).ConfigureAwait(false);
+        }
+        var nextRevision = Math.Max(1, State.Files.Revision + 1);
+        await Persist(State with { Files = app.Snapshot with { Revision = nextRevision }, Ready = true });
         await Recover(ct);
     }
 

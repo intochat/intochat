@@ -9,7 +9,26 @@ public static class ShippedUnits
 {
     private const string Prefix = "IntoChat.OS.Apps.Units.";
 
-    public static IReadOnlyList<string> All { get; } = ["circleroom", "watch.web", "brief.daily", "data.csv", "relay.webhook"];
+    public static IReadOnlyList<string> All { get; } =
+    [
+        "watch.x.elonmusk",
+        "triage.github.issues",
+        "digest.hn.top",
+        "organizer.work.notes",
+        "fx.rates.monitor",
+    ];
+
+    public static IReadOnlyList<string> Legacy { get; } =
+    [
+        "circleroom",
+        "watch.web",
+        "brief.daily",
+        "data.csv",
+        "relay.webhook",
+    ];
+
+    public static bool IsKnown(string alias)
+        => All.Contains(alias, StringComparer.Ordinal) || Legacy.Contains(alias, StringComparer.Ordinal);
 
     // A shipped unit's files keyed by path: its .cs source, spec.md and scenarios.json. Empty for an alias the OS does not ship.
     public static IReadOnlyDictionary<string, string> Files(string alias)

@@ -11,16 +11,16 @@ public sealed class ShippedUnitsFacts
 
     public static TheoryData<string, string, string, int> Catalog => new()
     {
-        { "circleroom", "CircleRoom.cs", "Circle room", 4 },
-        { "watch.web", "WebWatch.cs", "Web watch", 2 },
-        { "brief.daily", "DailyBrief.cs", "Daily brief", 3 },
-        { "data.csv", "CsvExplorer.cs", "CSV explorer", 2 },
-        { "relay.webhook", "WebhookRelay.cs", "Webhook relay", 2 },
+        { "watch.x.elonmusk", "XWatch.cs", "Musk X Watch", 2 },
+        { "triage.github.issues", "GithubIssueTriager.cs", "GitHub Issue Triager", 2 },
+        { "digest.hn.top", "HnDigest.cs", "Hacker News Scheduled Digest", 1 },
+        { "organizer.work.notes", "WorkNotesOrganizer.cs", "Workspace Markdown Organizer", 2 },
+        { "fx.rates.monitor", "FxRatesMonitor.cs", "Live Currency & Crypto Monitor", 2 },
     };
 
     [Fact]
     public void AllListsEveryShippedUnitAliasInOrder()
-        => Assert.Equal(["circleroom", "watch.web", "brief.daily", "data.csv", "relay.webhook"], ShippedUnits.All);
+        => Assert.Equal(["watch.x.elonmusk", "triage.github.issues", "digest.hn.top", "organizer.work.notes", "fx.rates.monitor"], ShippedUnits.All);
 
     [Theory]
     [MemberData(nameof(Catalog))]

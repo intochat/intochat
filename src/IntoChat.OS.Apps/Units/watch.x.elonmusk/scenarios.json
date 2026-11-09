@@ -1,0 +1,40 @@
+[
+  {
+    "name": "a poll counts new mentions and updates latest text",
+    "given": {
+      "http": {
+        "x": {
+          "https://api.x.com/2/users/elonmusk/mentions": {
+            "data": [
+              { "id": "1", "text": "Excited for Starship launch!" }
+            ]
+          }
+        }
+      }
+    },
+    "when": ["tick 6m"],
+    "then": [
+      "state watch.x.elonmusk Unseen = 1",
+      "state watch.x.elonmusk Latest = \"Excited for Starship launch!\"",
+      "signal x.polled"
+    ]
+  },
+  {
+    "name": "marking seen resets unseen count",
+    "given": {
+      "http": {
+        "x": {
+          "https://api.x.com/2/users/elonmusk/mentions": {
+            "data": [
+              { "id": "1", "text": "Post 1" }
+            ]
+          }
+        }
+      }
+    },
+    "when": ["tick 6m", "publish x.seen {}"],
+    "then": [
+      "state watch.x.elonmusk Unseen = 0"
+    ]
+  }
+]

@@ -56,13 +56,42 @@ public sealed class HttpConnectionState : ConnectionState
 
 // One http@1 connection, keyed {brain}/connection/http/{id}. Every request, and every redirect hop, is held to the allow-list.
 [DigitalBrain.Neuron(IHttpConnection.TypeName, State = "http")]
-internal sealed class HttpReadConnection(IHttpClientFactory? clients = null) : ConnectionNeuron<HttpConnectionState>, IHttpRead, IHttpConnection
+internal sealed class HttpReadConnection(
+    IHttpClientFactory? clients = null,
+    DigitalBrain.Capabilities.Compute.ICostMeter? meter = null) : ConnectionNeuron<HttpConnectionState>, IHttpRead, IHttpConnection
 {
     public Task<string[]> AllowedHosts() => Task.FromResult<string[]>([.. Snapshot.AllowedHosts]);
 
-    public Task<JsonElement> GetJson(string url, CancellationToken ct) => Http().GetJson(Url(url), Snapshot.AllowedHosts, ct);
+    public async Task<JsonElement> GetJson(string url, CancellationToken ct)
+    {
+        var http = Http();
+        var json = await http.GetJson(Url(url), Snapshot.AllowedHosts, ct);
+        await RecordMeterAsync(http.TotalBytesRead, ct);
+        return json;
+    }
 
-    public Task<string> GetText(string url, CancellationToken ct) => Http().GetText(Url(url), Snapshot.AllowedHosts, ct);
+    public async Task<string> GetText(string url, CancellationToken ct)
+    {
+        var http = Http();
+        var text = await http.GetText(Url(url), Snapshot.AllowedHosts, ct);
+        await RecordMeterAsync(http.TotalBytesRead, ct);
+        return text;
+    }
+
+    private async ValueTask RecordMeterAsync(long bytesRead, CancellationToken ct)
+    {
+        if (meter is not null)
+        {
+            await meter.RecordAsync(
+                DigitalBrain.Capabilities.Compute.CostKind.Http,
+                IHttpConnection.TypeName,
+                bytesRead,
+                "bytes",
+                DigitalBrain.Capabilities.Compute.Funding.Local,
+                Guid.NewGuid().ToString("N"),
+                ct).ConfigureAwait(false);
+        }
+    }
 
     // The connect value is the allow-list; it is kept in the state too, so reads and the build flow's matching need no credential.
     protected override async Task OnConnectedAsync()
@@ -93,6 +122,13 @@ public sealed class HostBoundHttp(HttpClient client)
     public const int MaxBytes = 1 << 20;
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
+    private long _totalRequests;
+    private long _totalBytesRead;
+
+    public long TotalRequests => Interlocked.Read(ref _totalRequests);
+
+    public long TotalBytesRead => Interlocked.Read(ref _totalBytesRead);
+
     internal static HttpClient Shared { get; } = new(Handler(VettedConnect.Dns)) { Timeout = Timeout };
 
     // No redirect followed by the client, no proxy (the vetted address is the one connected to), and every connection vetted.
@@ -120,6 +156,7 @@ public sealed class HostBoundHttp(HttpClient client)
         {
             RequireNamedIfLiteral(url, allowed);
             HttpHosts.Require(url, allowed);
+            Interlocked.Increment(ref _totalRequests);
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             if (IsRedirect(response.StatusCode) && response.Headers.Location is { } location)
@@ -145,7 +182,7 @@ public sealed class HostBoundHttp(HttpClient client)
     private static bool IsRedirect(HttpStatusCode status)
         => status is HttpStatusCode.MovedPermanently or HttpStatusCode.Found or HttpStatusCode.SeeOther or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;
 
-    private static async Task<string> Read(HttpResponseMessage response, CancellationToken ct)
+    private async Task<string> Read(HttpResponseMessage response, CancellationToken ct)
     {
         if (response.Content.Headers.ContentLength is > MaxBytes) { throw new HttpRequestException($"The response is larger than {MaxBytes} bytes."); }
         await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -154,6 +191,7 @@ public sealed class HostBoundHttp(HttpClient client)
         int read;
         while (total < buffer.Length && (read = await stream.ReadAsync(buffer.AsMemory(total), ct).ConfigureAwait(false)) > 0) { total += read; }
         if (total > MaxBytes) { throw new HttpRequestException($"The response is larger than {MaxBytes} bytes."); }
+        Interlocked.Add(ref _totalBytesRead, total);
         return Encoding.UTF8.GetString(buffer, 0, total);
     }
 }

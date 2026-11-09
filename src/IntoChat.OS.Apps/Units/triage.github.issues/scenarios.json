@@ -1,0 +1,37 @@
+[
+  {
+    "name": "polling identifies p0 crash issues",
+    "given": {
+      "http": {
+        "github": {
+          "https://api.github.com/repos/dotnet/orleans/issues?state=open": [
+            { "id": 101, "title": "Critical crash in silo startup" },
+            { "id": 102, "title": "Documentation typo" }
+          ]
+        }
+      }
+    },
+    "when": ["tick 10m"],
+    "then": [
+      "state triage.github.issues OpenCount = 2",
+      "state triage.github.issues P0Count = 1",
+      "signal issues.triaged"
+    ]
+  },
+  {
+    "name": "resetting triage clears p0 count",
+    "given": {
+      "http": {
+        "github": {
+          "https://api.github.com/repos/dotnet/orleans/issues?state=open": [
+            { "id": 101, "title": "Critical crash in silo startup" }
+          ]
+        }
+      }
+    },
+    "when": ["tick 10m", "publish triage.reset {}"],
+    "then": [
+      "state triage.github.issues P0Count = 0"
+    ]
+  }
+]

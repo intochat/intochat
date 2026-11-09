@@ -1,16 +1,18 @@
 using DigitalBrain;
 using IntoChat.OS.Modules.Time.Timers.Signals;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Time.Timers;
 
 // A plain neuron (06-03): the schedule is an activation timer of the runtime host, so it dies with the activation and a new
 // activation needs another Start. Each tick is a turn (Neuron.OnReminder) that publishes TimerTick.
 [Neuron("timer")]
-internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer
+internal sealed class TimerNeuron(IOptions<TimeModuleOptions>? options = null) : DigitalBrain.Neuron, ITimer
 {
     private const string Schedule = "schedule";
     internal const int MaxConsecutiveFailures = 3;
     internal static readonly TimeSpan MaximumDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
+    internal static readonly TimeSpan DefaultMinimumProductionPeriod = TimeSpan.FromSeconds(1);
     private bool _running;
     private bool _once;
     private int _failures;
@@ -19,8 +21,18 @@ internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer
     {
         if (dueTime < TimeSpan.Zero || dueTime > MaximumDelay)
         { throw new ArgumentOutOfRangeException(nameof(dueTime)); }
-        if (period is { } interval && (interval <= TimeSpan.Zero || interval > MaximumDelay))
-        { throw new ArgumentOutOfRangeException(nameof(period)); }
+        if (period is { } interval)
+        {
+            if (interval <= TimeSpan.Zero || interval > MaximumDelay)
+            { throw new ArgumentOutOfRangeException(nameof(period)); }
+
+            if (options?.Value.MinimumTimerPeriod is { } minPeriod && minPeriod > TimeSpan.Zero && interval < minPeriod)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(period),
+                    $"Timer period {interval} is below the configured minimum {minPeriod}.");
+            }
+        }
 
         // A named timer replaces the previous schedule; its ticks do not interleave with calls.
         // TODO(06-09, R4-14): keep-alive. Runtime host timers do not hold the activation (the Framework neuron used
@@ -43,6 +55,7 @@ internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer
     protected override async Task OnReminder(string name, CancellationToken cancellationToken)
     {
         if (name != Schedule || !_running || cancellationToken.IsCancellationRequested) { return; }
+        if (options?.Value.PauseTimers == true) { return; }
         if (_once) { await Stop(); }
         // The id is the os key "{brain}/{key}" callers address, as the grain neuron's was; feature scripts match ticks by it.
         try

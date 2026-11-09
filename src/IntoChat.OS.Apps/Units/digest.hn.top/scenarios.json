@@ -1,0 +1,24 @@
+[
+  {
+    "name": "hourly digest fetches top story title and score",
+    "given": {
+      "http": {
+        "hn": {
+          "topstories.json": [1001],
+          "item/1001.json": {
+            "id": 1001,
+            "title": "DigitalBrain: Personal Actor OS",
+            "score": 450,
+            "url": "https://intochat.org"
+          }
+        }
+      }
+    },
+    "when": ["tick 1h"],
+    "then": [
+      "state digest.hn.top TopTitle = \"DigitalBrain: Personal Actor OS\"",
+      "state digest.hn.top TopScore = 450",
+      "signal hn.digested"
+    ]
+  }
+]

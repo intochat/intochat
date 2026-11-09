@@ -1,0 +1,24 @@
+[
+  {
+    "name": "indexing notes updates count and latest title",
+    "when": [
+      "publish notes.index {\"notes\":\"roadmap.md,notes.md\",\"latest\":\"roadmap.md\"}"
+    ],
+    "then": [
+      "state organizer.work.notes NoteCount = 2",
+      "state organizer.work.notes LatestNote = \"roadmap.md\"",
+      "signal notes.indexed"
+    ]
+  },
+  {
+    "name": "resetting notes clears the index",
+    "when": [
+      "publish notes.index {\"notes\":\"roadmap.md\",\"latest\":\"roadmap.md\"}",
+      "publish notes.reset {}"
+    ],
+    "then": [
+      "state organizer.work.notes NoteCount = 0",
+      "state organizer.work.notes LatestNote = \"\""
+    ]
+  }
+]

@@ -46,5 +46,20 @@
     <EmbeddedResource Include="Units/WebhookRelay/WebhookRelay.cs" LogicalName="IntoChat.OS.Apps.Units.relay.webhook/WebhookRelay.cs" />
     <EmbeddedResource Include="Units/WebhookRelay/spec.md" LogicalName="IntoChat.OS.Apps.Units.relay.webhook/spec.md" />
     <EmbeddedResource Include="Units/WebhookRelay/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.relay.webhook/scenarios.json" />
+    <EmbeddedResource Include="Units/watch.x.elonmusk/XWatch.cs" LogicalName="IntoChat.OS.Apps.Units.watch.x.elonmusk/XWatch.cs" />
+    <EmbeddedResource Include="Units/watch.x.elonmusk/spec.md" LogicalName="IntoChat.OS.Apps.Units.watch.x.elonmusk/spec.md" />
+    <EmbeddedResource Include="Units/watch.x.elonmusk/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.watch.x.elonmusk/scenarios.json" />
+    <EmbeddedResource Include="Units/triage.github.issues/GithubIssueTriager.cs" LogicalName="IntoChat.OS.Apps.Units.triage.github.issues/GithubIssueTriager.cs" />
+    <EmbeddedResource Include="Units/triage.github.issues/spec.md" LogicalName="IntoChat.OS.Apps.Units.triage.github.issues/spec.md" />
+    <EmbeddedResource Include="Units/triage.github.issues/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.triage.github.issues/scenarios.json" />
+    <EmbeddedResource Include="Units/digest.hn.top/HnDigest.cs" LogicalName="IntoChat.OS.Apps.Units.digest.hn.top/HnDigest.cs" />
+    <EmbeddedResource Include="Units/digest.hn.top/spec.md" LogicalName="IntoChat.OS.Apps.Units.digest.hn.top/spec.md" />
+    <EmbeddedResource Include="Units/digest.hn.top/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.digest.hn.top/scenarios.json" />
+    <EmbeddedResource Include="Units/organizer.work.notes/WorkNotesOrganizer.cs" LogicalName="IntoChat.OS.Apps.Units.organizer.work.notes/WorkNotesOrganizer.cs" />
+    <EmbeddedResource Include="Units/organizer.work.notes/spec.md" LogicalName="IntoChat.OS.Apps.Units.organizer.work.notes/spec.md" />
+    <EmbeddedResource Include="Units/organizer.work.notes/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.organizer.work.notes/scenarios.json" />
+    <EmbeddedResource Include="Units/fx.rates.monitor/FxRatesMonitor.cs" LogicalName="IntoChat.OS.Apps.Units.fx.rates.monitor/FxRatesMonitor.cs" />
+    <EmbeddedResource Include="Units/fx.rates.monitor/spec.md" LogicalName="IntoChat.OS.Apps.Units.fx.rates.monitor/spec.md" />
+    <EmbeddedResource Include="Units/fx.rates.monitor/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.fx.rates.monitor/scenarios.json" />
   </ItemGroup>
 </Project>
