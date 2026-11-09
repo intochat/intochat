@@ -40,17 +40,20 @@ internal sealed class ShippedManifests(IReadOnlyDictionary<string, AppManifest> 
     public IReadOnlyList<(string App, string Description)> Studios()
         => [.. manifests.Where(entry => entry.Value.Studio).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Description))];
 
-    // The operation a routed prompt runs: the one the route names, else the studio's edit, else its first.
-    public string StudioOperation(string app, string routed)
+    // The studio a `routed:<app>.<rest>` hint hands its prompt to: the dot is required (a bare `routed:photocraft` is not a route), the app must
+    // be a studio, and it must declare an `edit` operation, which is what runs. Null otherwise.
+    public string? StudioFor(string routeHint)
     {
-        if (!manifests.TryGetValue(app, out var manifest)) { return routed; }
-        var operations = manifest.Operations.Select(operation => operation.Name).ToArray();
-        return operations.Contains(routed, StringComparer.Ordinal) ? routed
-            : operations.Contains("edit", StringComparer.Ordinal) ? "edit"
-            : operations.FirstOrDefault() ?? routed;
+        const string prefix = "routed:";
+        if (!routeHint.StartsWith(prefix, StringComparison.Ordinal)) { return null; }
+        var dot = routeHint.IndexOf('.', prefix.Length);
+        if (dot < 0) { return null; }
+        var app = routeHint[prefix.Length..dot];
+        return manifests.TryGetValue(app, out var manifest) && manifest.Studio
+            && manifest.Operations.Any(operation => operation.Name == StudioOperation) ? app : null;
     }
 
-    public bool IsStudio(string app) => manifests.TryGetValue(app, out var manifest) && manifest.Studio;
+    internal const string StudioOperation = "edit";
 
     public static double SideWidth(AppManifest manifest) => manifest.SideWidth ?? DefaultSideWidth;
 }

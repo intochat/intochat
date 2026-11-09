@@ -43,10 +43,12 @@ public sealed class ShippedPresentationFacts
         var manifests = await ShippedManifests.Of(catalog);
         Assert.Equal(["ino", "files", "data", "markdraw", "photocraft", "filmcraft", "creator", "gallery", "post", "settings"], manifests.DockApps());
         Assert.Equal(["data", "filmcraft", "markdraw", "photocraft"], manifests.Studios().Select(studio => studio.App));
-        Assert.True(manifests.IsStudio("photocraft"));
-        Assert.False(manifests.IsStudio("creator"));
-        // A routed prompt runs the operation the route names when the studio has it, else the studio's edit.
-        Assert.Equal("edit", manifests.StudioOperation("photocraft", "canvas"));
-        Assert.Equal("patch-elements", manifests.StudioOperation("markdraw", "patch-elements"));
+        // A routed prompt goes to a studio that declares edit, and only with the dot after the app.
+        Assert.Equal("photocraft", manifests.StudioFor("routed:photocraft.edit"));
+        Assert.Equal("filmcraft", manifests.StudioFor("routed:filmcraft."));
+        Assert.Null(manifests.StudioFor("routed:photocraft"));
+        Assert.Null(manifests.StudioFor("routed:data.query"));
+        Assert.Null(manifests.StudioFor("routed:markdraw."));
+        Assert.Null(manifests.StudioFor("routed:creator.new"));
     }
 }

@@ -160,6 +160,44 @@ public sealed partial class UnitsAllTheWayFacts
 
     private static IEnumerable<string> Literals(string text) => QuotedLiteral().Matches(text).Select(match => match.Groups[1].Value);
 
+    // The files that may reference a ShippedApps key constant: the declaration, the apps that alias it as their AppName, and the three hosts
+    // that must name a shipped app (the ArtCraft engine checks its studios' calls; the installed-modules grant names Settings).
+    private static readonly string[] KeyReferenceFiles =
+    [
+        "ShippedApps.cs", "SettingsApp.cs", "PhotoCraftApp.cs", "FilmCraftApp.cs", "CreatorApp.cs",
+        "ArtCraftEngineNeuron.cs", "ArtCraftEngineRunner.cs", "InstalledModulesNeuron.cs",
+    ];
+
+    [Fact]
+    public void OnlyTheListedFilesReferenceAShippedAppKeyConstant()
+    {
+        var referencing = NoProgramLanesFacts.ProductionSources()
+            .Where(path => ShippedAppKey().IsMatch(File.ReadAllText(path)))
+            .Select(path => Path.GetFileName(path))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(KeyReferenceFiles.Order(StringComparer.Ordinal), referencing);
+    }
+
+    [GeneratedRegex(@"\bShippedApps\s*\.\s*(Settings|PhotoCraft|FilmCraft|Creator)\b|const string (Settings|PhotoCraft|FilmCraft|Creator)\b", RegexOptions.CultureInvariant)]
+    private static partial Regex ShippedAppKey();
+
+    // The desktop's window verbs are blanked before the app-key scan, so they are pinned here: each must be an operation the desktop app
+    // declares, which is what makes "settings" there a verb and not the settings app.
+    [Fact]
+    public void TheDesktopWindowVerbsAreOperationsOfTheDesktopApp()
+    {
+        var host = NoProgramLanesFacts.ProductionSources().Single(path => Path.GetFileName(path) == "CompiledAppsHost.cs");
+        var set = DesktopVerbSet().Match(File.ReadAllText(host)).Value;
+        var verbs = QuotedLiteral().Matches(set).Select(match => match.Groups[1].Value).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(["close", "close-app", "favourite", "focus", "newtab", "pin", "settings", "tab", "unpin", "widget-close", "widget-open"], verbs);
+        var desktop = ProductionArchitecture.Types
+            .Select(type => type.GetProperty("Bundle", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+            .Where(property => property?.PropertyType == typeof(AppBundle))
+            .Select(property => (AppBundle)property!.GetValue(null)!)
+            .Single(bundle => bundle.Name == "desktop");
+        Assert.Empty(verbs.Except(desktop.Manifest.Operations.Select(operation => operation.Name)));
+    }
+
     [Fact]
     public void EveryNodeKindHasADartRenderer()
     {

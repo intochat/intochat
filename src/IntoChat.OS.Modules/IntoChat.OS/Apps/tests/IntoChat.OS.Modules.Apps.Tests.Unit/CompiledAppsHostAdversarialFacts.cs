@@ -6,6 +6,9 @@ namespace IntoChat.OS.Modules.Apps.Tests;
 
 public sealed class CompiledAppsHostAdversarialFacts
 {
+    private static async Task<ShippedManifests> ShellManifests()
+        => await ShippedManifests.Of(new FeatureCatalog([typeof(AppsModule).Assembly, typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly]));
+
     private static readonly CompiledAppsRegistration[] ShellRegistrations =
     [
         new(typeof(AppsModule).Assembly),
@@ -107,15 +110,15 @@ public sealed class CompiledAppsHostAdversarialFacts
     [InlineData("routed:photocraft.'; DROP TABLE apps; --", "photocraft")]
     [InlineData("routed:filmcraft/<script>alert(1)</script>", null)]
     [InlineData("routed:filmcraft.<script>alert(1)</script>", "filmcraft")]
-    public void InoTurnRouteHints_ComprehensiveBoundaryAndAdversarialInputs_ResolvesExpectedStudioApp(
+    // Studios that declare no edit operation (markdraw, data) are never forwarded, with or without a remainder.
+    [InlineData("routed:markdraw.", null)]
+    [InlineData("routed:markdraw.patch-elements", null)]
+    [InlineData("routed:data.query", null)]
+    public async Task InoTurnRouteHints_ComprehensiveBoundaryAndAdversarialInputs_ResolvesExpectedStudioApp(
         string routeHint,
         string? expectedStudioApp)
     {
-        string? studioApp = routeHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
-            ? "photocraft"
-            : routeHint.StartsWith("routed:filmcraft.", StringComparison.Ordinal)
-                ? "filmcraft"
-                : null;
+        var studioApp = (await ShellManifests()).StudioFor(routeHint);
 
         Assert.Equal(expectedStudioApp, studioApp);
     }
@@ -145,8 +148,9 @@ public sealed class CompiledAppsHostAdversarialFacts
     }
 
     [Fact]
-    public void EmpiricalStress_KeyNotFoundExceptionIsImpossible_Under500AdversarialRouteHints()
+    public async Task EmpiricalStress_KeyNotFoundExceptionIsImpossible_Under500AdversarialRouteHints()
     {
+        var manifests = await ShellManifests();
         var hostedByName = CompiledAppsHost.HostedBy(ShellRegistrations);
 
         string[] prefixes =
@@ -198,11 +202,7 @@ public sealed class CompiledAppsHostAdversarialFacts
                 testedCombinations++;
 
                 // Simulate the exact CompiledAppsHost turn routing branch
-                string? studioApp = routeHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
-                    ? "photocraft"
-                    : routeHint.StartsWith("routed:filmcraft.", StringComparison.Ordinal)
-                        ? "filmcraft"
-                        : null;
+                var studioApp = manifests.StudioFor(routeHint);
 
                 if (studioApp is not null)
                 {

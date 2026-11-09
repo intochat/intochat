@@ -787,22 +787,17 @@ internal sealed class CompiledAppsHost(
         }
     }
 
-    private async Task ForwardStudioPromptIfRoutedAsync(string brain, InoTurn latestTurn, CancellationToken ct)
+    internal async Task ForwardStudioPromptIfRoutedAsync(string brain, InoTurn latestTurn, CancellationToken ct)
     {
-        if (!latestTurn.RouteHint.StartsWith("routed:", StringComparison.Ordinal)) { return; }
-        var manifests = await ShippedManifests.Of(services);
-        var routed = latestTurn.RouteHint["routed:".Length..];
-        var dot = routed.IndexOf('.', StringComparison.Ordinal);
-        var studioApp = dot > 0 ? routed[..dot] : routed;
-        if (!manifests.IsStudio(studioApp)) { return; }
-        var operation = manifests.StudioOperation(studioApp, dot > 0 ? routed[(dot + 1)..] : "");
+        var studioApp = (await ShippedManifests.Of(services)).StudioFor(latestTurn.RouteHint);
+        if (studioApp is null) { return; }
         if (HostedByName.ContainsKey(studioApp))
         {
-            await HandleAppRequestedAsync(brain, studioApp, new AppRequested(operation, latestTurn.UserMessage, Guid.NewGuid()), ct);
+            await HandleAppRequestedAsync(brain, studioApp, new AppRequested(ShippedManifests.StudioOperation, latestTurn.UserMessage, Guid.NewGuid()), ct);
         }
         else
         {
-            await SiloNeurons.Get<IApp>(services, IApp.Key(brain, studioApp)).Request(operation, latestTurn.UserMessage);
+            await SiloNeurons.Get<IApp>(services, IApp.Key(brain, studioApp)).Request(ShippedManifests.StudioOperation, latestTurn.UserMessage);
         }
     }
 

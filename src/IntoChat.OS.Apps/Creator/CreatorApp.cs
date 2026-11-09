@@ -71,7 +71,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(CreatorApp));
 
-    public const string AppName = "creator";
+    public const string AppName = ShippedApps.Creator;
 
     public static AppBundle Bundle { get; } = new(
         "creator",

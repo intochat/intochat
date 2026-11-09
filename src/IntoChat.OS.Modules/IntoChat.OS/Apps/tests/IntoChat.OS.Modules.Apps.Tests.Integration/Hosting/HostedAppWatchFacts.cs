@@ -118,6 +118,22 @@ public sealed class HostedAppWatchFacts : IAsyncLifetime
         await AssertRotationAsync(brain, () => ((HostedWatchApp)turns.App).State.Heard);
     }
 
+    // The real forwarding method: a route that is not a studio's (no dot, no edit operation, not a studio) reaches no app; a studio's runs edit.
+    [Fact]
+    public async Task CompiledAppsHostForwardsOnlyStudioRoutesThatDeclareEdit()
+    {
+        const string brain = "forwardbrain";
+        using var _ = Stamp(brain);
+        var compiled = ActivatorUtilities.CreateInstance<CompiledAppsHost>(Services);
+        var ct = TestContext.Current.CancellationToken;
+        foreach (var hint in new[] { "routed:photocraft", "routed:data.query", "routed:markdraw.", "routed:creator.new", "agent:general.chat", "" })
+        {
+            await compiled.ForwardStudioPromptIfRoutedAsync(brain, new InoTurn("edit it", "ok", hint, 0), ct);
+        }
+        var photocraft = SiloNeurons.Get<IApp>(Services, IApp.Key(brain, "photocraft"));
+        Assert.Empty((await photocraft.Read()).Manifest.Title);
+    }
+
     private async Task AssertRotationAsync(string brain, Func<string[]> heard)
     {
         var a = SiloNeurons.Get<IInoData>(Services, $"{brain}/ino/data-a");
