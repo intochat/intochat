@@ -2,7 +2,7 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable
 
 Declarative macOS System Settings-style application for IntoChat OS.
 Owns the 13 settings sections, master-detail subpages (AppPage, MemoryPage, ConnectionPage, PersonPage, LocalServerPage),
@@ -59,6 +59,9 @@ public sealed record SettingsExportBrain : DigitalBrain.Signal;
 [DigitalBrain.Signal("settings.import-brain")]
 public sealed record SettingsImportBrain(string? ArchiveJson = null) : DigitalBrain.Signal;
 
+[DigitalBrain.Signal("settings.set-variable")]
+public sealed record SettingsSetVariable(string? Key = null, string? Value = null) : DigitalBrain.Signal;
+
 public sealed record SettingsSearchEntry(
     string SectionId,
     string Title,
@@ -88,7 +91,10 @@ public sealed record SettingsAppState(
     string DateFormat = "17 Oct 2026",
     IReadOnlyList<string>? ConnectionKeys = null,
     IReadOnlyList<string>? FriendGrants = null,
-    string? ExportedArchiveJson = null)
+    string? ExportedArchiveJson = null,
+    IReadOnlyList<UserVariableEntry>? Variables = null,
+    IReadOnlyList<string>? DeployedUnits = null,
+    IReadOnlyList<ProfileFriend>? TeamFriends = null)
 {
     public static IReadOnlyList<string> DefaultConnectionKeys { get; } = [];
 
@@ -115,7 +121,10 @@ public sealed record SettingsAppState(
         "17 Oct 2026",
         [],
         [],
-        null)
+        null,
+        [],
+        [],
+        [])
     {
     }
 }
@@ -167,6 +176,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 new("go-back", "Return to the previous settings page."),
                 new("export-brain", "Export a portable JSON archive of this brain's settings, profile, and deployed Synapse units."),
                 new("import-brain", "Restore a portable JSON archive into this brain's settings, profile, and deployed Synapse units."),
+                new("set-variable", "Save or update a brain configuration variable in UserSettingsNeuron."),
             ],
             Settings: [],
             Slots: [],
@@ -206,38 +216,22 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     public async Task Open(SettingsOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await TryRefreshComputeSummaryAsync();
-        var user = await Get<IUserSettings>("settings").Read();
-        Update(new SettingsAppState(
-            "Settings",
-            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
-            user.DisplayName,
-            user.Theme,
-            user.DefaultModel,
-            Section: State.Section,
-            SubPage: State.SubPage,
-            Sheet: State.Sheet,
-            History: State.History ?? [],
-            SearchQuery: State.SearchQuery,
-            OverrideBody: null,
-            StylePreset: user.StylePreset,
-            BarLayout: user.BarLayout,
-            ThemeMode: user.ThemeMode,
-            DesktopTone: user.DesktopTone,
-            Language: user.Language,
-            TimeZone: user.TimeZone,
-            DateFormat: user.DateFormat,
-            ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
-            ExportedArchiveJson: State.ExportedArchiveJson));
+        await RefreshFromNeuronsAsync();
     }
 
     [DigitalBrain.On]
     public async Task Read(SettingsRead request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await RefreshFromNeuronsAsync();
+    }
+
+    private async Task RefreshFromNeuronsAsync()
+    {
         await TryRefreshComputeSummaryAsync();
         var user = await Get<IUserSettings>("settings").Read();
+        var deployedUnits = await TryReadDeployedUnitsAsync();
+        var teamFriends = await TryReadTeamFriendsAsync();
         Update(new SettingsAppState(
             "Settings",
             $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
@@ -259,7 +253,42 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             DateFormat: user.DateFormat,
             ConnectionKeys: State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
             FriendGrants: State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
-            ExportedArchiveJson: State.ExportedArchiveJson));
+            ExportedArchiveJson: State.ExportedArchiveJson,
+            Variables: user.Variables ?? [],
+            DeployedUnits: deployedUnits,
+            TeamFriends: teamFriends));
+    }
+
+    private async Task<IReadOnlyList<string>> TryReadDeployedUnitsAsync()
+    {
+        try
+        {
+            var deployed = await Get<ISynapseStudio>("ino/synapses").List();
+            return deployed
+                .Select(d => d.SourceKey)
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .OrderBy(k => k, StringComparer.Ordinal)
+                .ToArray();
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "SynapseStudio is optional when SettingsApp runs in standalone tests.");
+            return State.DeployedUnits ?? [];
+        }
+    }
+
+    private async Task<IReadOnlyList<ProfileFriend>> TryReadTeamFriendsAsync()
+    {
+        try
+        {
+            var profile = await Get<IProfile>("profile").Read();
+            return profile.Friends ?? [];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "ProfileNeuron is optional when SettingsApp runs in standalone tests.");
+            return State.TeamFriends ?? [];
+        }
     }
 
     [DigitalBrain.On]
@@ -435,36 +464,37 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             updated.DateFormat,
             State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
             State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
-            State.ExportedArchiveJson));
+            State.ExportedArchiveJson,
+            updated.Variables ?? [],
+            State.DeployedUnits ?? [],
+            State.TeamFriends ?? []));
+    }
+
+    [DigitalBrain.On]
+    public async Task SetVariable(SettingsSetVariable request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.Key))
+        {
+            Update(State with { Status = "Variable key cannot be empty.", OverrideBody = null });
+            return;
+        }
+
+        var updated = await Get<IUserSettings>("settings").SetVariable(request.Key.Trim(), request.Value ?? "");
+        Update(State with
+        {
+            Section = "variables",
+            Status = $"Saved variable {request.Key.Trim()}.",
+            Variables = updated.Variables ?? [],
+            OverrideBody = null,
+        });
     }
 
     [DigitalBrain.On]
     public async Task ReloadPreferences(SettingsReloadPreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var user = await Get<IUserSettings>("settings").Read();
-        Update(new SettingsAppState(
-            "Settings",
-            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
-            user.DisplayName,
-            user.Theme,
-            user.DefaultModel,
-            State.Section,
-            State.SubPage,
-            State.Sheet,
-            State.History ?? [],
-            State.SearchQuery,
-            null,
-            user.StylePreset,
-            user.BarLayout,
-            user.ThemeMode,
-            user.DesktopTone,
-            user.Language,
-            user.TimeZone,
-            user.DateFormat,
-            State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys,
-            State.FriendGrants ?? SettingsAppState.DefaultFriendGrants,
-            State.ExportedArchiveJson));
+        await RefreshFromNeuronsAsync();
     }
 
     [DigitalBrain.On]
@@ -520,6 +550,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             Get<IProfile>("profile"),
             Get<ISynapseStudio>("ino/synapses"));
         var user = await settings.Read();
+        var deployedUnits = await TryReadDeployedUnitsAsync();
+        var teamFriends = await TryReadTeamFriendsAsync();
         Update(State with
         {
             DisplayName = user.DisplayName,
@@ -535,6 +567,9 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             Section = "danger",
             Status = $"Restored portable brain archive from {snapshot.BrainId} ({snapshot.Units.Count} unit(s)).",
             ExportedArchiveJson = archiveJson,
+            Variables = user.Variables ?? [],
+            DeployedUnits = deployedUnits,
+            TeamFriends = teamFriends,
             OverrideBody = null,
         });
     }
@@ -791,17 +826,37 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 Title: $"Apps / {subPage}");
         }
 
-        return new Surface(
+        var unitButtons = (State.DeployedUnits ?? [])
+            .Select(alias => (Node)new Button(
+                $"inspect-unit-{alias}",
+                $"Unit · {alias}",
+                Emit: AppSignals.Emit("settings", "navigate", "apps", alias),
+                Tone: ButtonTone.Neutral)
+            {
+                Small = true,
+                Icon = "cpu",
+            })
+            .ToArray();
+
+        var children = new List<Node>
+        {
+            new Heading("Installed Smart Apps & Deployed Units", Level: 3, Subtitle: "Manage installed apps, deployed Synapse units, and inspect permissions."),
+            new Row(
             [
-                new Heading("Installed Smart Apps", Level: 3, Subtitle: "Manage installed apps and inspect permissions."),
-                new Row(
-                [
-                    new Button("inspect-ino-app", "Inspect Ino App", Emit: AppSignals.Emit("settings", "navigate", "apps", "ino"), Tone: ButtonTone.Accent) { Small = true, Icon = "sparkles" },
-                    new Button("inspect-creator-app", "Inspect Creator App", Emit: AppSignals.Emit("settings", "navigate", "apps", "creator")) { Small = true, Icon = "wand-sparkles" },
-                    new Button("ino-memorypage", "Ino MemoryPage", Emit: AppSignals.Emit("settings", "navigate", "apps", "memory")) { Small = true, Icon = "brain" },
-                    new Button("install-from-link", "Install from Link", Emit: AppSignals.Emit("settings", "navigate", "apps", "", "install-link")) { Small = true, Icon = "package-plus" },
-                ]) { Gap = 8 },
-            ],
+                new Button("inspect-ino-app", "Inspect Ino App", Emit: AppSignals.Emit("settings", "navigate", "apps", "ino"), Tone: ButtonTone.Accent) { Small = true, Icon = "sparkles" },
+                new Button("inspect-creator-app", "Inspect Creator App", Emit: AppSignals.Emit("settings", "navigate", "apps", "creator")) { Small = true, Icon = "wand-sparkles" },
+                new Button("ino-memorypage", "Ino MemoryPage", Emit: AppSignals.Emit("settings", "navigate", "apps", "memory")) { Small = true, Icon = "brain" },
+                new Button("install-from-link", "Install from Link", Emit: AppSignals.Emit("settings", "navigate", "apps", "", "install-link")) { Small = true, Icon = "package-plus" },
+            ]) { Gap = 8 },
+        };
+
+        if (unitButtons.Length > 0)
+        {
+            children.Add(new Row(unitButtons) { Gap = 8 });
+        }
+
+        return new Surface(
+            [.. children],
             Kind: SurfaceKind.Elevated,
             Title: "Apps");
     }
@@ -921,21 +976,28 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         Kind: SurfaceKind.Elevated,
         Title: "API keys");
 
-    private Node RenderVariablesSection() => new Surface(
+    private Node RenderVariablesSection()
+    {
+        IReadOnlyList<string>[] rows =
         [
-            new Heading("Environment Variables & Scoped Secrets", Level: 3, Subtitle: "Key-value configuration scoped across local, brain, and system."),
-            new DataTable(
-                "Variables & Secrets",
-                ["Key", "Value", "Scope"],
-                [
-                    ["DEFAULT_MODEL", State.DefaultModel, "brain"],
-                    ["STYLE_PRESET", State.StylePreset, "local"],
-                    ["TIME_ZONE", State.TimeZone, "local"],
-                ],
-                SourceNeuronUri: "neuron://local/os.settings/settings"),
-        ],
-        Kind: SurfaceKind.Elevated,
-        Title: "Variables and secrets");
+            ["DEFAULT_MODEL", State.DefaultModel, "brain"],
+            ["STYLE_PRESET", State.StylePreset, "local"],
+            ["TIME_ZONE", State.TimeZone, "local"],
+            .. (State.Variables ?? []).Select(static variable => (IReadOnlyList<string>)[variable.Key, variable.Value, "brain"]),
+        ];
+
+        return new Surface(
+            [
+                new Heading("Environment Variables & Scoped Secrets", Level: 3, Subtitle: "Key-value configuration scoped across local, brain, and system."),
+                new DataTable(
+                    "Variables & Secrets",
+                    ["Key", "Value", "Scope"],
+                    rows,
+                    SourceNeuronUri: "neuron://local/os.settings/settings"),
+            ],
+            Kind: SurfaceKind.Elevated,
+            Title: "Variables and secrets");
+    }
 
     private Node RenderBillingSection() => new Surface(
         [
@@ -991,15 +1053,23 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 Title: $"Team / {subPage}");
         }
 
+        IReadOnlyList<string>[] memberRows =
+        [
+            [State.DisplayName, "Owner", "Active"],
+            .. (State.TeamFriends ?? []).Select(static friend =>
+            {
+                var label = string.IsNullOrWhiteSpace(friend.DisplayName) ? $"@{friend.Handle}" : $"{friend.DisplayName} (@{friend.Handle})";
+                return (IReadOnlyList<string>)[label, friend.Scope, "Verified"];
+            }),
+        ];
+
         return new Surface(
             [
                 new Heading("Team Roster & LFP Permissions", Level: 3, Subtitle: "Manage circle members, roles (Owner, Member, Guest), and capability grants."),
                 new DataTable(
                     "Brain Members",
                     ["Member", "Role", "2FA"],
-                    [
-                        [State.DisplayName, "Owner", "Active"],
-                    ],
+                    memberRows,
                     SourceNeuronUri: "neuron://local/identity/directory"),
                 new Row(
                 [

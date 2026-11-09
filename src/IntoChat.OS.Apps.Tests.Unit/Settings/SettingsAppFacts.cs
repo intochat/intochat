@@ -169,4 +169,36 @@ public sealed class SettingsAppFacts
         Assert.Equal("light", settings.App.State.Theme);
         Assert.Equal("gpt-5", settings.App.State.DefaultModel);
     }
+
+    [Fact]
+    public async Task SettingsProjectsVariablesDeployedUnitsAndTeamFriendsFromLiveNeurons()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await os.Install<SettingsApp>();
+        var friends = await os.Install<IntoChat.OS.Apps.Friends.FriendsApp>();
+
+        await settings.Request("set-variable", new SettingsSetVariable("OLLAMA_HOST", "http://127.0.0.1:11434"));
+        Assert.Equal("variables", settings.App.State.Section);
+        Assert.Contains(settings.App.State.Variables!, v => v.Key == "OLLAMA_HOST" && v.Value == "http://127.0.0.1:11434");
+
+        var varJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.Contains("OLLAMA_HOST", varJson, StringComparison.Ordinal);
+
+        await friends.Request("add-friend", new IntoChat.OS.Apps.Friends.FriendsAddFriend("grace-brain", "grace", "Grace Hopper", "friends"));
+
+        var archive = new PortableBrainSnapshot(
+            BrainId: "local",
+            ExportedAt: DateTimeOffset.UtcNow,
+            Settings: new UserSettingsState("Ada", "light", "gpt-5", [new UserVariableEntry("OLLAMA_HOST", "http://127.0.0.1:11434")]),
+            Profile: new ProfileState("ada", "Bio", [], [], "Ada Lovelace", "", [new ProfileFriend("grace-brain", "grace", "Grace Hopper", "friends")]),
+            Units: new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal));
+        await settings.Request("import-brain", new SettingsImportBrain(PortableBrainArchive.ToJson(archive)));
+
+        await settings.Request("open", new SettingsOpen());
+        Assert.Contains(settings.App.State.TeamFriends!, f => f.Handle == "grace");
+
+        settings.App.Navigate(new SettingsNavigate("team"));
+        var teamJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.Contains("Grace Hopper (@grace)", teamJson, StringComparison.Ordinal);
+    }
 }
