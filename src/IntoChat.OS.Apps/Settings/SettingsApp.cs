@@ -907,22 +907,29 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             Title: "Connections");
     }
 
-    private Node RenderFilesSection() => new Surface(
+    private Node RenderFilesSection()
+    {
+        var keys = State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys;
+        RecordFieldNode[] mounts =
         [
-            new Heading("Files & Hybrid Storage Locations", Level: 3, Subtitle: "Manage IntoChat cloud storage, Google Drive mounts, and local disk roots."),
-            new RecordCardNode(
-                "Mounted File Roots",
-                "neuron://local/disk.files",
-                [
-                    new RecordFieldNode("IntoChat Storage", "neuron://local/local-cloud/main"),
-                    new RecordFieldNode("Google Drive Root", "neuron://local/connection/google-drive/work"),
-                    new RecordFieldNode("Local Computer Root", "neuron://local/disk.files"),
-                ],
-                Subtitle: "Storage Providers"),
-            new Button("resolve-file-conflict-sheet", "Resolve File Conflict Sheet", Emit: AppSignals.Emit("settings", "navigate", "files", "", "conflict")) { Small = true, Icon = "git-compare" },
-        ],
-        Kind: SurfaceKind.Elevated,
-        Title: "Files");
+            new RecordFieldNode("IntoChat Storage", "neuron://local/local-cloud/main"),
+            new RecordFieldNode("Local Computer Root", "neuron://local/disk.files"),
+            .. keys.Select(static (k, idx) => new RecordFieldNode($"Connected Mount {idx + 1}", k)),
+        ];
+
+        return new Surface(
+            [
+                new Heading("Files & Hybrid Storage Locations", Level: 3, Subtitle: "Manage IntoChat cloud storage, connected mounts, and local disk roots."),
+                new RecordCardNode(
+                    "Mounted File Roots",
+                    "neuron://local/disk.files",
+                    mounts,
+                    Subtitle: "Storage Providers"),
+                new Button("resolve-file-conflict-sheet", "Resolve File Conflict Sheet", Emit: AppSignals.Emit("settings", "navigate", "files", "", "conflict")) { Small = true, Icon = "git-compare" },
+            ],
+            Kind: SurfaceKind.Elevated,
+            Title: "Files");
+    }
 
     private Node RenderModelsSection(string? subPage)
     {
@@ -965,16 +972,33 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             Title: "AI models");
     }
 
-    private Node RenderKeysSection() => new Surface(
-        [
-            new Heading("API Keys & Zero-Leakage Vault", Level: 3, Subtitle: "Keys are sealed in your brain's Key Vault and never shown again after saving."),
-            new SecretCardNode("Anthropic", "Used for Claude Sonnet & Opus models", SavedIn: "Secure Vault · ANTHROPIC_API_KEY", Status: "saved"),
-            new SecretCardNode("OpenAI", "Used for GPT-5 & reasoning models", SavedIn: "Secure Vault · OPENAI_API_KEY", Status: "saved"),
-            new SecretCardNode("Google Gemini", "Used for Gemini 2.5 Pro & Flash", SavedIn: "Secure Vault · GOOGLE_API_KEY", Status: "pending"),
-            new Button("open-secure-vault-window", "Open Secure Vault Window", Intent: AppSignals.Open("os://window/secure"), Tone: ButtonTone.Accent) { Small = true, Icon = "key-round" },
-        ],
-        Kind: SurfaceKind.Elevated,
-        Title: "API keys");
+    private Node RenderKeysSection()
+    {
+        var anthropicStatus = HasVaultEntry("ANTHROPIC_API_KEY", "anthropic") ? "saved" : "pending";
+        var openAiStatus = HasVaultEntry("OPENAI_API_KEY", "openai") ? "saved" : "pending";
+        var googleStatus = HasVaultEntry("GOOGLE_API_KEY", "google") ? "saved" : "pending";
+
+        return new Surface(
+            [
+                new Heading("API Keys & Zero-Leakage Vault", Level: 3, Subtitle: "Keys are sealed in your brain's Key Vault and never shown again after saving."),
+                new SecretCardNode("Anthropic", "Used for Claude Sonnet & Opus models", SavedIn: "Secure Vault · ANTHROPIC_API_KEY", Status: anthropicStatus),
+                new SecretCardNode("OpenAI", "Used for GPT-5 & reasoning models", SavedIn: "Secure Vault · OPENAI_API_KEY", Status: openAiStatus),
+                new SecretCardNode("Google Gemini", "Used for Gemini 2.5 Pro & Flash", SavedIn: "Secure Vault · GOOGLE_API_KEY", Status: googleStatus),
+                new Row(
+                [
+                    new Button("seal-anthropic-key", "Seal Anthropic Key", Emit: AppSignals.Emit("settings", "set-variable", "ANTHROPIC_API_KEY", "vault://ANTHROPIC_API_KEY")) { Small = true, Icon = "key-round" },
+                    new Button("seal-openai-key", "Seal OpenAI Key", Emit: AppSignals.Emit("settings", "set-variable", "OPENAI_API_KEY", "vault://OPENAI_API_KEY")) { Small = true, Icon = "key-round" },
+                    new Button("seal-google-key", "Seal Google Key", Emit: AppSignals.Emit("settings", "set-variable", "GOOGLE_API_KEY", "vault://GOOGLE_API_KEY")) { Small = true, Icon = "key-round" },
+                    new Button("open-secure-vault-window", "Open Secure Vault Window", Intent: AppSignals.Open("os://window/secure"), Tone: ButtonTone.Accent) { Small = true, Icon = "key-round" },
+                ]) { Gap = 8 },
+            ],
+            Kind: SurfaceKind.Elevated,
+            Title: "API keys");
+    }
+
+    private bool HasVaultEntry(string variableKey, string connectionKey)
+        => (State.Variables ?? []).Any(v => string.Equals(v.Key, variableKey, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(v.Value))
+           || (State.ConnectionKeys ?? []).Any(k => string.Equals(k, connectionKey, StringComparison.OrdinalIgnoreCase));
 
     private Node RenderVariablesSection()
     {

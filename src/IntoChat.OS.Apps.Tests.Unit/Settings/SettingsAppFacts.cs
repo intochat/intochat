@@ -200,5 +200,62 @@ public sealed class SettingsAppFacts
         settings.App.Navigate(new SettingsNavigate("team"));
         var teamJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
         Assert.Contains("Grace Hopper (@grace)", teamJson, StringComparison.Ordinal);
+
+        settings.App.Navigate(new SettingsNavigate("keys"));
+        var initialKeysJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.DoesNotContain("\"Status\":\"saved\"", initialKeysJson, StringComparison.Ordinal);
+
+        await settings.Request("set-variable", new SettingsSetVariable("OPENAI_API_KEY", "vault://OPENAI_API_KEY"));
+        settings.App.Navigate(new SettingsNavigate("keys"));
+        var updatedKeysJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.Contains("\"Status\":\"saved\"", updatedKeysJson, StringComparison.Ordinal);
+
+        settings.App.Navigate(new SettingsNavigate("files"));
+        var initialFilesJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.DoesNotContain("google-drive", initialFilesJson, StringComparison.Ordinal);
+
+        settings.App.RefreshConnections(new SettingsRefreshConnections("google-drive"));
+        settings.App.Navigate(new SettingsNavigate("files"));
+        var updatedFilesJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.Contains("Connected Mount 1", updatedFilesJson, StringComparison.Ordinal);
+        Assert.Contains("google-drive", updatedFilesJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShippedAppsInitialViewsContainZeroFakeDemoData()
+    {
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions
+        {
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+
+        View[] initialViews =
+        [
+            new IntoChat.OS.Apps.Ino.InoApp().Render(),
+            new IntoChat.OS.Apps.Ino.InoApp().RenderSide(),
+            new IntoChat.OS.Apps.Desktop.DesktopApp().Render(),
+            new SettingsApp().Render(),
+            new SettingsApp().RenderSide(),
+            new IntoChat.OS.Apps.Usage.UsageApp().Render(),
+            new IntoChat.OS.Apps.Friends.FriendsApp().Render(),
+            new IntoChat.OS.Apps.Friends.FriendsApp().RenderSide(),
+            new IntoChat.OS.Apps.Data.DataStudioApp().Render(),
+            new IntoChat.OS.Apps.Data.DataStudioApp().RenderSide(),
+            new IntoChat.OS.Apps.Markdraw.MarkdrawApp().Render(),
+            new IntoChat.OS.Apps.Markdraw.MarkdrawApp().RenderSide(),
+            new IntoChat.OS.Apps.Tasks.TasksApp().Render(),
+            new IntoChat.OS.Apps.Creator.CreatorApp().Render(),
+        ];
+
+        string[] forbiddenDemoTokens = ["Nordlys", "Havbris", "Kari Holm", "$420,000", "42.80", "1,250,000"];
+
+        foreach (var view in initialViews)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(view, jsonOptions);
+            foreach (var token in forbiddenDemoTokens)
+            {
+                Assert.DoesNotContain(token, json, StringComparison.OrdinalIgnoreCase);
+            }
+        }
     }
 }
