@@ -429,8 +429,90 @@ void main() {
     expect(events.single, {
       'kind': 'confirmation',
       'name': 'local/confirmations',
-      'action': 'Resolve:plan-1:true',
+      'planId': 'plan-1',
+      'approve': true,
     });
+  });
+
+  // A unit view's neuronRef to the confirmation inbox is not hosted: only a viewport or the web browser is, and a host reached
+  // through a ref never answers a confirmation, so the card stays display-only and nothing is sent.
+  testWidgets('an embedded confirmation ref renders display-only', (
+    tester,
+  ) async {
+    final events = <Map<String, dynamic>>[];
+    final loaded = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.light('intochat'),
+        home: Scaffold(
+          body: ViewHost(
+            knowsApp: (_) => false,
+            kind: 'view',
+            name: 'local/x.watch',
+            load: (kind, name) async {
+              loaded.add(kind);
+              return kind == 'confirmation'
+                  ? {
+                      'title': 'Confirmations',
+                      'root': nodeSamples['approvalCard'],
+                    }
+                  : _published({
+                      'kind': 'column',
+                      'children': [
+                        {
+                          'kind': 'neuronRef',
+                          'refKind': 'confirmation',
+                          'neuronUri': 'local/confirmations',
+                        },
+                      ],
+                    });
+            },
+            watch: (kind, name) => const Stream.empty(),
+            onAction: (event) async => events.add(event),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(loaded, isNot(contains('confirmation')));
+    expect(find.text('local/confirmations'), findsOneWidget);
+    expect(find.text('Approve'), findsNothing);
+    expect(events, isEmpty);
+  });
+
+  // Even a confirmation host reached as an embedded child (a viewport's root) renders its cards without answers.
+  testWidgets('an embedded confirmation host never resolves', (tester) async {
+    final events = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.light('intochat'),
+        home: Scaffold(
+          body: ViewHost(
+            knowsApp: (_) => false,
+            kind: 'viewport',
+            name: 'local/apps/x/viewport',
+            load: (kind, name) async => kind == 'viewport'
+                ? {
+                    'revision': 1,
+                    'root': {
+                      'kind': 'confirmation',
+                      'name': 'local/confirmations',
+                    },
+                  }
+                : {
+                    'title': 'Confirmations',
+                    'root': nodeSamples['approvalCard'],
+                  },
+            watch: (kind, name) => const Stream.empty(),
+            onAction: (event) async => events.add(event),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Approve change'), findsOneWidget);
+    expect(find.text('Approve'), findsNothing);
+    expect(events, isEmpty);
   });
 
   testWidgets('a view that has not published shows it is preparing', (

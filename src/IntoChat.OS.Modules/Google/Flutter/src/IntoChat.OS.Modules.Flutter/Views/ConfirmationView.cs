@@ -20,6 +20,4 @@ internal static class ConfirmationView
             (DigitalBrain.UI.Node)ConfirmView.For(request.PlanId, request.Plan.Title, request.Plan.Body, request.Plan.Expiry, human))];
         return new("Confirmations", new DigitalBrain.UI.Column(cards));
     }
-
-    public static (string PlanId, bool Approve) Answer(string? action) => ConfirmationActions.Answer(action);
 }

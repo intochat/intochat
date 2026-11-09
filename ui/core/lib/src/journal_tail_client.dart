@@ -15,18 +15,35 @@ final class JournalTailRefused implements Exception {
   String toString() => 'The journal tail was refused ($statusCode).';
 }
 
+/// Thrown into the tail stream after [JournalTailClient.maxFailures] connections in a row failed (a malformed frame, a
+/// server error) without delivering a signal: the tail stops instead of retrying the same sequence forever.
+final class JournalTailStalled implements Exception {
+  const JournalTailStalled(this.since, this.cause);
+  final int since;
+  final Object cause;
+
+  @override
+  String toString() =>
+      'The journal tail failed ${JournalTailClient.maxFailures} times from $since: $cause';
+}
+
 /// The brain journal as batches of signals, from `GET /brains/{id}/journal/tail?since=` (server-sent `journaled-signal`
 /// events, no payloads). A dropped connection is reopened after [retryDelay] from the last sequence seen, so a batch is
-/// never delivered twice and none is skipped.
+/// never delivered twice and none is skipped. Failed connections that deliver nothing back off exponentially (capped at
+/// [maxDelay]); after [maxFailures] in a row the stream ends with [JournalTailStalled].
 final class JournalTailClient {
   JournalTailClient({
     required this.baseUri,
     required http.Client httpClient,
     this.retryDelay = const Duration(seconds: 1),
+    this.maxDelay = const Duration(seconds: 30),
   }) : _http = httpClient;
+
+  static const maxFailures = 5;
 
   final Uri baseUri;
   final Duration retryDelay;
+  final Duration maxDelay;
   final http.Client _http;
 
   /// The signals journaled after [since], then each new one, in batches. Cancelling the subscription ends the request.
@@ -36,21 +53,30 @@ final class JournalTailClient {
     controller = StreamController<List<JournalTailSignal>>(
       onListen: () async {
         var last = since;
+        var failures = 0;
         try {
           while (!abort.isCompleted) {
+            var delay = retryDelay;
+            final from = last;
             try {
               await _connect(brainId, last, abort.future, (batch) {
                 if (batch.isEmpty) return;
                 last = batch.last.seq > last ? batch.last.seq : last;
                 controller.add(batch);
               });
+              if (last != from) failures = 0;
             } on JournalTailRefused {
               rethrow;
-            } catch (_) {
+            } catch (error) {
               if (abort.isCompleted) break;
+              failures = last == from ? failures + 1 : 1;
+              if (failures >= maxFailures) {
+                throw JournalTailStalled(last, error);
+              }
+              delay = backoff(failures);
             }
             if (abort.isCompleted) break;
-            await Future.any([Future<void>.delayed(retryDelay), abort.future]);
+            await Future.any([Future<void>.delayed(delay), abort.future]);
           }
         } catch (error, stack) {
           if (!abort.isCompleted) controller.addError(error, stack);
@@ -63,6 +89,12 @@ final class JournalTailClient {
       },
     );
     return controller.stream;
+  }
+
+  /// The pause after the [failures]th failed connection in a row: [retryDelay] doubled per failure, at most [maxDelay].
+  Duration backoff(int failures) {
+    final scaled = retryDelay * (1 << (failures - 1).clamp(0, 20));
+    return scaled > maxDelay ? maxDelay : scaled;
   }
 
   Future<void> _connect(

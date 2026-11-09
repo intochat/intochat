@@ -124,6 +124,37 @@ void main() {
     expect(server.requested, hasLength(2));
   });
 
+  test('a malformed frame backs off and stalls after five failures', () async {
+    final server = _Malformed();
+    final client = JournalTailClient(
+      baseUri: base,
+      httpClient: server,
+      retryDelay: const Duration(milliseconds: 1),
+      maxDelay: const Duration(milliseconds: 4),
+    );
+
+    await expectLater(
+      client.watch('b1', since: 7),
+      emitsInOrder([emitsError(isA<JournalTailStalled>()), emitsDone]),
+    );
+    expect(server.requested, hasLength(JournalTailClient.maxFailures));
+    expect(
+      server.requested.map((url) => url.queryParameters['since']).toSet(),
+      {'7'},
+    );
+    expect(
+      [
+        for (var failures = 1; failures <= 6; failures++)
+          client.backoff(failures).inMilliseconds,
+      ],
+      [1, 2, 4, 4, 4, 4],
+    );
+    expect(
+      JournalTailClient(baseUri: base, httpClient: server).backoff(10),
+      const Duration(seconds: 30),
+    );
+  });
+
   test('the ui client reads a unit state and view, null on 404', () async {
     final ui = IntoChatOSUiClient(
       baseUri: base,
@@ -146,6 +177,20 @@ void main() {
     expect(view.view['kind'], 'Row');
     expect(await ui.readUnitState('b2', 'ctr'), isNull);
   });
+}
+
+/// Answers every connection with a frame whose data is not JSON.
+class _Malformed extends http.BaseClient {
+  final requested = <Uri>[];
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    requested.add(request.url);
+    return http.StreamedResponse(
+      Stream.value(utf8.encode('event: journaled-signal\ndata: {not json\n\n')),
+      200,
+    );
+  }
 }
 
 class _Reads extends http.BaseClient {

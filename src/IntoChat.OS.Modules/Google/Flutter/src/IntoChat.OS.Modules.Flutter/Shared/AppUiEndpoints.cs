@@ -90,8 +90,8 @@ internal static class AppUiEndpoints
         if (input.Kind == UIVocabulary.ConfirmationType)
         {
             if (input.Name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
-            var answer = ConfirmationView.Answer(input.Action);
-            await brain.Get<IConfirmationInbox>(input.Name).Resolve(answer.PlanId, answer.Approve).WaitAsync(ct);
+            var (planId, approve) = ConfirmationAnswer(input);
+            await brain.Get<IConfirmationInbox>(input.Name).Resolve(planId, approve).WaitAsync(ct);
             return Results.Ok(new { delivered = true });
         }
         if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, hosted, ct); }
@@ -176,6 +176,14 @@ internal static class AppUiEndpoints
         }
     }
 
+    // The inbox surface's typed answer: a plan id of at most 128 characters and approve true or false; no action string.
+    private static (string PlanId, bool Approve) ConfirmationAnswer(UiEvent input)
+    {
+        if (input.PlanId is not { Length: > 0 and <= 128 } planId || input.Approve is not { } approve || input.Action is not null)
+        { throw new ArgumentException("A confirmation answer names its planId and approve."); }
+        return (planId, approve);
+    }
+
     private static IResult IntentResult(DigitalBrain.UI.Intent intent)
         => Results.Json(new { intent = new { kind = intent.Kind.ToString(), arg = intent.Arg } }, ViewJson);
 
@@ -202,8 +210,10 @@ internal static class AppUiEndpoints
     private static bool OwnsUi(string scope, string name) =>
         new[] { "/apps/", "/images/", "/applications/" }.Any(area => name.StartsWith(scope + area, StringComparison.Ordinal));
 
+    // The client's one UI event; Dart mirror: NodeContext (activate, resolve, input) in ui/ui. A confirmation answer carries PlanId
+    // and Approve.
     internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null,
-        long? Generation = null, string? Key = null);
+        long? Generation = null, string? Key = null, string? PlanId = null, bool? Approve = null);
     private sealed record BrowserConnect(int Port, string SessionId);
 }
 

@@ -199,9 +199,24 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(ViewActivation.None);
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, IConfirmationInbox.Key(Scope), $"{DigitalBrain.UI.Confirmation.ConfirmView.ResolveOperation}:plan-3:true"), brain, Scope, Hosted, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, IConfirmationInbox.Key(Scope), PlanId: "plan-3", Approve: true), brain, Scope, Hosted, Ct);
 
         Assert.Equal(("owner/confirmations", "plan-3", true), Assert.Single(brain.Inbox.Resolved));
+    }
+
+    // The answer is the typed record only: the old action string, a missing plan or answer, or another brain's inbox is refused.
+    [Fact]
+    public async Task AConfirmationAnswerIsTypedAndForItsOwnInbox()
+    {
+        var brain = new RecordingBrain(ViewActivation.None);
+        var inbox = IConfirmationInbox.Key(Scope);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, $"{DigitalBrain.UI.Confirmation.ConfirmView.ResolveOperation}:plan-3:true"), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, PlanId: "plan-3"), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, PlanId: new string('p', 129), Approve: true), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, "other/confirmations", PlanId: "plan-3", Approve: true), brain, Scope, Hosted, Ct));
+
+        Assert.Empty(brain.Inbox.Resolved);
     }
 
     [Fact]

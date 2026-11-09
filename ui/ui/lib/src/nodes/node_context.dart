@@ -159,13 +159,15 @@ class NodeContext {
     }
   }
 
-  /// Resolves a confirmation plan on the OS inbox surface.
+  /// Resolves a confirmation plan on the OS inbox surface: the typed record
+  /// `{kind:"confirmation", name, planId, approve}` (AppUiEndpoints.UiEvent).
   Future<void> resolve(String planId, {required bool approve}) async {
     if (!interactive || !confirmation) return;
     await _send({
       'kind': 'confirmation',
       'name': view,
-      'action': 'Resolve:${Uri.encodeComponent(planId)}:$approve',
+      'planId': planId,
+      'approve': approve,
     });
   }
 

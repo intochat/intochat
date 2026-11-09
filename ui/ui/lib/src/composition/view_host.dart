@@ -32,8 +32,13 @@ class ViewHost extends StatefulWidget {
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
     this.signals,
+    this.embedded = false,
   });
   final String kind, name;
+
+  /// True for a host reached through another (a viewport's root, a view's `neuronRef`): it never answers a confirmation,
+  /// whatever its kind, so an approval card inside an app or unit view stays display-only.
+  final bool embedded;
   final NeuronLoader load;
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final NeuronAction? onAction;
@@ -200,7 +205,12 @@ class _ViewHostState extends State<ViewHost> {
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
+    embedded: true,
   );
+
+  /// The surfaces a view may host in place through a `neuronRef`: another view's window and the web browser. Never the
+  /// confirmation inbox, nor a bare view.
+  static const _referable = {'viewport', 'webbrowser'};
 
   @override
   Widget build(BuildContext context) =>
@@ -236,19 +246,23 @@ class _ViewHostState extends State<ViewHost> {
         }
         final ctx = NodeContext(
           view: widget.name,
-          generation: (data['generation'] as num?)?.toInt() ?? 0,
+          generation: data['generation'] is num
+              ? (data['generation'] as num).toInt()
+              : 0,
           send: widget.onAction == null ? null : _dispatch,
           load: widget.load,
           watch: widget.watch,
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
-          reference: (kind, name) => NodeContracts.tryResolve(kind) == null
+          reference: (kind, name) =>
+              !_referable.contains(kind) ||
+                  NodeContracts.tryResolve(kind) == null
               ? null
               : SizedBox(
                   height: 480,
                   child: _child({'kind': kind, 'name': name}),
                 ),
-          confirmation: widget.kind == 'confirmation',
+          confirmation: widget.kind == 'confirmation' && !widget.embedded,
           enabled: enabled,
         );
         final rendered = SingleChildScrollView(
