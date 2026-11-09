@@ -831,6 +831,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 [
                     new Button("local-server-ollama", "Local Server (Ollama)", Emit: AppSignals.Emit("settings", "navigate", "models", "local-server"), Tone: ButtonTone.Accent) { Small = true, Icon = "cpu" },
                     new Button("configure-endpoint-sheet", "Configure Endpoint Sheet", Emit: AppSignals.Emit("settings", "navigate", "models", "", "ollama-config")) { Small = true, Icon = "sliders-horizontal" },
+                    new Button("open-api-keys-section", "API Keys & Vault", Emit: AppSignals.Emit("settings", "navigate", "keys")) { Small = true, Icon = "key-round" },
                 ]) { Gap = 8 },
             ],
             Kind: SurfaceKind.Elevated,

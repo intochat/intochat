@@ -254,6 +254,23 @@ public sealed class CreatorAppFacts
         Assert.Equal("// the counter source", post.UnitFiles!["ctr.cs"]);
     }
 
+    [Fact]
+    public async Task SeedDeploysShippedUnitTemplateThroughSynapseStudio()
+    {
+        await using var os = FakeOs();
+        var creator = await os.Install<CreatorApp>();
+
+        var seedBtn = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "seed:watch.web");
+        Assert.Equal("seed", seedBtn.Emit!.Signal);
+
+        await creator.Request("seed", new CreatorSeed("watch.web"));
+
+        var deployed = Assert.Single(FakeSynapses.Deployed);
+        Assert.Equal("watch.web", deployed.Alias);
+        Assert.Contains("WebWatch.cs", deployed.Files.Keys);
+        Assert.Contains("Deployed shipped unit watch.web (Web watch)", creator.App.State.Status, StringComparison.Ordinal);
+    }
+
     private static string[] Marked(InstalledApp<CreatorApp> creator)
         => [.. Nodes(creator.App.Render()).OfType<DataTable>().Single(t => t.Title.StartsWith("Trace ", StringComparison.Ordinal)).Rows
             .Select(r => r[0]).Where(c => c.StartsWith("▶ ", StringComparison.Ordinal)).Select(c => c[2..])];
@@ -289,6 +306,7 @@ public sealed class CreatorAppFacts
         FakeFlows.Views = [];
         FakeSynapses.Files = [];
         FakeSynapses.SidecarFiles = [];
+        FakeSynapses.Deployed.Clear();
         FakeField.Values.Clear();
         FakeStudio.Goals.Clear();
         FakeReads.States.Clear();
@@ -395,11 +413,15 @@ internal sealed class FakeSynapses : Neuron, ISynapseStudio
 {
     public static Dictionary<string, string> SidecarFiles { get; set; } = [];
     public static Dictionary<string, string> Files { get; set; } = [];
+    public static List<(string Alias, IReadOnlyDictionary<string, string> Files)> Deployed { get; } = [];
 
     public Task<InoToolResult> Check(string source) => Task.FromResult(new InoToolResult(""));
     public Task<InoToolResult> Deploy(string alias, string source) => Task.FromResult(new InoToolResult(""));
     public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings)
-        => Task.FromResult(new UnitDeployResult(true, "", DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.InstallOutcome>()));
+        {
+            Deployed.Add((alias, files));
+            return Task.FromResult(new UnitDeployResult(true, "", DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.InstallOutcome>()));
+        }
     public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(SidecarFiles);
     public Task<Dictionary<string, string>> SourceFiles(string alias) => Task.FromResult(Files);
     public Task<InoToolResult> Retire(string alias) => Task.FromResult(new InoToolResult(""));

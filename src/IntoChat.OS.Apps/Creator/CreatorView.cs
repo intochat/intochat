@@ -41,6 +41,8 @@ public static class CreatorView
             new Field(DescribeField, FieldKey(DescribeField), FieldKind.Text, "Describe a unit…", OnSubmit: AppSignals.Emit(App, "make", state.Draft)),
             new Button("make", "Make", Emit: AppSignals.Emit(App, "make", state.Draft), Tone: ButtonTone.Accent) { Small = true, Icon = "sparkles" },
             new Text(state.Status),
+            new Divider("SHIPPED UNIT TEMPLATES"),
+            new Row([.. ShippedUnits.All.Select(alias => new Button($"seed:{alias}", ShippedUnits.Title(alias), Emit: AppSignals.Emit(App, "seed", alias), Tone: ButtonTone.Neutral) { Small = true })]) { Gap = 6 },
         ];
         foreach (var flow in flows.Where(f => f.Type == BuildFlow.Alias).OrderByDescending(f => f.Started))
         {

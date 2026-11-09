@@ -2,7 +2,7 @@
 # Creator
 Role: Default
 Shipped: true
-Operations: open, select, trace, replay, change, scenario, make, share
+Operations: open, select, trace, replay, change, scenario, make, share, seed
 
 The one place to make software and watch it run. Left: the describe/change dialogue, each turn linked to its build flow on the
 Tasks board and the consent its install waits on. Centre: the brain as a graph (units, compiled apps, ghosts of units under
@@ -50,6 +50,9 @@ public sealed record CreatorMake(string? Goal = null) : DigitalBrain.Signal;
 [DigitalBrain.Signal("creator.share")]
 public sealed record CreatorShare(string? Alias = null) : DigitalBrain.Signal;
 
+[DigitalBrain.Signal("creator.seed")]
+public sealed record CreatorSeed(string? Alias = null) : DigitalBrain.Signal;
+
 [DigitalBrain.App("creator", Accent = "#FF5D8F", Category = "Studio")]
 public sealed class CreatorApp : DigitalBrain.App<CreatorState>
 {
@@ -92,6 +95,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
                 new("scenario", "Run a unit's kept scenarios on fakes and show the transcript."),
                 new("make", "Describe a new unit; Ino's studio starts its build flow."),
                 new("share", "Publish the inspected unit as an interactive App-Post on your profile."),
+                new("seed", "Deploy a shipped unit template into the brain."),
             ],
             Settings: [],
             Slots: [],
@@ -282,6 +286,30 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
             Swallow(error, "Sharing to profile is optional when the profile neuron is not registered.");
             Set(State with { Status = $"Could not share {alias}: {error.Message}" });
         }
+    }
+
+    [DigitalBrain.On]
+    public async Task Seed(CreatorSeed request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (Blank(request.Alias) is not { } alias || !ShippedUnits.All.Contains(alias, StringComparer.Ordinal))
+        {
+            Set(State with { Status = $"Choose a shipped unit: {string.Join(", ", ShippedUnits.All)}" });
+            return;
+        }
+
+        try
+        {
+            var files = ShippedUnits.Files(alias);
+            await Get<ISynapseStudio>(SynapsesKey).DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
+            Set(State with { Status = $"Deployed shipped unit {alias} ({ShippedUnits.Title(alias)})" });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Deploying a shipped unit requires the synapse studio neuron.");
+            Set(State with { Status = $"Could not deploy {alias}: {error.Message}" });
+        }
+        await RefreshAsync();
     }
 
     protected override void Watches(DigitalBrain.WatchBuilder watch)

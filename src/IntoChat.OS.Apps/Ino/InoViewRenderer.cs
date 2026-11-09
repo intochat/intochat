@@ -60,6 +60,7 @@ internal static class InoViewRenderer
                         [
                             new Text($"Smart mode: {(smart ? "on" : "off")}") { Tone = "muted" },
                             new Button("smart", smart ? "Turn smart mode off" : "Turn smart mode on", Emit: AppSignals.Emit("ino", "smart", smart ? "false" : "true")) { Small = true, Style = "ghost" },
+                            new Button("ai-settings", "AI Models & Keys", Intent: AppSignals.Open("os://window/settings?section=models")) { Small = true, Style = "ghost", Icon = "cpu" },
                             .. state.ActiveRunId is not null ? new Node[] { new Button("stop", "Stop", Emit: AppSignals.Emit("ino", "stop")) { Small = true, Icon = "square" } } : [],
                         ]) { Gap = 8 },
                     ],
