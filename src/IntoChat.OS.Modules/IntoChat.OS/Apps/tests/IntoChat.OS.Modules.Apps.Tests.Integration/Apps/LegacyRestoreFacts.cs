@@ -72,7 +72,7 @@ public sealed class LegacyRestoreFacts
             json[map] = new JsonObject(json[entries]!.AsArray().Select(entry => KeyValuePair.Create<string, JsonNode?>(
                 entry!["key"]!.GetValue<string>(), JsonValue.Create(entry["value"]!.GetValue<string>()))));
         }
-        states[AppId] = JsonSerializer.SerializeToElement(json);
+        os.SeedStoredState(AppId, json.ToJsonString());
         await os.Deactivate(AppId);
         return app;
     }
