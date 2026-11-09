@@ -290,4 +290,40 @@ public sealed class SynapseStudioFacts
         Assert.Equal("Resilience Probe", appAfter.Manifest.Title);
         Assert.Equal("probe-spec", appAfter.Spec);
     }
+
+    [Fact]
+    public async Task StagedSynapseApprovalAndHeadlessBuildStateSurviveSiloRestart()
+    {
+        await using var fixture = new StudioFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias));
+        await app.Create(new AppManifest("Tick poller", "Polls every five minutes", [], [], [], Headless: true), "spec");
+        await app.BeginBuild(null);
+        var attempt = await app.CurrentBuildAttempt();
+
+        var failure = await UnitDeploy.Complete(app, attempt, Studio(runtime), Alias, new Dictionary<string, string> { ["poller.cs"] = TickPoller }, new Dictionary<string, string>());
+        Assert.Null(failure);
+
+        IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval> approvalsBefore;
+        using (HostCaller.AsPlatform(runtime.Brain.Value))
+        {
+            approvalsBefore = await runtime.Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>(runtime.Id("approvals", "approvals/index")).Pending(Ct);
+        }
+        var stagedConsentBefore = Assert.Single(approvalsBefore, a => a.Kind == IntoChat.OS.Modules.Apps.Approvals.ApprovalKind.SynapseStaged);
+
+        await runtime.Restart(Ct);
+
+        IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval> approvalsAfter;
+        using (HostCaller.AsPlatform(runtime.Brain.Value))
+        {
+            approvalsAfter = await runtime.Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>(runtime.Id("approvals", "approvals/index")).Pending(Ct);
+        }
+        var stagedConsentAfter = Assert.Single(approvalsAfter, a => a.Kind == IntoChat.OS.Modules.Apps.Approvals.ApprovalKind.SynapseStaged);
+        Assert.Equal((stagedConsentBefore.PlanId, stagedConsentBefore.Subject), (stagedConsentAfter.PlanId, stagedConsentAfter.Subject));
+
+        var snapshotAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias)).Read();
+        Assert.Equal(AppStatus.Building, snapshotAfter.Status);
+        Assert.StartsWith("waiting for approval: ", snapshotAfter.Activity[^1], StringComparison.Ordinal);
+    }
 }

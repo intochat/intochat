@@ -61,15 +61,9 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             try
             {
                 var cwd = Directory.GetCurrentDirectory();
-                if (!string.IsNullOrWhiteSpace(cwd) && Directory.Exists(cwd))
-                {
-                    return new LocalCloudNeuron(cwd);
-                }
+                if (!string.IsNullOrWhiteSpace(cwd) && Directory.Exists(cwd)) { return new LocalCloudNeuron(cwd); }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                LogRecoverable(ex);
-            }
+            catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
             return new LocalCloudNeuron();
         });
 
@@ -81,14 +75,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         IReadOnlyList<CapabilityConnection<IStorage>> connections = [];
         if (effectiveBroker is not null)
         {
-            try
-            {
-                connections = await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
+            try { connections = await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false); }
+            catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
         }
 
         var workStorage = ResolveMountStorage(connections, ["cloud", "work"], LocalCloudNeuron.TypeName, fallbackFirstConnection: true)
@@ -112,22 +100,15 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         string? neuronType,
         bool fallbackFirstConnection)
     {
-        var matched = connections.FirstOrDefault(c => keyTokens.Any(t => c.ConnectionKey.Contains(t, StringComparison.OrdinalIgnoreCase)));
-        if (matched is not null)
+        if (connections.FirstOrDefault(c => keyTokens.Any(t => c.ConnectionKey.Contains(t, StringComparison.OrdinalIgnoreCase))) is { } matched)
         {
             return matched.Capability;
         }
 
         if (_services is not null && !string.IsNullOrWhiteSpace(neuronType))
         {
-            try
-            {
-                return SiloNeurons.Get<IStorage>(_services, new NeuronId(new BrainId(BrainId), neuronType, "main"));
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
+            try { return SiloNeurons.Get<IStorage>(_services, new NeuronId(new BrainId(BrainId), neuronType, "main")); }
+            catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
         }
 
         return fallbackFirstConnection && connections.Count > 0 ? connections[0].Capability : null;
@@ -135,23 +116,16 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
     public static string ToCanonicalVfsPath(string? fileNameOrPath)
     {
-        if (string.IsNullOrWhiteSpace(fileNameOrPath))
-        {
-            return "/work/artifact.bin";
-        }
-
+        if (string.IsNullOrWhiteSpace(fileNameOrPath)) { return "/work/artifact.bin"; }
         var normalized = fileNameOrPath.Trim().Trim('"', '\'', '`').Replace('\\', '/');
         if (normalized.StartsWith('/'))
         {
             var segments = normalized.TrimStart('/').Split('/', 2);
             var mount = segments[0].ToLowerInvariant();
-            if (mount is "work" or "local" or "drive")
-            {
-                return $"/{mount}/{(segments.Length > 1 ? segments[1] : string.Empty)}".TrimEnd('/');
-            }
-            return $"/work/{normalized.TrimStart('/')}";
+            return mount is "work" or "local" or "drive"
+                ? $"/{mount}/{(segments.Length > 1 ? segments[1] : string.Empty)}".TrimEnd('/')
+                : $"/work/{normalized.TrimStart('/')}";
         }
-
         return $"/work/{ExtractCleanFileName(normalized)}";
     }
 
@@ -173,35 +147,24 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                         AddOrPreferNewest(byName, MapVfsItem(mount, item));
                     }
                 }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    LogRecoverable(error);
-                }
+                catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
             }
 
             if (effectiveBroker is not null)
             {
                 try
                 {
-                    var connections = await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false);
-                    foreach (var conn in connections)
+                    foreach (var conn in await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false))
                     {
                         await CollectConnectionEntriesAsync(conn, byName, ct).ConfigureAwait(false);
                     }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    LogRecoverable(ex);
-                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
             }
-
             return true;
         }).ConfigureAwait(false);
 
-        foreach (var (entry, _) in _overlay.Values)
-        {
-            AddOrPreferNewest(byName, entry);
-        }
+        foreach (var (entry, _) in _overlay.Values) { AddOrPreferNewest(byName, entry); }
 
         IEnumerable<WorkspaceFileEntry> results = byName.Values;
         if (trimmedQuery is not null)
@@ -231,54 +194,32 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                     AddOrPreferNewest(byName, MapItem(conn.ConnectionKey, root));
                     continue;
                 }
-
                 try
                 {
                     var children = await conn.Capability.List(root.Id, new(PageSize: 100), ct).ConfigureAwait(false);
-                    foreach (var child in children.Items)
-                    {
-                        AddOrPreferNewest(byName, MapItem(conn.ConnectionKey, child));
-                    }
+                    foreach (var child in children.Items) { AddOrPreferNewest(byName, MapItem(conn.ConnectionKey, child)); }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    LogRecoverable(ex);
-                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
             }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            LogRecoverable(ex);
-        }
+        catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
     }
 
     public async Task<WorkspaceFileEntry?> ResolveFileAsync(string? nameOrUriOrPath, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        if (string.IsNullOrWhiteSpace(nameOrUriOrPath))
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(nameOrUriOrPath)) { return null; }
 
         var cleanName = ExtractCleanFileName(nameOrUriOrPath);
         var canonicalPath = ToCanonicalVfsPath(nameOrUriOrPath);
 
-        if (!string.IsNullOrWhiteSpace(cleanName) && _overlay.TryGetValue(cleanName, out var exactOverlay))
-        {
-            return exactOverlay.Entry;
-        }
-        if (_overlay.TryGetValue(canonicalPath, out var byPathOverlay))
-        {
-            return byPathOverlay.Entry;
-        }
+        if (!string.IsNullOrWhiteSpace(cleanName) && _overlay.TryGetValue(cleanName, out var exactOverlay)) { return exactOverlay.Entry; }
+        if (_overlay.TryGetValue(canonicalPath, out var byPathOverlay)) { return byPathOverlay.Entry; }
 
         var cleanSlug = SlugSegment(cleanName);
         foreach (var (entry, _) in _overlay.Values)
         {
-            if (IsMatchingEntry(entry, cleanName, cleanSlug, canonicalPath, nameOrUriOrPath))
-            {
-                return entry;
-            }
+            if (IsMatchingEntry(entry, cleanName, cleanSlug, canonicalPath, nameOrUriOrPath)) { return entry; }
         }
 
         var vfsEntry = await WithCallerAsync<WorkspaceFileEntry?>(async effectiveBroker =>
@@ -294,18 +235,12 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                         return MapVfsItem(mount, item);
                     }
                 }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    LogRecoverable(error);
-                }
+                catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
             }
             return null;
         }).ConfigureAwait(false);
 
-        if (vfsEntry is not null)
-        {
-            return vfsEntry;
-        }
+        if (vfsEntry is not null) { return vfsEntry; }
 
         var searched = await ListFilesAsync(cleanName, ct).ConfigureAwait(false);
         return FindBestMatch(searched, cleanName, cleanSlug, nameOrUriOrPath)
@@ -321,75 +256,41 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     public async Task<byte[]?> ReadBytesAsync(string nameOrUriOrPath, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        if (string.IsNullOrWhiteSpace(nameOrUriOrPath))
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(nameOrUriOrPath)) { return null; }
 
         var cleanName = ExtractCleanFileName(nameOrUriOrPath);
         var canonicalPath = ToCanonicalVfsPath(nameOrUriOrPath);
 
-        if (!string.IsNullOrWhiteSpace(cleanName) && _overlay.TryGetValue(cleanName, out var direct))
-        {
-            return direct.Bytes;
-        }
-        if (_overlay.TryGetValue(canonicalPath, out var byPath))
-        {
-            return byPath.Bytes;
-        }
+        if (!string.IsNullOrWhiteSpace(cleanName) && _overlay.TryGetValue(cleanName, out var direct)) { return direct.Bytes; }
+        if (_overlay.TryGetValue(canonicalPath, out var byPath)) { return byPath.Bytes; }
 
         var vfsBytes = await WithCallerAsync<byte[]?>(async effectiveBroker =>
         {
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
             foreach (var candidatePath in new[] { canonicalPath, $"/work/{cleanName}", $"/local/{cleanName}", $"/drive/{cleanName}" })
             {
-                try
-                {
-                    var content = await vfs.Read(candidatePath, new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
-                    return content.Bytes.ToArray();
-                }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    LogRecoverable(error);
-                }
+                try { return (await vfs.Read(candidatePath, new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false)).Bytes.ToArray(); }
+                catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
             }
             return null;
         }).ConfigureAwait(false);
 
-        if (vfsBytes is not null)
-        {
-            return vfsBytes;
-        }
+        if (vfsBytes is not null) { return vfsBytes; }
 
         var resolved = await ResolveFileAsync(nameOrUriOrPath, ct).ConfigureAwait(false);
-        if (resolved is null)
-        {
-            return null;
-        }
-        if (_overlay.TryGetValue(resolved.Name, out var byResolvedName))
-        {
-            return byResolvedName.Bytes;
-        }
+        if (resolved is null) { return null; }
+        if (_overlay.TryGetValue(resolved.Name, out var byResolvedName)) { return byResolvedName.Bytes; }
 
         return await WithCallerAsync<byte[]?>(async effectiveBroker =>
         {
-            if (effectiveBroker is null)
-            {
-                return null;
-            }
-
+            if (effectiveBroker is null) { return null; }
             try
             {
                 var connections = await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false);
                 var targetConn = connections.FirstOrDefault(c => string.Equals(c.ConnectionKey, resolved.Connection, StringComparison.OrdinalIgnoreCase))
                     ?? connections.FirstOrDefault();
-                if (targetConn is null)
-                {
-                    return null;
-                }
-
-                var content = await targetConn.Capability.Read(new ItemId(resolved.ItemId), new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
-                return content.Bytes.ToArray();
+                if (targetConn is null) { return null; }
+                return (await targetConn.Capability.Read(new ItemId(resolved.ItemId), new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false)).Bytes.ToArray();
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -407,10 +308,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         ct.ThrowIfCancellationRequested();
         var canonicalPath = ToCanonicalVfsPath(fileNameOrPath);
         var cleanName = ExtractCleanFileName(canonicalPath);
-        if (string.IsNullOrWhiteSpace(cleanName))
-        {
-            cleanName = "artifact.bin";
-        }
+        if (string.IsNullOrWhiteSpace(cleanName)) { cleanName = "artifact.bin"; }
 
         var bytes = content.ToArray();
         var mountPoint = canonicalPath.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "work";
@@ -429,21 +327,14 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         await WithCallerAsync(async effectiveBroker =>
         {
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
-            try
-            {
-                await vfs.Write(canonicalPath, bytes, ct).ConfigureAwait(false);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
+            try { await vfs.Write(canonicalPath, bytes, ct).ConfigureAwait(false); }
+            catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
 
             if (effectiveBroker is not null)
             {
                 try
                 {
-                    var connections = await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false);
-                    foreach (var conn in connections)
+                    foreach (var conn in await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false))
                     {
                         try
                         {
@@ -453,18 +344,11 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                                 await conn.Capability.Write(WritePlan.WriteFile(writableRoot.Id, cleanName, bytes, ConflictPolicy.Overwrite), ct).ConfigureAwait(false);
                             }
                         }
-                        catch (Exception ex) when (ex is not OperationCanceledException)
-                        {
-                            LogRecoverable(ex);
-                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
                     }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    LogRecoverable(ex);
-                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
             }
-
             return true;
         }).ConfigureAwait(false);
 
@@ -486,14 +370,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         _overlay.TryRemove(cleanName, out _);
         _overlay.TryRemove(canonicalPath, out _);
 
-        try
-        {
-            await GetFallbackWorkspaceStorage(BrainId).Write(WritePlan.Delete(new ItemId(cleanName)), ct).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            LogRecoverable(ex);
-        }
+        try { await GetFallbackWorkspaceStorage(BrainId).Write(WritePlan.Delete(new ItemId(cleanName)), ct).ConfigureAwait(false); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
 
         await TryRefreshFilesWorkspaceAsync(ct).ConfigureAwait(false);
         return true;
@@ -501,18 +379,9 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
     private async Task TryRefreshFilesWorkspaceAsync(CancellationToken ct)
     {
-        if (_services is null)
-        {
-            return;
-        }
-        try
-        {
-            await SiloNeurons.Get<IFilesWorkspace>(_services, IFilesWorkspace.Key(BrainId)).Open(ct).ConfigureAwait(false);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            LogRecoverable(error);
-        }
+        if (_services is null) { return; }
+        try { await SiloNeurons.Get<IFilesWorkspace>(_services, IFilesWorkspace.Key(BrainId)).Open(ct).ConfigureAwait(false); }
+        catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
     }
 
     private async Task<T> WithCallerAsync<T>(Func<ICapabilityBroker?, Task<T>> action)
@@ -535,10 +404,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                     stampScope = RuntimeCallerContext.StampScope(HostCaller.AsApp(baseCaller, filesAppKey));
                 }
             }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
+            catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
         }
 
         try
@@ -548,14 +414,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         finally
         {
             stampScope?.Dispose();
-            if (hadPrevious && previous is not null)
-            {
-                RuntimeCallerContext.Stamp(previous);
-            }
-            else
-            {
-                RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
-            }
+            if (hadPrevious && previous is not null) { RuntimeCallerContext.Stamp(previous); }
+            else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
         }
     }
 
@@ -579,10 +439,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     {
         var rawName = string.IsNullOrWhiteSpace(item.Name) ? item.Id.Value : item.Name.Trim();
         var fileName = Path.GetFileName(rawName.Replace('\\', '/'));
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            fileName = rawName;
-        }
+        if (string.IsNullOrWhiteSpace(fileName)) { fileName = rawName; }
 
         var connKey = string.IsNullOrWhiteSpace(connection) ? "local-disk" : connection;
         var kind = item.Kind == ItemKind.Folder ? "folder" : item.Kind == ItemKind.Link ? "link" : "file";
@@ -599,10 +456,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
     private static void AddOrPreferNewest(Dictionary<string, WorkspaceFileEntry> byName, WorkspaceFileEntry candidate)
     {
-        if (string.IsNullOrWhiteSpace(candidate.Name))
-        {
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(candidate.Name)) { return; }
         if (!byName.TryGetValue(candidate.Name, out var existing)
             || (candidate.Modified ?? DateTimeOffset.MinValue) >= (existing.Modified ?? DateTimeOffset.MinValue))
         {
@@ -630,16 +484,10 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
     public static string ExtractCleanFileName(string? nameOrUriOrPath)
     {
-        if (string.IsNullOrWhiteSpace(nameOrUriOrPath))
-        {
-            return string.Empty;
-        }
+        if (string.IsNullOrWhiteSpace(nameOrUriOrPath)) { return string.Empty; }
 
         var trimmed = nameOrUriOrPath.Trim().Trim('"', '\'', '`', '(', ')', '[', ']', ';', ',');
-        if (trimmed.StartsWith('@'))
-        {
-            trimmed = trimmed[1..].Trim();
-        }
+        if (trimmed.StartsWith('@')) { trimmed = trimmed[1..].Trim(); }
 
         var neuronIdx = trimmed.IndexOf("neuron://", StringComparison.OrdinalIgnoreCase);
         if (neuronIdx >= 0)
@@ -660,24 +508,13 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
     internal static string SlugSegment(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "file";
-        }
-
+        if (string.IsNullOrWhiteSpace(value)) { return "file"; }
         var builder = new StringBuilder(value.Length);
         foreach (var ch in value.Trim().ToLowerInvariant())
         {
-            if (char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_')
-            {
-                builder.Append(ch);
-            }
-            else if (char.IsWhiteSpace(ch) || ch is '/' or '\\')
-            {
-                builder.Append('-');
-            }
+            if (char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_') { builder.Append(ch); }
+            else if (char.IsWhiteSpace(ch) || ch is '/' or '\\') { builder.Append('-'); }
         }
-
         var slug = builder.ToString().Trim('-');
         return slug.Length > 0 ? slug : "file";
     }

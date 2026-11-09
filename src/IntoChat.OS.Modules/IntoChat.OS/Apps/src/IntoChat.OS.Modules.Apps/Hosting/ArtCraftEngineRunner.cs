@@ -163,16 +163,11 @@ public static class ArtCraftEngineRunner
         var descriptor = ArtCraftCatalog.Get(app);
         if (descriptor.Id == ShippedApps.PhotoCraft)
         {
-            return await ExecutePhotoCraftAsync(
-                instructionOrCommand, explicitParamsJson, currentDocument, executionMode,
-                studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            return await ExecutePhotoCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
         }
-
         if (descriptor.Id == ShippedApps.FilmCraft)
         {
-            return await ExecuteFilmCraftAsync(
-                instructionOrCommand, explicitParamsJson, currentDocument, executionMode,
-                studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
+            return await ExecuteFilmCraftAsync(instructionOrCommand, explicitParamsJson, currentDocument, executionMode, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
         }
 
         var mode = NormalizeMode(executionMode);
@@ -189,8 +184,7 @@ public static class ArtCraftEngineRunner
         var paramsJson = DefaultJson(explicitParamsJson, descriptor.DefaultParametersJson);
         var stem = NonEmptyStem(inputDoc, descriptor.Id);
         var outExt = Path.GetExtension(descriptor.DefaultOutputDocument);
-        if (string.IsNullOrWhiteSpace(outExt)) { outExt = ".out"; }
-        var outputDoc = $"/work/{stem}.processed{outExt}";
+        var outputDoc = $"/work/{stem}.processed{(string.IsNullOrWhiteSpace(outExt) ? ".out" : outExt)}";
         var cliInvocation = $"{descriptor.CliBinary} run {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
 
         return await RunAndPersistStudioCommandAsync(
@@ -215,9 +209,7 @@ public static class ArtCraftEngineRunner
 
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
-            return CreateClarificationResult(
-                ShippedApps.PhotoCraft, mode, resolved.InputDoc,
-                $"Unrecognized photocraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
+            return CreateClarificationResult(ShippedApps.PhotoCraft, mode, resolved.InputDoc, $"Unrecognized photocraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
         }
 
         var (cmdId, title, paramsJson, inputDoc, outputDoc, layers) = resolved;
@@ -252,9 +244,7 @@ public static class ArtCraftEngineRunner
 
         if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
         {
-            return CreateClarificationResult(
-                ShippedApps.FilmCraft, mode, resolved.InputDoc,
-                $"Unrecognized filmcraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
+            return CreateClarificationResult(ShippedApps.FilmCraft, mode, resolved.InputDoc, $"Unrecognized filmcraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
         }
 
         var (cmdId, title, paramsJson, inputDoc, outputDoc, tracks) = resolved;
@@ -332,14 +322,12 @@ public static class ArtCraftEngineRunner
         }
 
         string? outputNeuronUri = null;
-        if (vfs is not null && !string.IsNullOrWhiteSpace(outputDoc))
+        if (vfs is not null && !string.IsNullOrWhiteSpace(outputDoc) && descriptor.Id == ShippedApps.PhotoCraft && !string.IsNullOrWhiteSpace(previewUrl))
         {
             try
             {
-                byte[]? bytes = descriptor.Id == ShippedApps.PhotoCraft && !string.IsNullOrWhiteSpace(previewUrl)
-                    ? DecodeDataUrlBytes(previewUrl, $"PhotoCraft PNG artifact ({cmdId}) -> {outputDoc}")
-                    : null;
-                if (bytes is { Length: > 0 })
+                var bytes = DecodeDataUrlBytes(previewUrl, $"PhotoCraft PNG artifact ({cmdId}) -> {outputDoc}");
+                if (bytes.Length > 0)
                 {
                     outputNeuronUri = (await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false)).NeuronUri;
                 }
@@ -370,11 +358,7 @@ public static class ArtCraftEngineRunner
 
         try
         {
-            if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
-            {
-                return vfsEntry.VfsPath;
-            }
-
+            if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry) { return vfsEntry.VfsPath; }
             if (string.Equals(inputDoc, descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
             {
                 var files = await vfs.ListFilesAsync().ConfigureAwait(false);
@@ -397,10 +381,7 @@ public static class ArtCraftEngineRunner
     {
         try
         {
-            if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
-            {
-                return vfsEntry.VfsPath;
-            }
+            if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry) { return vfsEntry.VfsPath; }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -429,21 +410,16 @@ public static class ArtCraftEngineRunner
 
             if (!string.IsNullOrWhiteSpace(currentDocument))
             {
-                if (await vfs.ResolveFileAsync(currentDocument).ConfigureAwait(false) is { } matchedCurrent)
-                {
-                    return matchedCurrent.VfsPath;
-                }
-
+                if (await vfs.ResolveFileAsync(currentDocument).ConfigureAwait(false) is { } matchedCurrent) { return matchedCurrent.VfsPath; }
                 var defaultDoc = isVideo ? "/work/launch-trailer.fcproj" : "/work/portrait.png";
-                if (!string.Equals(currentDocument, defaultDoc, StringComparison.OrdinalIgnoreCase))
-                {
-                    return currentDocument;
-                }
+                if (!string.Equals(currentDocument, defaultDoc, StringComparison.OrdinalIgnoreCase)) { return currentDocument; }
             }
 
             var files = await vfs.ListFilesAsync().ConfigureAwait(false);
-            var candidate = files.FirstOrDefault(f => isVideo ? IsVideoExtension(f.Name) : IsImageExtension(f.Name));
-            if (candidate is not null) { return candidate.VfsPath; }
+            if (files.FirstOrDefault(f => isVideo ? IsVideoExtension(f.Name) : IsImageExtension(f.Name)) is { } candidate)
+            {
+                return candidate.VfsPath;
+            }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -462,20 +438,15 @@ public static class ArtCraftEngineRunner
             {
                 var base64 = dataUrl[(markerIdx + ";base64,".Length)..].Trim();
                 var buffer = new byte[(base64.Length * 3 + 3) / 4];
-                if (Convert.TryFromBase64String(base64, buffer, out var written))
-                {
-                    return buffer[..written];
-                }
+                if (Convert.TryFromBase64String(base64, buffer, out var written)) { return buffer[..written]; }
             }
         }
-
         return Encoding.UTF8.GetBytes(fallbackText);
     }
 
     public static string? ExtractFileName(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) { return null; }
-
         foreach (var rawToken in text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var token = rawToken.Trim('"', '\'', ',', ';', '(', ')', '[', ']', '`', '@');
@@ -493,16 +464,13 @@ public static class ArtCraftEngineRunner
     }
 
     public static bool IsImageExtension(string pathOrName)
-        => pathOrName.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-            || pathOrName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
-            || pathOrName.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)
-            || pathOrName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
-            || pathOrName.EndsWith(".psd", StringComparison.OrdinalIgnoreCase);
+        => HasAnyExtension(pathOrName, ".png", ".jpg", ".jpeg", ".webp", ".psd");
 
     public static bool IsVideoExtension(string pathOrName)
-        => pathOrName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
-            || pathOrName.EndsWith(".mov", StringComparison.OrdinalIgnoreCase)
-            || pathOrName.EndsWith(".fcproj", StringComparison.OrdinalIgnoreCase);
+        => HasAnyExtension(pathOrName, ".mp4", ".mov", ".fcproj");
+
+    private static bool HasAnyExtension(string pathOrName, params string[] extensions)
+        => extensions.Any(ext => pathOrName.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
 
     private static string EnsureWorkPath(string path) => path.StartsWith('/') ? path : "/work/" + path;
 

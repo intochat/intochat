@@ -89,13 +89,11 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         CompiledType = typeof(DesktopApp).AssemblyQualifiedName,
     };
 
-    // The desktop's durable records (widgets, greeted, layout); State is this activation's working state.
     private IDesktopRecords Records => Get<IDesktopRecords>(IDesktopRecords.Key);
     private IntoChat.OS.Modules.Apps.Approvals.Approval[] _approvals = [];
 
     public static readonly IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> NativeCatalog =
     [
-        // DigitalBrain OS Native Grains
         ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
         ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
         ("workspace", "Workspace", "neuron://local/apps/workspace", "compass", "Workspace", "orleans-grain"),
@@ -122,7 +120,6 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         await SyncSmartDesktopAsync(records.Layout is { Length: > 0 } layout ? layout : "smart-desktop", State.IsNarrow);
         if (!records.Greeted)
         {
-            // Ino greets once: the flag is the desktop's record, so another activation or a restart does not greet again.
             try { await Get<IntoChat.OS.Modules.Apps.IApp>("apps/ino").Request("open", "greet"); }
             catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Ino was not there to greet; the desktop starts without it."); }
             await Records.Write(records with { Greeted = true });
@@ -134,7 +131,10 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var records = await Records.Read();
-        if (WidgetId(request.Widget) is { } id && !records.Widgets.Contains(id, StringComparer.Ordinal)) { await Records.Write(records with { Widgets = [.. records.Widgets, id] }); }
+        if (WidgetId(request.Widget) is { } id && !records.Widgets.Contains(id, StringComparer.Ordinal))
+        {
+            await Records.Write(records with { Widgets = [.. records.Widgets, id] });
+        }
     }
 
     [DigitalBrain.On]
@@ -143,7 +143,9 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         ArgumentNullException.ThrowIfNull(request);
         var records = await Records.Read();
         if (WidgetId(request.Widget) is { } id && records.Widgets.Contains(id, StringComparer.Ordinal))
-        { await Records.Write(records with { Widgets = [.. records.Widgets.Where(known => known != id)] }); }
+        {
+            await Records.Write(records with { Widgets = [.. records.Widgets.Where(known => known != id)] });
+        }
     }
 
     private static string? WidgetId(string? widget) => string.IsNullOrWhiteSpace(widget) ? null : widget.Trim().ToLowerInvariant();
@@ -161,8 +163,6 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     public async Task Open(DesktopOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        // Only a typed open with a view forwards it to the app (its open operation receives the view as input); a legacy open by
-        // name ("open:{app}") binds App alone and is the window open it always was. A failed forward still opens the desktop.
         if (!string.IsNullOrWhiteSpace(request.App) && request.View is { } view)
         {
             try { await Get<IntoChat.OS.Modules.Apps.IApp>($"apps/{request.App.Trim().ToLowerInvariant()}").Request("open", view.Trim()); }
@@ -172,11 +172,10 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     }
 
     [DigitalBrain.On]
-    public async Task Narrow(DesktopNarrow request)
+    public Task Narrow(DesktopNarrow request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var narrow = string.Equals(request.Narrow, "true", StringComparison.OrdinalIgnoreCase);
-        await SyncSmartDesktopAsync(State.LayoutMode, narrow);
+        return SyncSmartDesktopAsync(State.LayoutMode, string.Equals(request.Narrow, "true", StringComparison.OrdinalIgnoreCase));
     }
 
     [DigitalBrain.On]
@@ -201,10 +200,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         var current = (State.PinnedApps ?? ["ino", "creator"]).ToList();
         if (request.Pinned)
         {
-            if (!current.Contains(appId, StringComparer.OrdinalIgnoreCase))
-            {
-                current.Add(appId);
-            }
+            if (!current.Contains(appId, StringComparer.OrdinalIgnoreCase)) { current.Add(appId); }
         }
         else
         {
@@ -216,8 +212,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             var workspace = Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>("workspace");
             var wsState = await workspace.Read();
             var appKey = IntoChat.OS.Modules.Apps.IApp.Key("local", appId);
-            var alreadyPinned = wsState.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
-            if (alreadyPinned != request.Pinned)
+            if (wsState.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase)) != request.Pinned)
             {
                 IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef[] nextPins = request.Pinned
                     ? [.. wsState.Pins, new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef(appId, appKey, "full", string.Empty)]
@@ -250,7 +245,6 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     public View RenderSide()
     {
         var pinned = State.PinnedApps ?? ["ino", "creator"];
-
         return new(
             "Launcher",
             new Column(
@@ -293,26 +287,10 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     new Text($"Whiteboard Sticky-Note Pins (Locked & Always-on-Top): {string.Join(", ", State.PinnedApps)}") { Tabular = true },
                     new Row(
                     [
-                        new Button("auto-arrange", "Auto-Arrange", Emit: AppSignals.Emit("desktop", "auto-arrange"), Tone: ButtonTone.Accent)
-                        {
-                            Icon = "layout-grid",
-                            Small = true,
-                        },
-                        new Button("pin-markdraw", "Pin Markdraw", Emit: AppSignals.Emit("desktop", "pin", "markdraw", "true"))
-                        {
-                            Icon = "pin",
-                            Small = true,
-                        },
-                        new Button("pin-photocraft", "Pin PhotoCraft", Emit: AppSignals.Emit("desktop", "pin", "photocraft", "true"))
-                        {
-                            Icon = "pin",
-                            Small = true,
-                        },
-                        new Button("pin-filmcraft", "Pin FilmCraft", Emit: AppSignals.Emit("desktop", "pin", "filmcraft", "true"))
-                        {
-                            Icon = "pin",
-                            Small = true,
-                        },
+                        new Button("auto-arrange", "Auto-Arrange", Emit: AppSignals.Emit("desktop", "auto-arrange"), Tone: ButtonTone.Accent) { Icon = "layout-grid", Small = true },
+                        new Button("pin-markdraw", "Pin Markdraw", Emit: AppSignals.Emit("desktop", "pin", "markdraw", "true")) { Icon = "pin", Small = true },
+                        new Button("pin-photocraft", "Pin PhotoCraft", Emit: AppSignals.Emit("desktop", "pin", "photocraft", "true")) { Icon = "pin", Small = true },
+                        new Button("pin-filmcraft", "Pin FilmCraft", Emit: AppSignals.Emit("desktop", "pin", "filmcraft", "true")) { Icon = "pin", Small = true },
                     ]) { Gap = 8 },
                     new Text(_approvals.Length == 0 ? "No pending approvals" : $"Smart Brief: {_approvals.Length} approval(s) waiting"),
                 ],
@@ -378,48 +356,30 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     {
         var preset = State.StylePreset;
         var barLayout = State.BarLayout;
-        if (TryGetSettings() is { } settings)
+        if (TryGetOptional<IUserSettings>("settings") is { } settings)
         {
             var current = await settings.Read();
             preset = current.StylePreset;
             barLayout = current.BarLayout;
         }
 
-        try
-        {
-            _approvals = [.. await Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>("approvals/index").Pending()];
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "Approvals inbox is optional when DesktopApp runs in baseline tests.");
-        }
+        try { _approvals = [.. await Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>("approvals/index").Pending()]; }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Approvals inbox is optional when DesktopApp runs in baseline tests."); }
 
         var activeNeurons = 10;
         try
         {
             var topology = await Get<IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads>("creator/reads").Topology();
-            if (topology.Nodes.Count > 0)
-            {
-                activeNeurons = topology.Nodes.Count;
-            }
+            if (topology.Nodes.Count > 0) { activeNeurons = topology.Nodes.Count; }
         }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "DebuggerReadsNeuron is optional when DesktopApp runs in baseline tests.");
-        }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "DebuggerReadsNeuron is optional when DesktopApp runs in baseline tests."); }
 
         try
         {
             var units = await Get<ISynapseStudio>("ino/synapses").List();
-            if (units.Length > 0 && activeNeurons == 10)
-            {
-                activeNeurons += units.Length;
-            }
+            if (units.Length > 0 && activeNeurons == 10) { activeNeurons += units.Length; }
         }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "SynapseStudio is optional when DesktopApp runs in baseline tests.");
-        }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "SynapseStudio is optional when DesktopApp runs in baseline tests."); }
 
         Set(State with
         {
@@ -432,15 +392,12 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         });
     }
 
-    private IUserSettings? TryGetSettings()
+    private T? TryGetOptional<T>(string key) where T : class
     {
-        try
-        {
-            return Get<IUserSettings>("settings");
-        }
+        try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            Swallow(error, "UserSettingsNeuron is optional when DesktopApp runs in baseline tests.");
+            Swallow(error, $"{typeof(T).Name} is optional when DesktopApp runs in baseline tests.");
             return null;
         }
     }

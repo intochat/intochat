@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
@@ -46,7 +47,6 @@ internal sealed class CompiledAppsHost(
     }
 
     private IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> Shipped => _shipped ??= ShippedBy(registrations);
-
     private IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)> HostedByName => _hostedByName ??= HostedBy(registrations);
 
     private IReadOnlyDictionary<string, (string Name, Type AppType, AppBundle Bundle)>? _shipped;
@@ -68,7 +68,7 @@ internal sealed class CompiledAppsHost(
 
     public async Task Execute(CancellationToken cancellationToken)
     {
-        _ = await listeners.Listen<Activated>(nameof(CompiledAppsHost), (publisher, ignoredSignal, token) =>
+        _ = await listeners.Listen<Activated>(nameof(CompiledAppsHost), (publisher, ignored, token) =>
         {
             var brain = publisher.Brain.Value;
             _ensuredBrains.TryAdd(brain, 0);
@@ -76,7 +76,7 @@ internal sealed class CompiledAppsHost(
             return Task.CompletedTask;
         });
 
-        _ = await listeners.Listen<IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged>(nameof(CompiledAppsHost), (publisher, ignoredSignal, token) =>
+        _ = await listeners.Listen<IntoChat.OS.Modules.Flutter.Workspace.Signals.WorkspaceChanged>(nameof(CompiledAppsHost), (publisher, ignored, token) =>
         {
             var brain = publisher.Brain.Value;
             TriggerEnsureAll(brain, token);
@@ -113,7 +113,6 @@ internal sealed class CompiledAppsHost(
         await EnsureDesktopViewAsync(brain, cancellationToken);
     }
 
-    // The open widgets the desktop app keeps in its records, comma separated as the window shell shows them.
     private async Task<string> DesktopWidgetsAsync(string brain)
         => string.Join(",", (await SiloNeurons.Get<IDesktopRecords>(services, $"{brain}/{IDesktopRecords.Key}").Read()).Widgets);
 
@@ -123,7 +122,7 @@ internal sealed class CompiledAppsHost(
         using var scope = baseCaller is not null ? RuntimeCallerContext.Stamp(baseCaller) : null;
         try
         {
-            var workspace = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(services, IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(brain));
+            var workspace = SiloNeurons.Get<IWorkspace>(services, IWorkspace.Key(brain));
             var state = await workspace.Read();
             var widgetsText = await DesktopWidgetsAsync(brain);
             var manifests = await ShippedManifests.Of(services);
@@ -138,12 +137,12 @@ internal sealed class CompiledAppsHost(
                 var appId = IApp.NameOf(brain, activeTab.App) ?? activeTab.Id;
                 var viewport = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Viewport.IViewport>(services, $"{brain}/apps/desktop/window/{window.Id}");
                 var currentVp = await viewport.Read();
-                var targetRef = new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef(activeTab.Id, $"{brain}/apps/{appId}", string.IsNullOrWhiteSpace(activeTab.Variant) ? "full" : activeTab.Variant, string.Empty);
+                var targetRef = new WorkspaceViewRef(activeTab.Id, $"{brain}/apps/{appId}", string.IsNullOrWhiteSpace(activeTab.Variant) ? "full" : activeTab.Variant, string.Empty);
                 if (currentVp.Target != targetRef) { await viewport.Set(targetRef, currentVp.Revision); }
                 _ = EnsureOpenAppViewAsync(brain, appId, cancellationToken);
             }
 
-            DigitalBrain.UI.Node BuildWindowFrame(IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow window)
+            DigitalBrain.UI.Node BuildWindowFrame(WorkspaceWindow window)
             {
                 var winId = window.Id;
                 var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
@@ -184,12 +183,11 @@ internal sealed class CompiledAppsHost(
                     Extents = [.. activeWindows.Chunk(3).Select(_ => 0.0)],
                 };
 
-            var dockApps = manifests.DockApps();
             var dock = new DigitalBrain.UI.Row(
             [
                 new DigitalBrain.UI.Row(
                 [
-                    .. dockApps.Select(app => (DigitalBrain.UI.Node)new DigitalBrain.UI.Button($"dock-{app}", manifests.Title(app), DesktopEmit("open", app), Tone: app == "ino" ? DigitalBrain.UI.ButtonTone.Accent : DigitalBrain.UI.ButtonTone.Neutral) { Icon = app == "ino" ? "ino" : null }),
+                    .. manifests.DockApps().Select(app => (DigitalBrain.UI.Node)new DigitalBrain.UI.Button($"dock-{app}", manifests.Title(app), DesktopEmit("open", app), Tone: app == "ino" ? DigitalBrain.UI.ButtonTone.Accent : DigitalBrain.UI.ButtonTone.Neutral) { Icon = app == "ino" ? "ino" : null }),
                     DesktopIcon("newtab", "plus", "New tab", "newtab", null),
                 ]) { Gap = 4 },
                 new DigitalBrain.UI.Row(
@@ -219,8 +217,7 @@ internal sealed class CompiledAppsHost(
             using var scope = baseCaller is not null ? RuntimeCallerContext.Stamp(baseCaller) : null;
             if (appName == IntoChat.Files.FilesApp.AppName)
             {
-                var filesView = await SiloNeurons.Get<IView>(services, $"{brain}/apps/files/view").Read();
-                if (filesView is null)
+                if (await SiloNeurons.Get<IView>(services, $"{brain}/apps/files/view").Read() is null)
                 {
                     using var filesScope = baseCaller is not null ? RuntimeCallerContext.Stamp(HostCaller.AsApp(baseCaller, IApp.Key(brain, IntoChat.Files.FilesApp.AppName))) : null;
                     await SiloNeurons.Get<IFilesWorkspace>(services, $"{brain}/apps/files/workspace").Open(ct);
@@ -228,8 +225,7 @@ internal sealed class CompiledAppsHost(
                 return;
             }
 
-            var view = await SiloNeurons.Get<IView>(services, $"{brain}/apps/{appName}/view").Read();
-            if (view is null)
+            if (await SiloNeurons.Get<IView>(services, $"{brain}/apps/{appName}/view").Read() is null)
             {
                 await HandleAppRequestedAsync(brain, appName, new AppRequested("open", string.Empty, Guid.NewGuid()), ct);
             }
@@ -242,27 +238,31 @@ internal sealed class CompiledAppsHost(
 
     private async Task EnsureShippedDesktopInstalledAsync(string brain)
     {
-        var desktopKey = IApp.Key(brain, "desktop");
-        var desktopApp = SiloNeurons.Get<IApp>(services, desktopKey);
+        var desktopApp = SiloNeurons.Get<IApp>(services, IApp.Key(brain, "desktop"));
         var snapshot = await desktopApp.Read();
-        if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
+        if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title) && Shipped.TryGetValue("desktop", out var shipped))
         {
-            if (!Shipped.TryGetValue("desktop", out var shipped)) { return; }
-            var bundle = shipped.Bundle;
-            await desktopApp.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "desktop", bundle.Version));
+            await desktopApp.Import(shipped.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "desktop", shipped.Bundle.Version));
         }
     }
+
+    private static WorkspaceUpdate BuildWorkspaceUpdate(WorkspaceState s, WorkspaceWindow[] windows, string? focusedViewId = null, WorkspaceViewRef[]? pins = null, WorkspaceViewRef[]? favourites = null) =>
+        new([.. windows.SelectMany(w => w.Tabs)], focusedViewId ?? s.FocusedViewId, pins ?? s.Pins)
+        {
+            Windows = windows,
+            Favourites = favourites ?? s.Favourites,
+        };
 
     private async Task ApplyDesktopWorkspaceChangeAsync(
         string brain,
         Guid requestId,
-        Func<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState, (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds)> change)
+        Func<WorkspaceState, (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds)> change)
     {
         var baseCaller = await HostCaller.ForBrain(services, brain);
         if (baseCaller is { } caller && caller.BrainId == brain) { CallerContextStamper.Stamp(caller); }
         await EnsureShippedDesktopInstalledAsync(brain);
         var desktopKey = IApp.Key(brain, "desktop");
-        var workspace = SiloNeurons.Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>(services, IntoChat.OS.Modules.Flutter.Workspace.IWorkspace.Key(brain));
+        var workspace = SiloNeurons.Get<IWorkspace>(services, IWorkspace.Key(brain));
 
         IReadOnlyList<string> closedWindowIds = [];
         using (baseCaller is not null ? CallerContextStamper.StampScope(HostCaller.AsApp(baseCaller, desktopKey)) : null)
@@ -278,9 +278,7 @@ internal sealed class CompiledAppsHost(
                     await workspace.Apply(update, $"desktop:{requestId}:{attempt}", state.Revision);
                     break;
                 }
-                catch (RevisionConflictException) when (attempt == 0)
-                {
-                }
+                catch (RevisionConflictException) when (attempt == 0) { }
             }
         }
 
@@ -299,9 +297,9 @@ internal sealed class CompiledAppsHost(
         }
     }
 
-    private static (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) OpenDesktopAppInState(
+    private static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) OpenDesktopAppInState(
         string brain,
-        IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState s,
+        WorkspaceState s,
         string rawAppName,
         string? targetWindowId = null,
         bool asNewTab = false)
@@ -317,27 +315,17 @@ internal sealed class CompiledAppsHost(
             {
                 if (w.Tabs.FirstOrDefault(t => string.Equals(t.App, appKey, StringComparison.OrdinalIgnoreCase)) is { } existingTab)
                 {
-                    if (w.ActiveTabId == existingTab.Id && s.FocusedViewId == existingTab.Id)
-                    {
-                        return (null, []);
-                    }
+                    if (w.ActiveTabId == existingTab.Id && s.FocusedViewId == existingTab.Id) { return (null, []); }
                     var focusedWindows = windows.Select(win => win.Id == w.Id ? win with { ActiveTabId = existingTab.Id } : win).ToArray();
-                    return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate([.. focusedWindows.SelectMany(win => win.Tabs)], existingTab.Id, s.Pins)
-                    {
-                        Windows = focusedWindows,
-                        Favourites = s.Favourites,
-                    }, []);
+                    return (BuildWorkspaceUpdate(s, focusedWindows, existingTab.Id), []);
                 }
             }
         }
 
         var takenTabIds = windows.SelectMany(w => w.Tabs).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
         var tabId = appName;
-        for (var n = 2; !takenTabIds.Add(tabId); n++)
-        {
-            tabId = $"{appName}-{n}";
-        }
-        var newTab = new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef(tabId, appKey, "full", string.Empty);
+        for (var n = 2; !takenTabIds.Add(tabId); n++) { tabId = $"{appName}-{n}"; }
+        var newTab = new WorkspaceViewRef(tabId, appKey, "full", string.Empty);
 
         if (asNewTab)
         {
@@ -346,44 +334,19 @@ internal sealed class CompiledAppsHost(
                 : windows.FirstOrDefault(w => w.Tabs.Any(t => t.Id == s.FocusedViewId)) ?? windows.LastOrDefault();
             if (targetWin is not null && targetWin.Tabs.Length < 8)
             {
-                IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef[] updatedTabs = [.. targetWin.Tabs, newTab];
-                var updatedWins = windows.Select(w => w.Id == targetWin.Id ? new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow(targetWin.Id, updatedTabs, newTab.Id) : w).ToArray();
-                return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate([.. updatedWins.SelectMany(w => w.Tabs)], newTab.Id, s.Pins)
-                {
-                    Windows = updatedWins,
-                    Favourites = s.Favourites,
-                }, []);
+                var updatedWins = windows.Select(w => w.Id == targetWin.Id ? new WorkspaceWindow(targetWin.Id, [.. targetWin.Tabs, newTab], newTab.Id) : w).ToArray();
+                return (BuildWorkspaceUpdate(s, updatedWins, newTab.Id), []);
             }
         }
 
-        if (windows.Count >= 8)
-        {
-            return (null, []);
-        }
+        if (windows.Count >= 8) { return (null, []); }
 
         var takenWinIds = windows.Select(w => w.Id).ToHashSet(StringComparer.Ordinal);
-        var nextWinId = "w-1";
-        for (var n = 1; ; n++)
-        {
-            var candidate = $"w-{n}";
-            if (!takenWinIds.Contains(candidate))
-            {
-                nextWinId = candidate;
-                break;
-            }
-        }
-
-        IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow[] nextWindows = [.. windows, new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow(nextWinId, [newTab], newTab.Id)];
-        return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate([.. nextWindows.SelectMany(w => w.Tabs)], newTab.Id, s.Pins)
-        {
-            Windows = nextWindows,
-            Favourites = s.Favourites,
-        }, []);
+        var nextWinId = Enumerable.Range(1, 99).Select(n => $"w-{n}").First(id => !takenWinIds.Contains(id));
+        return (BuildWorkspaceUpdate(s, [.. windows, new WorkspaceWindow(nextWinId, [newTab], newTab.Id)], newTab.Id), []);
     }
 
-    private static (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseDesktopTargetInState(
-        IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState s,
-        string target)
+    private static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseDesktopTargetInState(WorkspaceState s, string target)
     {
         var slash = target.LastIndexOf('/');
         var winId = slash >= 0 ? target[..slash] : target;
@@ -401,67 +364,36 @@ internal sealed class CompiledAppsHost(
         if (window.Tabs.Length <= 1 || slash < 0)
         {
             var remaining = windows.Where(w => w.Id != winId).ToArray();
-            var nextFocus = remaining.Any(w => w.Tabs.Any(t => t.Id == s.FocusedViewId))
-                ? s.FocusedViewId
-                : remaining.LastOrDefault()?.ActiveTabId;
-            return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate([.. remaining.SelectMany(w => w.Tabs)], nextFocus, s.Pins)
-            {
-                Windows = remaining,
-                Favourites = s.Favourites,
-            }, [winId]);
+            var nextFocus = remaining.Any(w => w.Tabs.Any(t => t.Id == s.FocusedViewId)) ? s.FocusedViewId : remaining.LastOrDefault()?.ActiveTabId;
+            return (BuildWorkspaceUpdate(s, remaining, nextFocus), [winId]);
         }
 
         var closedTabId = window.Tabs[tabIndex].Id;
         var nextTabs = window.Tabs.Where((_, i) => i != tabIndex).ToArray();
         var nextActive = window.ActiveTabId == closedTabId ? nextTabs[Math.Max(0, tabIndex - 1)].Id : window.ActiveTabId;
-        var updatedWindows = windows.Select(w => w.Id == winId ? new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow(winId, nextTabs, nextActive) : w).ToArray();
-        var focused = s.FocusedViewId == closedTabId ? nextActive : s.FocusedViewId;
-        return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate([.. updatedWindows.SelectMany(w => w.Tabs)], focused, s.Pins)
-        {
-            Windows = updatedWindows,
-            Favourites = s.Favourites,
-        }, []);
+        var updatedWindows = windows.Select(w => w.Id == winId ? new WorkspaceWindow(winId, nextTabs, nextActive) : w).ToArray();
+        return (BuildWorkspaceUpdate(s, updatedWindows, s.FocusedViewId == closedTabId ? nextActive : s.FocusedViewId), []);
     }
 
-    private static (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseDesktopAppInState(
-        string brain,
-        IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState s,
-        string rawAppName)
+    private static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseDesktopAppInState(string brain, WorkspaceState s, string rawAppName)
     {
-        var appName = rawAppName.Trim().ToLowerInvariant();
-        var appKey = IApp.Key(brain, appName);
+        var appKey = IApp.Key(brain, rawAppName.Trim().ToLowerInvariant());
         var closedIds = new List<string>();
-        var nextWindows = new List<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow>();
+        var nextWindows = new List<WorkspaceWindow>();
         var changed = false;
 
         foreach (var w in s.Windows.Where(w => w.Tabs is { Length: > 0 }))
         {
             var keptTabs = w.Tabs.Where(t => !string.Equals(t.App, appKey, StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (keptTabs.Length != w.Tabs.Length)
-            {
-                changed = true;
-            }
-            if (keptTabs.Length == 0)
-            {
-                closedIds.Add(w.Id);
-            }
-            else
-            {
-                var nextActive = keptTabs.Any(t => t.Id == w.ActiveTabId) ? w.ActiveTabId : keptTabs[^1].Id;
-                nextWindows.Add(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceWindow(w.Id, keptTabs, nextActive));
-            }
+            if (keptTabs.Length != w.Tabs.Length) { changed = true; }
+            if (keptTabs.Length == 0) { closedIds.Add(w.Id); }
+            else { nextWindows.Add(new WorkspaceWindow(w.Id, keptTabs, keptTabs.Any(t => t.Id == w.ActiveTabId) ? w.ActiveTabId : keptTabs[^1].Id)); }
         }
 
         if (!changed) { return (null, []); }
         var remaining = nextWindows.ToArray();
-        var nextFocus = remaining.Any(w => w.Tabs.Any(t => t.Id == s.FocusedViewId))
-            ? s.FocusedViewId
-            : remaining.LastOrDefault()?.ActiveTabId;
-        return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate([.. remaining.SelectMany(w => w.Tabs)], nextFocus, s.Pins)
-        {
-            Windows = remaining,
-            Favourites = s.Favourites,
-        }, closedIds);
+        var nextFocus = remaining.Any(w => w.Tabs.Any(t => t.Id == s.FocusedViewId)) ? s.FocusedViewId : remaining.LastOrDefault()?.ActiveTabId;
+        return (BuildWorkspaceUpdate(s, remaining, nextFocus), closedIds);
     }
 
     private async Task HandleDesktopActionAsync(string brain, AppRequested signal, CancellationToken ct)
@@ -499,15 +431,9 @@ internal sealed class CompiledAppsHost(
                 {
                     var winId = action["focus:".Length..].Trim();
                     await ApplyDesktopWorkspaceChangeAsync(brain, signal.RequestId, s =>
-                    {
-                        var w = s.Windows.FirstOrDefault(win => win.Id == winId);
-                        if (w is null || s.FocusedViewId == w.ActiveTabId) { return (null, []); }
-                        return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate([.. s.Windows.SelectMany(win => win.Tabs)], w.ActiveTabId, s.Pins)
-                        {
-                            Windows = s.Windows,
-                            Favourites = s.Favourites,
-                        }, []);
-                    });
+                        s.Windows.FirstOrDefault(win => win.Id == winId) is { } w && s.FocusedViewId != w.ActiveTabId
+                            ? (BuildWorkspaceUpdate(s, s.Windows, w.ActiveTabId), [])
+                            : (null, []));
                 }
                 else if (action.StartsWith("tab:", StringComparison.Ordinal))
                 {
@@ -527,11 +453,7 @@ internal sealed class CompiledAppsHost(
                                 : w.Tabs.FirstOrDefault(t => t.Id == tabPart);
                             if (chosen is null || (w.ActiveTabId == chosen.Id && s.FocusedViewId == chosen.Id)) { return (null, []); }
                             var updatedWins = s.Windows.Select(win => win.Id == winId ? win with { ActiveTabId = chosen.Id } : win).ToArray();
-                            return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate([.. updatedWins.SelectMany(win => win.Tabs)], chosen.Id, s.Pins)
-                            {
-                                Windows = updatedWins,
-                                Favourites = s.Favourites,
-                            }, []);
+                            return (BuildWorkspaceUpdate(s, updatedWins, chosen.Id), []);
                         });
                     }
                 }
@@ -545,21 +467,16 @@ internal sealed class CompiledAppsHost(
                 {
                     var isPin = action.StartsWith("pin:", StringComparison.Ordinal);
                     var pinApp = (isPin ? action["pin:".Length..] : action["unpin:".Length..]).Trim().ToLowerInvariant();
-                    if (!string.IsNullOrWhiteSpace(pinApp) && pinApp != "ino" && pinApp != "desktop")
+                    if (!string.IsNullOrWhiteSpace(pinApp) && pinApp is not ("ino" or "desktop"))
                     {
                         var appKey = IApp.Key(brain, pinApp);
                         await ApplyDesktopWorkspaceChangeAsync(brain, signal.RequestId, s =>
                         {
-                            var alreadyPinned = s.Pins.Any(p => string.Equals(p.Id, pinApp, StringComparison.OrdinalIgnoreCase));
-                            if (alreadyPinned == isPin) { return (null, []); }
-                            IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef[] nextPins = isPin
-                                ? [.. s.Pins, new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef(pinApp, appKey, "full", string.Empty)]
+                            if (s.Pins.Any(p => string.Equals(p.Id, pinApp, StringComparison.OrdinalIgnoreCase)) == isPin) { return (null, []); }
+                            WorkspaceViewRef[] nextPins = isPin
+                                ? [.. s.Pins, new WorkspaceViewRef(pinApp, appKey, "full", string.Empty)]
                                 : [.. s.Pins.Where(p => !string.Equals(p.Id, pinApp, StringComparison.OrdinalIgnoreCase))];
-                            return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate(s.OpenViews, s.FocusedViewId, nextPins)
-                            {
-                                Windows = s.Windows,
-                                Favourites = s.Favourites,
-                            }, []);
+                            return (BuildWorkspaceUpdate(s, s.Windows, pins: nextPins), []);
                         });
                     }
                 }
@@ -573,26 +490,22 @@ internal sealed class CompiledAppsHost(
                         if (activeTab is null) { return (null, []); }
                         var appId = IApp.NameOf(brain, activeTab.App) ?? activeTab.Id;
                         var exists = s.Favourites.Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
-                        IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef[] nextFavs = exists
+                        WorkspaceViewRef[] nextFavs = exists
                             ? [.. s.Favourites.Where(f => !string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase))]
-                            : [.. s.Favourites.Take(4), new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef(appId, activeTab.App, string.Empty, string.Empty)];
-                        return (new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate(s.OpenViews, s.FocusedViewId, s.Pins)
-                        {
-                            Windows = s.Windows,
-                            Favourites = nextFavs,
-                        }, []);
+                            : [.. s.Favourites.Take(4), new WorkspaceViewRef(appId, activeTab.App, string.Empty, string.Empty)];
+                        return (BuildWorkspaceUpdate(s, s.Windows, favourites: nextFavs), []);
                     });
                 }
                 else if (action.StartsWith("widget-open:", StringComparison.Ordinal) || action.StartsWith("widget-close:", StringComparison.Ordinal))
                 {
                     var isOpen = action.StartsWith("widget-open:", StringComparison.Ordinal);
                     var widgetId = (isOpen ? action["widget-open:".Length..] : action["widget-close:".Length..]).Trim().ToLowerInvariant();
-                    if (!string.IsNullOrWhiteSpace(widgetId))
+                    var op = isOpen ? "widget-open" : "widget-close";
+                    if (!string.IsNullOrWhiteSpace(widgetId)
+                        && await EnsureAssignedAsync(brain, "desktop", desktopKey, ct) is { } desktopTurns
+                        && desktopTurns.Definition.FindOperation(op) is { } widgetMethod)
                     {
-                        // The desktop app keeps its widgets in its own state.
-                        if (await EnsureAssignedAsync(brain, "desktop", desktopKey, ct) is { } desktopTurns
-                            && desktopTurns.Definition.FindOperation(isOpen ? "widget-open" : "widget-close") is { } widgetMethod)
-                        { await desktopTurns.Request(isOpen ? "widget-open" : "widget-close", BindArgument(widgetMethod, widgetId), ct); }
+                        await desktopTurns.Request(op, BindArgument(widgetMethod, widgetId), ct);
                     }
                 }
                 else
@@ -607,14 +520,8 @@ internal sealed class CompiledAppsHost(
                 gate.Release();
             }
 
-            if (openedApp is not null)
-            {
-                await EnsureOpenAppViewAsync(brain, openedApp, ct);
-            }
-            if (forwardAction)
-            {
-                await HandleAppRequestedAsync(brain, "desktop", signal, ct);
-            }
+            if (openedApp is not null) { await EnsureOpenAppViewAsync(brain, openedApp, ct); }
+            if (forwardAction) { await HandleAppRequestedAsync(brain, "desktop", signal, ct); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -646,14 +553,9 @@ internal sealed class CompiledAppsHost(
             var spec = ResolveSpec(appName);
             var app = SiloNeurons.Get<IApp>(services, appKey);
             var snapshot = await app.Read();
-            if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
-            {
-                await app.Import(spec.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), spec.Name, spec.Bundle.Version));
-            }
-            else if (snapshot.Manifest.Operations.Length < spec.Bundle.Manifest.Operations.Length)
-            {
-                await app.Replace(spec.Bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), spec.Name, spec.Bundle.Version));
-            }
+            var origin = new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), spec.Name, spec.Bundle.Version);
+            if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title)) { await app.Import(spec.Bundle, origin); }
+            else if (snapshot.Manifest.Operations.Length < spec.Bundle.Manifest.Operations.Length) { await app.Replace(spec.Bundle, origin); }
 
             var turns = host.TryGetTurns(appKey);
             if (turns is null)
@@ -666,8 +568,7 @@ internal sealed class CompiledAppsHost(
             return turns;
         }
 
-        var existingTurns = host.TryGetTurns(appKey);
-        if (existingTurns is not null)
+        if (host.TryGetTurns(appKey) is { } existingTurns)
         {
             await AttachWatchesAsync(brain, appKey, existingTurns);
             return existingTurns;
@@ -678,26 +579,21 @@ internal sealed class CompiledAppsHost(
             && !string.IsNullOrWhiteSpace(typeName))
         {
             var type = Type.GetType(typeName, throwOnError: false)
-                ?? AppDomain.CurrentDomain.GetAssemblies()
-                    .Select(a => a.GetType(typeName, throwOnError: false))
-                    .FirstOrDefault(t => t is not null);
+                ?? AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(typeName, throwOnError: false)).FirstOrDefault(t => t is not null);
             if (type is not null)
             {
                 await host.AssignType(appKey, type, new Dictionary<string, string>(unhostedSnapshot.Settings, StringComparer.Ordinal), ct);
-                var assignedTurns = host.TryGetTurns(appKey);
-                if (assignedTurns is not null)
+                if (host.TryGetTurns(appKey) is { } assignedTurns)
                 {
                     WireVfsService(brain, assignedTurns.App);
                     await AttachWatchesAsync(brain, appKey, assignedTurns);
+                    return assignedTurns;
                 }
-                return assignedTurns;
             }
         }
         return null;
     }
 
-    // Each assigned app's watch subscriptions, by app key, with the turns they feed: a reassigned app (new turns) gets new ones and
-    // the old ones are disposed; a retired app's are disposed on its next ensure.
     private readonly ConcurrentDictionary<string, (DigitalBrain.Apps.Hosting.AppTurns Turns, IAsyncDisposable Watches)> _watches = new(StringComparer.Ordinal);
 
     internal async Task AttachWatchesAsync(string brain, string appKey, DigitalBrain.Apps.Hosting.AppTurns? turns)
@@ -721,12 +617,8 @@ internal sealed class CompiledAppsHost(
         if (!_watches.TryAdd(appKey, (turns, watches))) { await watches.DisposeAsync(); }
     }
 
-    // Test seam: ensure one app as the host does on activation and return its turns.
-    internal async Task<DigitalBrain.Apps.Hosting.AppTurns?> EnsureForTestAsync(string brain, string appName, CancellationToken ct)
-    {
-        var turns = await EnsureAssignedAsync(brain, appName, IApp.Key(brain, appName), ct);
-        return turns;
-    }
+    internal Task<DigitalBrain.Apps.Hosting.AppTurns?> EnsureForTestAsync(string brain, string appName, CancellationToken ct)
+        => EnsureAssignedAsync(brain, appName, IApp.Key(brain, appName), ct);
 
     private void WireVfsService(string brain, App instance)
     {
@@ -747,10 +639,7 @@ internal sealed class CompiledAppsHost(
             await gate.WaitAsync(ct);
             try
             {
-                if (appName == "desktop")
-                {
-                    await EnsureDesktopViewAsync(brain, ct);
-                }
+                if (appName == "desktop") { await EnsureDesktopViewAsync(brain, ct); }
                 var turns = await EnsureAssignedAsync(brain, appName, appKey, ct);
                 if (turns is null) { return; }
                 if (turns.Definition.FindOperation(request.Operation) is { } method)
@@ -776,10 +665,7 @@ internal sealed class CompiledAppsHost(
             }
             finally { gate.Release(); }
 
-            if (openedDesktopApp is not null)
-            {
-                await EnsureOpenAppViewAsync(brain, openedDesktopApp, ct);
-            }
+            if (openedDesktopApp is not null) { await EnsureOpenAppViewAsync(brain, openedDesktopApp, ct); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -801,7 +687,6 @@ internal sealed class CompiledAppsHost(
         }
     }
 
-    // The desktop's window verbs: the host's shell handles them; any other desktop operation is the desktop app's.
     private static readonly HashSet<string> DesktopWindowVerbs = new(StringComparer.Ordinal)
     { "close", "close-app", "focus", "tab", "newtab", "pin", "unpin", "favourite", "widget-open", "widget-close", "settings" };
 
@@ -814,12 +699,8 @@ internal sealed class CompiledAppsHost(
     private static DigitalBrain.UI.Button DesktopIcon(string key, string icon, string label, string signal, string? argument)
         => new(key, label, DesktopEmit(signal, argument)) { Icon = icon, Small = true };
 
-    // A request's input as text: a JSON string's value (a view emit's single argument), otherwise the input itself.
     internal static string TextOf(string input)
-    {
-        if (TryJson(input) is { ValueKind: JsonValueKind.String } text) { return text.GetString() ?? ""; }
-        return input.Trim();
-    }
+        => TryJson(input) is { ValueKind: JsonValueKind.String } text ? text.GetString() ?? "" : input.Trim();
 
     private static JsonElement? TryJson(string input)
     {
@@ -829,8 +710,6 @@ internal sealed class CompiledAppsHost(
         catch (JsonException) { return null; }
     }
 
-    // Binds an operation's argument: from a view emit's args (JSON: a string, an array bound positionally, an object by name),
-    // or from plain text (a person's sentence, an HTTP request), which fills the record's first member.
     internal static object? BindArgument(MethodInfo method, string input)
     {
         var parameter = method.GetParameters().FirstOrDefault(p => p.ParameterType != typeof(CancellationToken));
@@ -844,8 +723,7 @@ internal sealed class CompiledAppsHost(
         }
         if (string.IsNullOrWhiteSpace(input))
         {
-            var emptyCtor = targetType.GetConstructor(Type.EmptyTypes);
-            if (emptyCtor is not null) { return emptyCtor.Invoke(null); }
+            if (targetType.GetConstructor(Type.EmptyTypes) is { } emptyCtor) { return emptyCtor.Invoke(null); }
             var defaultCtor = targetType.GetConstructors().FirstOrDefault(c => c.GetParameters().All(p => p.HasDefaultValue));
             return defaultCtor?.Invoke([.. defaultCtor.GetParameters().Select(p => p.DefaultValue)]);
         }
@@ -878,44 +756,16 @@ internal sealed class CompiledAppsHost(
     private static object? ConvertSegment(string raw, ParameterInfo param)
     {
         var underlying = Nullable.GetUnderlyingType(param.ParameterType) ?? param.ParameterType;
-        if (underlying == typeof(string))
-        {
-            return raw;
-        }
-        if (underlying == typeof(bool))
-        {
-            return bool.TryParse(raw, out var b)
-                ? b
-                : (param.HasDefaultValue ? param.DefaultValue : true);
-        }
-        if (underlying == typeof(int))
-        {
-            return int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n)
-                ? n
-                : (param.HasDefaultValue ? param.DefaultValue : 0);
-        }
-        if (underlying == typeof(long))
-        {
-            return long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var l)
-                ? l
-                : (param.HasDefaultValue ? param.DefaultValue : 0L);
-        }
-        if (underlying == typeof(double))
-        {
-            return double.TryParse(raw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d)
-                ? d
-                : (param.HasDefaultValue ? param.DefaultValue : 0.0);
-        }
-        if (underlying.IsEnum && Enum.TryParse(underlying, raw, ignoreCase: true, out var enumVal))
-        {
-            return enumVal;
-        }
-
+        if (underlying == typeof(string)) { return raw; }
+        if (underlying == typeof(bool)) { return bool.TryParse(raw, out var b) ? b : (param.HasDefaultValue ? param.DefaultValue : true); }
+        if (underlying == typeof(int)) { return int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : (param.HasDefaultValue ? param.DefaultValue : 0); }
+        if (underlying == typeof(long)) { return long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var l) ? l : (param.HasDefaultValue ? param.DefaultValue : 0L); }
+        if (underlying == typeof(double)) { return double.TryParse(raw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : (param.HasDefaultValue ? param.DefaultValue : 0.0); }
+        if (underlying.IsEnum && Enum.TryParse(underlying, raw, ignoreCase: true, out var enumVal)) { return enumVal; }
         return param.HasDefaultValue ? param.DefaultValue : GetDefaultForType(param.ParameterType);
     }
 
-    private static object? GetDefaultForType(Type type) =>
-        type.IsValueType ? Activator.CreateInstance(type) : null;
+    private static object? GetDefaultForType(Type type) => type.IsValueType ? Activator.CreateInstance(type) : null;
 }
 
 internal sealed class CompiledAppsLifecycle(IServiceProvider services) : ILifecycleParticipant<ISiloLifecycle>

@@ -90,27 +90,17 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
         try
         {
             var compute = await Get<ICompute>("compute").SetBudget(cap);
-            var rows = compute.Rows ?? [];
-            var usd = FormatUsd(compute.SpentMicros);
-            var budgetUsd = FormatUsd(compute.MonthlyBudgetMicros);
-            Set(new UsageAppState(
-                SpentMicros: compute.SpentMicros,
-                FormattedUsd: usd,
-                Status: $"Updated monthly cap to {budgetUsd}. Total: {usd} / {budgetUsd}.",
-                Rows: rows,
-                MonthlyBudgetMicros: compute.MonthlyBudgetMicros,
-                BudgetExceeded: compute.BudgetExceeded));
+            ApplyComputeState(compute, $"Updated monthly cap to {FormatUsd(compute.MonthlyBudgetMicros)}. Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)}.");
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Compute neuron is optional when UsageApp runs without Flutter module registered.");
             var usd = FormatUsd(State.SpentMicros);
-            var budgetUsd = FormatUsd(cap);
             Set(State with
             {
                 MonthlyBudgetMicros = cap,
                 BudgetExceeded = State.SpentMicros > cap,
-                Status = $"Updated monthly cap to {budgetUsd}. Total: {usd}.",
+                Status = $"Updated monthly cap to {FormatUsd(cap)}. Total: {usd}.",
             });
         }
     }
@@ -127,33 +117,27 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
         {
             var compute = await Get<ICompute>("compute").Read();
             var rows = compute.Rows ?? [];
-            var usd = FormatUsd(compute.SpentMicros);
-            var budgetUsd = FormatUsd(compute.MonthlyBudgetMicros);
-            Set(new UsageAppState(
-                SpentMicros: compute.SpentMicros,
-                FormattedUsd: usd,
-                Status: $"{statusPrefix} Total: {usd} / {budgetUsd} across {rows.Length} surface(s).",
-                Rows: rows,
-                MonthlyBudgetMicros: compute.MonthlyBudgetMicros,
-                BudgetExceeded: compute.BudgetExceeded));
+            ApplyComputeState(compute, $"{statusPrefix} Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)} across {rows.Length} surface(s).");
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Compute neuron is optional when UsageApp runs without Flutter module registered.");
             var usd = FormatUsd(State.SpentMicros);
-            Set(State with
-            {
-                FormattedUsd = usd,
-                Status = $"{statusPrefix} Total: {usd}.",
-            });
+            Set(State with { FormattedUsd = usd, Status = $"{statusPrefix} Total: {usd}." });
         }
     }
 
-    public static string FormatUsd(long micros)
-    {
-        var dollars = micros / 1_000_000m;
-        return string.Create(CultureInfo.InvariantCulture, $"${dollars:0.00}");
-    }
+    private void ApplyComputeState(ComputeState compute, string status) =>
+        Set(new UsageAppState(
+            SpentMicros: compute.SpentMicros,
+            FormattedUsd: FormatUsd(compute.SpentMicros),
+            Status: status,
+            Rows: compute.Rows ?? [],
+            MonthlyBudgetMicros: compute.MonthlyBudgetMicros,
+            BudgetExceeded: compute.BudgetExceeded));
+
+    public static string FormatUsd(long micros) =>
+        string.Create(CultureInfo.InvariantCulture, $"${micros / 1_000_000m:0.00}");
 
     public View Render()
     {
@@ -179,26 +163,10 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
                         new Text(State.Status),
                         new Row(
                         [
-                            new Button("refresh-usage", "Refresh usage", Emit: AppSignals.Emit("usage", "refresh"), Tone: ButtonTone.Accent)
-                            {
-                                Icon = "refresh-cw",
-                                Small = true,
-                            },
-                            new Button("cap-10", "Cap $10", Emit: AppSignals.Emit("usage", "set-budget", "10000000"))
-                            {
-                                Icon = "gauge",
-                                Small = true,
-                            },
-                            new Button("cap-50", "Cap $50", Emit: AppSignals.Emit("usage", "set-budget", "50000000"))
-                            {
-                                Icon = "gauge",
-                                Small = true,
-                            },
-                            new Button("cap-200", "Cap $200", Emit: AppSignals.Emit("usage", "set-budget", "200000000"))
-                            {
-                                Icon = "gauge",
-                                Small = true,
-                            },
+                            new Button("refresh-usage", "Refresh usage", Emit: AppSignals.Emit("usage", "refresh"), Tone: ButtonTone.Accent) { Icon = "refresh-cw", Small = true },
+                            new Button("cap-10", "Cap $10", Emit: AppSignals.Emit("usage", "set-budget", "10000000")) { Icon = "gauge", Small = true },
+                            new Button("cap-50", "Cap $50", Emit: AppSignals.Emit("usage", "set-budget", "50000000")) { Icon = "gauge", Small = true },
+                            new Button("cap-200", "Cap $200", Emit: AppSignals.Emit("usage", "set-budget", "200000000")) { Icon = "gauge", Small = true },
                         ]) { Gap = 8 },
                     ],
                     Kind: SurfaceKind.Elevated,

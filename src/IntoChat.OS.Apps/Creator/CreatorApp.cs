@@ -63,17 +63,14 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
     public const int EdgeSignals = 20;
     public const int MaxHops = 2000;
 
-    // Render cannot await: the last reads, refreshed on open, after each command and on each change signal.
     private BrainTopology _topology = new([], []);
     private FlowView[] _flows = [];
     private Approval[] _approvals = [];
     private Inspection _inspection = Inspection.None;
     private readonly HashSet<string> _running = new(StringComparer.Ordinal);
 
-    // How long one scenario run may take.
     public TimeSpan ScenarioBudget { get; set; } = TimeSpan.FromSeconds(30);
 
-    // Runs a unit's scenarios (alias, its files, the scenario name or null, cancellation) into a transcript.
     public Func<string, IReadOnlyDictionary<string, string>, string?, CancellationToken, Task<string>> RunScenarios { get; set; } = ScenarioTranscripts.Run;
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(CreatorApp));
@@ -163,8 +160,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         Set(State with { ReplayCursor = ReplayScript.Move(State.ReplayCursor, request.Cursor, steps) });
     }
 
-    // "Change it": a build flow whose goal names the unit, started over the unit's current files (BuildInner.Existing), so the
-    // drafter edits what is installed instead of writing a new unit.
     [DigitalBrain.On]
     public async Task Change(CreatorChange request)
     {
@@ -188,8 +183,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         await RefreshAsync();
     }
 
-    // Runs the unit's kept scenarios here, in the host-loaded Creator: a loaded unit only, one run per alias at a time, at most
-    // ScenarioTranscripts.MaxScenarios scenarios, within ScenarioBudget.
     [DigitalBrain.On]
     public async Task Scenario(CreatorScenario request)
     {
@@ -278,10 +271,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
                 Title: alias,
                 TemplateAppId: alias,
                 TemplateSource: csSource,
-                EmbeddedApps:
-                [
-                    new("main", alias, alias, $"{brainId}/{alias}"),
-                ],
+                EmbeddedApps: [new("main", alias, alias, $"{brainId}/{alias}")],
                 UnitFiles: files.Count > 0 ? files : null,
                 AuthorBrainId: brainId);
 
@@ -308,8 +298,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         try
         {
             var files = ShippedUnits.Files(alias);
-            var studio = Get<ISynapseStudio>(SynapsesKey);
-            await studio.DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
+            await Get<ISynapseStudio>(SynapsesKey).DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
 
             try
             {
@@ -317,7 +306,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
                 {
                     Goal = $"seed shipped unit {alias}",
                     Alias = alias,
-                    Existing = files.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal)
+                    Existing = files.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
                 }, JsonSerializerOptions.Web);
                 await Get<IFlows>(FlowsKey).Start(BuildFlow.Alias, ShippedUnits.Title(alias), null, inner);
             }
@@ -348,7 +337,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         watch.On<IConfirmationInbox, ConfirmationResolved>("confirmation-resolved", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
     }
 
-    // The signal names the change; the value is read from the field.
     public async Task OnField(string field)
     {
         var value = (await Get<IField>(CreatorView.FieldKey(field)).Read()).Value ?? "";
@@ -377,7 +365,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         Set(State with { Status = State.Status });
     }
 
-    // Reads what the inspector shows for the selection, inside this turn.
     private async Task InspectAsync()
     {
         _inspection = State.Selected switch
@@ -467,7 +454,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         };
     }
 
-    // A unit's files as the studio keeps them: its .cs source, spec.md and scenarios.json.
     private async Task<Dictionary<string, string>> FilesAsync(string alias)
     {
         var files = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -481,7 +467,6 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         return files;
     }
 
-    // A selection names something the graph draws: a node, a ghost of a build flow, an edge; a pulse names a trace.
     private bool Known(Selection selection) => selection.Kind switch
     {
         Selection.Pulse => true,
@@ -492,28 +477,18 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
 
     private string? SelectedAlias() => State.Selected is { Kind: Selection.Node } node ? UnitAlias(node.Id) : null;
 
-    // The alias of a unit node: {brain}/{alias}/default, or a ghost draft:<alias>.
     public static string? UnitAlias(string id)
         => id.StartsWith("draft:", StringComparison.Ordinal) ? id["draft:".Length..] : BrainGraph.AliasOf(id);
 
     private async Task RecordCreatorComputeAsync(long micros)
     {
-        try
-        {
-            await Get<ICompute>("compute").Record("creator", micros);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "Compute metering is optional when the compute neuron is not registered.");
-        }
+        try { await Get<ICompute>("compute").Record("creator", micros); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Compute metering is optional when the compute neuron is not registered."); }
     }
 
     private async Task<bool> IsCreatorBudgetExceededAsync()
     {
-        try
-        {
-            return (await Get<ICompute>("compute").Read()).BudgetExceeded;
-        }
+        try { return (await Get<ICompute>("compute").Read()).BudgetExceeded; }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Compute metering is optional when the compute neuron is not registered.");

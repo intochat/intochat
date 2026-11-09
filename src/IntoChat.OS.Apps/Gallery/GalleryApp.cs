@@ -66,7 +66,6 @@ public sealed record GalleryAppState(
         GalleryLibrary.DefaultCatalog)
     {
     }
-
 }
 
 [DigitalBrain.App("gallery", Accent = "#22C55E", Category = "Studio")]
@@ -112,23 +111,17 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
         var category = string.IsNullOrWhiteSpace(request.Category) ? "all" : GalleryLibrary.NormalizeCategory(request.Category);
         var preset = State.StylePreset;
         var barLayout = State.BarLayout;
-        if (TryGetSettings() is { } settings)
+        if (TryGetOptional<IUserSettings>("settings") is { } settings)
         {
             var current = await settings.Read();
             preset = current.StylePreset;
             barLayout = current.BarLayout;
         }
 
-        if (TryGetLibrary() is { } library)
+        if (TryGetOptional<IGalleryLibrary>("library") is { } library)
         {
-            try
-            {
-                await library.Filter(category, State.Search);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "GalleryLibrary neuron is optional when running GalleryApp standalone.");
-            }
+            try { await library.Filter(category, State.Search); }
+            catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "GalleryLibrary neuron is optional when running GalleryApp standalone."); }
         }
 
         var visibleCount = GalleryLibrary.FilteredEntries(State.Entries, category, State.Search).Length;
@@ -194,11 +187,7 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
 
         if (string.Equals(raw, "detail", StringComparison.OrdinalIgnoreCase))
         {
-            Set(State with
-            {
-                ViewMode = "detail",
-                Status = $"Inspecting {State.SelectedId}",
-            });
+            Set(State with { ViewMode = "detail", Status = $"Inspecting {State.SelectedId}" });
             return;
         }
 
@@ -217,11 +206,7 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
         if (raw.StartsWith("tab:", StringComparison.OrdinalIgnoreCase))
         {
             var tab = raw["tab:".Length..].Trim().ToLowerInvariant();
-            Set(State with
-            {
-                CodeTab = tab is "flutter" or "contract" ? tab : "csharp",
-                Status = $"Code Inspector tab: {tab.ToUpperInvariant()}",
-            });
+            Set(State with { CodeTab = tab is "flutter" or "contract" ? tab : "csharp", Status = $"Code Inspector tab: {tab.ToUpperInvariant()}" });
             return;
         }
 
@@ -230,7 +215,7 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
             var parts = raw.Split(':', 3, StringSplitOptions.TrimEntries);
             var knobKind = parts.ElementAtOrDefault(1)?.ToLowerInvariant() ?? "";
             var knobVal = parts.ElementAtOrDefault(2)?.ToLowerInvariant() ?? "";
-            var nextState = knobKind switch
+            Set(knobKind switch
             {
                 "style" => State with { KnobStyle = knobVal, Status = $"Property Knob · Style = {knobVal}" },
                 "tone" => State with { KnobTone = knobVal, Status = $"Property Knob · Tone = {knobVal}" },
@@ -239,8 +224,7 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                 "surface" => State with { KnobSurface = knobVal, Status = $"Property Knob · Surface = {knobVal}" },
                 "chart" => State with { KnobChartKind = knobVal, Status = $"Property Knob · ChartKind = {knobVal}" },
                 _ => State,
-            };
-            Set(nextState);
+            });
             return;
         }
 
@@ -299,8 +283,7 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
                 ? "acrylic-surface"
                 : raw;
 
-        var match = State.Entries.FirstOrDefault(e => string.Equals(e.Id, normalizedId, StringComparison.OrdinalIgnoreCase))
-            ?? State.Entries[0];
+        var match = State.Entries.FirstOrDefault(e => string.Equals(e.Id, normalizedId, StringComparison.OrdinalIgnoreCase)) ?? State.Entries[0];
         Set(State with
         {
             SelectedId = match.Id,
@@ -315,7 +298,7 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
         ArgumentNullException.ThrowIfNull(request);
         var preset = string.IsNullOrWhiteSpace(request.StylePreset) ? State.StylePreset : request.StylePreset.Trim();
         var barLayout = string.IsNullOrWhiteSpace(request.BarLayout) ? GalleryLibrary.DefaultBarLayoutFor(preset, State.BarLayout) : request.BarLayout.Trim();
-        if (TryGetSettings() is { } settings)
+        if (TryGetOptional<IUserSettings>("settings") is { } settings)
         {
             var saved = await settings.SetUiIdentity(preset, barLayout);
             preset = saved.StylePreset;
@@ -351,28 +334,12 @@ public sealed class GalleryApp : DigitalBrain.App<GalleryAppState>
         }
     }
 
-    private IGalleryLibrary? TryGetLibrary()
+    private T? TryGetOptional<T>(string key) where T : class
     {
-        try
-        {
-            return Get<IGalleryLibrary>("library");
-        }
+        try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            Swallow(error, "GalleryLibrary neuron is optional when running GalleryApp in isolation.");
-            return null;
-        }
-    }
-
-    private IUserSettings? TryGetSettings()
-    {
-        try
-        {
-            return Get<IUserSettings>("settings");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "UserSettingsNeuron is optional when running GalleryApp in isolation.");
+            Swallow(error, $"{typeof(T).Name} neuron is optional when running GalleryApp in isolation.");
             return null;
         }
     }
