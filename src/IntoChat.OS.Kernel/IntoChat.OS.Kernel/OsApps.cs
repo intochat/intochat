@@ -99,6 +99,9 @@ internal sealed class OsDefaults(
     // approves them. One that fails is logged and the next connect deploys again (OsWorkspaceRoot); a deploy never approves.
     internal static async Task DeployCircleUnits(INeuronProxies proxies, ILogger logger, string brainId)
     {
+        // Host code deploying the shipped units into the circle's brain: the connecting person's stamp names another brain, so the
+        // call runs as the platform of the target brain (the call filter refuses a person's call across brains).
+        using var platform = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.StampScope(DigitalBrain.Capabilities.CapabilityCallers.Platform(brainId, brainId, brainId));
         var studio = proxies.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
         foreach (var alias in ShippedApps.CircleUnits)
         {

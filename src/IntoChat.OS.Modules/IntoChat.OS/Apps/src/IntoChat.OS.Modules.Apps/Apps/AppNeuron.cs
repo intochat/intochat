@@ -49,15 +49,24 @@ internal sealed partial class AppNeuron(
             var stored = await Context.State.Load<System.Text.Json.JsonElement>();
             var markers = LegacyAppRecord.Markers(stored);
             if (markers.Length == 0) { return false; }
+            var next = State.Clone();
+            next.Files = State.Files.Where(file => !LegacyAppRecord.IsProgramFile(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+            next.Settings = State.Settings.Where(setting => !LegacyAppRecord.IsPrebuilt(setting.Key) && setting.Key != InProcessAppRuntime.CompiledTypeKey)
+                .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
+            // A shipped app the host loads (ino, desktop, creator...) is not rebuilt by the Creator: its program is the host's compiled
+            // type, so the pre-0.18 leftovers are stripped and the record stays usable.
+            if (ServiceProvider.GetService<IHostedAppTypes>() is { } hosted && hosted.IsHostLoaded(Name()))
+            {
+                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogInformation(
+                    "App {App} carried pre-0.18 leftovers ({Markers}); stripped, the host-loaded program stands.", Key, string.Join(", ", markers));
+                await Persist(next);
+                return false;
+            }
             ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(
                 "App {App} is a pre-0.18 record ({Markers}); it is refused and must be rebuilt.", Key, string.Join(", ", markers));
             // The refusal is durable: the program files and settings are stripped (nothing deploys or retries) and Refused names why, so
             // the activity line below is written once, not once per activation. A rebuild (Import or CompleteBuild) clears Refused.
-            var next = State.Clone();
             next.Refused = string.Join(", ", markers);
-            next.Files = State.Files.Where(file => !LegacyAppRecord.IsProgramFile(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-            next.Settings = State.Settings.Where(setting => !LegacyAppRecord.IsPrebuilt(setting.Key) && setting.Key != InProcessAppRuntime.CompiledTypeKey)
-                .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
             next.Status = AppStatus.Failed;
             next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), LegacyAppRecord.Refusal];
             await Persist(next);

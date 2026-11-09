@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Post;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Ino;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +43,12 @@ public sealed class LegacyRestoreFacts
 
     private static readonly string CompiledType = typeof(IntoChat.OS.Apps.Friends.FriendsApp).AssemblyQualifiedName!;
 
-    private static TestOS NewOS(out Spy spy)
+    private static TestOS NewOS(out Spy spy) => NewOS(out spy, hostLoaded: false);
+
+    // The host loads every app's type when hostLoaded is set: the record is a shipped app's, not a Creator-built one.
+    private sealed class HostLoadsAll : IHostedAppTypes { public bool IsHostLoaded(string appKey) => true; }
+
+    private static TestOS NewOS(out Spy spy, bool hostLoaded)
     {
         var sink = new CountingSink();
         var host = new InProcessAppHost((_, _) => throw new NotSupportedException(), _ => throw new NotSupportedException(), sink);
@@ -51,6 +57,7 @@ public sealed class LegacyRestoreFacts
         services.AddOptions<AppsOptions>();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(host);
+        if (hostLoaded) { services.AddSingleton<IHostedAppTypes>(new HostLoadsAll()); }
         return TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<AppNeuron>();
     }
 
@@ -110,6 +117,23 @@ public sealed class LegacyRestoreFacts
         Assert.Equal("Notes", read.Manifest.Title);
         Assert.Equal(0, await spy.Attempts(read));
         Assert.DoesNotContain(read.Files.Keys, path => path.EndsWith(".cs", StringComparison.Ordinal));
+    }
+
+    // A shipped, host-loaded app (ino, desktop) whose dev-brain record still carries pre-0.18 program files is not refused:
+    // the leftovers are stripped and the host's compiled program stands. Found on the first live start after 0.18.
+    [Fact]
+    public async Task AHostLoadedAppWithLegacyLeftoversIsStrippedNotRefused()
+    {
+        await using var os = NewOS(out _, hostLoaded: true);
+        var app = await Seeded(os, WithProgram(("app.cs", "// declaration"), ("sync.cs", "return 1;")));
+
+        var read = await Settled(os, app);
+
+        Assert.NotEqual(AppStatus.Failed, read.Status);
+        Assert.DoesNotContain(read.Activity, IsRefusal);
+        Assert.DoesNotContain(read.Files.Keys, path => path.EndsWith(".cs", StringComparison.Ordinal));
+        Assert.DoesNotContain(read.Settings.Keys, key => key == AppTrust.CompiledTypeSetting);
+        Assert.Equal("Notes", read.Manifest.Title);
     }
 
     [Fact]
