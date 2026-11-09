@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
@@ -33,7 +35,7 @@ internal sealed class McpServerNeuron : DigitalBrain.Neuron<McpServerStore>, IMc
     {
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.Title);
-        if (!Uri.TryCreate(spec.Url, UriKind.Absolute, out var endpoint) || endpoint.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(endpoint.UserInfo))
+        if (!Uri.TryCreate(spec.Url, UriKind.Absolute, out var endpoint) || !IsAllowedEndpoint(endpoint))
         { throw new ArgumentException("An MCP server URL is an absolute http(s) URL without credentials.", nameof(spec)); }
         ToolDescriptor[] tools;
         try { tools = await Session(endpoint, async (client, token) => Describe(await client.ListToolsAsync(cancellationToken: token)), ct); }
@@ -102,12 +104,49 @@ internal sealed class McpServerNeuron : DigitalBrain.Neuron<McpServerStore>, IMc
 
     private async Task<McpClient> Client(Uri endpoint, CancellationToken ct)
     {
+        if (!IsAllowedEndpoint(endpoint))
+        { throw new ArgumentException("An MCP server URL is an absolute http(s) URL without credentials.", nameof(endpoint)); }
         if (_client is not null && _endpoint == endpoint) { return _client; }
         await Drop();
         var transport = new HttpClientTransport(new HttpClientTransportOptions { Endpoint = endpoint });
         _client = await McpClient.CreateAsync(transport, cancellationToken: ct);
         _endpoint = endpoint;
         return _client;
+    }
+
+    private static bool IsAllowedEndpoint(Uri endpoint)
+    {
+        if (endpoint.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(endpoint.UserInfo) || string.IsNullOrWhiteSpace(endpoint.Host))
+        { return false; }
+        if (IPAddress.TryParse(endpoint.DnsSafeHost, out var ip) && IsForbiddenAddress(ip))
+        { return false; }
+        return true;
+    }
+
+    private static bool IsForbiddenAddress(IPAddress address)
+    {
+        if (address.IsIPv4MappedToIPv6) { address = address.MapToIPv4(); }
+        if (IPAddress.IsLoopback(address)) { return false; }
+        if (address.Equals(IPAddress.Any) || address.Equals(IPAddress.Broadcast) || address.Equals(IPAddress.IPv6Any) || address.Equals(IPAddress.IPv6None))
+        { return true; }
+        if (address.AddressFamily == AddressFamily.InterNetwork)
+        {
+            var bytes = address.GetAddressBytes();
+            return bytes[0] == 0
+                || bytes[0] == 10
+                || (bytes[0] == 100 && (bytes[1] & 0xC0) == 64)
+                || (bytes[0] == 169 && bytes[1] == 254)
+                || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+                || (bytes[0] == 192 && bytes[1] == 168)
+                || bytes[0] >= 224;
+        }
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            if (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast) { return true; }
+            var bytes = address.GetAddressBytes();
+            return (bytes[0] & 0xFE) == 0xFC;
+        }
+        return false;
     }
 
     private async Task Drop()

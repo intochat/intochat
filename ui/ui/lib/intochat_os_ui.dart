@@ -32,6 +32,7 @@ export 'src/theme/ui_theme.dart';
 
 export 'src/composition/view_host.dart';
 export 'src/nodes/brain_scene.dart';
+export 'src/nodes/node_common.dart' show UiNodeTone, nodeToneOf, toneOf;
 export 'src/nodes/node_context.dart';
 export 'src/nodes/node_renderer.dart';
 export 'src/flame/behavior/default_idle_tree.dart';

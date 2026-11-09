@@ -330,7 +330,6 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
                 UI.NavItem("q-stage", "Group by Stage", "pie-chart", "group-by:Stage:SUM"),
                 UI.NavItem("q-top3", "Top 3 Opportunities", "trending-up", $"query:SELECT Opportunity, Account, Stage, Amount FROM {State.ActiveSource} LIMIT 3"),
                 UI.NavItem("q-markdraw", "Diagram Data Lineage", "pen-tool", "to-markdraw:/work/data-lineage.markdraw"),
-                new Collection(datasets.Select(d => new Entry(d, Path.GetFileName(d), $"{State.Rows.Length} row(s)")).ToArray()),
             ])
             { Gap = 8 });
     }

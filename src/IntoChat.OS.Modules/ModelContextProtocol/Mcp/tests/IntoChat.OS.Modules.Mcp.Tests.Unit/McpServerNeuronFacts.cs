@@ -23,6 +23,13 @@ public sealed class McpServerNeuronFacts
     [InlineData("ftp://example.test/mcp")]
     [InlineData("file:///etc/passwd")]
     [InlineData("https://user:secret@example.test/mcp")]
+    [InlineData("http://169.254.169.254/latest/meta-data/")]
+    [InlineData("http://10.0.0.1/mcp")]
+    [InlineData("http://172.16.0.1/mcp")]
+    [InlineData("http://192.168.1.1/mcp")]
+    [InlineData("http://0.0.0.0/mcp")]
+    [InlineData("http://[fe80::1]/mcp")]
+    [InlineData("http://[fd00::1]/mcp")]
     public async Task ConnectRefusesAUrlThatIsNotCredentialFreeHttp(string url)
         => await Assert.ThrowsAsync<ArgumentException>(() => Neuron().Connect(new McpServerSpec("Title", url), TestContext.Current.CancellationToken));
 

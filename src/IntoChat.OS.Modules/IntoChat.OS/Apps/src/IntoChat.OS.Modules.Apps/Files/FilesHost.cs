@@ -77,19 +77,10 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
         try
         {
             var disk = SiloNeurons.Get<ILocalDisk>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "local-disk", "main"));
-            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var candidates = new[]
+            var workspaceRoot = Directory.GetCurrentDirectory();
+            if (!string.IsNullOrWhiteSpace(workspaceRoot) && Directory.Exists(workspaceRoot))
             {
-                Directory.GetCurrentDirectory(),
-                userProfile,
-                !string.IsNullOrWhiteSpace(userProfile) ? Path.Combine(userProfile, "Downloads") : null,
-                Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            };
-            foreach (var candidate in candidates)
-            {
-                if (string.IsNullOrWhiteSpace(candidate) || !Directory.Exists(candidate)) { continue; }
-                try { await disk.AllowRoot(candidate); }
+                try { await disk.AllowRoot(workspaceRoot); }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
                     _ = error.Message;

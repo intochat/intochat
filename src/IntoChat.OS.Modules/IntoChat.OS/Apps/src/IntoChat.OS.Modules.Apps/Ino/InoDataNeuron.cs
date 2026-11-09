@@ -88,7 +88,7 @@ public sealed class InoDataNeuron : DigitalBrain.Neuron<InoDataState>, IInoData
             && Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
         {
             var path = uri.AbsolutePath.Trim('/');
-            return string.IsNullOrWhiteSpace(path) ? "nordlys" : path;
+            return string.IsNullOrWhiteSpace(path) ? "postgres" : path;
         }
 
         foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -100,7 +100,7 @@ public sealed class InoDataNeuron : DigitalBrain.Neuron<InoDataState>, IInoData
             }
         }
 
-        return "nordlys";
+        return "postgres";
     }
 
     private static string ParseHostName(string connectionString)

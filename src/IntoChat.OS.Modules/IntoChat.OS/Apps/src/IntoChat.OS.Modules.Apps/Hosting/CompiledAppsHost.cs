@@ -194,7 +194,7 @@ internal sealed class CompiledAppsHost(
                 [
                     new DigitalBrain.UI.Text("Usage"),
                     new DigitalBrain.UI.Text(widgetsText),
-                    DesktopButton("avatar", "You", "open", "circle"),
+                    DesktopButton("avatar", "You", "open", null),
                     DesktopButton("more-settings", "Settings", "settings", null),
                 ]) { Gap = 4 },
             ]) { Extents = [0, 360] };

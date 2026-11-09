@@ -17,14 +17,14 @@ internal sealed class ViewportNeuron
         var name = FullKey;
         var marker = name.IndexOf("/apps/", StringComparison.Ordinal);
         if (marker <= 0) { throw new ArgumentException("A viewport belongs to an app."); }
+        var brain = name[..marker];
         var prefix = name[..(marker + 6)];
         var slash = name.IndexOf('/', prefix.Length);
         var owner = slash < 0 ? name : name[..slash];
         if (target is not null && (string.IsNullOrWhiteSpace(target.Id) || target.Id.Length > 128
             || string.IsNullOrWhiteSpace(target.Variant) || target.Variant.Length > 64 || target.Context != ""
-            || string.IsNullOrWhiteSpace(target.App) || !target.App.StartsWith(prefix, StringComparison.Ordinal)
-            || target.App.Length > 512 || target.App[prefix.Length..].Contains('/')
-            || target.App[prefix.Length..] is "" or "." or ".."
+            || string.IsNullOrWhiteSpace(target.App) || target.App.Length > 512
+            || !IsSupportedTarget(brain, prefix, target.App)
             // Never its own app: that app's view may contain this viewport and recurse.
             || target.App == owner))
         { throw new ArgumentException("This viewport supports local app views without an external context."); }
@@ -33,6 +33,23 @@ internal sealed class ViewportNeuron
         if (Snapshot.Target == target) { return; }
         var next = new ViewportStorage { Revision = checked(Snapshot.Revision + 1), Target = target };
         await Save(next, new ViewportChanged(name, next.Revision));
+    }
+
+    private static bool IsSupportedTarget(string brain, string appPrefix, string app)
+    {
+        if (app.StartsWith(appPrefix, StringComparison.Ordinal))
+        {
+            var slug = app[appPrefix.Length..];
+            return slug.Length > 0 && !slug.Contains('/') && slug is not ("." or "..");
+        }
+        var unitPrefix = brain + "/units/";
+        if (app.StartsWith(unitPrefix, StringComparison.Ordinal))
+        {
+            var slug = app[unitPrefix.Length..];
+            return slug.Length > 0 && !slug.Contains('/') && slug is not ("." or "..");
+        }
+        return AppUiEndpoints.UnitAlias(brain, app) is { } alias
+            && alias is not ("." or ".." or "units" or "profile" or "posts" or "main" or "confirmations");
     }
 }
 

@@ -298,10 +298,13 @@ internal sealed partial class AppNeuron(
             await Persist(next);
             return Describe(State);
         }
-        if (files.ContainsKey(AppFiles.DeclarationPath))
+        if (files.ContainsKey(AppFiles.DeclarationPath) || files.Keys.Any(LegacyAppRecord.IsProgramFile))
         {
             next.Status = AppStatus.Failed;
-            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build failed: {AppFiles.DeclarationPath} belongs to the Author, not the Builder"];
+            var detail = files.ContainsKey(AppFiles.DeclarationPath)
+                ? $"{AppFiles.DeclarationPath} belongs to the Author, not the Builder"
+                : "program files belong to the Synapse Studio, not the app record";
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build failed: {detail}"];
             await Persist(next);
             return Describe(State);
         }

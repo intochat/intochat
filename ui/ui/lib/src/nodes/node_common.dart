@@ -9,12 +9,24 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../components/kit/kit_toast.dart';
 import '../design/cards/card_shell.dart';
 
+/// Semantic node tone resolved across `Badge`, `TagPill`, `Text`, and `InfoBar`.
+enum UiNodeTone { neutral, accent, done, working, error }
+
 /// The kit tone for a wire tone string (`neutral`, `done`, `working`, `error`, ...).
-UiTone toneOf(String tone) => switch (tone.toLowerCase()) {
-  'done' || 'success' || 'positive' => UiTone.done,
-  'working' || 'warning' || 'pending' => UiTone.working,
-  'error' || 'danger' || 'critical' => UiTone.error,
-  _ => UiTone.neutral,
+UiTone toneOf(String tone) => switch (nodeToneOf(tone)) {
+  UiNodeTone.done => UiTone.done,
+  UiNodeTone.working => UiTone.working,
+  UiNodeTone.error => UiTone.error,
+  UiNodeTone.neutral || UiNodeTone.accent => UiTone.neutral,
+};
+
+/// Resolves all C# semantic tone strings (`accent`, `ok`, `info`, `warn`, etc.).
+UiNodeTone nodeToneOf(String tone) => switch (tone.toLowerCase()) {
+  'accent' || 'primary' || 'info' => UiNodeTone.accent,
+  'done' || 'ok' || 'success' || 'positive' => UiNodeTone.done,
+  'working' || 'warn' || 'warning' || 'pending' => UiNodeTone.working,
+  'error' || 'danger' || 'critical' => UiNodeTone.error,
+  _ => UiNodeTone.neutral,
 };
 
 /// The card source line for a node's system name.

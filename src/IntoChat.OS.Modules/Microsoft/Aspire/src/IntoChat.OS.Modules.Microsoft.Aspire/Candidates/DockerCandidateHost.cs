@@ -300,7 +300,6 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             [Env(IntoChatOSNames.ConfiguredCustodyAcknowledgedConfigurationKey)] = "true",
             // The candidate owns fresh keys and a private container filesystem.
             [IntoChatOSNames.MasterKeyEnvironmentVariable] = Secret(),
-            [IntegrationVariable("csharp", "RunTokenKey")] = Secret(),
             [IntegrationVariable("postgres", "ConnectionString")] =
                 $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword};Database={PostgresDatabase}",
             // The copied postgres options may place a database per brain, which needs the server's admin connection.

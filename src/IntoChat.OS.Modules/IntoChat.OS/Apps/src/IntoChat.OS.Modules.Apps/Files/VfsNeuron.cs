@@ -11,7 +11,8 @@ public sealed record VfsState
 [Neuron(VfsNeuronDefaults.TypeName)]
 public sealed class VfsNeuron : Neuron<VfsState>, IVfsNeuron
 {
-    private IFilesVfsService Vfs => WorkspaceFilesService.ForBrain(Context.Services, Id.Brain.Value);
+    private IFilesVfsService? _vfs;
+    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(Context.Services, Id.Brain.Value);
 
     public async Task<WorkspaceFileEntry[]> ListFiles(string? query = null)
     {

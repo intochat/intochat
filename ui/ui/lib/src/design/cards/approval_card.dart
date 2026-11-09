@@ -79,6 +79,7 @@ class ApprovalCard extends StatefulWidget {
     this.onEdited,
     this.onEditRow,
     this.visibleRows = 5,
+    this.readOnly = false,
   });
 
   final CardSource source;
@@ -90,6 +91,7 @@ class ApprovalCard extends StatefulWidget {
   final VoidCallback? onEdited;
   final void Function(int index, String newValue)? onEditRow;
   final int visibleRows;
+  final bool readOnly;
 
   @override
   State<ApprovalCard> createState() => _ApprovalCardState();
@@ -120,7 +122,10 @@ class _ApprovalCardState extends State<ApprovalCard> {
           expanded: _body(c, readOnly: true),
         );
       default:
-        return _body(c, readOnly: widget.state == ApprovalState.saving);
+        return _body(
+          c,
+          readOnly: widget.readOnly || widget.state == ApprovalState.saving,
+        );
     }
   }
 
@@ -129,11 +134,13 @@ class _ApprovalCardState extends State<ApprovalCard> {
     final rows = _all ? d.rows : d.rows.take(widget.visibleRows).toList();
     final hidden = d.rows.length - rows.length;
     final pending = widget.state == ApprovalState.pending;
+    final canAct =
+        !readOnly && (widget.onApprove != null || widget.onReject != null);
     return CardShell(
       source: widget.source,
       status: pending
           ? CardChip(
-              label: 'Needs your approval',
+              label: canAct ? 'Needs your approval' : 'Pending approval',
               fg: c.accent,
               bg: c.accentTint,
               icon: Icon(LucideIcons.hand, size: 13, color: c.accent),
@@ -217,21 +224,23 @@ class _ApprovalCardState extends State<ApprovalCard> {
               CardError(text: d.errorText!),
               const SizedBox(height: 10),
             ],
-            PromptOptions(
-              options: [
-                PromptOption(
-                  'Try again',
-                  icon: LucideIcons.rotateCcw,
-                  onTap: widget.onRetry,
-                ),
-                PromptOption(
-                  'Reject',
-                  detail: 'Nothing is changed',
-                  onTap: widget.onReject,
-                ),
-              ],
-            ),
-          ] else if (pending) ...[
+            if (!readOnly &&
+                (widget.onRetry != null || widget.onReject != null))
+              PromptOptions(
+                options: [
+                  PromptOption(
+                    'Try again',
+                    icon: LucideIcons.rotateCcw,
+                    onTap: widget.onRetry,
+                  ),
+                  PromptOption(
+                    'Reject',
+                    detail: 'Nothing is changed',
+                    onTap: widget.onReject,
+                  ),
+                ],
+              ),
+          ] else if (pending && canAct) ...[
             const SizedBox(height: 14),
             PromptOptions(
               options: [

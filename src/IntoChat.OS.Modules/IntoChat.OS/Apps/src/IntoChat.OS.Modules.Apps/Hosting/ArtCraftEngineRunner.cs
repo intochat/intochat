@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Modules.ArtCraft;
@@ -8,33 +7,18 @@ namespace IntoChat.OS.Modules.Apps;
 
 public static class ArtCraftEngineRunner
 {
-    // Valid 1x1 cyan/transparent PNG base64 used for deterministic preview data URLs in headless & unit-test runs.
     public const string CyanPreviewPngDataUrl =
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
     public const string GradientPreviewPngDataUrl =
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
-    public static string NormalizeMode(string? mode)
+    public static string NormalizeMode(string? mode) => mode?.Trim().ToLowerInvariant() switch
     {
-        if (string.IsNullOrWhiteSpace(mode))
-        {
-            return "native-linux";
-        }
-
-        var trimmed = mode.Trim().ToLowerInvariant();
-        if (trimmed is "mcp" or "mcp-server")
-        {
-            return "mcp";
-        }
-
-        if (trimmed is "wasm" or "wasm-ui" or "web")
-        {
-            return "wasm-ui";
-        }
-
-        return "native-linux";
-    }
+        "mcp" or "mcp-server" => "mcp",
+        "wasm" or "wasm-ui" or "web" => "wasm-ui",
+        _ => "native-linux",
+    };
 
     public static bool TryResolvePhotoCraftCommand(
         string? instructionOrCommand,
@@ -43,12 +27,7 @@ public static class ArtCraftEngineRunner
         out (string CommandId, string Title, string ParamsJson, string InputDoc, string OutputDoc, string[] Layers) resolved)
     {
         var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
-        var doc = extracted ?? (string.IsNullOrWhiteSpace(currentDocument) ? "/work/portrait.png" : currentDocument.Trim());
-        if (!doc.StartsWith('/'))
-        {
-            doc = "/work/" + doc;
-        }
-
+        var doc = EnsureWorkPath(extracted ?? (string.IsNullOrWhiteSpace(currentDocument) ? "/work/portrait.png" : currentDocument.Trim()));
         if (string.IsNullOrWhiteSpace(instructionOrCommand))
         {
             resolved = ("clarification.required", "Clarification Required", "{}", doc, string.Empty, []);
@@ -56,170 +35,105 @@ public static class ArtCraftEngineRunner
         }
 
         var raw = instructionOrCommand.Trim();
-        var stem = Path.GetFileNameWithoutExtension(doc);
-        if (string.IsNullOrWhiteSpace(stem))
-        {
-            stem = "canvas";
-        }
+        var stem = NonEmptyStem(doc, "canvas");
 
-        if (raw.Contains("remove background", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("remove-background", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("background removal", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("remove the background", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("cutout", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("layer.removeBackground", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "remove background", "remove-background", "background removal", "remove the background", "cutout", "layer.removeBackground"))
         {
             resolved = (
                 "layer.removeBackground",
                 "Remove Background (AI Subject Alpha Mask)",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{\"featherPx\":1,\"output\":\"layer-mask\"}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{\"featherPx\":1,\"output\":\"layer-mask\"}"),
                 doc,
                 $"/work/{stem}.nobg.png",
-                [
-                    "Subject Cutout (Alpha Mask · 100%)",
-                    "Original Background (Hidden · 0%)",
-                    "Transparency Grid (Checkerboard)",
-                ]);
+                ["Subject Cutout (Alpha Mask · 100%)", "Original Background (Hidden · 0%)"]);
             return true;
         }
 
-        if (raw.Contains("select subject", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("select.subject", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "select subject", "select.subject"))
         {
             resolved = (
                 "select.subject",
                 "Select Subject (Marching Ants Selection)",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{\"refineEdge\":true}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{\"refineEdge\":true}"),
                 doc,
                 $"/work/{stem}.subject.png",
-                [
-                    "Active Selection (Subject Contour)",
-                    "Background Layer (Locked · 100%)",
-                ]);
+                ["Active Selection (Subject Contour)", "Background Layer (Locked · 100%)"]);
             return true;
         }
 
-        if (raw.Contains("select sky", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("select.sky", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "select sky", "select.sky"))
         {
             resolved = (
                 "select.sky",
                 "Select Sky",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{}"),
                 doc,
                 $"/work/{stem}.sky.png",
-                [
-                    "Sky Selection Mask (Active)",
-                    "Foreground Landscape (100%)",
-                ]);
+                ["Sky Selection Mask (Active)", "Foreground Landscape (100%)"]);
             return true;
         }
 
-        if (raw.Contains("desaturate", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("grayscale", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("black and white", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("monochrome", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("image.adjustments.desaturate", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "desaturate", "grayscale", "black and white", "monochrome", "image.adjustments.desaturate"))
         {
             resolved = (
                 "image.adjustments.desaturate",
                 "Desaturate (Monochrome Tonemap)",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{}"),
                 doc,
                 $"/work/{stem}.mono.png",
-                [
-                    "Desaturate Adjustment (Luminance · 100%)",
-                    "Base Raster Layer (100%)",
-                ]);
+                ["Desaturate Adjustment (Luminance · 100%)", "Base Raster Layer (100%)"]);
             return true;
         }
 
-        if (raw.Contains("gradient", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("layer.newFillLayer.gradient", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("poster", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("sunset", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("512x512", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("new canvas", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("create image", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "gradient", "layer.newFillLayer.gradient", "poster", "sunset", "512x512", "new canvas", "create image"))
         {
             resolved = (
                 "layer.newFillLayer.gradient",
                 "New Fill Layer: Gradient (Blue -> Orange)",
-                string.IsNullOrWhiteSpace(explicitParamsJson)
-                    ? "{\"width\":512,\"height\":512,\"from\":\"#2563EB\",\"to\":\"#F97316\",\"angle\":135,\"style\":\"linear\"}"
-                    : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{\"width\":512,\"height\":512,\"from\":\"#2563EB\",\"to\":\"#F97316\",\"angle\":135,\"style\":\"linear\"}"),
                 "/work/gradient-512x512.psd",
                 "/work/gradient-512x512.png",
-                [
-                    "Gradient Fill 1 (#2563EB -> #F97316 · 135°)",
-                    "Canvas 512x512 (Background)",
-                ]);
+                ["Gradient Fill 1 (#2563EB -> #F97316 · 135°)", "Canvas 512x512 (Background)"]);
             return true;
         }
 
-        if (raw.Contains("flip", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("mirror", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("image.imageRotation.flipCanvasHorizontal", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "flip", "mirror", "image.imageRotation.flipCanvasHorizontal"))
         {
             resolved = (
                 "image.imageRotation.flipCanvasHorizontal",
                 "Flip Canvas Horizontal",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{}"),
                 doc,
                 $"/work/{stem}.flipped.png",
-                [
-                    "Flipped Composite Layer (100%)",
-                ]);
+                ["Flipped Composite Layer (100%)"]);
             return true;
         }
 
-        if (raw.Contains("rotate", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("90cw", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("image.imageRotation.90cw", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "rotate", "90cw", "image.imageRotation.90cw"))
         {
             resolved = (
                 "image.imageRotation.90cw",
                 "Rotate Canvas 90° Clockwise",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{}"),
                 doc,
                 $"/work/{stem}.rot90.png",
-                [
-                    "Rotated Canvas Layer (90° CW · 100%)",
-                ]);
+                ["Rotated Canvas Layer (90° CW · 100%)"]);
             return true;
         }
 
         var hasImageContext = (extracted is not null && IsImageExtension(extracted))
-            || raw.Contains(ShippedApps.PhotoCraft, StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("photo", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("image", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("canvas", StringComparison.OrdinalIgnoreCase);
+            || ContainsAny(raw, ShippedApps.PhotoCraft, "photo", "image", "canvas");
 
-        if (raw.Contains("layer.", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("image.adjustments.", StringComparison.OrdinalIgnoreCase)
-            || (hasImageContext && (
-                raw.Contains("adjust", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("resize", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("crop", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("blur", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("sharpen", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("brightness", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("contrast", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("levels", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("curves", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("mask", StringComparison.OrdinalIgnoreCase)
-                || raw.Contains("edit", StringComparison.OrdinalIgnoreCase))))
+        if (ContainsAny(raw, "layer.", "image.adjustments.")
+            || (hasImageContext && ContainsAny(raw, "adjust", "resize", "crop", "blur", "sharpen", "brightness", "contrast", "levels", "curves", "mask", "edit")))
         {
             resolved = (
                 "image.adjustments.levels",
                 $"Adjust Levels & Tone ({stem})",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{\"auto\":true}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{\"auto\":true}"),
                 doc,
                 $"/work/{stem}.adjusted.png",
-                [
-                    "Levels Adjustment Layer (Auto Tone · 100%)",
-                    "Source Layer (100%)",
-                ]);
+                ["Levels Adjustment Layer (Auto Tone · 100%)", "Source Layer (100%)"]);
             return true;
         }
 
@@ -233,7 +147,6 @@ public static class ArtCraftEngineRunner
     public static bool IsExplicitFilmCraftCommand(string? instructionOrCommand)
         => TryResolveFilmCraftCommand(instructionOrCommand, null, null, out _);
 
-
     public static bool TryResolveFilmCraftCommand(
         string? instructionOrCommand,
         string? explicitParamsJson,
@@ -241,12 +154,7 @@ public static class ArtCraftEngineRunner
         out (string CommandId, string Title, string ParamsJson, string InputDoc, string OutputDoc, string[] Tracks) resolved)
     {
         var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
-        var doc = extracted ?? (string.IsNullOrWhiteSpace(currentSequence) ? "/work/nordlys-launch.fcproj" : currentSequence.Trim());
-        if (!doc.StartsWith('/'))
-        {
-            doc = "/work/" + doc;
-        }
-
+        var doc = EnsureWorkPath(extracted ?? (string.IsNullOrWhiteSpace(currentSequence) ? "/work/nordlys-launch.fcproj" : currentSequence.Trim()));
         if (string.IsNullOrWhiteSpace(instructionOrCommand))
         {
             resolved = ("clarification.required", "Clarification Required", "{}", doc, string.Empty, []);
@@ -254,97 +162,59 @@ public static class ArtCraftEngineRunner
         }
 
         var raw = instructionOrCommand.Trim();
-        var stem = Path.GetFileNameWithoutExtension(doc);
-        if (string.IsNullOrWhiteSpace(stem))
-        {
-            stem = "sequence";
-        }
+        var stem = NonEmptyStem(doc, "sequence");
 
-        if (raw.Contains("lumetri", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("color", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("grade", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("color.lumetri.auto", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "lumetri", "color", "grade", "color.lumetri.auto"))
         {
             resolved = (
                 "color.lumetri.auto",
                 "Lumetri Color Auto Grade (Cinema Teal/Orange)",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{\"temperature\":8,\"contrast\":14,\"saturation\":108}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{\"temperature\":8,\"contrast\":14,\"saturation\":108}"),
                 doc,
                 $"/work/{stem}.graded.mp4",
-                [
-                    "V2 · Adjustment Layer (Lumetri Cinema Grade)",
-                    "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)",
-                    "A1 · Dialogue Stem (-14 LUFS Normalized)",
-                ]);
+                ["V2 · Adjustment Layer (Lumetri Cinema Grade)", "V1 · A-Roll Main Camera", "A1 · Dialogue Stem"]);
             return true;
         }
 
-        if (raw.Contains("trim", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("ripple", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("timeline.rippleTrim", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "trim", "ripple", "timeline.rippleTrim"))
         {
             resolved = (
                 "timeline.rippleTrim",
                 "Ripple Trim Out-Point (-24 frames)",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{\"track\":\"V1\",\"deltaFrames\":-24}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{\"track\":\"V1\",\"deltaFrames\":-24}"),
                 doc,
                 $"/work/{stem}.trimmed.mp4",
-                [
-                    "V1 · A-Roll Clip 1 (Ripple Trimmed · 00:00:00:00 -> 00:00:08:00)",
-                    "V1 · B-Roll Drone Shot (00:00:08:00 -> 00:00:13:00)",
-                    "A1 · Master Stereo Mix (48kHz PCM)",
-                ]);
+                ["V1 · A-Roll Clip 1 (Ripple Trimmed)", "A1 · Master Stereo Mix"]);
             return true;
         }
 
-        if (raw.Contains("export", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("render", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("mp4", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("sequence.exportMp4", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "export", "render", "mp4", "sequence.exportMp4"))
         {
             resolved = (
                 "sequence.exportMp4",
                 "Export Sequence (H.264 1080p60 MP4)",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{\"preset\":\"h264-1080p60\",\"bitrateMbps\":18}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{\"preset\":\"h264-1080p60\",\"bitrateMbps\":18}"),
                 doc,
                 $"/work/{stem}.1080p60.mp4",
-                [
-                    "V2 · Lower Third Title Overlay",
-                    "V1 · Master Edit Sequence (Rendered 1080p60)",
-                    "A1 · Master Stereo Bus (-14 LUFS)",
-                ]);
+                ["V2 · Lower Third Title Overlay", "V1 · Master Edit Sequence (Rendered 1080p60)", "A1 · Master Stereo Bus"]);
             return true;
         }
 
-        if (raw.Contains("razor", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("split", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("cut", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("timeline", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("clip", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("playhead", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("00:", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains(ShippedApps.FilmCraft, StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("videocraft", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("timeline.razor", StringComparison.OrdinalIgnoreCase))
+        if (ContainsAny(raw, "razor", "split", "cut", "timeline", "clip", "playhead", "00:", ShippedApps.FilmCraft, "videocraft", "timeline.razor"))
         {
             resolved = (
                 "timeline.razor",
                 "Razor Split Clip at Playhead (00:00:03:12)",
-                string.IsNullOrWhiteSpace(explicitParamsJson) ? "{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}" : explicitParamsJson,
+                DefaultJson(explicitParamsJson, "{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}"),
                 doc,
                 $"/work/{stem}.cut.mp4",
-                [
-                    "V1 · Clip 1A (00:00:00:00 -> 00:00:03:12)",
-                    "V1 · Clip 1B [Split] (00:00:03:12 -> 00:00:12:00)",
-                    "A1 · Synced Dialogue Track (48kHz)",
-                ]);
+                ["V1 · Clip 1A (00:00:00:00 -> 00:00:03:12)", "V1 · Clip 1B [Split] (00:00:03:12 -> 00:00:12:00)", "A1 · Synced Dialogue Track"]);
             return true;
         }
 
         resolved = ("clarification.required", "Clarification Required", "{}", doc, string.Empty, []);
         return false;
     }
-
 
     public static async Task<ArtCraftEngineResult> ExecuteAsync(
         string app,
@@ -361,80 +231,41 @@ public static class ArtCraftEngineRunner
         if (descriptor.Id == ShippedApps.PhotoCraft)
         {
             return await ExecutePhotoCraftAsync(
-                instructionOrCommand,
-                explicitParamsJson,
-                currentDocument,
-                executionMode,
-                studio,
-                mcpResolver,
-                onRecoverableError,
-                vfs).ConfigureAwait(false);
+                instructionOrCommand, explicitParamsJson, currentDocument, executionMode,
+                studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
         }
 
         if (descriptor.Id == ShippedApps.FilmCraft)
         {
             return await ExecuteFilmCraftAsync(
-                instructionOrCommand,
-                explicitParamsJson,
-                currentDocument,
-                executionMode,
-                studio,
-                mcpResolver,
-                onRecoverableError,
-                vfs).ConfigureAwait(false);
+                instructionOrCommand, explicitParamsJson, currentDocument, executionMode,
+                studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
         }
 
         var mode = NormalizeMode(executionMode);
         var inputDoc = await ResolveStudioInputDocumentAsync(
-            descriptor,
-            instructionOrCommand,
-            currentDocument,
-            vfs,
-            onRecoverableError).ConfigureAwait(false);
+            descriptor, instructionOrCommand, currentDocument, vfs, onRecoverableError).ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(instructionOrCommand))
         {
-            return CreateClarificationResult(
-                descriptor.Id,
-                mode,
-                inputDoc,
-                $"Specify a {descriptor.Title} command or instruction.");
+            return CreateClarificationResult(descriptor.Id, mode, inputDoc, $"Specify a {descriptor.Title} command or instruction.");
         }
 
         var raw = instructionOrCommand.Trim();
         var isDotCommand = raw.Contains('.', StringComparison.Ordinal) && !raw.Contains(' ', StringComparison.Ordinal);
         var cmdId = isDotCommand ? raw : descriptor.DefaultCommandId;
         var title = isDotCommand ? $"{descriptor.Title} · {raw}" : descriptor.DefaultCommandTitle;
-        var paramsJson = string.IsNullOrWhiteSpace(explicitParamsJson) ? descriptor.DefaultParametersJson : explicitParamsJson!;
-        var stem = Path.GetFileNameWithoutExtension(inputDoc);
-        if (string.IsNullOrWhiteSpace(stem))
-        {
-            stem = descriptor.Id;
-        }
+        var paramsJson = DefaultJson(explicitParamsJson, descriptor.DefaultParametersJson);
+        var stem = NonEmptyStem(inputDoc, descriptor.Id);
         var outExt = Path.GetExtension(descriptor.DefaultOutputDocument);
-        if (string.IsNullOrWhiteSpace(outExt))
-        {
-            outExt = ".out";
-        }
+        if (string.IsNullOrWhiteSpace(outExt)) { outExt = ".out"; }
         var outputDoc = $"/work/{stem}.processed{outExt}";
         var cliInvocation = $"{descriptor.CliBinary} run {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
 
         return await RunAndPersistStudioCommandAsync(
-            descriptor,
-            mode,
-            cmdId,
-            title,
-            paramsJson,
-            inputDoc,
-            outputDoc,
-            cliInvocation,
-            descriptor.DefaultLayersOrTracks,
-            inputLabel: "Input",
-            isNewGradient: false,
-            studio,
-            mcpResolver,
-            onRecoverableError,
-            vfs).ConfigureAwait(false);
+            descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
+            descriptor.DefaultLayersOrTracks, "Input", isNewGradient: false,
+            studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
     }
 
     public static async Task<ArtCraftEngineResult> ExecutePhotoCraftAsync(
@@ -450,18 +281,12 @@ public static class ArtCraftEngineRunner
         var descriptor = ArtCraftCatalog.Get(ShippedApps.PhotoCraft);
         var mode = NormalizeMode(executionMode);
         var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(
-            instructionOrCommand,
-            currentDocument,
-            vfs,
-            isVideo: false,
-            onRecoverableError).ConfigureAwait(false);
+            instructionOrCommand, currentDocument, vfs, isVideo: false, onRecoverableError).ConfigureAwait(false);
 
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
             return CreateClarificationResult(
-                ShippedApps.PhotoCraft,
-                mode,
-                resolved.InputDoc,
+                ShippedApps.PhotoCraft, mode, resolved.InputDoc,
                 $"Unrecognized photocraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
         }
 
@@ -477,21 +302,8 @@ public static class ArtCraftEngineRunner
             : $"photocraft-cli run {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc} --format png";
 
         return await RunAndPersistStudioCommandAsync(
-            descriptor,
-            mode,
-            cmdId,
-            title,
-            paramsJson,
-            inputDoc,
-            outputDoc,
-            cliInvocation,
-            layers,
-            inputLabel: "Input",
-            isNewGradient,
-            studio,
-            mcpResolver,
-            onRecoverableError,
-            vfs).ConfigureAwait(false);
+            descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
+            layers, "Input", isNewGradient, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
     }
 
     public static async Task<ArtCraftEngineResult> ExecuteFilmCraftAsync(
@@ -507,18 +319,12 @@ public static class ArtCraftEngineRunner
         var descriptor = ArtCraftCatalog.Get(ShippedApps.FilmCraft);
         var mode = NormalizeMode(executionMode);
         var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(
-            instructionOrCommand,
-            currentSequence,
-            vfs,
-            isVideo: true,
-            onRecoverableError).ConfigureAwait(false);
+            instructionOrCommand, currentSequence, vfs, isVideo: true, onRecoverableError).ConfigureAwait(false);
 
         if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
         {
             return CreateClarificationResult(
-                ShippedApps.FilmCraft,
-                mode,
-                resolved.InputDoc,
+                ShippedApps.FilmCraft, mode, resolved.InputDoc,
                 $"Unrecognized filmcraft command '{instructionOrCommand}'. Specify a valid operation and target file in Files.");
         }
 
@@ -531,41 +337,15 @@ public static class ArtCraftEngineRunner
         var cliInvocation = $"filmcraft-cli exec {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
 
         return await RunAndPersistStudioCommandAsync(
-            descriptor,
-            mode,
-            cmdId,
-            title,
-            paramsJson,
-            inputDoc,
-            outputDoc,
-            cliInvocation,
-            tracks,
-            inputLabel: "Sequence",
-            isNewGradient: false,
-            studio,
-            mcpResolver,
-            onRecoverableError,
-            vfs).ConfigureAwait(false);
+            descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
+            tracks, "Sequence", isNewGradient: false, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
     }
 
     private static ArtCraftEngineResult CreateClarificationResult(
-        string appId,
-        string mode,
-        string inputDoc,
-        string summary) => new(
-            appId,
-            mode,
-            "clarification.required",
-            "Clarification Required",
-            "{}",
-            inputDoc,
-            string.Empty,
-            string.Empty,
-            summary,
-            string.Empty,
-            [],
-            IsValidCommand: false,
-            OutputNeuronUri: null);
+        string appId, string mode, string inputDoc, string summary) => new(
+            appId, mode, "clarification.required", "Clarification Required", "{}",
+            inputDoc, string.Empty, string.Empty, summary, string.Empty, [],
+            IsValidCommand: false, OutputNeuronUri: null);
 
     private static async Task<ArtCraftEngineResult> RunAndPersistStudioCommandAsync(
         ArtCraftAppDescriptor descriptor,
@@ -601,15 +381,9 @@ public static class ArtCraftEngineRunner
                 {
                     if (descriptor.Id == ShippedApps.PhotoCraft)
                     {
-                        if (isNewGradient)
-                        {
-                            await mcpServer.Run("doc_new", "{\"width\":512,\"height\":512,\"name\":\"Gradient\"}");
-                        }
-                        else
-                        {
-                            await mcpServer.Run("doc_open", JsonSerializer.Serialize(new { path = inputDoc }));
-                        }
-
+                        await mcpServer.Run(
+                            isNewGradient ? "doc_new" : "doc_open",
+                            isNewGradient ? "{\"width\":512,\"height\":512,\"name\":\"Gradient\"}" : JsonSerializer.Serialize(new { path = inputDoc }));
                         await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
                         var previewResult = await mcpServer.Run("render_preview", "{\"format\":\"png\"}");
                         if (!previewResult.IsError && previewResult.Blobs is { Length: > 0 } blobs && !string.IsNullOrWhiteSpace(blobs[0].Data))
@@ -626,22 +400,7 @@ public static class ArtCraftEngineRunner
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP server is optional when running offline or in TestOS; falling back to built-in engine preview.");
-            }
-        }
-        else if (mode == "native-linux" && descriptor.Id != ShippedApps.FilmCraft)
-        {
-            var nativePng = await TryRunNativeLinuxBinaryAsync(
-                descriptor.CliBinary,
-                isNewGradient,
-                inputDoc,
-                cmdId,
-                paramsJson,
-                outputDoc,
-                onRecoverableError);
-            if (!string.IsNullOrWhiteSpace(nativePng))
-            {
-                previewUrl = nativePng;
+                onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP server is optional when running offline or in TestOS.");
             }
         }
 
@@ -664,19 +423,9 @@ public static class ArtCraftEngineRunner
 
         var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · {inputLabel}: `{inputDoc}` -> Output: `{outputDoc}`";
         return new ArtCraftEngineResult(
-            descriptor.Id,
-            mode,
-            cmdId,
-            title,
-            paramsJson,
-            inputDoc,
-            outputDoc,
-            cliInvocation,
-            summary,
-            previewUrl,
-            layersOrTracks,
-            IsValidCommand: true,
-            OutputNeuronUri: outputNeuronUri);
+            descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc,
+            cliInvocation, summary, previewUrl, layersOrTracks,
+            IsValidCommand: true, OutputNeuronUri: outputNeuronUri);
     }
 
     private static async Task<string> ResolveStudioInputDocumentAsync(
@@ -687,46 +436,35 @@ public static class ArtCraftEngineRunner
         Action<Exception, string>? onRecoverableError)
     {
         var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
-        var inputDoc = extracted ?? (string.IsNullOrWhiteSpace(currentDocument) ? descriptor.DefaultDocument : currentDocument.Trim());
-        if (!inputDoc.StartsWith('/'))
+        var inputDoc = EnsureWorkPath(extracted ?? (string.IsNullOrWhiteSpace(currentDocument) ? descriptor.DefaultDocument : currentDocument.Trim()));
+        if (vfs is null) { return inputDoc; }
+
+        try
         {
-            inputDoc = "/work/" + inputDoc;
+            if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
+            {
+                return vfsEntry.VfsPath;
+            }
+
+            if (string.Equals(inputDoc, descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
+            {
+                var files = await vfs.ListFilesAsync().ConfigureAwait(false);
+                if (files.FirstOrDefault(f => descriptor.SupportedExtensions.Any(ext => f.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))) is { } candidate)
+                {
+                    return candidate.VfsPath;
+                }
+            }
         }
-
-        if (vfs is not null)
+        catch (Exception error) when (error is not OperationCanceledException)
         {
-            try
-            {
-                if (await vfs.ResolveFileAsync(inputDoc).ConfigureAwait(false) is { } vfsEntry)
-                {
-                    return vfsEntry.VfsPath;
-                }
-
-                if (string.Equals(inputDoc, descriptor.DefaultDocument, StringComparison.OrdinalIgnoreCase))
-                {
-                    var files = await vfs.ListFilesAsync().ConfigureAwait(false);
-                    var candidate = files.FirstOrDefault(f =>
-                        descriptor.SupportedExtensions.Any(ext => f.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
-                    if (candidate is not null)
-                    {
-                        return candidate.VfsPath;
-                    }
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
-            }
+            onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
         }
 
         return inputDoc;
     }
 
     private static async Task<string> TryResolveExactVfsPathAsync(
-        string inputDoc,
-        IFilesVfsService vfs,
-        string label,
-        Action<Exception, string>? onRecoverableError)
+        string inputDoc, IFilesVfsService vfs, string label, Action<Exception, string>? onRecoverableError)
     {
         try
         {
@@ -750,21 +488,14 @@ public static class ArtCraftEngineRunner
         bool isVideo,
         Action<Exception, string>? onRecoverableError)
     {
-        if (vfs is null)
-        {
-            return currentDocument;
-        }
+        if (vfs is null) { return currentDocument; }
 
         try
         {
             var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
             if (!string.IsNullOrWhiteSpace(extracted))
             {
-                if (await vfs.ResolveFileAsync(extracted).ConfigureAwait(false) is { } matchedFromInstruction)
-                {
-                    return matchedFromInstruction.VfsPath;
-                }
-                return currentDocument;
+                return (await vfs.ResolveFileAsync(extracted).ConfigureAwait(false))?.VfsPath ?? currentDocument;
             }
 
             if (!string.IsNullOrWhiteSpace(currentDocument))
@@ -774,23 +505,16 @@ public static class ArtCraftEngineRunner
                     return matchedCurrent.VfsPath;
                 }
 
-                var isDefaultPlaceholder = isVideo
-                    ? string.Equals(currentDocument, "/work/nordlys-launch.fcproj", StringComparison.OrdinalIgnoreCase)
-                    : string.Equals(currentDocument, "/work/portrait.png", StringComparison.OrdinalIgnoreCase);
-                if (!isDefaultPlaceholder)
+                var defaultDoc = isVideo ? "/work/nordlys-launch.fcproj" : "/work/portrait.png";
+                if (!string.Equals(currentDocument, defaultDoc, StringComparison.OrdinalIgnoreCase))
                 {
                     return currentDocument;
                 }
             }
 
             var files = await vfs.ListFilesAsync().ConfigureAwait(false);
-            var candidate = isVideo
-                ? files.FirstOrDefault(f => IsVideoExtension(f.Name))
-                : files.FirstOrDefault(f => IsImageExtension(f.Name));
-            if (candidate is not null)
-            {
-                return candidate.VfsPath;
-            }
+            var candidate = files.FirstOrDefault(f => isVideo ? IsVideoExtension(f.Name) : IsImageExtension(f.Name));
+            if (candidate is not null) { return candidate.VfsPath; }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -808,13 +532,10 @@ public static class ArtCraftEngineRunner
             if (markerIdx >= 0)
             {
                 var base64 = dataUrl[(markerIdx + ";base64,".Length)..].Trim();
-                try
+                var buffer = new byte[(base64.Length * 3 + 3) / 4];
+                if (Convert.TryFromBase64String(base64, buffer, out var written))
                 {
-                    return Convert.FromBase64String(base64);
-                }
-                catch (FormatException error)
-                {
-                    _ = error.Message;
+                    return buffer[..written];
                 }
             }
         }
@@ -822,96 +543,9 @@ public static class ArtCraftEngineRunner
         return Encoding.UTF8.GetBytes(fallbackText);
     }
 
-    private static async Task<string?> TryRunNativeLinuxBinaryAsync(
-        string binaryName,
-        bool isNewCanvas,
-        string inputDoc,
-        string cmdId,
-        string paramsJson,
-        string outputDoc,
-        Action<Exception, string>? onRecoverableError)
-    {
-        if (!OperatingSystem.IsLinux())
-        {
-            return null;
-        }
-
-        var candidateBinary = File.Exists("/usr/local/bin/craft-cli")
-            ? "/usr/local/bin/craft-cli"
-            : File.Exists($"/usr/local/bin/{binaryName}")
-                ? $"/usr/local/bin/{binaryName}"
-                : null;
-        if (candidateBinary is null)
-        {
-            return null;
-        }
-
-        if (!isNewCanvas && !File.Exists(inputDoc))
-        {
-            return null;
-        }
-
-        try
-        {
-            var outDir = Path.GetDirectoryName(outputDoc);
-            if (!string.IsNullOrWhiteSpace(outDir))
-            {
-                Directory.CreateDirectory(outDir);
-            }
-
-            var psi = new ProcessStartInfo(candidateBinary)
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
-            psi.ArgumentList.Add("run");
-            if (isNewCanvas)
-            {
-                psi.ArgumentList.Add("--new");
-                psi.ArgumentList.Add("{\"width\":512,\"height\":512}");
-            }
-            else
-            {
-                psi.ArgumentList.Add(inputDoc);
-            }
-
-            psi.ArgumentList.Add("--cmd");
-            psi.ArgumentList.Add(cmdId);
-            psi.ArgumentList.Add("--params");
-            psi.ArgumentList.Add(paramsJson);
-            psi.ArgumentList.Add("--out");
-            psi.ArgumentList.Add(outputDoc);
-            psi.ArgumentList.Add("--format");
-            psi.ArgumentList.Add("png");
-
-            using var process = Process.Start(psi);
-            if (process is null)
-            {
-                return null;
-            }
-
-            await process.WaitForExitAsync();
-            if (process.ExitCode == 0 && File.Exists(outputDoc))
-            {
-                var bytes = await File.ReadAllBytesAsync(outputDoc);
-                return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
-            }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            onRecoverableError?.Invoke(error, "Native Linux craft-cli execution failed; falling back to built-in engine preview.");
-        }
-
-        return null;
-    }
-
     public static string? ExtractFileName(string text)
     {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(text)) { return null; }
 
         foreach (var rawToken in text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -940,4 +574,24 @@ public static class ArtCraftEngineRunner
         => pathOrName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
             || pathOrName.EndsWith(".mov", StringComparison.OrdinalIgnoreCase)
             || pathOrName.EndsWith(".fcproj", StringComparison.OrdinalIgnoreCase);
+
+    private static string EnsureWorkPath(string path) => path.StartsWith('/') ? path : "/work/" + path;
+
+    private static string NonEmptyStem(string path, string fallback)
+    {
+        var stem = Path.GetFileNameWithoutExtension(path);
+        return string.IsNullOrWhiteSpace(stem) ? fallback : stem;
+    }
+
+    private static string DefaultJson(string? explicitJson, string fallback)
+        => string.IsNullOrWhiteSpace(explicitJson) ? fallback : explicitJson!;
+
+    private static bool ContainsAny(string text, params string[] terms)
+    {
+        foreach (var term in terms)
+        {
+            if (text.Contains(term, StringComparison.OrdinalIgnoreCase)) { return true; }
+        }
+        return false;
+    }
 }

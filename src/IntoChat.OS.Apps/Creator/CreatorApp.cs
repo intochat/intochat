@@ -2,7 +2,7 @@
 # Creator
 Role: Default
 Shipped: true
-Operations: open, select, trace, replay, change, scenario, make
+Operations: open, select, trace, replay, change, scenario, make, share
 
 The one place to make software and watch it run. Left: the describe/change dialogue, each turn linked to its build flow on the
 Tasks board and the consent its install waits on. Centre: the brain as a graph (units, compiled apps, ghosts of units under
@@ -47,6 +47,9 @@ public sealed record CreatorScenario(string? Alias = null, string? Name = null) 
 [DigitalBrain.Signal("creator.make")]
 public sealed record CreatorMake(string? Goal = null) : DigitalBrain.Signal;
 
+[DigitalBrain.Signal("creator.share")]
+public sealed record CreatorShare(string? Alias = null) : DigitalBrain.Signal;
+
 [DigitalBrain.App("creator", Accent = "#FF5D8F", Category = "Studio")]
 public sealed class CreatorApp : DigitalBrain.App<CreatorState>
 {
@@ -88,6 +91,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
                 new("change", "Start a build flow that changes a unit over its current files."),
                 new("scenario", "Run a unit's kept scenarios on fakes and show the transcript."),
                 new("make", "Describe a new unit; Ino's studio starts its build flow."),
+                new("share", "Publish the inspected unit as an interactive App-Post on your profile."),
             ],
             Settings: [],
             Slots: [],
@@ -230,6 +234,54 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
             Set(State with { Status = $"Could not make it: {error.Message}" });
         }
         await RefreshAsync();
+    }
+
+    [DigitalBrain.On]
+    public async Task Share(CreatorShare request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if ((Blank(request.Alias) ?? SelectedAlias()) is not { } alias)
+        {
+            Set(State with { Status = "Select a unit to share." });
+            return;
+        }
+
+        try
+        {
+            var files = await FilesAsync(alias);
+            var csSource = string.Join("\n\n", files
+                .Where(kv => kv.Key.EndsWith(".cs", StringComparison.Ordinal))
+                .OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                .Select(kv => kv.Value));
+            var summary = files.TryGetValue("spec.md", out var spec) && !string.IsNullOrWhiteSpace(spec)
+                ? spec.Trim()
+                : $"Shared unit {alias}";
+            var brainId = State.Selected is { Kind: Selection.Node, Id: { Length: > 0 } nodeId } && nodeId.IndexOf('/', StringComparison.Ordinal) is > 0 and var slash
+                ? nodeId[..slash]
+                : "local";
+            var post = new ProfilePostItem(
+                Id: $"post-{alias}",
+                Content: summary,
+                CreatedAt: DateTimeOffset.UtcNow,
+                Circle: "public",
+                Title: alias,
+                TemplateAppId: alias,
+                TemplateSource: csSource,
+                EmbeddedApps:
+                [
+                    new("main", alias, alias, $"{brainId}/{alias}"),
+                ],
+                UnitFiles: files.Count > 0 ? files : null,
+                AuthorBrainId: brainId);
+
+            await Get<IProfile>("profile").PublishAppPost(post);
+            Set(State with { Status = $"Shared {alias} as App-Post post-{alias}" });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Sharing to profile is optional when the profile neuron is not registered.");
+            Set(State with { Status = $"Could not share {alias}: {error.Message}" });
+        }
     }
 
     protected override void Watches(DigitalBrain.WatchBuilder watch)

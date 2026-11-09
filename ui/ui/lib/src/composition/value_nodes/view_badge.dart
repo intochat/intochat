@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../components/kit/kit_toast.dart';
+import '../../nodes/node_common.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_icon.dart';
 import '../../theme/ui_theme.dart';
@@ -24,13 +25,27 @@ final class ViewBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
-    final resolvedTone = UiTone.fromWire(tone);
-    final (fill, ink, defaultIcon) = switch (resolvedTone) {
-      UiTone.done => (c.doneBg, c.done, LucideIcons.circleCheck),
-      UiTone.working => (c.workingBg, c.working, LucideIcons.loaderCircle),
-      UiTone.error => (c.errorBg, c.error, LucideIcons.triangleAlert),
-      UiTone.neutral => (c.recessed, c.muted, null),
+    final isAccent =
+        tone == UiNodeTone.accent ||
+        (tone is String && nodeToneOf(tone as String) == UiNodeTone.accent);
+    final resolvedTone = switch (tone) {
+      final UiNodeTone nt => switch (nt) {
+        UiNodeTone.done => UiTone.done,
+        UiNodeTone.working => UiTone.working,
+        UiNodeTone.error => UiTone.error,
+        UiNodeTone.neutral || UiNodeTone.accent => UiTone.neutral,
+      },
+      final String s => toneOf(s),
+      _ => UiTone.fromWire(tone),
     };
+    final (fill, ink, defaultIcon) = isAccent
+        ? (c.accentTint, c.accent, null)
+        : switch (resolvedTone) {
+            UiTone.done => (c.doneBg, c.done, LucideIcons.circleCheck),
+            UiTone.working => (c.workingBg, c.working, LucideIcons.loaderCircle),
+            UiTone.error => (c.errorBg, c.error, LucideIcons.triangleAlert),
+            UiTone.neutral => (c.recessed, c.muted, null),
+          };
     final glyph = (icon != null ? uiIcon(icon!) : null) ?? defaultIcon;
     return Align(
       alignment: AlignmentDirectional.centerStart,

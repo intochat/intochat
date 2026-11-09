@@ -125,6 +125,7 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             : request.TemplateAppId.Trim();
 
         var embeddedApps = ParseEmbeddedApps(request.EmbeddedAppIds);
+        var (templateSource, unitFiles) = await TryReadUnitTemplateAsync(templateAppId);
 
         var post = new ProfilePostItem(
             Id: postId,
@@ -133,8 +134,10 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             Circle: scope,
             Title: title,
             TemplateAppId: templateAppId,
-            TemplateSource: "",
-            EmbeddedApps: embeddedApps);
+            TemplateSource: templateSource,
+            EmbeddedApps: embeddedApps,
+            UnitFiles: unitFiles,
+            AuthorBrainId: BrainId);
 
         var profile = await Get<IProfile>("profile").PublishAppPost(post);
         ApplyProfile(profile, $"Published App-Post {postId} [{scope}] ({embeddedApps.Length} embedded app(s))");
@@ -194,6 +197,21 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             : request.NewPostId.Trim();
 
         var profile = await Get<IProfile>("profile").ForkPost(sourceId, newId, request.RemixTitle);
+        var forkedPost = profile.Posts.FirstOrDefault(p => string.Equals(p.Id, newId, StringComparison.Ordinal));
+        if (forkedPost is { UnitFiles.Count: > 0 } && forkedPost.UnitFiles.Keys.Any(k => k.EndsWith(".cs", StringComparison.Ordinal)))
+        {
+            try
+            {
+                await Get<ISynapseStudio>("ino/synapses").DeployFiles(
+                    forkedPost.TemplateAppId,
+                    forkedPost.UnitFiles,
+                    new Dictionary<string, string>(StringComparer.Ordinal));
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, "Deploying the forked unit template is optional when the synapse studio is not active.");
+            }
+        }
         ApplyProfile(
             profile,
             $"Forked App-Post {sourceId} -> {newId}");
@@ -211,6 +229,28 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
         });
     }
 
+    private string BrainId => "local";
+
+    private async Task<(string Source, IReadOnlyDictionary<string, string>? Files)> TryReadUnitTemplateAsync(string alias)
+    {
+        if (string.IsNullOrWhiteSpace(alias)) { return ("", null); }
+        try
+        {
+            var studio = Get<ISynapseStudio>("ino/synapses");
+            var csFiles = await studio.SourceFiles(alias);
+            if (csFiles.Count == 0) { return ("", null); }
+            var files = new Dictionary<string, string>(csFiles, StringComparer.Ordinal);
+            foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
+            var source = string.Join("\n\n", csFiles.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value));
+            return (source, files);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Reading unit files from the synapse studio is optional when publishing a post.");
+            return ("", null);
+        }
+    }
+
     private void ApplyProfile(ProfileState profile, string status, string? selectedScope = null)
         => Set(new FriendsAppState(
             profile.Handle,
@@ -222,14 +262,15 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             selectedScope ?? State.SelectedScope,
             status));
 
-    private static PostEmbeddedApp[] ParseEmbeddedApps(string? rawEmbeddedApps)
+    private PostEmbeddedApp[] ParseEmbeddedApps(string? rawEmbeddedApps)
     {
+        var brainId = BrainId;
         if (string.IsNullOrWhiteSpace(rawEmbeddedApps))
         {
             return
             [
-                new("canvas", "markdraw", "Markdraw Canvas", "neuron://local/apps/markdraw"),
-                new("analytics", "data", "Data Studio", "neuron://local/apps/data"),
+                new("canvas", "markdraw", "Markdraw Canvas", $"{brainId}/apps/markdraw"),
+                new("analytics", "data", "Data Studio", $"{brainId}/apps/data"),
             ];
         }
 
@@ -246,7 +287,7 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
                 Slot: $"slot-{idx + 1}",
                 AppId: clean,
                 Title: $"{title} App",
-                TargetNeuronUri: $"neuron://local/apps/{clean}");
+                TargetNeuronUri: $"{brainId}/apps/{clean}");
         }).ToArray();
     }
 
@@ -318,7 +359,7 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
                             Icon = "plus",
                             Small = true,
                         },
-                        new Button("add-friend-ada", "Add Friend @ada", Emit: AppSignals.Emit("friends", "add-friend", "ada", "ada", "Ada Lovelace", "friends"))
+                        new Button("add-friend", "Add Friend", Emit: AppSignals.Emit("friends", "add-friend", "ada", "ada", "Ada Lovelace", "friends"))
                         {
                             Icon = "user-plus",
                             Small = true,
@@ -390,12 +431,12 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
 
             postChildren.Add(new Row(
             [
-                new Button("fork-app-template", "Fork App Template", Emit: AppSignals.Emit("friends", "fork-post", post.Id), Tone: ButtonTone.Accent)
+                new Button($"fork-app-template:{post.Id}", "Fork App Template", Emit: AppSignals.Emit("friends", "fork-post", post.Id), Tone: ButtonTone.Accent)
                 {
                     Icon = "git-branch",
                     Small = true,
                 },
-                new Button("open-in-creator", "Open in Creator", Intent: AppSignals.OpenApp("creator"))
+                new Button($"open-in-creator:{post.Id}", "Open in Creator", Intent: AppSignals.OpenApp("creator"))
                 {
                     Icon = "wand-sparkles",
                     Small = true,

@@ -61,7 +61,7 @@ public sealed class ProfileNeuron : DigitalBrain.Neuron<ProfileState>, IProfile
         return next;
     }
 
-    public Task<ProfileState> PublishPost(string id, string content, string circle = "public")
+    public async Task<ProfileState> PublishPost(string id, string content, string circle = "public")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
@@ -73,9 +73,10 @@ public sealed class ProfileNeuron : DigitalBrain.Neuron<ProfileState>, IProfile
             scope,
             Title: content.Trim(),
             TemplateAppId: "friends.post-template",
-            TemplateSource: $"[App(\"post.{id.Trim()}\")] public sealed class PostTemplateApp : App<PostState> {{ }}",
-            EmbeddedApps: []);
-        return PublishAppPost(item);
+            TemplateSource: "",
+            EmbeddedApps: [],
+            AuthorBrainId: Id.Brain.Value);
+        return await PublishAppPost(item);
     }
 
     public async Task<ProfileState> PublishAppPost(ProfilePostItem post)
@@ -84,15 +85,42 @@ public sealed class ProfileNeuron : DigitalBrain.Neuron<ProfileState>, IProfile
         ArgumentException.ThrowIfNullOrWhiteSpace(post.Id);
         ArgumentException.ThrowIfNullOrWhiteSpace(post.Content);
 
+        var templateAppId = string.IsNullOrWhiteSpace(post.TemplateAppId) ? "friends.post-template" : post.TemplateAppId.Trim();
+        var unitFiles = post.UnitFiles;
+        var templateSource = post.TemplateSource ?? "";
+
+        if ((unitFiles is null || unitFiles.Count == 0) && !string.Equals(templateAppId, "friends.post-template", StringComparison.Ordinal))
+        {
+            var resolvedFiles = await TryReadStudioFilesAsync(templateAppId);
+            if (resolvedFiles.Count > 0)
+            {
+                unitFiles = resolvedFiles;
+                if (string.IsNullOrWhiteSpace(templateSource))
+                {
+                    templateSource = string.Join("\n\n", resolvedFiles
+                        .Where(kv => kv.Key.EndsWith(".cs", StringComparison.Ordinal))
+                        .OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                        .Select(kv => kv.Value));
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(templateSource))
+        {
+            templateSource = $"[App(\"post.{post.Id.Trim()}\")] public sealed class PostTemplateApp : App<PostState> {{ }}";
+        }
+
         var normalized = post with
         {
             Id = post.Id.Trim(),
             Content = post.Content.Trim(),
             Circle = string.IsNullOrWhiteSpace(post.Circle) ? "public" : post.Circle.Trim(),
             Title = string.IsNullOrWhiteSpace(post.Title) ? post.Content.Trim() : post.Title.Trim(),
-            TemplateAppId = string.IsNullOrWhiteSpace(post.TemplateAppId) ? "friends.post-template" : post.TemplateAppId.Trim(),
-            TemplateSource = post.TemplateSource ?? "",
+            TemplateAppId = templateAppId,
+            TemplateSource = templateSource,
             EmbeddedApps = post.EmbeddedApps ?? [],
+            UnitFiles = unitFiles,
+            AuthorBrainId = string.IsNullOrWhiteSpace(post.AuthorBrainId) ? Id.Brain.Value : post.AuthorBrainId.Trim(),
             CreatedAt = post.CreatedAt == default ? Context.Time.GetUtcNow() : post.CreatedAt,
         };
 
@@ -111,6 +139,7 @@ public sealed class ProfileNeuron : DigitalBrain.Neuron<ProfileState>, IProfile
         ArgumentException.ThrowIfNullOrWhiteSpace(postId);
         ArgumentException.ThrowIfNullOrWhiteSpace(newPostId);
 
+        var brainId = string.IsNullOrWhiteSpace(Id.Brain.Value) ? "local" : Id.Brain.Value;
         var source = State.Posts.FirstOrDefault(existing => string.Equals(existing.Id, postId.Trim(), StringComparison.Ordinal))
             ?? new ProfilePostItem(
                 postId.Trim(),
@@ -122,8 +151,32 @@ public sealed class ProfileNeuron : DigitalBrain.Neuron<ProfileState>, IProfile
                 TemplateSource: $"[App(\"post.{newPostId.Trim()}\")] public sealed class PostTemplateApp : App<PostState> {{ }}",
                 EmbeddedApps:
                 [
-                    new("canvas", "markdraw", "Markdraw Canvas", "neuron://local/apps/markdraw"),
-                ]);
+                    new("canvas", "markdraw", "Markdraw Canvas", $"{brainId}/apps/markdraw"),
+                ],
+                AuthorBrainId: brainId);
+
+        var filesToDeploy = source.UnitFiles;
+        if ((filesToDeploy is null || filesToDeploy.Count == 0) && !string.Equals(source.TemplateAppId, "friends.post-template", StringComparison.Ordinal))
+        {
+            var studioFiles = await TryReadStudioFilesAsync(source.TemplateAppId);
+            if (studioFiles.Count > 0)
+            {
+                filesToDeploy = studioFiles;
+            }
+        }
+
+        if (filesToDeploy is { Count: > 0 } && filesToDeploy.Keys.Any(k => k.EndsWith(".cs", StringComparison.Ordinal)))
+        {
+            try
+            {
+                var studio = Context.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
+                await studio.DeployFiles(source.TemplateAppId, filesToDeploy, new Dictionary<string, string>(StringComparer.Ordinal));
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                // Standalone profile tests may not host ISynapseStudio; keep fork resilient.
+            }
+        }
 
         var forked = source with
         {
@@ -131,8 +184,30 @@ public sealed class ProfileNeuron : DigitalBrain.Neuron<ProfileState>, IProfile
             Title = string.IsNullOrWhiteSpace(remixTitle) ? $"Remix · {source.Title}" : remixTitle.Trim(),
             Content = string.IsNullOrWhiteSpace(remixTitle) ? $"{source.Content} (Forked App Template)" : $"{remixTitle.Trim()} — {source.Content}",
             ForkedFrom = $"@{State.Handle}/{source.Id}",
+            UnitFiles = filesToDeploy ?? source.UnitFiles,
+            AuthorBrainId = brainId,
             CreatedAt = Context.Time.GetUtcNow(),
         };
         return await PublishAppPost(forked);
+    }
+
+    private async Task<Dictionary<string, string>> TryReadStudioFilesAsync(string alias)
+    {
+        var files = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(alias)) { return files; }
+        try
+        {
+            var brainId = string.IsNullOrWhiteSpace(Id.Brain.Value) ? "local" : Id.Brain.Value;
+            var studio = Context.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
+            foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
+            if (files.Count > 0)
+            {
+                foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+        }
+        return files;
     }
 }

@@ -552,4 +552,147 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Retry'), findsOneWidget);
   });
+
+  group('design system fixes', () {
+    test('nodeToneOf and toneOf resolve ok, warn, info, accent', () {
+      expect(nodeToneOf('ok'), UiNodeTone.done);
+      expect(nodeToneOf('done'), UiNodeTone.done);
+      expect(nodeToneOf('warn'), UiNodeTone.working);
+      expect(nodeToneOf('working'), UiNodeTone.working);
+      expect(nodeToneOf('accent'), UiNodeTone.accent);
+      expect(nodeToneOf('info'), UiNodeTone.accent);
+      expect(nodeToneOf('primary'), UiNodeTone.accent);
+      expect(nodeToneOf('error'), UiNodeTone.error);
+      expect(nodeToneOf('critical'), UiNodeTone.error);
+      expect(toneOf('ok'), UiTone.done);
+      expect(toneOf('warn'), UiTone.working);
+      expect(toneOf('critical'), UiTone.error);
+    });
+
+    testWidgets(
+      'SurfaceKind renders elevated, recessed, card, and acrylic distinctly',
+      (tester) async {
+        const c = UiColors.intochatLight;
+        await _host(tester, {
+          'kind': 'column',
+          'children': [
+            {
+              'kind': 'surface',
+              'surfaceKind': 'elevated',
+              'children': [
+                {'kind': 'text', 'value': 'Elevated-Content'},
+              ],
+            },
+            {
+              'kind': 'surface',
+              'surfaceKind': 'recessed',
+              'children': [
+                {'kind': 'text', 'value': 'Recessed-Content'},
+              ],
+            },
+            {
+              'kind': 'surface',
+              'surfaceKind': 'card',
+              'children': [
+                {'kind': 'text', 'value': 'Card-Content'},
+              ],
+            },
+            {
+              'kind': 'surface',
+              'surfaceKind': 'acrylic',
+              'children': [
+                {'kind': 'text', 'value': 'Acrylic-Content'},
+              ],
+            },
+          ],
+        });
+        final surfaces = tester
+            .widgetList<UiKitSurface>(find.byType(UiKitSurface))
+            .toList();
+        expect(surfaces, hasLength(4));
+        expect(surfaces[0].color, c.elevated);
+        expect(surfaces[1].color, c.recessed);
+        expect(surfaces[2].color, c.surface);
+        expect(surfaces[3].color, c.chrome);
+        expect(surfaces[3].blurSigma, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      'text with mono=true and neuronRef use Inter tabular figures, never raw monospace',
+      (tester) async {
+        await _host(tester, {
+          'kind': 'column',
+          'children': [
+            {'kind': 'text', 'value': 'v1.0.0', 'mono': true},
+            {
+              'kind': 'neuronRef',
+              'refKind': 'confirmation',
+              'neuronUri': 'neuron://local/test',
+            },
+          ],
+        });
+        for (final st in tester.widgetList<SelectableText>(
+          find.byType(SelectableText),
+        )) {
+          expect(st.style?.fontFamily, isNot('monospace'));
+          expect(st.style?.fontFamily, contains('Inter'));
+          expect(
+            st.style?.fontFeatures,
+            contains(const FontFeature.tabularFigures()),
+          );
+        }
+      },
+    );
+
+    testWidgets('heading levels 1..5 use InterDisplay/Inter scale', (
+      tester,
+    ) async {
+      await _host(tester, {
+        'kind': 'column',
+        'children': [
+          for (var level = 1; level <= 5; level++)
+            {'kind': 'heading', 'value': 'H$level', 'level': level},
+        ],
+      });
+      expect(tester.widget<Text>(find.text('H1')).style?.fontSize, 28);
+      expect(tester.widget<Text>(find.text('H2')).style?.fontSize, 24);
+      expect(tester.widget<Text>(find.text('H3')).style?.fontSize, 18);
+      expect(tester.widget<Text>(find.text('H4')).style?.fontSize, 15);
+      expect(tester.widget<Text>(find.text('H5')).style?.fontSize, 13.5);
+    });
+
+    testWidgets('navItem renders 32px pill and dispatches key on tap', (
+      tester,
+    ) async {
+      final events = <Map<String, dynamic>>[];
+      await _host(tester, {
+        'kind': 'navItem',
+        'key': 'nav-settings',
+        'label': 'Settings',
+        'icon': 'settings',
+        'action': 'settings',
+        'selected': true,
+        'badge': '2',
+      }, events: events);
+      final pill = find.byKey(const ValueKey('nav:nav-settings'));
+      expect(pill, findsOneWidget);
+      expect(tester.getSize(pill).height, 32);
+      await tester.tap(pill);
+      await tester.pumpAndSettle();
+      expect(events.single['key'], 'nav-settings');
+    });
+
+    testWidgets(
+      'approvalCard with resolve==null renders structured ApprovalCard instead of raw arrow text',
+      (tester) async {
+        await _host(tester, {...nodeSamples['approvalCard']!, 'resolve': null});
+        expect(find.byType(ApprovalCard), findsOneWidget);
+        expect(find.text('Stage: Open -> Won'), findsNothing);
+        expect(find.text('Stage'), findsOneWidget);
+        expect(find.text('Open'), findsOneWidget);
+        expect(find.text('Won'), findsOneWidget);
+      },
+    );
+  });
 }

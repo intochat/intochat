@@ -9,14 +9,6 @@ namespace IntoChat.OS.Apps.Ino;
 
 internal static class InoViewRenderer
 {
-    private static readonly (string Id, string Title, string Group, string Icon, string? Badge)[] ArcSessions =
-    [
-        ("q4-renewal", "Nordlys Q4 Renewal", "Pinned", "sparkles", "Needs you"),
-        ("morning-brief", "Morning Brief", "Pinned", "sun", "3"),
-        ("invoice-check", "Tripletex Invoice Check", "Today", "key-round", "Vault"),
-        ("first-run", "Ino Setup · First Run", "Today", "compass", null),
-    ];
-
     public static View RenderSide(InoAppState state) => new(
         "Chats",
         new Column(
@@ -33,22 +25,14 @@ internal static class InoViewRenderer
                 ],
                 Kind: SurfaceKind.Acrylic,
                 Title: state.Title),
-            new Divider("PINNED SESSIONS"),
-            .. ArcSessions.Where(s => s.Group == "Pinned").Select(s => (Node)Ui.NavItem(
-                $"arc-{s.Id}",
-                s.Title,
-                s.Icon,
-                $"send:/scenario {s.Id}",
-                selected: state.ConversationId == s.Id,
-                badge: s.Badge)),
-            new Divider("TODAY"),
-            .. ArcSessions.Where(s => s.Group == "Today").Select(s => (Node)Ui.NavItem(
-                $"arc-{s.Id}",
-                s.Title,
-                s.Icon,
-                $"send:/scenario {s.Id}",
-                selected: state.ConversationId == s.Id,
-                badge: s.Badge)),
+            new Divider("SESSIONS"),
+            Ui.NavItem(
+                $"session-{state.ConversationId}",
+                state.Title,
+                "sparkles",
+                "open",
+                selected: true,
+                badge: $"{state.Turns.Length}"),
             new Collection([new Entry(state.ConversationId, state.Title, $"{state.Turns.Length} turn(s)")]),
             new Divider("WHAT INO MAY DO"),
             new Collection([.. (state.GrantSummaries ?? []).Select((summary, i) => new Entry($"grant-{i}", summary, null))]),

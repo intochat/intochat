@@ -47,19 +47,6 @@ public static partial class DataAnalyticsEngine
         "€",
         "customer account(s)");
 
-    private static readonly DatasetRecord BuiltInFunDataset = new(
-        ["Beverage", "Team", "Vibe", "WeeklyCups"],
-        [
-            ["Quantum Espresso", "Kernel Lab", "Hyperfocus", "420"],
-            ["Nebula Cold Brew", "Flutter UI", "Flow State", "360"],
-            ["Matcha Overdrive", "Data Guild", "Zen Mode", "290"],
-            ["Midnight Cortado", "Orleans Silo", "Zero-Latency", "240"],
-            ["Oat Cloud Latte", "Design Studio", "Sparkles", "195"],
-        ],
-        "Cosmic Coffee & Developer Velocity",
-        "",
-        "fun data point(s)");
-
     public static async Task<DataQueryResult> ExecuteAsync(
         string queryOrPrompt,
         string database,
@@ -112,21 +99,9 @@ public static partial class DataAnalyticsEngine
             || (queryOrPrompt.Contains("account", StringComparison.OrdinalIgnoreCase)
                 && !queryOrPrompt.Contains("opportunit", StringComparison.OrdinalIgnoreCase));
 
-        var isFunOrSampleRequest = !queryOrPrompt.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
-            && !queryOrPrompt.Contains("opportunit", StringComparison.OrdinalIgnoreCase)
-            && !queryOrPrompt.Contains("customer", StringComparison.OrdinalIgnoreCase)
-            && !queryOrPrompt.Contains("pipeline", StringComparison.OrdinalIgnoreCase)
-            && (queryOrPrompt.Contains("fun", StringComparison.OrdinalIgnoreCase)
-                || queryOrPrompt.Contains("test", StringComparison.OrdinalIgnoreCase)
-                || queryOrPrompt.Contains("sample", StringComparison.OrdinalIgnoreCase)
-                || queryOrPrompt.Contains("demo", StringComparison.OrdinalIgnoreCase)
-                || queryOrPrompt.Contains("random", StringComparison.OrdinalIgnoreCase));
-
         var dataset = isCustomerTable
             ? BuiltInCustomers
-            : isFunOrSampleRequest
-                ? BuiltInFunDataset
-                : BuiltInOpportunities;
+            : BuiltInOpportunities;
         var hasCustomFilterOrGroup = HasAnalyticalClauses(queryOrPrompt);
 
         return RunRelationalPipeline(

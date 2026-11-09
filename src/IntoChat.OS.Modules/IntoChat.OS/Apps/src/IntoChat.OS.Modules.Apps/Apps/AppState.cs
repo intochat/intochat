@@ -50,21 +50,21 @@ public sealed class AppState
     [Id(46)] public string? Refused { get; set; }
 
     // The maps as callers read and replace them. Each read is a copy: change a map by assigning a new one.
-    [IgnoreDataMember]
+    [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<string, string> Files
     {
         get => StringEntry.ToMap(FileEntries);
         set => FileEntries = StringEntry.From(value);
     }
 
-    [IgnoreDataMember]
+    [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<string, string> Settings
     {
         get => StringEntry.ToMap(SettingEntries);
         set => SettingEntries = StringEntry.From(value);
     }
 
-    [IgnoreDataMember]
+    [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<string, string> Connections
     {
         get => StringEntry.ToMap(ConnectionEntries);
@@ -141,7 +141,7 @@ public sealed record AppVersionRecord(
     internal AppVersionRecord(string version, DateTimeOffset savedAt, AppManifest manifest, string spec, IEnumerable<KeyValuePair<string, string>> files)
         : this(version, savedAt, manifest, spec, StringEntry.From(files)) { }
 
-    [IgnoreDataMember]
+    [IgnoreDataMember, System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<string, string> Files => StringEntry.ToMap(FileEntries);
 }
 

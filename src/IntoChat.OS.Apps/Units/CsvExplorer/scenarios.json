@@ -1,0 +1,23 @@
+[
+  {
+    "name": "loading csv populates columns and rows",
+    "when": [
+      "publish csv.load {\"csv\":\"Name,Role\\nAda,Engineer\\nBo,Designer\"}"
+    ],
+    "then": [
+      "state data.csv Columns = [\"Name\",\"Role\"]",
+      "state data.csv Rows = [[\"Ada\",\"Engineer\"],[\"Bo\",\"Designer\"]]"
+    ]
+  },
+  {
+    "name": "filtering csv sets the active row filter",
+    "when": [
+      "publish csv.load {\"csv\":\"Name,Role\\nAda,Engineer\\nBo,Designer\"}",
+      "publish csv.filter {\"value\":\"Ada\"}"
+    ],
+    "then": [
+      "state data.csv Filter = \"Ada\"",
+      "state data.csv Columns = [\"Name\",\"Role\"]"
+    ]
+  }
+]

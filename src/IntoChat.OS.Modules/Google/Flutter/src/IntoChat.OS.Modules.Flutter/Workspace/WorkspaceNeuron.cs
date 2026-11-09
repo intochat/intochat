@@ -172,7 +172,11 @@ internal sealed partial class WorkspaceNeuron
         return await Read();
     }
 
-    private bool IsApp(string key) => key.StartsWith(Brain + "/apps/", StringComparison.Ordinal) && !key[(Brain.Length + 6)..].Contains('/');
+    private bool IsApp(string key) =>
+        (key.StartsWith(Brain + "/apps/", StringComparison.Ordinal) && key.Length > Brain.Length + 6 && !key[(Brain.Length + 6)..].Contains('/'))
+        || (key.StartsWith(Brain + "/units/", StringComparison.Ordinal) && key.Length > Brain.Length + 7 && !key[(Brain.Length + 7)..].Contains('/'))
+        || AppUiEndpoints.UnitAlias(Brain, key) is not null
+            and not ("units" or "profile" or "posts" or "main" or "confirmations");
 
     private void ValidateKey(string key)
     {

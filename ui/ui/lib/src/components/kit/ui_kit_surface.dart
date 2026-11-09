@@ -23,6 +23,7 @@ final class UiKitSurface extends StatelessWidget {
     this.shadows,
     this.color,
     this.borderColor,
+    this.blurSigma,
   });
 
   final Widget child;
@@ -31,6 +32,7 @@ final class UiKitSurface extends StatelessWidget {
   final List<BoxShadow>? shadows;
   final Color? color;
   final Color? borderColor;
+  final double? blurSigma;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +46,7 @@ final class UiKitSurface extends StatelessWidget {
       borderColor: effectiveBorder,
       shadows: shadows ?? UiShadows.sm(c),
       padding: padding,
-      sigmaOverride: c.blurSigma,
+      sigmaOverride: blurSigma ?? c.blurSigma,
       child: child,
     );
   }

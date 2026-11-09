@@ -1,0 +1,22 @@
+[
+  {
+    "name": "ingesting webhook events records topic and summary",
+    "when": [
+      "publish relay.ingest {\"topic\":\"github.push\",\"summary\":\"Pushed 3 commits to main\"}",
+      "publish relay.ingest {\"topic\":\"stripe.invoice\",\"summary\":\"Invoice paid\"}"
+    ],
+    "then": [
+      "state relay.webhook Events = [{\"topic\":\"github.push\",\"summary\":\"Pushed 3 commits to main\"},{\"topic\":\"stripe.invoice\",\"summary\":\"Invoice paid\"}]"
+    ]
+  },
+  {
+    "name": "clearing events empties the captured list",
+    "when": [
+      "publish relay.ingest {\"topic\":\"github.push\",\"summary\":\"Pushed 3 commits to main\"}",
+      "publish relay.clear {}"
+    ],
+    "then": [
+      "state relay.webhook Events = []"
+    ]
+  }
+]

@@ -6,4 +6,4 @@ import '../composition/value_nodes/view_badge.dart';
 import 'node_common.dart';
 
 Widget renderTagPill(TagPillNode node, NodeContext ctx) =>
-    ViewBadge(text: node.label, tone: toneOf(node.tone).index, icon: node.icon);
+    ViewBadge(text: node.label, tone: nodeToneOf(node.tone), icon: node.icon);

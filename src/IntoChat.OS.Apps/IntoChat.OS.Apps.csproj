@@ -33,5 +33,17 @@
     <EmbeddedResource Include="Units/CircleRoom/CircleRoom.cs" LogicalName="IntoChat.OS.Apps.Units.circleroom/CircleRoom.cs" />
     <EmbeddedResource Include="Units/CircleRoom/spec.md" LogicalName="IntoChat.OS.Apps.Units.circleroom/spec.md" />
     <EmbeddedResource Include="Units/CircleRoom/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.circleroom/scenarios.json" />
+    <EmbeddedResource Include="Units/WebWatch/WebWatch.cs" LogicalName="IntoChat.OS.Apps.Units.watch.web/WebWatch.cs" />
+    <EmbeddedResource Include="Units/WebWatch/spec.md" LogicalName="IntoChat.OS.Apps.Units.watch.web/spec.md" />
+    <EmbeddedResource Include="Units/WebWatch/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.watch.web/scenarios.json" />
+    <EmbeddedResource Include="Units/DailyBrief/DailyBrief.cs" LogicalName="IntoChat.OS.Apps.Units.brief.daily/DailyBrief.cs" />
+    <EmbeddedResource Include="Units/DailyBrief/spec.md" LogicalName="IntoChat.OS.Apps.Units.brief.daily/spec.md" />
+    <EmbeddedResource Include="Units/DailyBrief/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.brief.daily/scenarios.json" />
+    <EmbeddedResource Include="Units/CsvExplorer/CsvExplorer.cs" LogicalName="IntoChat.OS.Apps.Units.data.csv/CsvExplorer.cs" />
+    <EmbeddedResource Include="Units/CsvExplorer/spec.md" LogicalName="IntoChat.OS.Apps.Units.data.csv/spec.md" />
+    <EmbeddedResource Include="Units/CsvExplorer/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.data.csv/scenarios.json" />
+    <EmbeddedResource Include="Units/WebhookRelay/WebhookRelay.cs" LogicalName="IntoChat.OS.Apps.Units.relay.webhook/WebhookRelay.cs" />
+    <EmbeddedResource Include="Units/WebhookRelay/spec.md" LogicalName="IntoChat.OS.Apps.Units.relay.webhook/spec.md" />
+    <EmbeddedResource Include="Units/WebhookRelay/scenarios.json" LogicalName="IntoChat.OS.Apps.Units.relay.webhook/scenarios.json" />
   </ItemGroup>
 </Project>

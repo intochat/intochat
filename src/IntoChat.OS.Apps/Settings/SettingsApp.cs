@@ -125,6 +125,9 @@ public sealed record SettingsAppState(
 [DigitalBrain.App("settings", Accent = "#64748B", Category = "System")]
 public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
 {
+    private string _computeSpendUsd = "$0.00";
+    private string _computeRowsSummary = "0 model(s) metered";
+
     public static IReadOnlyList<SettingsSearchEntry> SearchIndex { get; } =
     [
         new("general", "General", "appearance theme dark light auto glass acrylic spatial cyber synaptic warm paper midnight nordic language timezone date format", "os://window/profile", "sliders-horizontal", "Preferences"),
@@ -201,6 +204,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     public async Task Open(SettingsOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await TryRefreshComputeSummaryAsync();
         var user = await Get<IUserSettings>("settings").Read();
         Update(new SettingsAppState(
             "Settings",
@@ -229,6 +233,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     public async Task Read(SettingsRead request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await TryRefreshComputeSummaryAsync();
         var user = await Get<IUserSettings>("settings").Read();
         Update(new SettingsAppState(
             "Settings",
@@ -494,8 +499,6 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                     "Search settings...",
                     AppSignals.Emit("settings", "navigate", State.Section, State.SubPage ?? "", State.Sheet ?? "")),
                 .. navItems,
-                new Collection(
-                    matches.Select(s => new Entry(s.SectionId, s.Title, s.Keywords)).ToArray()),
             ])
             { Gap = 8 });
     }
@@ -600,7 +603,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             [
                 Ui.StatCard("stat-preset", "Active UI Identity", State.StylePreset, State.BarLayout, BadgeTone.Accent, "palette"),
                 Ui.StatCard("stat-model", "Default Brain Model", State.DefaultModel, "Local + Cloud", BadgeTone.Done, "cpu"),
-                Ui.StatCard("stat-vault", "Zero-Leakage Vault", "4 Secrets Sealed", "2FA Active", BadgeTone.Neutral, "key-round"),
+                Ui.StatCard("stat-vault", "Zero-Leakage Vault", $"{(State.ConnectionKeys ?? []).Count} Connections", "Active", BadgeTone.Neutral, "key-round"),
             ],
             Gap: 12),
         new Surface(
@@ -867,14 +870,29 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             new Grid(
                 3,
                 [
-                    Ui.StatCard("bill-credits", "Credits Balance", "€42.80", "Auto top-up at €10", BadgeTone.Done, "wallet"),
-                    Ui.StatCard("bill-tokens", "Tokens Today", "14,800", "~€0.18", BadgeTone.Accent, "cpu"),
-                    Ui.StatCard("bill-limit", "Monthly Spend Limit", "€100.00", "18% used", BadgeTone.Neutral, "gauge"),
+                    Ui.StatCard("bill-credits", "Metered Spend", _computeSpendUsd, _computeRowsSummary, BadgeTone.Done, "wallet"),
+                    Ui.StatCard("bill-tokens", "Default Model", State.DefaultModel, "Active routing", BadgeTone.Accent, "cpu"),
+                    Ui.StatCard("bill-limit", "Compute Ledger", "ICompute", "Live Usage", BadgeTone.Neutral, "gauge"),
                 ],
                 Gap: 12),
         ],
         Kind: SurfaceKind.Elevated,
         Title: "Billing");
+
+    private async Task TryRefreshComputeSummaryAsync()
+    {
+        try
+        {
+            var compute = await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Read();
+            var usd = compute.SpentMicros / 1_000_000.0;
+            _computeSpendUsd = usd.ToString("$0.00", System.Globalization.CultureInfo.InvariantCulture);
+            _computeRowsSummary = $"{compute.Rows.Length} model(s) metered";
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
+        }
+    }
 
     private Node RenderTeamSection(string? subPage)
     {

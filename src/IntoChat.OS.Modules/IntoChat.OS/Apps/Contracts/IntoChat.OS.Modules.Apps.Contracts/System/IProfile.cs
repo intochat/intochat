@@ -24,7 +24,9 @@ public sealed record ProfilePostItem(
     string TemplateAppId = "friends.post-template",
     string TemplateSource = "",
     PostEmbeddedApp[]? EmbeddedApps = null,
-    string? ForkedFrom = null)
+    string? ForkedFrom = null,
+    IReadOnlyDictionary<string, string>? UnitFiles = null,
+    string AuthorBrainId = "")
 {
     public string Scope => string.IsNullOrWhiteSpace(Circle) ? "public" : Circle;
 }

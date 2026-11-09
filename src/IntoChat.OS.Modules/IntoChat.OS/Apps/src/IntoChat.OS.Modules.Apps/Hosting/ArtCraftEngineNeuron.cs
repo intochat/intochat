@@ -13,6 +13,9 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron("apps.artcraft-engine")]
 internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : DigitalBrain.Neuron, IArtCraftEngine
 {
+    private IFilesVfsService? _vfs;
+    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(Context.Services, Id.Brain.Value);
+
     public async Task<ArtCraftEngineResult> Execute(
         string app,
         string? instructionOrCommand,
@@ -28,7 +31,8 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
             currentDocument,
             executionMode,
             TryGetArtCraftStudio(),
-            TryGetMcpServer);
+            TryGetMcpServer,
+            vfs: Vfs);
     }
 
     public Task<ArtCraftEngineResult> ExecutePhotoCraft(

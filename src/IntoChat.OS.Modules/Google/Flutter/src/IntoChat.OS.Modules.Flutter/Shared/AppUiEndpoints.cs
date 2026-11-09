@@ -49,13 +49,41 @@ internal static class AppUiEndpoints
             if (name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
             return Results.Json(ConfirmationView.Render(await brain.Get<IConfirmationInbox>(name).Read().WaitAsync(ct)), ViewJson);
         }
-        var unit = kind == UIVocabulary.ViewType ? UnitAlias(scope, name) : null;
+        var unit = kind is UIVocabulary.ViewType or "viewport" ? UnitAlias(scope, name) : null;
         if (unit is null && !OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
         if (kind == "viewport")
         {
+            if (unit is not null)
+            {
+                var unitView = await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct);
+                return Results.Ok(new
+                {
+                    Revision = unitView?.Generation ?? 0L,
+                    Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
+                    Root = unitView is null ? null : new ViewRef(UIVocabulary.ViewType, $"{scope}/{unit}"),
+                    Error = unitView is null ? "This unit has not published a view." : null,
+                });
+            }
             var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
             if (viewport.Target is not { } target)
-            { return Results.Ok(new { viewport.Revision, Root = (ViewRef?)null, Error = (string?)null }); }
+            {
+                var directViewName = name.EndsWith("/view", StringComparison.Ordinal) ? name : $"{name}/view";
+                if (OwnsUi(scope, directViewName))
+                {
+                    var directView = await brain.Get<IView>(directViewName).Read().WaitAsync(ct);
+                    if (directView is not null)
+                    {
+                        return Results.Ok(new
+                        {
+                            Revision = directView.Generation,
+                            Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
+                            Root = new ViewRef(UIVocabulary.ViewType, directViewName),
+                            Error = (string?)null,
+                        });
+                    }
+                }
+                return Results.Ok(new { viewport.Revision, Root = (ViewRef?)null, Error = (string?)null });
+            }
             if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
             var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
             var presentation = app.Presentation;

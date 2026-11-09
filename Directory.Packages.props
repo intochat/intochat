@@ -127,8 +127,6 @@
   <ItemGroup>
     <PackageVersion Include="DigitalBrain" Version="0.18.0-units.6" />
     <PackageVersion Include="DigitalBrain.Client" Version="0.18.0-units.6" />
-    <PackageVersion Include="DigitalBrain.Apps.Packaging" Version="0.16.1" />
-    <PackageVersion Include="DigitalBrain.Runtime.Apps" Version="0.16.1" />
     <PackageVersion Include="DigitalBrain.Analyzers" Version="0.18.0-units.6" />
     <PackageVersion Include="DigitalBrain.Capabilities.Compute" Version="0.18.0-units.6" />
     <PackageVersion Include="DigitalBrain.Capabilities.Connections" Version="0.18.0-units.6" />

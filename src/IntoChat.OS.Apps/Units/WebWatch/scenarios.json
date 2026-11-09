@@ -1,0 +1,42 @@
+[
+  {
+    "name": "polling counts new items and records latest title",
+    "given": {
+      "http": {
+        "http": {
+          "feed.json": {
+            "items": [
+              { "title": "Release 1.0" },
+              { "title": "Patch 1.0.1" }
+            ]
+          }
+        }
+      }
+    },
+    "when": ["tick 6m"],
+    "then": [
+      "state watch.web Unseen = 2",
+      "state watch.web Latest = \"Release 1.0\"",
+      "signal watch.polled"
+    ]
+  },
+  {
+    "name": "marking seen resets unseen count to zero",
+    "given": {
+      "http": {
+        "http": {
+          "feed.json": {
+            "items": [
+              { "title": "Release 1.0" }
+            ]
+          }
+        }
+      }
+    },
+    "when": ["tick 6m", "publish watch.seen {}"],
+    "then": [
+      "state watch.web Unseen = 0",
+      "state watch.web Latest = \"Release 1.0\""
+    ]
+  }
+]

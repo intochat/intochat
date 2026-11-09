@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter/intochat_os_flutter.dart';
 
 import 'node_context.dart';
+import 'node_common.dart';
 import '../components/kit/ui_kit_surface.dart';
 import '../composition/value_nodes/view_badge.dart';
+import '../theme/ui_theme.dart';
 
 Widget renderStatCard(StatCardNode node, NodeContext ctx) => Builder(
   builder: (context) {
@@ -17,18 +19,21 @@ Widget renderStatCard(StatCardNode node, NodeContext ctx) => Builder(
           Text(node.label, style: text.bodySmall),
           Text(
             node.value,
-            style: text.headlineSmall?.copyWith(
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+            style: UiType.displayStyle(
+              28,
+              weight: FontWeight.w800,
+              color: text.headlineSmall?.color,
+            ).copyWith(fontFeatures: UiType.tabular),
           ),
           if (node.delta case final delta?)
             ViewBadge(
               text: delta,
               tone: switch (node.tone) {
-                BadgeTone.done => 1,
-                BadgeTone.working => 2,
-                BadgeTone.error => 3,
-                _ => 0,
+                BadgeTone.accent => UiNodeTone.accent,
+                BadgeTone.done => UiNodeTone.done,
+                BadgeTone.working => UiNodeTone.working,
+                BadgeTone.error => UiNodeTone.error,
+                BadgeTone.neutral => UiNodeTone.neutral,
               },
             ),
         ],

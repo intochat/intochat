@@ -534,7 +534,6 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
                 new Divider("TEMPLATES"),
                 UI.NavItem("tpl-arch", "System Architecture", "cpu", "open:/work/architecture.markdraw"),
                 UI.NavItem("tpl-pipeline", "CRM Data Pipeline", "git-branch", "open:/work/pipeline-flow.markdraw"),
-                new Collection(drawings.Select(d => new Entry(d, Path.GetFileName(d), $"{State.Elements.Length} element(s)")).ToArray()),
             ])
             { Gap = 8 });
     }

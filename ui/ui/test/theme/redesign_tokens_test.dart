@@ -66,6 +66,11 @@ void main() {
     expect(t.modalRadius, 20);
     expect(t.pill, 999);
     expect(t.controlRadius, 10);
+    expect(t.osBarHeight, 32);
+    expect(t.rowHeight, 32);
+    expect(t.fast, const Duration(milliseconds: 120));
+    expect(t.base, const Duration(milliseconds: 200));
+    expect(t.slow, const Duration(milliseconds: 340));
     expect(t.ease, const Cubic(0.2, 0.8, 0.2, 1));
   });
 

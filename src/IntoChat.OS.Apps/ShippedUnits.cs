@@ -9,6 +9,8 @@ public static class ShippedUnits
 {
     private const string Prefix = "IntoChat.OS.Apps.Units.";
 
+    public static IReadOnlyList<string> All { get; } = ["circleroom", "watch.web", "brief.daily", "data.csv", "relay.webhook"];
+
     // A shipped unit's files keyed by path: its .cs source, spec.md and scenarios.json. Empty for an alias the OS does not ship.
     public static IReadOnlyDictionary<string, string> Files(string alias)
     {

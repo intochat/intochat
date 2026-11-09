@@ -179,6 +179,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         return bytes is null ? null : Encoding.UTF8.GetString(bytes);
     }
 
+    public const long MaxReadBytes = 16 * 1024 * 1024;
+
     public async Task<byte[]?> ReadBytesAsync(string nameOrUriOrPath, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -232,7 +234,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
             try
             {
-                var content = await targetConn.Capability.Read(new ItemId(resolved.ItemId), new ByteRange(0, 256 * 1024), ct).ConfigureAwait(false);
+                var content = await targetConn.Capability.Read(new ItemId(resolved.ItemId), new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
                 return content.Bytes.ToArray();
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -393,15 +395,13 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         finally
         {
             stampScope?.Dispose();
+            if (hadPrevious && previous is not null)
             {
-                _ = previous;
-                {
-                    _ = previous;
-                }
-                _ = hadPrevious;
-                {
-                    _ = 0;
-                }
+                RuntimeCallerContext.Stamp(previous);
+            }
+            else
+            {
+                RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
             }
         }
     }

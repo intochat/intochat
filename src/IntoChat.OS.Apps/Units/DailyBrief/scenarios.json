@@ -1,0 +1,38 @@
+[
+  {
+    "name": "adding priorities records them in order",
+    "when": [
+      "publish brief.add {\"text\":\"Ship units\"}",
+      "publish brief.add {\"value\":\"Write specs\"}"
+    ],
+    "then": [
+      "state brief.daily Priorities = [\"Ship units\",\"Write specs\"]",
+      "state brief.daily Completed = []"
+    ]
+  },
+  {
+    "name": "completing a priority moves it to completed",
+    "when": [
+      "publish brief.add {\"text\":\"Ship units\"}",
+      "publish brief.add {\"text\":\"Write specs\"}",
+      "publish brief.complete {\"text\":\"Ship units\"}"
+    ],
+    "then": [
+      "state brief.daily Priorities = [\"Write specs\"]",
+      "state brief.daily Completed = [\"Ship units\"]"
+    ]
+  },
+  {
+    "name": "reset clears completed items and keeps open priorities",
+    "when": [
+      "publish brief.add {\"text\":\"Ship units\"}",
+      "publish brief.add {\"text\":\"Write specs\"}",
+      "publish brief.complete {\"text\":\"Ship units\"}",
+      "publish brief.reset {}"
+    ],
+    "then": [
+      "state brief.daily Priorities = [\"Write specs\"]",
+      "state brief.daily Completed = []"
+    ]
+  }
+]

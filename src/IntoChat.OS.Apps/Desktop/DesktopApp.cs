@@ -90,22 +90,20 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 
     // The desktop's durable records (widgets, greeted, layout); State is this activation's working state.
     private IDesktopRecords Records => Get<IDesktopRecords>(IDesktopRecords.Key);
+    private IntoChat.OS.Modules.Apps.Approvals.Approval[] _approvals = [];
+
     public static IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> Catalog { get; } =
     [
-        // DigitalBrain OS Native Grains (15)
+        // DigitalBrain OS Native Grains (10)
         ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
-        ("brain", "Brain", "neuron://local/apps/brain", "cpu", "Studio", "orleans-grain"),
         ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
         ("workspace", "Workspace", "neuron://local/apps/workspace", "compass", "Workspace", "orleans-grain"),
         ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks", "Workspace", "orleans-grain"),
-        ("notes", "Notes", "neuron://local/apps/notes", "file-text", "Workspace", "orleans-grain"),
         ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2", "Studio", "orleans-grain"),
         ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool", "Studio", "orleans-grain"),
         ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu", "Studio", "orleans-grain"),
         ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid", "Studio", "orleans-grain"),
         ("friends", "Friends", "neuron://local/apps/friends", "users", "Social", "orleans-grain"),
-        ("trace", "Trace", "neuron://local/apps/trace", "activity", "System", "orleans-grain"),
-        ("vault", "Secure Vault", "neuron://local/apps/vault", "shield", "System", "orleans-grain"),
         ("settings", "Settings", "neuron://local/apps/settings", "settings", "System", "orleans-grain"),
         // ArtCraft Creative Suite (17)
         ("artcraft", "ArtCraft", "neuron://local/apps/artcraft", "brush", "ArtCraft Studio", "wasm-ui+mcp+cli"),
@@ -207,7 +205,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     }
 
     [DigitalBrain.On]
-    public Task Pin(DesktopPinApp request)
+    public async Task Pin(DesktopPinApp request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var appId = string.IsNullOrWhiteSpace(request.AppId) ? "photocraft" : request.AppId.Trim().ToLowerInvariant();
@@ -224,6 +222,32 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             current.RemoveAll(item => string.Equals(item, appId, StringComparison.OrdinalIgnoreCase));
         }
 
+        try
+        {
+            var workspace = Get<IntoChat.OS.Modules.Flutter.Workspace.IWorkspace>("workspace");
+            var wsState = await workspace.Read();
+            var appKey = IntoChat.OS.Modules.Apps.IApp.Key("local", appId);
+            var alreadyPinned = wsState.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
+            if (alreadyPinned != request.Pinned)
+            {
+                IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef[] nextPins = request.Pinned
+                    ? [.. wsState.Pins, new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef(appId, appKey, "full", string.Empty)]
+                    : [.. wsState.Pins.Where(p => !string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase))];
+                await workspace.Apply(
+                    new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate(wsState.OpenViews, wsState.FocusedViewId, nextPins)
+                    {
+                        Windows = wsState.Windows,
+                        Favourites = wsState.Favourites,
+                    },
+                    $"desktop-pin:{appId}:{request.Pinned}",
+                    wsState.Revision);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "WorkspaceNeuron is optional when DesktopApp runs in standalone tests.");
+        }
+
         var updated = current.ToArray();
         Set(State with
         {
@@ -232,7 +256,6 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                 ? $"Pinned {appId} as always-on-top whiteboard sticky-note ({updated.Length} pinned)"
                 : $"Unpinned {appId} ({updated.Length} pinned)",
         });
-        return Task.CompletedTask;
     }
 
     public View RenderSide()
@@ -251,7 +274,6 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     $"pin:{a.Id}",
                     selected: pinned.Contains(a.Id, StringComparer.OrdinalIgnoreCase),
                     badge: pinned.Contains(a.Id, StringComparer.OrdinalIgnoreCase) ? "PIN" : a.Category)),
-                new Collection(Catalog.Select(a => new Entry(a.Id, a.Title, a.Uri)).ToArray()),
             ])
             { Gap = 6 });
     }
@@ -303,7 +325,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                             Small = true,
                         },
                     ]) { Gap = 8 },
-                    new Text("Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox"),
+                    new Text(_approvals.Length == 0 ? "No pending approvals" : $"Smart Brief: {_approvals.Length} approval(s) waiting"),
                 ],
                 Kind: SurfaceKind.Acrylic,
                 Title: "Ino · DigitalBrain OS"),
@@ -328,18 +350,15 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
                     new BrainGraphSynapse("os", "creator", "CreatorInspect", true),
                 ],
                 SelectedId: "os"),
-            new ApprovalCardNode(
-                "smart-desktop-signal-1",
-                "smart-desktop-signal-1",
-                "Live Smart App Signal",
-                "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox",
-                [
-                    new ApprovalRowNode("Signal", "Pending", "Opportunity Stage -> Closed Won", "$420,000"),
-                    new ApprovalRowNode("Inbox", "local", "neuron://local/os.confirmations/inbox"),
-                ],
+            .. _approvals.Select(approval => (Node)new ApprovalCardNode(
+                $"approval-{approval.PlanId}",
+                approval.PlanId,
+                approval.Title,
+                approval.Detail,
+                [new ApprovalRowNode("Subject", "", approval.Subject)],
                 SystemName: "Ino",
                 Status: "pending",
-                SourceNeuronUri: "neuron://local/os.confirmations/inbox"),
+                Resolve: new Resolve(approval.PlanId))),
         ])
         { Gap = 14 });
 
@@ -347,7 +366,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     public async Task VerifySmartDesktopScenario()
     {
         await Start(new DesktopStart());
-        if (State.ActiveNeurons < 5 || string.IsNullOrWhiteSpace(State.StylePreset) || Catalog.Count < 30)
+        if (State.ActiveNeurons < 5 || string.IsNullOrWhiteSpace(State.StylePreset) || Catalog.Count < 25)
         {
             throw new InvalidOperationException("Expected Smart Desktop to initialize 3D BrainScene neuron count, UI identity, and app catalog.");
         }
@@ -375,6 +394,15 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             var current = await settings.Read();
             preset = current.StylePreset;
             barLayout = current.BarLayout;
+        }
+
+        try
+        {
+            _approvals = [.. await Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>("approvals/index").Pending()];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Approvals inbox is optional when DesktopApp runs in baseline tests.");
         }
 
         Set(State with

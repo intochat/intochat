@@ -229,6 +229,31 @@ public sealed class CreatorAppFacts
         Assert.Null(creator.App.State.ReplayCursor);
     }
 
+    [Fact]
+    public async Task SharePublishesInspectedUnitAsAppPostToProfile()
+    {
+        await using var os = FakeOs();
+        os.Register<ProfileNeuron>();
+        FakeSynapses.Files = new() { ["ctr.cs"] = "// the counter source" };
+        FakeSynapses.SidecarFiles = new() { ["spec.md"] = "Counts bumps." };
+        var creator = await os.Install<CreatorApp>();
+
+        await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey(Unit)));
+        var shareBtn = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "share-unit");
+        Assert.Equal("share", shareBtn.Emit!.Signal);
+
+        await creator.Request("share", new CreatorShare("ctr"));
+
+        var profile = await os.Get<IProfile>(NeuronId.Parse("local/os.profile/profile")).Read();
+        var post = Assert.Single(profile.Posts);
+        Assert.Equal("post-ctr", post.Id);
+        Assert.Equal("ctr", post.TemplateAppId);
+        Assert.Equal("// the counter source", post.TemplateSource);
+        Assert.Equal("Counts bumps.", post.Content);
+        Assert.NotNull(post.UnitFiles);
+        Assert.Equal("// the counter source", post.UnitFiles!["ctr.cs"]);
+    }
+
     private static string[] Marked(InstalledApp<CreatorApp> creator)
         => [.. Nodes(creator.App.Render()).OfType<DataTable>().Single(t => t.Title.StartsWith("Trace ", StringComparison.Ordinal)).Rows
             .Select(r => r[0]).Where(c => c.StartsWith("▶ ", StringComparison.Ordinal)).Select(c => c[2..])];

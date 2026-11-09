@@ -77,6 +77,7 @@ public static class CreatorInspector
         [
             new Button("change-it", "Change it", Emit: AppSignals.Emit(App, "change", alias, state.ChangeDraft)) { Small = true, Icon = "sparkles" },
             new Button("run-scenario", "Run scenario", Emit: AppSignals.Emit(App, "scenario", alias)) { Small = true, Icon = "play" },
+            new Button("share-unit", "Share as App-Post", Emit: AppSignals.Emit(App, "share", alias)) { Small = true, Icon = "share-2" },
         ]);
         if (state.Transcript is { } transcript) { yield return new Card("Scenario transcript", transcript, []); }
     }

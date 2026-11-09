@@ -520,8 +520,9 @@ class IcAppIcon extends StatelessWidget {
     if (lower.contains('galler')) return 'gallery';
     if (lower.contains('friend') ||
         lower.contains('post') ||
-        lower.contains('publish'))
+        lower.contains('publish')) {
       return 'friends';
+    }
     if (lower.contains('setting')) return 'settings';
     if (lower.contains('circle') ||
         lower.contains('space') ||
