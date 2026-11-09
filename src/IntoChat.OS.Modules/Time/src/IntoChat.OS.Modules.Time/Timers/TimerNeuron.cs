@@ -9,9 +9,11 @@ namespace IntoChat.OS.Modules.Time.Timers;
 internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer
 {
     private const string Schedule = "schedule";
+    internal const int MaxConsecutiveFailures = 3;
     internal static readonly TimeSpan MaximumDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
     private bool _running;
     private bool _once;
+    private int _failures;
 
     public Task Start(TimeSpan dueTime, TimeSpan? period = null)
     {
@@ -26,12 +28,14 @@ internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer
         Context.Timers.Start(Schedule, dueTime, period);
         _running = true;
         _once = period is null;
+        _failures = 0;
         return Task.CompletedTask;
     }
 
     public Task Stop()
     {
         _running = false;
+        _failures = 0;
         Context.Timers.Stop(Schedule);
         return Task.CompletedTask;
     }
@@ -41,6 +45,19 @@ internal sealed class TimerNeuron : DigitalBrain.Neuron, ITimer
         if (name != Schedule || !_running || cancellationToken.IsCancellationRequested) { return; }
         if (_once) { await Stop(); }
         // The id is the os key "{brain}/{key}" callers address, as the grain neuron's was; feature scripts match ticks by it.
-        await Publish(new TimerTick($"{Id.Brain.Value}/{Id.Key}", Context.Time.GetUtcNow()));
+        try
+        {
+            await Publish(new TimerTick($"{Id.Brain.Value}/{Id.Key}", Context.Time.GetUtcNow()));
+            _failures = 0;
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            _failures++;
+            if (_failures >= MaxConsecutiveFailures)
+            {
+                await Stop();
+            }
+            throw;
+        }
     }
 }

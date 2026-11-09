@@ -61,6 +61,27 @@ public sealed class LocalDiskRootFacts
             Assert.NotEqual(LocalDiskRoots.Unavailable, error.Message);
         }
     }
+
+    [Fact]
+    public async Task OpenWriteRefusesWritesExceedingMaxWriteBytes()
+    {
+        var folder = PathConfinement.Normalize(Directory.CreateTempSubdirectory("localdisk-quota").FullName);
+        var rootId = Guid.NewGuid().ToString("N");
+        var storage = new LocalDiskStorage([new LocalRoot(rootId, folder)]);
+        var targetFolder = LocalItemId.Of(rootId, "");
+        var plan = new WritePlan(WriteKind.WriteFile, Source: null, TargetFolder: targetFolder, Name: "huge.bin", Conflict: ConflictPolicy.Overwrite);
+
+        Assert.Equal(64L * 1024 * 1024, LocalDiskStorage.MaxWriteBytes);
+        await using var writer = await storage.OpenWrite(plan, TestContext.Current.CancellationToken);
+        var chunk = new byte[1024 * 1024];
+        for (var i = 0; i < 64; i++)
+        {
+            await writer.Content.WriteAsync(chunk, TestContext.Current.CancellationToken);
+        }
+
+        await Assert.ThrowsAsync<QuotaExceeded>(async () => await writer.Content.WriteAsync(new byte[] { 1 }, TestContext.Current.CancellationToken));
+        await writer.Abort(TestContext.Current.CancellationToken);
+    }
 }
 
 public sealed class LocalDiskModuleOnTestOS : DigitalBrain.Testing.ModuleOnTestOSFacts<LocalDiskModule>;

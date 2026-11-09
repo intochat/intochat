@@ -327,6 +327,15 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
         if (!IsCurrent(completed.AgentId)) { return; }
         try { _transcript = await Get<IAgent>(completed.AgentId).Transcript(); }
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The reply stays in the agent; the next open reloads it."); }
+        try
+        {
+            var estimatedMicros = Math.Max(1_000L, (completed.Reply?.Length ?? 0) * 25L);
+            await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Record("ino", estimatedMicros);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "Compute metering is optional when Ino runs without the Flutter compute neuron.");
+        }
         await RefreshApprovalsAsync();
         Set(State with { Status = "Ready", ActiveRunId = null });
     }

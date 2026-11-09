@@ -18,6 +18,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
 {
     internal const string TrashName = ".localdisk-trash";
     internal const string PartialSuffix = ".intochat-partial";
+    internal const long MaxWriteBytes = 64L * 1024 * 1024;
     private const string Label = "This computer";
     private const string Kind = "local-disk";
     private const int SearchDepth = 6;
@@ -148,7 +149,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
             PathConfinement.RequireNoLinks(Path.GetDirectoryName(destination)!);
             if (File.Exists(stage)) { File.Delete(stage); }
             var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
-            return (StorageWriteStream)new WriteHandle(this, plan, stage, destination, stream);
+            return (StorageWriteStream)new WriteHandle(this, plan, stage, destination, new BoundedWriteStream(stream, MaxWriteBytes, plan.TargetFolder));
         }));
     }
 
@@ -208,6 +209,7 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         if (plan.Kind == WriteKind.WriteFile)
         {
             if (plan.Inline is not { } content) { throw new Unsupported(plan.TargetFolder); }
+            if (content.Length > MaxWriteBytes) { throw new QuotaExceeded(plan.TargetFolder); }
             await using var writer = await OpenWrite(plan, ct).ConfigureAwait(false);
             await writer.Content.WriteAsync(content, ct).ConfigureAwait(false);
             _ = await writer.Commit(ct).ConfigureAwait(false);
@@ -511,14 +513,26 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
         catch (UnauthorizedAccessException error) { NullLogger.Instance.LogSwallowed(error, "Storage staging cleanup could not finish."); }
     }
 
-    private sealed class WriteHandle(LocalDiskStorage owner, WritePlan plan, string stage, string destination, FileStream stream) : StorageWriteStream(stream)
+    private sealed class WriteHandle : StorageWriteStream
     {
+        private readonly LocalDiskStorage owner;
+        private readonly WritePlan plan;
+        private readonly string stage;
+        private readonly string destination;
+
+        public WriteHandle(LocalDiskStorage owner, WritePlan plan, string stage, string destination, Stream stream) : base(stream)
+        {
+            this.owner = owner;
+            this.plan = plan;
+            this.stage = stage;
+            this.destination = destination;
+        }
         protected override async Task<ItemId> CommitCore(CancellationToken ct)
         {
             try
             {
-                await stream.FlushAsync(ct).ConfigureAwait(false);
-                await stream.DisposeAsync().ConfigureAwait(false);
+                await Content.FlushAsync(ct).ConfigureAwait(false);
+                await Content.DisposeAsync().ConfigureAwait(false);
                 return await owner.Commit(stage, destination, plan, ct).ConfigureAwait(false);
             }
             finally { owner.Cleanup(stage); }
@@ -526,12 +540,42 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
 
         protected override async Task AbortCore(CancellationToken ct)
         {
-            await stream.DisposeAsync().ConfigureAwait(false);
+            await Content.DisposeAsync().ConfigureAwait(false);
             owner.Cleanup(stage);
         }
     }
 
     private sealed record LocalDiskOperation(WritePlan Plan, long? Bytes, string? Sha256) : OperationPlan(Plan.DryRun);
+
+    private sealed class BoundedWriteStream(Stream inner, long maxBytes, ItemId? targetFolder) : Stream
+    {
+        private long _written;
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => _written;
+        public override long Position { get => _written; set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            if (_written + count > maxBytes) { throw new QuotaExceeded(targetFolder); }
+            inner.Write(buffer, offset, count);
+            _written += count;
+        }
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_written + buffer.Length > maxBytes) { throw new QuotaExceeded(targetFolder); }
+            await inner.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+            _written += buffer.Length;
+        }
+        protected override void Dispose(bool disposing) { if (disposing) { inner.Dispose(); } }
+        public override ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
 
     private sealed class BoundedStream : Stream
     {

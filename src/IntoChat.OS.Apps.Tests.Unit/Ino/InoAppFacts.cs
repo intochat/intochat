@@ -287,6 +287,7 @@ public sealed class InoAppFacts
         Assert.Equal("Ready", ino.App.State.Status);
         Assert.Null(ino.App.State.ActiveRunId);
         Assert.Contains("Hi from the background", Strings(ino.App.Render()));
+        Assert.Equal(("ino", 1_000L), FakeCompute.Records.Single());
     }
 
     [Fact]
@@ -331,9 +332,11 @@ public sealed class InoAppFacts
     private static TestOS BackgroundOs()
     {
         BackgroundAgent.Reset();
+        FakeCompute.Reset();
         var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register<BackgroundAgent>();
+        os.Register<FakeCompute>();
         return os;
     }
 
@@ -638,5 +641,18 @@ public sealed class InoAppFacts
                 Reply is null ? [] : [new("assistant", [new IntoChat.OS.Modules.AI.Inference.AiText(Reply)])]);
         public Task Clear() => Task.CompletedTask;
         public Task Post(string text, string id) => Task.CompletedTask;
+    }
+
+    [Neuron("ui.compute")]
+    private sealed class FakeCompute : Neuron, IntoChat.OS.Modules.Flutter.Compute.ICompute
+    {
+        public static List<(string Key, long Micros)> Records { get; } = [];
+        public static void Reset() => Records.Clear();
+        public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> Read() => Task.FromResult(new IntoChat.OS.Modules.Flutter.Compute.ComputeState(0, DateTimeOffset.UtcNow, []));
+        public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> Record(string key, long micros)
+        {
+            Records.Add((key, micros));
+            return Read();
+        }
     }
 }
