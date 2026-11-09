@@ -12,7 +12,9 @@ public sealed class ComputeQuotaLedger
 
     public ComputeQuotaLedger() : this([]) { }
 
-    public ComputeQuotaLedger(IEnumerable<ComputeRow> initialRows, long monthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros)
+    public ComputeQuotaLedger(long monthlyBudgetMicros) : this([], monthlyBudgetMicros) { }
+
+    public ComputeQuotaLedger(IEnumerable<ComputeRow>? initialRows, long monthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros)
     {
         _monthlyBudgetMicros = monthlyBudgetMicros > 0 ? monthlyBudgetMicros : ComputeState.DefaultMonthlyBudgetMicros;
         if (initialRows is not null)

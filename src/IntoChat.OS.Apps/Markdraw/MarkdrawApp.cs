@@ -16,44 +16,25 @@ using UI = DigitalBrain.UI.Ui;
 namespace IntoChat.OS.Apps.Markdraw;
 
 [DigitalBrain.Signal("markdraw.open")]
-public sealed record MarkdrawOpen(
-    string? Document = null,
-    string? Template = null) : DigitalBrain.Signal;
+public sealed record MarkdrawOpen(string? Document = null, string? Template = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("markdraw.read-canvas")]
-public sealed record MarkdrawReadCanvas(
-    string? Document = null) : DigitalBrain.Signal;
+public sealed record MarkdrawReadCanvas(string? Document = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("markdraw.sync-scene")]
-public sealed record MarkdrawSyncScene(
-    string? Content = null,
-    string? Document = null,
-    string? Format = null) : DigitalBrain.Signal;
+public sealed record MarkdrawSyncScene(string? Content = null, string? Document = null, string? Format = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("markdraw.patch-elements")]
-public sealed record MarkdrawPatchElements(
-    string? Prompt = null,
-    string? AddOrUpdateDsl = null,
-    string? RemoveIdsCsv = null,
-    string? Document = null) : DigitalBrain.Signal;
+public sealed record MarkdrawPatchElements(string? Prompt = null, string? AddOrUpdateDsl = null, string? RemoveIdsCsv = null, string? Document = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("markdraw.from-data")]
-public sealed record MarkdrawFromData(
-    string? Title = null,
-    string? ColumnsCsv = null,
-    string? RowsSummary = null,
-    string? SourceUri = null,
-    string? Document = null) : DigitalBrain.Signal;
+public sealed record MarkdrawFromData(string? Title = null, string? ColumnsCsv = null, string? RowsSummary = null, string? SourceUri = null, string? Document = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("markdraw.save")]
-public sealed record MarkdrawSave(
-    string? Document = null,
-    string? Content = null) : DigitalBrain.Signal;
+public sealed record MarkdrawSave(string? Document = null, string? Content = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("markdraw.export")]
-public sealed record MarkdrawExport(
-    string? Format = null,
-    string? TargetPath = null) : DigitalBrain.Signal;
+public sealed record MarkdrawExport(string? Format = null, string? TargetPath = null) : DigitalBrain.Signal;
 
 [GenerateSerializer, Alias("markdraw.element-summary")]
 public sealed record MarkdrawElementSummary(
@@ -134,9 +115,7 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
         """;
 
     public IFilesVfsService? FilesVfs { get; set; }
-
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(MarkdrawApp));
-
     public const string AppName = "markdraw";
 
     public static AppBundle Bundle { get; } = new(
@@ -175,16 +154,10 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
     public async Task Open(MarkdrawOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-
-        var requestedDoc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : NormalizeDocumentPath(request.Document);
-
-        var content = State.Content;
-        if (!string.IsNullOrWhiteSpace(request.Template))
-        {
-            content = SelectTemplateContent(request.Template, requestedDoc);
-        }
+        var doc = ResolveTargetDoc(request.Document);
+        var content = !string.IsNullOrWhiteSpace(request.Template)
+            ? SelectTemplateContent(request.Template, doc)
+            : State.Content;
 
         var drawings = State.WorkspaceDrawings;
         if (FilesVfs is not null)
@@ -192,17 +165,15 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
             try
             {
                 await EnsureDefaultDrawingsSeededAsync();
-                if (await FilesVfs.ReadTextAsync(requestedDoc) is { Length: > 0 } existingText && string.IsNullOrWhiteSpace(request.Template))
+                if (string.IsNullOrWhiteSpace(request.Template) && await FilesVfs.ReadTextAsync(doc) is { Length: > 0 } existingText)
                 {
                     content = existingText;
                 }
                 else
                 {
-                    var written = await FilesVfs.WriteTextAsync(requestedDoc, content);
-                    requestedDoc = written.VfsPath;
+                    doc = (await FilesVfs.WriteTextAsync(doc, content)).VfsPath;
                 }
-
-                drawings = await ListWorkspaceDrawingsAsync(requestedDoc);
+                drawings = await ListWorkspaceDrawingsAsync(doc);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -210,16 +181,15 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
             }
         }
 
-        var format = InferFormat(requestedDoc, content);
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
         Set(State with
         {
-            ActiveDocument = requestedDoc,
-            Format = format,
+            ActiveDocument = doc,
+            Format = InferFormat(doc, content),
             Content = content,
             Elements = elements,
             WorkspaceDrawings = drawings,
-            Status = $"Opened {requestedDoc} ({elements.Length} canvas element(s), rev {State.Revision})",
+            Status = $"Opened {doc} ({elements.Length} canvas element(s), rev {State.Revision})",
         });
     }
 
@@ -227,26 +197,8 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
     public async Task ReadCanvas(MarkdrawReadCanvas request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var doc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : NormalizeDocumentPath(request.Document);
-        var content = State.Content;
-
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                if (await FilesVfs.ReadTextAsync(doc) is { Length: > 0 } diskContent)
-                {
-                    content = diskContent;
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "FilesVfs read is optional in standalone MarkdrawApp tests.");
-            }
-        }
-
+        var doc = ResolveTargetDoc(request.Document);
+        var content = await ReadVfsOrCurrentContentAsync(doc, "FilesVfs read is optional in standalone MarkdrawApp tests.");
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
         Set(State with
         {
@@ -261,43 +213,22 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
     public async Task SyncScene(MarkdrawSyncScene request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var doc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : NormalizeDocumentPath(request.Document);
-        var rawContent = string.IsNullOrWhiteSpace(request.Content)
-            ? State.Content
-            : UnescapeIncomingScene(request.Content);
-        var format = string.IsNullOrWhiteSpace(request.Format)
-            ? InferFormat(doc, rawContent)
-            : request.Format.Trim().ToLowerInvariant();
-
-        var drawings = State.WorkspaceDrawings;
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                var saved = await FilesVfs.WriteTextAsync(doc, rawContent);
-                doc = saved.VfsPath;
-                drawings = await ListWorkspaceDrawingsAsync(doc);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "FilesVfs write is optional when syncing Markdraw scene in unit tests.");
-            }
-        }
-
+        var doc = ResolveTargetDoc(request.Document);
+        var rawContent = string.IsNullOrWhiteSpace(request.Content) ? State.Content : UnescapeIncomingScene(request.Content);
+        var format = string.IsNullOrWhiteSpace(request.Format) ? InferFormat(doc, rawContent) : request.Format.Trim().ToLowerInvariant();
+        var (savedDoc, drawings) = await PersistSceneAsync(doc, rawContent, "FilesVfs write is optional when syncing Markdraw scene in unit tests.");
         var elements = MarkdrawSceneEngine.ParseSceneElements(rawContent);
         var nextRev = State.Revision + 1;
         Set(State with
         {
-            ActiveDocument = doc,
+            ActiveDocument = savedDoc,
             Format = format,
             Content = rawContent,
             Revision = nextRev,
             Elements = elements,
             WorkspaceDrawings = drawings,
-            LastMutationSummary = $"Synced live canvas to {doc} ({elements.Length} element(s), rev {nextRev})",
-            Status = $"Synced {doc} · {elements.Length} element(s) · rev {nextRev}",
+            LastMutationSummary = $"Synced live canvas to {savedDoc} ({elements.Length} element(s), rev {nextRev})",
+            Status = $"Synced {savedDoc} · {elements.Length} element(s) · rev {nextRev}",
         });
     }
 
@@ -305,59 +236,22 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
     public async Task PatchElements(MarkdrawPatchElements request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var doc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : NormalizeDocumentPath(request.Document);
-
-        var currentContent = State.Content;
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                if (await FilesVfs.ReadTextAsync(doc) is { Length: > 0 } existing)
-                {
-                    currentContent = existing;
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "FilesVfs read is optional during PatchElements.");
-            }
-        }
-
-        var (mergedContent, mutationSummary) = MarkdrawSceneEngine.ApplyCoDrawingPatch(
-            currentContent,
-            request.Prompt,
-            request.AddOrUpdateDsl,
-            request.RemoveIdsCsv);
-
-        var drawings = State.WorkspaceDrawings;
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                var written = await FilesVfs.WriteTextAsync(doc, mergedContent);
-                doc = written.VfsPath;
-                drawings = await ListWorkspaceDrawingsAsync(doc);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "FilesVfs write is optional during PatchElements.");
-            }
-        }
-
+        var doc = ResolveTargetDoc(request.Document);
+        var currentContent = await ReadVfsOrCurrentContentAsync(doc, "FilesVfs read is optional during PatchElements.");
+        var (mergedContent, mutationSummary) = MarkdrawSceneEngine.ApplyCoDrawingPatch(currentContent, request.Prompt, request.AddOrUpdateDsl, request.RemoveIdsCsv);
+        var (savedDoc, drawings) = await PersistSceneAsync(doc, mergedContent, "FilesVfs write is optional during PatchElements.");
         var elements = MarkdrawSceneEngine.ParseSceneElements(mergedContent);
         var nextRev = State.Revision + 1;
         Set(State with
         {
-            ActiveDocument = doc,
-            Format = InferFormat(doc, mergedContent),
+            ActiveDocument = savedDoc,
+            Format = InferFormat(savedDoc, mergedContent),
             Content = mergedContent,
             Revision = nextRev,
             Elements = elements,
             WorkspaceDrawings = drawings,
             LastMutationSummary = mutationSummary,
-            Status = $"{mutationSummary} · Saved to {doc} (rev {nextRev})",
+            Status = $"{mutationSummary} · Saved to {savedDoc} (rev {nextRev})",
         });
     }
 
@@ -365,43 +259,20 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
     public async Task FromData(MarkdrawFromData request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var title = string.IsNullOrWhiteSpace(request.Title)
-            ? "Pipeline Opportunities by Amount"
-            : request.Title.Trim();
-        var doc = string.IsNullOrWhiteSpace(request.Document)
-            ? "/work/data-lineage.markdraw"
-            : NormalizeDocumentPath(request.Document);
-        var cols = (request.ColumnsCsv ?? "Opportunity, Account, Stage, Amount")
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var rowsSummary = string.IsNullOrWhiteSpace(request.RowsSummary)
-            ? "5 rows · Total €627,700 · Top: Enterprise pilot (€240,000)"
-            : request.RowsSummary.Trim();
-        var sourceUri = string.IsNullOrWhiteSpace(request.SourceUri)
-            ? "neuron://local/postgres/main"
-            : request.SourceUri.Trim();
+        var title = string.IsNullOrWhiteSpace(request.Title) ? "Pipeline Opportunities by Amount" : request.Title.Trim();
+        var doc = string.IsNullOrWhiteSpace(request.Document) ? "/work/data-lineage.markdraw" : NormalizeDocumentPath(request.Document);
+        var cols = (request.ColumnsCsv ?? "Opportunity, Account, Stage, Amount").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var rowsSummary = string.IsNullOrWhiteSpace(request.RowsSummary) ? "5 rows · Total €627,700 · Top: Enterprise pilot (€240,000)" : request.RowsSummary.Trim();
+        var sourceUri = string.IsNullOrWhiteSpace(request.SourceUri) ? "neuron://local/postgres/main" : request.SourceUri.Trim();
 
         var generated = MarkdrawSceneEngine.BuildDataLineageMarkdraw(title, cols, rowsSummary, sourceUri);
-        var drawings = State.WorkspaceDrawings;
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                var written = await FilesVfs.WriteTextAsync(doc, generated);
-                doc = written.VfsPath;
-                drawings = await ListWorkspaceDrawingsAsync(doc);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "FilesVfs write is optional during FromData.");
-            }
-        }
-
+        var (savedDoc, drawings) = await PersistSceneAsync(doc, generated, "FilesVfs write is optional during FromData.");
         var elements = MarkdrawSceneEngine.ParseSceneElements(generated);
         var nextRev = State.Revision + 1;
-        var summary = $"Generated data-flow diagram '{title}' ({elements.Length} elements) in {doc}";
+        var summary = $"Generated data-flow diagram '{title}' ({elements.Length} elements) in {savedDoc}";
         Set(State with
         {
-            ActiveDocument = doc,
+            ActiveDocument = savedDoc,
             Format = "markdraw",
             Content = generated,
             Revision = nextRev,
@@ -416,37 +287,18 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
     public async Task Save(MarkdrawSave request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var doc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : NormalizeDocumentPath(request.Document);
-        var content = string.IsNullOrWhiteSpace(request.Content)
-            ? State.Content
-            : UnescapeIncomingScene(request.Content);
-
-        var drawings = State.WorkspaceDrawings;
-        if (FilesVfs is not null)
-        {
-            try
-            {
-                var written = await FilesVfs.WriteTextAsync(doc, content);
-                doc = written.VfsPath;
-                drawings = await ListWorkspaceDrawingsAsync(doc);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                Swallow(error, "FilesVfs write is optional during Save.");
-            }
-        }
-
+        var doc = ResolveTargetDoc(request.Document);
+        var content = string.IsNullOrWhiteSpace(request.Content) ? State.Content : UnescapeIncomingScene(request.Content);
+        var (savedDoc, drawings) = await PersistSceneAsync(doc, content, "FilesVfs write is optional during Save.");
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
         Set(State with
         {
-            ActiveDocument = doc,
-            Format = InferFormat(doc, content),
+            ActiveDocument = savedDoc,
+            Format = InferFormat(savedDoc, content),
             Content = content,
             Elements = elements,
             WorkspaceDrawings = drawings,
-            Status = $"Saved {doc} ({elements.Length} element(s), rev {State.Revision})",
+            Status = $"Saved {savedDoc} ({elements.Length} element(s), rev {State.Revision})",
         });
     }
 
@@ -454,9 +306,7 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
     public async Task Export(MarkdrawExport request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var format = string.IsNullOrWhiteSpace(request.Format)
-            ? "excalidraw"
-            : request.Format.Trim().TrimStart('.').ToLowerInvariant();
+        var format = string.IsNullOrWhiteSpace(request.Format) ? "excalidraw" : request.Format.Trim().TrimStart('.').ToLowerInvariant();
         if (format is not ("excalidraw" or "svg" or "markdraw"))
         {
             format = "excalidraw";
@@ -484,8 +334,7 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
         {
             try
             {
-                var saved = await FilesVfs.WriteTextAsync(targetPath, exportedPayload);
-                targetPath = saved.VfsPath;
+                targetPath = (await FilesVfs.WriteTextAsync(targetPath, exportedPayload)).VfsPath;
                 drawings = await ListWorkspaceDrawingsAsync(State.ActiveDocument);
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -514,11 +363,7 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
             [
                 new Surface(
                     [
-                        new Row(
-                        [
-                            new TagPill("Markdraw Studio", "accent", "pen-tool"),
-                            new TagPill($"rev {State.Revision}", "ok"),
-                        ]) { Gap = 6 },
+                        new Row([new TagPill("Markdraw Studio", "accent", "pen-tool"), new TagPill($"rev {State.Revision}", "ok")]) { Gap = 6 },
                         new Text(State.ActiveDocument) { Mono = true, Tabular = true },
                         new Text($"{State.Elements.Length} element(s) on canvas") { Tone = "muted", Tabular = true },
                     ],
@@ -535,13 +380,12 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
                 new Divider("TEMPLATES"),
                 UI.NavItem("tpl-arch", "System Architecture", "cpu", "open:/work/architecture.markdraw"),
                 UI.NavItem("tpl-pipeline", "CRM Data Pipeline", "git-branch", "open:/work/pipeline-flow.markdraw"),
-            ])
-            { Gap = 8 });
+            ]) { Gap = 8 });
     }
 
     public View Render()
     {
-        var shapeCount = State.Elements.Count(e => e.Kind != "arrow" && e.Kind != "line");
+        var shapeCount = State.Elements.Count(e => e.Kind is not ("arrow" or "line"));
         var connectorCount = State.Elements.Count(e => e.Kind is "arrow" or "line");
 
         return new(
@@ -560,26 +404,10 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
                         new Text(State.Status) { Tabular = true },
                         new Row(
                         [
-                            new Button("save-to-files", "Save to Files", Emit: AppSignals.Emit("markdraw", "save", State.ActiveDocument), Tone: ButtonTone.Accent)
-                            {
-                                Icon = "save",
-                                Small = true,
-                            },
-                            new Button("export-excalidraw", "Export .excalidraw", Emit: AppSignals.Emit("markdraw", "export", "excalidraw"))
-                            {
-                                Icon = "file-json",
-                                Small = true,
-                            },
-                            new Button("export-svg", "Export .svg", Emit: AppSignals.Emit("markdraw", "export", "svg"))
-                            {
-                                Icon = "image",
-                                Small = true,
-                            },
-                            new Button("diagram-crm-data", "Diagram CRM Data", Emit: AppSignals.Emit("markdraw", "from-data", "Pipeline Opportunities by Amount"))
-                            {
-                                Icon = "bar-chart-2",
-                                Small = true,
-                            },
+                            new Button("save-to-files", "Save to Files", Emit: AppSignals.Emit("markdraw", "save", State.ActiveDocument), Tone: ButtonTone.Accent) { Icon = "save", Small = true },
+                            new Button("export-excalidraw", "Export .excalidraw", Emit: AppSignals.Emit("markdraw", "export", "excalidraw")) { Icon = "file-json", Small = true },
+                            new Button("export-svg", "Export .svg", Emit: AppSignals.Emit("markdraw", "export", "svg")) { Icon = "image", Small = true },
+                            new Button("diagram-crm-data", "Diagram CRM Data", Emit: AppSignals.Emit("markdraw", "from-data", "Pipeline Opportunities by Amount")) { Icon = "bar-chart-2", Small = true },
                         ]) { Gap = 8 },
                     ],
                     Kind: SurfaceKind.Acrylic,
@@ -598,23 +426,19 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
                 new DataTable(
                     $"Canvas Elements Inventory ({State.Elements.Length} items in {State.ActiveDocument})",
                     ["ID", "Kind", "Label / Connection", "Geometry"],
-                    State.Elements
-                        .Select(e => (IReadOnlyList<string>)
-                        [
-                            e.Id,
-                            e.Kind,
-                            e.Kind is "arrow" or "line" && !string.IsNullOrWhiteSpace(e.FromId)
-                                ? $"{e.FromId} -> {e.ToId}" + (string.IsNullOrWhiteSpace(e.Label) ? string.Empty : $" ({e.Label})")
-                                : e.Label,
-                            e.Kind is "arrow" or "line" ? "connector" : $"{e.X},{e.Y} ({e.Width}x{e.Height})",
-                        ])
-                        .ToArray(),
+                    State.Elements.Select(e => (IReadOnlyList<string>)
+                    [
+                        e.Id,
+                        e.Kind,
+                        e.Kind is "arrow" or "line" && !string.IsNullOrWhiteSpace(e.FromId)
+                            ? $"{e.FromId} -> {e.ToId}" + (string.IsNullOrWhiteSpace(e.Label) ? string.Empty : $" ({e.Label})")
+                            : e.Label,
+                        e.Kind is "arrow" or "line" ? "connector" : $"{e.X},{e.Y} ({e.Width}x{e.Height})",
+                    ]).ToArray(),
                     SourceNeuronUri: "neuron://local/apps/markdraw#elements",
                     From: "Markdraw"),
-            ])
-            { Gap = 12 });
+            ]) { Gap = 12 });
     }
-
 
     [DigitalBrain.Scenario("Markdraw opens workspace canvas, co-draws new architecture nodes with Ino, and exports Excalidraw JSON")]
     public async Task VerifyMarkdrawCoDrawingAndPersistenceScenario()
@@ -642,18 +466,56 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
         }
     }
 
+    private string ResolveTargetDoc(string? document)
+        => string.IsNullOrWhiteSpace(document) ? State.ActiveDocument : NormalizeDocumentPath(document);
+
+    private async Task<string> ReadVfsOrCurrentContentAsync(string doc, string reason)
+    {
+        if (FilesVfs is not null)
+        {
+            try
+            {
+                if (await FilesVfs.ReadTextAsync(doc) is { Length: > 0 } existing)
+                {
+                    return existing;
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, reason);
+            }
+        }
+        return State.Content;
+    }
+
+    private async Task<(string Doc, string[] Drawings)> PersistSceneAsync(string doc, string content, string reason)
+    {
+        var drawings = State.WorkspaceDrawings;
+        if (FilesVfs is not null)
+        {
+            try
+            {
+                doc = (await FilesVfs.WriteTextAsync(doc, content)).VfsPath;
+                drawings = await ListWorkspaceDrawingsAsync(doc);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Swallow(error, reason);
+            }
+        }
+        return (doc, drawings);
+    }
+
     private async Task EnsureDefaultDrawingsSeededAsync()
     {
         if (FilesVfs is null)
         {
             return;
         }
-
         if (await FilesVfs.ResolveFileAsync("/work/architecture.markdraw") is null)
         {
             await FilesVfs.WriteTextAsync("/work/architecture.markdraw", DefaultArchitectureScene);
         }
-
         if (await FilesVfs.ResolveFileAsync("/work/pipeline-flow.markdraw") is null)
         {
             await FilesVfs.WriteTextAsync("/work/pipeline-flow.markdraw", DefaultPipelineScene);
@@ -680,34 +542,20 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
     }
 
     public static bool IsMarkdrawExtension(string? fileNameOrPath)
-    {
-        if (string.IsNullOrWhiteSpace(fileNameOrPath))
-        {
-            return false;
-        }
-
-        var ext = Path.GetExtension(fileNameOrPath).ToLowerInvariant();
-        return ext is ".markdraw" or ".excalidraw";
-    }
+        => !string.IsNullOrWhiteSpace(fileNameOrPath)
+           && Path.GetExtension(fileNameOrPath).ToLowerInvariant() is ".markdraw" or ".excalidraw";
 
     public static string NormalizeDocumentPath(string? input)
     {
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            return "/work/architecture.markdraw";
-        }
-
         var clean = WorkspaceFilesService.ExtractCleanFileName(input);
         if (string.IsNullOrWhiteSpace(clean))
         {
             return "/work/architecture.markdraw";
         }
-
         if (!Path.HasExtension(clean))
         {
             clean += ".markdraw";
         }
-
         return clean.StartsWith('/') ? clean : $"/work/{clean}";
     }
 
@@ -722,50 +570,40 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
         {
             clean = $"{clean}.{format}";
         }
-
         return clean.StartsWith('/') ? clean : $"/work/{clean}";
     }
 
     private static string SelectTemplateContent(string template, string documentPath)
     {
         var normalized = template.Trim().ToLowerInvariant();
-        if (normalized.Contains("pipeline", StringComparison.Ordinal)
+        return normalized.Contains("pipeline", StringComparison.Ordinal)
             || normalized.Contains("crm", StringComparison.Ordinal)
             || normalized.Contains("data", StringComparison.Ordinal)
-            || documentPath.Contains("pipeline", StringComparison.OrdinalIgnoreCase))
-        {
-            return DefaultPipelineScene;
-        }
-
-        return DefaultArchitectureScene;
+            || documentPath.Contains("pipeline", StringComparison.OrdinalIgnoreCase)
+            ? DefaultPipelineScene
+            : DefaultArchitectureScene;
     }
 
     private static string InferFormat(string documentPath, string content)
-    {
-        if (documentPath.EndsWith(".excalidraw", StringComparison.OrdinalIgnoreCase)
-            || (content.TrimStart().StartsWith('{') && content.Contains("\"excalidraw\"", StringComparison.OrdinalIgnoreCase)))
-        {
-            return "excalidraw";
-        }
-
-        return "markdraw";
-    }
+        => documentPath.EndsWith(".excalidraw", StringComparison.OrdinalIgnoreCase)
+           || (content.TrimStart().StartsWith('{') && content.Contains("\"excalidraw\"", StringComparison.OrdinalIgnoreCase))
+            ? "excalidraw"
+            : "markdraw";
 
     private static string UnescapeIncomingScene(string raw)
     {
         var trimmed = raw.Trim();
-        if (trimmed.Contains('%', StringComparison.Ordinal))
+        if (!trimmed.Contains('%', StringComparison.Ordinal))
         {
-            try
-            {
-                return Uri.UnescapeDataString(trimmed);
-            }
-            catch (UriFormatException)
-            {
-                return trimmed;
-            }
+            return trimmed;
         }
-
-        return trimmed;
+        try
+        {
+            return Uri.UnescapeDataString(trimmed);
+        }
+        catch (UriFormatException)
+        {
+            return trimmed;
+        }
     }
 }

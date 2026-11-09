@@ -33,36 +33,30 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackWorkStorages = new(256, StringComparer.OrdinalIgnoreCase);
     private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackLocalStorages = new(256, StringComparer.OrdinalIgnoreCase);
     private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackDriveStorages = new(256, StringComparer.OrdinalIgnoreCase);
+    private static readonly string[] CanonicalMounts = ["work", "local", "drive"];
 
     private readonly ConcurrentDictionary<string, (WorkspaceFileEntry Entry, byte[] Bytes)> _overlay = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly IServiceProvider? _services;
     private readonly ICapabilityBroker? _broker;
 
-    public WorkspaceFilesService(
-        IServiceProvider? services = null,
-        string brainId = "local",
-        ICapabilityBroker? broker = null)
+    public WorkspaceFilesService(IServiceProvider? services = null, string brainId = "local", ICapabilityBroker? broker = null)
     {
         _services = services;
         _broker = broker;
-        BrainId = string.IsNullOrWhiteSpace(brainId) ? "local" : brainId.Trim();
+        BrainId = NormalizeBrainId(brainId);
     }
 
     public string BrainId { get; }
-
     public const long MaxReadBytes = 16 * 1024 * 1024;
 
-    public static WorkspaceFilesService ForBrain(
-        IServiceProvider? services = null,
-        string brainId = "local",
-        ICapabilityBroker? broker = null) => new(services, brainId, broker);
+    public static WorkspaceFilesService ForBrain(IServiceProvider? services = null, string brainId = "local", ICapabilityBroker? broker = null)
+        => new(services, brainId, broker);
 
     public static LocalCloudNeuron GetFallbackWorkspaceStorage(string brainId)
-        => _sharedFallbackWorkStorages.GetOrAdd(string.IsNullOrWhiteSpace(brainId) ? "local" : brainId.Trim(), _ => new LocalCloudNeuron());
+        => _sharedFallbackWorkStorages.GetOrAdd(NormalizeBrainId(brainId), static _ => new LocalCloudNeuron());
 
     public static LocalCloudNeuron GetFallbackLocalStorage(string brainId)
-        => _sharedFallbackLocalStorages.GetOrAdd(string.IsNullOrWhiteSpace(brainId) ? "local" : brainId.Trim(), _ =>
+        => _sharedFallbackLocalStorages.GetOrAdd(NormalizeBrainId(brainId), static _ =>
         {
             try
             {
@@ -80,13 +74,11 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         });
 
     public static LocalCloudNeuron GetFallbackDriveStorage(string brainId)
-        => _sharedFallbackDriveStorages.GetOrAdd(string.IsNullOrWhiteSpace(brainId) ? "local" : brainId.Trim(), _ => new LocalCloudNeuron());
+        => _sharedFallbackDriveStorages.GetOrAdd(NormalizeBrainId(brainId), static _ => new LocalCloudNeuron());
 
     public async Task<IStorageVfs> BuildVfsAsync(ICapabilityBroker? effectiveBroker, CancellationToken ct = default)
     {
-        var mounts = new List<VfsMount>();
         IReadOnlyList<CapabilityConnection<IStorage>> connections = [];
-
         if (effectiveBroker is not null)
         {
             try
@@ -99,21 +91,38 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             }
         }
 
-        // 1. Primary workspace storage (/work)
-        IStorage? workStorage = null;
-        var workConn = connections.FirstOrDefault(c =>
-            c.ConnectionKey.Contains("cloud", StringComparison.OrdinalIgnoreCase)
-            || c.ConnectionKey.Contains("work", StringComparison.OrdinalIgnoreCase));
+        var workStorage = ResolveMountStorage(connections, ["cloud", "work"], LocalCloudNeuron.TypeName, fallbackFirstConnection: true)
+            ?? GetFallbackWorkspaceStorage(BrainId);
+        var localStorage = ResolveMountStorage(connections, ["local-disk", "disk"], "local-disk", fallbackFirstConnection: false)
+            ?? GetFallbackLocalStorage(BrainId);
+        var driveStorage = ResolveMountStorage(connections, ["drive", "blob", "google"], neuronType: null, fallbackFirstConnection: false)
+            ?? GetFallbackDriveStorage(BrainId);
 
-        if (workConn is not null)
+        return new StorageVfs(
+        [
+            new VfsMount("work", "Workspace", workStorage),
+            new VfsMount("local", "Local Disk", localStorage),
+            new VfsMount("drive", "Drive", driveStorage),
+        ]);
+    }
+
+    private IStorage? ResolveMountStorage(
+        IReadOnlyList<CapabilityConnection<IStorage>> connections,
+        string[] keyTokens,
+        string? neuronType,
+        bool fallbackFirstConnection)
+    {
+        var matched = connections.FirstOrDefault(c => keyTokens.Any(t => c.ConnectionKey.Contains(t, StringComparison.OrdinalIgnoreCase)));
+        if (matched is not null)
         {
-            workStorage = workConn.Capability;
+            return matched.Capability;
         }
-        else if (_services is not null)
+
+        if (_services is not null && !string.IsNullOrWhiteSpace(neuronType))
         {
             try
             {
-                workStorage = SiloNeurons.Get<IStorage>(_services, new NeuronId(new BrainId(BrainId), LocalCloudNeuron.TypeName, "main"));
+                return SiloNeurons.Get<IStorage>(_services, new NeuronId(new BrainId(BrainId), neuronType, "main"));
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -121,55 +130,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             }
         }
 
-        if (workStorage is null && connections.Count > 0)
-        {
-            workStorage = connections.FirstOrDefault()?.Capability;
-        }
-
-        workStorage ??= GetFallbackWorkspaceStorage(BrainId);
-        mounts.Add(new VfsMount("work", "Workspace", workStorage));
-
-        // 2. Local host disk storage (/local)
-        IStorage? localStorage = null;
-        var localConn = connections.FirstOrDefault(c =>
-            c.ConnectionKey.Contains("local-disk", StringComparison.OrdinalIgnoreCase)
-            || c.ConnectionKey.Contains("disk", StringComparison.OrdinalIgnoreCase));
-
-        if (localConn is not null)
-        {
-            localStorage = localConn.Capability;
-        }
-        else if (_services is not null)
-        {
-            try
-            {
-                localStorage = SiloNeurons.Get<IStorage>(_services, new NeuronId(new BrainId(BrainId), "local-disk", "main"));
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-        }
-
-        localStorage ??= GetFallbackLocalStorage(BrainId);
-        mounts.Add(new VfsMount("local", "Local Disk", localStorage));
-
-        // 3. Cloud / shared drive storage (/drive)
-        var driveConn = connections.FirstOrDefault(c =>
-            c.ConnectionKey.Contains("drive", StringComparison.OrdinalIgnoreCase)
-            || c.ConnectionKey.Contains("blob", StringComparison.OrdinalIgnoreCase)
-            || c.ConnectionKey.Contains("google", StringComparison.OrdinalIgnoreCase));
-
-        if (driveConn is not null)
-        {
-            mounts.Add(new VfsMount("drive", "Drive", driveConn.Capability));
-        }
-        else
-        {
-            mounts.Add(new VfsMount("drive", "Drive", GetFallbackDriveStorage(BrainId)));
-        }
-
-        return new StorageVfs(mounts);
+        return fallbackFirstConnection && connections.Count > 0 ? connections[0].Capability : null;
     }
 
     public static string ToCanonicalVfsPath(string? fileNameOrPath)
@@ -191,8 +152,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             return $"/work/{normalized.TrimStart('/')}";
         }
 
-        var clean = ExtractCleanFileName(normalized);
-        return $"/work/{clean}";
+        return $"/work/{ExtractCleanFileName(normalized)}";
     }
 
     public async Task<IReadOnlyList<WorkspaceFileEntry>> ListFilesAsync(string? query = null, CancellationToken ct = default)
@@ -204,50 +164,21 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         await WithCallerAsync(async effectiveBroker =>
         {
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
-
-            // 1. List canonical /work
-            try
+            foreach (var mount in CanonicalMounts)
             {
-                var workItems = await vfs.List("/work", ct).ConfigureAwait(false);
-                foreach (var item in workItems)
+                try
                 {
-                    AddOrPreferNewest(byName, MapVfsItem("work", item));
+                    foreach (var item in await vfs.List($"/{mount}", ct).ConfigureAwait(false))
+                    {
+                        AddOrPreferNewest(byName, MapVfsItem(mount, item));
+                    }
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    LogRecoverable(error);
                 }
             }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
 
-            // 2. List canonical /local
-            try
-            {
-                var localItems = await vfs.List("/local", ct).ConfigureAwait(false);
-                foreach (var item in localItems)
-                {
-                    AddOrPreferNewest(byName, MapVfsItem("local", item));
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-
-            // 3. List canonical /drive
-            try
-            {
-                var driveItems = await vfs.List("/drive", ct).ConfigureAwait(false);
-                foreach (var item in driveItems)
-                {
-                    AddOrPreferNewest(byName, MapVfsItem("drive", item));
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-
-            // 4. Query active capability connections
             if (effectiveBroker is not null)
             {
                 try
@@ -255,36 +186,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                     var connections = await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false);
                     foreach (var conn in connections)
                     {
-                        try
-                        {
-                            var roots = await conn.Capability.Roots(ct).ConfigureAwait(false);
-                            foreach (var root in roots)
-                            {
-                                if (root.Kind == ItemKind.Folder)
-                                {
-                                    try
-                                    {
-                                        var children = await conn.Capability.List(root.Id, new(PageSize: 100), ct).ConfigureAwait(false);
-                                        foreach (var child in children.Items)
-                                        {
-                                            AddOrPreferNewest(byName, MapItem(conn.ConnectionKey, child));
-                                        }
-                                    }
-                                    catch (Exception ex) when (ex is not OperationCanceledException)
-                                    {
-                                        LogRecoverable(ex);
-                                    }
-                                }
-                                else
-                                {
-                                    AddOrPreferNewest(byName, MapItem(conn.ConnectionKey, root));
-                                }
-                            }
-                        }
-                        catch (Exception ex) when (ex is not OperationCanceledException)
-                        {
-                            LogRecoverable(ex);
-                        }
+                        await CollectConnectionEntriesAsync(conn, byName, ct).ConfigureAwait(false);
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -296,9 +198,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             return true;
         }).ConfigureAwait(false);
 
-        // 5. Merge overlay entries
-        var overlay = GetBrainOverlay();
-        foreach (var (entry, _) in overlay.Values)
+        foreach (var (entry, _) in _overlay.Values)
         {
             AddOrPreferNewest(byName, entry);
         }
@@ -312,10 +212,44 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                 || entry.NeuronUri.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase));
         }
 
-        return results
+        return [.. results
             .OrderByDescending(e => e.Modified ?? DateTimeOffset.MinValue)
-            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)];
+    }
+
+    private async Task CollectConnectionEntriesAsync(
+        CapabilityConnection<IStorage> conn,
+        Dictionary<string, WorkspaceFileEntry> byName,
+        CancellationToken ct)
+    {
+        try
+        {
+            foreach (var root in await conn.Capability.Roots(ct).ConfigureAwait(false))
+            {
+                if (root.Kind != ItemKind.Folder)
+                {
+                    AddOrPreferNewest(byName, MapItem(conn.ConnectionKey, root));
+                    continue;
+                }
+
+                try
+                {
+                    var children = await conn.Capability.List(root.Id, new(PageSize: 100), ct).ConfigureAwait(false);
+                    foreach (var child in children.Items)
+                    {
+                        AddOrPreferNewest(byName, MapItem(conn.ConnectionKey, child));
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogRecoverable(ex);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogRecoverable(ex);
+        }
     }
 
     public async Task<WorkspaceFileEntry?> ResolveFileAsync(string? nameOrUriOrPath, CancellationToken ct = default)
@@ -329,60 +263,42 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         var cleanName = ExtractCleanFileName(nameOrUriOrPath);
         var canonicalPath = ToCanonicalVfsPath(nameOrUriOrPath);
 
-        var overlay = GetBrainOverlay();
-        if (!string.IsNullOrWhiteSpace(cleanName) && overlay.TryGetValue(cleanName, out var exactOverlay))
+        if (!string.IsNullOrWhiteSpace(cleanName) && _overlay.TryGetValue(cleanName, out var exactOverlay))
         {
             return exactOverlay.Entry;
         }
-        if (overlay.TryGetValue(canonicalPath, out var byPathOverlay))
+        if (_overlay.TryGetValue(canonicalPath, out var byPathOverlay))
         {
             return byPathOverlay.Entry;
         }
 
         var cleanSlug = SlugSegment(cleanName);
-        foreach (var (entry, _) in overlay.Values)
+        foreach (var (entry, _) in _overlay.Values)
         {
-            if (string.Equals(entry.Name, cleanName, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(entry.VfsPath, canonicalPath, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(entry.VfsPath, nameOrUriOrPath.Trim(), StringComparison.OrdinalIgnoreCase)
-                || string.Equals(entry.NeuronUri, nameOrUriOrPath.Trim(), StringComparison.OrdinalIgnoreCase)
-                || (cleanSlug.Length > 0 && string.Equals(SlugSegment(entry.Name), cleanSlug, StringComparison.OrdinalIgnoreCase)))
+            if (IsMatchingEntry(entry, cleanName, cleanSlug, canonicalPath, nameOrUriOrPath))
             {
                 return entry;
             }
         }
 
-        // Try statting through StorageVfs
         var vfsEntry = await WithCallerAsync<WorkspaceFileEntry?>(async effectiveBroker =>
         {
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
-            try
+            foreach (var candidatePath in new[] { canonicalPath, $"/work/{cleanName}" })
             {
-                var item = await vfs.Stat(canonicalPath, ct).ConfigureAwait(false);
-                if (item is not null && item.Kind != ItemKind.Folder)
+                try
                 {
-                    var mount = canonicalPath.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "work";
-                    return MapVfsItem(mount, item);
+                    if (await vfs.Stat(candidatePath, ct).ConfigureAwait(false) is { Kind: not ItemKind.Folder } item)
+                    {
+                        var mount = candidatePath.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "work";
+                        return MapVfsItem(mount, item);
+                    }
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    LogRecoverable(error);
                 }
             }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-
-            try
-            {
-                var item = await vfs.Stat($"/work/{cleanName}", ct).ConfigureAwait(false);
-                if (item is not null && item.Kind != ItemKind.Folder)
-                {
-                    return MapVfsItem("work", item);
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-
             return null;
         }).ConfigureAwait(false);
 
@@ -392,14 +308,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         }
 
         var searched = await ListFilesAsync(cleanName, ct).ConfigureAwait(false);
-        var match = FindBestMatch(searched, cleanName, cleanSlug, nameOrUriOrPath);
-        if (match is not null)
-        {
-            return match;
-        }
-
-        var allFiles = await ListFilesAsync(null, ct).ConfigureAwait(false);
-        return FindBestMatch(allFiles, cleanName, cleanSlug, nameOrUriOrPath);
+        return FindBestMatch(searched, cleanName, cleanSlug, nameOrUriOrPath)
+            ?? FindBestMatch(await ListFilesAsync(null, ct).ConfigureAwait(false), cleanName, cleanSlug, nameOrUriOrPath);
     }
 
     public async Task<string?> ReadTextAsync(string nameOrUriOrPath, CancellationToken ct = default)
@@ -418,62 +328,31 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
         var cleanName = ExtractCleanFileName(nameOrUriOrPath);
         var canonicalPath = ToCanonicalVfsPath(nameOrUriOrPath);
-        var overlay = GetBrainOverlay();
 
-        if (!string.IsNullOrWhiteSpace(cleanName) && overlay.TryGetValue(cleanName, out var direct))
+        if (!string.IsNullOrWhiteSpace(cleanName) && _overlay.TryGetValue(cleanName, out var direct))
         {
             return direct.Bytes;
         }
-        if (overlay.TryGetValue(canonicalPath, out var byPath))
+        if (_overlay.TryGetValue(canonicalPath, out var byPath))
         {
             return byPath.Bytes;
         }
 
-        // Try reading through StorageVfs
         var vfsBytes = await WithCallerAsync<byte[]?>(async effectiveBroker =>
         {
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
-
-            try
+            foreach (var candidatePath in new[] { canonicalPath, $"/work/{cleanName}", $"/local/{cleanName}", $"/drive/{cleanName}" })
             {
-                var content = await vfs.Read(canonicalPath, new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
-                return content.Bytes.ToArray();
+                try
+                {
+                    var content = await vfs.Read(candidatePath, new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
+                    return content.Bytes.ToArray();
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    LogRecoverable(error);
+                }
             }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-
-            try
-            {
-                var content = await vfs.Read($"/work/{cleanName}", new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
-                return content.Bytes.ToArray();
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-
-            try
-            {
-                var content = await vfs.Read($"/local/{cleanName}", new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
-                return content.Bytes.ToArray();
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-
-            try
-            {
-                var content = await vfs.Read($"/drive/{cleanName}", new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
-                return content.Bytes.ToArray();
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-
             return null;
         }).ConfigureAwait(false);
 
@@ -482,14 +361,12 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             return vfsBytes;
         }
 
-        // Fallback: resolve item through connections
         var resolved = await ResolveFileAsync(nameOrUriOrPath, ct).ConfigureAwait(false);
         if (resolved is null)
         {
             return null;
         }
-
-        if (overlay.TryGetValue(resolved.Name, out var byResolvedName))
+        if (_overlay.TryGetValue(resolved.Name, out var byResolvedName))
         {
             return byResolvedName.Bytes;
         }
@@ -501,26 +378,16 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                 return null;
             }
 
-            IReadOnlyList<CapabilityConnection<IStorage>> connections = [];
             try
             {
-                connections = await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-                return null;
-            }
+                var connections = await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false);
+                var targetConn = connections.FirstOrDefault(c => string.Equals(c.ConnectionKey, resolved.Connection, StringComparison.OrdinalIgnoreCase))
+                    ?? connections.FirstOrDefault();
+                if (targetConn is null)
+                {
+                    return null;
+                }
 
-            var targetConn = connections.FirstOrDefault(c => string.Equals(c.ConnectionKey, resolved.Connection, StringComparison.OrdinalIgnoreCase))
-                ?? connections.FirstOrDefault();
-            if (targetConn is null)
-            {
-                return null;
-            }
-
-            try
-            {
                 var content = await targetConn.Capability.Read(new ItemId(resolved.ItemId), new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
                 return content.Bytes.ToArray();
             }
@@ -546,10 +413,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         }
 
         var bytes = content.ToArray();
-        var now = DateTimeOffset.UtcNow;
         var mountPoint = canonicalPath.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "work";
         var connectionKey = mountPoint == "work" ? "local-disk" : mountPoint;
-        var neuronUri = BuildNeuronUri(BrainId, connectionKey, cleanName);
 
         var entry = new WorkspaceFileEntry(
             Name: cleanName,
@@ -557,11 +422,10 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             ItemId: canonicalPath,
             Kind: "file",
             Size: bytes.LongLength,
-            NeuronUri: neuronUri,
+            NeuronUri: BuildNeuronUri(BrainId, connectionKey, cleanName),
             VfsPath: canonicalPath,
-            Modified: now);
+            Modified: DateTimeOffset.UtcNow);
 
-        // 1. Write through StorageVfs
         await WithCallerAsync(async effectiveBroker =>
         {
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
@@ -574,7 +438,6 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                 LogRecoverable(error);
             }
 
-            // Also persist directly into any writable connection root
             if (effectiveBroker is not null)
             {
                 try
@@ -585,8 +448,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                         try
                         {
                             var roots = await conn.Capability.Roots(ct).ConfigureAwait(false);
-                            var writableRoot = roots.FirstOrDefault(r => r.Flags.HasFlag(ItemFlags.Write));
-                            if (writableRoot is not null)
+                            if (roots.FirstOrDefault(r => r.Flags.HasFlag(ItemFlags.Write)) is { } writableRoot)
                             {
                                 await conn.Capability.Write(WritePlan.WriteFile(writableRoot.Id, cleanName, bytes, ConflictPolicy.Overwrite), ct).ConfigureAwait(false);
                             }
@@ -606,32 +468,13 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             return true;
         }).ConfigureAwait(false);
 
-        // 2. Cache in overlay
-        var overlay = GetBrainOverlay();
-        overlay[cleanName] = (entry, bytes);
-        overlay[canonicalPath] = (entry, bytes);
-
-        // 3. Immediately refresh / notify FilesWorkspaceNeuron
-        if (_services is not null)
-        {
-            try
-            {
-                var workspace = SiloNeurons.Get<IFilesWorkspace>(_services, IFilesWorkspace.Key(BrainId));
-                await workspace.Open(ct).ConfigureAwait(false);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-        }
-
+        _overlay[cleanName] = (entry, bytes);
+        _overlay[canonicalPath] = (entry, bytes);
+        await TryRefreshFilesWorkspaceAsync(ct).ConfigureAwait(false);
         return entry;
     }
 
-    public Task<WorkspaceFileEntry> WriteTextAsync(
-        string fileNameOrPath,
-        string content,
-        CancellationToken ct = default)
+    public Task<WorkspaceFileEntry> WriteTextAsync(string fileNameOrPath, string content, CancellationToken ct = default)
         => WriteFileAsync(fileNameOrPath, Encoding.UTF8.GetBytes(content ?? string.Empty), ct);
 
     public async Task<bool> DeleteFileAsync(string fileNameOrPath, CancellationToken ct = default)
@@ -640,45 +483,43 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         var canonicalPath = ToCanonicalVfsPath(fileNameOrPath);
         var cleanName = ExtractCleanFileName(canonicalPath);
 
-        var overlay = GetBrainOverlay();
-        overlay.TryRemove(cleanName, out _);
-        overlay.TryRemove(canonicalPath, out _);
+        _overlay.TryRemove(cleanName, out _);
+        _overlay.TryRemove(canonicalPath, out _);
 
         try
         {
-            var fallback = GetFallbackWorkspaceStorage(BrainId);
-            await fallback.Write(WritePlan.Delete(new ItemId(cleanName)), ct).ConfigureAwait(false);
+            await GetFallbackWorkspaceStorage(BrainId).Write(WritePlan.Delete(new ItemId(cleanName)), ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogRecoverable(ex);
         }
 
-        if (_services is not null)
-        {
-            try
-            {
-                var workspace = SiloNeurons.Get<IFilesWorkspace>(_services, IFilesWorkspace.Key(BrainId));
-                await workspace.Open(ct).ConfigureAwait(false);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                LogRecoverable(error);
-            }
-        }
-
+        await TryRefreshFilesWorkspaceAsync(ct).ConfigureAwait(false);
         return true;
     }
 
-    private ConcurrentDictionary<string, (WorkspaceFileEntry Entry, byte[] Bytes)> GetBrainOverlay() => _overlay;
+    private async Task TryRefreshFilesWorkspaceAsync(CancellationToken ct)
+    {
+        if (_services is null)
+        {
+            return;
+        }
+        try
+        {
+            await SiloNeurons.Get<IFilesWorkspace>(_services, IFilesWorkspace.Key(BrainId)).Open(ct).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            LogRecoverable(error);
+        }
+    }
 
     private async Task<T> WithCallerAsync<T>(Func<ICapabilityBroker?, Task<T>> action)
     {
         var resolvedBroker = _broker ?? _services?.GetService<ICapabilityBroker>();
         var filesAppKey = IApp.Key(BrainId, "files");
-        var effectiveBroker = resolvedBroker is CapabilityBroker cb
-            ? cb.ForApp(filesAppKey)
-            : resolvedBroker;
+        var effectiveBroker = resolvedBroker is CapabilityBroker cb ? cb.ForApp(filesAppKey) : resolvedBroker;
 
         var hadPrevious = RuntimeCallerContext.TryGet(out var previous);
         IDisposable? stampScope = null;
@@ -720,20 +561,16 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
     private WorkspaceFileEntry MapVfsItem(string connection, VfsItem item)
     {
-        var fileName = item.Name;
         var connKey = string.IsNullOrWhiteSpace(connection) || string.Equals(connection, "work", StringComparison.OrdinalIgnoreCase)
             ? "local-disk"
             : connection;
-        var neuronUri = BuildNeuronUri(BrainId, connKey, fileName);
-        var kind = item.Kind == ItemKind.Folder ? "folder" : "file";
-
         return new WorkspaceFileEntry(
-            Name: fileName,
+            Name: item.Name,
             Connection: connKey,
             ItemId: item.Path,
-            Kind: kind,
+            Kind: item.Kind == ItemKind.Folder ? "folder" : "file",
             Size: item.Size,
-            NeuronUri: neuronUri,
+            NeuronUri: BuildNeuronUri(BrainId, connKey, item.Name),
             VfsPath: item.Path,
             Modified: item.Modified);
     }
@@ -748,18 +585,15 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         }
 
         var connKey = string.IsNullOrWhiteSpace(connection) ? "local-disk" : connection;
-        var neuronUri = BuildNeuronUri(BrainId, connKey, fileName);
-        var vfsPath = rawName.StartsWith('/') ? rawName : $"/work/{fileName}";
         var kind = item.Kind == ItemKind.Folder ? "folder" : item.Kind == ItemKind.Link ? "link" : "file";
-
         return new WorkspaceFileEntry(
             Name: fileName,
             Connection: connKey,
             ItemId: item.Id.Value,
             Kind: kind,
             Size: item.Size,
-            NeuronUri: neuronUri,
-            VfsPath: vfsPath,
+            NeuronUri: BuildNeuronUri(BrainId, connKey, fileName),
+            VfsPath: rawName.StartsWith('/') ? rawName : $"/work/{fileName}",
             Modified: item.Modified);
     }
 
@@ -769,20 +603,19 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         {
             return;
         }
-
-        if (!byName.TryGetValue(candidate.Name, out var existing))
-        {
-            byName[candidate.Name] = candidate;
-            return;
-        }
-
-        var candidateTime = candidate.Modified ?? DateTimeOffset.MinValue;
-        var existingTime = existing.Modified ?? DateTimeOffset.MinValue;
-        if (candidateTime >= existingTime)
+        if (!byName.TryGetValue(candidate.Name, out var existing)
+            || (candidate.Modified ?? DateTimeOffset.MinValue) >= (existing.Modified ?? DateTimeOffset.MinValue))
         {
             byName[candidate.Name] = candidate;
         }
     }
+
+    private static bool IsMatchingEntry(WorkspaceFileEntry entry, string cleanName, string cleanSlug, string canonicalPath, string rawQuery)
+        => string.Equals(entry.Name, cleanName, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(entry.VfsPath, canonicalPath, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(entry.VfsPath, rawQuery.Trim(), StringComparison.OrdinalIgnoreCase)
+           || string.Equals(entry.NeuronUri, rawQuery.Trim(), StringComparison.OrdinalIgnoreCase)
+           || (cleanSlug.Length > 0 && string.Equals(SlugSegment(entry.Name), cleanSlug, StringComparison.OrdinalIgnoreCase));
 
     private static WorkspaceFileEntry? FindBestMatch(
         IReadOnlyList<WorkspaceFileEntry> candidates,
@@ -790,18 +623,9 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         string cleanSlug,
         string rawQuery)
     {
-        foreach (var entry in candidates)
-        {
-            if (string.Equals(entry.Name, cleanName, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(entry.VfsPath, rawQuery.Trim(), StringComparison.OrdinalIgnoreCase)
-                || string.Equals(entry.NeuronUri, rawQuery.Trim(), StringComparison.OrdinalIgnoreCase)
-                || (cleanSlug.Length > 0 && string.Equals(SlugSegment(entry.Name), cleanSlug, StringComparison.OrdinalIgnoreCase)))
-            {
-                return entry;
-            }
-        }
-
-        return candidates.FirstOrDefault(e => e.Kind != "folder" && e.Name.Contains(cleanName, StringComparison.OrdinalIgnoreCase));
+        var canonicalPath = ToCanonicalVfsPath(rawQuery);
+        return candidates.FirstOrDefault(entry => IsMatchingEntry(entry, cleanName, cleanSlug, canonicalPath, rawQuery))
+            ?? candidates.FirstOrDefault(e => e.Kind != "folder" && e.Name.Contains(cleanName, StringComparison.OrdinalIgnoreCase));
     }
 
     public static string ExtractCleanFileName(string? nameOrUriOrPath)
@@ -832,12 +656,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     }
 
     internal static string BuildNeuronUri(string brainId, string connection, string name)
-    {
-        var brainSlug = string.IsNullOrWhiteSpace(brainId) ? "local" : brainId.Trim();
-        var connSlug = SlugSegment(string.IsNullOrWhiteSpace(connection) ? "local-disk" : connection);
-        var itemSlug = SlugSegment(name);
-        return $"neuron://{brainSlug}/{connSlug}.files/{itemSlug}";
-    }
+        => $"neuron://{NormalizeBrainId(brainId)}/{SlugSegment(string.IsNullOrWhiteSpace(connection) ? "local-disk" : connection)}.files/{SlugSegment(name)}";
 
     internal static string SlugSegment(string value)
     {
@@ -863,8 +682,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         return slug.Length > 0 ? slug : "file";
     }
 
-    private static void LogRecoverable(Exception error)
-    {
-        _ = error.Message;
-    }
+    private static string NormalizeBrainId(string? brainId)
+        => string.IsNullOrWhiteSpace(brainId) ? "local" : brainId.Trim();
+
+    private static void LogRecoverable(Exception error) => _ = error.Message;
 }

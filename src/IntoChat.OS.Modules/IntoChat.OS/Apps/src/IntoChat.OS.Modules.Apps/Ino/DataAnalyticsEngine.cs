@@ -23,40 +23,17 @@ public static partial class DataAnalyticsEngine
             var parsedDataset = ParseFileDataset(vfsPath, fileDatasetText);
             if (parsedDataset.Rows.Count > 0)
             {
-                return RunRelationalPipeline(
-                    parsedDataset,
-                    queryOrPrompt,
-                    chartKind,
-                    sourceLabel: vfsPath,
-                    sourceUri: $"neuron://local/files{vfsPath}#dataset",
-                    preserveExactBuiltInSummary: false);
+                return RunRelationalPipeline(parsedDataset, queryOrPrompt, chartKind, vfsPath, $"neuron://local/files{vfsPath}#dataset");
             }
         }
 
         if (!queryOrPrompt.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
             && TryParseInlinePromptDataset(queryOrPrompt) is { } inlineDataset)
         {
-            return RunRelationalPipeline(
-                inlineDataset,
-                queryOrPrompt,
-                chartKind,
-                sourceLabel: "inline prompt data",
-                sourceUri: "neuron://local/apps/ino/chart#inline",
-                preserveExactBuiltInSummary: false);
+            return RunRelationalPipeline(inlineDataset, queryOrPrompt, chartKind, "inline prompt data", "neuron://local/apps/ino/chart#inline");
         }
 
-        return new DataQueryResult(
-            ChartTitle: $"No Data ({database})",
-            Columns: [],
-            Rows: [],
-            ChartKind: chartKind,
-            ChartPoints: [],
-            Summary: $"No dataset found matching query or file reference in database '{database}'.",
-            SourceUri: $"neuron://local/data/{database}/empty",
-            TotalValue: 0.0,
-            AverageValue: 0.0,
-            MinValue: 0.0,
-            MaxValue: 0.0);
+        return CreateEmptyResult(database, chartKind);
     }
 
     public static async Task<DataQueryResult> ExecuteAsync(
@@ -66,7 +43,6 @@ public static partial class DataAnalyticsEngine
     {
         var chartKind = InferChartKind(queryOrPrompt);
 
-        // 1. Check if the query references a CSV/TSV/JSON dataset in IFilesVfsService
         if (filesVfs is not null && TryExtractDatasetFileToken(queryOrPrompt) is { } fileToken)
         {
             var resolved = await filesVfs.ResolveFileAsync(fileToken)
@@ -85,39 +61,33 @@ public static partial class DataAnalyticsEngine
                         parsedDataset,
                         queryOrPrompt,
                         chartKind,
-                        sourceLabel: vfsPath,
-                        sourceUri: resolved?.NeuronUri ?? $"neuron://local/files{vfsPath}#dataset",
-                        preserveExactBuiltInSummary: false);
+                        vfsPath,
+                        resolved?.NeuronUri ?? $"neuron://local/files{vfsPath}#dataset");
                 }
             }
         }
 
-        // 2. Check if the user provided inline "Label: Value" or "Label = Value" data pairs in the prompt
         if (!queryOrPrompt.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
             && TryParseInlinePromptDataset(queryOrPrompt) is { } inlineDataset)
         {
-            return RunRelationalPipeline(
-                inlineDataset,
-                queryOrPrompt,
-                chartKind,
-                sourceLabel: "inline prompt data",
-                sourceUri: "neuron://local/apps/ino/chart#inline",
-                preserveExactBuiltInSummary: false);
+            return RunRelationalPipeline(inlineDataset, queryOrPrompt, chartKind, "inline prompt data", "neuron://local/apps/ino/chart#inline");
         }
 
-        return new DataQueryResult(
-            ChartTitle: $"No Data ({database})",
-            Columns: [],
-            Rows: [],
-            ChartKind: chartKind,
-            ChartPoints: [],
-            Summary: $"No dataset found matching query or file reference in database '{database}'.",
-            SourceUri: $"neuron://local/data/{database}/empty",
-            TotalValue: 0.0,
-            AverageValue: 0.0,
-            MinValue: 0.0,
-            MaxValue: 0.0);
+        return CreateEmptyResult(database, chartKind);
     }
+
+    private static DataQueryResult CreateEmptyResult(string database, string chartKind) => new(
+        ChartTitle: $"No Data ({database})",
+        Columns: [],
+        Rows: [],
+        ChartKind: chartKind,
+        ChartPoints: [],
+        Summary: $"No dataset found matching query or file reference in database '{database}'.",
+        SourceUri: $"neuron://local/data/{database}/empty",
+        TotalValue: 0.0,
+        AverageValue: 0.0,
+        MinValue: 0.0,
+        MaxValue: 0.0);
 
     private static DatasetRecord? TryParseInlinePromptDataset(string prompt)
     {
@@ -127,28 +97,14 @@ public static partial class DataAnalyticsEngine
             return null;
         }
 
-        var rows = new List<string[]>();
-        foreach (Match match in matches)
-        {
-            var label = match.Groups["label"].Value.Trim();
-            var value = match.Groups["val"].Value.Trim();
-            if (!string.IsNullOrWhiteSpace(label))
-            {
-                rows.Add([label, value]);
-            }
-        }
+        var rows = matches
+            .Select(m => new[] { m.Groups["label"].Value.Trim(), m.Groups["val"].Value.Trim() })
+            .Where(r => !string.IsNullOrWhiteSpace(r[0]))
+            .ToList();
 
-        if (rows.Count < 2)
-        {
-            return null;
-        }
-
-        return new DatasetRecord(
-            ["Category", "Value"],
-            rows,
-            "Custom Inline Chart",
-            DetectCurrencyPrefix(rows),
-            "data point(s)");
+        return rows.Count >= 2
+            ? new DatasetRecord(["Category", "Value"], rows, "Custom Inline Chart", DetectCurrencyPrefix(rows), "data point(s)")
+            : null;
     }
 
     public static string? TryExtractDatasetFileToken(string text)
@@ -165,12 +121,7 @@ public static partial class DataAnalyticsEngine
         }
 
         var fromMatch = FromTableRegex().Match(text);
-        if (fromMatch.Success)
-        {
-            return fromMatch.Groups["table"].Value.Trim('"', '\'', '`', ',', ';', ')');
-        }
-
-        return null;
+        return fromMatch.Success ? fromMatch.Groups["table"].Value.Trim('"', '\'', '`', ',', ';', ')') : null;
     }
 
     public static string SerializeToCsv(IReadOnlyList<string> columns, IReadOnlyList<string[]> rows)
@@ -186,8 +137,7 @@ public static partial class DataAnalyticsEngine
 
     private static DatasetRecord ParseFileDataset(string vfsPath, string rawText)
     {
-        var fileName = Path.GetFileName(vfsPath);
-        var title = $"{Path.GetFileNameWithoutExtension(fileName)} Analytics";
+        var title = $"{Path.GetFileNameWithoutExtension(Path.GetFileName(vfsPath))} Analytics";
         var trimmed = rawText.Trim();
 
         if (vfsPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith('['))
@@ -195,12 +145,8 @@ public static partial class DataAnalyticsEngine
             return ParseJsonDataset(title, trimmed);
         }
 
-        var separator = vfsPath.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase) || trimmed.Contains('\t', StringComparison.Ordinal)
-            ? '\t'
-            : ',';
-        var lines = trimmed
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var separator = vfsPath.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase) || trimmed.Contains('\t', StringComparison.Ordinal) ? '\t' : ',';
+        var lines = trimmed.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 0)
         {
             return new DatasetRecord([], [], title, string.Empty, "row(s)");
@@ -215,7 +161,6 @@ public static partial class DataAnalyticsEngine
             {
                 continue;
             }
-
             if (cells.Length < headers.Length)
             {
                 Array.Resize(ref cells, headers.Length);
@@ -224,12 +169,10 @@ public static partial class DataAnalyticsEngine
                     cells[c] ??= string.Empty;
                 }
             }
-
             rows.Add(cells);
         }
 
-        var currency = DetectCurrencyPrefix(rows);
-        return new DatasetRecord(headers, rows, title, currency, "row(s)");
+        return new DatasetRecord(headers, rows, title, DetectCurrencyPrefix(rows), "row(s)");
     }
 
     private static DatasetRecord ParseJsonDataset(string title, string json)
@@ -242,49 +185,27 @@ public static partial class DataAnalyticsEngine
             {
                 root = rowsProp;
             }
-
             if (root.ValueKind != JsonValueKind.Array)
             {
                 return new DatasetRecord([], [], title, string.Empty, "row(s)");
             }
 
             var columns = new List<string>();
-            var rows = new List<string[]>();
-            foreach (var item in root.EnumerateArray())
+            var objects = root.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).ToArray();
+            foreach (var prop in objects.SelectMany(item => item.EnumerateObject()))
             {
-                if (item.ValueKind != JsonValueKind.Object)
+                if (!columns.Contains(prop.Name, StringComparer.OrdinalIgnoreCase))
                 {
-                    continue;
-                }
-
-                foreach (var prop in item.EnumerateObject())
-                {
-                    if (!columns.Contains(prop.Name, StringComparer.OrdinalIgnoreCase))
-                    {
-                        columns.Add(prop.Name);
-                    }
+                    columns.Add(prop.Name);
                 }
             }
 
-            foreach (var item in root.EnumerateArray())
-            {
-                if (item.ValueKind != JsonValueKind.Object)
-                {
-                    continue;
-                }
+            var rows = objects.Select(item => columns.Select(col =>
+                item.TryGetProperty(col, out var val)
+                    ? (val.ValueKind == JsonValueKind.String ? val.GetString() ?? string.Empty : val.GetRawText())
+                    : string.Empty).ToArray()).ToList();
 
-                var row = new string[columns.Count];
-                for (var c = 0; c < columns.Count; c++)
-                {
-                    row[c] = item.TryGetProperty(columns[c], out var val)
-                        ? (val.ValueKind == JsonValueKind.String ? val.GetString() ?? string.Empty : val.GetRawText())
-                        : string.Empty;
-                }
-
-                rows.Add(row);
-            }
-
-            return new DatasetRecord(columns.ToArray(), rows, title, DetectCurrencyPrefix(rows), "row(s)");
+            return new DatasetRecord([.. columns], rows, title, DetectCurrencyPrefix(rows), "row(s)");
         }
         catch (JsonException)
         {
@@ -297,21 +218,18 @@ public static partial class DataAnalyticsEngine
         string query,
         string chartKind,
         string sourceLabel,
-        string sourceUri,
-        bool preserveExactBuiltInSummary)
+        string sourceUri)
     {
         var columns = dataset.Columns;
         var workingRows = dataset.Rows.ToList();
         var numericColIndex = FindNumericColumnIndex(columns, workingRows);
         var labelColIndex = 0;
 
-        // 1. Apply WHERE clause if present
         if (TryExtractWherePredicate(query, columns, out var whereColIdx, out var op, out var rhs))
         {
             workingRows = workingRows.Where(row => EvaluateRowCondition(row, whereColIdx, op, rhs)).ToList();
         }
 
-        // 2. Apply GROUP BY or natural-language "group by <col>" / "by stage" aggregation
         var groupByColIdx = TryExtractGroupByColumn(query, columns);
         var chartTitle = dataset.Title;
         if (groupByColIdx >= 0 && groupByColIdx < columns.Length && numericColIndex >= 0)
@@ -332,9 +250,7 @@ public static partial class DataAnalyticsEngine
                         "MAX" => nums.Length > 0 ? nums.Max() : 0,
                         _ => nums.Sum(),
                     };
-                    var formatted = aggFunc == "COUNT"
-                        ? $"{aggVal:N0}"
-                        : $"{dataset.CurrencyPrefix}{aggVal:N0}";
+                    var formatted = aggFunc == "COUNT" ? $"{aggVal:N0}" : $"{dataset.CurrencyPrefix}{aggVal:N0}";
                     return (g.Key, Count: g.Count(), Value: aggVal, Formatted: formatted);
                 })
                 .OrderByDescending(g => g.Value)
@@ -348,13 +264,11 @@ public static partial class DataAnalyticsEngine
         }
         else
         {
-            // 3. Apply ORDER BY if present
             if (query.Contains(" ASC", StringComparison.OrdinalIgnoreCase) && numericColIndex >= 0)
             {
                 workingRows = workingRows.OrderBy(r => ParseNumber(r[numericColIndex])).ToList();
             }
 
-            // 4. Apply LIMIT if present (ignoring default LIMIT 5 when there are 5 rows)
             var limitMatch = LimitRegex().Match(query);
             if (limitMatch.Success
                 && int.TryParse(limitMatch.Groups["n"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var limit)
@@ -379,60 +293,12 @@ public static partial class DataAnalyticsEngine
         var max = points.Length > 0 ? points.Max(p => p.Value) : 0;
 
         var formattedTotal = $"{dataset.CurrencyPrefix}{total.ToString("N0", CultureInfo.InvariantCulture)}";
-        var summary = preserveExactBuiltInSummary
-            ? $"Queried {finalRows.Length} {dataset.EntityLabel} totaling {formattedTotal} from {sourceLabel}."
-            : $"Queried {finalRows.Length} {dataset.EntityLabel} totaling {formattedTotal} (avg {dataset.CurrencyPrefix}{avg.ToString("N0", CultureInfo.InvariantCulture)}, max {dataset.CurrencyPrefix}{max.ToString("N0", CultureInfo.InvariantCulture)}) from {sourceLabel}.";
+        var summary = $"Queried {finalRows.Length} {dataset.EntityLabel} totaling {formattedTotal} (avg {dataset.CurrencyPrefix}{avg.ToString("N0", CultureInfo.InvariantCulture)}, max {dataset.CurrencyPrefix}{max.ToString("N0", CultureInfo.InvariantCulture)}) from {sourceLabel}.";
 
-        return new DataQueryResult(
-            chartTitle,
-            columns,
-            finalRows,
-            chartKind,
-            points,
-            summary,
-            sourceUri,
-            total,
-            avg,
-            min,
-            max);
+        return new DataQueryResult(chartTitle, columns, finalRows, chartKind, points, summary, sourceUri, total, avg, min, max);
     }
 
-    private static bool HasAnalyticalClauses(string query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return false;
-        }
-
-        if (query.Contains("WHERE ", StringComparison.OrdinalIgnoreCase)
-            || query.Contains("GROUP BY", StringComparison.OrdinalIgnoreCase)
-            || query.Contains("group by", StringComparison.OrdinalIgnoreCase)
-            || query.Contains("sum by", StringComparison.OrdinalIgnoreCase)
-            || query.Contains("average by", StringComparison.OrdinalIgnoreCase)
-            || query.Contains("AVG(", StringComparison.OrdinalIgnoreCase)
-            || query.Contains("SUM(", StringComparison.OrdinalIgnoreCase)
-            || query.Contains("COUNT(", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var limitMatch = LimitRegex().Match(query);
-        if (limitMatch.Success
-            && int.TryParse(limitMatch.Groups["n"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)
-            && n < 5)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryExtractWherePredicate(
-        string query,
-        string[] columns,
-        out int colIdx,
-        out string op,
-        out string rhs)
+    private static bool TryExtractWherePredicate(string query, string[] columns, out int colIdx, out string op, out string rhs)
     {
         colIdx = -1;
         op = "=";
@@ -447,17 +313,8 @@ public static partial class DataAnalyticsEngine
         var colName = match.Groups["col"].Value.Trim();
         op = match.Groups["op"].Value.Trim();
         rhs = match.Groups["val"].Value.Trim().Trim('\'', '"');
-
-        for (var i = 0; i < columns.Length; i++)
-        {
-            if (string.Equals(columns[i], colName, StringComparison.OrdinalIgnoreCase))
-            {
-                colIdx = i;
-                return true;
-            }
-        }
-
-        return false;
+        colIdx = Array.FindIndex(columns, c => string.Equals(c, colName, StringComparison.OrdinalIgnoreCase));
+        return colIdx >= 0;
     }
 
     private static bool EvaluateRowCondition(string[] row, int colIdx, string op, string rhs)
@@ -496,64 +353,42 @@ public static partial class DataAnalyticsEngine
         if (match.Success)
         {
             var colName = match.Groups["col"].Value.Trim();
+            var idx = Array.FindIndex(columns, c => string.Equals(c, colName, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0)
+            {
+                return idx;
+            }
+        }
+
+        if (new[] { "group", "sum", "total", "average", "breakdown" }.Any(k => query.Contains(k, StringComparison.OrdinalIgnoreCase)))
+        {
             for (var i = 0; i < columns.Length; i++)
             {
-                if (string.Equals(columns[i], colName, StringComparison.OrdinalIgnoreCase))
+                if (query.Contains($"by {columns[i]}", StringComparison.OrdinalIgnoreCase))
                 {
                     return i;
                 }
             }
         }
 
-        foreach (var (col, idx) in columns.Select((c, i) => (c, i)))
-        {
-            if (query.Contains($"by {col}", StringComparison.OrdinalIgnoreCase)
-                && (query.Contains("group", StringComparison.OrdinalIgnoreCase)
-                    || query.Contains("sum", StringComparison.OrdinalIgnoreCase)
-                    || query.Contains("total", StringComparison.OrdinalIgnoreCase)
-                    || query.Contains("average", StringComparison.OrdinalIgnoreCase)
-                    || query.Contains("breakdown", StringComparison.OrdinalIgnoreCase)))
-            {
-                return idx;
-            }
-        }
-
         return -1;
     }
 
-    private static string InferAggregationFunction(string query)
+    private static string InferAggregationFunction(string query) => query switch
     {
-        if (query.Contains("AVG(", StringComparison.OrdinalIgnoreCase) || query.Contains("average", StringComparison.OrdinalIgnoreCase))
-        {
-            return "AVG";
-        }
-        if (query.Contains("COUNT(", StringComparison.OrdinalIgnoreCase) || query.Contains("count by", StringComparison.OrdinalIgnoreCase))
-        {
-            return "COUNT";
-        }
-        if (query.Contains("MIN(", StringComparison.OrdinalIgnoreCase))
-        {
-            return "MIN";
-        }
-        if (query.Contains("MAX(", StringComparison.OrdinalIgnoreCase))
-        {
-            return "MAX";
-        }
-        return "SUM";
-    }
+        var q when q.Contains("AVG(", StringComparison.OrdinalIgnoreCase) || q.Contains("average", StringComparison.OrdinalIgnoreCase) => "AVG",
+        var q when q.Contains("COUNT(", StringComparison.OrdinalIgnoreCase) || q.Contains("count by", StringComparison.OrdinalIgnoreCase) => "COUNT",
+        var q when q.Contains("MIN(", StringComparison.OrdinalIgnoreCase) => "MIN",
+        var q when q.Contains("MAX(", StringComparison.OrdinalIgnoreCase) => "MAX",
+        _ => "SUM",
+    };
 
-    private static string InferChartKind(string queryOrPrompt)
+    private static string InferChartKind(string queryOrPrompt) => queryOrPrompt switch
     {
-        if (queryOrPrompt.Contains("pie", StringComparison.OrdinalIgnoreCase))
-        {
-            return "pie";
-        }
-        if (queryOrPrompt.Contains("line", StringComparison.OrdinalIgnoreCase))
-        {
-            return "line";
-        }
-        return "bar";
-    }
+        var q when q.Contains("pie", StringComparison.OrdinalIgnoreCase) => "pie",
+        var q when q.Contains("line", StringComparison.OrdinalIgnoreCase) => "line",
+        _ => "bar",
+    };
 
     private static int FindNumericColumnIndex(string[] columns, IReadOnlyList<string[]> rows)
     {
@@ -561,7 +396,6 @@ public static partial class DataAnalyticsEngine
         {
             return -1;
         }
-
         for (var c = columns.Length - 1; c >= 0; c--)
         {
             if (rows.All(r => c < r.Length && HasNumericValue(r[c])))
@@ -569,60 +403,24 @@ public static partial class DataAnalyticsEngine
                 return c;
             }
         }
-
         return columns.Length - 1;
     }
 
     private static bool HasNumericValue(string cell)
-    {
-        if (string.IsNullOrWhiteSpace(cell))
-        {
-            return false;
-        }
-
-        var cleaned = CleanNumericString(cell);
-        return double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out _);
-    }
+        => !string.IsNullOrWhiteSpace(cell) && double.TryParse(CleanNumericString(cell), NumberStyles.Any, CultureInfo.InvariantCulture, out _);
 
     public static double ParseNumber(string? cell)
-    {
-        if (string.IsNullOrWhiteSpace(cell))
-        {
-            return 0;
-        }
-
-        var cleaned = CleanNumericString(cell);
-        return double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out var val) ? val : 0;
-    }
+        => !string.IsNullOrWhiteSpace(cell) && double.TryParse(CleanNumericString(cell), NumberStyles.Any, CultureInfo.InvariantCulture, out var val) ? val : 0;
 
     private static string CleanNumericString(string raw)
-    {
-        var sb = new StringBuilder(raw.Length);
-        foreach (var ch in raw)
-        {
-            if (char.IsDigit(ch) || ch is '.' or '-')
-            {
-                sb.Append(ch);
-            }
-        }
-        return sb.ToString();
-    }
+        => new(raw.Where(ch => char.IsDigit(ch) || ch is '.' or '-').ToArray());
 
     private static string DetectCurrencyPrefix(IReadOnlyList<string[]> rows)
     {
-        foreach (var row in rows)
+        foreach (var cell in rows.SelectMany(r => r))
         {
-            foreach (var cell in row)
-            {
-                if (cell.Contains('€', StringComparison.Ordinal))
-                {
-                    return "€";
-                }
-                if (cell.Contains('$', StringComparison.Ordinal))
-                {
-                    return "$";
-                }
-            }
+            if (cell.Contains('€', StringComparison.Ordinal)) { return "€"; }
+            if (cell.Contains('$', StringComparison.Ordinal)) { return "$"; }
         }
         return string.Empty;
     }
@@ -633,35 +431,31 @@ public static partial class DataAnalyticsEngine
         var current = new StringBuilder();
         var inQuotes = false;
 
-        for (var i = 0; i < line.Length; i++)
+        foreach (var ch in line)
         {
-            var ch = line[i];
             if (ch == '"')
             {
                 inQuotes = !inQuotes;
-                continue;
             }
-            if (ch == separator && !inQuotes)
+            else if (ch == separator && !inQuotes)
             {
                 result.Add(current.ToString().Trim());
                 current.Clear();
-                continue;
             }
-            current.Append(ch);
+            else
+            {
+                current.Append(ch);
+            }
         }
 
         result.Add(current.ToString().Trim());
-        return result.ToArray();
+        return [.. result];
     }
 
     private static string EscapeCsvCell(string value)
-    {
-        if (value.Contains(',', StringComparison.Ordinal) || value.Contains('"', StringComparison.Ordinal))
-        {
-            return $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
-        }
-        return value;
-    }
+        => value.Contains(',', StringComparison.Ordinal) || value.Contains('"', StringComparison.Ordinal)
+            ? $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
+            : value;
 
     [GeneratedRegex(@"(?<file>(?:/work/)?[a-zA-Z0-9_\-\.]+\.(?:csv|tsv|json))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex DatasetFileRegex();

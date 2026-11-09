@@ -850,6 +850,7 @@ final class NavItemNode extends Node {
     required this.action,
     required this.selected,
     required this.badge,
+    required this.emit,
   });
 
   @override
@@ -861,6 +862,7 @@ final class NavItemNode extends Node {
   final String action;
   final bool selected;
   final String? badge;
+  final Emit? emit;
 
   factory NavItemNode.fromJson(Map<String, dynamic> json) => NavItemNode(
     key: _string(json['key']),
@@ -869,6 +871,7 @@ final class NavItemNode extends Node {
     action: _string(json['action']),
     selected: _bool(json['selected']),
     badge: _stringOrNull(json['badge']),
+    emit: json['emit'] is Map ? Emit.fromJson(_map(json['emit'])) : null,
   );
 }
 

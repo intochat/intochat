@@ -272,6 +272,64 @@ public sealed class CreatorAppFacts
         Assert.Contains("Deployed shipped unit watch.web (Web watch)", creator.App.State.Status, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TraceReaderAndTraceFoldCorrelateMultiHopSpansAndRedactSecrets()
+    {
+        var publisher1 = NeuronId.Parse("local/ino/ino");
+        var publisher2 = NeuronId.Parse("local/flows/flows/index");
+        var publisher3 = NeuronId.Parse("local/agent/agent");
+
+        var rootSignal = new JournaledSignal(
+            publisher1,
+            10,
+            new IntoChat.OS.Apps.Ino.InoSend("Deploy with Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"),
+            T0,
+            TraceId: "trace-correlate-1",
+            CausationId: null);
+
+        var childSignal = new JournaledSignal(
+            publisher2,
+            11,
+            new CreatorMake("Use sk-proj-1234567890abcdef and vault://ANTHROPIC_API_KEY"),
+            T0.AddMilliseconds(15),
+            TraceId: "trace-correlate-1",
+            CausationId: $"{publisher1}:10");
+
+        var grandChildSignal = new JournaledSignal(
+            publisher3,
+            12,
+            new CreatorSeed("watch.web"),
+            T0.AddMilliseconds(30),
+            TraceId: "trace-correlate-1",
+            CausationId: $"{publisher2}:11");
+
+        TraceEntry[] entries =
+        [
+            TraceReaderNeuron.Entry(grandChildSignal),
+            TraceReaderNeuron.Entry(rootSignal),
+            TraceReaderNeuron.Entry(childSignal),
+        ];
+
+        foreach (var entry in entries)
+        {
+            Assert.Equal("trace-correlate-1", entry.TraceId);
+            Assert.DoesNotContain("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", entry.Payload, StringComparison.Ordinal);
+            Assert.DoesNotContain("sk-proj-1234567890abcdef", entry.Payload, StringComparison.Ordinal);
+            Assert.DoesNotContain("vault://ANTHROPIC_API_KEY", entry.Payload, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("[REDACTED]", entries[1].Payload, StringComparison.Ordinal);
+        Assert.Contains("[REDACTED]", entries[2].Payload, StringComparison.Ordinal);
+
+        var hops = TraceFold.Fold(entries);
+        Assert.Equal(3, hops.Length);
+        Assert.Equal([10L, 11L, 12L], hops.Select(h => h.Sequence));
+        Assert.Equal([0, 1, 2], hops.Select(h => h.Depth));
+        Assert.Null(hops[0].Cause);
+        Assert.Equal(hops[0].Address, hops[1].Cause);
+        Assert.Equal(hops[1].Address, hops[2].Cause);
+    }
+
     private static string[] Marked(InstalledApp<CreatorApp> creator)
         => [.. Nodes(creator.App.Render()).OfType<DataTable>().Single(t => t.Title.StartsWith("Trace ", StringComparison.Ordinal)).Rows
             .Select(r => r[0]).Where(c => c.StartsWith("▶ ", StringComparison.Ordinal)).Select(c => c[2..])];

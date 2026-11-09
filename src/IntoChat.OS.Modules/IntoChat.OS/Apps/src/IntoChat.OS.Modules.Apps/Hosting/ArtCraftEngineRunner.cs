@@ -10,6 +10,44 @@ public static class ArtCraftEngineRunner
     public const string CyanPreviewPngDataUrl = "";
     public const string GradientPreviewPngDataUrl = "";
 
+    private static readonly (string[] Terms, string CmdId, string Title, string DefaultJson, string Suffix, string[] Layers)[] PhotoCommands =
+    [
+        (["remove background", "remove-background", "background removal", "remove the background", "cutout", "layer.removeBackground"],
+            "layer.removeBackground", "Remove Background (AI Subject Alpha Mask)", "{\"featherPx\":1,\"output\":\"layer-mask\"}", "nobg.png",
+            ["Subject Cutout (Alpha Mask · 100%)", "Original Background (Hidden · 0%)"]),
+        (["select subject", "select.subject"],
+            "select.subject", "Select Subject (Marching Ants Selection)", "{\"refineEdge\":true}", "subject.png",
+            ["Active Selection (Subject Contour)", "Background Layer (Locked · 100%)"]),
+        (["select sky", "select.sky"],
+            "select.sky", "Select Sky", "{}", "sky.png",
+            ["Sky Selection Mask (Active)", "Foreground Landscape (100%)"]),
+        (["desaturate", "grayscale", "black and white", "monochrome", "image.adjustments.desaturate"],
+            "image.adjustments.desaturate", "Desaturate (Monochrome Tonemap)", "{}", "mono.png",
+            ["Desaturate Adjustment (Luminance · 100%)", "Base Raster Layer (100%)"]),
+        (["flip", "mirror", "image.imageRotation.flipCanvasHorizontal"],
+            "image.imageRotation.flipCanvasHorizontal", "Flip Canvas Horizontal", "{}", "flipped.png",
+            ["Flipped Composite Layer (100%)"]),
+        (["rotate", "90cw", "image.imageRotation.90cw"],
+            "image.imageRotation.90cw", "Rotate Canvas 90° Clockwise", "{}", "rot90.png",
+            ["Rotated Canvas Layer (90° CW · 100%)"]),
+    ];
+
+    private static readonly (string[] Terms, string CmdId, string Title, string DefaultJson, string Suffix, string[] Tracks)[] FilmCommands =
+    [
+        (["lumetri", "color", "grade", "color.lumetri.auto"],
+            "color.lumetri.auto", "Lumetri Color Auto Grade (Cinema Teal/Orange)", "{\"temperature\":8,\"contrast\":14,\"saturation\":108}", "graded.mp4",
+            ["V2 · Adjustment Layer (Lumetri Cinema Grade)", "V1 · A-Roll Main Camera", "A1 · Dialogue Stem"]),
+        (["trim", "ripple", "timeline.rippleTrim"],
+            "timeline.rippleTrim", "Ripple Trim Out-Point (-24 frames)", "{\"track\":\"V1\",\"deltaFrames\":-24}", "trimmed.mp4",
+            ["V1 · A-Roll Clip 1 (Ripple Trimmed)", "A1 · Master Stereo Mix"]),
+        (["export", "render", "mp4", "sequence.exportMp4"],
+            "sequence.exportMp4", "Export Sequence (H.264 1080p60 MP4)", "{\"preset\":\"h264-1080p60\",\"bitrateMbps\":18}", "1080p60.mp4",
+            ["V2 · Lower Third Title Overlay", "V1 · Master Edit Sequence (Rendered 1080p60)", "A1 · Master Stereo Bus"]),
+        (["razor", "split", "cut", "timeline", "clip", "playhead", "00:", ShippedApps.FilmCraft, "videocraft", "timeline.razor"],
+            "timeline.razor", "Razor Split Clip at Playhead (00:00:03:12)", "{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}", "cut.mp4",
+            ["V1 · Clip 1A (00:00:00:00 -> 00:00:03:12)", "V1 · Clip 1B [Split] (00:00:03:12 -> 00:00:12:00)", "A1 · Synced Dialogue Track"]),
+    ];
+
     public static string NormalizeMode(string? mode) => mode?.Trim().ToLowerInvariant() switch
     {
         "mcp" or "mcp-server" => "mcp",
@@ -34,54 +72,6 @@ public static class ArtCraftEngineRunner
         var raw = instructionOrCommand.Trim();
         var stem = NonEmptyStem(doc, "canvas");
 
-        if (ContainsAny(raw, "remove background", "remove-background", "background removal", "remove the background", "cutout", "layer.removeBackground"))
-        {
-            resolved = (
-                "layer.removeBackground",
-                "Remove Background (AI Subject Alpha Mask)",
-                DefaultJson(explicitParamsJson, "{\"featherPx\":1,\"output\":\"layer-mask\"}"),
-                doc,
-                $"/work/{stem}.nobg.png",
-                ["Subject Cutout (Alpha Mask · 100%)", "Original Background (Hidden · 0%)"]);
-            return true;
-        }
-
-        if (ContainsAny(raw, "select subject", "select.subject"))
-        {
-            resolved = (
-                "select.subject",
-                "Select Subject (Marching Ants Selection)",
-                DefaultJson(explicitParamsJson, "{\"refineEdge\":true}"),
-                doc,
-                $"/work/{stem}.subject.png",
-                ["Active Selection (Subject Contour)", "Background Layer (Locked · 100%)"]);
-            return true;
-        }
-
-        if (ContainsAny(raw, "select sky", "select.sky"))
-        {
-            resolved = (
-                "select.sky",
-                "Select Sky",
-                DefaultJson(explicitParamsJson, "{}"),
-                doc,
-                $"/work/{stem}.sky.png",
-                ["Sky Selection Mask (Active)", "Foreground Landscape (100%)"]);
-            return true;
-        }
-
-        if (ContainsAny(raw, "desaturate", "grayscale", "black and white", "monochrome", "image.adjustments.desaturate"))
-        {
-            resolved = (
-                "image.adjustments.desaturate",
-                "Desaturate (Monochrome Tonemap)",
-                DefaultJson(explicitParamsJson, "{}"),
-                doc,
-                $"/work/{stem}.mono.png",
-                ["Desaturate Adjustment (Luminance · 100%)", "Base Raster Layer (100%)"]);
-            return true;
-        }
-
         if (ContainsAny(raw, "gradient", "layer.newFillLayer.gradient", "poster", "sunset", "512x512", "new canvas", "create image"))
         {
             resolved = (
@@ -94,28 +84,13 @@ public static class ArtCraftEngineRunner
             return true;
         }
 
-        if (ContainsAny(raw, "flip", "mirror", "image.imageRotation.flipCanvasHorizontal"))
+        foreach (var entry in PhotoCommands)
         {
-            resolved = (
-                "image.imageRotation.flipCanvasHorizontal",
-                "Flip Canvas Horizontal",
-                DefaultJson(explicitParamsJson, "{}"),
-                doc,
-                $"/work/{stem}.flipped.png",
-                ["Flipped Composite Layer (100%)"]);
-            return true;
-        }
-
-        if (ContainsAny(raw, "rotate", "90cw", "image.imageRotation.90cw"))
-        {
-            resolved = (
-                "image.imageRotation.90cw",
-                "Rotate Canvas 90° Clockwise",
-                DefaultJson(explicitParamsJson, "{}"),
-                doc,
-                $"/work/{stem}.rot90.png",
-                ["Rotated Canvas Layer (90° CW · 100%)"]);
-            return true;
+            if (ContainsAny(raw, entry.Terms))
+            {
+                resolved = (entry.CmdId, entry.Title, DefaultJson(explicitParamsJson, entry.DefaultJson), doc, $"/work/{stem}.{entry.Suffix}", entry.Layers);
+                return true;
+            }
         }
 
         var hasImageContext = (extracted is not null && IsImageExtension(extracted))
@@ -161,52 +136,13 @@ public static class ArtCraftEngineRunner
         var raw = instructionOrCommand.Trim();
         var stem = NonEmptyStem(doc, "sequence");
 
-        if (ContainsAny(raw, "lumetri", "color", "grade", "color.lumetri.auto"))
+        foreach (var entry in FilmCommands)
         {
-            resolved = (
-                "color.lumetri.auto",
-                "Lumetri Color Auto Grade (Cinema Teal/Orange)",
-                DefaultJson(explicitParamsJson, "{\"temperature\":8,\"contrast\":14,\"saturation\":108}"),
-                doc,
-                $"/work/{stem}.graded.mp4",
-                ["V2 · Adjustment Layer (Lumetri Cinema Grade)", "V1 · A-Roll Main Camera", "A1 · Dialogue Stem"]);
-            return true;
-        }
-
-        if (ContainsAny(raw, "trim", "ripple", "timeline.rippleTrim"))
-        {
-            resolved = (
-                "timeline.rippleTrim",
-                "Ripple Trim Out-Point (-24 frames)",
-                DefaultJson(explicitParamsJson, "{\"track\":\"V1\",\"deltaFrames\":-24}"),
-                doc,
-                $"/work/{stem}.trimmed.mp4",
-                ["V1 · A-Roll Clip 1 (Ripple Trimmed)", "A1 · Master Stereo Mix"]);
-            return true;
-        }
-
-        if (ContainsAny(raw, "export", "render", "mp4", "sequence.exportMp4"))
-        {
-            resolved = (
-                "sequence.exportMp4",
-                "Export Sequence (H.264 1080p60 MP4)",
-                DefaultJson(explicitParamsJson, "{\"preset\":\"h264-1080p60\",\"bitrateMbps\":18}"),
-                doc,
-                $"/work/{stem}.1080p60.mp4",
-                ["V2 · Lower Third Title Overlay", "V1 · Master Edit Sequence (Rendered 1080p60)", "A1 · Master Stereo Bus"]);
-            return true;
-        }
-
-        if (ContainsAny(raw, "razor", "split", "cut", "timeline", "clip", "playhead", "00:", ShippedApps.FilmCraft, "videocraft", "timeline.razor"))
-        {
-            resolved = (
-                "timeline.razor",
-                "Razor Split Clip at Playhead (00:00:03:12)",
-                DefaultJson(explicitParamsJson, "{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}"),
-                doc,
-                $"/work/{stem}.cut.mp4",
-                ["V1 · Clip 1A (00:00:00:00 -> 00:00:03:12)", "V1 · Clip 1B [Split] (00:00:03:12 -> 00:00:12:00)", "A1 · Synced Dialogue Track"]);
-            return true;
+            if (ContainsAny(raw, entry.Terms))
+            {
+                resolved = (entry.CmdId, entry.Title, DefaultJson(explicitParamsJson, entry.DefaultJson), doc, $"/work/{stem}.{entry.Suffix}", entry.Tracks);
+                return true;
+            }
         }
 
         resolved = ("clarification.required", "Clarification Required", "{}", doc, string.Empty, []);
@@ -240,9 +176,7 @@ public static class ArtCraftEngineRunner
         }
 
         var mode = NormalizeMode(executionMode);
-        var inputDoc = await ResolveStudioInputDocumentAsync(
-            descriptor, instructionOrCommand, currentDocument, vfs, onRecoverableError).ConfigureAwait(false);
-
+        var inputDoc = await ResolveStudioInputDocumentAsync(descriptor, instructionOrCommand, currentDocument, vfs, onRecoverableError).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(instructionOrCommand))
         {
             return CreateClarificationResult(descriptor.Id, mode, inputDoc, $"Specify a {descriptor.Title} command or instruction.");
@@ -277,8 +211,7 @@ public static class ArtCraftEngineRunner
     {
         var descriptor = ArtCraftCatalog.Get(ShippedApps.PhotoCraft);
         var mode = NormalizeMode(executionMode);
-        var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(
-            instructionOrCommand, currentDocument, vfs, isVideo: false, onRecoverableError).ConfigureAwait(false);
+        var resolvedCurrentDoc = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentDocument, vfs, isVideo: false, onRecoverableError).ConfigureAwait(false);
 
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
@@ -315,8 +248,7 @@ public static class ArtCraftEngineRunner
     {
         var descriptor = ArtCraftCatalog.Get(ShippedApps.FilmCraft);
         var mode = NormalizeMode(executionMode);
-        var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(
-            instructionOrCommand, currentSequence, vfs, isVideo: true, onRecoverableError).ConfigureAwait(false);
+        var resolvedCurrentSeq = await ResolveInputDocumentFromVfsAsync(instructionOrCommand, currentSequence, vfs, isVideo: true, onRecoverableError).ConfigureAwait(false);
 
         if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
         {
@@ -332,17 +264,15 @@ public static class ArtCraftEngineRunner
         }
 
         var cliInvocation = $"filmcraft-cli exec {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
-
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
             tracks, "Sequence", isNewGradient: false, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
     }
 
-    private static ArtCraftEngineResult CreateClarificationResult(
-        string appId, string mode, string inputDoc, string summary) => new(
-            appId, mode, "clarification.required", "Clarification Required", "{}",
-            inputDoc, string.Empty, string.Empty, summary, string.Empty, [],
-            IsValidCommand: false, OutputNeuronUri: null);
+    private static ArtCraftEngineResult CreateClarificationResult(string appId, string mode, string inputDoc, string summary) => new(
+        appId, mode, "clarification.required", "Clarification Required", "{}",
+        inputDoc, string.Empty, string.Empty, summary, string.Empty, [],
+        IsValidCommand: false, OutputNeuronUri: null);
 
     private static async Task<ArtCraftEngineResult> RunAndPersistStudioCommandAsync(
         ArtCraftAppDescriptor descriptor,
@@ -411,8 +341,7 @@ public static class ArtCraftEngineRunner
                     : null;
                 if (bytes is { Length: > 0 })
                 {
-                    var written = await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false);
-                    outputNeuronUri = written.NeuronUri;
+                    outputNeuronUri = (await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false)).NeuronUri;
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -587,11 +516,5 @@ public static class ArtCraftEngineRunner
         => string.IsNullOrWhiteSpace(explicitJson) ? fallback : explicitJson!;
 
     private static bool ContainsAny(string text, params string[] terms)
-    {
-        foreach (var term in terms)
-        {
-            if (text.Contains(term, StringComparison.OrdinalIgnoreCase)) { return true; }
-        }
-        return false;
-    }
+        => terms.Any(term => text.Contains(term, StringComparison.OrdinalIgnoreCase));
 }
