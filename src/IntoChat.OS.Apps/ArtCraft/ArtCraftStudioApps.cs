@@ -20,26 +20,16 @@ using UI = DigitalBrain.UI.Ui;
 namespace IntoChat.OS.Apps.ArtCraft;
 
 [DigitalBrain.Signal("artcraft.studio.open")]
-public sealed record ArtCraftStudioAppOpen(
-    string? Document = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record ArtCraftStudioAppOpen(string? Document = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("artcraft.studio.edit")]
-public sealed record ArtCraftStudioAppEdit(
-    string? Prompt = null,
-    string? Document = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record ArtCraftStudioAppEdit(string? Prompt = null, string? Document = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("artcraft.studio.run-command")]
-public sealed record ArtCraftStudioAppRunCommand(
-    string? CommandId = null,
-    string? ParametersJson = null,
-    string? Document = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record ArtCraftStudioAppRunCommand(string? CommandId = null, string? ParametersJson = null, string? Document = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("artcraft.studio.switch-mode")]
-public sealed record ArtCraftStudioAppSwitchMode(
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record ArtCraftStudioAppSwitchMode(string? Mode = null) : DigitalBrain.Signal;
 
 public sealed record ArtCraftStudioAppState(
     string AppId,
@@ -91,9 +81,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
     where TState : class, new()
 {
     public ArtCraftAppDescriptor Descriptor { get; } = ArtCraftCatalog.Get(appId);
-
     public IFilesVfsService? FilesVfs { get; set; }
-
     protected virtual string ActiveDocumentLabel => "Active";
 
     protected async Task<(string Mode, string Document, string? WebUrl, string McpUri, string Status)> ResolveOpenSessionCoreAsync(
@@ -104,12 +92,8 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
         string? currentWebUrl,
         string currentMcpUri)
     {
-        var mode = string.IsNullOrWhiteSpace(requestedMode)
-            ? currentMode
-            : ArtCraftEngineRunner.NormalizeMode(requestedMode);
-        var doc = string.IsNullOrWhiteSpace(requestedDocument)
-            ? currentDocument
-            : requestedDocument.Trim();
+        var mode = NormalizeModeOrCurrent(requestedMode, currentMode);
+        var doc = NormalizeTextOrCurrent(requestedDocument, currentDocument);
         var webUrl = currentWebUrl ?? Descriptor.DefaultWebUrl;
         var mcpUri = currentMcpUri;
 
@@ -119,10 +103,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
             {
                 if (!string.IsNullOrWhiteSpace(requestedDocument))
                 {
-                    if (await FilesVfs.ResolveFileAsync(requestedDocument.Trim()) is { } resolvedExplicit)
-                    {
-                        doc = resolvedExplicit.VfsPath;
-                    }
+                    if (await FilesVfs.ResolveFileAsync(requestedDocument.Trim()) is { } resolvedExplicit) { doc = resolvedExplicit.VfsPath; }
                 }
                 else if (await FilesVfs.ResolveFileAsync(doc) is { } resolvedCurrent)
                 {
@@ -143,7 +124,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
             }
         }
 
-        if (TryGetArtCraftStudio() is { } studio)
+        if (TryGetOptional<IArtCraftStudio>("artcraft", $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests.") is { } studio)
         {
             try
             {
@@ -167,12 +148,9 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
         string mode)
     {
         ArtCraftEngineResult? result = null;
-        if (FilesVfs is null && TryGetArtCraftEngine() is { } engine)
+        if (FilesVfs is null && TryGetOptional<IArtCraftEngine>("apps/artcraft-engine", $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.") is { } engine)
         {
-            try
-            {
-                result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode);
-            }
+            try { result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode); }
             catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
             {
                 Swallow(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
@@ -185,8 +163,8 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
             explicitParamsJson,
             targetDoc,
             mode,
-            TryGetArtCraftStudio(),
-            TryGetMcpServer,
+            TryGetOptional<IArtCraftStudio>("artcraft", $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests."),
+            mcpKey => TryGetOptional<IMcpServer>(mcpKey, $"McpServerNeuron is optional when running {Descriptor.Title} in unit tests."),
             (err, reason) => Swallow(err, reason),
             FilesVfs);
     }
@@ -196,12 +174,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
         new Column(
         [
             new Text($"{status} · {activeDoc} -> {outputDoc}") { Tone = "muted", Tabular = true },
-            UI.WebBrowser(
-                webUrl ?? Descriptor.DefaultWebUrl,
-                $"{Descriptor.Title} WASM Studio",
-                $"{Descriptor.Id}-wasm",
-                0,
-                executionMode),
+            UI.WebBrowser(webUrl ?? Descriptor.DefaultWebUrl, $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", 0, executionMode),
         ])
         {
             Gap = 4,
@@ -215,32 +188,18 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
         _ => $"Native Linux CLI ({Descriptor.CliBinary})",
     };
 
-    private IArtCraftEngine? TryGetArtCraftEngine()
-    {
-        try { return Get<IArtCraftEngine>("apps/artcraft-engine"); }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
-            return null;
-        }
-    }
+    protected static string NormalizeModeOrCurrent(string? requestedMode, string currentMode)
+        => string.IsNullOrWhiteSpace(requestedMode) ? currentMode : ArtCraftEngineRunner.NormalizeMode(requestedMode);
 
-    private IArtCraftStudio? TryGetArtCraftStudio()
-    {
-        try { return Get<IArtCraftStudio>("artcraft"); }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests.");
-            return null;
-        }
-    }
+    protected static string NormalizeTextOrCurrent(string? requested, string fallback)
+        => string.IsNullOrWhiteSpace(requested) ? fallback : requested.Trim();
 
-    private IMcpServer? TryGetMcpServer(string mcpKey)
+    private T? TryGetOptional<T>(string key, string reason) where T : class
     {
-        try { return Get<IMcpServer>(mcpKey); }
+        try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            Swallow(error, $"McpServerNeuron is optional when running {Descriptor.Title} in unit tests.");
+            Swallow(error, reason);
             return null;
         }
     }
@@ -248,10 +207,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
 
 public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStudioAppState>
 {
-    protected ArtCraftStudioAppBase(string appId) : base(appId)
-    {
-        Set(ArtCraftStudioAppState.For(Descriptor.Id));
-    }
+    protected ArtCraftStudioAppBase(string appId) : base(appId) => Set(ArtCraftStudioAppState.For(Descriptor.Id));
 
     protected static AppBundle CreateBundle(string appId, Type appType)
     {
@@ -289,12 +245,7 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
     {
         ArgumentNullException.ThrowIfNull(request);
         var (mode, doc, webUrl, mcpUri, status) = await ResolveOpenSessionCoreAsync(
-            request.Document,
-            request.Mode,
-            State.ExecutionMode,
-            State.ActiveDocument,
-            State.WebUrl,
-            State.McpEndpointUri);
+            request.Document, request.Mode, State.ExecutionMode, State.ActiveDocument, State.WebUrl, State.McpEndpointUri);
         Set(State with
         {
             AppId = Descriptor.Id,
@@ -307,37 +258,25 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
     }
 
     [DigitalBrain.On]
-    public async Task Edit(ArtCraftStudioAppEdit request)
+    public Task Edit(ArtCraftStudioAppEdit request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var prompt = string.IsNullOrWhiteSpace(request.Prompt)
-            ? Descriptor.DefaultCommandId
-            : request.Prompt.Trim();
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var targetDoc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : request.Document.Trim();
-
-        await ApplyExecutionAsync(prompt, explicitParamsJson: null, targetDoc, mode);
+        return ApplyExecutionAsync(
+            NormalizeTextOrCurrent(request.Prompt, Descriptor.DefaultCommandId),
+            explicitParamsJson: null,
+            NormalizeTextOrCurrent(request.Document, State.ActiveDocument),
+            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [DigitalBrain.On]
-    public async Task RunCommand(ArtCraftStudioAppRunCommand request)
+    public Task RunCommand(ArtCraftStudioAppRunCommand request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var cmdId = string.IsNullOrWhiteSpace(request.CommandId)
-            ? Descriptor.DefaultCommandId
-            : request.CommandId.Trim();
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var targetDoc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : request.Document.Trim();
-
-        await ApplyExecutionAsync(cmdId, request.ParametersJson, targetDoc, mode);
+        return ApplyExecutionAsync(
+            NormalizeTextOrCurrent(request.CommandId, Descriptor.DefaultCommandId),
+            request.ParametersJson,
+            NormalizeTextOrCurrent(request.Document, State.ActiveDocument),
+            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [DigitalBrain.On]
@@ -356,37 +295,29 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
 
     public View Render() => RenderStudioView(State.Status, State.ActiveDocument, State.OutputDocument, State.WebUrl, State.ExecutionMode);
 
-    protected async Task ApplyExecutionAsync(
-        string instructionOrCommand,
-        string? explicitParamsJson,
-        string targetDoc,
-        string mode)
+    protected async Task ApplyExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode)
     {
         var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, targetDoc, mode);
-        if (!result.IsValidCommand)
-        {
-            Set(State with
+        Set(!result.IsValidCommand
+            ? State with
             {
                 ExecutionMode = result.ExecutionMode,
                 LastCommandId = result.CommandId,
                 LastCommandTitle = result.CommandTitle,
                 LastCliInvocation = string.Empty,
                 Status = result.Summary,
+            }
+            : State with
+            {
+                ExecutionMode = result.ExecutionMode,
+                ActiveDocument = result.InputDocument,
+                OutputDocument = result.OutputDocument,
+                LastCommandId = result.CommandId,
+                LastCommandTitle = result.CommandTitle,
+                LastCliInvocation = result.CliInvocation,
+                Status = result.Summary,
+                LayersOrTracks = result.LayersOrTracks,
             });
-            return;
-        }
-
-        Set(State with
-        {
-            ExecutionMode = result.ExecutionMode,
-            ActiveDocument = result.InputDocument,
-            OutputDocument = result.OutputDocument,
-            LastCommandId = result.CommandId,
-            LastCommandTitle = result.CommandTitle,
-            LastCliInvocation = result.CliInvocation,
-            Status = result.Summary,
-            LayersOrTracks = result.LayersOrTracks,
-        });
     }
 }
 

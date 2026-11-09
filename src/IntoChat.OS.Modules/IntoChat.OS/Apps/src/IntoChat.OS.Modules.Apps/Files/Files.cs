@@ -90,7 +90,8 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
     public async Task Open(FilesOpened request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var storages = new List<FilesStorage>(); var openRoots = new List<FilesItem>();
+        var storages = new List<FilesStorage>();
+        var openRoots = new List<FilesItem>();
         foreach (var connection in await broker.ResolveAll<IStorage>(brain, ct))
         {
             try
@@ -101,29 +102,23 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
                 openRoots.AddRange(roots.Select(root => new FilesItem(connection.ConnectionKey, root)));
             }
             catch (StorageException error)
-            { storages.Add(new(connection.ConnectionKey, connection.Label, "storage", ItemFlags.None, error.Code)); }
+            {
+                storages.Add(new(connection.ConnectionKey, connection.Label, "storage", ItemFlags.None, error.Code));
+            }
         }
         var empty = storages.Count == 0;
-        Set(Snapshot with
+        Set(ClearSelection(Snapshot) with
         {
             Storages = [.. storages],
             Connection = null,
             Folder = null,
             Items = [.. openRoots],
             Breadcrumbs = [],
-            Selected = null,
-            SelectedNeuronUri = null,
             Pages = [],
             Search = null,
-            Preview = null,
-            PreviewUrl = null,
-            PreviewApp = null,
-            PreviewNote = null,
-            DownloadUrl = null,
             Searching = false,
             Groups = [],
             Loading = false,
-            Message = null,
             StatusTitle = empty ? FilesCopy.NoStorageHeading : null,
             StatusBody = empty ? FilesCopy.NoStorageBody : null,
             StatusSeverity = "info",
@@ -152,24 +147,16 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
                 pages = [new(connection, id, page.NextCursor, page.NextCursor is null)];
             }
             else { items = [.. await storage.Roots(ct)]; }
-            Set(Snapshot with
+            Set(ClearSelection(Snapshot) with
             {
                 Loading = false,
                 Connection = connection,
                 Folder = folder,
-                Items = items.Select(item => new FilesItem(connection, item)).ToArray(),
-                Breadcrumbs = ancestors.Select(item => new FilesItem(connection, item)).ToArray(),
-                Selected = null,
-                SelectedNeuronUri = null,
+                Items = [.. items.Select(item => new FilesItem(connection, item))],
+                Breadcrumbs = [.. ancestors.Select(item => new FilesItem(connection, item))],
                 Pages = pages,
                 Search = null,
-                Preview = null,
-                PreviewUrl = null,
-                PreviewApp = null,
-                PreviewNote = null,
-                DownloadUrl = null,
                 Groups = [],
-                Message = null,
                 StatusTitle = null,
                 StatusBody = null,
             });
@@ -187,16 +174,11 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         var selected = request.Item;
         var item = await (await Storage(selected.Connection, ct)).Stat(selected.Item.Id, ct);
         var chosen = new FilesItem(selected.Connection, item);
-        Set(Snapshot with
+        Set(ClearSelection(Snapshot) with
         {
             Selected = chosen,
             SelectedNeuronUri = NeuronUriOf(chosen),
-            Preview = null,
-            PreviewUrl = null,
-            PreviewApp = null,
-            PreviewNote = null,
             DownloadUrl = item.Kind == ItemKind.File ? ContentUrl(selected.Connection, item.Id) : null,
-            Message = null,
         });
         if (item.Kind == ItemKind.File) { await LoadPreview(ct); }
     }
@@ -216,8 +198,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         var items = found.SelectMany(group => group.Items).ToArray();
         var failed = found.Where(group => group.Failed).Select(group => group.Label).ToArray();
         var responded = found.Where(group => !group.Failed).ToArray();
-        string? title = null;
-        string? body = null;
+        string? title = null, body = null;
         var severity = "info";
         if (failed.Length > 0)
         {
@@ -229,21 +210,15 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         {
             title = FilesCopy.NothingNamed(needle);
         }
-        Set(Snapshot with
+        Set(ClearSelection(Snapshot) with
         {
             Loading = false,
             Searching = true,
             Items = items,
             Groups = found,
-            Pages = found.Select(group => new FilesPage(group.Connection, within, group.Cursor, !group.Bounded || group.Failed)).ToArray(),
+            Pages = [.. found.Select(group => new FilesPage(group.Connection, within, group.Cursor, !group.Bounded || group.Failed))],
             Search = needle,
-            Selected = null,
-            SelectedNeuronUri = null,
-            Preview = null,
-            PreviewUrl = null,
-            PreviewApp = null,
-            PreviewNote = null,
-            Message = null,
+            DownloadUrl = Snapshot.DownloadUrl,
             StatusTitle = title,
             StatusBody = body,
             StatusSeverity = severity,
@@ -296,36 +271,31 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
     public void SortBy(string column)
     {
         var next = column is "size" or "modified" or "name" ? column : "name";
-        var descending = Snapshot.Sort == next && !Snapshot.SortDescending;
-        Set(Snapshot with { Sort = next, SortDescending = descending });
+        Set(Snapshot with { Sort = next, SortDescending = Snapshot.Sort == next && !Snapshot.SortDescending });
     }
 
     public void ShowUnavailable(string connection)
     {
         var storage = Snapshot.Storages.Single(item => item.Connection == connection);
-        Set(Snapshot with
+        Set(ClearSelection(Snapshot) with
         {
             Connection = connection,
             Folder = null,
             Items = [],
             Breadcrumbs = [],
-            Selected = null,
-            SelectedNeuronUri = null,
             Pages = [],
             Searching = false,
             Loading = false,
-            Preview = null,
+            DownloadUrl = Snapshot.DownloadUrl,
             StatusTitle = FilesCopy.UnavailableTitle(storage.Label),
             StatusBody = FilesCopy.UnavailableBody,
             StatusSeverity = "warning",
-            Message = null,
         });
     }
 
     public async Task OpenResult(FilesItem item, CancellationToken ct = default)
     {
-        var backConnection = Snapshot.Connection;
-        var backFolder = Snapshot.Folder;
+        var (backConnection, backFolder) = (Snapshot.Connection, Snapshot.Folder);
         var storage = await Storage(item.Connection, ct);
         var stat = await storage.Stat(item.Item.Id, ct);
         if (stat is { Kind: ItemKind.Link, Target: { } target }) { stat = await storage.Stat(target, ct); }
@@ -347,16 +317,12 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
 
     public async Task BackToFolder(CancellationToken ct = default)
     {
-        if (Snapshot.PreviousConnection is { } connection)
-        {
-            await Browse(new(connection, Snapshot.PreviousFolder), ct);
-        }
+        if (Snapshot.PreviousConnection is { } connection) { await Browse(new(connection, Snapshot.PreviousFolder), ct); }
     }
 
     public void Copy(bool move)
     {
-        var selected = Snapshot.Selected ?? Snapshot.Breadcrumbs.LastOrDefault() ?? Snapshot.Items.FirstOrDefault() ?? throw new InvalidOperationException("Select a file or folder first.");
-        if (Snapshot.Selected is null) { throw new InvalidOperationException("Select a file or folder first."); }
+        var selected = Snapshot.Selected ?? throw new InvalidOperationException("Select a file or folder first.");
         Require(selected.Item.Flags, move ? ItemFlags.Move : ItemFlags.Copy, selected.Item.Id);
         Set(Snapshot with { Clipboard = new(selected, move), Message = $"Choose a destination folder, then {(move ? "Move here" : "Copy here")}." });
     }
@@ -366,12 +332,7 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         var selected = Snapshot.Selected ?? Snapshot.Breadcrumbs.LastOrDefault() ?? Snapshot.Items.FirstOrDefault() ?? throw new InvalidOperationException("Select a file or folder first.");
         var uri = Snapshot.SelectedNeuronUri ?? NeuronUriOf(selected);
         var prompt = $"Explain and summarize {selected.Item.Name} ({uri})";
-        Set(Snapshot with
-        {
-            SelectedNeuronUri = uri,
-            InoHandoffPrompt = prompt,
-            Message = $"Opened Ino with {uri}",
-        });
+        Set(Snapshot with { SelectedNeuronUri = uri, InoHandoffPrompt = prompt, Message = $"Opened Ino with {uri}" });
         return prompt;
     }
 
@@ -411,14 +372,8 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
             var rows = page.Items.Select(item => new FilesItem(connection.ConnectionKey, item)).ToArray();
             return new(connection.ConnectionKey, connection.Label, rows, false, page.NextCursor is not null, page.NextCursor);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return new(connection.ConnectionKey, connection.Label, [], true, false);
-        }
-        catch (StorageException)
-        {
-            return new(connection.ConnectionKey, connection.Label, [], true, false);
-        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return new(connection.ConnectionKey, connection.Label, [], true, false); }
+        catch (StorageException) { return new(connection.ConnectionKey, connection.Label, [], true, false); }
     }
 
     private async Task LoadPreview(CancellationToken ct)
@@ -470,6 +425,18 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         });
     }
 
+    private static FilesState ClearSelection(FilesState s) => s with
+    {
+        Selected = null,
+        SelectedNeuronUri = null,
+        Preview = null,
+        PreviewUrl = null,
+        PreviewApp = null,
+        PreviewNote = null,
+        DownloadUrl = null,
+        Message = null,
+    };
+
     private void Set(FilesState next)
     {
         Snapshot = next;
@@ -481,15 +448,8 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
     public string NeuronUriOf(FilesItem item, IReadOnlyList<Item>? ancestors = null)
     {
         ArgumentNullException.ThrowIfNull(item);
-        var chain = ancestors ?? Snapshot.Breadcrumbs
-            .Where(crumb => crumb.Connection == item.Connection)
-            .Select(crumb => crumb.Item)
-            .ToArray();
-        var segments = chain
-            .Skip(1)
-            .Select(folder => SlugSegment(folder.Name))
-            .Append(SlugSegment(item.Item.Name))
-            .Where(segment => segment.Length > 0);
+        var chain = ancestors ?? Snapshot.Breadcrumbs.Where(crumb => crumb.Connection == item.Connection).Select(crumb => crumb.Item).ToArray();
+        var segments = chain.Skip(1).Select(folder => SlugSegment(folder.Name)).Append(SlugSegment(item.Item.Name)).Where(segment => segment.Length > 0);
         return $"neuron://{brain.Value}/{SlugSegment(item.Connection)}.files/{string.Join("/", segments)}";
     }
 
@@ -510,106 +470,25 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         => (await broker.ResolveAll<IStorage>(brain, ct).ConfigureAwait(false)).SingleOrDefault(item => item.ConnectionKey == connection)?.Capability
             ?? throw new Unavailable(null);
 
-    private static (string Title, string Body, string Severity) Explain(StorageException error, string? label)
-        => error switch
-        {
-            Unavailable when label is not null => (FilesCopy.UnavailableTitle(label), FilesCopy.UnavailableBody, "warning"),
-            Denied => (FilesCopy.DeniedTitle, FilesCopy.DeniedBody, "error"),
-            _ => (FilesCopy.ListFailed, FilesCopy.NothingChanged, "error"),
-        };
-
-    internal static bool IsImage(string name)
+    private static (string Title, string Body, string Severity) Explain(StorageException error, string? label) => error switch
     {
-        var extension = Path.GetExtension(name);
-        return extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".webp", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".svg", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".ico", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".avif", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".tiff", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".tif", StringComparison.OrdinalIgnoreCase);
-    }
+        Unavailable when label is not null => (FilesCopy.UnavailableTitle(label), FilesCopy.UnavailableBody, "warning"),
+        Denied => (FilesCopy.DeniedTitle, FilesCopy.DeniedBody, "error"),
+        _ => (FilesCopy.ListFailed, FilesCopy.NothingChanged, "error"),
+    };
 
-    internal static bool IsAudio(string name)
-    {
-        var extension = Path.GetExtension(name);
-        return extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".wav", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".ogg", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".flac", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".aac", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".wma", StringComparison.OrdinalIgnoreCase);
-    }
+    internal static bool IsImage(string name) => HasExtension(name, ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".avif", ".tiff", ".tif");
+    internal static bool IsAudio(string name) => HasExtension(name, ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma");
+    internal static bool IsVideo(string name) => HasExtension(name, ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v");
+    internal static bool IsPdf(string name) => HasExtension(name, ".pdf");
+    internal static bool IsMarkdown(string name) => HasExtension(name, ".md", ".markdown");
+    internal static bool IsCode(string name) => HasExtension(name, ".cs", ".dart", ".ts", ".js", ".py", ".json", ".yaml", ".yml", ".xml", ".html", ".htm", ".css", ".scss", ".sql", ".sh", ".ps1", ".bat", ".rs", ".go", ".java", ".cpp", ".c", ".h");
+    internal static bool IsText(string name) => IsMarkdown(name) || IsCode(name) || HasExtension(name, ".txt", ".csv", ".tsv", ".log", ".env", ".ini", ".conf");
 
-    internal static bool IsVideo(string name)
+    private static bool HasExtension(string name, params string[] extensions)
     {
-        var extension = Path.GetExtension(name);
-        return extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".webm", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".mkv", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".avi", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".m4v", StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static bool IsPdf(string name)
-    {
-        var extension = Path.GetExtension(name);
-        return extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static bool IsMarkdown(string name)
-    {
-        var extension = Path.GetExtension(name);
-        return extension.Equals(".md", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".markdown", StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static bool IsCode(string name)
-    {
-        var extension = Path.GetExtension(name);
-        return extension.Equals(".cs", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".dart", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".js", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".py", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".yml", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".xml", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".css", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".scss", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".sql", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".sh", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".ps1", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".rs", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".go", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".java", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".cpp", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".c", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".h", StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static bool IsText(string name)
-    {
-        var extension = Path.GetExtension(name);
-        return extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
-            || IsMarkdown(name)
-            || IsCode(name)
-            || extension.Equals(".csv", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".tsv", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".log", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".env", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".ini", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".conf", StringComparison.OrdinalIgnoreCase);
+        var ext = Path.GetExtension(name);
+        return extensions.Any(candidate => ext.Equals(candidate, StringComparison.OrdinalIgnoreCase));
     }
 
     private const long TenMegabytes = 10L * 1024 * 1024;

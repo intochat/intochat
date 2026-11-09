@@ -201,6 +201,7 @@ public sealed class SynapseStudioFacts
         Assert.True(deployed.Ok, deployed.Text);
         Assert.Contains("ino.two-file", Assert.Single(await Studio(runtime).List()).Aliases);
     }
+
     [Fact]
     public async Task DeployThenListShowsTheUnit()
     {
@@ -226,5 +227,67 @@ public sealed class SynapseStudioFacts
 
         var after = Assert.Single(await Studio(runtime).List());
         Assert.Equal((before.SourceKey, before.Hash), (after.SourceKey, after.Hash));
+    }
+
+    [Fact]
+    public async Task DeployedUnitsSettingsAndAppSnapshotsSurviveSiloRestartWithoutDataLoss()
+    {
+        await using var fixture = new StudioFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+
+        // 1. Deploy a multi-file unit ("two-file") and a scheduled tick unit ("tick-poller")
+        var signals = """
+            namespace Ino.Units.Signals;
+
+            [Signal("ino.two-file.polled")]
+            public sealed record Polled(DateTimeOffset At) : Signal;
+            """;
+        var poller = """
+            using DigitalBrain.Time;
+            using Ino.Units.Signals;
+
+            namespace Ino.Units;
+
+            [State("ino.two-file")]
+            public sealed record PollerState(int Polls = 0)
+            {
+                public PollerState() : this(0) { }
+            }
+
+            public static class TwoFilePoller
+            {
+                [Synapse(typeof(Tick), "ino.two-file", Every = "every 5m")]
+                public static Reaction<PollerState> Poll(Tick tick, PollerState state) =>
+                    Reaction<PollerState>.Of(state with { Polls = state.Polls + 1 }, new Polled(tick.At));
+            }
+            """;
+        var twoFileDeploy = await Studio(runtime).DeployFiles("two-file", new Dictionary<string, string> { ["signals.cs"] = signals, ["poller.cs"] = poller }, new Dictionary<string, string>());
+        Assert.True(twoFileDeploy.Ok, twoFileDeploy.Text);
+        var tickDeploy = await Studio(runtime).Deploy(Alias, TickPoller);
+        Assert.True(tickDeploy.Ok, tickDeploy.Text);
+
+        // 2. Persist conversation registry state in InoConversationsNeuron
+        var conversations = runtime.Get<IInoConversations>(runtime.Id("ino.conversations", IInoConversations.DefaultKey));
+        await conversations.Use("ino/conversations/c-resilience-1");
+
+        // 3. Create and configure an app snapshot on the silo
+        var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/resilience-probe"));
+        await app.Create(new AppManifest("Resilience Probe", "Verifies state across restart", [], [], [], Headless: true), "probe-spec");
+
+        // 4. Simulate host/silo restart
+        await runtime.Restart(Ct);
+
+        // 5. Verify all deployed units, conversation registry, and app state recovered deterministically without data loss
+        var deployedAfter = await Studio(runtime).List();
+        Assert.Equal(2, deployedAfter.Length);
+        Assert.Contains(deployedAfter, u => u.SourceKey == "two-file" && u.Status == DeployStatus.Deployed);
+        Assert.Contains(deployedAfter, u => u.SourceKey == Alias && u.Status == DeployStatus.Deployed);
+
+        var currentAgents = await runtime.Get<IInoConversations>(runtime.Id("ino.conversations", IInoConversations.DefaultKey)).Current();
+        Assert.Equal(["ino/conversations/c-resilience-1"], currentAgents);
+
+        var appAfter = await runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/resilience-probe")).Read();
+        Assert.Equal("Resilience Probe", appAfter.Manifest.Title);
+        Assert.Equal("probe-spec", appAfter.Spec);
     }
 }

@@ -17,32 +17,19 @@ using IntoChat.OS.Modules.Apps;
 namespace IntoChat.OS.Apps.FilmCraft;
 
 [DigitalBrain.Signal("filmcraft.open")]
-public sealed record FilmCraftStudioOpen(
-    string? Sequence = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record FilmCraftStudioOpen(string? Sequence = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("filmcraft.edit")]
-public sealed record FilmCraftStudioEdit(
-    string? Prompt = null,
-    string? Sequence = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record FilmCraftStudioEdit(string? Prompt = null, string? Sequence = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("filmcraft.run-command")]
-public sealed record FilmCraftRunCommand(
-    string? CommandId = null,
-    string? ParametersJson = null,
-    string? Sequence = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record FilmCraftRunCommand(string? CommandId = null, string? ParametersJson = null, string? Sequence = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("filmcraft.export")]
-public sealed record FilmCraftExport(
-    string? Preset = null,
-    string? Sequence = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record FilmCraftExport(string? Preset = null, string? Sequence = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("filmcraft.switch-mode")]
-public sealed record FilmCraftSwitchMode(
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record FilmCraftSwitchMode(string? Mode = null) : DigitalBrain.Signal;
 
 public sealed record FilmCraftAppState(
     string ExecutionMode,
@@ -116,68 +103,41 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
     {
         ArgumentNullException.ThrowIfNull(request);
         var (mode, seq, webUrl, mcpUri, status) = await ResolveOpenSessionCoreAsync(
-            request.Sequence,
-            request.Mode,
-            State.ExecutionMode,
-            State.ActiveSequence,
-            State.WebUrl,
-            State.McpEndpointUri);
-        Set(State with
-        {
-            ExecutionMode = mode,
-            ActiveSequence = seq,
-            WebUrl = webUrl,
-            McpEndpointUri = mcpUri,
-            Status = status,
-        });
+            request.Sequence, request.Mode, State.ExecutionMode, State.ActiveSequence, State.WebUrl, State.McpEndpointUri);
+        Set(State with { ExecutionMode = mode, ActiveSequence = seq, WebUrl = webUrl, McpEndpointUri = mcpUri, Status = status });
     }
 
     [DigitalBrain.On]
-    public async Task Edit(FilmCraftStudioEdit request)
+    public Task Edit(FilmCraftStudioEdit request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var prompt = string.IsNullOrWhiteSpace(request.Prompt)
-            ? "razor split timeline at 00:00:03:12"
-            : request.Prompt.Trim();
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var seq = string.IsNullOrWhiteSpace(request.Sequence)
-            ? State.ActiveSequence
-            : request.Sequence.Trim();
-
-        await ApplyTimelineExecutionAsync(prompt, explicitParamsJson: null, seq, mode);
+        return ApplyTimelineExecutionAsync(
+            NormalizeTextOrCurrent(request.Prompt, "razor split timeline at 00:00:03:12"),
+            explicitParamsJson: null,
+            NormalizeTextOrCurrent(request.Sequence, State.ActiveSequence),
+            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [DigitalBrain.On]
-    public async Task RunCommand(FilmCraftRunCommand request)
+    public Task RunCommand(FilmCraftRunCommand request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var cmdId = string.IsNullOrWhiteSpace(request.CommandId)
-            ? "timeline.razor"
-            : request.CommandId.Trim();
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var seq = string.IsNullOrWhiteSpace(request.Sequence)
-            ? State.ActiveSequence
-            : request.Sequence.Trim();
-
-        await ApplyTimelineExecutionAsync(cmdId, request.ParametersJson, seq, mode);
+        return ApplyTimelineExecutionAsync(
+            NormalizeTextOrCurrent(request.CommandId, "timeline.razor"),
+            request.ParametersJson,
+            NormalizeTextOrCurrent(request.Sequence, State.ActiveSequence),
+            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [DigitalBrain.On]
-    public async Task Export(FilmCraftExport request)
+    public Task Export(FilmCraftExport request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var seq = string.IsNullOrWhiteSpace(request.Sequence)
-            ? State.ActiveSequence
-            : request.Sequence.Trim();
-
-        await ApplyTimelineExecutionAsync("sequence.exportMp4", explicitParamsJson: null, seq, mode);
+        return ApplyTimelineExecutionAsync(
+            "sequence.exportMp4",
+            explicitParamsJson: null,
+            NormalizeTextOrCurrent(request.Sequence, State.ActiveSequence),
+            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [DigitalBrain.On]
@@ -185,11 +145,7 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
     {
         ArgumentNullException.ThrowIfNull(request);
         var nextMode = ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        Set(State with
-        {
-            ExecutionMode = nextMode,
-            Status = $"Switched FilmCraft execution backend to {FormatModeLabel(nextMode)}",
-        });
+        Set(State with { ExecutionMode = nextMode, Status = $"Switched FilmCraft execution backend to {FormatModeLabel(nextMode)}" });
     }
 
     public View? RenderSide() => null;
@@ -214,36 +170,28 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
         }
     }
 
-    private async Task ApplyTimelineExecutionAsync(
-        string instructionOrCommand,
-        string? explicitParamsJson,
-        string sequence,
-        string mode)
+    private async Task ApplyTimelineExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string sequence, string mode)
     {
         var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, sequence, mode);
-        if (!result.IsValidCommand)
-        {
-            Set(State with
+        Set(!result.IsValidCommand
+            ? State with
             {
                 ExecutionMode = result.ExecutionMode,
                 LastCommandId = result.CommandId,
                 LastCommandTitle = result.CommandTitle,
                 LastCliInvocation = string.Empty,
                 Status = result.Summary,
+            }
+            : State with
+            {
+                ExecutionMode = result.ExecutionMode,
+                ActiveSequence = result.InputDocument,
+                OutputFile = result.OutputDocument,
+                LastCommandId = result.CommandId,
+                LastCommandTitle = result.CommandTitle,
+                LastCliInvocation = result.CliInvocation,
+                Status = result.Summary,
+                Tracks = result.LayersOrTracks,
             });
-            return;
-        }
-
-        Set(State with
-        {
-            ExecutionMode = result.ExecutionMode,
-            ActiveSequence = result.InputDocument,
-            OutputFile = result.OutputDocument,
-            LastCommandId = result.CommandId,
-            LastCommandTitle = result.CommandTitle,
-            LastCliInvocation = result.CliInvocation,
-            Status = result.Summary,
-            Tracks = result.LayersOrTracks,
-        });
     }
 }

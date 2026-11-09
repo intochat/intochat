@@ -65,17 +65,16 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     private const string NewTitle = "New chat";
     private const string MigrationNote = "Earlier conversation is in the archive.";
     private const string MigrationId = "migration";
+    private const string SmartVariable = "ino.smart";
+    private const string ApprovalsKey = "approvals/index";
+    private const string DataKey = "ino/data";
+    private const int SeenKept = 256;
 
     // Render cannot await: the last transcript the agent answered, refreshed after each turn.
     private AiMessage[] _transcript = [];
-
     // Read from the settings and the approval inbox on open and on change; Render shows the last read.
     private bool _smart;
     private Approval[] _approvals = [];
-
-    private const string SmartVariable = "ino.smart";
-    private const string ApprovalsKey = "approvals/index";
-    private const int SeenKept = 256;
 
     public IFilesVfsService? FilesVfs { get; set; }
 
@@ -130,19 +129,20 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             : $"Ready ({settings.DefaultModel})";
         // Turns from before the agent existed stay in the archive; the agent gets one note, once.
         var migrate = State.Turns.Length > 0 && string.IsNullOrEmpty(State.AgentKey);
-        Set(State with { Status = status, AgentKey = migrate ? State.AgentKey : AgentKeyOf(State.ConversationId) });
+        var agentKey = AgentKeyOf(State.ConversationId);
+        Set(State with { Status = status, AgentKey = migrate ? State.AgentKey : agentKey });
         try
         {
             await EnsureProfileContextAsync();
-            var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
+            var agent = Get<IAgent>(agentKey);
             if (migrate)
             {
                 // The key is set only once the note is in, so a failed Post is retried on the next open.
                 await agent.Post(MigrationNote, MigrationId);
-                Set(State with { AgentKey = AgentKeyOf(State.ConversationId) });
+                Set(State with { AgentKey = agentKey });
             }
             await EnsureConfiguredAsync(agent, settings);
-            await FollowAsync(AgentKeyOf(State.ConversationId));
+            await FollowAsync(agentKey);
             var read = await agent.Read();
             _transcript = await agent.Transcript();
             Set(State with { Blocked = read.Blocked, BlockedReason = read.Blocked ? State.BlockedReason ?? "An interrupt holds the agent." : null });
@@ -171,10 +171,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
 #pragma warning disable CS0618 // the AppId every agent tool call runs under (see ContractActions.Marked)
             var assistant = DigitalBrain.Capabilities.CapabilityCallers.AssistantApp;
 #pragma warning restore CS0618
-            Set(State with
-            {
-                GrantSummaries = [.. grants.Where(g => g.AppId == assistant && !g.Revoked).Select(g => $"{g.Scope} · {g.Target}")],
-            });
+            Set(State with { GrantSummaries = [.. grants.Where(g => g.AppId == assistant && !g.Revoked).Select(g => $"{g.Scope} · {g.Target}")] });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -187,7 +184,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     public async Task Link(InoPasteLink request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        // An empty or malformed link posts nothing.
         if (request.Request == Guid.Empty || !ChatAppCard.IsAppName(request.App)) { return; }
         var input = request.Input ?? "";
         if (input.Length > ChatAppCard.MaxInput) { throw new ArgumentException("The link input is too long."); }
@@ -195,7 +191,9 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         var records = Get<IInoRecords>(IInoRecords.Key);
         var kept = await records.Read();
         if (!kept.Links.Any(link => link.Request == id))
-        { await records.Write(kept with { Links = [.. kept.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] }); }
+        {
+            await records.Write(kept with { Links = [.. kept.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] });
+        }
         await Get<IAgent>(AgentKeyOf(State.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
     }
 
@@ -210,7 +208,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             await HandleSlashCommandAsync(text, settings);
             return;
         }
-
         if (await IsComputeBudgetExceededAsync())
         {
             Set(State with
@@ -234,7 +231,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             var agent = Get<IAgent>(agentKey);
             await EnsureConfiguredAsync(agent, settings);
             await FollowAsync(agentKey);
-            // The run goes on in the agent; its signals reach the [On] handlers below through the set watch.
             var runId = await agent.Start(AgentTurn.Text(text, model: string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim()));
             Set(State with { ActiveRunId = runId, Blocked = false, BlockedReason = null, Status = "Thinking" });
             await ReconcileAsync(agent, runId);
@@ -257,14 +253,9 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The profile context is optional; the agent answers without it."); }
     }
 
-    // The agent's own record settles what a missed signal would have: a run Ino holds that has ended (a fast reply, a signal published
-    // before the watch moved, or one lost while the host was down) is closed, and a run the agent has that Ino lost is adopted.
     private async Task<bool> IsComputeBudgetExceededAsync()
     {
-        try
-        {
-            return (await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Read()).BudgetExceeded;
-        }
+        try { return (await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Read()).BudgetExceeded; }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Compute metering is optional when Ino runs without the Flutter compute neuron.");
@@ -272,6 +263,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         }
     }
 
+    // The agent's own record settles what a missed signal would have: a run Ino holds that has ended is closed, and a run the agent has that Ino lost is adopted.
     private async Task ReconcileAsync(IAgent agent, string? runId)
     {
         var read = await agent.Read();
@@ -283,7 +275,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         if (read.ActiveRun?.RunId == runId) { return; }
         if (read.Runs.FirstOrDefault(run => run.RunId == runId) is not { } ended)
         {
-            // Not active and not recorded (the agent was cleared): nothing is running.
             Set(State with { ActiveRunId = null, Status = State.Status == "Thinking" || State.Status.StartsWith("Using ", StringComparison.Ordinal) ? "Ready" : State.Status });
             return;
         }
@@ -330,17 +321,15 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     {
         ArgumentNullException.ThrowIfNull(progressed);
         var seen = $"{progressed.RunId}:{progressed.Sequence}";
-        // Progress is delivered at least once: a step already applied is skipped.
         if (!IsCurrent(progressed.AgentId) || (State.SeenProgress ?? []).Contains(seen, StringComparer.Ordinal)) { return Task.CompletedTask; }
         var state = State with { SeenProgress = [.. (State.SeenProgress ?? []).Append(seen).TakeLast(SeenKept)] };
-        state = progressed.Kind switch
+        Set(progressed.Kind switch
         {
             "tool-call" => state with { Status = $"Using {progressed.Tool}" },
             "tool-result" when progressed.Payload is { Length: > 0 } payload
                 => state with { Cards = [.. state.ActiveCards, .. InoCards.FromToolCalls([new AgentToolCall(seen, progressed.Tool ?? "", "", payload)])] },
             _ => state,
-        };
-        Set(state);
+        });
         return Task.CompletedTask;
     }
 
@@ -350,15 +339,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         if (!IsCurrent(completed.AgentId)) { return; }
         try { _transcript = await Get<IAgent>(completed.AgentId).Transcript(); }
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The reply stays in the agent; the next open reloads it."); }
-        try
-        {
-            var estimatedMicros = Math.Max(1_000L, (completed.Reply?.Length ?? 0) * 25L);
-            await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Record("ino", estimatedMicros);
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "Compute metering is optional when Ino runs without the Flutter compute neuron.");
-        }
+        try { await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Record("ino", Math.Max(1_000L, (completed.Reply?.Length ?? 0) * 25L)); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Compute metering is optional when Ino runs without the Flutter compute neuron."); }
         await RefreshApprovalsAsync();
         Set(State with { Status = "Ready", ActiveRunId = null });
     }
@@ -393,7 +375,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
         if (State.ActiveRunId is null) { await ReconcileAsync(agent, null); }
         if (State.ActiveRunId is null) { return; }
-        // Stopping first: the agent's TurnFailed (cancelled), which may arrive during Cancel, has the last word and clears the run.
         Set(State with { Status = "Stopping" });
         await agent.Cancel();
     }
@@ -402,8 +383,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     public async Task Smart(InoSmart request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var settings = await Get<IUserSettings>("settings").SetVariable(SmartVariable, request.On ? "on" : "off");
-        _smart = IsSmart(settings);
+        _smart = IsSmart(await Get<IUserSettings>("settings").SetVariable(SmartVariable, request.On ? "on" : "off"));
     }
 
     private static bool IsSmart(UserSettingsState settings)
@@ -424,7 +404,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         {
             try { await agent.Configure(definition, 0); }
             catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
-            // The tone observer follows this conversation's agent; an app cannot subscribe to it directly.
             try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Follow(AgentKeyOf(State.ConversationId)); }
             catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The tone is a refinement; the agent answers without it."); }
             return;
@@ -441,8 +420,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
 
     private void Pause(string message)
         => Set(State with { Blocked = true, BlockedReason = message[BlockedPrefix.Length..], Status = "Paused" });
-
-    private const string DataKey = "ino/data";
 
     private static string AgentKeyOf(string conversationId) => $"ino/conversations/{conversationId}";
 
@@ -518,21 +495,17 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     public async Task QueryDb(InoQueryDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        // Reads through this app's own files service, so a host-injected workspace stays the one source of datasets.
         var sql = string.IsNullOrWhiteSpace(request.Sql) ? InoDataCards.DefaultSql : request.Sql.Trim();
         var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? InoDataCards.DefaultDatabase : State.ConnectedDatabase;
         DataQueryResult result;
-        try
-        {
-            result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs);
-        }
+        try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The query failed; the status line reports why.");
             Set(State with { Status = $"Could not run the query: {error.Message}" });
             return;
         }
-        if (TryGetMemory() is { } memory)
+        if (TryGetOptional<IMemory>("memory") is { } memory)
         {
             await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6);
         }
@@ -568,7 +541,6 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             AgentKey = AgentKeyOf(conversationId),
             GrantSummaries = State.GrantSummaries,
         });
-        // The watch moves now, so the new conversation's first signals are not raced by the next Send.
         await FollowAsync(AgentKeyOf(conversationId));
     }
 
@@ -585,35 +557,23 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         ArgumentNullException.ThrowIfNull(request);
         var sentence = string.IsNullOrWhiteSpace(request.Sentence) ? "Update focused app" : request.Sentence.Trim();
         var target = request.Focus is { Length: > 0 } ? request.Focus[0] : "scratch";
-        if (TryGetStudio() is { } studio)
+        if (TryGetOptional<IAppStudio>("main") is { } studio)
         {
-            try
-            {
-                var built = await studio.Build(sentence);
-                target = built.Name;
-            }
+            try { target = (await studio.Build(sentence)).Name; }
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 Swallow(error, "AppStudio build requires a live model and sandbox; falling back to local capture.");
             }
         }
-        if (TryGetMemory() is { } memory)
+        if (TryGetOptional<IMemory>("memory") is { } memory)
         {
             await memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6);
         }
         var cardId = $"app-{target}";
-        var card = new InoCard(
-            cardId,
-            "applet",
-            $"Live App: {target}",
-            sentence,
-            $"neuron://local/apps/{target}",
-            "running",
-            $"neuron://local/apps/ino#{cardId}");
         Set(State with
         {
             Status = $"Applied '{sentence}' to {target}",
-            Cards = [.. State.ActiveCards, card],
+            Cards = [.. State.ActiveCards, new InoCard(cardId, "applet", $"Live App: {target}", sentence, $"neuron://local/apps/{target}", "running", $"neuron://local/apps/ino#{cardId}")],
         });
     }
 
@@ -647,28 +607,12 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         }
     }
 
-    private IMemory? TryGetMemory()
+    private T? TryGetOptional<T>(string key) where T : class
     {
-        try
-        {
-            return Get<IMemory>("memory");
-        }
+        try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            Swallow(error, "MemoryNeuron is optional when running without AIModule registered.");
-            return null;
-        }
-    }
-
-    private IAppStudio? TryGetStudio()
-    {
-        try
-        {
-            return Get<IAppStudio>("main");
-        }
-        catch (InvalidOperationException error)
-        {
-            Swallow(error, "AppStudioNeuron is optional when running in unit tests without Creator registered.");
+            Swallow(error, $"{typeof(T).Name} is optional when running in isolated unit tests.");
             return null;
         }
     }

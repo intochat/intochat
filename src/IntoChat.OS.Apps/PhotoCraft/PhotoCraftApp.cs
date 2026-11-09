@@ -16,31 +16,19 @@ using IntoChat.OS.Modules.Apps;
 namespace IntoChat.OS.Apps.PhotoCraft;
 
 [DigitalBrain.Signal("photocraft.open")]
-public sealed record PhotoCraftStudioOpen(
-    string? Document = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record PhotoCraftStudioOpen(string? Document = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("photocraft.edit")]
-public sealed record PhotoCraftStudioEdit(
-    string? Prompt = null,
-    string? Document = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record PhotoCraftStudioEdit(string? Prompt = null, string? Document = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("photocraft.remove-background")]
-public sealed record PhotoCraftRemoveBackground(
-    string? Document = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record PhotoCraftRemoveBackground(string? Document = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("photocraft.run-command")]
-public sealed record PhotoCraftRunCommand(
-    string? CommandId = null,
-    string? ParametersJson = null,
-    string? Document = null,
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record PhotoCraftRunCommand(string? CommandId = null, string? ParametersJson = null, string? Document = null, string? Mode = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("photocraft.switch-mode")]
-public sealed record PhotoCraftSwitchMode(
-    string? Mode = null) : DigitalBrain.Signal;
+public sealed record PhotoCraftSwitchMode(string? Mode = null) : DigitalBrain.Signal;
 
 public sealed record PhotoCraftHistoryEntry(
     string Id,
@@ -123,68 +111,42 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     {
         ArgumentNullException.ThrowIfNull(request);
         var (mode, doc, webUrl, mcpUri, status) = await ResolveOpenSessionCoreAsync(
-            request.Document,
-            request.Mode,
-            State.ExecutionMode,
-            State.ActiveDocument,
-            State.WebUrl,
-            State.McpEndpointUri);
-        Set(State with
-        {
-            ExecutionMode = mode,
-            ActiveDocument = doc,
-            WebUrl = webUrl,
-            McpEndpointUri = mcpUri,
-            Status = status,
-        });
+            request.Document, request.Mode, State.ExecutionMode, State.ActiveDocument, State.WebUrl, State.McpEndpointUri);
+        Set(State with { ExecutionMode = mode, ActiveDocument = doc, WebUrl = webUrl, McpEndpointUri = mcpUri, Status = status });
     }
 
     [DigitalBrain.On]
-    public async Task Edit(PhotoCraftStudioEdit request)
+    public Task Edit(PhotoCraftStudioEdit request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var prompt = string.IsNullOrWhiteSpace(request.Prompt)
-            ? "remove background from portrait.png"
-            : request.Prompt.Trim();
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var targetDoc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : request.Document.Trim();
-
-        await ApplyEngineExecutionAsync(prompt, explicitParamsJson: null, targetDoc, mode);
+        return ApplyEngineExecutionAsync(
+            NormalizeTextOrCurrent(request.Prompt, "remove background from portrait.png"),
+            explicitParamsJson: null,
+            NormalizeTextOrCurrent(request.Document, State.ActiveDocument),
+            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [DigitalBrain.On]
-    public async Task RemoveBackground(PhotoCraftRemoveBackground request)
+    public Task RemoveBackground(PhotoCraftRemoveBackground request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var targetDoc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : request.Document.Trim();
-
-        await ApplyEngineExecutionAsync($"remove background from {targetDoc}", explicitParamsJson: null, targetDoc, mode);
+        var targetDoc = NormalizeTextOrCurrent(request.Document, State.ActiveDocument);
+        return ApplyEngineExecutionAsync(
+            $"remove background from {targetDoc}",
+            explicitParamsJson: null,
+            targetDoc,
+            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [DigitalBrain.On]
-    public async Task RunCommand(PhotoCraftRunCommand request)
+    public Task RunCommand(PhotoCraftRunCommand request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var cmdId = string.IsNullOrWhiteSpace(request.CommandId)
-            ? "layer.removeBackground"
-            : request.CommandId.Trim();
-        var mode = string.IsNullOrWhiteSpace(request.Mode)
-            ? State.ExecutionMode
-            : ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        var targetDoc = string.IsNullOrWhiteSpace(request.Document)
-            ? State.ActiveDocument
-            : request.Document.Trim();
-
-        await ApplyEngineExecutionAsync(cmdId, request.ParametersJson, targetDoc, mode);
+        return ApplyEngineExecutionAsync(
+            NormalizeTextOrCurrent(request.CommandId, "layer.removeBackground"),
+            request.ParametersJson,
+            NormalizeTextOrCurrent(request.Document, State.ActiveDocument),
+            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [DigitalBrain.On]
@@ -192,11 +154,7 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     {
         ArgumentNullException.ThrowIfNull(request);
         var nextMode = ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        Set(State with
-        {
-            ExecutionMode = nextMode,
-            Status = $"Switched PhotoCraft execution backend to {FormatModeLabel(nextMode)}",
-        });
+        Set(State with { ExecutionMode = nextMode, Status = $"Switched PhotoCraft execution backend to {FormatModeLabel(nextMode)}" });
     }
 
     public View? RenderSide() => null;
@@ -208,9 +166,7 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     {
         await Open(new PhotoCraftStudioOpen("/work/product-shoe.png", "native-linux"));
         await RemoveBackground(new PhotoCraftRemoveBackground("/work/product-shoe.png", "native-linux"));
-        if (State.LastCommandId != "layer.removeBackground"
-            || State.ExecutionMode != "native-linux"
-            || !State.OutputDocument.EndsWith(".nobg.png", StringComparison.Ordinal))
+        if (State.LastCommandId != "layer.removeBackground" || State.ExecutionMode != "native-linux" || !State.OutputDocument.EndsWith(".nobg.png", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Expected PhotoCraftApp to run layer.removeBackground in native-linux mode.");
         }
@@ -223,11 +179,7 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
         }
     }
 
-    private async Task ApplyEngineExecutionAsync(
-        string instructionOrCommand,
-        string? explicitParamsJson,
-        string targetDoc,
-        string mode)
+    private async Task ApplyEngineExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode)
     {
         var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, targetDoc, mode);
         if (!result.IsValidCommand)
