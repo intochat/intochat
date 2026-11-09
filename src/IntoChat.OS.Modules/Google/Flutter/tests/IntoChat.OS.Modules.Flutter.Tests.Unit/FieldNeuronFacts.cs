@@ -212,6 +212,7 @@ public sealed class FieldNeuronFacts
     [Theory]
     [InlineData("person", true)]
     [InlineData("platform", true)]
+    [InlineData("platform-of-another-brain", false)]
     [InlineData("owning-app", false)]
     [InlineData("other-app", false)]
     [InlineData("scheduler", false)]
@@ -225,6 +226,7 @@ public sealed class FieldNeuronFacts
         {
             "person" => new("p1", "a1", "owner"),
             "platform" => CapabilityCallers.Platform("p1", "a1", "owner"),
+            "platform-of-another-brain" => CapabilityCallers.Platform("p1", "a1", "elsewhere"),
             "owning-app" => new("p1", "a1", "owner", AppId: "owner/apps/tasks"),
             "other-app" => new("p1", "a1", "owner", AppId: "owner/apps/files"),
             "scheduler" => new("p1", "a1", "owner", AppId: CapabilityCallers.SchedulerApp),

@@ -32,8 +32,8 @@ public sealed class InoRecordsNeuron : DigitalBrain.Neuron<InoRecords>, IInoReco
     }
 }
 
-// Only the owning app ({brain}/apps/{app}/…) or its brain's person writes; every other caller kind, another brain and a call with no
-// stamped caller are refused.
+// Only the owning app ({brain}/apps/{app}/…), its brain's person or its brain's platform writes; every other caller kind, another
+// brain and a call with no stamped caller are refused.
 internal static class AppRecordsOwner
 {
     public static void Require(string key)
@@ -42,7 +42,7 @@ internal static class AppRecordsOwner
         if (!DigitalBrain.Brains.BrainKey.BelongsTo(key, caller.BrainId)) { throw Refused(); }
         var allowed = caller.Kind switch
         {
-            DigitalBrain.Capabilities.CallerKind.User => true,
+            DigitalBrain.Capabilities.CallerKind.User or DigitalBrain.Capabilities.CallerKind.Platform => true,
             DigitalBrain.Capabilities.CallerKind.App => !string.IsNullOrEmpty(caller.AppId) && key.StartsWith(caller.AppId + "/", System.StringComparison.Ordinal),
             _ => false,
         };

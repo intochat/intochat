@@ -114,6 +114,36 @@ public sealed class ViewNeuronFacts
 
     // The store keeps state as JSON through the runtime codec (JournalPayloads.DecodeState; TestOS's journal the same): the
     // Orleans alias is not part of the stored record, so a record of the old shape (UiView under "view") decodes as no view.
+    // The writer is the brain's person, its platform or the owning app; the platform of another brain and a call nobody stamped are refused.
+    [Theory]
+    [InlineData("person", true)]
+    [InlineData("platform", true)]
+    [InlineData("owning-app", true)]
+    [InlineData("platform-of-another-brain", false)]
+    [InlineData("other-brain", false)]
+    [InlineData("none", false)]
+    public async Task PublishByCallerKind(string kind, bool allowed)
+    {
+        await using var os = Started();
+        DigitalBrain.Capabilities.CapabilityCaller? caller = kind switch
+        {
+            "person" => new("p1", "a1", "owner"),
+            "platform" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "owner"),
+            "owning-app" => new("p1", "a1", "owner", AppId: "owner/apps/tasks"),
+            "platform-of-another-brain" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "elsewhere"),
+            "other-brain" => new("p1", "a1", "elsewhere"),
+            _ => null,
+        };
+        Task Publish() => os.Get<IView>(Tasks).Publish(1, Sample);
+        using (caller is null ? null : DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(caller))
+        {
+            if (allowed) { await Publish(); }
+            else { await Assert.ThrowsAsync<UnauthorizedAccessException>(Publish); }
+        }
+
+        Assert.Equal(allowed, await os.Get<IView>(Tasks).Read() is not null);
+    }
+
     [Fact]
     public void AStoredViewStateOfTheOldShapeLoadsAsNoView()
     {

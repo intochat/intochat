@@ -115,7 +115,7 @@ internal sealed class CompiledAppsHost(
     private async Task<string> DesktopWidgetsAsync(string brain)
         => string.Join(",", (await SiloNeurons.Get<IDesktopRecords>(services, $"{brain}/{IDesktopRecords.Key}").Read()).Widgets);
 
-    private async Task EnsureDesktopViewAsync(string brain)
+    internal async Task EnsureDesktopViewAsync(string brain)
     {
         RequestContext.Remove(CallerContextStamper.RequestContextKey);
         try
@@ -200,7 +200,7 @@ internal sealed class CompiledAppsHost(
             ]) { Extents = [0, 360] };
 
             var next = new DigitalBrain.UI.View("Desktop", new DigitalBrain.UI.Column([windows, dock]) { Extents = [0, 68] });
-            await SiloNeurons.Get<IView>(services, $"{brain}/apps/desktop/view").Publish(1, next);
+            using (HostCaller.AsPlatform(brain)) { await SiloNeurons.Get<IView>(services, $"{brain}/apps/desktop/view").Publish(1, next); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -208,7 +208,7 @@ internal sealed class CompiledAppsHost(
         }
     }
 
-    private async Task EnsureOpenAppViewAsync(string brain, string appName, CancellationToken ct)
+    internal async Task EnsureOpenAppViewAsync(string brain, string appName, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(appName) || appName is "desktop" or "workspace") { return; }
         try

@@ -38,10 +38,14 @@ internal sealed partial class FilesWorkspaceNeuron
         ]);
         var main = FilesUi.Column([screen.Main, extras]);
         var full = FilesUi.Row([screen.Side, main], gap: 12, extents: [240, 0]);
-        await View("side").Publish(files.Revision, new("Files", screen.Side));
-        await View("main").Publish(files.Revision, new("Files", main));
-        await View("full").Publish(files.Revision, new("Files", full));
-        await View("view").Publish(files.Revision, new("Files", full));
+        // The workspace is host code: it publishes its views as the platform of its brain, whoever's call led here.
+        using (HostCaller.AsPlatform(Id.Brain.Value))
+        {
+            await View("side").Publish(files.Revision, new("Files", screen.Side));
+            await View("main").Publish(files.Revision, new("Files", main));
+            await View("full").Publish(files.Revision, new("Files", full));
+            await View("view").Publish(files.Revision, new("Files", full));
+        }
     }
 
     // The operations query's view of each started operation (cross-silo); one that cannot be read is null.

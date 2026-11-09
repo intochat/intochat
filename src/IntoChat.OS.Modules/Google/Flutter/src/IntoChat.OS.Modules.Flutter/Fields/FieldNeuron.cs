@@ -88,16 +88,12 @@ internal sealed class FieldNeuron
 
     private static UnauthorizedAccessException Unstamped() => new("No caller was stamped on this call; a field answers only a stamped one.");
 
-    // The owning app ({brain}/apps/{app}/…), its brain's person, or the platform; as the view neuron's writer rule. A call with no
+    // The owning app ({brain}/apps/{app}/…), its brain's person, or its brain's platform; as the view neuron's writer rule. A call with no
     // stamped caller is refused, never taken for the platform.
     private void RequireOwner()
     {
         var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw Unstamped();
-        if (caller.Kind == CallerKind.Platform) { return; }
-        var name = FullKey;
-        if (!BrainKey.BelongsTo(name, caller.BrainId) || caller.Kind == CallerKind.App &&
-            (string.IsNullOrEmpty(caller.AppId) || !name.StartsWith(caller.AppId + "/", StringComparison.Ordinal)))
-        { throw new UnauthorizedAccessException("Only the owning brain and app may change this field."); }
+        if (!IntoChat.OS.Modules.Flutter.Views.ViewNeuron.Writes(caller, FullKey)) { throw new UnauthorizedAccessException("Only the owning brain and app may change this field."); }
     }
 
     // {brain}/apps/{app}/{field…}: the owner is the app, the name the rest; any other key splits at its last segment.

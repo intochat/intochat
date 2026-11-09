@@ -39,15 +39,16 @@ public sealed class DesktopStateFacts
         Assert.Equal(journaled, os.Journal(RecordsId.Brain).Signals(RecordsId).Count());
     }
 
-    // One caller kind each: the brain's person and the owning app write; another app, the agent, the scheduler, the platform, a
-    // caller of another brain and a call with no stamped caller are refused.
+    // One caller kind each: the brain's person, its platform and the owning app write; another app, the agent, the scheduler, the
+    // platform of another brain, a caller of another brain and a call with no stamped caller are refused.
     [Theory]
     [InlineData("person", true)]
     [InlineData("desktop", true)]
     [InlineData("other-app", false)]
     [InlineData("agent", false)]
     [InlineData("scheduler", false)]
-    [InlineData("platform", false)]
+    [InlineData("platform", true)]
+    [InlineData("platform-of-another-brain", false)]
     [InlineData("other-brain", false)]
     [InlineData("none", false)]
     public async Task RecordsWritersByCallerKind(string kind, bool allowed)
@@ -64,6 +65,7 @@ public sealed class DesktopStateFacts
 #pragma warning restore CS0618
             "scheduler" => new("p1", "a1", "local", AppId: DigitalBrain.Capabilities.CapabilityCallers.SchedulerApp),
             "platform" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "local"),
+            "platform-of-another-brain" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "elsewhere"),
             "other-brain" => new("p1", "a1", "elsewhere"),
             _ => null,
         };

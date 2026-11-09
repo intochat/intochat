@@ -34,6 +34,14 @@ internal static class HostCaller
         return fallback;
     }
 
+    // Host code that publishes a view or writes an app's records acts as the platform of the brain and says so: the stamp is
+    // scoped to that publish and the caller before it is back when the scope ends. A blank brain has no platform.
+    public static IDisposable AsPlatform(string brain)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
+        return RuntimeCallerContext.StampScope(CapabilityCallers.Platform(brain, brain, brain));
+    }
+
     // A person's stamp names the app it acts through; a platform stamp stays the platform, since naming an app on it would
     // turn the brain id into a user's principal and account that the authority denies.
     public static CapabilityCaller AsApp(CapabilityCaller caller, string appKey)

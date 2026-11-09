@@ -40,7 +40,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
         // The views are published as the app returned them; only the side-by-side composition of side and main is the host's.
         if (side is not null)
         {
-            await SiloNeurons.Get<IView>(services, appKey + "/side").Publish(generation, side);
+            using (HostCaller.AsPlatform(brain)) { await SiloNeurons.Get<IView>(services, appKey + "/side").Publish(generation, side); }
         }
 
         if (main is not null)
@@ -51,7 +51,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             View mainView;
             if (instance is DigitalBrain.App<InoAppState> ino)
             {
-                await SyncInoTranscriptAsync(appKey, ino.State);
+                using (HostCaller.AsPlatform(brain)) { await SyncInoTranscriptAsync(appKey, ino.State); }
                 mainView = side is not null ? main with { Root = new Row([side.Root, main.Root]) { Gap = 0, Extents = [256, 0] } } : main;
             }
             else
@@ -62,7 +62,7 @@ internal sealed class AppPresentationSink(IServiceProvider services) : IPresenta
             // The desktop's view is the host's window shell (CompiledAppsHost.EnsureDesktopViewAsync): the desktop app never replaces it.
             if (appName != "desktop")
             {
-                await SiloNeurons.Get<IView>(services, appKey + "/view").Publish(generation, mainView);
+                using (HostCaller.AsPlatform(brain)) { await SiloNeurons.Get<IView>(services, appKey + "/view").Publish(generation, mainView); }
             }
         }
 
