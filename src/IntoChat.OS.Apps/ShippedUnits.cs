@@ -57,6 +57,10 @@ public static class ShippedUnits
         return result;
     }
 
+    // A shipped unit's title: its spec's first line ("# Circle room"), or the alias when it has none.
+    public static string Title(string alias)
+        => Files(alias).TryGetValue("spec.md", out var spec) && FirstLine(spec) is { Length: > 0 } title ? title : alias;
+
     private static string FirstLine(string text)
         => text.Split('\n').Select(line => line.Trim().TrimStart('#').Trim()).FirstOrDefault(line => line.Length > 0) ?? "";
 }

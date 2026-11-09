@@ -46,6 +46,8 @@ public static class CounterUnit
         new DigitalBrain.UI.Button("bump", "Bump", new Emit("ctr", "ctr.bump")),
         new DigitalBrain.UI.Button("copy", "Copy", Intent: new Intent(IntentKind.Copy, "neuron://owner/ctr")),
         new DigitalBrain.UI.Button("foreign", "Foreign", new Emit("other.alias", "ctr.bump")),
+        new DigitalBrain.UI.Button("forged", "Forged", new Emit("ctr", "ctr.bump", JsonSerializer.SerializeToElement(new { by = "mallory" }))),
+        new Field("valued", "ctr/valued", FieldKind.Text, OnSubmit: new Emit("ctr", "ctr.bump", JsonSerializer.SerializeToElement(new { value = "declared" }))),
         new ApprovalCardNode("approval", "plan-1", "Approve", "A unit's card", [], Resolve: new Resolve("plan-1")),
     ]));
 }

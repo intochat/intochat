@@ -138,6 +138,7 @@ internal static class AppUiEndpoints
             {
                 case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);
                 case ViewActivationKind.Resolve: throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
+                case ViewActivationKind.Emit: ViewArgs.RequireUnreserved(shownAction.Emit!.Args, input.Value); break;
             }
             try { await reader.Activate(alias, generation, key, input.Value).WaitAsync(ct); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
@@ -209,10 +210,28 @@ internal static class AppUiEndpoints
 // An activation's field value joins the emit's args as "value" (an object's member; other args become {args, value}).
 internal static class ViewArgs
 {
+    // The members only the edge may set: "by" names who acted (no view may declare one), and "value" is the activated field's text
+    // (a view that declares one beside a field would be overwritten silently, so it is refused).
+    public const string By = "by";
+    public const string Value = "value";
+
+    public static void RequireUnreserved(JsonElement? args, string? value)
+    {
+        if (args is not { ValueKind: JsonValueKind.Object } given) { return; }
+        foreach (var member in given.EnumerateObject())
+        {
+            if (string.Equals(member.Name, By, StringComparison.OrdinalIgnoreCase))
+            { throw new ArgumentException("A view's emit cannot declare \"by\": only the edge names who acted."); }
+            if (value is not null && string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase))
+            { throw new ArgumentException("A view's emit already declares \"value\"; a field's text cannot replace it."); }
+        }
+    }
+
     // An object gets a "value" member; an array gets the value appended (a positional last argument); a scalar or no args
-    // become {args?, value}.
+    // become {args?, value}. Args that already declare a reserved member are refused.
     public static JsonElement WithValue(JsonElement? args, string value)
     {
+        RequireUnreserved(args, value);
         if (args is { ValueKind: JsonValueKind.Array } array)
         {
             var items = System.Text.Json.Nodes.JsonArray.Create(array) ?? [];

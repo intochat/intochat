@@ -104,7 +104,7 @@ internal sealed class OsDefaults(
         {
             try
             {
-                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, proxies.Get<IApp>(IApp.Key(brainId, alias)), alias, "Circle room");
+                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, proxies.Get<IApp>(IApp.Key(brainId, alias)), alias, IntoChat.OS.Apps.ShippedUnits.Title(alias));
                 if (!result.Ok) { logger.LogWarning("Circle unit {Unit} did not deploy in {Brain}: {Reason}", alias, brainId, result.Text); }
             }
             catch (Exception error) when (error is not OperationCanceledException)

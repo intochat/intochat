@@ -153,6 +153,37 @@ public sealed class AppUiEventFacts
         Assert.Empty(brain.Inbox.Resolved);
     }
 
+    // Only the edge names who acted: a unit view whose emit declares "by" is refused before anything is journaled. (The edge cannot
+    // yet stamp "by" itself: IViewReader.Activate takes only the field value.)
+    [Fact]
+    public async Task AUnitViewEmitThatDeclaresByIsRefused()
+    {
+        var (os, _, shown) = await UnitOnTestOS();
+        await using var _os = os;
+        var before = os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count;
+
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "forged"), new TestOSBrain(os), Scope, Hosted, Ct));
+        await os.Idle();
+
+        Assert.Equal(before, os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count);
+        Assert.Equal(0, (await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr")).GetProperty("bumps").GetInt32());
+    }
+
+    // A field's text joins the emit as "value": args that already declare one are refused (400), on a unit view and an app view.
+    [Fact]
+    public async Task AFieldValueOverADeclaredValueIsRefused()
+    {
+        var (os, _, shown) = await UnitOnTestOS();
+        await using var _os = os;
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "typed", Generation: shown.Generation, Key: "valued"), new TestOSBrain(os), Scope, Hosted, Ct));
+        Assert.Equal(0, (await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr")).GetProperty("bumps").GetInt32());
+
+        var brain = new RecordingBrain(new(ViewActivationKind.Emit, Emit: new Emit("tasks", "rename", JsonSerializer.SerializeToElement(new { value = "declared" }))));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "title", "typed"), brain, Scope, Hosted, Ct));
+        Assert.Empty(brain.Emitted);
+        Assert.Throws<ArgumentException>(() => ViewArgs.WithValue(JsonSerializer.SerializeToElement(new { Value = "x" }), "y"));
+    }
+
     [Fact]
     public async Task AFieldValueIsAppendedToAnEmitsArrayArgs()
     {

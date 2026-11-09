@@ -43,6 +43,7 @@ public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStu
         // Until the framework's compiler skips them, spec.md and scenarios.json stay here and only the C# reaches the host.
         var code = UnitFiles.Code(files);
         if (code.Count == 0) { return Failed($"Could not deploy {alias}: no .cs files."); }
+        if (ReservedSignal(alias, code) is { } reserved) { return Failed($"Could not deploy {alias}: {reserved} signals belong to the {reserved} unit."); }
         var sidecars = files.Where(file => !code.ContainsKey(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
         var step = ISynapseStudio.StepKey(alias, code, bindings);
         if (State.Deployed.TryGetValue(step, out var done) && await Landed(alias, done) is { } landed)
@@ -76,6 +77,11 @@ public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStu
         await Save(State with { Deployed = deployed, Sidecars = WithSidecars(alias, sidecars) }, new SynapseStudioChanged(alias));
         return new UnitDeployResult(true, $"{alias} is {outcome.Status.ToString().ToLowerInvariant()} (hash {outcome.Hash}).", outcome.Status, outcome.Hash, outcome.Installs);
     }
+
+    // A circle unit's signals (circleroom.join, …) are the circle's own: its room trusts them as the circle's, so no other unit may
+    // name one in its code (a view emit, a declared signal). The unit name a unit's code reserves, or null.
+    internal static string? ReservedSignal(string alias, IReadOnlyDictionary<string, string> code)
+        => ShippedApps.CircleUnits.FirstOrDefault(unit => unit != alias && code.Values.Any(text => text.Contains($"\"{unit}.", StringComparison.Ordinal)));
 
     private static UnitDeployResult Failed(string text, DeployOutcome? outcome = null)
         => new(false, text, outcome?.Status ?? DeployStatus.Failed, outcome?.Hash, outcome?.Installs ?? new Dictionary<string, DigitalBrain.InstallOutcome>());
