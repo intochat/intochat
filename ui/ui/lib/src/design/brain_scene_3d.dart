@@ -191,7 +191,7 @@ class BrainScene3D extends StatefulWidget {
       subtitle: 'Vector recall · 99.4% hit',
       moduleId: 'DigitalBrain.Memory',
       signalsPerMin: 51,
-      appId: 'circles',
+      appId: 'friends',
     ),
     BrainNode3D(
       id: 'deploy-gate',

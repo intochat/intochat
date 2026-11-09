@@ -87,14 +87,75 @@ internal sealed class CircleMembers(ICapabilityBroker broker, IServiceProvider p
         return result.ToArray();
     }
 
+    public async Task<ProfileState?> TryReadProfile(string brain)
+    {
+        try
+        {
+            var profile = await SiloNeurons.Get<IProfile>(plain, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "os.profile", "profile")).Read();
+            if (!string.IsNullOrWhiteSpace(profile.Handle) || !string.IsNullOrWhiteSpace(profile.DisplayName) || (profile.Posts ?? []).Length > 0)
+            {
+                return profile;
+            }
+        }
+        catch (Exception error)
+        {
+            NullLogger.Instance.LogSwallowed(error, "ProfileNeuron not registered or initialized.");
+        }
+        return null;
+    }
+
+    public async Task<PersonState> ReadPerson(string brain)
+    {
+        var profileKey = brain + "/profile";
+        if (await TryReadProfile(brain) is { } profile)
+        {
+            var displayName = !string.IsNullOrWhiteSpace(profile.DisplayName)
+                ? profile.DisplayName
+                : !string.IsNullOrWhiteSpace(profile.Handle)
+                    ? $"@{profile.Handle}"
+                    : "Friend";
+            return new PersonState
+            {
+                Name = profileKey,
+                Version = Math.Max(1, (profile.Posts ?? []).Length + (profile.Friends ?? []).Length),
+                DisplayName = displayName,
+                AvatarUrl = profile.AvatarUrl ?? "",
+            };
+        }
+        return await SiloNeurons.Get<ISharedPersonReader>(plain, profileKey).Read();
+    }
+
+    public async Task<CardState> ReadPostCard(string key)
+    {
+        if (PostBrain(key) is { } brain && await TryReadProfile(brain) is { } profile)
+        {
+            var postId = key[(brain.Length + 7)..];
+            var post = (profile.Posts ?? []).FirstOrDefault(item => string.Equals(item.Id, postId, StringComparison.Ordinal));
+            if (post is not null)
+            {
+                var children = (post.EmbeddedApps ?? [])
+                    .Select(child => new UiChildRef("viewport", child.TargetNeuronUri))
+                    .ToList();
+                return new CardState
+                {
+                    Name = key,
+                    Version = 1,
+                    Title = string.IsNullOrWhiteSpace(post.Title) ? post.Content : post.Title,
+                    Body = post.Content,
+                    Children = children,
+                };
+            }
+        }
+        return await SiloNeurons.Get<ISharedCardReader>(plain, key).Read();
+    }
+
     public async Task<string[]> Posts(Friend friend)
     {
         List<string> posts = [];
 
         // Read published App-Posts directly from the friend's ProfileNeuron (IProfile).
-        try
+        if (await TryReadProfile(friend.Brain) is { } profile)
         {
-            var profile = await SiloNeurons.Get<IProfile>(plain, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(friend.Brain), "os.profile", "profile")).Read();
             foreach (var post in profile.Posts ?? [])
             {
                 var key = $"{friend.Brain}/posts/{post.Id}";
@@ -103,10 +164,6 @@ internal sealed class CircleMembers(ICapabilityBroker broker, IServiceProvider p
                     posts.Add(key);
                 }
             }
-        }
-        catch (Exception error)
-        {
-            NullLogger.Instance.LogSwallowed(error, "Friend profile not registered or initialized.");
         }
 
         return posts.ToArray();
@@ -118,13 +175,13 @@ internal sealed class CircleMembers(ICapabilityBroker broker, IServiceProvider p
         foreach (var friend in await FriendsOf(viewer))
         {
             var profileKey = friend.Brain + "/profile";
-            var profile = await SiloNeurons.Get<ISharedPersonReader>(plain, profileKey).Read();
+            var profile = await ReadPerson(friend.Brain);
             entries.Add(new(profileKey, string.IsNullOrWhiteSpace(profile.DisplayName) ? "Friend" : profile.DisplayName, "Friend",
                 new(0, profile.Version, new(new Sphere("person", []), Side: new("collection", friend.Brain + "/posts"), Main: new("person", profileKey)), null, []), []));
             if (focus != profileKey && PostBrain(focus) != friend.Brain) { continue; }
             foreach (var key in await Posts(friend))
             {
-                var card = await SiloNeurons.Get<ISharedCardReader>(plain, key).Read();
+                var card = await ReadPostCard(key);
                 entries.Add(new(key, card.Title, "Post", new(0, card.Version, new(new Sphere("post", []), Main: new("card", key)), null, []), []));
             }
         }

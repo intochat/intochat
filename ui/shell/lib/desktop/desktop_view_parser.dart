@@ -34,11 +34,11 @@ extension _LiveDesktopViewParser on _LiveDesktopShellState {
     if (lower.contains('task')) return 'tasks';
     if (lower.contains('trace')) return 'trace';
     if (lower.contains('calc')) return 'calculator';
-    if (lower.contains('post')) return 'post';
+    if (lower.contains('friend') || lower.contains('post')) return 'friends';
     if (lower.contains('workspace')) return 'workspace';
     if (lower.contains('brain')) return 'brain';
     if (lower.contains('setting')) return 'settings';
-    if (lower.contains('circle')) return 'circles';
+    if (lower.contains('circle')) return 'friends';
     return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 

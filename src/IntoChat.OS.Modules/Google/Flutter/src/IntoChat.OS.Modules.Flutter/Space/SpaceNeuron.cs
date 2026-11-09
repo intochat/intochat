@@ -23,7 +23,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
     {
         if (!key.EndsWith("/profile", StringComparison.Ordinal)) { throw new UnauthorizedAccessException(); }
         await AuthorizeFriend(key[..^8]);
-        return await SiloNeurons.Get<ISharedPersonReader>(plain, key).Read();
+        return await friends.ReadPerson(key[..^8]);
     });
 
     public Task<CardState> ReadPost(string key) => ReadShared(async () =>
@@ -32,8 +32,8 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         var friend = await AuthorizeFriend(author);
         if (friend is not null && !(await friends.Posts(friend)).Contains(key, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The post is not published in a shared circle."); }
-        var card = await SiloNeurons.Get<ISharedCardReader>(plain, key).Read();
-        return new CardState { Name = key, Version = card.Version, Title = card.Title, Body = card.Body };
+        var card = await friends.ReadPostCard(key);
+        return new CardState { Name = key, Version = card.Version, Title = card.Title, Body = card.Body, Children = card.Children };
     });
 
     public Task<CollectionState> ReadPosts(string key) => ReadShared(async () =>
@@ -43,7 +43,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
         if (friend is null) { return await SiloNeurons.Get<ICollectionView>(plain, key).Read(); }
         List<CollectionItem> items = [];
         foreach (var post in await friends.Posts(friend))
-        { items.Add(new(post, (await SiloNeurons.Get<ISharedCardReader>(plain, post).Read()).Title, "post")); }
+        { items.Add(new(post, (await friends.ReadPostCard(post)).Title, "post")); }
         return new CollectionState { Name = key, Revision = 1, Definition = new(items.ToArray(), FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet") };
     });
 
@@ -177,7 +177,7 @@ internal sealed class SpaceNeuron(IKernel kernel, CompiledTypes compiled, ILogge
             var focus = workspace.Path[^1];
             if (fullRefresh || sourcesStale || !_friendsFresh || focus != _friendFocus)
             {
-                _friendEntries = types.Any(type => type.Name == typeof(IntoChat.OS.Modules.Circles.ICircle).FullName)
+                _friendEntries = (types.Any(type => type.Name == typeof(IntoChat.OS.Modules.Circles.ICircle).FullName) || types.Any(type => type.Name == typeof(IProfile).FullName))
                     ? await friends.Entries(brain, focus) : [];
                 _friendFocus = focus;
                 _friendsFresh = true;

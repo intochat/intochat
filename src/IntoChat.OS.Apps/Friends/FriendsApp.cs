@@ -10,8 +10,8 @@ Each Post is an App<TState> template that renders inline in the profile/feed, ca
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 
-namespace IntoChat.OS.Apps.Friends;
-
+namespace IntoChat.OS.Apps.Friends
+{
 [DigitalBrain.Signal("friends.open")]
 public sealed record FriendsOpen(string? Scope = null) : DigitalBrain.Signal;
 
@@ -194,7 +194,38 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             : request.NewPostId.Trim();
 
         var profile = await Get<IProfile>("profile").ForkPost(sourceId, newId, request.RemixTitle);
-        ApplyProfile(profile, $"Forked App-Post {sourceId} -> {newId}");
+        var forkedPost = profile.Posts.FirstOrDefault(p => string.Equals(p.Id, newId, StringComparison.Ordinal));
+        var promoted = forkedPost is not null && await TryPromoteForkedTemplateAsync(forkedPost);
+        ApplyProfile(
+            profile,
+            promoted
+                ? $"Forked App-Post {sourceId} -> {newId} & staged in Creator ({forkedPost!.TemplateAppId})"
+                : $"Forked App-Post {sourceId} -> {newId}");
+    }
+
+    private async Task<bool> TryPromoteForkedTemplateAsync(ProfilePostItem forkedPost)
+    {
+        try
+        {
+            var session = Get<Creator.ICreatorSession>("session");
+            var source = string.IsNullOrWhiteSpace(forkedPost.TemplateSource)
+                ? BuildPostAppTemplateSource(forkedPost.Id, forkedPost.Title, forkedPost.EmbeddedApps ?? [])
+                : forkedPost.TemplateSource;
+            var (compiled, diagnostics) = Creator.CreatorSession.CompileInMemory(source);
+            await session.RecordPrompt(
+                forkedPost.TemplateAppId,
+                $"Remix App-Post template '{forkedPost.Title}' ({forkedPost.Id})",
+                source,
+                compiled,
+                diagnostics,
+                "en");
+            return true;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "CreatorSession neuron is optional when running FriendsApp standalone.");
+            return false;
+        }
     }
 
     [DigitalBrain.On]
@@ -410,7 +441,7 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
                     Icon = "git-branch",
                     Small = true,
                 },
-                new Button("Open in Creator", new ButtonAction("creator", "open", [post.TemplateAppId]))
+                new Button("Open in Creator", new ButtonAction("creator", "prompt", [$"Remix App-Post '{post.Title}'", post.TemplateAppId]))
                 {
                     Icon = "wand-sparkles",
                     Small = true,
@@ -451,4 +482,23 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             throw new InvalidOperationException("Expected FriendsApp to persist personal profile, direct friend, embedded-app post template, and forked post in ProfileNeuron.");
         }
     }
+}
+}
+
+namespace IntoChat.OS.Apps.Post
+{
+    [DigitalBrain.Signal("post.open")]
+    public sealed record PostOpen : DigitalBrain.Signal;
+
+    [DigitalBrain.Signal("post.publish")]
+    public sealed record PostPublish(
+        string? Content = null,
+        string Circle = "public",
+        string? Id = null) : DigitalBrain.Signal;
+
+    [DigitalBrain.Signal("post.update-bio")]
+    public sealed record PostUpdateBio(
+        string Handle = "user",
+        string Bio = "",
+        string[]? PinnedApps = null) : DigitalBrain.Signal;
 }

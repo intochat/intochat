@@ -57,6 +57,7 @@ internal static class LiveSignalEndpoints
         // R126: asked of a circle brain's own /live; the shell watches each circle the person is in. Circles are plain (06-08).
         Feed<CircleChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.CircleGrainType.Name, "circle"))),
         Feed<CircleSpoke>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "circles.chat", "chat"))),
+        Feed<ProfileChanged>(static (_, brainId, _, _) => SingleId(new(new DigitalBrain.BrainId(brainId), "os.profile", "profile"))),
     ];
 
     private static async IAsyncEnumerable<DigitalBrain.NeuronId> SingleId(DigitalBrain.NeuronId id) { await Task.CompletedTask; yield return id; }
