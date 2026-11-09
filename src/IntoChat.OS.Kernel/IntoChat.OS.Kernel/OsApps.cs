@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Kernel;
 
-// The operating system's default apps: every script in the folder, plus ShippedApps.Roots.
+// The operating system's default apps: every compiled app the catalog ships, plus ShippedApps.Roots.
 // A distribution adds its own through OsAppsOptions. Apps.
 public sealed record OsApp(string Publisher, string Name);
 
@@ -61,7 +61,7 @@ public static class OsAppsHosting
 
 // A new brain is born with the OS defaults. Create awaits this handler inside the owner's own
 // turn. A present app is the person's, never replaced here. A circle brain gets none (R125): it
-// is born with its own room only, the shipped circleroom unit (ShippedApps.CircleUnits). The folder and ShippedApps.Roots load through the feature loader;
+// is born with its own room only, the shipped circleroom unit (ShippedApps.CircleUnits). The shipped catalog and ShippedApps.Roots load through the feature loader;
 // a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
     IIntoChatOSBrains brains, INeuronProxies proxies, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,

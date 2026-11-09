@@ -70,7 +70,7 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         yield return new("activation", async ct =>
         {
             // Features reconcile on the brain's activation without anyone waiting: reconciling here makes the
-            // candidate's apps the folder's versions before any plan call reads them.
+            // candidate's apps the catalog's versions before any plan call reads them.
             var reconcile = JsonSerializer.Serialize(new { contract = ReconcilerContract, key = $"{brainId}/apps-reconciler", method = "Reconcile", arguments = "[]" });
             var reconciled = await server.Run("neurons_call", reconcile, ct);
             if (reconciled.IsError) { return (false, $"reconciling features failed: {reconciled.Text}"); }

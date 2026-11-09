@@ -5,7 +5,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // Units all the way: DigitalBrain.UI.View is the one UI tree. The Flutter module keeps the view, one field neuron per view field,
 // the hosted surfaces (web browser, viewport) and its non-widget neurons; the per-widget neurons are gone, and a chat transcript
 // and its composer are view nodes.
-public sealed class OneUiPathFacts
+public sealed partial class OneUiPathFacts
 {
     private static readonly string[] Kept =
     [
@@ -41,4 +41,28 @@ public sealed class OneUiPathFacts
             .Order(StringComparer.Ordinal);
         Assert.Equal(["confirmation", "ui.field", "view", "viewport", "webbrowser"], kinds);
     }
+
+    // Leftovers of the old UI channel that still ship (file: token); the fact fails when one is gone, so the list only shrinks.
+    private static readonly string[] OldChannelPending =
+    [
+        "MarkdrawSceneEngine.cs: _ui =",
+        "AgentNeuron.cs: \"_ui\"",
+    ];
+
+    // No UiNode, no ButtonAction and no "_ui" channel anywhere: the server speaks DigitalBrain.UI.View and the client renders it.
+    [Fact]
+    public void NoUiNodeNoUiChannelNoButtonAction()
+    {
+        var sources = NoProgramLanesFacts.ProductionSources()
+            .Concat(Directory.EnumerateFiles(Path.Combine(Repository.Root, "ui"), "*.dart", SearchOption.AllDirectories)
+                .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part => part is ".dart_tool" or "build" or ".symlinks")));
+        var found = sources
+            .SelectMany(path => OldUiToken().Matches(File.ReadAllText(path)).Select(match => Path.GetFileName(path) + ": " + match.Value).Distinct())
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(OldChannelPending.Order(StringComparer.Ordinal), found);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\bUiNode\b|\bButtonAction\b|[""']_ui[""']|\b_ui\s*=")]
+    private static partial System.Text.RegularExpressions.Regex OldUiToken();
 }

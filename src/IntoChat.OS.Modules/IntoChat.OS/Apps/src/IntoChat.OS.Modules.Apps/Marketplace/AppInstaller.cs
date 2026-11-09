@@ -16,7 +16,7 @@ namespace IntoChat.OS.Modules.Apps;
 
 // The one way an app crosses brains: a listed bundle goes into the caller's brain through the
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
-// comes from the features folder. An app that reads data installs only for the brain's owner.
+// comes from the shipped catalog. An app that reads data installs only for the brain's owner.
 public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
     IEnumerable<IFeatureMigration> migrations, ICapabilitySatisfaction capabilities, ICapabilityBroker? directory = null,
     IOptions<AuthOptions>? auth = null)
@@ -238,7 +238,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         return new(listing, installed, update);
     }
 
-    // The published bundle a source holds: a person's brain or the features folder.
+    // The published bundle a source holds: a person's brain or the shipped catalog.
     public async Task<AppBundle> Bundle(AppSource source, string publisher, string name, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(source);

@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Apps.Hosting;
 using DigitalBrain.UI;
@@ -41,18 +40,13 @@ public sealed class InProcessAppHost
         ArgumentNullException.ThrowIfNull(settings);
         ct.ThrowIfCancellationRequested();
 
-        if (_programs.TryRemove(owner, out var previous))
-        {
-            previous.Unload();
-        }
-
         var definition = new AppDefinition(appType);
         HostedProgram? hosted = null;
         var app = CreateApp(definition, () => hosted!);
         var turns = new AppTurns(app, definition, token => PresentCurrentAsync(hosted!, token));
         var hash = appType.Assembly.GetName().Version?.ToString() ?? "compiled";
         var behaviors = new[] { new BehaviorView(owner, hash, "Running", null) };
-        hosted = new HostedProgram(owner, hash, turns, settings, context: null, behaviors);
+        hosted = new HostedProgram(owner, hash, turns, settings, behaviors);
         _programs[owner] = hosted;
         await PresentCurrentAsync(hosted, ct).ConfigureAwait(false);
     }
@@ -61,17 +55,8 @@ public sealed class InProcessAppHost
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ct.ThrowIfCancellationRequested();
-        UnloadProgram(owner);
+        _programs.TryRemove(owner, out _);
         return Task.CompletedTask;
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void UnloadProgram(string owner)
-    {
-        if (_programs.TryRemove(owner, out var removed))
-        {
-            removed.Unload();
-        }
     }
 
     public Task<BehaviorView[]> Describe(string owner, CancellationToken ct)

@@ -30,7 +30,7 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "An app migration is incomplete in {Brain}; its saved state is retained.", scope); }
         }
-        // The same set a new brain is born with: the folder plus ShippedApps.Roots. A circle keeps only its room, deployed again
+        // The same set a new brain is born with: the shipped catalog plus ShippedApps.Roots. A circle keeps only its room, deployed again
         // when missing (a circle born before the room shipped); the same files deploy once.
         if (await (await capabilities.Identity(cancellationToken)).KindOf(scope, cancellationToken) == BrainKind.Circle)
         { await OsDefaults.DeployCircleUnits(brain, logger, scope); }

@@ -29,7 +29,7 @@ internal static class ChatEndpoints
         group.MapPost("/{id}/unarchive", Unarchive);
     }
 
-    // Copy of Ino.DataKey in features/os/Ino/InoKeys.cs: the Ino app's ChatDataApp setting when set, else its own
+    // Copy of InoApp.DataKey in src/IntoChat.OS.Apps/Ino/InoApp.cs: the Ino app's ChatDataApp setting when set, else its own
     // key, plus "/chats". ChatEndpointFacts pins the rule.
     internal static string IndexKey(string brain, AppSnapshot ino)
     {

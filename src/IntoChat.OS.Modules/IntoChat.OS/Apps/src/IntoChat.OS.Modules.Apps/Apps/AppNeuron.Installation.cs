@@ -202,7 +202,7 @@ internal sealed partial class AppNeuron
     }
 
     // Every program assignment lands in the kernel as this brain's feature, whatever its source:
-    // the features folder, the Marketplace or the Creator. Owner is where it came from.
+    // the shipped catalog, the Marketplace or the Creator. Owner is where it came from.
     private async Task RecordFeature()
     {
         if (ServiceProvider.GetService<IKernel>() is not { } kernel || State.Manifest is null || BrainId().Length == 0) { return; }

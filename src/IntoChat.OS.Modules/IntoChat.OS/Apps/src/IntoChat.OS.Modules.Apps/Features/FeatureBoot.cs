@@ -10,9 +10,9 @@ using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// Loads the features folder at boot (the feature.load spans), then follows the brain's lifecycle the way OsDefaults installs
+// Loads the shipped catalog at boot (the feature.load spans), then follows the brain's lifecycle the way OsDefaults installs
 // on it: every activation (the plain brain neuron's Activated signal, heard on this silo through IClusterListeners, 06-08)
-// brings the brain's unedited features to the folder's version once the folder has loaded. Reconciling is fire-and-forget off
+// brings the brain's unedited features to the catalog's version once the catalog has loaded. Reconciling is fire-and-forget off
 // the listener, as the hub pump was: a failure never fails the silo or a brain's activation.
 internal sealed class FeatureBoot(
     IServiceProvider plain, FeatureCatalog catalog, DigitalBrain.Spi.IClusterListeners listeners, ILogger<FeatureBoot> logger) : IStartupTask

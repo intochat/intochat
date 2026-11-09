@@ -1,7 +1,7 @@
 namespace IntoChat.OS.Modules.Apps;
 
-// Installs the boot set: every script in the folder, plus any ShippedApps root the folder no longer
-// carries (a root that moved into the module assembly). A present app is left as it is.
+// Installs the boot set: every app in the shipped catalog, plus any ShippedApps root the catalog does not
+// carry. A present app is left as it is.
 public static class ShippedInstall
 {
     public static async Task Missing(FeatureCatalog catalog, FeatureLoader loader, string brainId, Func<string, Task<AppSnapshot>> read,

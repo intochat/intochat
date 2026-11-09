@@ -1,4 +1,3 @@
-using System.Runtime.Loader;
 using DigitalBrain.Apps.Hosting;
 using DigitalBrain.UI;
 
@@ -9,7 +8,6 @@ internal sealed class HostedProgram(
     string hash,
     AppTurns turns,
     IReadOnlyDictionary<string, string> settings,
-    AssemblyLoadContext? context,
     BehaviorView[] behaviors) : IPresenter
 {
     private View? _presentedSide;
@@ -22,8 +20,6 @@ internal sealed class HostedProgram(
     public AppTurns Turns { get; } = turns;
 
     public IReadOnlyDictionary<string, string> Settings { get; } = settings;
-
-    public AssemblyLoadContext? Context { get; private set; } = context;
 
     public BehaviorView[] Behaviors { get; } = behaviors;
 
@@ -42,11 +38,4 @@ internal sealed class HostedProgram(
     }
 
     public (View? Side, View? Main) ConsumePresented() => (_presentedSide, _presentedMain);
-
-    public void Unload()
-    {
-        var ctx = Context;
-        Context = null;
-        ctx?.Unload();
-    }
 }
