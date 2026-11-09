@@ -25,6 +25,8 @@ public sealed class WorkspaceApp : DigitalBrain.App
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(WorkspaceApp));
 
+    public const string AppName = "workspace";
+
     public static AppBundle Bundle { get; } = new(
         "workspace",
         "0.4.0",

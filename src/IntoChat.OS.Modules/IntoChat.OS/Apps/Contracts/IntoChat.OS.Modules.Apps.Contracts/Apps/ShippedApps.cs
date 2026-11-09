@@ -8,12 +8,17 @@ public static class ShippedApps
     // The publisher the OS ships its own apps as; hosts may trust more (OsAppsOptions.TrustedPublishers).
     public const string Publisher = "os";
 
+    // The keys of shipped apps that code outside the app itself has to name; each app class exposes its own as AppName.
+    public const string Settings = "settings";
+    public const string PhotoCraft = "photocraft";
+    public const string FilmCraft = "filmcraft";
+
     // The OS's own services: the desktop shows none of them as a window.
     public static readonly IReadOnlySet<string> Services = new HashSet<string>(["desktop", "workspace"], StringComparer.Ordinal);
 
     // What the OS runs on, which Remove refuses: its services, Settings, Apps, Ino and Creator.
     // Apps folded into Settings (08-09). The folder is no longer a boot root.
-    public static readonly IReadOnlySet<string> Roots = new HashSet<string>([.. Services, "settings", "ino", "creator"], StringComparer.Ordinal);
+    public static readonly IReadOnlySet<string> Roots = new HashSet<string>([.. Services, Settings, "ino", "creator"], StringComparer.Ordinal);
 
     // The units a circle brain is born with: its room, a shipped unit source (IntoChat.OS.Apps.ShippedUnits).
     public static readonly IReadOnlyList<string> CircleUnits = ["circleroom"];

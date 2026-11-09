@@ -182,7 +182,7 @@ internal sealed class CompiledAppsHost(
                     Extents = [.. activeWindows.Chunk(3).Select(_ => 0.0)],
                 };
 
-            string[] dockApps = ["ino", "files", "data", "markdraw", "photocraft", "filmcraft", "creator", "gallery", "post", "settings"];
+            var dockApps = manifests.DockApps();
             var dock = new DigitalBrain.UI.Row(
             [
                 new DigitalBrain.UI.Row(
@@ -789,30 +789,20 @@ internal sealed class CompiledAppsHost(
 
     private async Task ForwardStudioPromptIfRoutedAsync(string brain, InoTurn latestTurn, CancellationToken ct)
     {
-        if (latestTurn.StartsWithStudio("markdraw"))
-        {
-            var markdrawOp = latestTurn.RouteHint["routed:markdraw.".Length..];
-            if (string.IsNullOrWhiteSpace(markdrawOp))
-            {
-                markdrawOp = "patch-elements";
-            }
-            await SiloNeurons.Get<IApp>(services, IApp.Key(brain, "markdraw")).Request(markdrawOp, latestTurn.UserMessage);
-            return;
-        }
-
-        string? studioApp = latestTurn.RouteHint.StartsWith("routed:photocraft.", StringComparison.Ordinal)
-            ? "photocraft"
-            : latestTurn.StartsWithStudio("filmcraft")
-                ? "filmcraft"
-                : null;
-        if (studioApp is null) { return; }
+        if (!latestTurn.RouteHint.StartsWith("routed:", StringComparison.Ordinal)) { return; }
+        var manifests = await ShippedManifests.Of(services);
+        var routed = latestTurn.RouteHint["routed:".Length..];
+        var dot = routed.IndexOf('.', StringComparison.Ordinal);
+        var studioApp = dot > 0 ? routed[..dot] : routed;
+        if (!manifests.IsStudio(studioApp)) { return; }
+        var operation = manifests.StudioOperation(studioApp, dot > 0 ? routed[(dot + 1)..] : "");
         if (HostedByName.ContainsKey(studioApp))
         {
-            await HandleAppRequestedAsync(brain, studioApp, new AppRequested("edit", latestTurn.UserMessage, Guid.NewGuid()), ct);
+            await HandleAppRequestedAsync(brain, studioApp, new AppRequested(operation, latestTurn.UserMessage, Guid.NewGuid()), ct);
         }
         else
         {
-            await SiloNeurons.Get<IApp>(services, IApp.Key(brain, studioApp)).Request("edit", latestTurn.UserMessage);
+            await SiloNeurons.Get<IApp>(services, IApp.Key(brain, studioApp)).Request(operation, latestTurn.UserMessage);
         }
     }
 
@@ -931,12 +921,6 @@ internal sealed class CompiledAppsHost(
 
     private static object? GetDefaultForType(Type type) =>
         type.IsValueType ? Activator.CreateInstance(type) : null;
-}
-
-file static class InoTurnRoutingExtensions
-{
-    public static bool StartsWithStudio(this InoTurn turn, string studio)
-        => turn.RouteHint.StartsWith($"routed:{studio}.", StringComparison.Ordinal);
 }
 
 internal sealed class CompiledAppsLifecycle(IServiceProvider services) : ILifecycleParticipant<ISiloLifecycle>

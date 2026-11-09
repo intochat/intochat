@@ -6,14 +6,6 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neuron("ino.studio")]
 public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
 {
-    private static readonly (string Id, string Description)[] Studios =
-    [
-        ("markdraw", "Draw and edit diagrams"),
-        ("photocraft", "Edit photos"),
-        ("filmcraft", "Edit video"),
-        ("data", "Query and chart data"),
-    ];
-
     // Starts the five-step unit flow (author, draft, verify, deploy, install); the flow's author step names the alias. The card points at
     // the flow on the Tasks board, where the verify transcript and the consent to the unit's needs appear.
     public async Task<InoToolResult> Make(string goal)
@@ -63,7 +55,8 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
 
     public async Task<InoToolResult> List()
     {
-        var text = "Studios:\n" + string.Join("\n", Studios.Select(s => $"- {s.Id}: {s.Description}"));
+        var studios = (await ShippedManifests.Of(Context.Services)).Studios();
+        var text = "Studios:\n" + string.Join("\n", studios.Select(s => $"- {s.App}: {s.Description}"));
         var studio = Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
         DigitalBrain.DeployedSource[] units;
         try { units = await studio.List(); }

@@ -82,6 +82,8 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(FilmCraftApp));
 
+    public const string AppName = ShippedApps.FilmCraft;
+
     public static AppBundle Bundle { get; } = new(
         "filmcraft",
         "1.1.0",
@@ -99,6 +101,7 @@ public sealed class FilmCraftApp : DigitalBrain.App<FilmCraftAppState>
             Settings: [],
             Slots: [],
             Icon: "film",
+            Dock: 6, Studio: true,
             Toolbar:
             [
                 new("open", Icon: "link", Label: "Connect editor"),

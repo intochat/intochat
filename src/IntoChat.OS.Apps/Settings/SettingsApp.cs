@@ -144,6 +144,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(SettingsApp));
 
+    public const string AppName = ShippedApps.Settings;
+
     public static AppBundle Bundle { get; } = new(
         "settings",
         "2.1.0",
@@ -163,7 +165,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             ],
             Settings: [],
             Slots: [],
-            Icon: "settings"),
+            Icon: "settings",
+            Dock: 10),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
     {

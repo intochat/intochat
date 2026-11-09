@@ -205,7 +205,7 @@ public static class ArtCraftEngineRunner
         }
 
         var hasImageContext = (extracted is not null && IsImageExtension(extracted))
-            || raw.Contains("photocraft", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains(ShippedApps.PhotoCraft, StringComparison.OrdinalIgnoreCase)
             || raw.Contains("photo", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("image", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("canvas", StringComparison.OrdinalIgnoreCase);
@@ -346,7 +346,7 @@ public static class ArtCraftEngineRunner
             || raw.Contains("clip", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("playhead", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("00:", StringComparison.OrdinalIgnoreCase)
-            || raw.Contains("filmcraft", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains(ShippedApps.FilmCraft, StringComparison.OrdinalIgnoreCase)
             || raw.Contains("videocraft", StringComparison.OrdinalIgnoreCase)
             || raw.Contains("timeline.razor", StringComparison.OrdinalIgnoreCase))
         {
@@ -398,7 +398,7 @@ public static class ArtCraftEngineRunner
         if (!TryResolvePhotoCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentDoc, out var resolved))
         {
             return new ArtCraftExecutionResult(
-                "photocraft",
+                ShippedApps.PhotoCraft,
                 mode,
                 "clarification.required",
                 "Clarification Required",
@@ -445,7 +445,7 @@ public static class ArtCraftEngineRunner
         {
             try
             {
-                var session = await studio.Open("photocraft");
+                var session = await studio.Open(ShippedApps.PhotoCraft);
                 if (mcpResolver(session.McpKey) is { } mcpServer)
                 {
                     if (isNewGradient)
@@ -504,7 +504,7 @@ public static class ArtCraftEngineRunner
 
         var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · Input: `{inputDoc}` -> Output: `{outputDoc}`";
         return new ArtCraftExecutionResult(
-            "photocraft",
+            ShippedApps.PhotoCraft,
             mode,
             cmdId,
             title,
@@ -540,7 +540,7 @@ public static class ArtCraftEngineRunner
         if (!TryResolveFilmCraftCommand(instructionOrCommand, explicitParamsJson, resolvedCurrentSeq, out var resolved))
         {
             return new ArtCraftExecutionResult(
-                "filmcraft",
+                ShippedApps.FilmCraft,
                 mode,
                 "clarification.required",
                 "Clarification Required",
@@ -582,7 +582,7 @@ public static class ArtCraftEngineRunner
         {
             try
             {
-                var session = await studio.Open("filmcraft");
+                var session = await studio.Open(ShippedApps.FilmCraft);
                 if (mcpResolver(session.McpKey) is { } mcpServer)
                 {
                     await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
@@ -611,7 +611,7 @@ public static class ArtCraftEngineRunner
 
         var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · Sequence: `{inputDoc}` -> Output: `{outputDoc}`";
         return new ArtCraftExecutionResult(
-            "filmcraft",
+            ShippedApps.FilmCraft,
             mode,
             cmdId,
             title,

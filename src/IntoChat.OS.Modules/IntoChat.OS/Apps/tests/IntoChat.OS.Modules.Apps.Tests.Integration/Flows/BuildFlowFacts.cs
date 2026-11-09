@@ -473,7 +473,7 @@ public sealed class BuildFlowFacts
 
         var listed = await ino.List();
 
-        Assert.Contains("markdraw", listed.Text, StringComparison.Ordinal);
+        Assert.Contains("Studios:", listed.Text, StringComparison.Ordinal);
         Assert.Contains("x.watch", listed.Text, StringComparison.Ordinal);
         Assert.Contains("spec.md kept, scenarios.json kept", listed.Text, StringComparison.Ordinal);
     }

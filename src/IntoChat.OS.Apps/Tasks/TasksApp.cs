@@ -64,6 +64,8 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(TasksApp));
 
+    public const string AppName = "tasks";
+
     public static AppBundle Bundle { get; } = new(
         "tasks",
         "1.0.0",

@@ -81,6 +81,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(InoApp));
 
+    public const string AppName = "ino";
+
     public static AppBundle Bundle { get; } = new(
         "ino",
         "3.5.0",
@@ -104,6 +106,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
             Settings: [],
             Slots: [],
             Icon: "icon.svg",
+            Dock: 1,
             Toolbar:
             [
                 new("send", Kind: "text", Label: "Message your brain"),

@@ -35,4 +35,18 @@ public sealed class ShippedPresentationFacts
         Assert.Equal(268d, widths["gallery"]);
         Assert.All(widths.Where(entry => entry.Key is not ("creator" or "gallery")), entry => Assert.Equal(ShippedManifests.DefaultSideWidth, entry.Value));
     }
+
+    [Fact]
+    public async Task TheDockHoldsTheShellAppsInTheirOrderAndFourAppsAreStudios()
+    {
+        var catalog = new FeatureCatalog([typeof(AppsModule).Assembly, typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly]);
+        var manifests = await ShippedManifests.Of(catalog);
+        Assert.Equal(["ino", "files", "data", "markdraw", "photocraft", "filmcraft", "creator", "gallery", "post", "settings"], manifests.DockApps());
+        Assert.Equal(["data", "filmcraft", "markdraw", "photocraft"], manifests.Studios().Select(studio => studio.App));
+        Assert.True(manifests.IsStudio("photocraft"));
+        Assert.False(manifests.IsStudio("creator"));
+        // A routed prompt runs the operation the route names when the studio has it, else the studio's edit.
+        Assert.Equal("edit", manifests.StudioOperation("photocraft", "canvas"));
+        Assert.Equal("patch-elements", manifests.StudioOperation("markdraw", "patch-elements"));
+    }
 }

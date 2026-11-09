@@ -52,6 +52,8 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DesktopApp));
 
+    public const string AppName = "desktop";
+
     public static AppBundle Bundle { get; } = new(
         "desktop",
         "0.4.0",

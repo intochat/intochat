@@ -117,6 +117,8 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DataStudioApp));
 
+    public const string AppName = "data";
+
     public static AppBundle Bundle { get; } = new(
         "data",
         "1.0.0",
@@ -135,6 +137,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
             Settings: [],
             Slots: [],
             Icon: "icon.svg",
+            Dock: 3, Studio: true,
             Toolbar:
             [
                 new("open", Icon: "database", Label: "Open Dataset"),

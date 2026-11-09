@@ -64,26 +64,24 @@ public sealed partial class UnitsAllTheWayFacts
     // Any other app is reached through its manifest, its signals and the registry, never by name.
     private static readonly string[] ShellApps = ["desktop", "workspace", "ino"];
 
-    // What the host still names today (file: literal). Each entry is a leftover to remove by moving the knowledge into the app's manifest;
-    // the fact fails when an entry is gone, so the list only shrinks.
-    private static readonly string[] Pending =
-    [
-        // The artcraft engine is the host of the photocraft and filmcraft studios and checks its caller against them.
-        "ArtCraftEngineNeuron.cs: filmcraft", "ArtCraftEngineNeuron.cs: photocraft", "ArtCraftEngineRunner.cs: filmcraft", "ArtCraftEngineRunner.cs: photocraft",
-        // The desktop's dock list, the studio-prompt forwarding from Ino, and "settings" as a desktop verb.
-        "CompiledAppsHost.cs: creator", "CompiledAppsHost.cs: data", "CompiledAppsHost.cs: files", "CompiledAppsHost.cs: filmcraft",
-        "CompiledAppsHost.cs: gallery", "CompiledAppsHost.cs: markdraw", "CompiledAppsHost.cs: photocraft", "CompiledAppsHost.cs: post",
-        "CompiledAppsHost.cs: settings",
-        // The module installer special-cases the settings app's key.
-        "InstalledModulesNeuron.cs: settings",
-    ];
-
     [Fact]
     public void NoAppNameSwitchboard()
     {
         var found = HostingNamedApps().Where(entry => !ShellApps.Contains(entry.Literal, StringComparer.Ordinal))
             .Select(entry => entry.File + ": " + entry.Literal).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-        Assert.True(Pending.Order(StringComparer.Ordinal).SequenceEqual(found), string.Join(Environment.NewLine, found));
+        Assert.True(found.Length == 0, string.Join(Environment.NewLine, found));
+    }
+
+    [Fact]
+    public void TheOwnerScopedScanFlagsALiteralOutsideItsOwnerAndNotAnAppNameReference()
+    {
+        HashSet<string> keys = new(["photocraft", "settings"], StringComparer.Ordinal);
+        Assert.Equal(["photocraft"], Violations("var k = IApp.Key(brain, \"photocraft\");", "Mod/Hosting/Host.cs", keys));
+        Assert.Empty(Violations("var k = IApp.Key(brain, PhotoCraftApp.AppName);", "Mod/Hosting/Host.cs", keys));
+        Assert.Empty(Violations("var k = IApp.Key(brain, \"photocraft\");", "IntoChat.OS.Apps/PhotoCraft/PhotoCraftApp.cs", keys));
+        Assert.Empty(Violations("var k = Open(\"desktop\", \"ino\");", "Mod/Hosting/Host.cs", keys));
+        var verbs = WithoutOperationPositions("DesktopButton(\"more\", \"Settings\", \"settings\", null); AppSignals.Emit(App, \"settings\"); X = Open(\"settings\");");
+        Assert.Equal(["settings"], Violations(verbs, "Mod/Hosting/Host.cs", keys));
     }
 
     [Fact]
@@ -110,14 +108,39 @@ public sealed partial class UnitsAllTheWayFacts
         var keys = ShippedAppKeys();
         Assert.Contains("creator", keys);
         Assert.Contains("settings", keys);
-        // A comparison or switch arm on an app identifier, or any quoted literal that is a shipped app's key: the closed world.
+        // A comparison or switch arm on an app identifier, or a quoted literal that is a shipped app's key outside that app's own folder.
+        // Operation and signal names are not app keys, so those positions are blanked first; `X.AppName` is a reference, not a literal.
         return hosting.SelectMany(path =>
         {
-            var text = File.ReadAllText(path);
-            return NamedApps(text).Concat(QuotedLiteral().Matches(text).Select(match => match.Groups[1].Value).Where(keys.Contains))
-                .Select(literal => (Path.GetFileName(path), literal));
+            var text = WithoutOperationPositions(File.ReadAllText(path));
+            return Violations(text, Repository.Relative(path), keys).Select(literal => (Path.GetFileName(path), literal));
         });
     }
+
+    internal static string[] Violations(string text, string relativePath, HashSet<string> keys)
+        => [.. NamedApps(text).Concat(QuotedLiteral().Matches(text).Select(match => match.Groups[1].Value).Where(keys.Contains))
+            .Where(literal => !ShellApps.Contains(literal, StringComparer.Ordinal))
+            .Where(literal => !relativePath.Split('/').Contains(literal, StringComparer.OrdinalIgnoreCase))];
+
+    // The literal in a signal's or operation's position names a verb, not an app: AppSignals.Emit's second argument, the desktop's emit helpers
+    // and its window-verb set.
+    internal static string WithoutOperationPositions(string text)
+    {
+        text = DesktopVerbSet().Replace(text, "");
+        foreach (var position in OperationPositions()) { text = position.Replace(text, match => match.Value.Replace("\"" + match.Groups["verb"].Value + "\"", "\"\"")); }
+        return text;
+    }
+
+    [GeneratedRegex(@"DesktopWindowVerbs\s*=[^;]*;", RegexOptions.CultureInvariant)]
+    private static partial Regex DesktopVerbSet();
+
+    private static Regex[] OperationPositions() =>
+    [
+        new(@"AppSignals\.Emit\(\s*[^,()]+,\s*""(?<verb>[^""]*)""", RegexOptions.CultureInvariant),
+        new(@"DesktopEmit\(\s*""(?<verb>[^""]*)""", RegexOptions.CultureInvariant),
+        new(@"DesktopButton\(\s*""[^""]*""\s*,\s*""[^""]*""\s*,\s*""(?<verb>[^""]*)""", RegexOptions.CultureInvariant),
+        new(@"DesktopIcon\(\s*""[^""]*""\s*,\s*""[^""]*""\s*,\s*""[^""]*""\s*,\s*""(?<verb>[^""]*)""", RegexOptions.CultureInvariant),
+    ];
 
     private static string[] NamedApps(string source)
     {

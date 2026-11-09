@@ -136,6 +136,8 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(MarkdrawApp));
 
+    public const string AppName = "markdraw";
+
     public static AppBundle Bundle { get; } = new(
         "markdraw",
         "1.0.0",
@@ -155,6 +157,7 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
             Settings: [],
             Slots: [],
             Icon: "icon.svg",
+            Dock: 4, Studio: true,
             Toolbar:
             [
                 new("open", Icon: "pen-tool", Label: "Open Canvas"),

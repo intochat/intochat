@@ -41,6 +41,8 @@ public sealed class PostApp : DigitalBrain.App<PostAppState>
 {
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(PostApp));
 
+    public const string AppName = "post";
+
     public static AppBundle Bundle { get; } = new(
         "post",
         "1.0.0",
@@ -55,7 +57,8 @@ public sealed class PostApp : DigitalBrain.App<PostAppState>
             ],
             Settings: [],
             Slots: [],
-            Icon: "icon.svg"),
+            Icon: "icon.svg",
+            Dock: 9),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
     {

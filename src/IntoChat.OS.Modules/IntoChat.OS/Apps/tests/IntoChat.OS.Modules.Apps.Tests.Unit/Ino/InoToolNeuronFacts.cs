@@ -144,9 +144,14 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task ListNamesTheStudios()
     {
-        await using var os = NewOs();
+        using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection().AddOptions<AppsOptions>().Services
+            .AddSingleton(TimeProvider.System)
+            .AddSingleton(new FeatureCatalog([typeof(AppsModule).Assembly, typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly])).BuildServiceProvider();
+        await using var os = NewOs(services);
         var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).List();
-        Assert.Contains("markdraw", result.Text);
+        Assert.Contains("- markdraw: ", result.Text);
+        Assert.Contains("- photocraft: ", result.Text);
+        Assert.DoesNotContain("- creator: ", result.Text);
     }
 
     [Fact]

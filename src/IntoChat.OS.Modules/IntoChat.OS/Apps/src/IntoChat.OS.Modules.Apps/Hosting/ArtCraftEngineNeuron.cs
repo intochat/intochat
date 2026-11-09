@@ -116,12 +116,12 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
     private async Task<bool> IsAppGrantedAsync(string brain, CapabilityCaller caller)
     {
         var appId = caller.AppId ?? "";
-        var defaultPhotoCraftKey = IApp.Key(brain, "photocraft");
-        var defaultFilmCraftKey = IApp.Key(brain, "filmcraft");
+        var defaultPhotoCraftKey = IApp.Key(brain, ShippedApps.PhotoCraft);
+        var defaultFilmCraftKey = IApp.Key(brain, ShippedApps.FilmCraft);
         var defaultInoKey = IApp.Key(brain, "ino");
-        var isShippedStudio = string.Equals(appId, "photocraft", StringComparison.Ordinal)
+        var isShippedStudio = string.Equals(appId, ShippedApps.PhotoCraft, StringComparison.Ordinal)
             || string.Equals(appId, defaultPhotoCraftKey, StringComparison.Ordinal)
-            || string.Equals(appId, "filmcraft", StringComparison.Ordinal)
+            || string.Equals(appId, ShippedApps.FilmCraft, StringComparison.Ordinal)
             || string.Equals(appId, defaultFilmCraftKey, StringComparison.Ordinal)
             || string.Equals(appId, "ino", StringComparison.Ordinal)
             || string.Equals(appId, defaultInoKey, StringComparison.Ordinal);

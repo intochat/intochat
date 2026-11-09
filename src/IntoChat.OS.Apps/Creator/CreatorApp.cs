@@ -71,6 +71,8 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(CreatorApp));
 
+    public const string AppName = "creator";
+
     public static AppBundle Bundle { get; } = new(
         "creator",
         "2.0.0",
@@ -90,6 +92,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
             Settings: [],
             Slots: [],
             Icon: "icon.svg",
+            Dock: 7,
             SideWidth: 340d),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
