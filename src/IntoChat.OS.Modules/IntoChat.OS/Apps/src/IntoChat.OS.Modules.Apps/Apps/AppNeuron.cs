@@ -36,47 +36,7 @@ internal sealed partial class AppNeuron(
     {
         await Interrupt();
         if (State.Manifest is null || State.Refused is not null) { return; }
-        if (await RefuseLegacy()) { return; }
         if (HasProgram(State)) { Defer(() => Get<IAppRestore>(Id).Restore()); }
-    }
-
-    // A record stored before 0.18 is read from its raw JSON (the typed state has already dropped the retired fields) and refused:
-    // Failed, one activity line, nothing deployed. Whatever goes wrong here is logged, never thrown at the first caller.
-    private async Task<bool> RefuseLegacy()
-    {
-        try
-        {
-            var stored = await Context.State.Load<System.Text.Json.JsonElement>();
-            var markers = LegacyAppRecord.Markers(stored);
-            if (markers.Length == 0) { return false; }
-            var next = State.Clone();
-            next.Files = State.Files.Where(file => !LegacyAppRecord.IsProgramFile(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-            next.Settings = State.Settings.Where(setting => !LegacyAppRecord.IsPrebuilt(setting.Key) && setting.Key != InProcessAppRuntime.CompiledTypeKey)
-                .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
-            // A shipped app the host loads (ino, desktop, creator...) is not rebuilt by the Creator: its program is the host's compiled
-            // type, so the pre-0.18 leftovers are stripped and the record stays usable.
-            if (ServiceProvider.GetService<IHostedAppTypes>() is { } hosted && hosted.IsHostLoaded(Name()))
-            {
-                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogInformation(
-                    "App {App} carried pre-0.18 leftovers ({Markers}); stripped, the host-loaded program stands.", Key, string.Join(", ", markers));
-                await Persist(next);
-                return false;
-            }
-            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(
-                "App {App} is a pre-0.18 record ({Markers}); it is refused and must be rebuilt.", Key, string.Join(", ", markers));
-            // The refusal is durable: the program files and settings are stripped (nothing deploys or retries) and Refused names why, so
-            // the activity line below is written once, not once per activation. A rebuild (Import or CompleteBuild) clears Refused.
-            next.Refused = string.Join(", ", markers);
-            next.Status = AppStatus.Failed;
-            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), LegacyAppRecord.Refusal];
-            await Persist(next);
-            return true;
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(error, "Could not check app {App} for a pre-0.18 record.", Key);
-            return false;
-        }
     }
 
     private Task Save(AppState next, DigitalBrain.Signal first, DigitalBrain.Signal second, DigitalBrain.Signal third) => base.Save(next, [first, second, third]);
@@ -287,52 +247,13 @@ internal sealed partial class AppNeuron(
         return Describe(State);
     }
 
-    public async Task<AppSnapshot> CompleteBuild(Guid attempt,Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
+    public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
     {
         if (State.Status != AppStatus.Building || attempt != State.BuildAttempt) { return Describe(State); }
         var next = State.Clone();
-        if (error is not null || files is not { Count: > 0 })
-        {
-            next.Status = AppStatus.Failed;
-            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build failed: " + (error ?? "the Builder produced no files")];
-            await Persist(next);
-            return Describe(State);
-        }
-        if (files.ContainsKey(AppFiles.DeclarationPath) || files.Keys.Any(LegacyAppRecord.IsProgramFile))
-        {
-            next.Status = AppStatus.Failed;
-            var detail = files.ContainsKey(AppFiles.DeclarationPath)
-                ? $"{AppFiles.DeclarationPath} belongs to the Author, not the Builder"
-                : "program files belong to the Synapse Studio, not the app record";
-            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build failed: {detail}"];
-            await Persist(next);
-            return Describe(State);
-        }
-        var firstBuild = State.Files.Count == 0;
-        if (manifest is not null)
-        {
-            next.Manifest = manifest.Validated();
-            foreach (var setting in manifest.Settings)
-            { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
-        }
-        foreach (var (path, source) in files) { next.PutFile(path, source); }
-        next.Edited = true;
-        next.Refused = null;
-        next.Version = Bump(next.Version, minor: firstBuild);
-        next.Status = AppStatus.Live;
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
-        Record(next);
-        AdvanceProgram(next);
+        next.Status = AppStatus.Failed;
+        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build failed: " + (error ?? "the legacy file builder is retired; units use CompleteUnitBuild")];
         await Persist(next);
-        // The Builder's program lands whole; one that does not compile is a failed build.
-        try { await Deploy(); }
-        catch (InvalidOperationException failure)
-        {
-            var failed = State.Clone();
-            failed.Status = AppStatus.Failed;
-            failed.Activity = [.. failed.Activity.TakeLast(MaxActivity - 1), "build failed: " + failure.Message];
-            await Persist(failed);
-        }
         return Describe(State);
     }
 

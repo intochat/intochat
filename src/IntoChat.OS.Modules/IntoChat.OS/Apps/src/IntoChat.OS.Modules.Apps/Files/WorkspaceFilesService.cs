@@ -22,6 +22,11 @@ public interface IFilesVfsService
     Task<WorkspaceFileEntry> WriteTextAsync(string fileNameOrPath, string content, CancellationToken ct = default);
 }
 
+public interface IWithFilesVfs
+{
+    IFilesVfsService? FilesVfs { get; set; }
+}
+
 public sealed class WorkspaceFilesService : IFilesVfsService
 {
     private readonly ConcurrentDictionary<string, (WorkspaceFileEntry Entry, byte[] Bytes)> _overlay = new(StringComparer.OrdinalIgnoreCase);

@@ -87,7 +87,7 @@ public sealed record ArtCraftStudioAppState(
     }
 }
 
-public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain.App<TState>
+public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain.App<TState>, IWithFilesVfs
     where TState : class, new()
 {
     public ArtCraftAppDescriptor Descriptor { get; } = ArtCraftCatalog.Get(appId);

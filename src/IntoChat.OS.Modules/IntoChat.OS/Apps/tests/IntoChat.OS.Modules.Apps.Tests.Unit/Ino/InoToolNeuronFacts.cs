@@ -177,10 +177,25 @@ public sealed class InoToolNeuronFacts
         Assert.DoesNotContain("- creator: ", result.Text);
     }
 
+    private static DigitalBrain.Testing.Conformance.Storage.InMemoryStorage CreateOpportunitiesStorage()
+    {
+        var storage = new DigitalBrain.Testing.Conformance.Storage.InMemoryStorage("Documents");
+        storage.AddFile(storage.Root, "opportunities.csv", """
+Opportunity,Account,Stage,Amount
+Nordkapp second region,Nordkapp Shipping,Discovery,74500
+Cold-chain sensors,Lofoten Seafood,Proposal,31200
+Deep-sea mooring telemetry,Bergen Offshore,Won,120000
+Autonomous ferry dispatch,Stavanger Mobility,Qualified,45000
+Subsea cabling condition,Trondheim Subsea,Won,95000
+"""u8.ToArray());
+        return storage;
+    }
+
     [Fact]
     public async Task ConnectThenQueryReturnsRows()
     {
-        await using var os = NewOs();
+        var storage = CreateOpportunitiesStorage();
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
         var connected = await Data(os).Connect("Host=db.example;Database=sales");
         Assert.Equal("db-connection", connected.Card!.Kind);
 
@@ -198,7 +213,8 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task ChartReturnsAChartCard()
     {
-        await using var os = NewOs();
+        var storage = CreateOpportunitiesStorage();
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
         var result = await Data(os).Chart("show a pie chart of opportunities");
         Assert.Equal("chart", result.Card!.Kind);
         Assert.Equal("pie", result.Card.ChartKind);

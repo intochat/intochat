@@ -91,7 +91,7 @@ public sealed record MarkdrawAppState(
 }
 
 [DigitalBrain.App("markdraw", Accent = "#10B981", Category = "Studio")]
-public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
+public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFilesVfs
 {
     public const string DefaultArchitectureScene =
         "# IntoChat Neuron & Data Architecture\n\n" +
@@ -121,12 +121,12 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
 
         rect "CRM Opportunities (5 deals)" id=crm-source at 80,120 size 220x80 fill=#1e3a8a color=#60a5fa rounded=10
         diamond "Stage Filter (Proposal / Contract)" id=stage-filter at 370,115 size 220x90 fill=#422006 color=#f59e0b
-        rect "Havbris Pilot (€240,000)" id=deal-havbris at 660,70 size 220x70 fill=#064e3b color=#34d399 rounded=10
+        rect "Enterprise Pilot (€240,000)" id=deal-enterprise-pilot at 660,70 size 220x70 fill=#064e3b color=#34d399 rounded=10
         rect "Depot Software (€186,000)" id=deal-depot at 660,175 size 220x70 fill=#1e1b4b color=#818cf8 rounded=10
         rect "Executive Chart & Brief" id=exec-brief at 370,290 size 230x76 fill=#3b0764 color=#c084fc rounded=10
 
         arrow crm-source -> stage-filter "SQL / CSV Query" color=#60a5fa
-        arrow stage-filter -> deal-havbris "Top 1" color=#34d399
+        arrow stage-filter -> deal-enterprise-pilot "Top 1" color=#34d399
         arrow stage-filter -> deal-depot "Top 2" color=#818cf8
         arrow stage-filter -> exec-brief "Aggregate €627.7k" color=#c084fc
         ```
@@ -373,7 +373,7 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>
         var cols = (request.ColumnsCsv ?? "Opportunity, Account, Stage, Amount")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var rowsSummary = string.IsNullOrWhiteSpace(request.RowsSummary)
-            ? "5 rows · Total €627,700 · Top: Havbris pilot (€240,000)"
+            ? "5 rows · Total €627,700 · Top: Enterprise pilot (€240,000)"
             : request.RowsSummary.Trim();
         var sourceUri = string.IsNullOrWhiteSpace(request.SourceUri)
             ? "neuron://local/postgres/main"

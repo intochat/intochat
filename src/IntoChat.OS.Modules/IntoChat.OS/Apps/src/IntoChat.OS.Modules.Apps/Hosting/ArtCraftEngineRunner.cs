@@ -7,11 +7,8 @@ namespace IntoChat.OS.Modules.Apps;
 
 public static class ArtCraftEngineRunner
 {
-    public const string CyanPreviewPngDataUrl =
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-
-    public const string GradientPreviewPngDataUrl =
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    public const string CyanPreviewPngDataUrl = "";
+    public const string GradientPreviewPngDataUrl = "";
 
     public static string NormalizeMode(string? mode) => mode?.Trim().ToLowerInvariant() switch
     {
@@ -409,11 +406,14 @@ public static class ArtCraftEngineRunner
         {
             try
             {
-                var bytes = descriptor.Id == ShippedApps.PhotoCraft
+                byte[]? bytes = descriptor.Id == ShippedApps.PhotoCraft && !string.IsNullOrWhiteSpace(previewUrl)
                     ? DecodeDataUrlBytes(previewUrl, $"PhotoCraft PNG artifact ({cmdId}) -> {outputDoc}")
-                    : Encoding.UTF8.GetBytes($"{descriptor.Title} output ({cmdId}): {inputDoc} -> {outputDoc}");
-                var written = await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false);
-                outputNeuronUri = written.NeuronUri;
+                    : null;
+                if (bytes is { Length: > 0 })
+                {
+                    var written = await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false);
+                    outputNeuronUri = written.NeuronUri;
+                }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {

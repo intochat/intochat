@@ -8,6 +8,7 @@ The embedded folder scripts publish the Flutter desktop. These operations presen
 */
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.ArtCraft;
 
 namespace IntoChat.OS.Apps.Desktop;
 
@@ -92,7 +93,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
     private IDesktopRecords Records => Get<IDesktopRecords>(IDesktopRecords.Key);
     private IntoChat.OS.Modules.Apps.Approvals.Approval[] _approvals = [];
 
-    public static IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> Catalog { get; } =
+    public static readonly IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> NativeCatalog =
     [
         // DigitalBrain OS Native Grains (10)
         ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
@@ -105,25 +106,12 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid", "Studio", "orleans-grain"),
         ("friends", "Friends", "neuron://local/apps/friends", "users", "Social", "orleans-grain"),
         ("settings", "Settings", "neuron://local/apps/settings", "settings", "System", "orleans-grain"),
-        // ArtCraft Creative Suite (17)
-        ("artcraft", "ArtCraft", "neuron://local/apps/artcraft", "brush", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("photocraft", "PhotoCraft", "neuron://local/apps/photocraft", "image", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("filmcraft", "FilmCraft", "neuron://local/apps/filmcraft", "film", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("vectorcraft", "VectorCraft", "neuron://local/apps/vectorcraft", "pen-tool", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("lightcraft", "LightCraft", "neuron://local/apps/lightcraft", "sun", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("effectcraft", "EffectCraft", "neuron://local/apps/effectcraft", "wand", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("designcraft", "DesignCraft", "neuron://local/apps/designcraft", "layers", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("pdfcraft", "PDFCraft", "neuron://local/apps/pdfcraft", "file-text", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("wordcraft", "WordCraft", "neuron://local/apps/wordcraft", "file-edit", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("soundcraft", "SoundCraft", "neuron://local/apps/soundcraft", "music", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("deckcraft", "DeckCraft", "neuron://local/apps/deckcraft", "presentation", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("cadcraft", "CADCraft", "neuron://local/apps/cadcraft", "compass", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("gridcraft", "GridCraft", "neuron://local/apps/gridcraft", "table", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("figcraft", "FigCraft", "neuron://local/apps/figcraft", "pen-tool", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("texturecraft", "TextureCraft", "neuron://local/apps/texturecraft", "grid", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("materialcraft", "MaterialCraft", "neuron://local/apps/materialcraft", "droplet", "ArtCraft Studio", "wasm-ui+mcp+cli"),
-        ("solidcraft", "SolidCraft", "neuron://local/apps/solidcraft", "box", "ArtCraft Studio", "wasm-ui+mcp+cli"),
     ];
+
+    public static IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> Catalog { get; } =
+        NativeCatalog.Concat(
+            ArtCraftCatalog.All.Select(app => (app.Id, app.Title, $"neuron://local/apps/{app.Id}", app.Icon, app.Category, "wasm-ui+mcp+cli"))
+        ).ToArray();
 
     [DigitalBrain.On]
     public async Task Start(DesktopStart request)

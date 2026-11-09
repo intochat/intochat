@@ -83,19 +83,9 @@ public sealed record SettingsAppState(
     IReadOnlyList<string>? ConnectionKeys = null,
     IReadOnlyList<string>? FriendGrants = null)
 {
-    public static IReadOnlyList<string> DefaultConnectionKeys { get; } =
-    [
-        "neuron://local/connection/github/personal",
-        "neuron://local/connection/github/work",
-        "neuron://local/connection/google-drive/work",
-        "neuron://local/local-cloud/main",
-    ];
+    public static IReadOnlyList<string> DefaultConnectionKeys { get; } = [];
 
-    public static IReadOnlyList<string> DefaultFriendGrants { get; } =
-    [
-        "sdk -> app:local/apps/creator (storage@1 · SANDBOX / TEST CREDENTIALS)",
-        "sdk -> app:local/apps/ino (connections · ICapabilityBroker Zero-Token)",
-    ];
+    public static IReadOnlyList<string> DefaultFriendGrants { get; } = [];
 
     public SettingsAppState() : this(
         "Settings",
@@ -116,8 +106,8 @@ public sealed record SettingsAppState(
         "English",
         "UTC",
         "17 Oct 2026",
-        DefaultConnectionKeys,
-        DefaultFriendGrants)
+        [],
+        [])
     {
     }
 }

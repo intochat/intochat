@@ -615,10 +615,10 @@ internal static class GalleryRendering
             "draft-card" => new DraftCardNode(
                 "draft-gallery-1",
                 "email",
-                "jeff@intochat.os",
-                "Kari Holm <kari@nordlys.no>",
-                "Hi Kari,\nConfirmed: we updated the Q4 renewal close date to 15 Nov 2026 (480,000 NOK).",
-                Subject: "Nordlys Q4 Enterprise Renewal — 15 Nov confirmation",
+                "user@intochat.os",
+                "alex@example.com",
+                "Hi Alex,\nConfirmed: we updated the quarterly renewal close date to 15 Nov 2026 (480,000 NOK).",
+                Subject: "Quarterly Enterprise Renewal — 15 Nov confirmation",
                 Status: state.DraftStatus,
                 Send: new Button("send", "Send", Emit: AppSignals.Emit("gallery", "select", "card:draft:sent"), Tone: ButtonTone.Accent),
                 Discard: new Button("discard", "Discard", Emit: AppSignals.Emit("gallery", "select", "card:draft:pending"))),
@@ -626,13 +626,13 @@ internal static class GalleryRendering
             "change-preview-card" => new ApprovalCardNode(
                 "change-gallery-1",
                 "change-gallery-1",
-                "Apply 2 CRM field changes on Nordlys Q4 Enterprise",
-                "Nordlys Q4 Enterprise",
+                "Apply 2 CRM field changes on Enterprise Account",
+                "Enterprise Account",
                 [
                     new ApprovalRowNode("Close date", "30 Oct 2026", "15 Nov 2026"),
                     new ApprovalRowNode("Amount", "450,000 NOK", "480,000 NOK"),
                 ],
-                SystemName: "Salesforce",
+                SystemName: "CRM",
                 Status: state.ApprovalStatus,
                 SourceNeuronUri: selected.SourceNeuronUri),
 
@@ -651,16 +651,16 @@ internal static class GalleryRendering
 
             "record-card" => new RecordCardNode(
                 "Opportunity",
-                "Nordlys Q4 Enterprise Renewal",
+                "Quarterly Enterprise Renewal",
                 [
                     new RecordFieldNode("Amount", "480,000 NOK"),
                     new RecordFieldNode("Close Date", "15 Nov 2026"),
                     new RecordFieldNode("Stage", "Negotiation / Review"),
                     new RecordFieldNode("Last Contact", "14 days ago"),
                 ],
-                Subtitle: "Kari Holm · Oslo, Norway",
-                LinkLabel: "Open in Salesforce",
-                Open: new Button("open", "Open in Salesforce", Emit: AppSignals.Emit("gallery", "select", "pulse"))),
+                Subtitle: "Alex Berg · Oslo, Norway",
+                LinkLabel: "Open in CRM",
+                Open: new Button("open", "Open in CRM", Emit: AppSignals.Emit("gallery", "select", "pulse"))),
 
             "secret-card" => new SecretCardNode(
                 "Tripletex Session Token",

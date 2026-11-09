@@ -38,6 +38,7 @@ public sealed class DataStudioAppFacts
 
         var dataStudio = await os.Install<DataStudioApp>();
         dataStudio.App.FilesVfs = vfs;
+        await vfs.WriteTextAsync("/work/q4-opportunities.csv", "Opportunity,Account,Stage,Amount\nHavbris pilot,Havbris AS,Proposal,\"€240,000\"\nBergen Port Ops,Bergen Havn,Contract,\"€186,000\"\nNordic Wind Q4,Nordic Wind,Negotiation,\"€88,500\"\nFjordkraft Renewal,Fjordkraft,Closed Won,\"€64,000\"\nKystlinje Analytics,Kystlinje,Discovery,\"€49,200\"\n", ct);
 
         await dataStudio.Request("open", new DataStudioOpen("/work/q4-opportunities.csv"));
         Assert.Equal("/work/q4-opportunities.csv", dataStudio.App.State.ActiveSource);
@@ -83,6 +84,7 @@ public sealed class DataStudioAppFacts
 
         var dataStudio = await os.Install<DataStudioApp>();
         dataStudio.App.FilesVfs = vfs;
+        await vfs.WriteTextAsync("/work/customer-arr.csv", "Account,City,Owner,ARR\nHavbris AS,Bergen,Marte L.,\"€148,000\"\nFjordkraft,Oslo,Henrik S.,\"€112,000\"\nNordic Wind,Stavanger,Marte L.,\"€94,500\"\nKystlinje,Trondheim,Astrid K.,\"€76,000\"\n", ct);
         await dataStudio.Request("open", new DataStudioOpen("/work/customer-arr.csv"));
         Assert.Equal(4, dataStudio.App.State.Rows.Length);
         Assert.Equal(430500, dataStudio.App.State.Total);

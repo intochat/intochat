@@ -22,31 +22,6 @@ public static partial class DataAnalyticsEngine
 {
     private sealed record DatasetRecord(string[] Columns, List<string[]> Rows, string Title, string CurrencyPrefix, string EntityLabel);
 
-    private static readonly DatasetRecord BuiltInOpportunities = new(
-        ["Opportunity", "Account", "Stage", "Amount"],
-        [
-            ["Havbris pilot", "Havbris AS", "Proposal", "€240,000"],
-            ["Depot software, phase 2", "Acme Logistics", "Negotiation", "€186,000"],
-            ["Fjordline renewal", "Fjordline", "Contract", "€96,000"],
-            ["Nordkapp second region", "Nordkapp Shipping", "Discovery", "€74,500"],
-            ["Cold-chain sensors", "Lofoten Seafood", "Proposal", "€31,200"],
-        ],
-        "Pipeline Opportunities by Amount",
-        "€",
-        "opportunity row(s)");
-
-    private static readonly DatasetRecord BuiltInCustomers = new(
-        ["Account", "City", "Owner", "AnnualRevenue"],
-        [
-            ["Acme Logistics", "Oslo", "Maja Berg", "€312,000"],
-            ["Havbris AS", "Bergen", "Jeff Tilley", "€240,000"],
-            ["Fjordline", "Stavanger", "Erik Nilsen", "€192,000"],
-            ["Nordkapp Shipping", "Tromsø", "Maja Berg", "€148,500"],
-        ],
-        "Customer Accounts by Annual Revenue",
-        "€",
-        "customer account(s)");
-
     public static async Task<DataQueryResult> ExecuteAsync(
         string queryOrPrompt,
         string database,
@@ -57,8 +32,12 @@ public static partial class DataAnalyticsEngine
         // 1. Check if the query references a CSV/TSV/JSON dataset in IFilesVfsService
         if (filesVfs is not null && TryExtractDatasetFileToken(queryOrPrompt) is { } fileToken)
         {
-            var resolved = await filesVfs.ResolveFileAsync(fileToken);
-            var text = await filesVfs.ReadTextAsync(resolved?.VfsPath ?? fileToken);
+            var resolved = await filesVfs.ResolveFileAsync(fileToken)
+                ?? (!Path.HasExtension(fileToken) ? await filesVfs.ResolveFileAsync($"/work/{fileToken}.csv") : null)
+                ?? (!Path.HasExtension(fileToken) ? await filesVfs.ResolveFileAsync($"{fileToken}.csv") : null);
+
+            var path = resolved?.VfsPath ?? fileToken;
+            var text = await filesVfs.ReadTextAsync(path);
             if (!string.IsNullOrWhiteSpace(text))
             {
                 var vfsPath = resolved?.VfsPath ?? $"/work/{WorkspaceFilesService.ExtractCleanFileName(fileToken)}";
@@ -89,28 +68,18 @@ public static partial class DataAnalyticsEngine
                 preserveExactBuiltInSummary: false);
         }
 
-        return ExecuteBuiltIn(queryOrPrompt, database);
-    }
-
-    public static DataQueryResult ExecuteBuiltIn(string queryOrPrompt, string database)
-    {
-        var chartKind = InferChartKind(queryOrPrompt);
-        var isCustomerTable = queryOrPrompt.Contains("customer", StringComparison.OrdinalIgnoreCase)
-            || (queryOrPrompt.Contains("account", StringComparison.OrdinalIgnoreCase)
-                && !queryOrPrompt.Contains("opportunit", StringComparison.OrdinalIgnoreCase));
-
-        var dataset = isCustomerTable
-            ? BuiltInCustomers
-            : BuiltInOpportunities;
-        var hasCustomFilterOrGroup = HasAnalyticalClauses(queryOrPrompt);
-
-        return RunRelationalPipeline(
-            dataset,
-            queryOrPrompt,
-            chartKind,
-            sourceLabel: database,
-            sourceUri: "neuron://local/postgres/main#query-result",
-            preserveExactBuiltInSummary: !hasCustomFilterOrGroup);
+        return new DataQueryResult(
+            ChartTitle: $"No Data ({database})",
+            Columns: [],
+            Rows: [],
+            ChartKind: chartKind,
+            ChartPoints: [],
+            Summary: $"No dataset found matching query or file reference in database '{database}'.",
+            SourceUri: $"neuron://local/data/{database}/empty",
+            TotalValue: 0.0,
+            AverageValue: 0.0,
+            MinValue: 0.0,
+            MaxValue: 0.0);
     }
 
     private static DatasetRecord? TryParseInlinePromptDataset(string prompt)
@@ -153,7 +122,18 @@ public static partial class DataAnalyticsEngine
         }
 
         var match = DatasetFileRegex().Match(text);
-        return match.Success ? match.Groups["file"].Value.Trim('"', '\'', '`', ',', ';', ')') : null;
+        if (match.Success)
+        {
+            return match.Groups["file"].Value.Trim('"', '\'', '`', ',', ';', ')');
+        }
+
+        var fromMatch = FromTableRegex().Match(text);
+        if (fromMatch.Success)
+        {
+            return fromMatch.Groups["table"].Value.Trim('"', '\'', '`', ',', ';', ')');
+        }
+
+        return null;
     }
 
     public static string SerializeToCsv(IReadOnlyList<string> columns, IReadOnlyList<string[]> rows)
@@ -648,6 +628,9 @@ public static partial class DataAnalyticsEngine
 
     [GeneratedRegex(@"(?<file>(?:/work/)?[a-zA-Z0-9_\-\.]+\.(?:csv|tsv|json))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex DatasetFileRegex();
+
+    [GeneratedRegex(@"\b(?:FROM|OF|FOR)\s+(?<table>[a-zA-Z0-9_\-\./]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    private static partial Regex FromTableRegex();
 
     [GeneratedRegex(@"\bWHERE\s+(?<col>[a-zA-Z0-9_]+)\s*(?<op>>=|<=|!=|<>|=|>|<|LIKE)\s*(?<val>'[^']*'|""[^""]*""|[^\s;]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex WhereClauseRegex();

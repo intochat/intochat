@@ -6,7 +6,6 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Rules;
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
 using PresentationCollaborator = IntoChat.OS.Modules.Apps.Presentations.AppPresentation;
@@ -19,7 +18,6 @@ internal sealed partial class AppNeuron
     {
         await RequireExecutingAssignment("Present", expectedProgramRevision);
         ArgumentNullException.ThrowIfNull(presentation);
-        if (presentation.Sphere is { } sphere) { ArgumentNullException.ThrowIfNull(sphere.BlackboardKeys); }
         var views = presentation.Views ?? [];
         var invalidView = views.Any(view => view is null || string.IsNullOrWhiteSpace(view.Id)
             || view.Id.Length > 64 || view.Root is null) || views.Select(view => view.Id).Distinct(StringComparer.Ordinal).Count() != views.Length;
@@ -28,12 +26,9 @@ internal sealed partial class AppNeuron
             : invalidView || views.Length > 16
                 ? 17
                 : Math.Max(1, views.Length);
-        var declaredKeys = presentation.Sphere?.BlackboardKeys ?? [];
         var slotRules = new[] { presentation.Side, presentation.Main }.OfType<ViewRef>().Concat(views.Where(v => v?.Root is not null).Select(view => view.Root))
             .Select(slot => (Rule)new SlotNamesABrainNeuron(string.IsNullOrWhiteSpace(slot.Kind) ? "" : slot.Name, State.BrainScopeId ?? ""));
-        await Check("Present",
-            [new PresentationHasViews(viewCount), .. slotRules, new BlackboardKeysAreDeclarable(declaredKeys)]);
-        if (presentation.Sphere?.Tree is { } tree) { FlameSchema.CheckTree(tree, declaredKeys); }
+        await Check("Present", [new PresentationHasViews(viewCount), .. slotRules]);
         if (new PresentationCollaborator(State).Publish(presentation) is { } next)
         {
             await Save(next, new PresentationChanged(Key, next.ProgramRevision, next.Presentation!.Revision));

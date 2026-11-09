@@ -1,12 +1,13 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DigitalBrain;
 
 namespace IntoChat.OS.Modules.Apps.Trace;
 
-// Forwards to the brain's signal history. Payloads are shown as journaled: the agent redacts tool arguments and results before publishing.
+// Forwards to the brain's signal history. Payloads are shown as journaled, with any inline bearer or API key tokens redacted.
 [DigitalBrain.Neuron("trace.reader"), StatelessNeuron]
-public sealed class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReader
+public sealed partial class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReader
 {
     public const int PayloadLimit = 2000;
 
@@ -25,6 +26,12 @@ public sealed class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReader
         return payload[..cut] + "…";
     }
 
+    public static string Redact(string payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        return SecretTokenPattern().Replace(payload, "[REDACTED]");
+    }
+
     public static TraceEntry Entry(JournaledSignal journaled)
     {
         ArgumentNullException.ThrowIfNull(journaled);
@@ -32,8 +39,11 @@ public sealed class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReader
         string payload;
         try { payload = JsonSerializer.Serialize(journaled.Signal, type, JsonSerializerOptions.Web); }
         catch (Exception error) when (error is NotSupportedException or InvalidOperationException) { payload = type.Name; }
-        payload = Trim(payload);
+        payload = Trim(Redact(payload));
         return new TraceEntry(journaled.Publisher.ToString(), journaled.Sequence, type.GetCustomAttribute<SignalAttribute>()?.Alias ?? type.Name,
             journaled.At, journaled.TraceId, journaled.CausationId, payload);
     }
+
+    [GeneratedRegex(@"(?:Bearer\s+[A-Za-z0-9._\-]{8,}|sk-(?:proj-|ant-)?[A-Za-z0-9_\-]{8,}|gh[pousr]_[A-Za-z0-9]{8,})", RegexOptions.CultureInvariant)]
+    private static partial Regex SecretTokenPattern();
 }

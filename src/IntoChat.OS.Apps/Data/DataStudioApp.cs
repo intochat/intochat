@@ -61,58 +61,27 @@ public sealed record DataStudioAppState(
     string? LastMarkdrawPath = null)
 {
     public DataStudioAppState() : this(
-        ActiveSource: "/work/q4-opportunities.csv",
-        ActiveQuery: "SELECT Opportunity, Account, Stage, Amount FROM /work/q4-opportunities.csv ORDER BY Amount DESC",
-        ChartTitle: "Pipeline Opportunities by Amount",
+        ActiveSource: "",
+        ActiveQuery: "",
+        ChartTitle: "",
         ChartKind: "bar",
-        Columns: ["Opportunity", "Account", "Stage", "Amount"],
-        Rows:
-        [
-            ["Havbris pilot", "Havbris AS", "Proposal", "€240,000"],
-            ["Nordic Wind Q4", "Nordic Wind", "Negotiation", "€88,500"],
-            ["Kystlinje Analytics", "Kystlinje", "Discovery", "€49,200"],
-            ["Fjordkraft Renewal", "Fjordkraft", "Closed Won", "€64,000"],
-            ["Bergen Port Ops", "Bergen Havn", "Contract", "€186,000"],
-        ],
-        ChartPoints:
-        [
-            new("pt-1", "Havbris pilot", 240000),
-            new("pt-2", "Bergen Port Ops", 186000),
-            new("pt-3", "Nordic Wind Q4", 88500),
-            new("pt-4", "Fjordkraft Renewal", 64000),
-            new("pt-5", "Kystlinje Analytics", 49200),
-        ],
-        Total: 627700,
-        Average: 125540,
-        Min: 49200,
-        Max: 240000,
-        Summary: "Queried 5 opportunities totaling €627,700 from /work/q4-opportunities.csv.",
-        SourceNeuronUri: "neuron://local/apps/data#q4-opportunities",
-        WorkspaceDatasets: ["/work/q4-opportunities.csv", "/work/customer-arr.csv", "postgres:opportunities", "postgres:customers"])
+        Columns: [],
+        Rows: [],
+        ChartPoints: [],
+        Total: 0,
+        Average: 0,
+        Min: 0,
+        Max: 0,
+        Summary: "No dataset loaded.",
+        SourceNeuronUri: "neuron://local/apps/data",
+        WorkspaceDatasets: [])
     {
     }
 }
 
 [DigitalBrain.App("data", Accent = "#38BDF8", Category = "Analytics")]
-public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
+public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithFilesVfs
 {
-    public const string DefaultOpportunitiesCsv = """
-        Opportunity,Account,Stage,Amount
-        Havbris pilot,Havbris AS,Proposal,"€240,000"
-        Bergen Port Ops,Bergen Havn,Contract,"€186,000"
-        Nordic Wind Q4,Nordic Wind,Negotiation,"€88,500"
-        Fjordkraft Renewal,Fjordkraft,Closed Won,"€64,000"
-        Kystlinje Analytics,Kystlinje,Discovery,"€49,200"
-        """;
-
-    public const string DefaultCustomerArrCsv = """
-        Account,City,Owner,ARR
-        Havbris AS,Bergen,Marte L.,"€148,000"
-        Fjordkraft,Oslo,Henrik S.,"€112,000"
-        Nordic Wind,Stavanger,Marte L.,"€94,500"
-        Kystlinje,Trondheim,Astrid K.,"€76,000"
-        """;
-
     public IFilesVfsService? FilesVfs { get; set; }
 
     public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DataStudioApp));
@@ -412,6 +381,8 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
     [DigitalBrain.Scenario("Data Studio queries workspace dataset, groups by Stage, switches chart to pie, and exports CSV")]
     public async Task VerifyDataStudioAnalyticsAndExportScenario()
     {
+        FilesVfs ??= new WorkspaceFilesService();
+        await FilesVfs.WriteTextAsync("/work/q4-opportunities.csv", "Opportunity,Account,Stage,Amount\nDeal 1,Acme,Proposal,240000\nDeal 2,Beta,Contract,186000\nDeal 3,Gamma,Negotiation,88500\nDeal 4,Delta,Closed Won,64000\nDeal 5,Epsilon,Discovery,49200\n");
         await Open(new DataStudioOpen("/work/q4-opportunities.csv"));
         if (State.Rows.Length < 4)
         {
@@ -471,30 +442,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>
         });
     }
 
-    private async Task EnsureDefaultDatasetsSeededAsync()
-    {
-        if (FilesVfs is null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (await FilesVfs.ResolveFileAsync("/work/q4-opportunities.csv") is null)
-            {
-                await FilesVfs.WriteTextAsync("/work/q4-opportunities.csv", DefaultOpportunitiesCsv);
-            }
-
-            if (await FilesVfs.ResolveFileAsync("/work/customer-arr.csv") is null)
-            {
-                await FilesVfs.WriteTextAsync("/work/customer-arr.csv", DefaultCustomerArrCsv);
-            }
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Swallow(error, "Seeding default CSV files in FilesVfs is optional.");
-        }
-    }
+    private Task EnsureDefaultDatasetsSeededAsync() => Task.CompletedTask;
 
     private async Task<string[]> ListWorkspaceDatasetsAsync(string activeSource)
     {

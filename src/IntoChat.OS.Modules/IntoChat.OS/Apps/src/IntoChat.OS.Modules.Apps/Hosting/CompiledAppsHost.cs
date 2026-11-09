@@ -194,7 +194,7 @@ internal sealed class CompiledAppsHost(
                 [
                     new DigitalBrain.UI.Text("Usage"),
                     new DigitalBrain.UI.Text(widgetsText),
-                    DesktopButton("avatar", "You", "open", null),
+                    DesktopButton("avatar", "You", "open", "friends"),
                     DesktopButton("more-settings", "Settings", "settings", null),
                 ]) { Gap = 4 },
             ]) { Extents = [0, 360] };
@@ -660,7 +660,7 @@ internal sealed class CompiledAppsHost(
             {
                 await host.AssignType(appKey, spec.AppType, new Dictionary<string, string>(StringComparer.Ordinal), ct);
                 turns = host.TryGetTurns(appKey)!;
-                WireInoServices(brain, turns.App);
+                WireVfsService(brain, turns.App);
             }
             await AttachWatchesAsync(brain, appKey, turns);
             return turns;
@@ -687,7 +687,7 @@ internal sealed class CompiledAppsHost(
                 var assignedTurns = host.TryGetTurns(appKey);
                 if (assignedTurns is not null)
                 {
-                    WireInoServices(brain, assignedTurns.App);
+                    WireVfsService(brain, assignedTurns.App);
                     await AttachWatchesAsync(brain, appKey, assignedTurns);
                 }
                 return assignedTurns;
@@ -728,10 +728,12 @@ internal sealed class CompiledAppsHost(
         return turns;
     }
 
-    private void WireInoServices(string brain, App instance)
+    private void WireVfsService(string brain, App instance)
     {
-        var type = instance.GetType();
-        type.GetProperty("FilesVfs")?.SetValue(instance, _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b)));
+        if (instance is IWithFilesVfs vfsAware)
+        {
+            vfsAware.FilesVfs = _vfsByBrain.GetOrAdd(brain, b => WorkspaceFilesService.ForBrain(services, b));
+        }
     }
 
     private async Task HandleAppRequestedAsync(string brain, string appName, AppRequested request, CancellationToken ct)

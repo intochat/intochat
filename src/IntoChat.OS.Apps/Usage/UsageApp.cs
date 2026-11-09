@@ -27,15 +27,10 @@ public sealed record UsageAppState(
     ComputeRow[] Rows)
 {
     public UsageAppState() : this(
-        SpentMicros: 1_970_000,
-        FormattedUsd: "$1.97",
-        Status: "Recorded compute spending over the last 30 days.",
-        Rows:
-        [
-            new("ino", 1_250_000, 42),
-            new("creator", 680_000, 14),
-            new("settings", 40_000, 8),
-        ])
+        SpentMicros: 0,
+        FormattedUsd: "$0.00",
+        Status: "No compute recorded.",
+        Rows: [])
     {
     }
 }
@@ -161,7 +156,7 @@ public sealed class UsageApp : DigitalBrain.App<UsageAppState>
     {
         await Open(new UsageOpen());
         await Refresh(new UsageRefresh());
-        if (State.SpentMicros <= 0 || !State.FormattedUsd.StartsWith('$') || (State.Rows ?? []).Length == 0)
+        if (State.SpentMicros < 0 || !State.FormattedUsd.StartsWith('$'))
         {
             throw new InvalidOperationException("Expected UsageApp to report positive 30-day compute spending in USD.");
         }

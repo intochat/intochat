@@ -12,7 +12,13 @@ public interface ICompute
 public sealed record ComputeState(
     long SpentMicros,
     DateTimeOffset Since,
-    ComputeRow[] Rows);
+    ComputeRow[] Rows,
+    long MonthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros)
+{
+    public const long DefaultMonthlyBudgetMicros = 50_000_000L;
+
+    public bool BudgetExceeded => SpentMicros > MonthlyBudgetMicros;
+}
 
 public sealed record ComputeRow(
     string Key,

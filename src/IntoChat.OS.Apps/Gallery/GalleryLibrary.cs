@@ -307,7 +307,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.UI.ChoiceCard@1",
             ["ChoiceSelectedSignal"],
             "neuron://local/apps/ino#choice-card",
-            "new ChoiceCardNode(\"choice-1\", \"Which Nordlys workspace should receive the Q4 renewal brief?\", [new ChoiceOptionNode(\"Nordlys Enterprise\", \"neuron://nordlys/circles/enterprise\")]);")
+            "new ChoiceCardNode(\"choice-1\", \"Which workspace should receive the quarterly renewal brief?\", [new ChoiceOptionNode(\"Enterprise Workspace\", \"neuron://local/circles/enterprise\")]);")
         { Icon = "list-checks" },
         new(
             "draft-card",
@@ -317,7 +317,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.UI.DraftCard@1",
             ["DraftDispatchedSignal"],
             "neuron://local/apps/ino#draft-card",
-            "new DraftCardNode(\"draft-1\", \"email\", \"jeff@intochat.os\", \"Kari Holm <kari@nordlys.no>\", \"Confirmed: Q4 renewal close date updated to 15 Nov 2026.\", Subject: \"Nordlys Q4 Enterprise Renewal\");")
+            "new DraftCardNode(\"draft-1\", \"email\", \"user@intochat.os\", \"alex@example.com\", \"Confirmed: Quarterly renewal close date updated.\", Subject: \"Quarterly Enterprise Renewal\");")
         { Icon = "mail" },
         new(
             "change-preview-card",
@@ -327,7 +327,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
             "IntoChat.UI.ChangePreviewCard@1",
             ["ChangeAppliedSignal"],
             "neuron://local/salesforce.crm/opportunities#change-preview",
-            "new ApprovalCardNode(\"change-1\", \"Update Opportunity · Nordlys Q4 Enterprise\", \"Salesforce CRM · 2 field changes\", [new ApprovalRowNode(\"Close date\", \"30 Oct 2026\", \"15 Nov 2026\"), new ApprovalRowNode(\"Amount\", \"450,000 NOK\", \"480,000 NOK\")], SystemName: \"Salesforce\");")
+            "new ApprovalCardNode(\"change-1\", \"Update Opportunity · Enterprise Account\", \"CRM System · 2 field changes\", [new ApprovalRowNode(\"Close date\", \"30 Oct 2026\", \"15 Nov 2026\"), new ApprovalRowNode(\"Amount\", \"450,000 NOK\", \"480,000 NOK\")], SystemName: \"CRM\");")
         { Icon = "git-compare" },
         new(
             "app-install-card",

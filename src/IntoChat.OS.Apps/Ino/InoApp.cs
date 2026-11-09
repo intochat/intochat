@@ -59,7 +59,7 @@ public sealed record InoConnectDb(string? ConnectionString = null, string? Alias
 public sealed record InoQueryDb(string? Sql = null) : DigitalBrain.Signal;
 
 [DigitalBrain.App("ino", Accent = "#3D7EFF", Category = "Intelligence")]
-public sealed class InoApp : DigitalBrain.App<InoAppState>
+public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
 {
     private const string BlockedPrefix = "Blocked: ";
     private const string NewTitle = "New chat";
@@ -613,6 +613,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>
     [DigitalBrain.Scenario("Querying a connected database renders a table and a chart card")]
     public async Task VerifyDatabaseCardsScenario()
     {
+        FilesVfs ??= new WorkspaceFilesService();
+        await FilesVfs.WriteTextAsync("/work/opportunities.csv", "opportunity,account,stage,amount\nDeal 1,Acme,Proposal,240000\nDeal 2,Beta,Contract,186000\nDeal 3,Gamma,Negotiation,88500\nDeal 4,Delta,Closed Won,64000\nDeal 5,Epsilon,Discovery,49200\n");
         await ConnectDb(new InoConnectDb("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly"));
         await QueryDb(new InoQueryDb("SELECT opportunity, account, stage, amount FROM opportunities"));
         if (!State.ActiveCards.Any(c => c.Kind == "table" && c.Rows is { Length: > 0 })
