@@ -58,11 +58,11 @@ public sealed record FilmCraftAppState(
 {
     public FilmCraftAppState() : this(
         "wasm-ui",
-        "/work/nordlys-launch.fcproj",
-        "/work/nordlys-launch.cut.mp4",
+        "/work/launch-trailer.fcproj",
+        "/work/launch-trailer.cut.mp4",
         "timeline.razor",
         "Ready · FilmCraft Studio",
-        "filmcraft-cli exec /work/nordlys-launch.fcproj --cmd timeline.razor --params '{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}' --out /work/nordlys-launch.cut.mp4",
+        "filmcraft-cli exec /work/launch-trailer.fcproj --cmd timeline.razor --params '{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}' --out /work/launch-trailer.cut.mp4",
         "FilmCraft tools connected.",
         [
             "V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)",

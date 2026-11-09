@@ -151,7 +151,7 @@ public static class ArtCraftEngineRunner
         out (string CommandId, string Title, string ParamsJson, string InputDoc, string OutputDoc, string[] Tracks) resolved)
     {
         var extracted = string.IsNullOrWhiteSpace(instructionOrCommand) ? null : ExtractFileName(instructionOrCommand);
-        var doc = EnsureWorkPath(extracted ?? (string.IsNullOrWhiteSpace(currentSequence) ? "/work/nordlys-launch.fcproj" : currentSequence.Trim()));
+        var doc = EnsureWorkPath(extracted ?? (string.IsNullOrWhiteSpace(currentSequence) ? "/work/launch-trailer.fcproj" : currentSequence.Trim()));
         if (string.IsNullOrWhiteSpace(instructionOrCommand))
         {
             resolved = ("clarification.required", "Clarification Required", "{}", doc, string.Empty, []);
@@ -505,7 +505,7 @@ public static class ArtCraftEngineRunner
                     return matchedCurrent.VfsPath;
                 }
 
-                var defaultDoc = isVideo ? "/work/nordlys-launch.fcproj" : "/work/portrait.png";
+                var defaultDoc = isVideo ? "/work/launch-trailer.fcproj" : "/work/portrait.png";
                 if (!string.Equals(currentDocument, defaultDoc, StringComparison.OrdinalIgnoreCase))
                 {
                     return currentDocument;

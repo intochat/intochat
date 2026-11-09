@@ -95,7 +95,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
 
     public static readonly IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> NativeCatalog =
     [
-        // DigitalBrain OS Native Grains (10)
+        // DigitalBrain OS Native Grains
         ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
         ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
         ("workspace", "Workspace", "neuron://local/apps/workspace", "compass", "Workspace", "orleans-grain"),
@@ -105,6 +105,7 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
         ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu", "Studio", "orleans-grain"),
         ("gallery", "UI Gallery", "neuron://local/apps/gallery", "layout-grid", "Studio", "orleans-grain"),
         ("friends", "Friends", "neuron://local/apps/friends", "users", "Social", "orleans-grain"),
+        ("usage", "Usage", "neuron://local/apps/usage", "wallet", "System", "orleans-grain"),
         ("settings", "Settings", "neuron://local/apps/settings", "settings", "System", "orleans-grain"),
     ];
 
@@ -393,13 +394,40 @@ public sealed class DesktopApp : DigitalBrain.App<DesktopAppState>
             Swallow(error, "Approvals inbox is optional when DesktopApp runs in baseline tests.");
         }
 
+        var activeNeurons = 10;
+        try
+        {
+            var topology = await Get<IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads>("creator/reads").Topology();
+            if (topology.Nodes.Count > 0)
+            {
+                activeNeurons = topology.Nodes.Count;
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "DebuggerReadsNeuron is optional when DesktopApp runs in baseline tests.");
+        }
+
+        try
+        {
+            var units = await Get<ISynapseStudio>("ino/synapses").List();
+            if (units.Length > 0 && activeNeurons == 10)
+            {
+                activeNeurons += units.Length;
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "SynapseStudio is optional when DesktopApp runs in baseline tests.");
+        }
+
         Set(State with
         {
             LayoutMode = layoutMode,
             IsNarrow = narrow,
             StylePreset = preset,
             BarLayout = barLayout,
-            ActiveNeurons = 10,
+            ActiveNeurons = activeNeurons,
             Status = narrow ? "Smart Desktop (Compact)" : $"Smart Desktop ({layoutMode})",
         });
     }

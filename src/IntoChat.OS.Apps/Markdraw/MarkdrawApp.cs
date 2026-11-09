@@ -113,7 +113,7 @@ public sealed class MarkdrawApp : DigitalBrain.App<MarkdrawAppState>, IWithFiles
         "```";
 
     public const string DefaultPipelineScene = """
-        # Nordlys Q4 Data & Deal Pipeline Flow
+        # IntoChat Data & Deal Pipeline Flow
 
         ```markdraw
         @background #0f172a

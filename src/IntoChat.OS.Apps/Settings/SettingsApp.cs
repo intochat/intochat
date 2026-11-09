@@ -136,6 +136,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     private string _computeBudgetUsd = "$50.00";
     private bool _computeBudgetExceeded;
     private string _computeRowsSummary = "0 model(s) metered";
+    private IntoChat.OS.Modules.Apps.Approvals.Approval[] _pendingApprovals = [];
 
     public static IReadOnlyList<SettingsSearchEntry> SearchIndex { get; } =
     [
@@ -229,6 +230,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
     private async Task RefreshFromNeuronsAsync()
     {
         await TryRefreshComputeSummaryAsync();
+        await TryRefreshPendingApprovalsAsync();
         var user = await Get<IUserSettings>("settings").Read();
         var deployedUnits = await TryReadDeployedUnitsAsync();
         var teamFriends = await TryReadTeamFriendsAsync();
@@ -288,6 +290,18 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         {
             Swallow(error, "ProfileNeuron is optional when SettingsApp runs in standalone tests.");
             return State.TeamFriends ?? [];
+        }
+    }
+
+    private async Task TryRefreshPendingApprovalsAsync()
+    {
+        try
+        {
+            _pendingApprovals = [.. await Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>("approvals/index").Pending()];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "ApprovalsNeuron is optional when SettingsApp runs in standalone tests.");
         }
     }
 
@@ -1105,16 +1119,33 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             Title: "Team and permissions");
     }
 
-    private Node RenderNotificationsSection() => new Surface(
+    private Node RenderNotificationsSection()
+    {
+        Node[] approvalCards =
         [
-            new Heading("Notifications & Quiet Hours", Level: 3, Subtitle: "Choose which neural events alert you."),
-            new Switch("needs-you-lfp-approvalcards-waiting-for", "Needs you · LFP ApprovalCards waiting for confirmation", true),
-            new Switch("background-jobs-long-running-agent-compl", "Background jobs & long-running agent completions", true),
-            new Switch("connection-expirations-health-probe-fail", "Connection expirations & health probe failures", true),
-            new Switch("quiet-hours-schedule-22-00-07-00", "Quiet hours schedule (22:00 – 07:00)", false),
-        ],
-        Kind: SurfaceKind.Elevated,
-        Title: "Notifications");
+            .. _pendingApprovals.Select(static approval => (Node)new ApprovalCardNode(
+                $"settings-approval-{approval.PlanId}",
+                approval.PlanId,
+                approval.Title,
+                approval.Detail,
+                [new ApprovalRowNode("Subject", "", approval.Subject)],
+                SystemName: "Ino",
+                Status: "pending",
+                Resolve: new Resolve(approval.PlanId))),
+        ];
+
+        return new Surface(
+            [
+                new Heading("Notifications & Quiet Hours", Level: 3, Subtitle: "Choose which neural events alert you."),
+                new Switch("needs-you-lfp-approvalcards-waiting-for", "Needs you · LFP ApprovalCards waiting for confirmation", true),
+                new Switch("background-jobs-long-running-agent-compl", "Background jobs & long-running agent completions", true),
+                new Switch("connection-expirations-health-probe-fail", "Connection expirations & health probe failures", true),
+                new Switch("quiet-hours-schedule-22-00-07-00", "Quiet hours schedule (22:00 – 07:00)", false),
+                .. approvalCards,
+            ],
+            Kind: SurfaceKind.Elevated,
+            Title: "Notifications");
+    }
 
     private Node RenderKeyboardSection() => new Surface(
         [

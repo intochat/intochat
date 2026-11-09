@@ -6,6 +6,15 @@ using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Settings;
 
+[DigitalBrain.Neuron("approvals"), DigitalBrain.StatelessNeuron]
+public sealed class FakeApprovalsNeuron : DigitalBrain.Neuron, IntoChat.OS.Modules.Apps.Approvals.IApprovals
+{
+    public static IntoChat.OS.Modules.Apps.Approvals.Approval[] Items { get; set; } = [];
+
+    public Task<IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval>> Pending(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval>>(Items);
+}
+
 public sealed class SettingsAppFacts
 {
     public static IEnumerable<TheoryDataRow<AppOperationCase>> Operations
@@ -222,6 +231,39 @@ public sealed class SettingsAppFacts
     }
 
     [Fact]
+    public async Task SettingsSurfacesPendingApprovalsInNotificationsSection()
+    {
+        FakeApprovalsNeuron.Items =
+        [
+            new IntoChat.OS.Modules.Apps.Approvals.Approval(
+                "plan-99",
+                IntoChat.OS.Modules.Apps.Approvals.ApprovalKind.StorageWrite,
+                "/work/budget.csv",
+                "Delete /work/budget.csv?",
+                "Storage write requires confirmation.",
+                DateTimeOffset.UnixEpoch,
+                DateTimeOffset.UnixEpoch.AddHours(1),
+                ""),
+        ];
+
+        try
+        {
+            await using var os = TestOS.Local().Register<UserSettingsNeuron>().Register<FakeApprovalsNeuron>();
+            var settings = await os.Install<SettingsApp>();
+            await settings.Request("open", new SettingsOpen());
+            settings.App.Navigate(new SettingsNavigate("notifications"));
+
+            var notificationsJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+            Assert.Contains("plan-99", notificationsJson, StringComparison.Ordinal);
+            Assert.Contains("Delete /work/budget.csv?", notificationsJson, StringComparison.Ordinal);
+        }
+        finally
+        {
+            FakeApprovalsNeuron.Items = [];
+        }
+    }
+
+    [Fact]
     public void ShippedAppsInitialViewsContainZeroFakeDemoData()
     {
         var jsonOptions = new System.Text.Json.JsonSerializerOptions
@@ -243,9 +285,13 @@ public sealed class SettingsAppFacts
             new IntoChat.OS.Apps.Data.DataStudioApp().RenderSide(),
             new IntoChat.OS.Apps.Markdraw.MarkdrawApp().Render(),
             new IntoChat.OS.Apps.Markdraw.MarkdrawApp().RenderSide(),
+            new IntoChat.OS.Apps.FilmCraft.FilmCraftApp().Render(),
             new IntoChat.OS.Apps.Tasks.TasksApp().Render(),
             new IntoChat.OS.Apps.Creator.CreatorApp().Render(),
         ];
+
+        Assert.DoesNotContain("Nordlys", IntoChat.OS.Apps.Markdraw.MarkdrawApp.DefaultPipelineScene, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(IntoChat.OS.Apps.Desktop.DesktopApp.NativeCatalog, item => item.Id == "usage");
 
         string[] forbiddenDemoTokens = ["Nordlys", "Havbris", "Kari Holm", "$420,000", "42.80", "1,250,000"];
 
