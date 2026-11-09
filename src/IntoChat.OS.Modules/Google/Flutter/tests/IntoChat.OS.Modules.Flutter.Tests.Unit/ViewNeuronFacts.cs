@@ -30,6 +30,7 @@ public sealed class ViewNeuronFacts
     [Fact]
     public async Task PublishStoresTheViewVerbatim()
     {
+        using var person = Edge.AsPerson();
         await using var os = Started();
         var view = os.Get<IView>(Tasks);
 
@@ -47,6 +48,7 @@ public sealed class ViewNeuronFacts
     [Fact]
     public async Task AnUnchangedViewKeepsItsGenerationAndAChangedOneAdvancesIt()
     {
+        using var person = Edge.AsPerson();
         await using var os = Started();
         var view = os.Get<IView>(Tasks);
 
@@ -64,6 +66,7 @@ public sealed class ViewNeuronFacts
     [Fact]
     public async Task ActivateResolvesEmitIntentAndResolveByKey()
     {
+        using var person = Edge.AsPerson();
         await using var os = Started();
         var view = os.Get<IView>(Tasks);
         await view.Publish(1, Sample);
@@ -86,6 +89,7 @@ public sealed class ViewNeuronFacts
     [Fact]
     public async Task AStaleGenerationAnUnknownKeyOrADisabledButtonIsRefused()
     {
+        using var person = Edge.AsPerson();
         await using var os = Started();
         var view = os.Get<IView>(Tasks);
         await view.Publish(1, Sample);
@@ -98,6 +102,7 @@ public sealed class ViewNeuronFacts
     [Fact]
     public async Task AViewOverTheNodeLimitIsRefused()
     {
+        using var person = Edge.AsPerson();
         await using var os = Started();
         var many = new View("Big", new Column([.. Enumerable.Range(0, 600).Select(index => (Node)new DigitalBrain.UI.Text("t" + index))]));
 

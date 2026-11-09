@@ -60,7 +60,9 @@ internal sealed class ViewNeuron
 
     private void RequireWriter()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind == CallerKind.Platform) { return; }
+        // A call with no stamped caller is refused, never taken for the platform.
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw new UnauthorizedAccessException("No caller was stamped on this call; a view is published only by a stamped one.");
+        if (caller.Kind == CallerKind.Platform) { return; }
         var name = FullKey;
         if (!BrainKey.BelongsTo(name, caller.BrainId) || caller.Kind == CallerKind.App &&
             (string.IsNullOrEmpty(caller.AppId) || !name.StartsWith(caller.AppId + "/", StringComparison.Ordinal)))

@@ -6,8 +6,8 @@ using DigitalBrain.UI;
 
 namespace IntoChat.OS.Modules.Flutter.Fields;
 
-// One view field's value, at {brain}/apps/{app}/{field}. Only the owning app (or the platform) configures, sets or takes it; a
-// person's input arrives through the edge. A secret kind persists and journals only that a value is set: the raw value lives in
+// One view field's value, at {brain}/apps/{app}/{field}. Only the owning app, its brain's person or the platform configures, sets
+// or takes it; input comes only from the brain's person (through the edge) or its platform. A call with no stamped caller is refused. A secret kind persists and journals only that a value is set: the raw value lives in
 // this activation's memory until the owner takes it once, and is gone when the neuron deactivates.
 [Neuron(UIVocabulary.FieldType)]
 internal sealed class FieldNeuron
@@ -46,6 +46,7 @@ internal sealed class FieldNeuron
     public Task Input(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        RequireInput();
         if (Snapshot.Version == 0) { throw new InvalidOperationException("This field is not configured yet: its view has not been published."); }
         return Assign(value);
     }
@@ -81,10 +82,23 @@ internal sealed class FieldNeuron
         return Save(next, journal ? new FieldChanged(owner, name, version) : new FieldConfigured(owner, name, kind));
     }
 
-    // The owning app ({brain}/apps/{app}/…), its brain's person, or the platform; as the view neuron's writer rule.
+    // A person's typed text, through the edge, or the platform: never an app (it sets its own fields with Set), another brain, or a
+    // call no edge stamped.
+    private void RequireInput()
+    {
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw Unstamped();
+        if (!BrainKey.BelongsTo(FullKey, caller.BrainId) || caller.Kind is not (CallerKind.User or CallerKind.Platform))
+        { throw new UnauthorizedAccessException("Only the brain's person types into this field."); }
+    }
+
+    private static UnauthorizedAccessException Unstamped() => new("No caller was stamped on this call; a field answers only a stamped one.");
+
+    // The owning app ({brain}/apps/{app}/…), its brain's person, or the platform; as the view neuron's writer rule. A call with no
+    // stamped caller is refused, never taken for the platform.
     private void RequireOwner()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind == CallerKind.Platform) { return; }
+        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw Unstamped();
+        if (caller.Kind == CallerKind.Platform) { return; }
         var name = FullKey;
         if (!BrainKey.BelongsTo(name, caller.BrainId) || caller.Kind == CallerKind.App &&
             (string.IsNullOrEmpty(caller.AppId) || !name.StartsWith(caller.AppId + "/", StringComparison.Ordinal)))
