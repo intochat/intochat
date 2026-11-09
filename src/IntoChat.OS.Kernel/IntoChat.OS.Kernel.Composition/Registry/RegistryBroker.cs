@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain;
@@ -9,6 +10,7 @@ using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans;
 
 namespace IntoChat.OS.Kernel.OsRegistry;
 
@@ -22,10 +24,11 @@ public sealed class RegistryBroker : IRegistryBroker
 {
     private readonly IServiceProvider _services;
     private readonly ICapabilityBroker? _capabilityBroker;
+    private readonly ConcurrentDictionary<string, string> _memoryFallback = new(StringComparer.OrdinalIgnoreCase);
 
-    public RegistryBroker(IServiceProvider services, ICapabilityBroker? capabilityBroker = null)
+    public RegistryBroker(IServiceProvider? services = null, ICapabilityBroker? capabilityBroker = null)
     {
-        _services = services ?? throw new ArgumentNullException(nameof(services));
+        _services = services ?? new ServiceCollection().BuildServiceProvider();
         _capabilityBroker = capabilityBroker;
     }
 
@@ -62,6 +65,25 @@ public sealed class RegistryBroker : IRegistryBroker
         var (tier, key) = ParseUri(uri);
         var brainId = ResolveCurrentBrainId();
         RuntimeCallerContext.TryGet(out var caller);
+
+        var grainFactory = _services.GetService<IGrainFactory>();
+        if (grainFactory is null)
+        {
+            if (!_memoryFallback.TryGetValue(uri, out var memVal))
+            {
+                return null;
+            }
+            if (tier == RegistryTier.Vault)
+            {
+                if (caller is not null && caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform)
+                {
+                    return memVal;
+                }
+                var tail = memVal.Length > 4 ? memVal[^4..] : memVal;
+                return $"••••••••{tail}";
+            }
+            return memVal;
+        }
 
         switch (tier)
         {
@@ -149,6 +171,23 @@ public sealed class RegistryBroker : IRegistryBroker
         var brainId = ResolveCurrentBrainId();
         RuntimeCallerContext.TryGet(out var caller);
 
+        var grainFactory = _services.GetService<IGrainFactory>();
+        if (grainFactory is null)
+        {
+            if (!_memoryFallback.TryGetValue(uri, out var storedVal))
+            {
+                return null;
+            }
+            var isPlatform = caller is not null && caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform;
+            if (tier == RegistryTier.Vault)
+            {
+                var val = isPlatform ? storedVal : storedVal.Length > 4 ? $"••••••••{storedVal[^4..]}" : "••••••••";
+                var tail = storedVal.Length > 4 ? storedVal[^4..] : storedVal;
+                return new RegistryEntryDescriptor(uri, key, RegistryTier.Vault, val, tail, true, DateTimeOffset.UtcNow);
+            }
+            return new RegistryEntryDescriptor(uri, key, tier, storedVal, null, true, DateTimeOffset.UtcNow);
+        }
+
         switch (tier)
         {
             case RegistryTier.Settings:
@@ -195,6 +234,13 @@ public sealed class RegistryBroker : IRegistryBroker
         var (tier, key) = ParseUri(uri);
         var brainId = ResolveCurrentBrainId();
 
+        _memoryFallback[uri] = value;
+        var grainFactory = _services.GetService<IGrainFactory>();
+        if (grainFactory is null)
+        {
+            return;
+        }
+
         switch (tier)
         {
             case RegistryTier.Settings:
@@ -232,6 +278,13 @@ public sealed class RegistryBroker : IRegistryBroker
         var (tier, key) = ParseUri(uri);
         var brainId = ResolveCurrentBrainId();
 
+        _memoryFallback.TryRemove(uri, out _);
+        var grainFactory = _services.GetService<IGrainFactory>();
+        if (grainFactory is null)
+        {
+            return;
+        }
+
         switch (tier)
         {
             case RegistryTier.Settings:
@@ -262,6 +315,40 @@ public sealed class RegistryBroker : IRegistryBroker
         var brainId = ResolveCurrentBrainId();
         RuntimeCallerContext.TryGet(out var caller);
         var isPlatform = caller is not null && caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform;
+
+        var grainFactory = _services.GetService<IGrainFactory>();
+        if (grainFactory is null)
+        {
+            var fallbackResults = new List<RegistryEntryDescriptor>();
+            var filter = schemeOrPrefix?.Trim().TrimEnd('/', ':').ToLowerInvariant();
+
+            foreach (var (storedUri, storedVal) in _memoryFallback)
+            {
+                var (entryTier, entryKey) = ParseUri(storedUri);
+                if (!string.IsNullOrWhiteSpace(filter) && filter != "settings" && filter != "env" && filter != "vault" && !storedUri.StartsWith(schemeOrPrefix!, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                if ((filter == "settings" && entryTier != RegistryTier.Settings) ||
+                    (filter == "env" && entryTier != RegistryTier.Environment) ||
+                    (filter == "vault" && entryTier != RegistryTier.Vault))
+                {
+                    continue;
+                }
+
+                if (entryTier == RegistryTier.Vault)
+                {
+                    var val = isPlatform ? storedVal : storedVal.Length > 4 ? $"••••••••{storedVal[^4..]}" : "••••••••";
+                    var tail = storedVal.Length > 4 ? storedVal[^4..] : storedVal;
+                    fallbackResults.Add(new RegistryEntryDescriptor(storedUri, entryKey, RegistryTier.Vault, val, tail, true, DateTimeOffset.UtcNow));
+                }
+                else
+                {
+                    fallbackResults.Add(new RegistryEntryDescriptor(storedUri, entryKey, entryTier, storedVal, null, true, DateTimeOffset.UtcNow));
+                }
+            }
+            return fallbackResults;
+        }
 
         var results = new List<RegistryEntryDescriptor>();
         var normalized = schemeOrPrefix?.Trim().TrimEnd('/', ':').ToLowerInvariant();
@@ -379,9 +466,9 @@ public sealed class RegistryBroker : IRegistryBroker
                 return brain;
             }
         }
-        catch
+        catch (Exception error) when (error is not OperationCanceledException)
         {
-            // BrainScope may not be set in standalone testing
+            _ = error.Message;
         }
 
         return "local";

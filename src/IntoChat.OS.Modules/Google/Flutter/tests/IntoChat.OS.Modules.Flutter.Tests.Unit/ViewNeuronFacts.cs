@@ -21,6 +21,7 @@ public sealed class ViewNeuronFacts
         new DigitalBrain.UI.Button("off", "Off", new Emit("tasks", "off"), Enabled: false),
         new Field("title", "apps/tasks/title", FieldKind.Text, OnSubmit: new Emit("tasks", "rename")),
         new ApprovalCardNode("approval", "plan-1", "Approve", "Detail", [], Resolve: new Resolve("plan-1")),
+        new NavItemNode("nav-filter", "All", "list", "filter-all", Emit: new Emit("tasks", "filter", JsonSerializer.SerializeToElement("all"))),
     ]));
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -84,6 +85,11 @@ public sealed class ViewNeuronFacts
 
         var approval = await view.Activate(1, "approval", "approve");
         Assert.Equal(new Resolve("plan-1"), approval.Resolve);
+
+        var nav = await view.Activate(1, "nav-filter", null);
+        Assert.Equal(ViewActivationKind.Emit, nav.Kind);
+        Assert.Equal(("tasks", "filter"), (nav.Emit!.Owner, nav.Emit.Signal));
+        Assert.Equal("\"all\"", nav.Emit.Args!.Value.GetRawText());
     }
 
     [Fact]

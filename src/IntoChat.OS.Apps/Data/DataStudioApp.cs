@@ -8,7 +8,6 @@ Interactive data analysis, SQL/CSV/JSON exploration, and chart visualization stu
 Powered by DataAnalyticsEngine and IFilesVfsService (/work/*.csv, /work/*.tsv, /work/*.json, and relational tables),
 and synchronized with Ino chat and Markdraw Studio (apps/markdraw).
 */
-using System.Globalization;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
@@ -18,29 +17,22 @@ using UI = DigitalBrain.UI.Ui;
 namespace IntoChat.OS.Apps.Data;
 
 [DigitalBrain.Signal("data.open")]
-public sealed record DataStudioOpen(
-    string? Source = null) : DigitalBrain.Signal;
+public sealed record DataStudioOpen(string? Source = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("data.query")]
-public sealed record DataStudioQuery(
-    string? Query = null) : DigitalBrain.Signal;
+public sealed record DataStudioQuery(string? Query = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("data.group-by")]
-public sealed record DataStudioGroupBy(
-    string? Column = null,
-    string? Function = null) : DigitalBrain.Signal;
+public sealed record DataStudioGroupBy(string? Column = null, string? Function = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("data.switch-chart")]
-public sealed record DataStudioSwitchChart(
-    string? Kind = null) : DigitalBrain.Signal;
+public sealed record DataStudioSwitchChart(string? Kind = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("data.export-csv")]
-public sealed record DataStudioExportCsv(
-    string? TargetPath = null) : DigitalBrain.Signal;
+public sealed record DataStudioExportCsv(string? TargetPath = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("data.to-markdraw")]
-public sealed record DataStudioToMarkdraw(
-    string? Document = null) : DigitalBrain.Signal;
+public sealed record DataStudioToMarkdraw(string? Document = null) : DigitalBrain.Signal;
 
 public sealed record DataStudioAppState(
     string ActiveSource,
@@ -123,12 +115,9 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
     public async Task Open(DataStudioOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await EnsureDefaultDatasetsSeededAsync();
-
         var source = string.IsNullOrWhiteSpace(request.Source)
             ? State.ActiveSource
             : NormalizeSource(request.Source);
-
         var sql = BuildDefaultQueryForSource(source);
         await RunAndSetQueryResultAsync(source, sql, State.ChartKind);
     }
@@ -137,19 +126,15 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
     public async Task Query(DataStudioQuery request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await EnsureDefaultDatasetsSeededAsync();
-
         var queryText = string.IsNullOrWhiteSpace(request.Query)
             ? State.ActiveQuery
             : request.Query.Trim();
-
         var explicitFile = DataAnalyticsEngine.TryExtractDatasetFileToken(queryText);
         var source = !string.IsNullOrWhiteSpace(explicitFile)
             ? NormalizeSource(explicitFile)
             : queryText.Contains("customers", StringComparison.OrdinalIgnoreCase)
                 ? "postgres:customers"
                 : State.ActiveSource;
-
         await RunAndSetQueryResultAsync(source, queryText, State.ChartKind);
     }
 
@@ -157,20 +142,16 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
     public async Task GroupBy(DataStudioGroupBy request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await EnsureDefaultDatasetsSeededAsync();
-
         var col = string.IsNullOrWhiteSpace(request.Column)
             ? (State.Columns.Length > 2 ? State.Columns[2] : State.Columns.FirstOrDefault() ?? "Stage")
             : request.Column.Trim();
         var fn = string.IsNullOrWhiteSpace(request.Function)
             ? "SUM"
             : request.Function.Trim().ToUpperInvariant();
-
         var targetFrom = State.ActiveSource.StartsWith("postgres:", StringComparison.OrdinalIgnoreCase)
             ? State.ActiveSource["postgres:".Length..]
             : State.ActiveSource;
         var sql = $"SELECT {col}, {fn}(Amount) FROM {targetFrom} GROUP BY {col}";
-
         await RunAndSetQueryResultAsync(State.ActiveSource, sql, State.ChartKind);
     }
 
@@ -184,7 +165,6 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
             "line" => "line",
             _ => "bar",
         };
-
         Set(State with
         {
             ChartKind = kind,
@@ -269,7 +249,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
     {
         var datasets = State.WorkspaceDatasets is { Length: > 0 }
             ? State.WorkspaceDatasets
-            : ["/work/q4-opportunities.csv", "/work/customer-arr.csv", "postgres:opportunities", "postgres:customers"];
+            : string.IsNullOrWhiteSpace(State.ActiveSource) ? [] : [State.ActiveSource];
 
         return new(
             "Data Sources",
@@ -277,11 +257,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
             [
                 new Surface(
                     [
-                        new Row(
-                        [
-                            new TagPill("Data Studio", "accent", "bar-chart-2"),
-                            new TagPill($"{State.Rows.Length} rows", "ok"),
-                        ]) { Gap = 6 },
+                        new Row([new TagPill("Data Studio", "accent", "bar-chart-2"), new TagPill($"{State.Rows.Length} rows", "ok")]) { Gap = 6 },
                         new Text(State.ActiveSource) { Mono = true, Tabular = true },
                         new Text($"Total €{State.Total:N0} · Avg €{State.Average:N0}") { Tone = "muted", Tabular = true },
                     ],
@@ -299,14 +275,12 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
                 UI.NavItem("q-stage", "Group by Stage", "pie-chart", "group-by:Stage:SUM"),
                 UI.NavItem("q-top3", "Top 3 Opportunities", "trending-up", $"query:SELECT Opportunity, Account, Stage, Amount FROM {State.ActiveSource} LIMIT 3"),
                 UI.NavItem("q-markdraw", "Diagram Data Lineage", "pen-tool", "to-markdraw:/work/data-lineage.markdraw"),
-            ])
-            { Gap = 8 });
+            ]) { Gap = 8 });
     }
 
     public View Render()
     {
         var groupableCols = State.Columns.Take(3).ToArray();
-
         return new(
             "Data Studio",
             new Column(
@@ -324,36 +298,12 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
                         new Text(State.ActiveQuery) { Mono = true, Tone = "muted" },
                         new Row(
                         [
-                            new Button("bar", "Bar", Emit: AppSignals.Emit("data", "switch-chart", "bar"), Tone: State.ChartKind == "bar" ? ButtonTone.Accent : ButtonTone.Neutral)
-                            {
-                                Icon = "bar-chart-2",
-                                Small = true,
-                            },
-                            new Button("line", "Line", Emit: AppSignals.Emit("data", "switch-chart", "line"), Tone: State.ChartKind == "line" ? ButtonTone.Accent : ButtonTone.Neutral)
-                            {
-                                Icon = "trending-up",
-                                Small = true,
-                            },
-                            new Button("pie", "Pie", Emit: AppSignals.Emit("data", "switch-chart", "pie"), Tone: State.ChartKind == "pie" ? ButtonTone.Accent : ButtonTone.Neutral)
-                            {
-                                Icon = "pie-chart",
-                                Small = true,
-                            },
-                            .. groupableCols.Select(col => (Node)new Button($"group-by-{col}", $"Group by {col}", Emit: AppSignals.Emit("data", "group-by", col, "SUM"))
-                            {
-                                Icon = "layers",
-                                Small = true,
-                            }),
-                            new Button("export-csv", "Export CSV", Emit: AppSignals.Emit("data", "export-csv"))
-                            {
-                                Icon = "download",
-                                Small = true,
-                            },
-                            new Button("diagram-in-markdraw", "Diagram in Markdraw", Emit: AppSignals.Emit("data", "to-markdraw", "/work/data-lineage.markdraw"))
-                            {
-                                Icon = "pen-tool",
-                                Small = true,
-                            },
+                            new Button("bar", "Bar", Emit: AppSignals.Emit("data", "switch-chart", "bar"), Tone: State.ChartKind == "bar" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "bar-chart-2", Small = true },
+                            new Button("line", "Line", Emit: AppSignals.Emit("data", "switch-chart", "line"), Tone: State.ChartKind == "line" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "trending-up", Small = true },
+                            new Button("pie", "Pie", Emit: AppSignals.Emit("data", "switch-chart", "pie"), Tone: State.ChartKind == "pie" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "pie-chart", Small = true },
+                            .. groupableCols.Select(col => (Node)new Button($"group-by-{col}", $"Group by {col}", Emit: AppSignals.Emit("data", "group-by", col, "SUM")) { Icon = "layers", Small = true }),
+                            new Button("export-csv", "Export CSV", Emit: AppSignals.Emit("data", "export-csv")) { Icon = "download", Small = true },
+                            new Button("diagram-in-markdraw", "Diagram in Markdraw", Emit: AppSignals.Emit("data", "to-markdraw", "/work/data-lineage.markdraw")) { Icon = "pen-tool", Small = true },
                         ]) { Gap = 8 },
                     ],
                     Kind: SurfaceKind.Acrylic,
@@ -361,9 +311,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
                 new Chart(
                     State.ChartKind,
                     State.ChartTitle,
-                    State.ChartPoints
-                        .Select(pt => new ChartPointNode(pt.Label, pt.Value))
-                        .ToArray(),
+                    State.ChartPoints.Select(pt => new ChartPointNode(pt.Label, pt.Value)).ToArray(),
                     SeriesName: "Current",
                     SourceNeuronUri: State.SourceNeuronUri,
                     From: State.ActiveSource,
@@ -374,8 +322,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
                     State.Rows.Select(r => (IReadOnlyList<string>)r).ToArray(),
                     SourceNeuronUri: State.SourceNeuronUri,
                     From: State.ActiveSource),
-            ])
-            { Gap = 12 });
+            ]) { Gap = 12 });
     }
 
     [DigitalBrain.Scenario("Data Studio queries workspace dataset, groups by Stage, switches chart to pie, and exports CSV")]
@@ -442,11 +389,14 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
         });
     }
 
-    private Task EnsureDefaultDatasetsSeededAsync() => Task.CompletedTask;
-
     private async Task<string[]> ListWorkspaceDatasetsAsync(string activeSource)
     {
-        var baseList = new List<string> { activeSource, "/work/q4-opportunities.csv", "/work/customer-arr.csv", "postgres:opportunities", "postgres:customers" };
+        var baseList = new List<string>();
+        if (!string.IsNullOrWhiteSpace(activeSource))
+        {
+            baseList.Add(activeSource);
+        }
+
         if (FilesVfs is not null)
         {
             try
@@ -467,9 +417,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
             }
         }
 
-        return baseList
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        return baseList.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private static string NormalizeSource(string raw)
@@ -511,16 +459,10 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
         return clean.StartsWith('/') ? clean : $"/work/{clean}";
     }
 
-    private static string BuildDefaultQueryForSource(string source)
+    private static string BuildDefaultQueryForSource(string source) => source.ToLowerInvariant() switch
     {
-        if (string.Equals(source, "postgres:customers", StringComparison.OrdinalIgnoreCase))
-        {
-            return "SELECT account, city, owner, arr FROM customers ORDER BY arr DESC";
-        }
-        if (string.Equals(source, "postgres:opportunities", StringComparison.OrdinalIgnoreCase))
-        {
-            return "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5";
-        }
-        return $"SELECT * FROM {source}";
-    }
+        "postgres:customers" => "SELECT account, city, owner, arr FROM customers ORDER BY arr DESC",
+        "postgres:opportunities" => "SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5",
+        _ => $"SELECT * FROM {source}",
+    };
 }

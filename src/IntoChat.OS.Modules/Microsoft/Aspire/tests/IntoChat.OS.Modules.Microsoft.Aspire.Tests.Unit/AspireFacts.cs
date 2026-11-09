@@ -71,4 +71,70 @@ public sealed class AspireFacts
         Assert.Equal("2g", DockerCandidateHost.CandidateMemoryLimit);
         Assert.Equal("2", DockerCandidateHost.CandidateCpuLimit);
     }
+
+    [Fact]
+    public async Task DockerCandidateHostEnforcesMemoryAndCpuCapsAndCanaryRollback()
+    {
+        var runner = new RecordingCandidateProcessRunner();
+        using var http = new HttpClient(new AlwaysHealthyHttpMessageHandler());
+        var config = new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var host = new DockerCandidateHost(
+            runner,
+            config,
+            _ => Task.FromResult(Path.Combine(Path.GetTempPath(), "intochat-candidate-workdir")),
+            _ => Task.FromResult(new CandidateSecrets(new Dictionary<string, string>())),
+            _ => false,
+            http,
+            (_, _, _) => Task.CompletedTask);
+
+        var running = await host.Run("a1b2c3d", TestContext.Current.CancellationToken);
+        Assert.Equal("a1b2c3d", running.Sha);
+        Assert.Equal("candidate-a1b2c3d", running.Container);
+
+        var osRun = Assert.Single(runner.Calls, c => c.File == "docker" && c.Args.Contains("candidate-a1b2c3d") && c.Args.Contains("--hostname"));
+        Assert.Contains("--memory", osRun.Args);
+        Assert.Contains("2g", osRun.Args);
+        Assert.Contains("--cpus", osRun.Args);
+        Assert.Contains("2", osRun.Args);
+
+        var mcpRun = Assert.Single(runner.Calls, c => c.File == "docker" && c.Args.Contains("candidate-a1b2c3d-mcp"));
+        Assert.Contains("--memory", mcpRun.Args);
+        Assert.Contains("2g", mcpRun.Args);
+        Assert.Contains("--cpus", mcpRun.Args);
+        Assert.Contains("2", mcpRun.Args);
+
+        await host.WaitHealthy("a1b2c3d", TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await host.Uncommit("a1b2c3d", "0123456", TestContext.Current.CancellationToken);
+        Assert.Contains(runner.Calls, c => c.File == "git" && c.Args.Contains("update-ref") && c.Args.Contains(DockerCandidateHost.LiveRef) && c.Args.Contains("0123456"));
+    }
+
+    private sealed record RecordedCall(string File, string[] Args);
+
+    private sealed class RecordingCandidateProcessRunner : IProcessRunner
+    {
+        public List<RecordedCall> Calls { get; } = [];
+
+        public Task<ProcessResult> RunAsync(string file, string[] args, string workingDirectory, IReadOnlyDictionary<string, string>? environment, CancellationToken ct)
+        {
+            Calls.Add(new RecordedCall(file, args));
+            if (file == "docker" && args is ["inspect", "-f", "{{.State.Running}}", _])
+            {
+                return Task.FromResult(new ProcessResult(0, "true\n", ""));
+            }
+            if (file == "git" && args.Contains("rev-parse"))
+            {
+                return Task.FromResult(new ProcessResult(0, "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4\n", ""));
+            }
+            return Task.FromResult(new ProcessResult(0, "", ""));
+        }
+
+        public int Detach(string file, string[] args, string workingDirectory) => 1;
+    }
+
+    private sealed class AlwaysHealthyHttpMessageHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+    }
 }

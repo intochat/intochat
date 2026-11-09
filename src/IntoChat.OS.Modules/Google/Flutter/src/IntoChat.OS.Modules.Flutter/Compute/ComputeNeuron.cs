@@ -16,10 +16,16 @@ public sealed record ComputeLedgerState(
 [Neuron("ui.compute")]
 internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, ICompute
 {
+    private ComputeQuotaLedger? _ledger;
+
+    private ComputeQuotaLedger Ledger => _ledger ??= new ComputeQuotaLedger(State.Rows ?? [], State.MonthlyBudgetMicros);
+
     public Task<ComputeState> Read()
     {
         EnsureAuthorized();
-        return Task.FromResult(CurrentState(State.Rows, State.MonthlyBudgetMicros));
+        var rows = Ledger.ToRows();
+        var budget = EffectiveBudget(State.MonthlyBudgetMicros);
+        return Task.FromResult(CurrentState(rows, budget));
     }
 
     public async Task<ComputeState> Record(string key, long micros)
@@ -28,19 +34,8 @@ internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, I
         ArgumentOutOfRangeException.ThrowIfNegative(micros);
         EnsureAuthorized();
 
-        var rows = (State.Rows ?? []).ToList();
-        var index = rows.FindIndex(row => string.Equals(row.Key, key, StringComparison.Ordinal));
-        if (index >= 0)
-        {
-            var existing = rows[index];
-            rows[index] = existing with { Micros = existing.Micros + micros, Count = existing.Count + 1 };
-        }
-        else
-        {
-            rows.Add(new ComputeRow(key, micros, 1));
-        }
-
-        var ordered = rows.OrderByDescending(row => row.Micros).ThenBy(row => row.Key, StringComparer.Ordinal).Take(500).ToArray();
+        Ledger.Record(key, micros);
+        var ordered = Ledger.ToRows();
         var budget = EffectiveBudget(State.MonthlyBudgetMicros);
         var next = new ComputeLedgerState(ordered, budget);
         var state = CurrentState(ordered, budget);
@@ -53,7 +48,8 @@ internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, I
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(monthlyBudgetMicros);
         EnsureAuthorized();
 
-        var rows = State.Rows ?? [];
+        Ledger.MonthlyBudgetMicros = monthlyBudgetMicros;
+        var rows = Ledger.ToRows();
         var next = new ComputeLedgerState(rows, monthlyBudgetMicros);
         var state = CurrentState(rows, monthlyBudgetMicros);
         await Save(next, new ComputeChanged(state.SpentMicros));

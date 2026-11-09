@@ -30,9 +30,9 @@ public interface IWithFilesVfs
 
 public sealed class WorkspaceFilesService : IFilesVfsService
 {
-    private static readonly ConcurrentDictionary<string, LocalCloudNeuron> _sharedFallbackWorkStorages = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ConcurrentDictionary<string, LocalCloudNeuron> _sharedFallbackLocalStorages = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ConcurrentDictionary<string, LocalCloudNeuron> _sharedFallbackDriveStorages = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackWorkStorages = new(256, StringComparer.OrdinalIgnoreCase);
+    private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackLocalStorages = new(256, StringComparer.OrdinalIgnoreCase);
+    private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackDriveStorages = new(256, StringComparer.OrdinalIgnoreCase);
 
     private readonly ConcurrentDictionary<string, (WorkspaceFileEntry Entry, byte[] Bytes)> _overlay = new(StringComparer.OrdinalIgnoreCase);
 
@@ -64,20 +64,19 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     public static LocalCloudNeuron GetFallbackLocalStorage(string brainId)
         => _sharedFallbackLocalStorages.GetOrAdd(string.IsNullOrWhiteSpace(brainId) ? "local" : brainId.Trim(), _ =>
         {
-            var local = new LocalCloudNeuron();
             try
             {
                 var cwd = Directory.GetCurrentDirectory();
                 if (!string.IsNullOrWhiteSpace(cwd) && Directory.Exists(cwd))
                 {
-                    local.ActiveState.RootDirectory = cwd;
+                    return new LocalCloudNeuron(cwd);
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Host environment directory binding is best-effort
+                LogRecoverable(ex);
             }
-            return local;
+            return new LocalCloudNeuron();
         });
 
     public static LocalCloudNeuron GetFallbackDriveStorage(string brainId)
@@ -549,11 +548,12 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         var bytes = content.ToArray();
         var now = DateTimeOffset.UtcNow;
         var mountPoint = canonicalPath.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "work";
-        var neuronUri = BuildNeuronUri(BrainId, mountPoint, cleanName);
+        var connectionKey = mountPoint == "work" ? "local-disk" : mountPoint;
+        var neuronUri = BuildNeuronUri(BrainId, connectionKey, cleanName);
 
         var entry = new WorkspaceFileEntry(
             Name: cleanName,
-            Connection: mountPoint,
+            Connection: connectionKey,
             ItemId: canonicalPath,
             Kind: "file",
             Size: bytes.LongLength,
@@ -644,9 +644,15 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         overlay.TryRemove(cleanName, out _);
         overlay.TryRemove(canonicalPath, out _);
 
-        var fallback = GetFallbackWorkspaceStorage(BrainId);
-        fallback.ActiveState.Entries.Remove(cleanName);
-        fallback.ActiveState.Entries.Remove(canonicalPath.TrimStart('/'));
+        try
+        {
+            var fallback = GetFallbackWorkspaceStorage(BrainId);
+            await fallback.Write(WritePlan.Delete(new ItemId(cleanName)), ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogRecoverable(ex);
+        }
 
         if (_services is not null)
         {
@@ -715,7 +721,9 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     private WorkspaceFileEntry MapVfsItem(string connection, VfsItem item)
     {
         var fileName = item.Name;
-        var connKey = string.IsNullOrWhiteSpace(connection) ? "work" : connection;
+        var connKey = string.IsNullOrWhiteSpace(connection) || string.Equals(connection, "work", StringComparison.OrdinalIgnoreCase)
+            ? "local-disk"
+            : connection;
         var neuronUri = BuildNeuronUri(BrainId, connKey, fileName);
         var kind = item.Kind == ItemKind.Folder ? "folder" : "file";
 

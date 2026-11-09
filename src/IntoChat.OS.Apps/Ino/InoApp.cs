@@ -638,7 +638,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     {
         FilesVfs ??= new WorkspaceFilesService();
         await FilesVfs.WriteTextAsync("/work/opportunities.csv", "opportunity,account,stage,amount\nDeal 1,Acme,Proposal,240000\nDeal 2,Beta,Contract,186000\nDeal 3,Gamma,Negotiation,88500\nDeal 4,Delta,Closed Won,64000\nDeal 5,Epsilon,Discovery,49200\n");
-        await ConnectDb(new InoConnectDb("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly"));
+        await ConnectDb(new InoConnectDb("Host=localhost;Database=analytics_crm;Username=readonly"));
         await QueryDb(new InoQueryDb("SELECT opportunity, account, stage, amount FROM opportunities"));
         if (!State.ActiveCards.Any(c => c.Kind == "table" && c.Rows is { Length: > 0 })
             || !State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 }))

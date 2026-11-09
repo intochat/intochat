@@ -16,11 +16,19 @@ public sealed class ShippedUnitsFacts
         { "digest.hn.top", "HnDigest.cs", "Hacker News Scheduled Digest", 1 },
         { "organizer.work.notes", "WorkNotesOrganizer.cs", "Workspace Markdown Organizer", 2 },
         { "fx.rates.monitor", "FxRatesMonitor.cs", "Live Currency & Crypto Monitor", 2 },
+        { "circleroom", "CircleRoom.cs", "Circle room", 2 },
+        { "watch.web", "WebWatch.cs", "Web watch", 2 },
+        { "brief.daily", "DailyBrief.cs", "Daily brief", 2 },
+        { "data.csv", "CsvExplorer.cs", "CSV explorer", 2 },
+        { "relay.webhook", "WebhookRelay.cs", "Webhook relay", 2 },
     };
 
     [Fact]
-    public void AllListsEveryShippedUnitAliasInOrder()
-        => Assert.Equal(["watch.x.elonmusk", "triage.github.issues", "digest.hn.top", "organizer.work.notes", "fx.rates.monitor"], ShippedUnits.All);
+    public void AllAndLegacyListEveryShippedUnitAliasInOrder()
+    {
+        Assert.Equal(["watch.x.elonmusk", "triage.github.issues", "digest.hn.top", "organizer.work.notes", "fx.rates.monitor"], ShippedUnits.All);
+        Assert.Equal(["circleroom", "watch.web", "brief.daily", "data.csv", "relay.webhook"], ShippedUnits.Legacy);
+    }
 
     [Theory]
     [MemberData(nameof(Catalog))]

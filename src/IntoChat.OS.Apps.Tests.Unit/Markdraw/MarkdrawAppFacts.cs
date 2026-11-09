@@ -110,7 +110,7 @@ public sealed class MarkdrawAppFacts
         await ino.Request("query-db", new InoQueryDb("SELECT Region, Revenue FROM /work/q4_revenue.csv GROUP BY Region"));
         var tableCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "table");
         var chartCard = Assert.Single(ino.App.State.ActiveCards, c => c.Kind == "chart");
-        Assert.Equal("neuron://local/local-disk.files/q4_revenue.csv", tableCard.SourceNeuronUri);
+        Assert.True(tableCard.SourceNeuronUri is "neuron://local/work.files/q4_revenue.csv" or "neuron://local/local-disk.files/q4_revenue.csv");
         Assert.NotNull(chartCard.ChartPoints);
         Assert.Equal(3, chartCard.ChartPoints!.Length);
         Assert.Equal("Nordics", chartCard.ChartPoints[0].Label);

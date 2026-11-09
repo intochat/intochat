@@ -110,8 +110,8 @@ internal static class InoViewRenderer
             "idle",
             [
                 new InoTurn(
-                    "Prepare my Morning Brief for Nordlys AS",
-                    "Good morning! You have **3 meetings**, **2 Q4 renewals** (€426,000 pipeline), and **1 overdue invoice** in Tripletex.",
+                    "Prepare my Morning Brief",
+                    "Good morning! You have **3 meetings**, **2 Q4 renewals**, and **1 pending review**.",
                     "scenario:morning-brief",
                     2),
             ],
@@ -119,9 +119,9 @@ internal static class InoViewRenderer
                 new InoCard(
                     "choice-brief",
                     "choice",
-                    "Which Nordlys workspace should receive the Q4 renewal brief?",
+                    "Which workspace should receive the Q4 renewal brief?",
                     "Select a target Circle (1..2) or press Enter.",
-                    "neuron://local/circles/nordlys",
+                    "neuron://local/circles/primary",
                     "pending",
                     "neuron://local/apps/ino#choice-brief"),
             ]),
@@ -171,13 +171,13 @@ internal static class InoViewRenderer
             ]),
         _ => new InoAppState(
             "q4-renewal",
-            "Nordlys Q4 Renewal",
+            "Quarterly Enterprise Renewal",
             "Waiting for approval · CloseDate -> 15 Nov 2026",
             "idle",
             [
                 new InoTurn(
-                    "Check Kari Holm's email and update Nordlys Q4 close date to 15 Nov 2026",
-                    "Kari Holm confirmed moving the **Nordlys Q4 Enterprise** renewal (`480,000 NOK`) to **15 Nov 2026**. Please approve the Salesforce update below.",
+                    "Update quarterly enterprise renewal close date to 15 Nov 2026",
+                    "Confirmed moving the **Quarterly Enterprise** renewal to **15 Nov 2026**. Please approve the CRM update below.",
                     $"agent:{settings.DefaultModel}",
                     1),
             ],
@@ -185,16 +185,16 @@ internal static class InoViewRenderer
                 new InoCard(
                     "card-1",
                     "approval",
-                    "Update close date on Nordlys Q4 renewal to 15 Nov 2026?",
-                    "Ino matched Kari Holm's email to your open Salesforce opportunity (480,000 NOK).",
+                    "Update close date on quarterly renewal to 15 Nov 2026?",
+                    "Ino matched the incoming email to your open CRM opportunity.",
                     "neuron://local/os.confirmations/inbox",
                     "pending",
                     "neuron://local/apps/ino#card-1"),
                 new InoCard(
                     "draft-1",
                     "draft",
-                    "Nordlys Q4 Enterprise Renewal — 15 Nov confirmation",
-                    "Hi Kari, Confirmed: we updated the Q4 renewal close date to 15 Nov 2026 (480,000 NOK).",
+                    "Quarterly Enterprise Renewal — 15 Nov confirmation",
+                    "Confirmed: we updated the Q4 renewal close date to 15 Nov 2026.",
                     "neuron://local/apps/ino#draft-1",
                     "pending",
                     "neuron://local/apps/ino#draft-1"),
@@ -248,7 +248,7 @@ internal static class InoViewRenderer
                 card.Id,
                 card.Title,
                 [
-                    new ChoiceOptionNode("Nordlys Enterprise (Primary)", "neuron://local/circles/enterprise"),
+                    new ChoiceOptionNode("Primary Workspace", "neuron://local/circles/enterprise"),
                     new ChoiceOptionNode("Executive Board Circle", "neuron://local/circles/board"),
                 ],
                 PickedIndex: card.Status == "approved" ? 0 : null);
@@ -258,8 +258,8 @@ internal static class InoViewRenderer
             yield return new DraftCardNode(
                 card.Id,
                 "email",
-                "Astrid Lindqvist <astrid@nordlys.no>",
-                "Kari Holm <kari@nordlys.no>",
+                "user@intochat.os",
+                "team@intochat.os",
                 card.Summary,
                 Subject: card.Title,
                 Status: card.Status == "approved" ? "sent" : card.Status);
@@ -279,7 +279,7 @@ internal static class InoViewRenderer
                 "Smart App Manifest",
                 card.Title,
                 [
-                    new RecordFieldNode("Publisher", "Nordlys Digital (Verified)"),
+                    new RecordFieldNode("Publisher", "IntoChat OS (Verified)"),
                     new RecordFieldNode("Capabilities", "Files (read), Postgres (read)"),
                     new RecordFieldNode("Status", card.Status),
                 ],

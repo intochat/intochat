@@ -232,27 +232,7 @@ public sealed class VettedConnect(VettedConnect.Resolver resolve)
         return vetted.Length > 0 ? vetted : throw new HostNotAllowedException(host);
     }
 
-    public static bool IsPublic(IPAddress address)
-    {
-        ArgumentNullException.ThrowIfNull(address);
-        if (address.IsIPv4MappedToIPv6) { address = address.MapToIPv4(); }
-        if (IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) || address.Equals(IPAddress.IPv6Any)) { return false; }
-        var bytes = address.GetAddressBytes();
-        if (address.AddressFamily == AddressFamily.InterNetwork)
-        {
-            return !(bytes[0] is 0 or 10 or 127 || bytes[0] >= 224
-                || (bytes[0] == 169 && bytes[1] == 254)
-                || (bytes[0] == 100 && (bytes[1] & 0xC0) == 64)
-                || (bytes[0] == 198 && (bytes[1] & 0xFE) == 18)
-                || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
-                || (bytes[0] == 192 && bytes[1] == 168));
-        }
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            return !(address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast || (bytes[0] & 0xFE) == 0xFC);
-        }
-        return false;
-    }
+    public static bool IsPublic(IPAddress address) => HttpHosts.IsPublic(address);
 }
 
 // IConnectionHosts over the brain's own http connections: their AllowedHosts; any other connection keeps no allow-list.

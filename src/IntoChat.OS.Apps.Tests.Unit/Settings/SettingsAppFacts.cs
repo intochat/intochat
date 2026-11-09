@@ -377,6 +377,8 @@ public sealed class SettingsAppFacts
             new IntoChat.OS.Apps.FilmCraft.FilmCraftApp().Render(),
             new IntoChat.OS.Apps.Tasks.TasksApp().Render(),
             new IntoChat.OS.Apps.Creator.CreatorApp().Render(),
+            new IntoChat.OS.Apps.Gallery.GalleryApp().Render(),
+            new IntoChat.OS.Apps.Gallery.GalleryApp().RenderSide(),
         ];
 
         Assert.DoesNotContain("Nordlys", IntoChat.OS.Apps.Markdraw.MarkdrawApp.DefaultPipelineScene, StringComparison.OrdinalIgnoreCase);

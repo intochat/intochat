@@ -7,6 +7,7 @@ Operations: open, publish, update-bio, add-friend, remove-friend, fork-post, fil
 Personal social profile, direct Friends graph, and interactive App-Post feed.
 Each Post is an App<TState> template that renders inline in the profile/feed, can embed child apps via NeuronRef slots, and can be forked/remixed into the viewer's brain.
 */
+using DigitalBrain;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 
@@ -245,8 +246,9 @@ public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
             {
                 installs = Get<IInstalls>("default");
             }
-            catch
+            catch (Exception error) when (error is not OperationCanceledException)
             {
+                Swallow(error, "Fallback to synapse.installs when default IInstalls is unavailable.");
                 installs = Get<IInstalls>("synapse.installs");
             }
 

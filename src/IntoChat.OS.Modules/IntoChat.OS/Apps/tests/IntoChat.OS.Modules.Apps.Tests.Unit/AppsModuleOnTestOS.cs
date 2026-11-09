@@ -68,6 +68,44 @@ public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
         Assert.Equal("// unit code", restoredFiles["WebWatch.cs"]);
     }
 
+    [Fact]
+    public async Task BrainSnapshotArchiveRoundTripsSettingsProfileAndUnitsThroughJson()
+    {
+        await using var sourceOs = TestOS.Local();
+        sourceOs.Register<UserSettingsNeuron>();
+        sourceOs.Register<ProfileNeuron>();
+        sourceOs.Register<InMemoryStudio>();
+
+        var srcSettings = sourceOs.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
+        var srcProfile = sourceOs.Get<IProfile>(new NeuronId(new BrainId("local"), "os.profile", "profile"));
+        var srcStudio = sourceOs.Get<ISynapseStudio>(ISynapseStudio.Key("local"));
+
+        await srcSettings.SetProfile("Alan", "light", "claude-3.7");
+        await srcProfile.UpdateProfile("alan", "Alan Turing", "Universal Machine", ["creator"]);
+
+        var exported = await BrainSnapshotArchive.ExportAsync("local", srcSettings, srcProfile, srcStudio);
+        var json = BrainSnapshotArchive.ToJson(exported);
+        var parsed = BrainSnapshotArchive.FromJson(json);
+
+        await using var destOs = TestOS.Local();
+        destOs.Register<UserSettingsNeuron>();
+        destOs.Register<ProfileNeuron>();
+        destOs.Register<InMemoryStudio>();
+
+        var dstSettings = destOs.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
+        var dstProfile = destOs.Get<IProfile>(new NeuronId(new BrainId("local"), "os.profile", "profile"));
+        var dstStudio = destOs.Get<ISynapseStudio>(ISynapseStudio.Key("local"));
+
+        await BrainSnapshotArchive.ImportAsync(parsed, dstSettings, dstProfile, dstStudio);
+
+        var restoredSettings = await dstSettings.Read();
+        Assert.Equal("Alan", restoredSettings.DisplayName);
+        Assert.Equal("claude-3.7", restoredSettings.DefaultModel);
+
+        var restoredProfile = await dstProfile.Read();
+        Assert.Equal("alan", restoredProfile.Handle);
+    }
+
     [Neuron("ino.synapses")]
     private sealed class InMemoryStudio : Neuron, ISynapseStudio
     {

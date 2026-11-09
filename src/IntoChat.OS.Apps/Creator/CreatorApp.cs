@@ -311,15 +311,22 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
             var studio = Get<ISynapseStudio>(SynapsesKey);
             await studio.DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
 
-            var inner = JsonSerializer.Serialize(new BuildInner
+            try
             {
-                Goal = $"seed shipped unit {alias}",
-                Alias = alias,
-                Existing = files
-            }, JsonSerializerOptions.Web);
-            await Get<IFlows>(FlowsKey).Start(BuildFlow.Alias, ShippedUnits.Title(alias), null, inner);
+                var inner = JsonSerializer.Serialize(new BuildInner
+                {
+                    Goal = $"seed shipped unit {alias}",
+                    Alias = alias,
+                    Existing = files.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal)
+                }, JsonSerializerOptions.Web);
+                await Get<IFlows>(FlowsKey).Start(BuildFlow.Alias, ShippedUnits.Title(alias), null, inner);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Swallow(ex, "Flows neuron is optional during unit seeding.");
+            }
 
-            Set(State with { Status = $"Staged shipped unit {alias} ({ShippedUnits.Title(alias)})" });
+            Set(State with { Status = $"Deployed shipped unit {alias} ({ShippedUnits.Title(alias)})" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

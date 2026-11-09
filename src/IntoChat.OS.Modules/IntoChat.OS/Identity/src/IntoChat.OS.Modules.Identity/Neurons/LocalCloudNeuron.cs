@@ -25,6 +25,7 @@ public sealed class CloudModule : Module
 public sealed class LocalCloudState
 {
     public string? RootDirectory { get; set; }
+    public long MaxStorageBytes { get; set; } = LocalCloudNeuron.DefaultMaxStorageBytes;
     public Dictionary<string, LocalCloudEntry> Entries { get; set; } = new(StringComparer.Ordinal);
 }
 
@@ -44,6 +45,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
     public const string TypeName = "local-cloud";
     public const string RootIdValue = "cloud";
     public const string RootDisplayName = "Local Cloud";
+    public const long DefaultMaxStorageBytes = 1024L * 1024 * 1024; // 1 GiB per brain
 
     private const ItemFlags Offered = ItemFlags.Read | ItemFlags.Search | ItemFlags.Write | ItemFlags.CreateFolder
         | ItemFlags.Copy | ItemFlags.Move | ItemFlags.Rename | ItemFlags.Delete;
@@ -85,6 +87,12 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
     public LocalCloudNeuron(string? rootDirectory)
     {
         ConfigureRootDirectory(rootDirectory);
+    }
+
+    public long MaxStorageBytes
+    {
+        get => ActiveState.MaxStorageBytes;
+        set => ActiveState.MaxStorageBytes = value;
     }
 
     private LocalCloudState ActiveState
@@ -151,7 +159,10 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
     public Task<StorageDescriptor> Describe(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        return Task.FromResult(new StorageDescriptor(RootDisplayName, TypeName, Quota.Unknown, Offered));
+        var used = ActiveState.Entries.Values.Sum(e => e.Content.LongLength);
+        var limit = ActiveState.MaxStorageBytes;
+        var quota = limit > 0 ? Quota.Known(Math.Min(used, limit), limit) : Quota.Unknown;
+        return Task.FromResult(new StorageDescriptor(RootDisplayName, TypeName, quota, Offered));
     }
 
     public Task<IReadOnlyList<Item>> Roots(CancellationToken ct = default)
@@ -446,6 +457,18 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
 
     internal async Task StoreEntryAsync(LocalCloudEntry entry, CancellationToken ct)
     {
+        var limit = ActiveState.MaxStorageBytes;
+        if (limit > 0)
+        {
+            var currentBytes = ActiveState.Entries.Values
+                .Where(e => !string.Equals(e.Path, entry.Path, StringComparison.Ordinal))
+                .Sum(e => e.Content.LongLength);
+            if (currentBytes + entry.Content.LongLength > limit)
+            {
+                throw new QuotaExceeded(new ItemId(entry.Path));
+            }
+        }
+
         ActiveState.Entries[entry.Path] = entry;
         if (ActiveState.RootDirectory is { Length: > 0 } rootDir && Directory.Exists(rootDir))
         {
