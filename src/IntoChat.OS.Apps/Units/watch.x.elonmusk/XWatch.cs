@@ -10,9 +10,9 @@ namespace Units.XWatch;
 public sealed record Polled(int Fresh) : Signal;
 
 [State("watch.x.elonmusk")]
-public sealed record Watch(int Unseen = 0, string Latest = "")
+public sealed record Watch(int Unseen = 0, string Latest = "", string LastId = "")
 {
-    public Watch() : this(0, "") { }
+    public Watch() : this(0, "", "") { }
 }
 
 public static class XWatchUnit
@@ -22,11 +22,29 @@ public static class XWatchUnit
     {
         var feed = await x.GetJson("https://api.x.com/2/users/elonmusk/mentions", ct);
         var posts = feed.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Array ? d : default;
-        var fresh = posts.ValueKind == JsonValueKind.Array ? posts.GetArrayLength() : 0;
+        var fresh = 0;
+        if (posts.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var post in posts.EnumerateArray())
+            {
+                if (post.TryGetProperty("id", out var pid) && pid.ValueKind == JsonValueKind.String
+                    && pid.GetString() is { Length: > 0 } id && watch.LastId.Length > 0 && id == watch.LastId)
+                {
+                    break;
+                }
+
+                fresh++;
+            }
+        }
+
         var latest = fresh > 0 && posts[0].TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String
             ? t.GetString() ?? watch.Latest
             : watch.Latest;
-        return Reaction<Watch>.Of(watch with { Unseen = watch.Unseen + fresh, Latest = latest }, new Polled(fresh));
+        var lastId = fresh > 0 && posts[0].TryGetProperty("id", out var firstId) && firstId.ValueKind == JsonValueKind.String
+            && firstId.GetString() is { Length: > 0 } fid
+            ? fid
+            : watch.LastId;
+        return Reaction<Watch>.Of(watch with { Unseen = watch.Unseen + fresh, Latest = latest, LastId = lastId }, new Polled(fresh));
     }
 
     [Synapse("x.seen", "watch.x.elonmusk")]

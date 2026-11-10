@@ -11,121 +11,24 @@ public sealed class MuskXWatchFacts
 {
     private const string Alias = "watch.x.elonmusk";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+    private static readonly DateTimeOffset Start = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-    public const string MuskXWatchSource = """
-        using System.Text.Json;
-        using DigitalBrain;
-        using DigitalBrain.Capabilities.Http;
-        using DigitalBrain.Time;
-        using DigitalBrain.UI;
+    private static IReadOnlyDictionary<string, string> GetUnitFiles() => ShippedUnits.Files(Alias);
 
-        namespace Units.XWatch;
+    private static SynapseSource Shipped() => new(Alias, ShippedUnits.Files(Alias).Where(f => f.Key.EndsWith(".cs", StringComparison.Ordinal))
+        .ToDictionary(f => f.Key, f => f.Value, StringComparer.Ordinal), null);
 
-        [Signal("x.polled")]
-        public sealed record Polled(int Fresh) : Signal;
+    // The feed of one poll: the posts with these ids, newest first.
+    private static string Posts(params int[] ids) => JsonSerializer.Serialize(new { data = ids.Select(id => new { id = $"{id}", text = $"Post {id}" }).ToArray() });
 
-        [State("watch.x.elonmusk")]
-        public sealed record Watch(int Unseen = 0, string Latest = "")
-        {
-            public Watch() : this(0, "") { }
-        }
-
-        public static class XWatchUnit
-        {
-            [Synapse(typeof(Tick), "watch.x.elonmusk", Every = "every 6m")]
-            public static async Task<Reaction<Watch>> Poll(Tick tick, Watch watch, [Slot] IHttpRead x, CancellationToken ct)
-            {
-                var feed = await x.GetJson("https://api.x.com/2/users/elonmusk/mentions", ct);
-                var posts = feed.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Array ? d : default;
-                var fresh = posts.ValueKind == JsonValueKind.Array ? posts.GetArrayLength() : 0;
-                var latest = fresh > 0 && posts[0].TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String
-                    ? t.GetString() ?? watch.Latest
-                    : watch.Latest;
-                return Reaction<Watch>.Of(watch with { Unseen = watch.Unseen + fresh, Latest = latest }, new Polled(fresh));
-            }
-
-            [Synapse("x.seen", "watch.x.elonmusk")]
-            public static Watch Seen(SignalEnvelope seen, Watch watch) => watch with { Unseen = 0 };
-
-            [Synapse("watch.x.elonmusk")]
-            public static View Show(Watch watch) => new("Musk X Watch", new Column(
-            [
-                new Heading("Musk X Watch", Subtitle: watch.Latest.Length == 0 ? "No mentions recorded yet." : watch.Latest),
-                new Badge($"{watch.Unseen} unseen", Tone: watch.Unseen > 10 ? "red" : watch.Unseen > 0 ? "accent" : "neutral"),
-                new Text(watch.Latest),
-                new Button("mark-seen", "Mark seen", new Emit("watch.x.elonmusk", "x.seen")),
-            ]) { Gap = 8 });
-        }
-        """;
-
-    public const string MuskXWatchSpec = """
-        # Musk X Watch
-
-        Watches mentions of @elonmusk on X every 6 minutes, counts fresh mentions, updates the latest mention text, and maintains an unseen count until marked seen.
-
-        - Every `6m`, reads mentions through the `x` slot, increments `Unseen` by the fresh count, updates `Latest`, and emits `x.polled`.
-        - Reacts to `x.seen` signal by resetting `Unseen` to 0.
-        - The view renders an unseen badge (`red` tone when > 10, `accent` otherwise), latest mention text, and a "Mark seen" button.
-        """;
-
-    public const string MuskXWatchScenarios = """
-        [
-          {
-            "name": "a poll counts new mentions and updates latest text",
-            "given": {
-              "http": {
-                "x": {
-                  "https://api.x.com/2/users/elonmusk/mentions": {
-                    "data": [
-                      { "id": "1", "text": "Excited for Starship launch!" }
-                    ]
-                  }
-                }
-              }
-            },
-            "when": ["tick 6m"],
-            "then": [
-              "state watch.x.elonmusk Unseen = 1",
-              "state watch.x.elonmusk Latest = \"Excited for Starship launch!\"",
-              "signal x.polled"
-            ]
-          },
-          {
-            "name": "marking seen resets unseen count",
-            "given": {
-              "http": {
-                "x": {
-                  "https://api.x.com/2/users/elonmusk/mentions": {
-                    "data": [
-                      { "id": "1", "text": "Post 1" }
-                    ]
-                  }
-                }
-              }
-            },
-            "when": ["tick 6m", "publish x.seen {}"],
-            "then": [
-              "state watch.x.elonmusk Unseen = 0"
-            ]
-          }
-        ]
-        """;
-
-    private static IReadOnlyDictionary<string, string> GetUnitFiles()
+    // One body per GET, the last one repeats.
+    private static FakeSlots Feed(params string[] bodies)
     {
-        var shipped = ShippedUnits.Files(Alias);
-        if (shipped.Count > 0)
-        {
-            return shipped;
-        }
-
-        return new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["XWatch.cs"] = MuskXWatchSource,
-            ["spec.md"] = MuskXWatchSpec,
-            ["scenarios.json"] = MuskXWatchScenarios
-        };
+        var calls = 0;
+        return new FakeSlots().Http("x", _ => bodies[Math.Min(Interlocked.Increment(ref calls), bodies.Length) - 1]);
     }
+
+    private static ExpectState Holds(string field, string json) => new(Alias, field, JsonElement.Parse(json));
 
     [Fact]
     public async Task MuskXWatchUnitPassesAllBddScenarios()
@@ -139,6 +42,25 @@ public sealed class MuskXWatchFacts
         Assert.False(transcript.Contains('✗', StringComparison.Ordinal), transcript);
         Assert.Contains("✓ a poll counts new mentions", transcript, StringComparison.Ordinal);
         Assert.Contains("✓ marking seen resets unseen count", transcript, StringComparison.Ordinal);
+        Assert.Contains("✓ two polls of the same post count it once", transcript, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ANewPostAfterAPollAddsOne()
+    {
+        var transcript = await UnitScenario.Run(Shipped(), Feed(Posts(1), Posts(2, 1)),
+            [new ScenarioTick(Start.AddMinutes(6)), new ScenarioTick(Start.AddMinutes(12)), Holds("Unseen", "2"), Holds("LastId", "\"2\"")], Ct);
+        Assert.True(transcript.Passed, string.Join('\n', transcript.Failures));
+        Assert.Contains("Post 2", transcript.Views.Last(v => v.Alias == Alias).View.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]   // Review Focus 2: post 1 is gone from the feed at the second poll
+    public async Task WhenTheCountedPostLeftTheFeedThePageIsCountedOnce()
+    {
+        var transcript = await UnitScenario.Run(Shipped(), Feed(Posts(1), Posts(5, 4, 3)),
+            [new ScenarioTick(Start.AddMinutes(6)), new ScenarioTick(Start.AddMinutes(12)), Holds("Unseen", "4"),
+             new ScenarioTick(Start.AddMinutes(18)), Holds("Unseen", "4"), Holds("LastId", "\"5\"")], Ct);
+        Assert.True(transcript.Passed, string.Join('\n', transcript.Failures));
     }
 
     [Fact]

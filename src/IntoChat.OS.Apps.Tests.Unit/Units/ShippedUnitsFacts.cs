@@ -11,7 +11,7 @@ public sealed class ShippedUnitsFacts
 
     public static TheoryData<string, string, string, int> Catalog => new()
     {
-        { "watch.x.elonmusk", "XWatch.cs", "Musk X Watch", 2 },
+        { "watch.x.elonmusk", "XWatch.cs", "Musk X Watch", 3 },
         { "triage.github.issues", "GithubIssueTriager.cs", "GitHub Issue Triager", 2 },
         { "digest.hn.top", "HnDigest.cs", "Hacker News Scheduled Digest", 1 },
         { "organizer.work.notes", "WorkNotesOrganizer.cs", "Workspace Markdown Organizer", 2 },
