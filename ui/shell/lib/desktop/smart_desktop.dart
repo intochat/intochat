@@ -4,130 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_ui/intochat_os_ui.dart';
 
-class SmartAppTileSpec {
-  const SmartAppTileSpec({
-    required this.id,
-    required this.name,
-    required this.icon,
-    required this.color,
-    required this.neuronUri,
-    this.accentHex,
-    this.category = 'App',
-  });
-
-  final String id;
-  final String name;
-  final IconData icon;
-  final Color color;
-  final String neuronUri;
-  final String? accentHex;
-  final String category;
-}
-
-const defaultSmartAppSpecs = <SmartAppTileSpec>[
-  SmartAppTileSpec(
-    id: 'ino',
-    name: 'Ino',
-    icon: LucideIcons.sparkles,
-    color: Color(0xFF3D7EFF),
-    accentHex: '#3D7EFF',
-    category: 'Intelligence',
-    neuronUri: 'neuron://local/apps/ino',
-  ),
-  SmartAppTileSpec(
-    id: 'files',
-    name: 'Files',
-    icon: LucideIcons.folder,
-    color: Color(0xFFF6B73C),
-    accentHex: '#F6B73C',
-    category: 'Workspace',
-    neuronUri: 'neuron://local/apps/files',
-  ),
-  SmartAppTileSpec(
-    id: 'photocraft',
-    name: 'PhotoCraft',
-    icon: LucideIcons.image,
-    color: Color(0xFF06B6D4),
-    accentHex: '#06B6D4',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/photocraft',
-  ),
-  SmartAppTileSpec(
-    id: 'filmcraft',
-    name: 'FilmCraft',
-    icon: LucideIcons.film,
-    color: Color(0xFF8B5CF6),
-    accentHex: '#8B5CF6',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/filmcraft',
-  ),
-  SmartAppTileSpec(
-    id: 'creator',
-    name: 'Creator',
-    icon: LucideIcons.wandSparkles,
-    color: Color(0xFFFF5D8F),
-    accentHex: '#FF5D8F',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/creator',
-  ),
-  SmartAppTileSpec(
-    id: 'gallery',
-    name: 'UI Gallery',
-    icon: LucideIcons.palette,
-    color: Color(0xFF22C55E),
-    accentHex: '#22C55E',
-    category: 'Studio',
-    neuronUri: 'neuron://local/apps/gallery',
-  ),
-  SmartAppTileSpec(
-    id: 'post',
-    name: 'Post',
-    icon: LucideIcons.megaphone,
-    color: Color(0xFFFB7185),
-    accentHex: '#FB7185',
-    category: 'Reach',
-    neuronUri: 'neuron://local/apps/post',
-  ),
-  SmartAppTileSpec(
-    id: 'circles',
-    name: 'Circles',
-    icon: LucideIcons.circleDot,
-    color: Color(0xFFA855F7),
-    accentHex: '#A855F7',
-    category: 'Social',
-    neuronUri: 'neuron://local/apps/circles',
-  ),
-  SmartAppTileSpec(
-    id: 'workspace',
-    name: 'Workspace',
-    icon: LucideIcons.compass,
-    color: Color(0xFF14B8A6),
-    accentHex: '#14B8A6',
-    category: 'Workspace',
-    neuronUri: 'neuron://local/apps/workspace',
-  ),
-  SmartAppTileSpec(
-    id: 'settings',
-    name: 'Settings',
-    icon: LucideIcons.slidersHorizontal,
-    color: Color(0xFF64748B),
-    accentHex: '#64748B',
-    category: 'System',
-    neuronUri: 'neuron://local/apps/settings',
-  ),
-];
+export 'app_catalog_launcher.dart';
+import 'app_catalog_launcher.dart';
 
 /// Interactive Whiteboard Home Desk with 3D `BrainScene3D` orbital neural graph
 /// and draggable, resizable sticky-note Smart Cards with Pinning and Auto-Arrange.
 class SmartDesktop extends StatefulWidget {
-  const SmartDesktop({
+  SmartDesktop({
     super.key,
     this.hasOpenWindows = false,
     this.stylePreset = IcStylePreset.fluentAcrylic,
     this.barLayout = BarLayout.floatingGlass,
     this.tokensToday = 14800,
-    this.apps = defaultSmartAppSpecs,
+    List<SmartAppTileSpec>? apps,
     this.onLaunchApp,
+    this.onOpenAllApps,
     this.onOpenPalette,
     this.onApproveSignal,
     this.onSelectPreset,
@@ -138,7 +29,7 @@ class SmartDesktop extends StatefulWidget {
     this.openCardIds,
     this.onOpenCard,
     this.onCloseCard,
-  });
+  }) : apps = apps ?? defaultSmartAppSpecs;
 
   final bool hasOpenWindows;
   final IcStylePreset stylePreset;
@@ -146,6 +37,7 @@ class SmartDesktop extends StatefulWidget {
   final int tokensToday;
   final List<SmartAppTileSpec> apps;
   final ValueChanged<String>? onLaunchApp;
+  final VoidCallback? onOpenAllApps;
   final VoidCallback? onOpenPalette;
   final VoidCallback? onApproveSignal;
   final ValueChanged<IcStylePreset>? onSelectPreset;
@@ -389,7 +281,7 @@ class SmartDesktopState extends State<SmartDesktop> {
               ),
             ),
 
-            // 2. Whiteboard Desk Toolbar (Widgets + Auto-Arrange + Pin Status)
+            // 2. Whiteboard Desk Toolbar (All Apps + Widgets + Auto-Arrange + Pin Status)
             Positioned(
               top: 12,
               right: 24,
@@ -407,6 +299,17 @@ class SmartDesktopState extends State<SmartDesktop> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (widget.onOpenAllApps != null) ...[
+                          Btn(
+                            key: const ValueKey('whiteboard-all-apps-btn'),
+                            label: 'All Apps (${allSmartAppSpecs.length})',
+                            small: true,
+                            primary: true,
+                            icon: LucideIcons.layoutGrid,
+                            onTap: widget.onOpenAllApps,
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         TagPill(
                           key: const ValueKey('whiteboard-pinned-pill'),
                           label: '${_pinnedCardIds.length} pinned',
@@ -791,6 +694,17 @@ class SmartDesktopState extends State<SmartDesktop> {
               ),
           ],
         ),
+        if (widget.onOpenAllApps != null) ...[
+          const SizedBox(height: 12),
+          Btn(
+            key: const ValueKey('smart-apps-open-all-btn'),
+            label: 'Browse All ${allSmartAppSpecs.length} Apps',
+            small: true,
+            primary: true,
+            icon: LucideIcons.layoutGrid,
+            onTap: widget.onOpenAllApps,
+          ),
+        ],
       ],
     );
   }

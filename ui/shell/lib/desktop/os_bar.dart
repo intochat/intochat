@@ -13,21 +13,23 @@ const double kOsBarHeight = 48.0;
 /// pulse badges, compute token counter (`tnum`), connection status,
 /// notifications, and clock.
 class OsBar extends StatelessWidget {
-  const OsBar({
+  OsBar({
     super.key,
     this.barLayout = BarLayout.floatingGlass,
     this.stylePreset = IcStylePreset.fluentAcrylic,
-    this.apps = defaultSmartAppSpecs,
+    List<SmartAppTileSpec>? apps,
     this.openAppIds = const {'ino'},
     this.workingAppIds = const {},
     this.focusedAppId = 'ino',
     this.paletteOpen = false,
+    this.allAppsOpen = false,
     this.showingDesktop = false,
     this.notifications = 0,
     this.presence,
     this.tokensToday = 14800,
     this.connected = true,
     this.onTogglePalette,
+    this.onToggleAllApps,
     this.onToggleShowDesktop,
     this.onCycleStylePreset,
     this.onLaunchApp,
@@ -38,7 +40,7 @@ class OsBar extends StatelessWidget {
     this.onOpenCompute,
     this.onOpenClock,
     this.profileMenu,
-  });
+  }) : apps = apps ?? defaultSmartAppSpecs;
 
   final BarLayout barLayout;
   final IcStylePreset stylePreset;
@@ -47,6 +49,7 @@ class OsBar extends StatelessWidget {
   final Set<String> workingAppIds;
   final String? focusedAppId;
   final bool paletteOpen;
+  final bool allAppsOpen;
   final bool showingDesktop;
   final int notifications;
 
@@ -55,6 +58,7 @@ class OsBar extends StatelessWidget {
   final int tokensToday;
   final bool connected;
   final VoidCallback? onTogglePalette;
+  final VoidCallback? onToggleAllApps;
   final VoidCallback? onToggleShowDesktop;
   final VoidCallback? onCycleStylePreset;
   final ValueChanged<String>? onLaunchApp;
@@ -84,6 +88,7 @@ class OsBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _BarButton(
+                  key: const ValueKey('os-bar-palette'),
                   tooltip: 'Search or ask  ⌘K',
                   selected: paletteOpen,
                   onTap: onTogglePalette ?? () {},
@@ -93,9 +98,38 @@ class OsBar extends StatelessWidget {
                     color: c.textStrong,
                   ),
                 ),
+                if (onToggleAllApps != null) ...[
+                  const SizedBox(width: 4),
+                  _BarButton(
+                    key: const ValueKey('os-bar-all-apps'),
+                    tooltip: 'All Apps (${allSmartAppSpecs.length})',
+                    selected: allAppsOpen,
+                    onTap: onToggleAllApps!,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          LucideIcons.layoutGrid,
+                          size: 14,
+                          color: allAppsOpen ? c.accent : c.textBody,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'All Apps',
+                          style: IcType.text(
+                            11.5,
+                            weight: FontWeight.w600,
+                            color: allAppsOpen ? c.textStrong : c.textBody,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (onToggleShowDesktop != null) ...[
                   const SizedBox(width: 4),
                   _BarButton(
+                    key: const ValueKey('os-bar-show-desktop'),
                     tooltip: 'Home',
                     selected: showingDesktop,
                     onTap: onToggleShowDesktop!,

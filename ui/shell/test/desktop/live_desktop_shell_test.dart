@@ -264,7 +264,7 @@ void main() {
             colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
             child: child!,
           ),
-          home: const Scaffold(body: SmartDesktop()),
+          home: Scaffold(body: SmartDesktop()),
         ),
       );
       await tester.pump();
@@ -825,6 +825,102 @@ void main() {
       expect(opened.last['input'], 'javascript:alert(1)');
       expect(activations.any((a) => '$a'.contains('evil.example')), isFalse);
       await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'All Apps Launcher lists all 17 ArtCraft apps and opens selected studio app window',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      expect(artCraftSmartAppSpecs.length, 17);
+      expect(allSmartAppSpecs.length, greaterThanOrEqualTo(31));
+
+      final activations = <Map<String, dynamic>>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.dark('fluent-acrylic'),
+          builder: (context, child) => IcTheme(
+            colors: IcColors.forPreset(IcStylePreset.fluentAcrylic, dark: true),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: LiveDesktopShell(
+              knowsApp: (_) => true,
+              brain: 'brain-1',
+              name: 'brain-1/apps/desktop/view',
+              load: (kind, name) async {
+                if (kind == 'viewport') return viewportJson(name);
+                if (name == 'brain-1/apps/desktop/view') {
+                  return buildSampleDesktopTree();
+                }
+                return {
+                  'generation': 1,
+                  'view': {
+                    'title': name,
+                    'root': {'kind': 'text', 'value': 'Viewport: $name'},
+                  },
+                };
+              },
+              watch: (kind, name) => const Stream.empty(),
+              onAction: (_) async => null,
+              onActivate: activations.add,
+              stylePreset: IcStylePreset.fluentAcrylic,
+              barLayout: BarLayout.floatingGlass,
+              paletteOpen: false,
+              onTogglePalette: () {},
+              onSelectPreset: (_) {},
+              onCycleBarLayout: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Click the All Apps button in the OS Bar
+      await tester.tap(find.byKey(const ValueKey('os-bar-all-apps')));
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('all-apps-launcher-overlay')),
+        findsOneWidget,
+      );
+
+      // Filter by ArtCraft Studio category
+      await tester.tap(
+        find.byKey(const ValueKey('all-apps-cat-ArtCraft Studio')),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('all-apps-tile-vectorcraft')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('all-apps-tile-solidcraft')),
+        findsOneWidget,
+      );
+
+      // Launch VectorCraft from the launcher
+      await tester.tap(find.byKey(const ValueKey('all-apps-tile-vectorcraft')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(
+        find.byKey(const ValueKey('all-apps-launcher-overlay')),
+        findsNothing,
+      );
+      expect(
+        activations.any(
+          (a) => a['application'] == 'vectorcraft' && a['operation'] == 'open',
+        ),
+        isTrue,
+      );
     },
   );
 }

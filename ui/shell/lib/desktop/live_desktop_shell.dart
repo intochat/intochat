@@ -149,10 +149,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     'filmcraft',
     'creator',
     'gallery',
-    'post',
+    'friends',
     'workspace',
     'settings',
   };
+  bool _allAppsOpen = false;
   bool _switcherOpen = false;
   int _switcherIndex = 0;
   DesktopSystemSheetKind _systemSheet = DesktopSystemSheetKind.none;
@@ -385,6 +386,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
 
     if (e.logicalKey == LogicalKeyboardKey.escape && e is KeyDownEvent) {
+      if (_allAppsOpen) {
+        setState(() => _allAppsOpen = false);
+        return true;
+      }
       if (_switcherOpen) {
         setState(() => _switcherOpen = false);
         return true;
@@ -549,9 +554,11 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
           .any((node) => node is ButtonNode && node.key.startsWith('dock-'));
 
   static String _titleForAppId(String appId) {
-    for (final s in defaultSmartAppSpecs) {
+    for (final s in allSmartAppSpecs) {
       if (s.id == appId) return s.name;
     }
+    final spec = IcAppIcon.resolveSpec(appId);
+    if (spec.appId == appId && spec.title.isNotEmpty) return spec.title;
     return switch (appId) {
       'ino' => 'Ino',
       'files' => 'Files',
@@ -573,7 +580,16 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     if (pinNode?['argument'] case final String app when app.isNotEmpty) {
       return app;
     }
+    final normalized = IcAppIcon.normalizeAppId(title);
+    if (IcAppIcon.builtInSpecs.containsKey(normalized)) {
+      return normalized;
+    }
     final lower = title.toLowerCase();
+    for (final s in allSmartAppSpecs) {
+      if (lower.contains(s.id) || lower.contains(s.name.toLowerCase())) {
+        return s.id;
+      }
+    }
     if (lower.contains('ino')) return 'ino';
     if (lower.contains('photocraft')) return 'photocraft';
     if (lower.contains('filmcraft') || lower.contains('videocraft')) {
@@ -667,7 +683,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         continue;
       }
 
-      if (appId == 'photocraft' || appId == 'filmcraft') {
+      if (IcAppIcon.isArtCraftApp(appId)) {
         viewportRef = <String, dynamic>{
           'kind': 'view',
           'name': '${widget.brain}/apps/$appId/view',
@@ -1196,6 +1212,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   onLaunchApp: (appId) =>
                       _launchOrFocusApp(appId, windows, dockButtons),
                   onOpenPalette: widget.onTogglePalette,
+                  onOpenAllApps: () => setState(() {
+                    _popover = DesktopPopoverKind.none;
+                    _allAppsOpen = true;
+                  }),
                   onSelectPreset: widget.onSelectPreset,
                   onCycleBarLayout: widget.onCycleBarLayout,
                   onAutoArrange: () => _autoArrangeWindows(desk),
@@ -1452,17 +1472,28 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   openAppIds: openAppIds,
                   focusedAppId: topWindow?.appId,
                   paletteOpen: widget.paletteOpen,
+                  allAppsOpen: _allAppsOpen,
                   showingDesktop: _showDesktopOnly || visibleWindows.isEmpty,
                   notifications: _notificationsCount,
                   presence: _smart ? _presenceState : null,
                   profileMenu: widget.profileMenu,
                   onTogglePalette: () {
-                    setState(() => _popover = DesktopPopoverKind.none);
+                    setState(() {
+                      _popover = DesktopPopoverKind.none;
+                      _allAppsOpen = false;
+                    });
                     widget.onTogglePalette();
+                  },
+                  onToggleAllApps: () {
+                    setState(() {
+                      _popover = DesktopPopoverKind.none;
+                      _allAppsOpen = !_allAppsOpen;
+                    });
                   },
                   onToggleShowDesktop: () {
                     setState(() {
                       _popover = DesktopPopoverKind.none;
+                      _allAppsOpen = false;
                       _showDesktopOnly = !_showDesktopOnly;
                     });
                   },
@@ -1473,7 +1504,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                     widget.onSelectPreset(IcStylePreset.values[nextIdx]);
                   },
                   onLaunchApp: (appId) {
-                    setState(() => _popover = DesktopPopoverKind.none);
+                    setState(() {
+                      _popover = DesktopPopoverKind.none;
+                      _allAppsOpen = false;
+                    });
                     _launchOrFocusApp(appId, windows, dockButtons);
                   },
                   onSecondaryTapApp: (appId, globalPos) => _togglePopover(
@@ -1649,6 +1683,18 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                       () => _systemSheet = DesktopSystemSheetKind.none,
                     ),
                     onOpenSheet: (next) => setState(() => _systemSheet = next),
+                  ),
+                ),
+
+              // 9. All Apps & ArtCraft Studio Catalog Launcher Overlay
+              if (_allAppsOpen)
+                Positioned.fill(
+                  child: AllAppsLauncherOverlay(
+                    onClose: () => setState(() => _allAppsOpen = false),
+                    onLaunchApp: (appId) {
+                      setState(() => _allAppsOpen = false);
+                      _launchOrFocusApp(appId, windows, dockButtons);
+                    },
                   ),
                 ),
             ],
