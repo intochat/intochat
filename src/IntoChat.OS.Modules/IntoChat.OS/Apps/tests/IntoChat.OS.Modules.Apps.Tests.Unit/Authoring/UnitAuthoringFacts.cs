@@ -169,14 +169,19 @@ public sealed class UnitAuthoringFacts
     public void ScenarioGrammarParses()
     {
         var scenario = new Scenario("all of it", JsonElement.Parse("""{"http": {"x": {"*": {"data": []}}}, "tools": {"mail": {"send": {"ok": true}}}}"""),
-            ["tick 6m", "publish x.seen {\"by\": \"me\"}", "tick 1h"],
-            ["state x.watch Unseen = 0", "state x.watch Last.Count = \"two words\"", "signal x.polled"]);
+            ["tick 6m", "then state x.watch Unseen = 0", "publish x.seen {\"by\": \"me\"}", "tick 1h"],
+            ["state x.watch Unseen = 0", "state x.watch Last.Count = \"two words\"", "signal x.polled", "view x.watch contains \"0 unseen\"", "never signal x.error", "failed", "failed Poll"]);
 
         var parsed = ScenarioSteps.Parse(scenario);
 
         Assert.Equal(["x", "mail"], parsed.Fakes.Slots);
         Assert.Collection(parsed.Steps,
             step => Assert.Equal(ScenarioSteps.Start.AddMinutes(6), Assert.IsType<ScenarioTick>(step).At),
+            step =>
+            {
+                var state = Assert.IsType<ExpectState>(step);
+                Assert.Equal(("x.watch", "Unseen", 0), (state.Alias, state.JsonPath, state.Expected.GetInt32()));
+            },
             step =>
             {
                 var publish = Assert.IsType<Publish>(step);
@@ -190,14 +195,34 @@ public sealed class UnitAuthoringFacts
                 Assert.Equal(("x.watch", "Unseen", 0), (state.Alias, state.JsonPath, state.Expected.GetInt32()));
             },
             step => Assert.Equal("two words", Assert.IsType<ExpectState>(step).Expected.GetString()),
-            step => Assert.Equal("x.polled", Assert.IsType<ExpectSignal>(step).Alias));
+            step => Assert.Equal("x.polled", Assert.IsType<ExpectSignal>(step).Alias),
+            step => Assert.Equal(new ExpectView("x.watch", "0 unseen"), step),
+            step => Assert.Equal(new ExpectNoSignal("x.error"), step),
+            step => Assert.Equal(new ExpectFailure(null), step),
+            step => Assert.Equal(new ExpectFailure("Poll"), step));
 
         Assert.Equal("{}", Assert.IsType<Publish>(ScenarioSteps.Parse(new Scenario("n", default, ["publish x.seen"], [])).Steps[0]).Payload.GetRawText());
-        foreach (var (when, then) in new[] { ("tick soon", ""), ("tick -1m", ""), ("poke x", ""), ("", "state x.watch = 1"), ("", "signal"), ("", "state x.watch Unseen = nope") })
+        foreach (var (when, then) in new[]
+        {
+            ("tick soon", ""), ("tick -1m", ""), ("poke x", ""), ("then", ""), ("then poke", ""),
+            ("", "state x.watch = 1"), ("", "signal"), ("", "state x.watch Unseen = nope"),
+            ("", "view x.watch has \"x\""), ("", "view x.watch contains unquoted"),
+            ("", "never x.polled"), ("", "never signal"), ("", "failed two words"),
+        })
         {
             Assert.Throws<FormatException>(() => ScenarioSteps.Parse(new Scenario("bad", default, when.Length > 0 ? [when] : [], then.Length > 0 ? [then] : [])));
         }
-        Assert.Throws<FormatException>(() => ScenarioSteps.Parse(new Scenario("bad", JsonElement.Parse("""{"smtp": {"x": {}}}"""), [], [])));
+        foreach (var given in new[]
+        {
+            """{"smtp": {"x": {}}}""",
+            """{"http": {"x": {"*": {"$each": []}}}}""",
+            """{"http": {"x": {"*": {"$fail": 200}}}}""",
+            """{"http": {"x": {"*": {"$fail": "slow"}}}}""",
+        })
+        {
+            Assert.Throws<FormatException>(() => ScenarioSteps.Parse(new Scenario("bad", JsonElement.Parse(given), [], [])));
+        }
+        Assert.Equal(["x"], ScenarioSteps.Parse(new Scenario("t", JsonElement.Parse("""{"http": {"x": {"*": {"$each": [{"$fail": "timeout"}, {"$fail": 599}, {"data": []}]}}}}"""), [], [])).Fakes.Slots);
     }
 
     [Fact]
@@ -356,4 +381,43 @@ public sealed class UnitAuthoringFacts
     }
 
     [Fact] public void TheAuthorIsToldEarlierScenariosStay() => Assert.Contains("\"supersedes\"", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
+
+    private static readonly Scenario GrowingAndFailing = new("a failed poll changes nothing; the next one counts",
+        JsonElement.Parse("""{"http": {"x": {"mentions": {"$each": [{"data": [{"id": "1", "text": "a"}]}, {"$fail": 503}, {"data": [{"id": "2", "text": "b"}, {"id": "1", "text": "a"}]}]}}}}"""),
+        ["tick 6m", "then state x.watch Unseen = 1", "tick 6m", "then failed Poll", "then state x.watch Unseen = 1", "tick 6m"],
+        ["state x.watch Unseen = 2", "view x.watch contains \"2 unseen\"", "never signal x.error", "signal x.polled"]);
+
+    [Fact]
+    public async Task EachFailViewNeverAndInlineThenRunAgainstTheExample()
+    {
+        var check = await BuilderTools.Check(HostCompiler, "x.watch", new Dictionary<string, string> { ["XWatch.cs"] = AgentPrompts.XWatchExample }, XNeeds, [GrowingAndFailing], Ct);
+        Assert.True(check.Passed, string.Join("; ", check.Failures));
+    }
+
+    // A reaction that throws whatever the slot form: pressing "seen" with nothing to mark.
+    private static readonly string ThrowingSeen = AgentPrompts.XWatchExample.Replace("watch with { Unseen = 0 }",
+        "watch.Unseen == 0 ? throw new InvalidOperationException(\"nothing to mark\") : watch with { Unseen = 0 }", StringComparison.Ordinal);
+
+    [Fact]
+    public async Task AFailedReactionFailsTheScenarioUnlessALineExpectsIt()
+    {
+        Assert.NotEqual(AgentPrompts.XWatchExample, ThrowingSeen);
+        var files = new Dictionary<string, string> { ["XWatch.cs"] = ThrowingSeen };
+        // The given binds the "x" slot although no tick polls: a scenario that leaves a declared slot unbound is refused at install
+        // ("slot 'x' has no binding") before its first step runs.
+        var silent = new Scenario("seen with nothing to mark", JsonElement.Parse("""{"http": {"x": {"*": {"data": []}}}}"""), ["publish x.seen"], []);
+        var expected = silent with { Then = ["failed Seen"] };
+        Assert.Contains((await BuilderTools.Check(HostCompiler, "x.watch", files, XNeeds, [silent], Ct)).Failures, f => f.Contains("InvalidOperationException", StringComparison.Ordinal));
+        var check = await BuilderTools.Check(HostCompiler, "x.watch", files, XNeeds, [expected], Ct);
+        Assert.True(check.Passed, string.Join("; ", check.Failures));
+    }
+
+    [Fact]
+    public async Task ARedViewLineReachesTheBuilderAsAnError()
+    {
+        var red = new Scenario("the badge says three", JsonElement.Parse("""{"http": {"x": {"*": {"data": [{"id": "1", "text": "hi"}]}}}}"""),
+            ["tick 6m"], ["view x.watch contains \"3 unseen\""]);
+        var check = await BuilderTools.Check(HostCompiler, "x.watch", new Dictionary<string, string> { ["XWatch.cs"] = AgentPrompts.XWatchExample }, XNeeds, [red], Ct);
+        Assert.Contains(check.Failures, f => f.Contains("ExpectView", StringComparison.Ordinal));
+    }
 }
