@@ -51,6 +51,37 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
         return new TracePage([.. kept]);
     }
 
+    public async Task<TracePage> Failures(string alias, int limit)
+    {
+        var take = Math.Clamp(limit, 1, IDebuggerReads.MaxSignals);
+        var failed = (await Own(alias)).Where(entry => entry.Signal == "synapse.failed").TakeLast(take).ToArray();
+        return new TracePage(failed);
+    }
+
+    public async Task<TraceEntry?> Failing(string alias)
+        => (await Own(alias)) is [.., { Signal: "synapse.failed" } newest] ? newest : null;
+
+    private async Task<List<TraceEntry>> Own(string alias)
+    {
+        if (!IsLoaded(Require(alias))) { return []; }
+        var publisher = StateNeuron(alias);
+        var history = Context.History;
+        var head = await Head(history);
+        var since = Math.Max(0, head - IDebuggerReads.Window);
+        List<TraceEntry> entries = [];
+        while (since < head)
+        {
+            var page = await history.Read(since, SignalPage.MaxLimit, CancellationToken.None);
+            if (page.Signals.Count == 0) { break; }
+            foreach (var signal in page.Signals)
+            {
+                if (signal.Publisher == publisher) { entries.Add(TraceReaderNeuron.Entry(signal)); }
+            }
+            since = page.Signals[^1].Sequence;
+        }
+        return entries;
+    }
+
     public Task<bool> Loaded(string alias) => Task.FromResult(IsLoaded(Require(alias)));
 
     public Task<long> Head() => Head(Context.History);

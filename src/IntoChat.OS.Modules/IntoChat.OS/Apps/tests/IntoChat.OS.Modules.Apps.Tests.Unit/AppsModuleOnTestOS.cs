@@ -127,5 +127,7 @@ public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
             => Task.FromResult(_sidecars.GetValueOrDefault(alias) ?? new Dictionary<string, string>(StringComparer.Ordinal));
         public Task<Dictionary<string, string>> SourceFiles(string alias)
             => Task.FromResult(_sources.GetValueOrDefault(alias) ?? new Dictionary<string, string>(StringComparer.Ordinal));
+        public Task<InoToolResult> Failures(string alias)
+            => Task.FromResult(new InoToolResult($"{alias} has no recorded failures.", Ok: true));
     }
 }

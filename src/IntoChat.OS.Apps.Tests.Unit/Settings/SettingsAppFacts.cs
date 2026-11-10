@@ -52,6 +52,9 @@ public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neuron, ISynaps
         => Task.FromResult(Store.TryGetValue(alias, out var files)
             ? files.Where(kv => kv.Key.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal)
             : new Dictionary<string, string>(StringComparer.Ordinal));
+
+    public Task<InoToolResult> Failures(string alias)
+        => Task.FromResult(new InoToolResult($"{alias} has no recorded failures.", Ok: true));
 }
 
 public sealed class SettingsAppFacts

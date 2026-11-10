@@ -51,6 +51,10 @@ public interface ISynapseStudio
     // The files of the source the host stores for alias (its compiled .cs files); empty when nothing is stored there.
     [DigitalBrain.ReadOnlyCall]
     Task<Dictionary<string, string>> SourceFiles(string alias);
+
+    // What failed in the unit lately, for a person: "<alias> has no recorded failures." or up to five lines "<time> <Method> on <cause>: <Error>: <Message>", newest last.
+    [DigitalBrain.ReadOnlyCall]
+    Task<InoToolResult> Failures(string alias);
 }
 
 // One DeployFiles outcome: Ok with the host's status and build hash, else Text is why. Installs is the host's install outcome per

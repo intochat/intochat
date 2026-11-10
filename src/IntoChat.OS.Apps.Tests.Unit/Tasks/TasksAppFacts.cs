@@ -433,6 +433,7 @@ public sealed class TasksAppFacts
 
         public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(SidecarFiles);
         public Task<Dictionary<string, string>> SourceFiles(string alias) => Task.FromResult(Files);
+        public Task<InoToolResult> Failures(string alias) => Task.FromResult(new InoToolResult($"{alias} has no recorded failures.", Ok: true));
         public Task<InoToolResult> Retire(string alias) => Task.FromResult(new InoToolResult(""));
         public Task<DeployedSource[]> List() => Task.FromResult(Sources);
     }

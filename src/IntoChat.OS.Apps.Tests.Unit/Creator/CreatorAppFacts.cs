@@ -455,6 +455,8 @@ public sealed class CreatorAppFacts
         public Task<string?> State(string alias) => Task.FromResult(States.GetValueOrDefault(alias));
         public Task<string?> View(string alias) => Task.FromResult(Views.GetValueOrDefault(alias));
         public Task<TracePage> Signals(string alias, string? publisher, int limit) { Asked = (alias, publisher); return Task.FromResult(new TracePage(Recent)); }
+        public Task<TracePage> Failures(string alias, int limit) => Task.FromResult(new TracePage([]));
+        public Task<TraceEntry?> Failing(string alias) => Task.FromResult<TraceEntry?>(null);
         public Task<BrainTopology> Topology() => Task.FromResult(new BrainTopology([new(Unit, "ctr", BrainGraph.Unit)], [new("*", Unit, "ctr.bump", "reaction"), new("*", Unit, "ctr.bump", "gate")]));
         public Task<bool> Loaded(string alias) => Task.FromResult(alias == "ctr");
         public Task<long> Head() => Task.FromResult(9L);
@@ -498,6 +500,7 @@ internal sealed class FakeSynapses : Neuron, ISynapseStudio
         }
     public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(SidecarFiles);
     public Task<Dictionary<string, string>> SourceFiles(string alias) => Task.FromResult(Files);
+    public Task<InoToolResult> Failures(string alias) => Task.FromResult(new InoToolResult($"{alias} has no recorded failures.", Ok: true));
     public Task<InoToolResult> Retire(string alias) => Task.FromResult(new InoToolResult(""));
     public Task<DeployedSource[]> List() => Task.FromResult<DeployedSource[]>([]);
 }

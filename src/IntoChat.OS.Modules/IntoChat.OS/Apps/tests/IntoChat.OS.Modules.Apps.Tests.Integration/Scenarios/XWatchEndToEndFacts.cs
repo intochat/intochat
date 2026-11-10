@@ -243,4 +243,60 @@ public sealed class XWatchEndToEndFacts
         Assert.StartsWith("11", after.GetProperty("label").GetString(), StringComparison.Ordinal);
         Assert.Equal("red", after.GetProperty("tone").GetString());
     }
+
+    private const string Flaky = """
+        namespace Units.Flaky;
+
+        [State("flaky.unit")]
+        public sealed record Runs(int Count = 0)
+        {
+            public Runs() : this(0) { }
+        }
+
+        public static class FlakyUnit
+        {
+            [Synapse(typeof(Tick), "flaky.unit", Every = "every 6m")]
+            public static Runs Run(Tick tick, Runs runs)
+                => tick.At.UtcTicks / TimeSpan.TicksPerMinute / 6 % 2 == 0
+                    ? runs with { Count = runs.Count + 1 }
+                    : throw new InvalidOperationException("odd tick; Bearer abcdefgh12345678");
+        }
+        """;
+
+    [Fact]
+    public async Task AFailedReactionIsReadableUntilTheNextGoodOne()
+    {
+        await using var fixture = new Fixture(new XConnection(new FakeX()));
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.TestOS, Ct);
+        var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
+        var reads = runtime.Get<IDebuggerReads>(IDebuggerReads.Key(runtime.Brain.Value));
+        var deployed = await studio.DeployFiles("flaky.unit", new Dictionary<string, string> { ["Flaky.cs"] = Flaky }, new Dictionary<string, string>());
+        Assert.True(deployed.Ok, deployed.Text);
+        await runtime.ApproveAsPerson(deployed.Installs["flaky.unit"].Reason!, Ct);
+        await runtime.Idle();
+        Assert.Equal("flaky.unit has no recorded failures.", (await studio.Failures("flaky.unit")).Text);
+
+        var failing = new List<TraceEntry?>();
+        for (var i = 0; i < 4; i++)
+        {
+            await runtime.Elapse(TimeSpan.FromMinutes(6), Ct);
+            await runtime.Idle();
+            failing.Add(await reads.Failing("flaky.unit"));
+        }
+
+        Assert.Equal(2, failing.Count(entry => entry is not null));
+        Assert.NotEqual(failing[0] is null, failing[1] is null); // a failure shows, and the next good run clears it
+        Assert.NotEqual(failing[2] is null, failing[3] is null);
+        var page = await reads.Failures("flaky.unit", 10);
+        Assert.Equal(2, page.Entries.Length);
+        Assert.All(page.Entries, entry => Assert.Equal("synapse.failed", entry.Signal));
+        Assert.Contains("\"function\":\"Units.Flaky.FlakyUnit.Run\"", page.Entries[0].Payload, StringComparison.Ordinal); // the journal holds the full name
+        Assert.DoesNotContain("abcdefgh12345678", page.Entries[0].Payload, StringComparison.Ordinal); // redacted by TraceReaderNeuron.Entry
+        var told = (await studio.Failures("flaky.unit")).Text;
+        Assert.Contains(" Run on time.tick: InvalidOperationException: odd tick", told, StringComparison.Ordinal); // a person reads the method name
+        Assert.DoesNotContain("FlakyUnit", told, StringComparison.Ordinal);
+        Assert.DoesNotContain("abcdefgh12345678", told, StringComparison.Ordinal);
+        Assert.Equal(2, told.Split('\n').Length);
+        Assert.Empty((await reads.Failures("watch.x.elonmusk", 10)).Entries); // an alias nothing is loaded for
+    }
 }

@@ -1,5 +1,9 @@
+using System.Globalization;
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Runtime.Synapses;
+using IntoChat.OS.Modules.Apps.Debugger;
+using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -167,6 +171,39 @@ public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStu
     public async Task<Dictionary<string, string>> SourceFiles(string alias)
         => Context.Services.GetService<ISourceStore>() is { } store && await store.Get(Id.Brain, alias, CancellationToken.None) is { } record
             ? new Dictionary<string, string>(record.Files, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal);
+
+    public async Task<InoToolResult> Failures(string alias)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(alias);
+        var entries = (await Context.Get<IDebuggerReads>(IDebuggerReads.Key(Id.Brain.Value)).Failures(alias, 5)).Entries;
+        return new InoToolResult(entries.Length == 0
+            ? $"{alias} has no recorded failures."
+            : string.Join("\n", entries.Select(DescribeFailure)));
+    }
+
+    private static string DescribeFailure(TraceEntry entry)
+    {
+        var time = entry.At.ToString("u", CultureInfo.InvariantCulture);
+        try
+        {
+            using var doc = JsonDocument.Parse(entry.Payload);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                var function = String(doc.RootElement, "function");
+                var dot = function.LastIndexOf('.');
+                var method = dot >= 0 ? function[(dot + 1)..] : function;
+                return $"{time} {method} on {String(doc.RootElement, "cause")}: {String(doc.RootElement, "error")}: {String(doc.RootElement, "message")}";
+            }
+            return $"{time} {entry.Payload}";
+        }
+        catch (JsonException)
+        {
+            return $"{time} {entry.Payload}";
+        }
+    }
+
+    private static string String(JsonElement obj, string name)
+        => obj.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
 
     private bool SameSidecars(string alias, Dictionary<string, string> sidecars)
         => State.Sidecars?.TryGetValue(alias, out var known) == true && known.Count == sidecars.Count

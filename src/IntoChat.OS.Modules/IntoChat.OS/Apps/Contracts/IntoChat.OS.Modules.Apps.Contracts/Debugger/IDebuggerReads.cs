@@ -49,6 +49,14 @@ namespace IntoChat.OS.Modules.Apps.Debugger
         [DigitalBrain.ReadOnlyCall]
         Task<TracePage> Signals(string alias, string? publisher, int limit);
 
+        // The last limit (1..MaxSignals) synapse.failed entries the unit's own state neuron journaled among the last Window entries, oldest first.
+        [DigitalBrain.ReadOnlyCall]
+        Task<TracePage> Failures(string alias, int limit);
+
+        // The unit's newest journaled entry among the last Window entries when that entry is synapse.failed; null when its newest entry is anything else or it has none.
+        [DigitalBrain.ReadOnlyCall]
+        Task<TraceEntry?> Failing(string alias);
+
         // The installed units (their reactions and gates as edges) and the compiled apps of the brain.
         [DigitalBrain.ReadOnlyCall]
         Task<BrainTopology> Topology();
